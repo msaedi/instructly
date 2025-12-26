@@ -133,9 +133,14 @@ files = [
   "app/services/stripe_service.py",
 ]
 exclude = [
+  "alembic",
+  "flower_celery_standalone.py",
   "tests",
   "migrations",
-  "scripts"
+  "scripts",
+  "typings",
+  "test_prometheus_metrics.py",
+  "venv"
 ]
 
 # NOTE: mypy merges [[tool.mypy.overrides]] in order; "last wins".

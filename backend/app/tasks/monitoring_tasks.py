@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import logging
 import os
-from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, TypeVar, cast
 
 from celery.app.task import Task
 import httpx
@@ -23,6 +23,10 @@ from app.services.email_config import EmailConfigService
 from app.tasks.celery_app import celery_app
 
 TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
+if TYPE_CHECKING:
+    MonitoringTaskBase = Task[Any, Any]
+else:
+    MonitoringTaskBase = Task
 
 
 def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], TaskCallable]:
@@ -34,7 +38,7 @@ def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], 
 logger = logging.getLogger(__name__)
 
 
-class MonitoringTask(Task):  # type: ignore[type-arg]
+class MonitoringTask(MonitoringTaskBase):
     """Base task with database session management."""
 
     _db: Optional[Session]

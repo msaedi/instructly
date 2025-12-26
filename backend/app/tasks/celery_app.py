@@ -7,7 +7,7 @@ configures task serialization, timezone, and autodiscovery.
 """
 
 import os
-from typing import TYPE_CHECKING, Any, Dict, Optional, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, ParamSpec, Protocol, TypeVar, cast
 
 from celery import Celery, Task
 from celery.schedules import crontab
@@ -17,6 +17,10 @@ from app.core.config import settings
 
 if TYPE_CHECKING:
     from app.services.retention_service import RetentionResult
+
+    BaseTaskType = Task[Any, Any]
+else:
+    BaseTaskType = Task
 
 # Import production config if available
 if settings.environment == "production":
@@ -170,6 +174,7 @@ def create_celery_app() -> Celery:
 
 
 # Disable Celery's default logging configuration
+# Celery's signal decorator is untyped.
 @setup_logging.connect
 def config_loggers(*args: Any, **kwargs: Any) -> None:
     """Configure logging to integrate with the application's logging setup."""
@@ -193,8 +198,12 @@ celery_app = create_celery_app()
 # and also via the force imports list in celery_app.conf.imports
 
 
+P = ParamSpec("P")
+R = TypeVar("R", covariant=True)
+
+
 # Define base task class with error handling
-class BaseTask(Task):  # type: ignore[type-arg]
+class BaseTask(BaseTaskType):
     """Base task with automatic error handling and logging."""
 
     autoretry_for = (Exception,)
@@ -256,8 +265,27 @@ class BaseTask(Task):  # type: ignore[type-arg]
 celery_app.conf.task_cls = BaseTask
 
 
+class TaskWrapper(Protocol[P, R]):
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        ...
+
+    delay: Callable[..., Any]
+    apply_async: Callable[..., Any]
+
+
+def typed_task(
+    *task_args: Any, **task_kwargs: Any
+) -> Callable[[Callable[P, R]], TaskWrapper[P, R]]:
+    """Return a typed Celery task decorator for mypy."""
+
+    return cast(
+        Callable[[Callable[P, R]], TaskWrapper[P, R]],
+        celery_app.task(*task_args, **task_kwargs),
+    )
+
+
 # Health check task
-@celery_app.task(name="app.tasks.health_check")
+@typed_task(name="app.tasks.health_check")
 def health_check() -> Dict[str, str]:
     """
     Simple health check task to verify Celery is working.
@@ -278,7 +306,7 @@ def health_check() -> Dict[str, str]:
     }
 
 
-@celery_app.task(name="app.tasks.availability_retention.run")
+@typed_task(name="app.tasks.availability_retention.run")
 def run_availability_retention() -> "RetentionResult":
     """
     Purge stale availability_days rows when retention is enabled.

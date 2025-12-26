@@ -16,12 +16,12 @@ from app.models.booking import Booking
 from app.models.user import User
 from app.services.beta_service import BetaService
 from app.services.email import EmailService
-from app.tasks import BaseTask, celery_app
+from app.tasks.celery_app import BaseTask, typed_task
 
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(
+@typed_task(
     base=BaseTask,
     name="app.tasks.email.send_booking_confirmation",
     bind=True,
@@ -71,7 +71,7 @@ def send_booking_confirmation(self: BaseTask, booking_id: int) -> Dict[str, Any]
         db.close()
 
 
-@celery_app.task(
+@typed_task(
     base=BaseTask,
     name="app.tasks.email.send_booking_reminder",
     bind=True,
@@ -125,7 +125,7 @@ def send_booking_reminder(
         db.close()
 
 
-@celery_app.task(
+@typed_task(
     base=BaseTask,
     name="app.tasks.email.send_cancellation_notification",
     bind=True,
@@ -179,7 +179,7 @@ def send_cancellation_notification(
         db.close()
 
 
-@celery_app.task(
+@typed_task(
     base=BaseTask,
     name="app.tasks.email.send_password_reset",
     bind=True,
@@ -222,7 +222,7 @@ def send_password_reset_email(self: BaseTask, email: str, reset_token: str) -> D
         db.close()
 
 
-@celery_app.task(
+@typed_task(
     base=BaseTask,
     name="app.tasks.email.send_beta_invites_batch",
     bind=True,

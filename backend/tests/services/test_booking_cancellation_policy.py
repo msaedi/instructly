@@ -3,6 +3,7 @@ Tests for BookingService cancellation policy branches (>24h, 12–24h, <12h).
 """
 
 from datetime import date, datetime, time, timedelta, timezone
+from types import SimpleNamespace
 from typing import Optional
 from unittest.mock import patch
 
@@ -457,6 +458,53 @@ def test_12_24h_cancel_net_credit_when_credits_used(db: Session):
     credit_amounts = [call.kwargs.get("amount_cents") for call in mock_credit.call_args_list]
     assert 7000 in credit_amounts, "Net credit should exclude previously applied credits"
     mock_refund_hooks.assert_not_called()
+
+
+def test_12_24h_cancel_skips_duplicate_credit(db: Session):
+    """Cancellation should not issue credit twice if one already exists."""
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    when = datetime.now() + timedelta(hours=18)
+    when = when.replace(minute=0, second=0, microsecond=0)
+    if (when + timedelta(hours=1)).date() != when.date():
+        when = (when + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
+
+    bk = _create_booking_with_fee(
+        db, student, instructor, svc, when,
+        hourly_rate=100.00,
+        duration_minutes=60,
+        student_fee_pct=0.12,
+    )
+    bk.payment_status = "authorized"
+
+    existing_credit = SimpleNamespace(
+        reason="Cancellation 12-24 hours before lesson (lesson price credit)"
+    )
+    service = BookingService(db)
+
+    with patch(
+        "app.services.booking_service.TimezoneService.hours_until",
+        return_value=18.0,
+    ), patch(
+        "app.repositories.payment_repository.PaymentRepository.get_credits_issued_for_source",
+        return_value=[existing_credit],
+    ), patch(
+        "app.services.stripe_service.StripeService.capture_payment_intent"
+    ) as mock_capture, patch(
+        "app.services.stripe_service.StripeService.reverse_transfer"
+    ), patch(
+        "app.repositories.payment_repository.PaymentRepository.create_platform_credit"
+    ) as mock_credit:
+        mock_capture.return_value = {
+            "transfer_id": "tr_x",
+            "amount_received": 11200,
+            "transfer_amount": 8800,
+        }
+        result = service.cancel_booking(bk.id, user=student, reason="test")
+
+    assert result.payment_status == "credit_issued"
+    mock_credit.assert_not_called()
 
 
 def test_cancel_exactly_12h_gets_credit(db: Session):

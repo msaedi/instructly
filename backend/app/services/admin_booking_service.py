@@ -804,7 +804,8 @@ class AdminBookingService(BaseService):
         return AdminBookingPerson(id=user.id, name=name, email=user.email, phone=phone)
 
     def _status_value(self, status: Any) -> str:
-        return status.value if hasattr(status, "value") else str(status)
+        value = getattr(status, "value", None)
+        return str(value) if value is not None else str(status)
 
     def _to_float(self, value: Any) -> float:
         if value is None:

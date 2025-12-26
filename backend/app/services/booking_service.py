@@ -70,6 +70,10 @@ AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes
 INSTRUCTOR_CONFLICT_MESSAGE = "Instructor already has a booking that overlaps this time"
 STUDENT_CONFLICT_MESSAGE = "Student already has a booking that overlaps this time"
 GENERIC_CONFLICT_MESSAGE = "This time slot conflicts with an existing booking"
+CANCELLATION_CREDIT_REASONS = {
+    "Cancellation 12-24 hours before lesson (lesson price credit)",
+    "Rescheduled booking cancellation (lesson price credit)",
+}
 
 
 class BookingService(BaseService):
@@ -900,8 +904,11 @@ class BookingService(BaseService):
                 if reschedule_time is not None:
                     if reschedule_time.tzinfo is None:
                         reschedule_time = reschedule_time.replace(tzinfo=timezone.utc)
-                    hours_from_original = (original_dt - reschedule_time).total_seconds() / 3600
-                    is_gaming_reschedule = hours_from_original < 24
+                    hours_from_original_value = (
+                        original_dt - reschedule_time
+                    ).total_seconds() / 3600
+                    hours_from_original = hours_from_original_value
+                    is_gaming_reschedule = hours_from_original_value < 24
 
             if is_gaming_reschedule:
                 # Gaming reschedule: authorize immediately to prevent delayed-auth loophole.
@@ -1195,10 +1202,12 @@ class BookingService(BaseService):
             if original_dt.tzinfo is None:
                 original_dt = original_dt.replace(tzinfo=timezone.utc)
             reschedule_time = booking.created_at
-            if reschedule_time.tzinfo is None:
-                reschedule_time = reschedule_time.replace(tzinfo=timezone.utc)
-            hours_from_original = (original_dt - reschedule_time).total_seconds() / 3600
-            was_gaming_reschedule = hours_from_original < 24
+            if reschedule_time is not None:
+                if reschedule_time.tzinfo is None:
+                    reschedule_time = reschedule_time.replace(tzinfo=timezone.utc)
+                hours_from_original_value = (original_dt - reschedule_time).total_seconds() / 3600
+                hours_from_original = hours_from_original_value
+                was_gaming_reschedule = hours_from_original_value < 24
 
         cancelled_by_role = "student" if user.id == booking.student_id else "instructor"
 
@@ -1400,38 +1409,57 @@ class BookingService(BaseService):
         scenario = ctx["scenario"]
         booking_id = ctx["booking_id"]
 
+        def _cancellation_credit_already_issued() -> bool:
+            try:
+                credits = payment_repo.get_credits_issued_for_source(booking_id)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to check existing credits for booking %s: %s",
+                    booking_id,
+                    exc,
+                )
+                return False
+            return any(
+                getattr(credit, "reason", None) in CANCELLATION_CREDIT_REASONS for credit in credits
+            )
+
         if scenario == "over_24h_gaming":
             if stripe_results["capture_success"]:
-                net_credit_cents = max(
-                    0, ctx["lesson_price_cents"] - ctx.get("used_credit_cents", 0)
-                )
-                try:
-                    payment_repo.create_platform_credit(
-                        user_id=ctx["student_id"],
-                        amount_cents=net_credit_cents,
-                        reason="Rescheduled booking cancellation (lesson price credit)",
-                        source_booking_id=booking_id,
+                if _cancellation_credit_already_issued():
+                    booking.payment_status = "credit_issued"
+                else:
+                    net_credit_cents = max(
+                        0, ctx["lesson_price_cents"] - ctx.get("used_credit_cents", 0)
                     )
-                except Exception as e:
-                    logger.error(f"Failed to create credit for gaming reschedule {booking_id}: {e}")
+                    try:
+                        payment_repo.create_platform_credit(
+                            user_id=ctx["student_id"],
+                            amount_cents=net_credit_cents,
+                            reason="Rescheduled booking cancellation (lesson price credit)",
+                            source_booking_id=booking_id,
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to create credit for gaming reschedule {booking_id}: {e}"
+                        )
 
-                payment_repo.create_payment_event(
-                    booking_id=booking_id,
-                    event_type="credit_created_gaming_reschedule_cancel",
-                    event_data={
-                        "hours_before_new": round(ctx["hours_until"], 2),
-                        "hours_from_original": round(ctx["hours_from_original"], 2)
-                        if ctx["hours_from_original"] is not None
-                        else None,
-                        "lesson_price_cents": ctx["lesson_price_cents"],
-                        "used_credit_cents": ctx.get("used_credit_cents", 0),
-                        "credit_issued_cents": net_credit_cents,
-                        "rescheduled_from": ctx["rescheduled_from_booking_id"],
-                        "original_lesson_datetime": ctx["original_lesson_datetime"].isoformat()
-                        if ctx["original_lesson_datetime"]
-                        else None,
-                    },
-                )
+                    payment_repo.create_payment_event(
+                        booking_id=booking_id,
+                        event_type="credit_created_gaming_reschedule_cancel",
+                        event_data={
+                            "hours_before_new": round(ctx["hours_until"], 2),
+                            "hours_from_original": round(ctx["hours_from_original"], 2)
+                            if ctx["hours_from_original"] is not None
+                            else None,
+                            "lesson_price_cents": ctx["lesson_price_cents"],
+                            "used_credit_cents": ctx.get("used_credit_cents", 0),
+                            "credit_issued_cents": net_credit_cents,
+                            "rescheduled_from": ctx["rescheduled_from_booking_id"],
+                            "original_lesson_datetime": ctx["original_lesson_datetime"].isoformat()
+                            if ctx["original_lesson_datetime"]
+                            else None,
+                        },
+                    )
                 booking.payment_status = "credit_issued"
             else:
                 payment_repo.create_payment_event(
@@ -1470,30 +1498,35 @@ class BookingService(BaseService):
                 )
 
             if stripe_results["capture_success"]:
-                net_credit_cents = max(
-                    0, ctx["lesson_price_cents"] - ctx.get("used_credit_cents", 0)
-                )
-                try:
-                    payment_repo.create_platform_credit(
-                        user_id=ctx["student_id"],
-                        amount_cents=net_credit_cents,
-                        reason="Cancellation 12-24 hours before lesson (lesson price credit)",
-                        source_booking_id=booking_id,
+                if _cancellation_credit_already_issued():
+                    booking.payment_status = "credit_issued"
+                else:
+                    net_credit_cents = max(
+                        0, ctx["lesson_price_cents"] - ctx.get("used_credit_cents", 0)
                     )
-                except Exception as e:
-                    logger.error(f"Failed to create platform credit for booking {booking_id}: {e}")
+                    try:
+                        payment_repo.create_platform_credit(
+                            user_id=ctx["student_id"],
+                            amount_cents=net_credit_cents,
+                            reason="Cancellation 12-24 hours before lesson (lesson price credit)",
+                            source_booking_id=booking_id,
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to create platform credit for booking {booking_id}: {e}"
+                        )
 
-                payment_repo.create_payment_event(
-                    booking_id=booking_id,
-                    event_type="credit_created_late_cancel",
-                    event_data={
-                        "amount": net_credit_cents,
-                        "lesson_price_cents": ctx["lesson_price_cents"],
-                        "used_credit_cents": ctx.get("used_credit_cents", 0),
-                        "total_charged_cents": capture_data.get("amount_received"),
-                    },
-                )
-                booking.payment_status = "credit_issued"
+                    payment_repo.create_payment_event(
+                        booking_id=booking_id,
+                        event_type="credit_created_late_cancel",
+                        event_data={
+                            "amount": net_credit_cents,
+                            "lesson_price_cents": ctx["lesson_price_cents"],
+                            "used_credit_cents": ctx.get("used_credit_cents", 0),
+                            "total_charged_cents": capture_data.get("amount_received"),
+                        },
+                    )
+                    booking.payment_status = "credit_issued"
             else:
                 payment_repo.create_payment_event(
                     booking_id=booking_id,

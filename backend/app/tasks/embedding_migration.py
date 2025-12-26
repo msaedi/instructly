@@ -15,7 +15,7 @@ from app.database import SessionLocal
 from app.repositories.service_catalog_repository import ServiceCatalogRepository
 from app.services.cache_service import CacheService
 from app.services.search.embedding_service import EmbeddingService
-from app.tasks.celery_app import celery_app
+from app.tasks.celery_app import typed_task
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -27,7 +27,7 @@ BATCH_SIZE = 50
 MAX_SERVICES_PER_RUN = 200
 
 
-@celery_app.task(
+@typed_task(
     name="maintain_service_embeddings",
     bind=True,
     max_retries=3,
@@ -132,7 +132,7 @@ def _check_embedding_coverage(db: "Session") -> None:
             logger.info(f"All {total} active services have embeddings")
 
 
-@celery_app.task(
+@typed_task(
     name="bulk_embed_all_services",
     bind=True,
     max_retries=3,

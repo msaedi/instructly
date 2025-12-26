@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional
 from app.database import SessionLocal
 from app.services.cache_service import CacheService, CacheServiceSyncAdapter
 from app.services.retention_service import RetentionService
-from app.tasks.celery_app import celery_app
+from app.tasks.celery_app import typed_task
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ DEFAULT_CHUNK = _env_int("RETENTION_PURGE_CHUNK", 1000)
 DEFAULT_DRY_RUN = _env_bool("RETENTION_PURGE_DRY_RUN", False)
 
 
-@celery_app.task(
+@typed_task(
     name="retention.purge_soft_deleted",
     bind=True,
     max_retries=3,
