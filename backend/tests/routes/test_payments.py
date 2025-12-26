@@ -30,6 +30,11 @@ from app.models.service_catalog import InstructorService, ServiceCatalog, Servic
 from app.models.user import User
 from app.schemas.payment_schemas import CheckoutResponse
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 HTTP_422_STATUS = getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422)
 
 
@@ -503,14 +508,18 @@ class TestPaymentRoutes:
         db.add(instructor_service)
         db.flush()
 
+        booking_date = now.date()
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=other_student.id,  # Different student
             instructor_id=instructor.id,  # Use actual instructor from fixture
             instructor_service_id=instructor_service.id,  # Use actual service
-            booking_date=now.date(),
-            start_time=time(14, 0),  # 2:00 PM
-            end_time=time(15, 0),  # 3:00 PM
+            booking_date=booking_date,
+            start_time=start_time,  # 2:00 PM
+            end_time=end_time,  # 3:00 PM
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name="Test",
             hourly_rate=50.00,
             total_price=50.00,

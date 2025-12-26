@@ -21,6 +21,11 @@ from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 from app.utils.bitset import windows_from_bits
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 def get_test_service(db: Session, instructor: User) -> Service:
     """Return the first active service for the instructor."""
@@ -54,14 +59,18 @@ class TestAvailabilityRepositoryBulkOperations:
         seed_day(db, instructor.id, target_date, windows)
 
         service = get_test_service(db, instructor)
+        booking_date = target_date
+        start_time = time(9, 0)
+        end_time = time(10, 0)
         db.add(
             Booking(
                 instructor_id=instructor.id,
                 student_id=test_student.id,
                 instructor_service_id=service.id,
-                booking_date=target_date,
-                start_time=time(9, 0),
-                end_time=time(10, 0),
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                **booking_timezone_fields(booking_date, start_time, end_time),
                 status=BookingStatus.CONFIRMED,
                 service_name="Test Service",
                 hourly_rate=50.0,

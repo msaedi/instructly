@@ -33,6 +33,11 @@ from app.tasks.payment_tasks import (
     retry_failed_authorizations,
 )
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 def _charge_context_from_config(
     *,
@@ -740,14 +745,18 @@ class TestPaymentTasks:
 
         booking_datetime = datetime.now(timezone.utc) + timedelta(days=1)
         booking_datetime = booking_datetime.replace(hour=15, minute=0, second=0, microsecond=0)
+        booking_date = booking_datetime.date()
+        start_time = booking_datetime.time().replace(tzinfo=None)
+        end_time = (booking_datetime + timedelta(hours=1)).time().replace(tzinfo=None)
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=student.id,
             instructor_id=instructor_user.id,
             instructor_service_id=instructor_service.id,
-            booking_date=booking_datetime.date(),
-            start_time=booking_datetime.time(),
-            end_time=(booking_datetime + timedelta(hours=1)).time(),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name="Retry Service",
             hourly_rate=75.0,
             total_price=75.0,

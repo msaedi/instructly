@@ -34,6 +34,11 @@ try:  # pragma: no cover - fallback for direct backend pytest invocation
 except ModuleNotFoundError:  # pragma: no cover
     from tests.conftest import add_service_areas_for_boroughs
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 @pytest.fixture
 def test_service(db, test_instructor):
@@ -107,13 +112,17 @@ class TestAvailabilityRepositoryQueries:
         booking_offsets = [-1, 0, 1, 7]
 
         for offset in booking_offsets:
+            booking_date = date.today() + timedelta(days=offset)
+            start_time = time(10, 0)
+            end_time = time(11, 0)
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor.id,
                 instructor_service_id=test_service.id,
-                booking_date=date.today() + timedelta(days=offset),
-                start_time=time(10, 0),
-                end_time=time(11, 0),
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                **booking_timezone_fields(booking_date, start_time, end_time),
                 status=BookingStatus.CONFIRMED,
                 service_name="Test Service",
                 hourly_rate=50.0,
@@ -122,13 +131,17 @@ class TestAvailabilityRepositoryQueries:
             )
             db.add(booking)
 
+        booking_date = date.today()
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         cancelled = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=test_service.id,
-            booking_date=date.today(),
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             status=BookingStatus.CANCELLED,
             service_name="Test Service",
             hourly_rate=50.0,
@@ -169,6 +182,7 @@ class TestAvailabilityRepositoryQueries:
                     booking_date=target_date,
                     start_time=start,
                     end_time=end,
+                    **booking_timezone_fields(target_date, start, end),
                     status=BookingStatus.CONFIRMED,
                     service_name="Test Service",
                     hourly_rate=50.0,
@@ -247,6 +261,7 @@ class TestAvailabilityRepositoryQueries:
                     booking_date=future_dates[i],
                     start_time=time(9, 0),
                     end_time=time(10, 0),
+                    **booking_timezone_fields(future_dates[i], time(9, 0), time(10, 0)),
                     status=BookingStatus.CONFIRMED,
                     service_name="Test Service",
                     hourly_rate=50.0,

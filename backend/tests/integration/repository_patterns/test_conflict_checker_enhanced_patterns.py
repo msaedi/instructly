@@ -21,6 +21,11 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 def get_test_service(db: Session, instructor: User) -> Service:
     """Helper function to get the first active service for a test instructor."""
@@ -90,12 +95,16 @@ class TestConflictCheckerEnhancedPatterns:
         # Create bookings across the range
         test_service = get_test_service(db, test_instructor)
         for day_offset in [0, 3, 7, 10, 14, 20]:  # Last one outside range
+            booking_date = start_date + timedelta(days=day_offset)
+            start_time = time(10, 0)
+            end_time = time(11, 0)
             booking = Booking(
                 instructor_id=instructor_id,
                 student_id=test_student.id,
-                booking_date=start_date + timedelta(days=day_offset),
-                start_time=time(10, 0),
-                end_time=time(11, 0),
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                **booking_timezone_fields(booking_date, start_time, end_time),
                 status=BookingStatus.CONFIRMED,
                 instructor_service_id=test_service.id,
                 service_name="Test Service",
@@ -137,12 +146,16 @@ class TestConflictCheckerEnhancedPatterns:
         # Create bookings with same student
         test_service = get_test_service(db, test_instructor)
         for i in range(3):
+            booking_date = check_date
+            start_time = time(9 + i * 2, 0)
+            end_time = time(10 + i * 2, 0)
             booking = Booking(
                 instructor_id=instructor_id,
                 student_id=test_student.id,
-                booking_date=check_date,
-                start_time=time(9 + i * 2, 0),
-                end_time=time(10 + i * 2, 0),
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                **booking_timezone_fields(booking_date, start_time, end_time),
                 status=BookingStatus.CONFIRMED,
                 instructor_service_id=test_service.id,
                 service_name="Test Service",
@@ -193,13 +206,16 @@ class TestConflictCheckerEnhancedPatterns:
         for i in range(20):
             booking_date = today - timedelta(days=i)
             status = BookingStatus.COMPLETED if i > 5 else BookingStatus.CONFIRMED
+            start_time = time(10, 0)
+            end_time = time(11 + (i % 2), 0)
 
             booking = Booking(
                 instructor_id=instructor_id,
                 student_id=test_student.id,
                 booking_date=booking_date,
-                start_time=time(10, 0),
-                end_time=time(11 + (i % 2), 0),  # Vary duration
+                start_time=start_time,
+                end_time=end_time,  # Vary duration
+                **booking_timezone_fields(booking_date, start_time, end_time),
                 status=status,
                 instructor_service_id=test_service.id,
                 service_name="Test Service",
@@ -211,12 +227,16 @@ class TestConflictCheckerEnhancedPatterns:
 
         # Add some cancelled bookings
         for i in range(5):
+            booking_date = today - timedelta(days=i)
+            start_time = time(14, 0)
+            end_time = time(15, 0)
             booking = Booking(
                 instructor_id=instructor_id,
                 student_id=test_student.id,
-                booking_date=today - timedelta(days=i),
-                start_time=time(14, 0),
-                end_time=time(15, 0),
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                **booking_timezone_fields(booking_date, start_time, end_time),
                 status=BookingStatus.CANCELLED,
                 instructor_service_id=test_service.id,
                 service_name="Test Service",
@@ -283,6 +303,7 @@ class TestConflictCheckerEnhancedPatterns:
                     booking_date=booking_date,
                     start_time=start,
                     end_time=end,
+                    **booking_timezone_fields(booking_date, start, end),
                     status=BookingStatus.CONFIRMED,
                     instructor_service_id=test_service.id,
                     service_name="Test Service",
@@ -343,12 +364,15 @@ class TestConflictCheckerEnhancedPatterns:
         ]
 
         for booking_date in existing_dates:
+            start_time = time(10, 0)
+            end_time = time(11, 0)
             booking = Booking(
                 instructor_id=instructor_id,
                 student_id=test_student.id,
                 booking_date=booking_date,
-                start_time=time(10, 0),
-                end_time=time(11, 0),
+                start_time=start_time,
+                end_time=end_time,
+                **booking_timezone_fields(booking_date, start_time, end_time),
                 status=BookingStatus.CONFIRMED,
                 instructor_service_id=test_service.id,
                 service_name="Test Service",
@@ -396,12 +420,15 @@ class TestConflictCheckerEnhancedPatterns:
 
             # Morning bookings (more common)
             if day % 3 != 2:  # 2/3 of days
+                start_time = time(9, 0)
+                end_time = time(10, 0)
                 booking = Booking(
                     instructor_id=instructor_id,
                     student_id=test_student.id,
                     booking_date=booking_date,
-                    start_time=time(9, 0),
-                    end_time=time(10, 0),
+                    start_time=start_time,
+                    end_time=end_time,
+                    **booking_timezone_fields(booking_date, start_time, end_time),
                     status=BookingStatus.COMPLETED,
                     instructor_service_id=test_service.id,
                     service_name="Test Service",
@@ -413,12 +440,15 @@ class TestConflictCheckerEnhancedPatterns:
 
             # Afternoon bookings (less common)
             if day % 2 == 0:  # 1/2 of days
+                start_time = time(14, 0)
+                end_time = time(15, 0)
                 booking = Booking(
                     instructor_id=instructor_id,
                     student_id=test_student.id,
                     booking_date=booking_date,
-                    start_time=time(14, 0),
-                    end_time=time(15, 0),
+                    start_time=start_time,
+                    end_time=end_time,
+                    **booking_timezone_fields(booking_date, start_time, end_time),
                     status=BookingStatus.COMPLETED,
                     instructor_service_id=test_service.id,
                     service_name="Test Service",
@@ -468,12 +498,15 @@ class TestConflictCheckerEnhancedPatterns:
 
         # Create a booking
         test_service = get_test_service(db, test_instructor)
+        start_time = time(10, 0)
+        end_time = time(11, 0)
         existing_booking = Booking(
             instructor_id=instructor_id,
             student_id=test_student.id,
             booking_date=check_date,
-            start_time=time(10, 0),
-            end_time=time(11, 0),
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(check_date, start_time, end_time),
             status=BookingStatus.CONFIRMED,
             instructor_service_id=test_service.id,
             service_name="Test Service",

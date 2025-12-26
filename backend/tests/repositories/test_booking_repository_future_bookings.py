@@ -30,6 +30,11 @@ try:  # pragma: no cover - allow running from backend/ or repo root
 except ModuleNotFoundError:  # pragma: no cover
     from tests.factories.booking_builders import create_booking_pg_safe
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 class TestBookingRepositoryFutureBookings:
     """Test the get_instructor_future_bookings method."""
@@ -480,13 +485,17 @@ class TestBookingRepositoryFutureBookings:
         tomorrow = today + timedelta(days=1)
 
         # Create bookings at different times on same day
+        booking_date = tomorrow
+        afternoon_start = time(14, 0)
+        afternoon_end = time(15, 0)
         booking_afternoon = Booking(
             instructor_id=test_instructor.id,
             student_id=test_student.id,
             instructor_service_id=instructor_service.id,
-            booking_date=tomorrow,
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=afternoon_start,
+            end_time=afternoon_end,
+            **booking_timezone_fields(booking_date, afternoon_start, afternoon_end),
             service_name="Test Service",
             hourly_rate=50.0,
             total_price=50.0,
@@ -496,13 +505,16 @@ class TestBookingRepositoryFutureBookings:
             location_type="neutral",
         )
 
+        morning_start = time(9, 0)
+        morning_end = time(10, 0)
         booking_morning = Booking(
             instructor_id=test_instructor.id,
             student_id=test_student.id,
             instructor_service_id=instructor_service.id,
-            booking_date=tomorrow,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
+            booking_date=booking_date,
+            start_time=morning_start,
+            end_time=morning_end,
+            **booking_timezone_fields(booking_date, morning_start, morning_end),
             service_name="Test Service",
             hourly_rate=50.0,
             total_price=50.0,

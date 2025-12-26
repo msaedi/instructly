@@ -23,9 +23,11 @@ from sqlalchemy.orm import Session
 from app.models.availability_day import AvailabilityDay
 from app.models.booking import Booking, BookingStatus
 from app.repositories.availability_day_repository import AvailabilityDayRepository
+from app.services.timezone_service import TimezoneService
 from app.utils.bitset import windows_from_bits
 
 logger = logging.getLogger(__name__)
+DEFAULT_TIMEZONE = "America/New_York"
 
 
 @dataclass
@@ -67,6 +69,29 @@ def _minutes_between(start: time, end: time) -> int:
     if end_dt <= start_dt:
         end_dt = start_dt + timedelta(minutes=1)
     return int((end_dt - start_dt).total_seconds() // 60)
+
+
+def _booking_timezone_fields(
+    booking_date: date,
+    start_time: time,
+    end_time: time,
+    *,
+    lesson_timezone: Optional[str] = None,
+    student_timezone: Optional[str] = None,
+) -> dict[str, Any]:
+    if start_time.tzinfo is not None:
+        start_time = start_time.replace(tzinfo=None)
+    if end_time.tzinfo is not None:
+        end_time = end_time.replace(tzinfo=None)
+    lesson_tz = lesson_timezone or DEFAULT_TIMEZONE
+    student_tz = student_timezone or lesson_tz
+    return {
+        "booking_start_utc": TimezoneService.local_to_utc(booking_date, start_time, lesson_tz),
+        "booking_end_utc": TimezoneService.local_to_utc(booking_date, end_time, lesson_tz),
+        "lesson_timezone": lesson_tz,
+        "instructor_tz_at_booking": lesson_tz,
+        "student_tz_at_booking": student_tz,
+    }
 
 
 def _shift_time(base: time, minutes: int) -> time:
@@ -371,6 +396,20 @@ def create_booking_safe(
         )
         return None
 
+    if current_start.tzinfo is not None:
+        current_start = current_start.replace(tzinfo=None)
+    if current_end.tzinfo is not None:
+        current_end = current_end.replace(tzinfo=None)
+    lesson_timezone = extra_fields.get("lesson_timezone") or extra_fields.get("instructor_tz_at_booking")
+    student_timezone = extra_fields.get("student_tz_at_booking")
+    timezone_fields = _booking_timezone_fields(
+        booking_date,
+        current_start,
+        current_end,
+        lesson_timezone=lesson_timezone,
+        student_timezone=student_timezone,
+    )
+
     booking = Booking(
         student_id=student_id,
         instructor_id=instructor_id,
@@ -379,6 +418,7 @@ def create_booking_safe(
         start_time=current_start,
         end_time=current_end,
         status=status,
+        **timezone_fields,
         **extra_fields,
     )
     session.add(booking)
@@ -808,6 +848,20 @@ def create_booking_bulk(
     """
     Create a booking and register it in the bulk context for conflict tracking.
     """
+    if start_time.tzinfo is not None:
+        start_time = start_time.replace(tzinfo=None)
+    if end_time.tzinfo is not None:
+        end_time = end_time.replace(tzinfo=None)
+    lesson_timezone = extra_fields.get("lesson_timezone") or extra_fields.get("instructor_tz_at_booking")
+    student_timezone = extra_fields.get("student_tz_at_booking")
+    timezone_fields = _booking_timezone_fields(
+        booking_date,
+        start_time,
+        end_time,
+        lesson_timezone=lesson_timezone,
+        student_timezone=student_timezone,
+    )
+
     booking = Booking(
         student_id=student_id,
         instructor_id=instructor_id,
@@ -816,6 +870,7 @@ def create_booking_bulk(
         start_time=start_time,
         end_time=end_time,
         status=status,
+        **timezone_fields,
         **extra_fields,
     )
     session.add(booking)

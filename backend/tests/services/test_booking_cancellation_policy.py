@@ -17,6 +17,11 @@ from app.models.service_catalog import InstructorService, ServiceCatalog, Servic
 from app.models.user import User
 from app.services.booking_service import BookingService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 @pytest.fixture(autouse=True)
 def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
@@ -83,14 +88,18 @@ def _create_student(db: Session) -> User:
 
 
 def _create_booking(db: Session, student: User, instructor: User, svc: InstructorService, when: datetime) -> Booking:
+    booking_date = when.date()
+    start_time = when.time()
+    end_time = (when + timedelta(hours=1)).time()
     bk = Booking(
         id=str(ulid.ULID()),
         student_id=student.id,
         instructor_id=instructor.id,
         instructor_service_id=svc.id,
-        booking_date=when.date(),
-        start_time=when.time(),
-        end_time=(when + timedelta(hours=1)).time(),
+        booking_date=booking_date,
+        start_time=start_time,
+        end_time=end_time,
+        **booking_timezone_fields(booking_date, start_time, end_time),
         service_name="Svc",
         hourly_rate=100.00,
         total_price=100.00,
@@ -278,14 +287,18 @@ def _create_booking_with_fee(
     student_fee = lesson_price * student_fee_pct
     total_price = lesson_price + student_fee
 
+    booking_date = when.date()
+    start_time = when.time()
+    end_time = (when + timedelta(minutes=duration_minutes)).time()
     bk = Booking(
         id=str(ulid.ULID()),
         student_id=student.id,
         instructor_id=instructor.id,
         instructor_service_id=svc.id,
-        booking_date=when.date(),
-        start_time=when.time(),
-        end_time=(when + timedelta(minutes=duration_minutes)).time(),
+        booking_date=booking_date,
+        start_time=start_time,
+        end_time=end_time,
+        **booking_timezone_fields(booking_date, start_time, end_time),
         service_name="Svc",
         hourly_rate=hourly_rate,
         total_price=total_price,  # Includes student fee
@@ -520,14 +533,18 @@ def _create_rescheduled_booking(
             this is used for the fair cancellation policy to determine if the
             reschedule was a "gaming" attempt (<24h from original) or legitimate (>24h).
     """
+    booking_date = when.date()
+    start_time = when.time()
+    end_time = (when + timedelta(minutes=duration_minutes)).time()
     bk = Booking(
         id=str(ulid.ULID()),
         student_id=student.id,
         instructor_id=instructor.id,
         instructor_service_id=svc.id,
-        booking_date=when.date(),
-        start_time=when.time(),
-        end_time=(when + timedelta(minutes=duration_minutes)).time(),
+        booking_date=booking_date,
+        start_time=start_time,
+        end_time=end_time,
+        **booking_timezone_fields(booking_date, start_time, end_time),
         service_name="Svc",
         hourly_rate=hourly_rate,
         total_price=hourly_rate * duration_minutes / 60,

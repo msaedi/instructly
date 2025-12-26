@@ -9,6 +9,11 @@ from sqlalchemy.orm import Session
 
 from app.models.booking import Booking, BookingStatus
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 ACTIVE_STATUSES: Dict[str, BookingStatus] = {
     status.name: status for status in (BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED)
 }
@@ -147,6 +152,8 @@ def create_booking_pg_safe(
     cancel_duplicate: bool = False,
     offset_index: Optional[int] = None,
     max_shifts: int = 120,
+    instructor_timezone: Optional[str] = None,
+    student_timezone: Optional[str] = None,
     **extra_fields: Any,
 ) -> Booking:
     """
@@ -212,6 +219,16 @@ def create_booking_pg_safe(
             if attempts >= max_attempts:
                 raise RuntimeError("Unable to resolve booking overlap after several adjustments")
 
+    lesson_timezone = extra_fields.get("lesson_timezone") or instructor_timezone or "America/New_York"
+    student_tz = extra_fields.get("student_tz_at_booking") or student_timezone or lesson_timezone
+    timezone_fields = booking_timezone_fields(
+        booking_date,
+        start_time,
+        end_time,
+        instructor_timezone=lesson_timezone,
+        student_timezone=student_tz,
+    )
+
     booking_kwargs = {
         "student_id": student_id,
         "instructor_id": instructor_id,
@@ -220,6 +237,7 @@ def create_booking_pg_safe(
         "start_time": start_time,
         "end_time": end_time,
         "status": status,
+        **timezone_fields,
         **extra_fields,
     }
 

@@ -31,6 +31,11 @@ from app.services.conflict_checker import ConflictChecker
 from app.utils.bitset import bits_from_windows
 from tests._utils.bitmap_avail import get_day_windows, seed_day
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 # Fixtures for services
 @pytest.fixture
@@ -335,13 +340,17 @@ class TestConflictChecker:
             raise RuntimeError("No instructor service found from test_instructor fixture")
 
         # Create an existing booking
+        booking_date = test_date
+        start_time = time(10, 0)
+        end_time = time(11, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
-            booking_date=test_date,
-            start_time=time(10, 0),
-            end_time=time(11, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name="Test Service",
             hourly_rate=50.0,
             total_price=50.0,
@@ -392,13 +401,17 @@ class TestConflictChecker:
             raise RuntimeError("No instructor service found from test_instructor fixture")
 
         # Create bookings
+        booking_date = test_date
+        booking1_start = time(9, 0)
+        booking1_end = time(10, 0)
         booking1 = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
-            booking_date=test_date,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
+            booking_date=booking_date,
+            start_time=booking1_start,
+            end_time=booking1_end,
+            **booking_timezone_fields(booking_date, booking1_start, booking1_end),
             service_name="Test Service",
             hourly_rate=50.0,
             total_price=50.0,
@@ -406,13 +419,16 @@ class TestConflictChecker:
             status=BookingStatus.CONFIRMED,
         )
 
+        booking2_start = time(14, 0)
+        booking2_end = time(15, 0)
         booking2 = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
-            booking_date=test_date,
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=booking2_start,
+            end_time=booking2_end,
+            **booking_timezone_fields(booking_date, booking2_start, booking2_end),
             service_name="Test Service",
             hourly_rate=50.0,
             total_price=50.0,

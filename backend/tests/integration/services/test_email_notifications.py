@@ -22,6 +22,11 @@ from app.models.user import User
 from app.services.notification_service import NotificationService
 from app.services.template_service import TemplateService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 def create_test_booking():
     """Create a test booking object for email testing."""
@@ -46,14 +51,18 @@ def create_test_booking():
     )
 
     # Create a mock booking
+    booking_date = date.today() + timedelta(days=1)
+    start_time = time(14, 0)
+    end_time = time(15, 0)
     booking = Booking(
         id=999,
         student=student,
         instructor=instructor,
         service_name="Piano Lessons",
-        booking_date=date.today() + timedelta(days=1),  # Tomorrow
-        start_time=time(14, 0),  # 2:00 PM
-        end_time=time(15, 0),  # 3:00 PM
+        booking_date=booking_date,  # Tomorrow
+        start_time=start_time,  # 2:00 PM
+        end_time=end_time,  # 3:00 PM
+        **booking_timezone_fields(booking_date, start_time, end_time),
         duration_minutes=60,
         total_price=75.00,
         status=BookingStatus.CONFIRMED,

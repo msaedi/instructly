@@ -24,6 +24,11 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 class TestReminderEndpointCleanArchitecture:
     """Test reminder endpoint follows clean architecture."""
@@ -114,13 +119,17 @@ class TestReminderQueryLogic:
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
         )
 
+        booking_date = tomorrow
+        start_time = time(9, 0)
+        end_time = time(10, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,  # Use actual service ID instead of hardcoded 1
-            booking_date=tomorrow,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Use catalog name
             hourly_rate=service.hourly_rate,  # Use actual hourly rate
             total_price=service.hourly_rate,  # Use actual rate for total
@@ -240,13 +249,17 @@ class TestReminderQueryLogic:
         )
 
         for i, status in enumerate(statuses):
+            booking_date = tomorrow
+            start_time = time(9 + i, 0)
+            end_time = time(10 + i, 0)
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor.id,
                 instructor_service_id=service.id,  # Use actual service ID
-                booking_date=tomorrow,
-                start_time=time(9 + i, 0),
-                end_time=time(10 + i, 0),
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                **booking_timezone_fields(booking_date, start_time, end_time),
                 service_name=service.catalog_entry.name
                 if service.catalog_entry
                 else "Unknown Service",  # Use catalog name
@@ -289,13 +302,17 @@ class TestReminderIntegration:
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
         )
 
+        booking_date = tomorrow
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,  # Use actual service ID
-            booking_date=tomorrow,
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Use catalog name
             hourly_rate=service.hourly_rate,  # Use actual rate
             total_price=service.hourly_rate,

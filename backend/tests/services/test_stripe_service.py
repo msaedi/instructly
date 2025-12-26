@@ -28,6 +28,11 @@ from app.services.config_service import ConfigService
 from app.services.pricing_service import PricingService
 from app.services.stripe_service import ChargeContext, StripeService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 @pytest.fixture(autouse=True)
 def _no_floors_for_service_tests(disable_price_floors):
@@ -156,14 +161,18 @@ class TestStripeService:
     def test_booking(self, db: Session, test_user: User, test_instructor: tuple) -> Booking:
         """Create a test booking."""
         instructor_user, _, instructor_service = test_instructor
+        booking_date = datetime.now().date()
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=test_user.id,
             instructor_id=instructor_user.id,
             instructor_service_id=instructor_service.id,
-            booking_date=datetime.now().date(),
-            start_time=time(14, 0),  # 2:00 PM
-            end_time=time(15, 0),  # 3:00 PM
+            booking_date=booking_date,
+            start_time=start_time,  # 2:00 PM
+            end_time=end_time,  # 3:00 PM
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name="Test Service",
             hourly_rate=50.00,
             total_price=50.00,

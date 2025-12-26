@@ -14,6 +14,11 @@ from tests.helpers.pricing import (
     student_fee_cents,
 )
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 def _create_booking(
     *,
@@ -31,16 +36,18 @@ def _create_booking(
     total_price = (
         hourly_rate_decimal * Decimal(duration_minutes) / Decimal(60)
     ).quantize(Decimal("0.01"))
+    booking_date = date.today()
     start_time = time(13, 0)
-    end_dt = datetime.combine(date.today(), start_time) + timedelta(minutes=duration_minutes)
+    end_dt = datetime.combine(booking_date, start_time) + timedelta(minutes=duration_minutes)
 
     booking = Booking(
         student_id=student.id,
         instructor_id=instructor.id,
         instructor_service_id=service.id,
-        booking_date=date.today(),
+        booking_date=booking_date,
         start_time=start_time,
         end_time=end_dt.time(),
+        **booking_timezone_fields(booking_date, start_time, end_dt.time()),
         service_name="API Test Service",
         hourly_rate=hourly_rate_decimal,
         total_price=total_price,

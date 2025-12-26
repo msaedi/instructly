@@ -24,6 +24,11 @@ from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 from app.services.notification_service import NotificationService, retry
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 class TestRetryDecorator:
     """Test the retry decorator functionality."""
@@ -117,6 +122,9 @@ class TestNotificationService:
             phone="+12125550000",
             zip_code="10001",
         )
+        booking_date = date.today() + timedelta(days=1)
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         return Booking(
             id=123,
             student=student,
@@ -124,9 +132,10 @@ class TestNotificationService:
             student_id=generate_ulid(),
             instructor_id=generate_ulid(),
             service_name="Piano Lessons",
-            booking_date=date.today() + timedelta(days=1),
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             duration_minutes=60,
             total_price=75.00,
             status=BookingStatus.CONFIRMED,
@@ -218,6 +227,9 @@ class TestNotificationService:
         assert result == 0
 
     def test_send_reminder_emails_partial_failure(self, notification_service, sample_booking):
+        booking_date = date.today() + timedelta(days=1)
+        start_time = time(15, 0)
+        end_time = time(16, 0)
         booking2 = Booking(
             id=124,
             student=sample_booking.student,
@@ -225,9 +237,10 @@ class TestNotificationService:
             student_id=generate_ulid(),
             instructor_id=generate_ulid(),
             service_name="Piano Lessons",
-            booking_date=date.today() + timedelta(days=1),
-            start_time=time(15, 0),
-            end_time=time(16, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             duration_minutes=60,
             total_price=75.00,
             status=BookingStatus.CONFIRMED,

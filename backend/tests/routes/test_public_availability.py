@@ -24,6 +24,11 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from tests._utils.bitmap_avail import seed_day
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 @pytest.fixture
 def full_detail_settings(monkeypatch):
@@ -78,12 +83,16 @@ class TestPublicAvailability:
         seed_day(db, instructor.id, today + timedelta(days=2), [("09:00", "10:00")])
 
         # Create a booking for tomorrow
+        booking_date = today + timedelta(days=1)
+        start_time = time(9, 0)
+        end_time = time(10, 0)
         booking = Booking(
             instructor_id=instructor.id,
             student_id=test_student.id,  # Use actual test student
-            booking_date=today + timedelta(days=1),
-            start_time=time(9, 0),
-            end_time=time(10, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             status=BookingStatus.CONFIRMED,
             instructor_service_id=service.id,
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
@@ -292,12 +301,16 @@ class TestPublicAvailability:
         )
         assert service is not None
 
+        booking_date = target_date
+        start_time = time(10, 0)
+        end_time = time(11, 0)
         booking = Booking(
             instructor_id=instructor.id,
             student_id=test_student.id,
-            booking_date=target_date,
-            start_time=time(10, 0),
-            end_time=time(11, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             status=BookingStatus.CONFIRMED,
             instructor_service_id=service.id,
             service_name=service.catalog_entry.name if service.catalog_entry else "Test Service",
@@ -350,12 +363,16 @@ class TestPublicAvailability:
         )
         assert service is not None
 
+        booking_date = target_date
+        start_time = time(9, 0)
+        end_time = time(10, 0)
         booking = Booking(
             instructor_id=instructor.id,
             student_id=test_student.id,
-            booking_date=target_date,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             status=BookingStatus.CONFIRMED,
             instructor_service_id=service.id,
             service_name=service.catalog_entry.name if service.catalog_entry else "Test Service",
@@ -427,12 +444,16 @@ class TestPublicAvailability:
         seed_day(db, test_instructor.id, today, [("09:00", "10:00")])
 
         # Create cancelled booking
+        booking_date = today
+        start_time = time(9, 0)
+        end_time = time(10, 0)
         booking = Booking(
             instructor_id=test_instructor.id,
             student_id=test_student.id,
-            booking_date=today,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             status=BookingStatus.CANCELLED,  # Cancelled!
             instructor_service_id=service.id,
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
@@ -500,12 +521,16 @@ class TestPublicAvailability:
         seed_day(db, test_instructor.id, today + timedelta(days=1), [("09:00", "11:00")])
 
         # Book today's slot
+        booking_date = today
+        start_time = time(9, 0)
+        end_time = time(10, 0)
         booking = Booking(
             instructor_id=test_instructor.id,
             student_id=test_student.id,
-            booking_date=today,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             status=BookingStatus.CONFIRMED,
             instructor_service_id=service.id,
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
@@ -565,12 +590,16 @@ class TestPublicAvailability:
         seed_day(db, test_instructor.id, today, [("09:00", "11:00")])
 
         # Book first hour
+        booking_date = today
+        start_time = time(9, 0)
+        end_time = time(10, 0)
         booking = Booking(
             instructor_id=test_instructor.id,
             student_id=test_student.id,
-            booking_date=today,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             status=BookingStatus.CONFIRMED,
             instructor_service_id=service.id,
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog

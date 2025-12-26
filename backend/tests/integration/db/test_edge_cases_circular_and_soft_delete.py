@@ -37,6 +37,11 @@ from app.services.cache_service import CacheService
 from app.services.instructor_service import InstructorService
 from app.services.permission_service import PermissionService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 try:  # pragma: no cover - support running from backend/ or repo root
     from backend.tests.factories.booking_builders import create_booking_pg_safe
 except ModuleNotFoundError:  # pragma: no cover
@@ -329,13 +334,17 @@ class TestSoftDeleteEdgeCases:
         service = instructor.instructor_profile.instructor_services[0]
 
         # Create an active booking
+        booking_date = date.today() + timedelta(days=7)
+        start_time = time(10, 0)
+        end_time = time(11, 0)
         booking = Booking(
             student_id=student.id,
             instructor_id=instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today() + timedelta(days=7),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=Decimal("50.00"),
@@ -382,13 +391,17 @@ class TestSoftDeleteEdgeCases:
         service = instructor.instructor_profile.instructor_services[0]
 
         # Create a completed booking
+        booking_date = date.today() - timedelta(days=7)
+        start_time = time(10, 0)
+        end_time = time(11, 0)
         booking = Booking(
             student_id=student.id,
             instructor_id=instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today() - timedelta(days=7),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=Decimal("50.00"),
@@ -621,13 +634,17 @@ class TestSoftDeleteEdgeCases:
         service = instructor.instructor_profile.instructor_services[0]
 
         # Create a time-based booking (no slot reference)
+        booking_date = date.today() + timedelta(days=7)
+        start_time = time(10, 0)
+        end_time = time(11, 0)
         booking = Booking(
             student_id=student.id,
             instructor_id=instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today() + timedelta(days=7),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=Decimal("50.00"),

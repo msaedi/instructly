@@ -32,6 +32,11 @@ from app.services.conflict_checker import ConflictChecker
 from app.services.week_operation_service import WeekOperationService
 from app.utils.bitset import bits_from_windows, new_empty_bits
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 def _normalize_time(value: str | time) -> str:
     if isinstance(value, time):
@@ -245,6 +250,8 @@ class TestWeekOperationEdgeCases:
 
         for i in range(3):
             target_date = target_start + timedelta(days=i)
+            start_time = time(9, 0)
+            end_time = time(10, 0)
 
             # Book it
             booking = Booking(
@@ -252,8 +259,9 @@ class TestWeekOperationEdgeCases:
                 instructor_id=instructor_id,
                 instructor_service_id=service_obj.id,
                 booking_date=target_date,
-                start_time=time(9, 0),
-                end_time=time(10, 0),
+                start_time=start_time,
+                end_time=end_time,
+                **booking_timezone_fields(target_date, start_time, end_time),
                 status=BookingStatus.CONFIRMED,
                 service_name=service_obj.catalog_entry.name if service_obj.catalog_entry else "Unknown Service",
                 hourly_rate=service_obj.hourly_rate,

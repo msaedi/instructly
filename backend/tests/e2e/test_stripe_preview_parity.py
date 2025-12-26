@@ -24,6 +24,11 @@ from app.services.config_service import ConfigService
 from app.services.pricing_service import PricingService
 from app.services.stripe_service import StripeService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 RUN_E2E = os.getenv("RUN_STRIPE_E2E") == "1"
 
 
@@ -199,13 +204,17 @@ def test_stripe_preview_amount_parity_e2e():
             )
 
         def _create_booking_instance(day_offset: int, booking_tag: str) -> Booking:
+            booking_date = date.today() + timedelta(days=day_offset)
+            start_time = time(12, 0)
+            end_time = time(13, 0)
             booking = Booking(
                 student_id=student.id,
                 instructor_id=instructor_user.id,
                 instructor_service_id=instructor_service.id,
-                booking_date=date.today() + timedelta(days=day_offset),
-                start_time=time(12, 0),
-                end_time=time(13, 0),
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                **booking_timezone_fields(booking_date, start_time, end_time),
                 duration_minutes=60,
                 service_name=catalog_service.name,
                 hourly_rate=Decimal("80.00"),

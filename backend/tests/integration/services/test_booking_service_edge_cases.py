@@ -39,6 +39,11 @@ try:  # pragma: no cover - fallback when pytest runs from backend/
 except ModuleNotFoundError:  # pragma: no cover
     from tests.conftest import add_service_areas_for_boroughs
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 @pytest.fixture(autouse=True)
 def _no_price_floors(disable_price_floors):
@@ -147,13 +152,17 @@ class TestBookingServiceQueryVariations:
         )
 
         # Create a cancelled booking
+        booking_date = date.today() + timedelta(days=2)
+        start_time = time(10, 0)
+        end_time = time(11, 0)
         cancelled_booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
             instructor_service_id=service.id,  # Required field
-            booking_date=date.today() + timedelta(days=2),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=50.0,
@@ -188,13 +197,17 @@ class TestBookingServiceQueryVariations:
 
         # Create multiple bookings
         for i in range(5):
+            booking_date = date.today() + timedelta(days=i + 1)
+            start_time = time(10, 0)
+            end_time = time(11, 0)
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor_with_availability.id,
                 instructor_service_id=service.id,  # Required field
-                booking_date=date.today() + timedelta(days=i + 1),
-                start_time=time(10, 0),
-                end_time=time(11, 0),
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                **booking_timezone_fields(booking_date, start_time, end_time),
                 service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
                 hourly_rate=service.hourly_rate,
                 total_price=50.0,
@@ -245,13 +258,17 @@ class TestBookingServiceStatisticsEdgeCases:
         )
 
         # Create a completed booking
+        booking_date = date.today() - timedelta(days=1)
+        start_time = time(10, 0)
+        end_time = time(12, 0)
         completed_booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
             instructor_service_id=service.id,  # Required field
-            booking_date=date.today() - timedelta(days=1),
-            start_time=time(10, 0),
-            end_time=time(12, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=100.0,  # 2 hours
@@ -530,13 +547,17 @@ class TestBookingServiceReminders:
         test_booking.status = BookingStatus.CONFIRMED
 
         # Create another booking
+        booking_date = tomorrow
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         another_booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
             instructor_service_id=service.id,  # Required field
-            booking_date=tomorrow,
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=50.0,
