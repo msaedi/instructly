@@ -1204,14 +1204,14 @@ class BookingService(BaseService):
 
         # Determine cancellation scenario
         if cancelled_by_role == "instructor":
-            if hours_until > 24:
+            if hours_until >= 24:
                 scenario = "instructor_cancel_over_24h"
             else:
                 scenario = "instructor_cancel_under_24h"
         else:
-            if hours_until > 24:
+            if hours_until >= 24:
                 scenario = "over_24h_gaming" if was_gaming_reschedule else "over_24h_regular"
-            elif 12 <= hours_until <= 24:
+            elif 12 <= hours_until < 24:
                 scenario = "between_12_24h"
             else:
                 scenario = "under_12h" if booking.payment_intent_id else "under_12h_no_pi"

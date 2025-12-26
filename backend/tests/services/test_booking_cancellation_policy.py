@@ -492,6 +492,33 @@ def test_cancel_exactly_12h_gets_credit(db: Session):
     mock_credit.assert_called_once()
 
 
+def test_cancel_exactly_24h_gets_full_refund(db: Session):
+    """Cancellation exactly 24h before should receive full refund (release auth)."""
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    fixed_now = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    lesson_time = (fixed_now + timedelta(hours=24)).replace(tzinfo=None)
+    bk = _create_booking(db, student, instructor, svc, lesson_time)
+    bk.payment_status = "authorized"
+
+    service = BookingService(db)
+
+    with patch(
+        "app.services.booking_service.TimezoneService.hours_until",
+        return_value=24.0,
+    ), patch(
+        "app.services.stripe_service.StripeService.cancel_payment_intent"
+    ) as mock_cancel, patch(
+        "app.repositories.payment_repository.PaymentRepository.create_platform_credit"
+    ) as mock_credit:
+        result = service.cancel_booking(bk.id, user=student, reason="test")
+
+    assert result.payment_status == "released"
+    mock_cancel.assert_called_once()
+    mock_credit.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "hourly_rate,duration_minutes,expected_credit_cents",
     [
