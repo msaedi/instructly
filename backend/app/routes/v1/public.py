@@ -34,12 +34,16 @@ from ...schemas.public_availability import (
 )
 from ...schemas.public_session import GuestSessionResponse
 from ...schemas.referrals import ReferralSendError, ReferralSendRequest, ReferralSendResponse
+from ...services import availability_service as availability_service_module
 from ...services.availability_service import AvailabilityService
 from ...services.cache_service import CacheService
 from ...services.conflict_checker import ConflictChecker
 from ...services.email import EmailService
 from ...services.instructor_service import InstructorService
+from ...utils.bitset import SLOTS_PER_DAY
 from ...utils.cookies import session_cookie_candidates
+from ...utils.time_helpers import string_to_time
+from ...utils.time_utils import time_to_minutes
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +57,79 @@ class AvailabilitySummaryEntry(TypedDict):
     afternoon_available: bool
     evening_available: bool
     total_hours: float
+
+
+def _minutes_to_time_str(minute_value: int) -> str:
+    if minute_value >= 24 * 60:
+        return "00:00"
+    return f"{minute_value // 60:02d}:{minute_value % 60:02d}"
+
+
+def _recompute_public_totals(
+    availability_by_date: Mapping[str, PublicDayAvailability],
+) -> tuple[int, Optional[str]]:
+    total_slots = 0
+    earliest_available_date: Optional[str] = None
+    for date_str in sorted(availability_by_date.keys()):
+        slots = availability_by_date[date_str].available_slots
+        total_slots += len(slots)
+        if slots and earliest_available_date is None:
+            earliest_available_date = date_str
+    return total_slots, earliest_available_date
+
+
+def _apply_min_advance_filter(
+    availability_service: AvailabilityService,
+    instructor_id: str,
+    availability_by_date: Dict[str, PublicDayAvailability],
+) -> tuple[int, Optional[str]]:
+    if not availability_by_date:
+        return 0, None
+
+    profile = availability_service.instructor_repository.get_by_user_id(instructor_id)
+    min_advance_hours = int(getattr(profile, "min_advance_booking_hours", 0) or 0)
+    if min_advance_hours <= 0:
+        return _recompute_public_totals(availability_by_date)
+
+    slot_minutes = (24 * 60) // SLOTS_PER_DAY
+    earliest_allowed_local = availability_service_module.get_user_now_by_id(
+        instructor_id, availability_service.db
+    ) + timedelta(hours=min_advance_hours)
+    earliest_allowed_local = earliest_allowed_local.replace(second=0, microsecond=0)
+    minutes_since_midnight = time_to_minutes(earliest_allowed_local.time(), is_end_time=False)
+    aligned_minutes = ((minutes_since_midnight + slot_minutes - 1) // slot_minutes) * slot_minutes
+    base_midnight = earliest_allowed_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    earliest_allowed_local = base_midnight + timedelta(minutes=aligned_minutes)
+    earliest_allowed_date = earliest_allowed_local.date()
+    earliest_allowed_minutes = time_to_minutes(earliest_allowed_local.time(), is_end_time=False)
+
+    for date_str, day in availability_by_date.items():
+        target_date = date.fromisoformat(date_str)
+        if target_date < earliest_allowed_date:
+            day.available_slots = []
+            continue
+        if target_date != earliest_allowed_date:
+            continue
+
+        filtered_slots: List[PublicTimeSlot] = []
+        for slot in day.available_slots:
+            start_min = time_to_minutes(string_to_time(slot.start_time), is_end_time=False)
+            end_min = time_to_minutes(string_to_time(slot.end_time), is_end_time=True)
+            if end_min <= earliest_allowed_minutes:
+                continue
+            if start_min < earliest_allowed_minutes:
+                start_min = earliest_allowed_minutes
+            if end_min <= start_min:
+                continue
+            filtered_slots.append(
+                PublicTimeSlot(
+                    start_time=_minutes_to_time_str(start_min),
+                    end_time=_minutes_to_time_str(end_min),
+                )
+            )
+        day.available_slots = filtered_slots
+
+    return _recompute_public_totals(availability_by_date)
 
 
 def get_availability_service(db: Session = Depends(get_db)) -> AvailabilityService:
@@ -251,6 +328,7 @@ async def get_instructor_public_availability(
 
     # Initialize response_data for type checking
     response_data: Optional[PublicInstructorAvailability] = None
+    response_data_raw: Optional[PublicInstructorAvailability] = None
 
     # Check cache first - include detail level in cache key
     cache_key = f"public_availability:{instructor_id}:{start_date}:{end_date}:{settings.public_availability_detail_level}"
@@ -261,6 +339,14 @@ async def get_instructor_public_availability(
                 logger.info(f"Cache hit for public availability: {cache_key}")
                 cached_result = cast(Dict[str, Any], cached_data)
                 response_data = PublicInstructorAvailability(**cached_result)
+                if response_data.detail_level == "full" and response_data.availability_by_date:
+                    total_slots, earliest_date = _apply_min_advance_filter(
+                        availability_service,
+                        instructor_id,
+                        response_data.availability_by_date,
+                    )
+                    response_data.total_available_slots = total_slots
+                    response_data.earliest_available_date = earliest_date
 
                 # Generate ETag for cached response
                 response_json = response_data.model_dump_json(exclude_none=True)
@@ -316,6 +402,7 @@ async def get_instructor_public_availability(
             else None,
             timezone="America/New_York",
         )
+        response_data_raw = response_data
 
     elif settings.public_availability_detail_level == "summary":
         # Summary: Show counts and time ranges, not specific slots
@@ -377,12 +464,13 @@ async def get_instructor_public_availability(
             timezone="America/New_York",
             total_available_days=len(availability_summary),
         )
+        response_data_raw = response_data
 
     else:  # "full" detail level
         # Build availability data
-        availability_by_date: Dict[str, PublicDayAvailability] = {}
-        total_available_slots = 0
-        earliest_available_date: Optional[str] = None
+        availability_by_date_raw: Dict[str, PublicDayAvailability] = {}
+        total_available_slots_raw = 0
+        earliest_available_date_raw: Optional[str] = None
 
         # Get blackout dates
         blackout_dates = await asyncio.to_thread(
@@ -396,6 +484,7 @@ async def get_instructor_public_availability(
             instructor_id,
             start_date,
             end_date,
+            apply_min_advance=False,
         )
 
         # Process each date in the range
@@ -405,7 +494,7 @@ async def get_instructor_public_availability(
 
             # Check blackout
             if current_date in blackout_date_set:
-                availability_by_date[date_str] = PublicDayAvailability(
+                availability_by_date_raw[date_str] = PublicDayAvailability(
                     date=date_str, available_slots=[], is_blackout=True
                 )
                 current_date += timedelta(days=1)
@@ -417,18 +506,18 @@ async def get_instructor_public_availability(
                 for st, en in intervals
             ]
 
-            total_available_slots += len(available_slots)
-            if available_slots and not earliest_available_date:
-                earliest_available_date = date_str
+            total_available_slots_raw += len(available_slots)
+            if available_slots and not earliest_available_date_raw:
+                earliest_available_date_raw = date_str
 
-            availability_by_date[date_str] = PublicDayAvailability(
+            availability_by_date_raw[date_str] = PublicDayAvailability(
                 date=date_str, available_slots=available_slots, is_blackout=False
             )
 
             current_date += timedelta(days=1)
 
         # Build response - use privacy-protected name fields
-        response_data = PublicInstructorAvailability(
+        response_data_raw = PublicInstructorAvailability(
             instructor_id=instructor_id,
             instructor_first_name=(
                 instructor_user.first_name
@@ -441,11 +530,20 @@ async def get_instructor_public_availability(
                 else None
             ),
             detail_level="full",
-            availability_by_date=availability_by_date,
+            availability_by_date=availability_by_date_raw,
             timezone="America/New_York",  # NYC-based platform
-            total_available_slots=total_available_slots,
-            earliest_available_date=earliest_available_date,
+            total_available_slots=total_available_slots_raw,
+            earliest_available_date=earliest_available_date_raw,
         )
+        response_data = response_data_raw.model_copy(deep=True)
+        if response_data.availability_by_date:
+            total_slots, earliest_date = _apply_min_advance_filter(
+                availability_service,
+                instructor_id,
+                response_data.availability_by_date,
+            )
+            response_data.total_available_slots = total_slots
+            response_data.earliest_available_date = earliest_date
 
     # At this point, we have freshly computed response_data (cache miss path)
     assert response_data is not None
@@ -474,9 +572,10 @@ async def get_instructor_public_availability(
     # Cache the freshly computed response (we only reach here on cache miss)
     if cache_service:
         try:
+            cache_source = response_data_raw or response_data
             await cache_service.set(
                 cache_key,
-                response_data.model_dump(exclude_none=True),
+                cache_source.model_dump(exclude_none=True),
                 ttl=settings.public_availability_cache_ttl,
             )
         except Exception as e:

@@ -63,6 +63,7 @@ from ..utils.bitset import (
     windows_from_bits,
 )
 from ..utils.time_helpers import string_to_time, time_to_string
+from ..utils.time_utils import time_to_minutes
 from .audit_redaction import redact
 from .base import BaseService
 from .search.cache_invalidation import invalidate_on_availability_change
@@ -341,7 +342,7 @@ class AvailabilityService(BaseService):
                 return bits
             if now_minutes is None:
                 now_dt = get_user_now_by_id(instructor_id, self.db)
-                now_minutes = max(0, now_dt.hour * 60 + now_dt.minute)
+                now_minutes = max(0, time_to_minutes(now_dt.time(), is_end_time=False))
             cutoff_index = now_minutes // 30
             if cutoff_index <= 0:
                 return bits
@@ -1716,7 +1717,12 @@ class AvailabilityService(BaseService):
 
     @BaseService.measure_operation("compute_public_availability")
     def compute_public_availability(
-        self, instructor_id: str, start_date: date, end_date: date
+        self,
+        instructor_id: str,
+        start_date: date,
+        end_date: date,
+        *,
+        apply_min_advance: bool = True,
     ) -> dict[str, list[tuple[time, time]]]:
         """
         Compute per-date availability intervals merged and with booked times subtracted.
@@ -1725,7 +1731,9 @@ class AvailabilityService(BaseService):
         """
         slot_minutes = (24 * 60) // SLOTS_PER_DAY
         profile = self.instructor_repository.get_by_user_id(instructor_id)
-        min_advance_hours = int(getattr(profile, "min_advance_booking_hours", 0) or 0)
+        min_advance_hours = (
+            int(getattr(profile, "min_advance_booking_hours", 0) or 0) if apply_min_advance else 0
+        )
         buffer_minutes = int(getattr(profile, "buffer_time_minutes", 0) or 0)
         earliest_allowed_local: Optional[datetime] = None
         earliest_allowed_date: Optional[date] = None
@@ -1735,8 +1743,8 @@ class AvailabilityService(BaseService):
                 hours=min_advance_hours
             )
             earliest_allowed_local = earliest_allowed_local.replace(second=0, microsecond=0)
-            minutes_since_midnight = (
-                earliest_allowed_local.hour * 60 + earliest_allowed_local.minute
+            minutes_since_midnight = time_to_minutes(
+                earliest_allowed_local.time(), is_end_time=False
             )
             aligned_minutes = (
                 (minutes_since_midnight + slot_minutes - 1) // slot_minutes
@@ -1746,8 +1754,8 @@ class AvailabilityService(BaseService):
             )
             earliest_allowed_local = base_midnight + timedelta(minutes=aligned_minutes)
             earliest_allowed_date = earliest_allowed_local.date()
-            earliest_allowed_minutes = (
-                earliest_allowed_local.hour * 60 + earliest_allowed_local.minute
+            earliest_allowed_minutes = time_to_minutes(
+                earliest_allowed_local.time(), is_end_time=False
             )
 
         # Fetch availability windows from bitmap
@@ -1776,7 +1784,13 @@ class AvailabilityService(BaseService):
             if not intervals:
                 return []
             mins = sorted(
-                [(a.hour * 60 + a.minute, b.hour * 60 + b.minute) for a, b in intervals],
+                [
+                    (
+                        time_to_minutes(a, is_end_time=False),
+                        time_to_minutes(b, is_end_time=True),
+                    )
+                    for a, b in intervals
+                ],
                 key=lambda x: x[0],
             )
             merged = []
@@ -1788,7 +1802,7 @@ class AvailabilityService(BaseService):
                     merged.append((cs, ce))
                     cs, ce = s, e
             merged.append((cs, ce))
-            return [(dtime(m // 60, m % 60), dtime(n // 60, n % 60)) for m, n in merged]
+            return [(minutes_to_time(m), minutes_to_time(n)) for m, n in merged]
 
         def subtract(
             bases: list[tuple[time, time]], cuts: list[tuple[time, time]]
@@ -1797,14 +1811,15 @@ class AvailabilityService(BaseService):
                 return []
             if not cuts:
                 return merge_intervals(bases)
-
-            def tmin(t: time) -> int:
-                return t.hour * 60 + t.minute
-
-            cutm = [(tmin(a), tmin(b)) for a, b in merge_intervals(cuts)]
+            cutm = [
+                (time_to_minutes(a, is_end_time=False), time_to_minutes(b, is_end_time=True))
+                for a, b in merge_intervals(cuts)
+            ]
             out = []
             for bs, be in bases:
-                segs = [(tmin(bs), tmin(be))]
+                segs = [
+                    (time_to_minutes(bs, is_end_time=False), time_to_minutes(be, is_end_time=True))
+                ]
                 for cs, ce in cutm:
                     new = []
                     for s, e in segs:
@@ -1819,21 +1834,20 @@ class AvailabilityService(BaseService):
                     if not segs:
                         break
                 for s, e in segs:
-                    out.append((dtime(s // 60, s % 60), dtime(e // 60, e % 60)))
+                    out.append((minutes_to_time(s), minutes_to_time(e)))
             return merge_intervals(out)
 
-        def minutes_from_time(value: time) -> int:
-            return value.hour * 60 + value.minute
-
         def minutes_to_time(minute_value: int) -> time:
-            clamped = max(0, min(minute_value, (24 * 60) - 1))
+            if minute_value >= 24 * 60:
+                return dtime(0, 0)
+            clamped = max(0, minute_value)
             return dtime(clamped // 60, clamped % 60)
 
         def expand_booking_interval(start: time, end: time) -> tuple[time, time]:
             if buffer_minutes <= 0:
                 return start, end
-            start_min = max(0, minutes_from_time(start) - buffer_minutes)
-            end_min = min(24 * 60, minutes_from_time(end) + buffer_minutes)
+            start_min = max(0, time_to_minutes(start, is_end_time=False) - buffer_minutes)
+            end_min = min(24 * 60, time_to_minutes(end, is_end_time=True) + buffer_minutes)
             if end_min <= start_min:
                 end_min = min(24 * 60, start_min + slot_minutes)
             return minutes_to_time(start_min), minutes_to_time(end_min)
@@ -2013,10 +2027,8 @@ class AvailabilityService(BaseService):
 
     @staticmethod
     def _minutes_range(start: time, end: time) -> tuple[int, int]:
-        start_min = start.hour * 60 + start.minute
-        end_min = end.hour * 60 + end.minute
-        if end == time(0, 0) and start != time(0, 0):
-            end_min = 24 * 60
+        start_min = time_to_minutes(start, is_end_time=False)
+        end_min = time_to_minutes(end, is_end_time=True)
         return start_min, end_min
 
     @staticmethod
