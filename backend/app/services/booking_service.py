@@ -211,7 +211,8 @@ class BookingService(BaseService):
     @staticmethod
     def _time_to_minutes(value: time, *, is_end_time: bool = False) -> int:
         """Return minutes since midnight for a time value."""
-        return time_to_minutes(value, is_end_time=is_end_time)
+        minutes: int = time_to_minutes(value, is_end_time=is_end_time)
+        return minutes
 
     @staticmethod
     def _minutes_to_time(value: int) -> time:
@@ -225,7 +226,8 @@ class BookingService(BaseService):
         """Convert bitmap strings (e.g., '24:00:00') into minute offsets."""
         if value.startswith("24:"):
             is_end_time = True
-        return time_to_minutes(string_to_time(value), is_end_time=is_end_time)
+        minutes: int = time_to_minutes(string_to_time(value), is_end_time=is_end_time)
+        return minutes
 
     @staticmethod
     def _booking_window_to_minutes(booking: Booking) -> tuple[int, int]:

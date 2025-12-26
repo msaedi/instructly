@@ -17,7 +17,7 @@ import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 import hashlib
 import logging
-from typing import Any, Dict, List, Mapping, Optional, Tuple, TypedDict, Union, cast
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypedDict, Union, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
@@ -59,6 +59,14 @@ class AvailabilitySummaryEntry(TypedDict):
     total_hours: float
 
 
+GetUserNowById = Callable[[str, Session], datetime]
+
+
+def _get_user_now_by_id(instructor_id: str, db: Session) -> datetime:
+    getter = cast(GetUserNowById, getattr(availability_service_module, "get_user_now_by_id"))
+    return getter(instructor_id, db)
+
+
 def _minutes_to_time_str(minute_value: int) -> str:
     if minute_value >= 24 * 60:
         return "00:00"
@@ -92,7 +100,7 @@ def _apply_min_advance_filter(
         return _recompute_public_totals(availability_by_date)
 
     slot_minutes = (24 * 60) // SLOTS_PER_DAY
-    earliest_allowed_local = availability_service_module.get_user_now_by_id(
+    earliest_allowed_local = _get_user_now_by_id(
         instructor_id, availability_service.db
     ) + timedelta(hours=min_advance_hours)
     earliest_allowed_local = earliest_allowed_local.replace(second=0, microsecond=0)
