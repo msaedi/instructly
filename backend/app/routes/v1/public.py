@@ -351,8 +351,12 @@ async def get_instructor_public_availability(
 
             # Add hours
             duration = (
-                datetime.combine(date.min, end_time, tzinfo=timezone.utc)
-                - datetime.combine(date.min, start_time, tzinfo=timezone.utc)
+                datetime.combine(  # tz-pattern-ok: time-only duration math
+                    date.min, end_time, tzinfo=timezone.utc
+                )
+                - datetime.combine(  # tz-pattern-ok: time-only duration math
+                    date.min, start_time, tzinfo=timezone.utc
+                )
             ).seconds / 3600
             availability_summary[date_str]["total_hours"] += duration
 
@@ -541,15 +545,21 @@ async def get_next_available_slot(
             for slot_start_time, slot_end_time in sorted(slots, key=lambda s: s[0]):
                 # Calculate slot duration in minutes
                 slot_duration = (
-                    datetime.combine(date.min, slot_end_time, tzinfo=timezone.utc)
-                    - datetime.combine(date.min, slot_start_time, tzinfo=timezone.utc)
+                    datetime.combine(  # tz-pattern-ok: time-only duration math
+                        date.min, slot_end_time, tzinfo=timezone.utc
+                    )
+                    - datetime.combine(  # tz-pattern-ok: time-only duration math
+                        date.min, slot_start_time, tzinfo=timezone.utc
+                    )
                 ).seconds // 60
 
                 if slot_duration >= duration_minutes:
                     # Found an available slot!
                     # Return the requested duration from the start of the slot
                     end_time = (
-                        datetime.combine(date.min, slot_start_time, tzinfo=timezone.utc)
+                        datetime.combine(  # tz-pattern-ok: time-only duration math
+                            date.min, slot_start_time, tzinfo=timezone.utc
+                        )
                         + timedelta(minutes=duration_minutes)
                     ).time()
 

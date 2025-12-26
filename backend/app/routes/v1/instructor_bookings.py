@@ -15,9 +15,9 @@ Endpoints:
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 import logging
-from typing import List, Optional
+from typing import List, Optional, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.params import Path
@@ -35,6 +35,7 @@ from ...schemas.base_responses import PaginatedResponse
 from ...schemas.booking import BookingResponse
 from ...services.booking_service import BookingService
 from ...services.permission_service import PermissionService
+from ...services.timezone_service import TimezoneService
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,40 @@ def check_permission(user: User, permission: PermissionName, db: Session) -> Non
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"User does not have required permission: {permission}",
+        )
+
+
+def _resolve_end_date(booking: Booking) -> date:
+    booking_date = cast(date, booking.booking_date)
+    if booking.start_time and booking.end_time:
+        midnight = time(0, 0)
+        if booking.end_time == midnight and booking.start_time != midnight:
+            return booking_date + timedelta(days=1)
+    return booking_date
+
+
+def _get_booking_end_utc(booking: Booking) -> datetime:
+    booking_end_utc = getattr(booking, "booking_end_utc", None)
+    if isinstance(booking_end_utc, datetime):
+        return booking_end_utc
+
+    lesson_tz = booking.lesson_timezone or booking.instructor_tz_at_booking
+    if not lesson_tz and booking.instructor:
+        instructor_user = getattr(booking.instructor, "user", None)
+        lesson_tz = getattr(instructor_user, "timezone", None) if instructor_user else None
+    lesson_tz = lesson_tz or TimezoneService.DEFAULT_TIMEZONE
+
+    end_date = _resolve_end_date(booking)
+    try:
+        return TimezoneService.local_to_utc(end_date, booking.end_time, lesson_tz)
+    except ValueError as exc:
+        logger.warning(
+            "Failed to convert booking %s end to UTC (%s); falling back to UTC combine.",
+            getattr(booking, "id", None),
+            exc,
+        )
+        return datetime.combine(  # tz-pattern-ok: fallback for invalid legacy time
+            end_date, booking.end_time, tzinfo=timezone.utc
         )
 
 
@@ -116,11 +151,7 @@ async def get_pending_completion_bookings(
     )
 
     now = datetime.now(timezone.utc)
-    pending_bookings = [
-        booking
-        for booking in bookings
-        if datetime.combine(booking.booking_date, booking.end_time, tzinfo=timezone.utc) <= now
-    ]
+    pending_bookings = [booking for booking in bookings if _get_booking_end_utc(booking) <= now]
 
     return _paginate_bookings(pending_bookings, page=page, per_page=per_page)
 

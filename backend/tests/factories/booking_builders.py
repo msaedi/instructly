@@ -19,15 +19,17 @@ def _active_status_values() -> Iterable[str]:
 
 
 def _minutes_between(start: time, end: time) -> int:
-    start_dt = datetime.combine(date(2000, 1, 1), start)
-    end_dt = datetime.combine(date(2000, 1, 1), end)
+    start_dt = datetime.combine(date(2000, 1, 1), start)  # tz-pattern-ok: test factory builds fixtures
+    end_dt = datetime.combine(date(2000, 1, 1), end)  # tz-pattern-ok: test factory builds fixtures
     if end_dt <= start_dt:
         end_dt = start_dt + timedelta(minutes=1)
     return int((end_dt - start_dt).total_seconds() // 60)
 
 
 def _bump_time(base: time, minutes: int) -> time:
-    dt = datetime.combine(date(2000, 1, 1), base) + timedelta(minutes=minutes)
+    dt = datetime.combine(date(2000, 1, 1), base) + timedelta(  # tz-pattern-ok: test factory builds fixtures
+        minutes=minutes
+    )
     return dt.time()
 
 
@@ -200,7 +202,9 @@ def create_booking_pg_safe(
                     cancel_exact_duplicate(session, instructor_id, booking_date, start_time, end_time)
                     break
 
-            start_dt = datetime.combine(booking_date, start_time) + timedelta(minutes=1)
+            start_dt = datetime.combine(  # tz-pattern-ok: test factory builds fixtures
+                booking_date, start_time
+            ) + timedelta(minutes=1)
             end_dt = start_dt + timedelta(minutes=duration_minutes)
             start_time = start_dt.time()
             end_time = end_dt.time()

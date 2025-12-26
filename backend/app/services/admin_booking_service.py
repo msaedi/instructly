@@ -833,7 +833,11 @@ class AdminBookingService(BaseService):
         start_dt = None
         end_dt = None
         if start:
-            start_dt = datetime.combine(start, time.min, tzinfo=timezone.utc)
+            start_dt = datetime.combine(  # tz-pattern-ok: date range bounds only
+                start, time.min, tzinfo=timezone.utc
+            )
         if end:
-            end_dt = datetime.combine(end, time.max, tzinfo=timezone.utc)
+            end_dt = datetime.combine(  # tz-pattern-ok: date range bounds only
+                end, time.max, tzinfo=timezone.utc
+            )
         return start_dt, end_dt

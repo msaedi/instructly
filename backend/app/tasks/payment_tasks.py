@@ -144,7 +144,11 @@ def _get_booking_start_utc(booking: Booking) -> datetime:
             booking.id,
             exc,
         )
-        return datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
+        return datetime.combine(  # tz-pattern-ok: DST fallback for legacy bookings
+            booking.booking_date,
+            booking.start_time,
+            tzinfo=timezone.utc,  # tz-pattern-ok: legacy fallback
+        )
 
 
 def _get_booking_end_utc(booking: Booking) -> datetime:
@@ -167,7 +171,9 @@ def _get_booking_end_utc(booking: Booking) -> datetime:
             booking.id,
             exc,
         )
-        return datetime.combine(end_date, booking.end_time, tzinfo=timezone.utc)
+        return datetime.combine(  # tz-pattern-ok: DST fallback for legacy bookings
+            end_date, booking.end_time, tzinfo=timezone.utc  # tz-pattern-ok: legacy fallback
+        )
 
 
 def _process_authorization_for_booking(

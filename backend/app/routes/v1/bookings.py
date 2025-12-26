@@ -695,7 +695,9 @@ async def reschedule_booking(
         await asyncio.to_thread(booking_service.validate_reschedule_allowed, original)
 
         # Pre-validate the requested slot
-        start_dt = datetime.combine(payload.booking_date, payload.start_time, tzinfo=timezone.utc)
+        start_dt = datetime.combine(  # tz-pattern-ok: duration math only
+            payload.booking_date, payload.start_time, tzinfo=timezone.utc
+        )
         end_dt = start_dt + timedelta(minutes=payload.selected_duration)
         proposed_end_time = end_dt.time()
 

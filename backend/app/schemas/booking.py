@@ -157,7 +157,9 @@ class BookingCreate(StrictRequestModel):
             # Calculate end_time from start_time + duration
             # Use a reference date for time calculation (this is just for math, not timezone-specific)
             reference_date = date(2024, 1, 1)
-            start_datetime = datetime.combine(reference_date, self.start_time, tzinfo=timezone.utc)
+            start_datetime = datetime.combine(  # tz-pattern-ok: duration math only
+                reference_date, self.start_time, tzinfo=timezone.utc
+            )
             end_datetime = start_datetime + timedelta(minutes=self.selected_duration)
             self.end_time = end_datetime.time()
 
@@ -445,9 +447,6 @@ class BookingResponse(BookingBase):
 
         # Build the response with proper privacy protection
         # Defensive getters for possibly mocked attributes in tests
-        def _safe_str(value: object) -> Optional[str]:
-            return value if isinstance(value, str) else None
-
         def _safe_location_type(value: object) -> Optional[str]:
             if isinstance(value, str) and value in [
                 "student_home",

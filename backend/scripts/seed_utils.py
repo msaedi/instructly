@@ -62,15 +62,17 @@ def _active_status_values() -> Iterable[str]:
 
 
 def _minutes_between(start: time, end: time) -> int:
-    start_dt = datetime.combine(date(2000, 1, 1), start)
-    end_dt = datetime.combine(date(2000, 1, 1), end)
+    start_dt = datetime.combine(date(2000, 1, 1), start)  # tz-pattern-ok: seed utility for test data
+    end_dt = datetime.combine(date(2000, 1, 1), end)  # tz-pattern-ok: seed utility for test data
     if end_dt <= start_dt:
         end_dt = start_dt + timedelta(minutes=1)
     return int((end_dt - start_dt).total_seconds() // 60)
 
 
 def _shift_time(base: time, minutes: int) -> time:
-    shifted = datetime.combine(date(2000, 1, 1), base) + timedelta(minutes=minutes)
+    shifted = datetime.combine(date(2000, 1, 1), base) + timedelta(  # tz-pattern-ok: seed utility for test data
+        minutes=minutes
+    )
     return shifted.time()
 
 
@@ -338,7 +340,9 @@ def create_booking_safe(
             break
 
         attempts += 1
-        next_start_dt = datetime.combine(booking_date, current_start) + timedelta(minutes=shift_minutes)
+        next_start_dt = datetime.combine(  # tz-pattern-ok: seed utility for test data
+            booking_date, current_start
+        ) + timedelta(minutes=shift_minutes)
         next_end_dt = next_start_dt + timedelta(minutes=duration_minutes)
 
         if next_start_dt.date() != booking_date or next_end_dt.date() != booking_date:

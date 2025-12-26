@@ -58,10 +58,14 @@ def backfill_booking_utc(db: Session, dry_run: bool = True) -> int:
                 end_date = booking.booking_date + timedelta(days=1)
 
             local_start = instructor_tz.localize(
-                datetime.combine(start_date, booking.start_time)
+                datetime.combine(  # tz-pattern-ok: backfill script uses pytz.localize
+                    start_date, booking.start_time
+                )
             )
             local_end = instructor_tz.localize(
-                datetime.combine(end_date, booking.end_time)
+                datetime.combine(  # tz-pattern-ok: backfill script uses pytz.localize
+                    end_date, booking.end_time
+                )
             )
 
             booking.booking_start_utc = local_start.astimezone(timezone.utc)

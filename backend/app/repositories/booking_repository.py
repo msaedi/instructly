@@ -377,7 +377,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
                 while current_time < slot_end:
                     # Calculate potential end time
-                    start_dt = datetime.combine(target_date, current_time, tzinfo=timezone.utc)
+                    start_dt = datetime.combine(  # tz-pattern-ok: time-only duration math
+                        target_date, current_time, tzinfo=timezone.utc
+                    )
                     end_dt = start_dt + timedelta(minutes=duration_minutes)
                     potential_end = end_dt.time()
 

@@ -35,7 +35,7 @@ def _bool_env(raw: Optional[str], default: bool) -> bool:
 
 
 def _localize(day: date, value: time) -> datetime:
-    naive = datetime.combine(day, value)
+    naive = datetime.combine(day, value)  # tz-pattern-ok: seed script generates test data
     return CHAT_TIMEZONE.localize(naive)
 
 
@@ -199,7 +199,9 @@ def _has_booking_conflict(
 
 
 def _candidate_times(day: date, *, base_hour: int, duration_minutes: int) -> Iterable[tuple[time, time, datetime]]:
-    base_start = datetime.combine(day, time(hour=base_hour, minute=0))
+    base_start = datetime.combine(  # tz-pattern-ok: seed script generates test data
+        day, time(hour=base_hour, minute=0)
+    )
     for offset in range(4):
         candidate_start = base_start + timedelta(minutes=offset * 30)
         if candidate_start.date() != day:

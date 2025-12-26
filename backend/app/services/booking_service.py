@@ -307,7 +307,9 @@ class BookingService(BaseService):
         Allows bookings that end exactly at midnight (treated as 24:00) but rejects
         any ranges that otherwise wrap past the booking date.
         """
-        start_datetime = datetime.combine(booking_date, start_time, tzinfo=timezone.utc)
+        start_datetime = datetime.combine(  # tz-pattern-ok: duration math only
+            booking_date, start_time, tzinfo=timezone.utc
+        )
         end_datetime = start_datetime + timedelta(minutes=selected_duration)
         end_time = end_datetime.time()
         midnight = time(0, 0)
@@ -418,8 +420,10 @@ class BookingService(BaseService):
             lesson_tz = getattr(booking.instructor, "timezone", None)
         lesson_tz = lesson_tz or TimezoneService.DEFAULT_TIMEZONE
 
-        end_date = self._resolve_end_date(
-            booking.booking_date, booking.start_time, booking.end_time
+        end_date = self._resolve_end_date(  # tz-pattern-ok: legacy end-date resolution
+            booking.booking_date,
+            booking.start_time,
+            booking.end_time,  # tz-pattern-ok: legacy end-date resolution
         )
         return TimezoneService.local_to_utc(
             end_date,
@@ -2748,8 +2752,12 @@ class BookingService(BaseService):
         # Use a reference date for duration calculations
         # This is just for calculating the duration, not timezone-specific
         reference_date = date(2024, 1, 1)
-        start = datetime.combine(reference_date, start_time, tzinfo=timezone.utc)
-        end = datetime.combine(reference_date, end_time, tzinfo=timezone.utc)
+        start = datetime.combine(  # tz-pattern-ok: duration math only
+            reference_date, start_time, tzinfo=timezone.utc
+        )
+        end = datetime.combine(  # tz-pattern-ok: duration math only
+            reference_date, end_time, tzinfo=timezone.utc
+        )
         duration = end - start
         duration_minutes = int(duration.total_seconds() / 60)
 

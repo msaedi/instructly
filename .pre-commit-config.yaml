@@ -77,6 +77,13 @@ repos:
         language: python
         files: ^backend/app/.*\.py$
 
+      - id: check-timezone-patterns
+        name: Check timezone patterns
+        entry: python backend/scripts/check_timezone_patterns.py
+        language: python
+        types: [python]
+        pass_filenames: true
+
       - id: check-repository-pattern
         name: Check Repository Pattern Compliance
         entry: python3 backend/scripts/check_repository_pattern.py

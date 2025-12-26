@@ -4,13 +4,13 @@ Check backend code for naive datetime usage.
 
 Blocked patterns:
 - datetime.now()
-- datetime.combine(date, time) without tzinfo
+- datetime.combine(date, time) without tzinfo  # tz-pattern-ok: documenting patterns in hook comments
 - date.today()
 
 Allowed patterns:
 - datetime.now(timezone.utc)
 - datetime.now(tz=timezone.utc)
-- datetime.combine(date, time, tzinfo=timezone.utc)
+- datetime.combine(date, time, tzinfo=timezone.utc)  # tz-pattern-ok: documenting patterns in hook comments
 
 Exception marker (same line, immediately above, or within 3 lines after):
     # utc-naive-ok: <reason>
@@ -105,7 +105,7 @@ class _Visitor(ast.NodeVisitor):
             if not has_tzinfo_kw and not has_third_arg:
                 self._record(
                     node,
-                    "Use datetime.combine(..., tzinfo=timezone.utc) or pass a tzinfo argument",
+                    "Use datetime.combine(..., tzinfo=timezone.utc) or pass a tzinfo argument",  # tz-pattern-ok: documenting patterns in hook comments
                 )
 
         self.generic_visit(node)

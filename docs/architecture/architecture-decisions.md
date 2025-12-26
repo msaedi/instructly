@@ -123,6 +123,30 @@ class InstructorInfo:
 6. **No new migrations during dev** - Modify existing files
 7. **Default to INT database** - Production requires explicit confirmation
 
+### Timezone Architecture (v123)
+**Decision**: Store UTC timestamps with timezone context, use TimezoneService for all conversions.
+
+**New Fields**:
+- `booking_start_utc`: Canonical UTC timestamp
+- `booking_end_utc`: Canonical UTC timestamp
+- `lesson_timezone`: IANA timezone ID for the lesson
+- `instructor_tz_at_booking`: Snapshot of instructor TZ
+- `student_tz_at_booking`: Snapshot of student TZ
+
+**Rules**:
+- In-person lessons: Instructor's timezone
+- Online lessons: Instructor's timezone
+- All comparisons: Use UTC
+- DST spring-forward gaps: Reject with user-friendly error
+- DST fall-back overlaps: Use first occurrence
+- Wall-clock preservation: "2 PM" stays "2 PM" across DST
+
+**Enforcement**:
+- Pre-commit hook: check_timezone_patterns.py
+- Exception marker: `# tz-pattern-ok: <reason>`
+
+**Rationale**: Fixes min-advance check bug where local times were incorrectly treated as UTC.
+
 ## Messaging Architecture Decisions (v117)
 
 ### Per-User Conversation State

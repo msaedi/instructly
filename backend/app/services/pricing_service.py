@@ -148,7 +148,9 @@ class PricingService(BaseService):
 
         duration_minutes = int(payload.selected_duration)
         end_time_obj = (
-            datetime.combine(date(2000, 1, 1), start_time_obj, tzinfo=timezone.utc)
+            datetime.combine(  # tz-pattern-ok: duration math only
+                date(2000, 1, 1), start_time_obj, tzinfo=timezone.utc
+            )
             + timedelta(minutes=duration_minutes)
         ).time()
 

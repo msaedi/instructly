@@ -690,7 +690,7 @@ class DatabaseSeeder:
 
                     start_hour = rng.randint(9, 18)
                     start_time = time(start_hour, 0)
-                    start_dt_naive = datetime.combine(booking_date, start_time)
+                    start_dt_naive = datetime.combine(booking_date, start_time)  # tz-pattern-ok: seed script generates test data
                     end_dt_naive = start_dt_naive + timedelta(minutes=duration)
                     end_time = end_dt_naive.time()
 
@@ -1254,7 +1254,12 @@ class DatabaseSeeder:
                 # Random time between 10 AM and 6 PM
                 hour = random.randint(10, 17)
                 start_time = time(hour, 0)
-                end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+                end_time = (
+                    datetime.combine(  # tz-pattern-ok: seed script generates test data
+                        date.today(), start_time
+                    )
+                    + timedelta(minutes=duration)
+                ).time()
 
                 # Skip if this student already has a booking overlapping this window
                 student_overlap = (
@@ -1387,7 +1392,12 @@ class DatabaseSeeder:
                 # Random time between 10 AM and 6 PM
                 hour = random.randint(10, 17)
                 start_time = time(hour, 0)
-                end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+                end_time = (
+                    datetime.combine(  # tz-pattern-ok: seed script generates test data
+                        date.today(), start_time
+                    )
+                    + timedelta(minutes=duration)
+                ).time()
 
                 # Get service details from catalog
                 catalog_service = session.query(ServiceCatalog).filter_by(id=service.service_catalog_id).first()
@@ -1517,7 +1527,12 @@ class DatabaseSeeder:
 
                 hour = random.randint(10, 17)
                 start_time = time(hour, 0)
-                end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+                end_time = (
+                    datetime.combine(  # tz-pattern-ok: seed script generates test data
+                        date.today(), start_time
+                    )
+                    + timedelta(minutes=duration)
+                ).time()
 
                 # In-memory conflict check
                 start_min = start_time.hour * 60 + start_time.minute
@@ -1632,7 +1647,12 @@ class DatabaseSeeder:
 
                 hour = random.randint(10, 17)
                 start_time = time(hour, 0)
-                end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+                end_time = (
+                    datetime.combine(  # tz-pattern-ok: seed script generates test data
+                        date.today(), start_time
+                    )
+                    + timedelta(minutes=duration)
+                ).time()
 
                 # In-memory conflict check
                 start_min = start_time.hour * 60 + start_time.minute
