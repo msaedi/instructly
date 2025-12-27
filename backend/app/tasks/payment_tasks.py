@@ -1046,6 +1046,35 @@ def has_event_type(payment_repo: Any, booking_id: Union[int, str], event_type: s
     return any(e.event_type == event_type for e in events)
 
 
+def _resolve_locked_booking_from_task(locked_booking_id: str, resolution: str) -> Dict[str, Any]:
+    """Resolve a LOCKed booking from a task context."""
+    from app.database import SessionLocal
+    from app.services.booking_service import BookingService
+
+    db: Session = SessionLocal()
+    try:
+        service = BookingService(db)
+        result = service.resolve_lock_for_booking(locked_booking_id, resolution)
+        db.commit()
+        return result
+    finally:
+        db.close()
+
+
+def _mark_child_booking_settled(booking_id: str) -> None:
+    """Mark a rescheduled booking as settled after lock resolution."""
+    from app.database import SessionLocal
+
+    db: Session = SessionLocal()
+    try:
+        booking = db.query(Booking).filter(Booking.id == booking_id).first()
+        if booking:
+            booking.payment_status = "settled"
+            db.commit()
+    finally:
+        db.close()
+
+
 def _process_capture_for_booking(
     booking_id: str,
     capture_reason: str,
@@ -1072,6 +1101,24 @@ def _process_capture_for_booking(
         if booking.status == BookingStatus.CANCELLED:
             db1.commit()
             return {"success": True, "skipped": True, "reason": "cancelled"}
+
+        if (
+            getattr(booking, "has_locked_funds", False) is True
+            and booking.rescheduled_from_booking_id
+        ):
+            locked_booking_id = booking.rescheduled_from_booking_id
+            db1.commit()
+            lock_result = _resolve_locked_booking_from_task(
+                locked_booking_id, "new_lesson_completed"
+            )
+            if lock_result.get("success") or lock_result.get("skipped"):
+                _mark_child_booking_settled(booking_id)
+            return {
+                "success": True,
+                "skipped": True,
+                "reason": "locked_funds",
+                "lock_result": lock_result,
+            }
 
         # Extract data needed for Stripe call
         payment_intent_id = booking.payment_intent_id
@@ -1280,6 +1327,8 @@ def _auto_complete_booking(booking_id: str, now: datetime) -> Dict[str, Any]:
     # ========== PHASE 1: Read and update booking status (quick transaction) ==========
     db1: Session = SessionLocal()
     payment_intent_id: Optional[str] = None
+    locked_parent_id: Optional[str] = None
+    has_locked_funds = False
     try:
         booking = db1.query(Booking).filter(Booking.id == booking_id).first()
         if not booking:
@@ -1298,7 +1347,10 @@ def _auto_complete_booking(booking_id: str, now: datetime) -> Dict[str, Any]:
             db1.commit()
             return {"success": True, "auto_completed": False, "skipped": True, "reason": "disputed"}
 
-        if booking.status != BookingStatus.CONFIRMED or booking.payment_status != "authorized":
+        if booking.status != BookingStatus.CONFIRMED or (
+            booking.payment_status != "authorized"
+            and getattr(booking, "has_locked_funds", False) is not True
+        ):
             db1.commit()
             return {
                 "success": True,
@@ -1334,11 +1386,29 @@ def _auto_complete_booking(booking_id: str, now: datetime) -> Dict[str, Any]:
         )
 
         payment_intent_id = booking.payment_intent_id
+        if (
+            getattr(booking, "has_locked_funds", False) is True
+            and booking.rescheduled_from_booking_id
+        ):
+            has_locked_funds = True
+            locked_parent_id = booking.rescheduled_from_booking_id
         db1.commit()  # Commit status change immediately
     finally:
         db1.close()
 
     # ========== PHASE 2 & 3: Capture payment (uses 3-phase internally) ==========
+    if has_locked_funds and locked_parent_id:
+        lock_result = _resolve_locked_booking_from_task(locked_parent_id, "new_lesson_completed")
+        if lock_result.get("success") or lock_result.get("skipped"):
+            _mark_child_booking_settled(booking_id)
+        return {
+            "success": True,
+            "auto_completed": True,
+            "captured": bool(lock_result.get("success") or lock_result.get("skipped")),
+            "capture_attempted": True,
+            "lock_result": lock_result,
+        }
+
     if not payment_intent_id:
         logger.warning(f"Skipping capture for booking {booking_id}: no payment_intent_id")
         return {
@@ -1402,7 +1472,9 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
         capture_cutoff = now - timedelta(hours=24)
         for booking in all_completed_bookings:
             lesson_end_utc = _get_booking_end_utc(booking)
-            if lesson_end_utc <= capture_cutoff and booking.payment_intent_id:
+            if lesson_end_utc <= capture_cutoff and (
+                booking.payment_intent_id or booking.has_locked_funds
+            ):
                 capture_booking_ids.append(booking.id)
 
         # 2. Find booking IDs for auto-completion

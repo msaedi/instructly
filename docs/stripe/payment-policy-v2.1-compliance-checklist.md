@@ -1,36 +1,36 @@
-# Payment Policy v2.1 Compliance Checklist (Phase 0 - Pre-Audit)
+# Payment Policy v2.1 Compliance Checklist (Phase 0–2)
 
 Last updated: 2025-12-27
 Environment: staging DB (instainstru_stg), SITE_MODE=local, Stripe test mode
-Scope: Pre-audit only. No fixes. Captures current truth for entrypoints, concurrency, and idempotency/locking.
+Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), and Phase 2 LOCK anti-gaming mechanism.
 
-## A) Entrypoint Inventory (money movement / payment state)
+## A) Entrypoint Inventory (money movement / payment state, current state)
 
 | Type | Entrypoint | File / Function | Writes (booking/payment fields) | Stripe side-effects | Idempotency keys / caching | Locking / mutex |
 | --- | --- | --- | --- | --- | --- | --- |
 | API | POST /api/v1/payments/checkout | backend/app/routes/v1/payments.py:504 create_checkout<br>backend/app/services/stripe_service.py:444 create_booking_checkout | booking.status (CONFIRMED)<br>booking.payment_status (authorized when requires_capture)<br>booking.payment_intent_id<br>payment_intents.status | PaymentIntent.create + confirm<br>optional PaymentMethod save | Cache key `POST:/api/v1/payments/checkout:user:{user_id}:booking:{booking_id}` | Per-user lock `"{user_id}:checkout"` (TTL 30s) |
-| API | POST /api/v1/bookings/{id}/cancel | backend/app/routes/v1/bookings.py:633 cancel_booking<br>backend/app/services/booking_service.py:1226 cancel_booking | booking.status (CANCELLED)<br>booking.cancelled_at/booking.cancelled_by_id<br>booking.payment_status (released/credit_issued/captured/etc)<br>payment_events + platform_credits | PaymentIntent.cancel (>=24h/instructor)<br>PaymentIntent.capture (12-24h/<12h/gaming)<br>Transfer reversal (12-24h/gaming) | Stripe keys: `cancel_{booking_id}`, `cancel_instructor_{booking_id}`, `capture_cancel_{booking_id}`, `capture_late_cancel_{booking_id}`, `capture_resched_{booking_id}`, `reverse_{booking_id}`, `reverse_resched_{booking_id}` | None |
-| API | POST /api/v1/bookings/{id}/reschedule | backend/app/routes/v1/bookings.py:663 reschedule_booking<br>backend/app/services/booking_service.py:833 create_rescheduled_booking_with_existing_payment | New booking: rescheduled_from_booking_id, original_lesson_datetime<br>payment_intent_id/payment_method_id/payment_status (reuse)<br>Old booking: status CANCELLED (and payment_intent_id cleared when reuse) | If reuse: no Stripe call<br>If new: SetupIntent create + PaymentIntent auth (confirm_booking_payment) | No API idempotency; relies on Stripe idempotency in cancel/auth flows | None |
+| API | POST /api/v1/bookings/{id}/cancel | backend/app/routes/v1/bookings.py:633 cancel_booking<br>backend/app/services/booking_service.py:1226 cancel_booking | booking.status (CANCELLED)<br>booking.cancelled_at/booking.cancelled_by_id<br>booking.payment_status (released/credit_issued/captured/etc)<br>payment_events + platform_credits<br>locked parent booking: lock_resolution/lock_resolved_at/settlement_outcome (if has_locked_funds) | PaymentIntent.cancel (>=24h/instructor)<br>PaymentIntent.capture (12-24h/<12h/gaming)<br>Transfer reversal (12-24h/gaming)<br>LOCK resolution (if has_locked_funds): manual transfer/credit/refund | Stripe keys: `cancel_{booking_id}`, `cancel_instructor_{booking_id}`, `capture_cancel_{booking_id}`, `capture_late_cancel_{booking_id}`, `capture_resched_{booking_id}`, `reverse_{booking_id}`, `reverse_resched_{booking_id}` | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
+| API | POST /api/v1/bookings/{id}/reschedule | backend/app/routes/v1/bookings.py:663 reschedule_booking<br>backend/app/services/booking_service.py:833 create_rescheduled_booking_with_existing_payment | New booking: rescheduled_from_booking_id, rescheduled_to_booking_id, original_lesson_datetime, has_locked_funds, payment_status (locked when LOCK)<br>Old booking: status CANCELLED; payment_status locked + locked_at/locked_amount_cents (LOCK); payment_intent_id cleared when reuse | If reuse: no Stripe call<br>If LOCK: PaymentIntent.capture + Transfer.create_reversal<br>If new: SetupIntent create + PaymentIntent auth (confirm_booking_payment) | No API idempotency; relies on Stripe idempotency in cancel/auth flows | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
 | API | POST /api/v1/bookings/{id}/confirm-payment (deprecated) | backend/app/routes/v1/bookings.py:937 confirm_booking_payment<br>backend/app/services/booking_service.py:952 confirm_booking_payment | booking.payment_method_id<br>booking.payment_status (payment_method_saved/scheduled/authorizing)<br>booking.status (CONFIRMED), booking.confirmed_at<br>payment_events auth_scheduled/auth_immediate | Optional save payment method<br>Immediate auth uses PaymentIntent create + confirm | None | None |
 | API | PATCH /api/v1/bookings/{id}/payment-method | backend/app/routes/v1/bookings.py:974 update_booking_payment_method<br>backend/app/services/booking_service.py:952 confirm_booking_payment | booking.payment_method_id<br>booking.payment_status (payment_method_saved/scheduled/authorizing)<br>booking.status (CONFIRMED), booking.confirmed_at | Optional save payment method<br>Immediate auth uses PaymentIntent create + confirm | None | None |
 | API | POST /api/v1/bookings/{id}/complete | backend/app/routes/v1/bookings.py:870 complete_booking<br>backend/app/services/booking_service.py:2053 complete_booking | booking.status (COMPLETED) + completed_at (via repository)<br>payment_events (milestone credits) | None | None | None |
 | API | POST /api/v1/instructor/bookings/{id}/complete | backend/app/routes/v1/instructor_bookings.py:255 mark_lesson_complete<br>backend/app/services/booking_service.py:2150 instructor_mark_complete | booking.status (COMPLETED), completed_at, instructor_note<br>payment_events (instructor_marked_complete) | None | None | None |
-| API | POST /api/v1/bookings/{id}/no-show | backend/app/routes/v1/bookings.py:903 mark_booking_no_show<br>backend/app/services/booking_service.py:2307 mark_no_show | booking.status (NO_SHOW via mark_no_show) | None | None | None |
-| API | POST /api/v1/instructor/bookings/{id}/dispute | backend/app/routes/v1/instructor_bookings.py:315 dispute_completion<br>backend/app/services/booking_service.py:2248 instructor_dispute_completion | booking.payment_status -> disputed (if authorized)<br>payment_events completion_disputed | None | None | None |
-| API | POST /api/v1/admin/bookings/{id}/cancel | backend/app/routes/v1/admin/bookings.py:131 admin_cancel_booking<br>backend/app/services/admin_booking_service.py:248 cancel_booking | booking.status (CANCELLED), cancelled_at, cancelled_by_id, cancellation_reason<br>booking.payment_status -> refunded (if refund) | Optional Stripe refund (reverse_transfer=True) | Stripe key `admin_cancel_{booking_id}_{timestamp}` | None |
-| API | POST /api/v1/admin/refunds/{id}/refund | backend/app/routes/v1/admin/refunds.py:39 admin_refund_booking | booking.payment_status -> refunded (via apply_refund_updates)<br>refund_id/refund metadata | Stripe refund (reverse_transfer=True) | Stripe key `admin_refund_{booking_id}_{uuid}` | None |
+| API | POST /api/v1/bookings/{id}/no-show | backend/app/routes/v1/bookings.py:903 mark_booking_no_show<br>backend/app/services/booking_service.py:2307 mark_no_show | booking.status (NO_SHOW via mark_no_show) | None | None | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
+| API | POST /api/v1/instructor/bookings/{id}/dispute | backend/app/routes/v1/instructor_bookings.py:315 dispute_completion<br>backend/app/services/booking_service.py:2248 instructor_dispute_completion | booking.payment_status -> disputed (if authorized)<br>payment_events completion_disputed | None | None | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
+| API | POST /api/v1/admin/bookings/{id}/cancel | backend/app/routes/v1/admin/bookings.py:131 admin_cancel_booking<br>backend/app/services/admin_booking_service.py:248 cancel_booking | booking.status (CANCELLED), cancelled_at, cancelled_by_id, cancellation_reason<br>booking.payment_status -> refunded (if refund) | Optional Stripe refund (reverse_transfer=True) | Stripe key `admin_cancel_{booking_id}_{timestamp}` | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
+| API | POST /api/v1/admin/refunds/{id}/refund | backend/app/routes/v1/admin/refunds.py:39 admin_refund_booking | booking.payment_status -> refunded (via apply_refund_updates)<br>refund_id/refund metadata | Stripe refund (reverse_transfer=True) | Stripe key `admin_refund_{booking_id}_{uuid}` | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
 | API | POST /api/v1/payments/webhooks/stripe | backend/app/routes/v1/payments.py:728 handle_stripe_webhook<br>backend/app/services/stripe_service.py:3061 handle_webhook_event | payment_intents.status (update_payment_status)<br>booking.status -> CONFIRMED when PI succeeds and booking PENDING<br>charge.refunded triggers credit hooks | None (webhook processing only) | None | None |
-| Task | process_scheduled_authorizations | backend/app/tasks/payment_tasks.py:375 process_scheduled_authorizations | booking.payment_status (authorized/auth_failed/auth_abandoned)<br>booking.payment_intent_id<br>payment_events auth_scheduled/auth_succeeded/auth_failed | PaymentIntent create/confirm via create_or_retry_booking_payment_intent | Stripe create/confirm idempotency handled in service (no booking-level dedupe) | None (3-phase pattern only) |
-| Task | retry_failed_authorizations | backend/app/tasks/payment_tasks.py:708 retry_failed_authorizations | booking.payment_status (authorized/auth_retry_failed/auth_abandoned)<br>booking.status -> CANCELLED when failure at T-6 | PaymentIntent create/confirm retry | Stripe idempotency handled in service | None |
-| Task | capture_completed_lessons | backend/app/tasks/payment_tasks.py:1260 capture_completed_lessons | booking.payment_status (captured/auth_expired/capture_failed)<br>booking.status -> COMPLETED (auto_complete path)<br>booking.payment_intent_id (reauth) | PaymentIntent.capture<br>Possible reauth (create_new_authorization_and_capture) | Stripe key `capture_{reason}_{booking_id}_{payment_intent_id}` | None |
-| Task | capture_late_cancellation | backend/app/tasks/payment_tasks.py:1673 capture_late_cancellation | booking.payment_status -> captured<br>payment_events late_cancellation_captured | PaymentIntent.capture | Stripe key `capture_late_cancel_{booking_id}_{payment_intent_id}` | None |
-| Task | create_new_authorization_and_capture (internal) | backend/app/tasks/payment_tasks.py:1579 create_new_authorization_and_capture | booking.payment_intent_id (new)<br>booking.payment_status -> captured<br>payment_events reauth_and_capture | PaymentIntent create + capture | Stripe capture idempotency inside call | None |
+| Task | process_scheduled_authorizations | backend/app/tasks/payment_tasks.py:375 process_scheduled_authorizations | booking.payment_status (authorized/auth_failed/auth_abandoned)<br>booking.payment_intent_id<br>payment_events auth_scheduled/auth_succeeded/auth_failed | PaymentIntent create/confirm via create_or_retry_booking_payment_intent | Stripe create/confirm idempotency handled in service (no booking-level dedupe) | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
+| Task | retry_failed_authorizations | backend/app/tasks/payment_tasks.py:708 retry_failed_authorizations | booking.payment_status (authorized/auth_retry_failed/auth_abandoned)<br>booking.status -> CANCELLED when failure at T-12 | PaymentIntent create/confirm retry | Stripe idempotency handled in service | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
+| Task | capture_completed_lessons | backend/app/tasks/payment_tasks.py:1260 capture_completed_lessons | booking.payment_status (captured/auth_expired/capture_failed/settled)<br>booking.status -> COMPLETED (auto_complete path)<br>booking.payment_intent_id (reauth)<br>locked parent booking: settlement_outcome/lock_resolution (if has_locked_funds) | PaymentIntent.capture<br>LOCK resolution (has_locked_funds): manual transfer on locked parent (new_lesson_completed)<br>Possible reauth (create_new_authorization_and_capture) | Stripe key `capture_{reason}_{booking_id}_{payment_intent_id}` | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
+| Task | capture_late_cancellation | backend/app/tasks/payment_tasks.py:1673 capture_late_cancellation | booking.payment_status -> captured<br>payment_events late_cancellation_captured | PaymentIntent.capture | Stripe key `capture_late_cancel_{booking_id}_{payment_intent_id}` | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
+| Task | create_new_authorization_and_capture (internal) | backend/app/tasks/payment_tasks.py:1579 create_new_authorization_and_capture | booking.payment_intent_id (new)<br>booking.payment_status -> captured<br>payment_events reauth_and_capture | PaymentIntent create + capture | Stripe capture idempotency inside call | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
 
 Notes:
 - Instructor cancel uses the same `/api/v1/bookings/{id}/cancel` entrypoint; there is no separate instructor-cancel route.
 - No dedicated credit issuance task; credits are created in booking_service cancellation finalization and in refund hooks.
 
-## B) Concurrency Race Repro Truth Tests (staging)
+## B) Concurrency Race Repro Truth Tests (staging, pre-Phase 0 baseline)
 
 ### Test 0.1 - Cancel vs Capture race
 Setup:
@@ -122,8 +122,8 @@ backend_server.log:
   - capture_late_cancellation uses `capture_late_cancel_{booking_id}_{payment_intent_id}`.
   - Admin refund/cancel generate unique idempotency keys per request.
 - Booking-level mutex:
-  - None found. No `SELECT ... FOR UPDATE` usage in booking/payment repositories for cancel/reschedule/capture paths.
-- Observed race outcomes (staging):
+  - Redis booking mutex implemented for cancel/reschedule/no-show/dispute/admin cancel/refund and payment tasks (per booking, TTL 90s).
+- Observed race outcomes (staging baseline, pre-Phase 0):
   - Cancel vs capture job can double-attempt capture; Stripe returns "already captured" and booking remains CANCELLED/captured.
   - Double cancel can produce one Stripe capture and one idempotency error; credit issuance is guarded by existing credit check.
   - Reschedule vs scheduled auth can authorize a cancelled booking (stale auth) and leave PI attached to CANCELLED booking.
@@ -185,8 +185,40 @@ booking state (new):
 status=CONFIRMED payment_status=authorized payment_intent_id=pi_3Sj14h0LanJcM8Lu1X0t6Kqn
 ```
 
-## F) Gap Matrix (Phase 0)
+## F) Gap Matrix (Phase 0–1)
 
 | Scenario | Status | Evidence | Severity | Proposed fix | Notes |
 | --- | --- | --- | --- | --- | --- |
 | Concurrency safety (per-booking mutual exclusion) | PASS ✅ | Tests 0.1–0.3 (POST) with booking_ids + PIs above | P0 | Implemented | commit: pending (local changes; user to commit) |
+| Student cancel <12h 50/50 split (credit + payout) | PASS ✅ | `backend/tests/integration/test_cancel_lt12_split.py` | P0 | Implemented | Capture → reverse transfer → 50% payout + 50% credit |
+| Instructor cancel full refund (incl. SF) | PASS ✅ | `backend/tests/integration/test_instructor_cancel_refund.py` | P0 | Implemented | Refund uses `reverse_transfer` + `refund_application_fee` |
+| Auth retry hard deadline at T-12h | PASS ✅ | `backend/tests/unit/tasks/test_auth_retry_deadline.py` | P0 | Implemented | Replaces prior T-6h cutoff |
+| Settlement tracking fields on booking | PASS ✅ | `backend/app/models/booking.py`, `backend/app/services/booking_service.py`, `backend/app/tasks/payment_tasks.py` | P1 | Implemented | Tracks settlement_outcome + amount fields |
+| LOCK anti-gaming (12–24h reschedule) | PASS ✅ | `backend/tests/integration/test_lock_mechanism.py` | P0 | Implemented | Capture + reverse transfer, set locked status, resolve on new lesson outcome |
+
+## G) Phase 1 Changes Implemented
+
+- Task 1.1 (<12h cancel 50/50 split): `backend/app/services/booking_service.py` now captures, reverses destination transfer, issues 50% credit, and pays 50% net payout via manual transfer. Settlement fields set on booking.
+- Task 1.2 (Instructor cancel refund): `backend/app/services/booking_service.py` refunds captured payments with `reverse_transfer=True` + `refund_application_fee=True`; releases auth if not captured; releases reserved credits; sets settlement_outcome.
+- Task 1.3 (T-12h deadline): `backend/app/tasks/payment_tasks.py` retry job now auto-cancels at 12h remaining (not 6h).
+- Task 1.4 (Settlement tracking fields): `backend/app/models/booking.py` adds settlement fields; `backend/app/schemas/booking.py` exposes them; `backend/app/services/booking_service.py` and `backend/app/tasks/payment_tasks.py` set values on cancel/complete flows.
+
+## H) Phase 1 Verification (Automated)
+
+- New tests: `backend/tests/integration/test_cancel_lt12_split.py`, `backend/tests/integration/test_instructor_cancel_refund.py`, `backend/tests/unit/tasks/test_auth_retry_deadline.py`
+- Updated assertions: `backend/tests/services/test_booking_cancellation_policy.py`, `backend/tests/tasks/test_payment_tasks.py`
+- Evidence type: automated tests only (staging verification pending)
+
+## I) Phase 2 Changes Implemented
+
+- Task 2.1–2.2: LOCK trigger + activation on student reschedule in 12–24h window (capture + reverse transfer, set `payment_status=locked`, `locked_at`, `locked_amount_cents`).
+- Task 2.3 + 2.7: Booking model + migration add lock tracking + reschedule linking fields (`locked_at`, `lock_resolution`, `rescheduled_to_booking_id`, `has_locked_funds`, etc.).
+- Task 2.4: Reschedule flow now branches to LOCK activation + rescheduled booking with locked funds (no PI reuse).
+- Task 2.5–2.6: LOCK resolution implemented for completion/cancellation/instructor cancel; wired into cancel flow and capture job.
+- Task 2.8: Frontend payment status types include `locked` for UI consistency.
+- New automated tests: `backend/tests/integration/test_lock_mechanism.py`.
+
+## J) Phase 2 Verification (Automated)
+
+- Test file: `backend/tests/integration/test_lock_mechanism.py`
+- Result: `pytest backend/tests/integration/test_lock_mechanism.py -q` (14 passed)

@@ -8,7 +8,13 @@ import type {
 import { listAdminBookingsApiV1AdminBookingsGet } from '@/src/api/generated/admin-bookings/admin-bookings';
 
 export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
-export type PaymentStatus = 'pending' | 'authorized' | 'captured' | 'refunded' | 'failed';
+export type PaymentStatus =
+  | 'pending'
+  | 'authorized'
+  | 'captured'
+  | 'locked'
+  | 'refunded'
+  | 'failed';
 
 export interface BookingPerson {
   id: string;
@@ -81,6 +87,7 @@ export const paymentStatusOptions: { value: BookingFiltersState['payment_status'
   { value: 'pending', label: 'Pending' },
   { value: 'authorized', label: 'Authorized' },
   { value: 'captured', label: 'Captured' },
+  { value: 'locked', label: 'Locked' },
   { value: 'refunded', label: 'Refunded' },
   { value: 'failed', label: 'Failed' },
 ];
@@ -96,6 +103,7 @@ const PAYMENT_STATUS_VALUES: PaymentStatus[] = [
   'pending',
   'authorized',
   'captured',
+  'locked',
   'refunded',
   'failed',
 ];

@@ -4,6 +4,7 @@ export enum PaymentStatus {
   PENDING = 'pending',
   AUTHORIZED = 'authorized',
   CAPTURED = 'captured',
+  LOCKED = 'locked',
   FAILED = 'failed',
   REFUNDED = 'refunded',
   RELEASED = 'released',

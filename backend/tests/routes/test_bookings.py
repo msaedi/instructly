@@ -99,6 +99,10 @@ class TestBookingRoutes:
         mock_service.update_booking = Mock()
         mock_service.create_rescheduled_booking_with_existing_payment = Mock()
         mock_service.cancel_booking_without_stripe = Mock()
+        mock_service.should_trigger_lock = Mock(return_value=False)
+        mock_service.get_hours_until_start = Mock(return_value=48)
+        mock_service.activate_lock_for_reschedule = Mock()
+        mock_service.create_rescheduled_booking_with_locked_funds = Mock()
 
         return mock_service
 

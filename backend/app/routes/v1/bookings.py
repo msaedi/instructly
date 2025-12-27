@@ -799,7 +799,26 @@ async def reschedule_booking(
                 and normalized_payment_status in {"authorized", "captured"}
             )
 
-            if reuse_payment:
+            initiator_role = "student" if current_user.id == original.student_id else "instructor"
+            hours_until_original = await asyncio.to_thread(
+                booking_service.get_hours_until_start, original
+            )
+            should_lock = await asyncio.to_thread(
+                booking_service.should_trigger_lock, original, initiator_role
+            )
+
+            force_stripe_cancel = initiator_role == "student" and hours_until_original < 12
+
+            if should_lock:
+                await asyncio.to_thread(booking_service.activate_lock_for_reschedule, original.id)
+                new_booking = await asyncio.to_thread(
+                    booking_service.create_rescheduled_booking_with_locked_funds,
+                    current_user,
+                    new_booking_data,
+                    payload.selected_duration,
+                    original.id,
+                )
+            elif reuse_payment and not force_stripe_cancel:
                 new_booking = await asyncio.to_thread(
                     booking_service.create_rescheduled_booking_with_existing_payment,
                     current_user,
@@ -858,7 +877,14 @@ async def reschedule_booking(
 
             # Cancel original booking
             try:
-                if reuse_payment:
+                if should_lock:
+                    await asyncio.to_thread(
+                        booking_service.cancel_booking_without_stripe,
+                        booking_id,
+                        current_user,
+                        "Rescheduled",
+                    )
+                elif reuse_payment and not force_stripe_cancel:
                     await asyncio.to_thread(
                         booking_service.cancel_booking_without_stripe,
                         booking_id,

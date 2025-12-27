@@ -169,10 +169,17 @@ def upgrade() -> None:
         sa.Column("student_credit_amount", sa.Integer(), nullable=True, comment="Student credit issued in cents (v2.1.1)"),
         sa.Column("instructor_payout_amount", sa.Integer(), nullable=True, comment="Instructor payout in cents (v2.1.1)"),
         sa.Column("refunded_to_card_amount", sa.Integer(), nullable=True, comment="Refunded to card in cents (v2.1.1)"),
+        sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True, comment="When LOCK was activated (v2.1.1)"),
+        sa.Column("locked_amount_cents", sa.Integer(), nullable=True, comment="Amount held under LOCK in cents (v2.1.1)"),
+        sa.Column("lock_resolved_at", sa.DateTime(timezone=True), nullable=True, comment="When LOCK was resolved (v2.1.1)"),
+        sa.Column("lock_resolution", sa.String(50), nullable=True, comment="LOCK resolution outcome (v2.1.1)"),
+        sa.Column("rescheduled_to_booking_id", sa.String(26), nullable=True),
+        sa.Column("has_locked_funds", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="New booking has locked funds from reschedule (v2.1.1)"),
         sa.ForeignKeyConstraint(["student_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["instructor_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["instructor_service_id"], ["instructor_services.id"]),
         sa.ForeignKeyConstraint(["rescheduled_from_booking_id"], ["bookings.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["rescheduled_to_booking_id"], ["bookings.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["cancelled_by_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
         comment="Self-contained booking records - no dependency on availability slots",
@@ -207,6 +214,7 @@ def upgrade() -> None:
     op.create_index("idx_bookings_instructor_service_id", "bookings", ["instructor_service_id"])
     op.create_index("idx_bookings_cancelled_by_id", "bookings", ["cancelled_by_id"])
     op.create_index("idx_bookings_rescheduled_from_id", "bookings", ["rescheduled_from_booking_id"])
+    op.create_index("idx_bookings_rescheduled_to_id", "bookings", ["rescheduled_to_booking_id"])
 
     op.create_check_constraint(
         "ck_bookings_status",
@@ -679,6 +687,7 @@ def downgrade() -> None:
     op.drop_constraint("ck_bookings_location_type", "bookings", type_="check")
     op.drop_constraint("ck_bookings_status", "bookings", type_="check")
 
+    op.drop_index("idx_bookings_rescheduled_to_id", table_name="bookings")
     op.drop_index("idx_bookings_rescheduled_from_id", table_name="bookings")
     op.drop_index("idx_bookings_cancelled_by_id", table_name="bookings")
     op.drop_index("idx_bookings_instructor_service_id", table_name="bookings")

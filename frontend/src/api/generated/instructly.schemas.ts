@@ -1635,6 +1635,8 @@ export type BookingCreateResponseCompletedAt = string | null;
 
 export type BookingCreateResponseConfirmedAt = string | null;
 
+export type BookingCreateResponseHasLockedFunds = boolean | null;
+
 export type BookingCreateResponseInstructorNote = string | null;
 
 export type BookingCreateResponseInstructorPayoutAmount = number | null;
@@ -1645,6 +1647,14 @@ export type BookingCreateResponseLessonTimezone = string | null;
 
 export type BookingCreateResponseLocationType = string | null;
 
+export type BookingCreateResponseLockResolution = string | null;
+
+export type BookingCreateResponseLockResolvedAt = string | null;
+
+export type BookingCreateResponseLockedAmountCents = number | null;
+
+export type BookingCreateResponseLockedAt = string | null;
+
 export type BookingCreateResponseMeetingLocation = string | null;
 
 export type BookingCreateResponsePaymentSummary = PaymentSummary | null;
@@ -1654,6 +1664,8 @@ export type BookingCreateResponseRefundedToCardAmount = number | null;
 export type BookingCreateResponseRescheduledFrom = RescheduledFromInfo | null;
 
 export type BookingCreateResponseRescheduledFromBookingId = string | null;
+
+export type BookingCreateResponseRescheduledToBookingId = string | null;
 
 export type BookingCreateResponseServiceArea = string | null;
 
@@ -1687,6 +1699,7 @@ export interface BookingCreateResponse {
   created_at: string;
   duration_minutes: number;
   end_time: string;
+  has_locked_funds?: BookingCreateResponseHasLockedFunds;
   hourly_rate: number;
   id: string;
   instructor: InstructorInfo;
@@ -1698,6 +1711,10 @@ export interface BookingCreateResponse {
   instructor_timezone?: BookingCreateResponseInstructorTimezone;
   lesson_timezone?: BookingCreateResponseLessonTimezone;
   location_type: BookingCreateResponseLocationType;
+  lock_resolution?: BookingCreateResponseLockResolution;
+  lock_resolved_at?: BookingCreateResponseLockResolvedAt;
+  locked_amount_cents?: BookingCreateResponseLockedAmountCents;
+  locked_at?: BookingCreateResponseLockedAt;
   meeting_location: BookingCreateResponseMeetingLocation;
   payment_summary?: BookingCreateResponsePaymentSummary;
   refunded_to_card_amount?: BookingCreateResponseRefundedToCardAmount;
@@ -1705,6 +1722,7 @@ export interface BookingCreateResponse {
   requires_payment_method?: boolean;
   rescheduled_from?: BookingCreateResponseRescheduledFrom;
   rescheduled_from_booking_id?: BookingCreateResponseRescheduledFromBookingId;
+  rescheduled_to_booking_id?: BookingCreateResponseRescheduledToBookingId;
   service_area: BookingCreateResponseServiceArea;
   service_name: string;
   settlement_outcome?: BookingCreateResponseSettlementOutcome;
@@ -1799,6 +1817,8 @@ export type BookingResponseCompletedAt = string | null;
 
 export type BookingResponseConfirmedAt = string | null;
 
+export type BookingResponseHasLockedFunds = boolean | null;
+
 export type BookingResponseInstructorNote = string | null;
 
 export type BookingResponseInstructorPayoutAmount = number | null;
@@ -1809,6 +1829,14 @@ export type BookingResponseLessonTimezone = string | null;
 
 export type BookingResponseLocationType = string | null;
 
+export type BookingResponseLockResolution = string | null;
+
+export type BookingResponseLockResolvedAt = string | null;
+
+export type BookingResponseLockedAmountCents = number | null;
+
+export type BookingResponseLockedAt = string | null;
+
 export type BookingResponseMeetingLocation = string | null;
 
 export type BookingResponsePaymentSummary = PaymentSummary | null;
@@ -1818,6 +1846,8 @@ export type BookingResponseRefundedToCardAmount = number | null;
 export type BookingResponseRescheduledFrom = RescheduledFromInfo | null;
 
 export type BookingResponseRescheduledFromBookingId = string | null;
+
+export type BookingResponseRescheduledToBookingId = string | null;
 
 export type BookingResponseServiceArea = string | null;
 
@@ -1848,6 +1878,7 @@ export interface BookingResponse {
   created_at: string;
   duration_minutes: number;
   end_time: string;
+  has_locked_funds?: BookingResponseHasLockedFunds;
   hourly_rate: number;
   id: string;
   instructor: InstructorInfo;
@@ -1859,11 +1890,16 @@ export interface BookingResponse {
   instructor_timezone?: BookingResponseInstructorTimezone;
   lesson_timezone?: BookingResponseLessonTimezone;
   location_type: BookingResponseLocationType;
+  lock_resolution?: BookingResponseLockResolution;
+  lock_resolved_at?: BookingResponseLockResolvedAt;
+  locked_amount_cents?: BookingResponseLockedAmountCents;
+  locked_at?: BookingResponseLockedAt;
   meeting_location: BookingResponseMeetingLocation;
   payment_summary?: BookingResponsePaymentSummary;
   refunded_to_card_amount?: BookingResponseRefundedToCardAmount;
   rescheduled_from?: BookingResponseRescheduledFrom;
   rescheduled_from_booking_id?: BookingResponseRescheduledFromBookingId;
+  rescheduled_to_booking_id?: BookingResponseRescheduledToBookingId;
   service_area: BookingResponseServiceArea;
   service_name: string;
   settlement_outcome?: BookingResponseSettlementOutcome;

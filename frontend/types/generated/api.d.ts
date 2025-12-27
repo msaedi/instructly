@@ -7555,6 +7555,8 @@ export type components = {
              * Format: time
              */
             end_time: string;
+            /** Has Locked Funds */
+            has_locked_funds?: boolean | null;
             /** Hourly Rate */
             hourly_rate: number;
             /** Id */
@@ -7575,6 +7577,14 @@ export type components = {
             lesson_timezone?: string | null;
             /** Location Type */
             location_type: string | null;
+            /** Lock Resolution */
+            lock_resolution?: string | null;
+            /** Lock Resolved At */
+            lock_resolved_at?: string | null;
+            /** Locked Amount Cents */
+            locked_amount_cents?: number | null;
+            /** Locked At */
+            locked_at?: string | null;
             /** Meeting Location */
             meeting_location: string | null;
             payment_summary?: components["schemas"]["PaymentSummary"] | null;
@@ -7589,6 +7599,8 @@ export type components = {
             rescheduled_from?: components["schemas"]["RescheduledFromInfo"] | null;
             /** Rescheduled From Booking Id */
             rescheduled_from_booking_id?: string | null;
+            /** Rescheduled To Booking Id */
+            rescheduled_to_booking_id?: string | null;
             /** Service Area */
             service_area: string | null;
             /** Service Name */
@@ -7746,6 +7758,8 @@ export type components = {
              * Format: time
              */
             end_time: string;
+            /** Has Locked Funds */
+            has_locked_funds?: boolean | null;
             /** Hourly Rate */
             hourly_rate: number;
             /** Id */
@@ -7766,6 +7780,14 @@ export type components = {
             lesson_timezone?: string | null;
             /** Location Type */
             location_type: string | null;
+            /** Lock Resolution */
+            lock_resolution?: string | null;
+            /** Lock Resolved At */
+            lock_resolved_at?: string | null;
+            /** Locked Amount Cents */
+            locked_amount_cents?: number | null;
+            /** Locked At */
+            locked_at?: string | null;
             /** Meeting Location */
             meeting_location: string | null;
             payment_summary?: components["schemas"]["PaymentSummary"] | null;
@@ -7774,6 +7796,8 @@ export type components = {
             rescheduled_from?: components["schemas"]["RescheduledFromInfo"] | null;
             /** Rescheduled From Booking Id */
             rescheduled_from_booking_id?: string | null;
+            /** Rescheduled To Booking Id */
+            rescheduled_to_booking_id?: string | null;
             /** Service Area */
             service_area: string | null;
             /** Service Name */

@@ -18,6 +18,7 @@ import os
 from typing import Any, Callable, Optional, cast
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     Date,
@@ -161,6 +162,28 @@ class Booking(Base):
         comment="Refunded to card in cents (v2.1.1)",
     )
 
+    # LOCK mechanism fields (v2.1.1 anti-gaming)
+    locked_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When LOCK was activated (v2.1.1)",
+    )
+    locked_amount_cents = Column(
+        Integer,
+        nullable=True,
+        comment="Amount held under LOCK in cents (v2.1.1)",
+    )
+    lock_resolved_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When LOCK was resolved (v2.1.1)",
+    )
+    lock_resolution = Column(
+        String(50),
+        nullable=True,
+        comment="LOCK resolution outcome (v2.1.1)",
+    )
+
     # Relationships
     student = relationship("User", foreign_keys=[student_id], backref="student_bookings")
     instructor = relationship("User", foreign_keys=[instructor_id], backref="instructor_bookings")
@@ -186,7 +209,27 @@ class Booking(Base):
 
     # Optional linkage when created by reschedule
     rescheduled_from_booking_id = Column(String(26), ForeignKey("bookings.id"), nullable=True)
-    rescheduled_from = relationship("Booking", remote_side=[id], uselist=False, post_update=True)
+    rescheduled_from = relationship(
+        "Booking",
+        remote_side=[id],
+        uselist=False,
+        post_update=True,
+        foreign_keys=[rescheduled_from_booking_id],
+    )
+    rescheduled_to_booking_id = Column(String(26), ForeignKey("bookings.id"), nullable=True)
+    rescheduled_to = relationship(
+        "Booking",
+        remote_side=[id],
+        uselist=False,
+        post_update=True,
+        foreign_keys=[rescheduled_to_booking_id],
+    )
+    has_locked_funds = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="New booking has funds locked from reschedule (v2.1.1)",
+    )
 
     # Lesson datetime of the IMMEDIATE previous booking when rescheduled.
     # Used for Part 4b: Fair Reschedule Loophole Fix - gaming detection.

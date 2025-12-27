@@ -276,6 +276,8 @@ class BookingBase(StandardizedModel):
     instructor_service_id: str
     # If this booking was created by rescheduling another booking
     rescheduled_from_booking_id: Optional[str] = None
+    rescheduled_to_booking_id: Optional[str] = None
+    has_locked_funds: Optional[bool] = None
 
     # Self-contained booking details
     booking_date: date
@@ -316,6 +318,11 @@ class BookingBase(StandardizedModel):
     student_credit_amount: Optional[int] = None
     instructor_payout_amount: Optional[int] = None
     refunded_to_card_amount: Optional[int] = None
+    # LOCK mechanism fields (v2.1.1)
+    locked_at: Optional[datetime] = None
+    locked_amount_cents: Optional[int] = None
+    lock_resolved_at: Optional[datetime] = None
+    lock_resolution: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -474,6 +481,9 @@ class BookingResponse(BookingBase):
                 return None
             return value if isinstance(value, int) else None
 
+        def _safe_bool(value: object) -> Optional[bool]:
+            return value if isinstance(value, bool) else None
+
         rescheduled_from_booking_id_value = getattr(booking, "rescheduled_from_booking_id", None)
 
         response_data = {
@@ -485,6 +495,10 @@ class BookingResponse(BookingBase):
             "rescheduled_from_booking_id": rescheduled_from_booking_id_value
             if isinstance(rescheduled_from_booking_id_value, str)
             else None,
+            "rescheduled_to_booking_id": _safe_str(
+                getattr(booking, "rescheduled_to_booking_id", None)
+            ),
+            "has_locked_funds": _safe_bool(getattr(booking, "has_locked_funds", None)),
             # Booking details
             "booking_date": booking.booking_date,
             "start_time": booking.start_time,
@@ -521,6 +535,10 @@ class BookingResponse(BookingBase):
                 getattr(booking, "instructor_payout_amount", None)
             ),
             "refunded_to_card_amount": _safe_int(getattr(booking, "refunded_to_card_amount", None)),
+            "locked_at": _safe_datetime(getattr(booking, "locked_at", None)),
+            "locked_amount_cents": _safe_int(getattr(booking, "locked_amount_cents", None)),
+            "lock_resolved_at": _safe_datetime(getattr(booking, "lock_resolved_at", None)),
+            "lock_resolution": _safe_str(getattr(booking, "lock_resolution", None)),
             # Privacy-protected nested objects
             "student": StudentInfo.model_validate(booking.student) if booking.student else None,
             "instructor": InstructorInfo.from_user(booking.instructor)

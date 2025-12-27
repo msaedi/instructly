@@ -1383,8 +1383,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
         Returns bookings that are:
         - Status: COMPLETED
-        - Payment status: authorized
-        - Have payment intent ID
+        - Payment status: authorized (or has_locked_funds)
+        - Have payment intent ID (for authorized captures)
         - Have completed_at timestamp
         """
         try:
@@ -1394,8 +1394,16 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .filter(
                     and_(
                         Booking.status == BookingStatus.COMPLETED,
-                        Booking.payment_status == "authorized",
-                        Booking.payment_intent_id.isnot(None),
+                        or_(
+                            and_(
+                                Booking.payment_status == "authorized",
+                                Booking.payment_intent_id.isnot(None),
+                            ),
+                            and_(
+                                Booking.has_locked_funds.is_(True),
+                                Booking.rescheduled_from_booking_id.isnot(None),
+                            ),
+                        ),
                         Booking.completed_at.isnot(None),
                     )
                 )
@@ -1411,8 +1419,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
         Returns bookings that are:
         - Status: CONFIRMED
-        - Payment status: authorized
-        - Have payment intent ID
+        - Payment status: authorized (or has_locked_funds)
+        - Have payment intent ID (for authorized captures)
         """
         try:
             return cast(
@@ -1421,8 +1429,16 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .filter(
                     and_(
                         Booking.status == BookingStatus.CONFIRMED,
-                        Booking.payment_status == "authorized",
-                        Booking.payment_intent_id.isnot(None),
+                        or_(
+                            and_(
+                                Booking.payment_status == "authorized",
+                                Booking.payment_intent_id.isnot(None),
+                            ),
+                            and_(
+                                Booking.has_locked_funds.is_(True),
+                                Booking.rescheduled_from_booking_id.isnot(None),
+                            ),
+                        ),
                     )
                 )
                 .all(),
