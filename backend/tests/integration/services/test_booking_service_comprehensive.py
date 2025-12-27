@@ -357,7 +357,7 @@ class TestBookingServiceCancellation:
     async def test_cancel_already_cancelled_booking(
         self, db: Session, test_booking: Booking, test_student: User, mock_notification_service: Mock
     ):
-        """Test cancelling an already cancelled booking fails."""
+        """Test cancelling an already cancelled booking is idempotent."""
         # Cancel the booking first
         test_booking.status = BookingStatus.CANCELLED
         test_booking.cancelled_at = datetime.now(timezone.utc)
@@ -365,8 +365,11 @@ class TestBookingServiceCancellation:
 
         booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
-        with pytest.raises(BusinessRuleException, match="Booking cannot be cancelled"):
-            await asyncio.to_thread(booking_service.cancel_booking, test_booking.id, test_student, "Reason")
+        booking = await asyncio.to_thread(
+            booking_service.cancel_booking, test_booking.id, test_student, "Reason"
+        )
+
+        assert booking.status == BookingStatus.CANCELLED
 
 
 class TestBookingServiceRetrieval:

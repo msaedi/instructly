@@ -1754,6 +1754,8 @@ class TestPaymentTasks:
         _apply_utc_timezone_context(booking)
         _apply_utc_timezone_context(booking)
 
+        mock_db.query.return_value.filter.return_value.first.return_value = booking
+
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_customer_by_user_id.return_value = MagicMock()
         mock_payment_repo.get_connected_account_by_instructor_id.return_value = MagicMock(
@@ -1817,6 +1819,8 @@ class TestPaymentTasks:
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
+
+        mock_db.query.return_value.filter.return_value.first.return_value = booking
 
         sent_event = MagicMock()
         sent_event.event_type = "final_warning_sent"
@@ -2165,6 +2169,8 @@ class TestPaymentTasks:
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
 
+        mock_db.query.return_value.filter.return_value.first.return_value = booking
+
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_customer_by_user_id.return_value = None
         mock_payment_repo.get_payment_events_for_booking.return_value = []
@@ -2322,6 +2328,8 @@ class TestPaymentTasks:
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
+
+        mock_db.query.return_value.filter.return_value.first.return_value = booking
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_payment_events_for_booking.return_value = []
@@ -2541,6 +2549,8 @@ class TestPaymentTasks:
         auth_event = MagicMock()
         auth_event.event_type = "auth_succeeded"
         auth_event.created_at = now - timedelta(days=8)
+
+        mock_db.query.return_value.filter.return_value.first.return_value = booking
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_payment_events_for_booking.return_value = [auth_event]

@@ -2530,6 +2530,72 @@ class StripeService(BaseService):
             self.logger.error(f"Error capturing payment intent: {str(e)}")
             raise ServiceException(f"Failed to capture payment: {str(e)}")
 
+    @BaseService.measure_operation("stripe_get_payment_intent_details")
+    def get_payment_intent_capture_details(self, payment_intent_id: str) -> Dict[str, Any]:
+        """
+        Retrieve a PaymentIntent and extract charge/transfer details without capturing.
+        """
+        try:
+            pi = stripe.PaymentIntent.retrieve(payment_intent_id)
+        except stripe.StripeError as e:
+            self.logger.error(f"Stripe error retrieving payment intent: {str(e)}")
+            raise ServiceException(f"Failed to retrieve payment intent: {str(e)}")
+        except Exception as e:
+            self.logger.error(f"Error retrieving payment intent: {str(e)}")
+            raise ServiceException(f"Failed to retrieve payment intent: {str(e)}")
+
+        charge_id = None
+        transfer_id = None
+        amount_received = None
+        transfer_amount = None
+
+        try:
+            if pi.get("charges") and pi["charges"]["data"]:
+                charge = pi["charges"]["data"][0]
+                charge_id = charge.get("id")
+                amount_received = charge.get("amount") or pi.get("amount_received")
+                transfer_id = charge.get("transfer")
+
+                if transfer_id:
+                    try:
+                        transfer = StripeTransfer.retrieve(transfer_id)
+                        transfer_amount = (
+                            transfer.get("amount")
+                            if hasattr(transfer, "get")
+                            else getattr(transfer, "amount", None)
+                        )
+                    except Exception:
+                        metadata = pi.get("metadata", {}) if hasattr(pi, "get") else {}
+                        if metadata and metadata.get("target_instructor_payout_cents"):
+                            try:
+                                transfer_amount = int(metadata["target_instructor_payout_cents"])
+                            except (ValueError, TypeError):
+                                pass
+        except Exception:
+            pass
+
+        if amount_received is None:
+            amount_received = getattr(pi, "amount_received", None)
+            if amount_received is None and hasattr(pi, "get"):
+                amount_received = pi.get("amount_received")
+        if amount_received is None:
+            fallback_amount = getattr(pi, "amount", None)
+            if fallback_amount is None and hasattr(pi, "get"):
+                fallback_amount = pi.get("amount")
+            if fallback_amount is not None:
+                try:
+                    amount_received = int(fallback_amount)
+                except (TypeError, ValueError):
+                    amount_received = fallback_amount
+
+        return {
+            "payment_intent": pi,
+            "charge_id": charge_id,
+            "transfer_id": transfer_id,
+            "amount_received": amount_received,
+            "transfer_amount": transfer_amount,
+        }
+
     @BaseService.measure_operation("stripe_reverse_transfer")
     def reverse_transfer(
         self,

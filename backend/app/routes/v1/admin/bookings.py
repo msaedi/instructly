@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies.auth import get_current_user, require_admin
 from app.api.dependencies.database import get_db
+from app.core.booking_lock import booking_lock
 from app.core.enums import PermissionName
 from app.core.exceptions import ServiceException
 from app.dependencies.permissions import require_permission
@@ -143,14 +144,20 @@ async def admin_cancel_booking(
 ) -> AdminCancelBookingResponse:
     service = AdminBookingService(db)
     try:
-        booking, refund_id = await asyncio.to_thread(
-            service.cancel_booking,
-            booking_id=booking_id,
-            reason=request.reason,
-            note=request.note,
-            refund=request.refund,
-            actor=current_user,
-        )
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            booking, refund_id = await asyncio.to_thread(
+                service.cancel_booking,
+                booking_id=booking_id,
+                reason=request.reason,
+                note=request.note,
+                refund=request.refund,
+                actor=current_user,
+            )
     except ServiceException as exc:
         if exc.code == "stripe_error":
             raise HTTPException(

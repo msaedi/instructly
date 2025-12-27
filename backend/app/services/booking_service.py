@@ -1258,6 +1258,9 @@ class BookingService(BaseService):
             if user.id not in [booking.student_id, booking.instructor_id]:
                 raise ValidationException("You don't have permission to cancel this booking")
 
+            if booking.status == BookingStatus.CANCELLED:
+                return booking
+
             if not booking.is_cancellable:
                 raise BusinessRuleException(
                     f"Booking cannot be cancelled - current status: {booking.status}"
@@ -1444,6 +1447,7 @@ class BookingService(BaseService):
             "student_id": booking.student_id,
             "instructor_id": booking.instructor_id,
             "payment_intent_id": payment_intent_id,
+            "payment_status": booking.payment_status,
             "scenario": scenario,
             "hours_until": hours_until,
             "hours_from_original": hours_from_original,
@@ -1478,15 +1482,22 @@ class BookingService(BaseService):
         scenario = ctx["scenario"]
         payment_intent_id = ctx["payment_intent_id"]
         booking_id = ctx["booking_id"]
+        payment_status = ctx.get("payment_status")
+        already_captured = payment_status in {"captured", "succeeded"}
 
         if scenario == "over_24h_gaming":
             # Capture payment intent, then reverse transfer to retain fee and issue credit.
             if payment_intent_id:
                 try:
-                    capture = stripe_service.capture_payment_intent(
-                        payment_intent_id,
-                        idempotency_key=f"capture_resched_{booking_id}",
-                    )
+                    if already_captured:
+                        capture = stripe_service.get_payment_intent_capture_details(
+                            payment_intent_id
+                        )
+                    else:
+                        capture = stripe_service.capture_payment_intent(
+                            payment_intent_id,
+                            idempotency_key=f"capture_resched_{booking_id}",
+                        )
                     results["capture_success"] = True
                     results["capture_data"] = {
                         "transfer_id": capture.get("transfer_id"),
@@ -1538,10 +1549,15 @@ class BookingService(BaseService):
             # Capture payment intent, then reverse transfer
             if payment_intent_id:
                 try:
-                    capture = stripe_service.capture_payment_intent(
-                        payment_intent_id,
-                        idempotency_key=f"capture_cancel_{booking_id}",
-                    )
+                    if already_captured:
+                        capture = stripe_service.get_payment_intent_capture_details(
+                            payment_intent_id
+                        )
+                    else:
+                        capture = stripe_service.capture_payment_intent(
+                            payment_intent_id,
+                            idempotency_key=f"capture_cancel_{booking_id}",
+                        )
                     results["capture_success"] = True
                     results["capture_data"] = {
                         "transfer_id": capture.get("transfer_id"),
@@ -1573,10 +1589,15 @@ class BookingService(BaseService):
             # Capture payment intent only
             if payment_intent_id:
                 try:
-                    capture = stripe_service.capture_payment_intent(
-                        payment_intent_id,
-                        idempotency_key=f"capture_late_cancel_{booking_id}",
-                    )
+                    if already_captured:
+                        capture = stripe_service.get_payment_intent_capture_details(
+                            payment_intent_id
+                        )
+                    else:
+                        capture = stripe_service.capture_payment_intent(
+                            payment_intent_id,
+                            idempotency_key=f"capture_late_cancel_{booking_id}",
+                        )
                     results["capture_success"] = True
                     results["capture_data"] = {
                         "amount_received": capture.get("amount_received"),
