@@ -74,6 +74,7 @@ STUDENT_CONFLICT_MESSAGE = "Student already has a booking that overlaps this tim
 GENERIC_CONFLICT_MESSAGE = "This time slot conflicts with an existing booking"
 CANCELLATION_CREDIT_REASONS = {
     "Cancellation 12-24 hours before lesson (lesson price credit)",
+    "Cancellation <12 hours before lesson (50% lesson price credit)",
     "Rescheduled booking cancellation (lesson price credit)",
 }
 
@@ -1429,12 +1430,29 @@ class BookingService(BaseService):
         )
 
         used_credit_cents = 0
+        instructor_stripe_account_id: Optional[str] = None
         try:
             from ..repositories.payment_repository import PaymentRepository
 
             payment_repo = PaymentRepository(self.db)
             used = payment_repo.get_credits_used_by_booking(booking.id)
             used_credit_cents = sum(amount for _, amount in used)
+            try:
+                instructor_profile = self.conflict_checker_repository.get_instructor_profile(
+                    booking.instructor_id
+                )
+                if instructor_profile:
+                    connected_account = payment_repo.get_connected_account_by_instructor_id(
+                        instructor_profile.id
+                    )
+                    if connected_account and connected_account.stripe_account_id:
+                        instructor_stripe_account_id = connected_account.stripe_account_id
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load instructor Stripe account for booking %s: %s",
+                    booking.id,
+                    exc,
+                )
         except Exception as exc:
             logger.warning(
                 "Failed to load credits used by booking %s: %s",
@@ -1454,6 +1472,7 @@ class BookingService(BaseService):
             "was_gaming_reschedule": was_gaming_reschedule,
             "lesson_price_cents": lesson_price_cents,
             "used_credit_cents": used_credit_cents,
+            "instructor_stripe_account_id": instructor_stripe_account_id,
             "rescheduled_from_booking_id": booking.rescheduled_from_booking_id,
             "original_lesson_datetime": booking.original_lesson_datetime,
             "default_role": default_role,
@@ -1475,6 +1494,13 @@ class BookingService(BaseService):
             "reverse_success": False,
             "reverse_attempted": False,
             "reverse_failed": False,
+            "refund_success": False,
+            "refund_failed": False,
+            "refund_data": None,
+            "payout_success": False,
+            "payout_failed": False,
+            "payout_transfer_id": None,
+            "payout_amount_cents": None,
             "capture_data": None,
             "error": None,
         }
@@ -1524,26 +1550,44 @@ class BookingService(BaseService):
                     logger.warning(f"Capture not performed for booking {booking_id}: {e}")
                     results["error"] = str(e)
 
-        elif scenario in (
-            "over_24h_regular",
-            "instructor_cancel_over_24h",
-            "instructor_cancel_under_24h",
-        ):
+        elif scenario in ("over_24h_regular",):
             # Cancel payment intent (release authorization)
             if payment_intent_id:
-                idem_key = (
-                    f"cancel_instructor_{booking_id}"
-                    if scenario.startswith("instructor_cancel")
-                    else f"cancel_{booking_id}"
-                )
                 try:
                     stripe_service.cancel_payment_intent(
-                        payment_intent_id, idempotency_key=idem_key
+                        payment_intent_id, idempotency_key=f"cancel_{booking_id}"
                     )
                     results["cancel_pi_success"] = True
                 except Exception as e:
                     logger.warning(f"Cancel PI failed for booking {booking_id}: {e}")
                     results["error"] = str(e)
+
+        elif scenario in ("instructor_cancel_over_24h", "instructor_cancel_under_24h"):
+            if payment_intent_id:
+                if already_captured:
+                    try:
+                        refund = stripe_service.refund_payment(
+                            payment_intent_id,
+                            reverse_transfer=True,
+                            refund_application_fee=True,
+                            idempotency_key=f"refund_instructor_cancel_{booking_id}",
+                        )
+                        results["refund_success"] = True
+                        results["refund_data"] = refund
+                    except Exception as e:
+                        logger.warning(f"Instructor refund failed for booking {booking_id}: {e}")
+                        results["refund_failed"] = True
+                        results["error"] = str(e)
+                else:
+                    try:
+                        stripe_service.cancel_payment_intent(
+                            payment_intent_id,
+                            idempotency_key=f"cancel_instructor_{booking_id}",
+                        )
+                        results["cancel_pi_success"] = True
+                    except Exception as e:
+                        logger.warning(f"Cancel PI failed for booking {booking_id}: {e}")
+                        results["error"] = str(e)
 
         elif scenario == "between_12_24h":
             # Capture payment intent, then reverse transfer
@@ -1586,7 +1630,7 @@ class BookingService(BaseService):
                     results["error"] = str(e)
 
         elif scenario == "under_12h":
-            # Capture payment intent only
+            # Capture payment intent, reverse transfer, and create 50% payout transfer
             if payment_intent_id:
                 try:
                     if already_captured:
@@ -1601,7 +1645,79 @@ class BookingService(BaseService):
                     results["capture_success"] = True
                     results["capture_data"] = {
                         "amount_received": capture.get("amount_received"),
+                        "transfer_id": capture.get("transfer_id"),
+                        "transfer_amount": capture.get("transfer_amount"),
                     }
+
+                    transfer_id = capture.get("transfer_id")
+                    transfer_amount = capture.get("transfer_amount")
+
+                    if transfer_id:
+                        results["reverse_attempted"] = True
+                        try:
+                            stripe_service.reverse_transfer(
+                                transfer_id=transfer_id,
+                                amount_cents=transfer_amount,
+                                idempotency_key=f"reverse_lt12_{booking_id}",
+                                reason="student_cancel_under_12h",
+                            )
+                            results["reverse_success"] = True
+                        except Exception as e:
+                            results["reverse_failed"] = True
+                            logger.error(f"Transfer reversal failed for booking {booking_id}: {e}")
+                    else:
+                        results["reverse_failed"] = True
+                        logger.error(
+                            "Missing transfer_id for under-12h cancellation booking %s",
+                            booking_id,
+                        )
+
+                    if results["reverse_success"]:
+                        payout_full_cents = transfer_amount
+                        if payout_full_cents is None:
+                            try:
+                                payout_ctx = stripe_service.build_charge_context(
+                                    booking_id=booking_id, requested_credit_cents=None
+                                )
+                                payout_full_cents = int(
+                                    getattr(payout_ctx, "target_instructor_payout_cents", 0) or 0
+                                )
+                            except Exception as exc:
+                                logger.warning(
+                                    "Failed to resolve instructor payout for booking %s: %s",
+                                    booking_id,
+                                    exc,
+                                )
+                                payout_full_cents = None
+
+                        if payout_full_cents is None:
+                            results["payout_failed"] = True
+                            results["error"] = "missing_payout_amount"
+                        else:
+                            payout_amount_cents = int(round(payout_full_cents * 0.5))
+                            results["payout_amount_cents"] = payout_amount_cents
+                            if payout_amount_cents <= 0:
+                                results["payout_success"] = True
+                            else:
+                                destination_account_id = ctx.get("instructor_stripe_account_id")
+                                if not destination_account_id:
+                                    results["payout_failed"] = True
+                                    results["error"] = "missing_instructor_account"
+                                else:
+                                    try:
+                                        transfer_result = stripe_service.create_manual_transfer(
+                                            booking_id=booking_id,
+                                            destination_account_id=destination_account_id,
+                                            amount_cents=payout_amount_cents,
+                                            idempotency_key=f"payout_lt12_{booking_id}",
+                                        )
+                                        results["payout_success"] = True
+                                        results["payout_transfer_id"] = transfer_result.get(
+                                            "transfer_id"
+                                        )
+                                    except Exception as e:
+                                        results["payout_failed"] = True
+                                        results["error"] = str(e)
                 except Exception as e:
                     logger.warning(f"Capture not performed for booking {booking_id}: {e}")
                     results["error"] = str(e)
@@ -1638,6 +1754,18 @@ class BookingService(BaseService):
                 getattr(credit, "reason", None) in CANCELLATION_CREDIT_REASONS for credit in credits
             )
 
+        def _apply_settlement(
+            outcome: str,
+            *,
+            student_credit_cents: Optional[int] = None,
+            instructor_payout_cents: Optional[int] = None,
+            refunded_cents: Optional[int] = None,
+        ) -> None:
+            booking.settlement_outcome = outcome
+            booking.student_credit_amount = student_credit_cents
+            booking.instructor_payout_amount = instructor_payout_cents
+            booking.refunded_to_card_amount = refunded_cents
+
         if scenario == "over_24h_gaming":
             if stripe_results["capture_success"]:
                 if stripe_results.get("reverse_failed"):
@@ -1655,12 +1783,12 @@ class BookingService(BaseService):
                         booking_id,
                     )
                     return
+                net_credit_cents = max(
+                    0, ctx["lesson_price_cents"] - ctx.get("used_credit_cents", 0)
+                )
                 if _cancellation_credit_already_issued():
                     booking.payment_status = "credit_issued"
                 else:
-                    net_credit_cents = max(
-                        0, ctx["lesson_price_cents"] - ctx.get("used_credit_cents", 0)
-                    )
                     try:
                         payment_repo.create_platform_credit(
                             user_id=ctx["student_id"],
@@ -1691,6 +1819,12 @@ class BookingService(BaseService):
                         },
                     )
                 booking.payment_status = "credit_issued"
+                _apply_settlement(
+                    "student_cancel_12_24_full_credit",
+                    student_credit_cents=net_credit_cents,
+                    instructor_payout_cents=0,
+                    refunded_cents=0,
+                )
             else:
                 payment_repo.create_payment_event(
                     booking_id=booking_id,
@@ -1712,6 +1846,12 @@ class BookingService(BaseService):
                 },
             )
             booking.payment_status = "released"
+            _apply_settlement(
+                "student_cancel_gt24_no_charge",
+                student_credit_cents=0,
+                instructor_payout_cents=0,
+                refunded_cents=0,
+            )
 
         elif scenario == "between_12_24h":
             capture_data = stripe_results.get("capture_data") or {}
@@ -1743,12 +1883,12 @@ class BookingService(BaseService):
                         booking_id,
                     )
                     return
+                net_credit_cents = max(
+                    0, ctx["lesson_price_cents"] - ctx.get("used_credit_cents", 0)
+                )
                 if _cancellation_credit_already_issued():
                     booking.payment_status = "credit_issued"
                 else:
-                    net_credit_cents = max(
-                        0, ctx["lesson_price_cents"] - ctx.get("used_credit_cents", 0)
-                    )
                     try:
                         payment_repo.create_platform_credit(
                             user_id=ctx["student_id"],
@@ -1772,6 +1912,12 @@ class BookingService(BaseService):
                         },
                     )
                     booking.payment_status = "credit_issued"
+                _apply_settlement(
+                    "student_cancel_12_24_full_credit",
+                    student_credit_cents=net_credit_cents,
+                    instructor_payout_cents=0,
+                    refunded_cents=0,
+                )
             else:
                 payment_repo.create_payment_event(
                     booking_id=booking_id,
@@ -1794,7 +1940,98 @@ class BookingService(BaseService):
                         "amount": capture_data.get("amount_received"),
                     },
                 )
-                booking.payment_status = "captured"
+
+                if stripe_results.get("reverse_failed"):
+                    payment_repo.create_payment_event(
+                        booking_id=booking_id,
+                        event_type="transfer_reversal_failed",
+                        event_data={
+                            "payment_intent_id": ctx["payment_intent_id"],
+                            "scenario": scenario,
+                        },
+                    )
+                    booking.payment_status = "reversal_failed"
+                    logger.error(
+                        "Transfer reversal failed for booking %s; manual review required",
+                        booking_id,
+                    )
+                    return
+
+                if stripe_results.get("reverse_success"):
+                    payment_repo.create_payment_event(
+                        booking_id=booking_id,
+                        event_type="transfer_reversed_last_minute_cancel",
+                        event_data={
+                            "transfer_id": capture_data.get("transfer_id"),
+                            "amount": capture_data.get("transfer_amount"),
+                            "original_charge_amount": capture_data.get("amount_received"),
+                        },
+                    )
+
+                if stripe_results.get("payout_failed"):
+                    payment_repo.create_payment_event(
+                        booking_id=booking_id,
+                        event_type="payout_failed_last_minute_cancel",
+                        event_data={
+                            "payment_intent_id": ctx["payment_intent_id"],
+                            "payout_amount_cents": stripe_results.get("payout_amount_cents"),
+                            "error": stripe_results.get("error"),
+                        },
+                    )
+                    booking.payment_status = "payout_failed"
+
+                if stripe_results.get("payout_success"):
+                    payment_repo.create_payment_event(
+                        booking_id=booking_id,
+                        event_type="payout_created_last_minute_cancel",
+                        event_data={
+                            "transfer_id": stripe_results.get("payout_transfer_id"),
+                            "payout_amount_cents": stripe_results.get("payout_amount_cents"),
+                        },
+                    )
+
+                credit_return_cents = int(round(ctx["lesson_price_cents"] * 0.5))
+                net_credit_cents = max(0, credit_return_cents - ctx.get("used_credit_cents", 0))
+                if _cancellation_credit_already_issued():
+                    booking.payment_status = "credit_issued"
+                else:
+                    try:
+                        payment_repo.create_platform_credit(
+                            user_id=ctx["student_id"],
+                            amount_cents=net_credit_cents,
+                            reason="Cancellation <12 hours before lesson (50% lesson price credit)",
+                            source_booking_id=booking_id,
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to create platform credit for booking {booking_id}: {e}"
+                        )
+
+                    payment_repo.create_payment_event(
+                        booking_id=booking_id,
+                        event_type="credit_created_last_minute_cancel",
+                        event_data={
+                            "amount": net_credit_cents,
+                            "lesson_price_cents": ctx["lesson_price_cents"],
+                            "used_credit_cents": ctx.get("used_credit_cents", 0),
+                            "total_charged_cents": capture_data.get("amount_received"),
+                            "payout_amount_cents": stripe_results.get("payout_amount_cents"),
+                        },
+                    )
+                    if booking.payment_status != "payout_failed":
+                        booking.payment_status = "credit_issued"
+                payout_amount_cents = stripe_results.get("payout_amount_cents")
+                if payout_amount_cents is not None:
+                    try:
+                        payout_amount_cents = int(payout_amount_cents)
+                    except (TypeError, ValueError):
+                        payout_amount_cents = None
+                _apply_settlement(
+                    "student_cancel_lt12_split_50_50",
+                    student_credit_cents=net_credit_cents,
+                    instructor_payout_cents=payout_amount_cents or 0,
+                    refunded_cents=0,
+                )
             else:
                 payment_repo.create_payment_event(
                     booking_id=booking_id,
@@ -1820,15 +2057,74 @@ class BookingService(BaseService):
             booking.payment_status = "not_started"
 
         elif scenario in ("instructor_cancel_over_24h", "instructor_cancel_under_24h"):
-            payment_repo.create_payment_event(
-                booking_id=booking_id,
-                event_type="instructor_cancelled",
-                event_data={
-                    "hours_before": round(ctx["hours_until"], 2),
-                    "payment_intent_id": ctx["payment_intent_id"],
-                },
-            )
-            booking.payment_status = "released"
+            if stripe_results.get("refund_success"):
+                refund_data = stripe_results.get("refund_data") or {}
+                payment_repo.create_payment_event(
+                    booking_id=booking_id,
+                    event_type="instructor_cancel_refunded",
+                    event_data={
+                        "hours_before": round(ctx["hours_until"], 2),
+                        "payment_intent_id": ctx["payment_intent_id"],
+                        "refund_id": refund_data.get("refund_id"),
+                        "amount_refunded": refund_data.get("amount_refunded"),
+                    },
+                )
+                booking.payment_status = "refunded"
+                refund_amount = refund_data.get("amount_refunded")
+                if refund_amount is not None:
+                    try:
+                        refund_amount = int(refund_amount)
+                    except (TypeError, ValueError):
+                        refund_amount = None
+                _apply_settlement(
+                    "instructor_cancel_full_refund",
+                    student_credit_cents=0,
+                    instructor_payout_cents=0,
+                    refunded_cents=refund_amount or 0,
+                )
+            elif stripe_results.get("cancel_pi_success"):
+                payment_repo.create_payment_event(
+                    booking_id=booking_id,
+                    event_type="instructor_cancelled",
+                    event_data={
+                        "hours_before": round(ctx["hours_until"], 2),
+                        "payment_intent_id": ctx["payment_intent_id"],
+                    },
+                )
+                booking.payment_status = "released"
+                _apply_settlement(
+                    "instructor_cancel_full_refund",
+                    student_credit_cents=0,
+                    instructor_payout_cents=0,
+                    refunded_cents=0,
+                )
+            elif not ctx.get("payment_intent_id"):
+                payment_repo.create_payment_event(
+                    booking_id=booking_id,
+                    event_type="instructor_cancelled",
+                    event_data={
+                        "hours_before": round(ctx["hours_until"], 2),
+                        "reason": "no_payment_intent",
+                    },
+                )
+                booking.payment_status = "released"
+                _apply_settlement(
+                    "instructor_cancel_full_refund",
+                    student_credit_cents=0,
+                    instructor_payout_cents=0,
+                    refunded_cents=0,
+                )
+            else:
+                payment_repo.create_payment_event(
+                    booking_id=booking_id,
+                    event_type="instructor_cancel_refund_failed",
+                    event_data={
+                        "hours_before": round(ctx["hours_until"], 2),
+                        "payment_intent_id": ctx["payment_intent_id"],
+                        "error": stripe_results.get("error"),
+                    },
+                )
+                booking.payment_status = "refund_failed"
 
     def _post_cancellation_actions(self, booking: Booking, cancelled_by_role: str) -> None:
         """

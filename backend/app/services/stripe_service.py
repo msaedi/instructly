@@ -1254,6 +1254,58 @@ class StripeService(BaseService):
             )
             raise ServiceException("Failed to create top-up transfer") from exc
 
+    @BaseService.measure_operation("stripe_create_manual_transfer")
+    def create_manual_transfer(
+        self,
+        *,
+        booking_id: str,
+        destination_account_id: str,
+        amount_cents: int,
+        idempotency_key: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Create a manual transfer to a connected account."""
+        if amount_cents <= 0:
+            return {"skipped": True, "transfer_id": None}
+
+        transfer_metadata = {
+            "booking_id": booking_id,
+        }
+        if metadata:
+            transfer_metadata.update(metadata)
+
+        try:
+            transfer = stripe.Transfer.create(  # type: ignore[attr-defined]
+                amount=amount_cents,
+                currency="usd",
+                destination=destination_account_id,
+                transfer_group=f"booking:{booking_id}",
+                metadata=transfer_metadata,
+                idempotency_key=idempotency_key,
+            )
+            transfer_id = (
+                transfer.get("id") if isinstance(transfer, dict) else getattr(transfer, "id", None)
+            )
+            return {
+                "transfer": transfer,
+                "transfer_id": transfer_id,
+                "amount": amount_cents,
+            }
+        except stripe.StripeError as exc:  # pragma: no cover - network path
+            self.logger.error(
+                "Stripe error creating transfer for booking %s: %s",
+                booking_id,
+                str(exc),
+            )
+            raise ServiceException("Failed to create transfer") from exc
+        except Exception as exc:
+            self.logger.error(
+                "Unexpected error creating transfer for booking %s: %s",
+                booking_id,
+                str(exc),
+            )
+            raise ServiceException("Failed to create transfer") from exc
+
     @BaseService.measure_operation("stripe_create_or_retry_booking_pi")
     def create_or_retry_booking_payment_intent(
         self,
@@ -2694,6 +2746,7 @@ class StripeService(BaseService):
         amount_cents: Optional[int] = None,
         reason: str = "requested_by_customer",
         reverse_transfer: bool = True,
+        refund_application_fee: bool = False,
         idempotency_key: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
@@ -2707,6 +2760,7 @@ class StripeService(BaseService):
             amount_cents: Optional partial refund amount (None = full refund)
             reason: Refund reason (requested_by_customer, duplicate, fraudulent)
             reverse_transfer: Whether to reverse the instructor's transfer (default True)
+            refund_application_fee: Whether to refund the application fee (default False)
             idempotency_key: Optional idempotency key
 
         Returns:
@@ -2729,6 +2783,9 @@ class StripeService(BaseService):
                 valid_reasons = {"requested_by_customer", "duplicate", "fraudulent"}
                 if reason in valid_reasons:
                     refund_kwargs["reason"] = reason
+
+            if refund_application_fee:
+                refund_kwargs["refund_application_fee"] = True
 
             if idempotency_key:
                 refund_kwargs["idempotency_key"] = idempotency_key

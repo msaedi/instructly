@@ -549,7 +549,7 @@ def _cancel_booking_payment_failed(
             booking_id=booking_id,
             event_type="auth_abandoned",
             event_data={
-                "reason": "T-6hr cancellation",
+                "reason": "T-12hr cancellation",
                 "hours_until_lesson": round(hours_until_lesson, 1),
                 "cancelled_at": now.isoformat(),
             },
@@ -745,8 +745,8 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
     - T-22hr: First retry
     - T-20hr: Second retry
     - T-18hr: Third retry
-    - T-12hr: Final warning email + retry
-    - T-6hr: Cancel booking if still failing
+    - T-13hr: Final warning email + retry
+    - T-12hr: Cancel booking if still failing
 
     Uses 3-phase pattern to minimize lock contention:
     - Phase 1: Quick read (release lock immediately)
@@ -790,7 +790,7 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
                 continue
 
             # Determine action
-            if hours_until_lesson <= 6:
+            if hours_until_lesson <= 12:
                 booking_actions.append(
                     {
                         "booking_id": booking.id,
@@ -798,7 +798,7 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
                         "action": "cancel",
                     }
                 )
-            elif hours_until_lesson <= 12:
+            elif hours_until_lesson <= 13:
                 has_warning = has_event_type(payment_repo, booking.id, "final_warning_sent")
                 booking_actions.append(
                     {
@@ -1170,8 +1170,28 @@ def _process_capture_for_booking(
 
         payment_repo = RepositoryFactory.get_payment_repository(db3)
 
+        def _resolve_payout_cents() -> Optional[int]:
+            try:
+                payment_record = payment_repo.get_payment_by_booking_id(booking_id)
+            except Exception:
+                return None
+            if not payment_record:
+                return None
+            payout_cents = getattr(payment_record, "instructor_payout_cents", None)
+            if payout_cents is None:
+                return None
+            try:
+                return int(payout_cents)
+            except (TypeError, ValueError):
+                return None
+
         if stripe_result.get("success"):
             booking.payment_status = "captured"
+            if booking.status == BookingStatus.COMPLETED:
+                booking.settlement_outcome = "lesson_completed_full_payout"
+                booking.student_credit_amount = 0
+                booking.instructor_payout_amount = _resolve_payout_cents()
+                booking.refunded_to_card_amount = 0
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="payment_captured",
@@ -1188,6 +1208,11 @@ def _process_capture_for_booking(
 
         elif stripe_result.get("already_captured"):
             booking.payment_status = "captured"
+            if booking.status == BookingStatus.COMPLETED:
+                booking.settlement_outcome = "lesson_completed_full_payout"
+                booking.student_credit_amount = 0
+                booking.instructor_payout_amount = _resolve_payout_cents()
+                booking.refunded_to_card_amount = 0
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="capture_already_done",
@@ -1745,6 +1770,23 @@ def create_new_authorization_and_capture(
         resolved_intent_id = str(resolved_intent_id)
         booking.payment_status = "captured"
         booking.payment_intent_id = resolved_intent_id
+        if booking.status == BookingStatus.COMPLETED:
+            payout_cents: Optional[int] = None
+            try:
+                payment_record = payment_repo.get_payment_by_booking_id(booking.id)
+            except Exception:
+                payment_record = None
+            if payment_record:
+                payout_value = getattr(payment_record, "instructor_payout_cents", None)
+                if payout_value is not None:
+                    try:
+                        payout_cents = int(payout_value)
+                    except (TypeError, ValueError):
+                        payout_cents = None
+            booking.settlement_outcome = "lesson_completed_full_payout"
+            booking.student_credit_amount = 0
+            booking.instructor_payout_amount = payout_cents
+            booking.refunded_to_card_amount = 0
 
         payment_repo.create_payment_event(
             booking_id=booking.id,

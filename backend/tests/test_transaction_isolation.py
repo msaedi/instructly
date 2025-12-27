@@ -418,10 +418,10 @@ class TestCancelBookingScenarios:
 
     def test_under_12h_window_3phase(self, mock_db, mock_booking, mock_user):
         """
-        <12h cancel uses capture_payment_intent outside transaction.
+        <12h cancel uses capture + reverse_transfer + 50/50 split outside transaction.
 
         Scenario: Student cancels <12h before lesson.
-        Expected: Capture full payment, no refund/credit.
+        Expected: Capture payment, reverse transfer, pay 50% payout, issue 50% credit.
         """
         # Set booking to be 6 hours away
         mock_booking.booking_date = date.today()
@@ -429,8 +429,8 @@ class TestCancelBookingScenarios:
 
         # The test verifies:
         # 1. _build_cancellation_context identifies under_12h
-        # 2. _execute_cancellation_stripe_calls calls capture_payment_intent
-        # 3. No credit or refund issued
+        # 2. _execute_cancellation_stripe_calls calls capture_payment_intent + reverse_transfer
+        # 3. Credit issued and payout created for 50/50 split
 
 
 # =============================================================================

@@ -311,6 +311,12 @@ class BookingBase(StandardizedModel):
     cancelled_by_id: Optional[str]
     cancellation_reason: Optional[str]
 
+    # Settlement tracking (v2.1.1)
+    settlement_outcome: Optional[str] = None
+    student_credit_amount: Optional[int] = None
+    instructor_payout_amount: Optional[int] = None
+    refunded_to_card_amount: Optional[int] = None
+
     model_config = ConfigDict(from_attributes=True)
 
     @field_serializer("booking_start_utc", "booking_end_utc")
@@ -462,6 +468,12 @@ class BookingResponse(BookingBase):
         def _safe_str(value: object) -> Optional[str]:
             return value if isinstance(value, str) else None
 
+        def _safe_int(value: object) -> Optional[int]:
+            # Avoid bools (subclass of int) and mocked values.
+            if isinstance(value, bool):
+                return None
+            return value if isinstance(value, int) else None
+
         rescheduled_from_booking_id_value = getattr(booking, "rescheduled_from_booking_id", None)
 
         response_data = {
@@ -502,6 +514,13 @@ class BookingResponse(BookingBase):
             # Cancellation info
             "cancelled_by_id": booking.cancelled_by_id,
             "cancellation_reason": booking.cancellation_reason,
+            # Settlement tracking
+            "settlement_outcome": _safe_str(getattr(booking, "settlement_outcome", None)),
+            "student_credit_amount": _safe_int(getattr(booking, "student_credit_amount", None)),
+            "instructor_payout_amount": _safe_int(
+                getattr(booking, "instructor_payout_amount", None)
+            ),
+            "refunded_to_card_amount": _safe_int(getattr(booking, "refunded_to_card_amount", None)),
             # Privacy-protected nested objects
             "student": StudentInfo.model_validate(booking.student) if booking.student else None,
             "instructor": InstructorInfo.from_user(booking.instructor)

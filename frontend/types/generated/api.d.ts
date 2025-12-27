@@ -7564,6 +7564,8 @@ export type components = {
             instructor_id: string;
             /** Instructor Note */
             instructor_note: string | null;
+            /** Instructor Payout Amount */
+            instructor_payout_amount?: number | null;
             instructor_service: components["schemas"]["ServiceInfo"];
             /** Instructor Service Id */
             instructor_service_id: string;
@@ -7576,6 +7578,8 @@ export type components = {
             /** Meeting Location */
             meeting_location: string | null;
             payment_summary?: components["schemas"]["PaymentSummary"] | null;
+            /** Refunded To Card Amount */
+            refunded_to_card_amount?: number | null;
             /**
              * Requires Payment Method
              * @description Whether payment method is required before confirmation
@@ -7589,6 +7593,8 @@ export type components = {
             service_area: string | null;
             /** Service Name */
             service_name: string;
+            /** Settlement Outcome */
+            settlement_outcome?: string | null;
             /**
              * Setup Intent Client Secret
              * @description Stripe SetupIntent client_secret for collecting payment method
@@ -7601,6 +7607,8 @@ export type components = {
             start_time: string;
             status: components["schemas"]["BookingStatus"];
             student: components["schemas"]["StudentInfo"];
+            /** Student Credit Amount */
+            student_credit_amount?: number | null;
             /** Student Id */
             student_id: string;
             /** Student Note */
@@ -7747,6 +7755,8 @@ export type components = {
             instructor_id: string;
             /** Instructor Note */
             instructor_note: string | null;
+            /** Instructor Payout Amount */
+            instructor_payout_amount?: number | null;
             instructor_service: components["schemas"]["ServiceInfo"];
             /** Instructor Service Id */
             instructor_service_id: string;
@@ -7759,6 +7769,8 @@ export type components = {
             /** Meeting Location */
             meeting_location: string | null;
             payment_summary?: components["schemas"]["PaymentSummary"] | null;
+            /** Refunded To Card Amount */
+            refunded_to_card_amount?: number | null;
             rescheduled_from?: components["schemas"]["RescheduledFromInfo"] | null;
             /** Rescheduled From Booking Id */
             rescheduled_from_booking_id?: string | null;
@@ -7766,6 +7778,8 @@ export type components = {
             service_area: string | null;
             /** Service Name */
             service_name: string;
+            /** Settlement Outcome */
+            settlement_outcome?: string | null;
             /**
              * Start Time
              * Format: time
@@ -7773,6 +7787,8 @@ export type components = {
             start_time: string;
             status: components["schemas"]["BookingStatus"];
             student: components["schemas"]["StudentInfo"];
+            /** Student Credit Amount */
+            student_credit_amount?: number | null;
             /** Student Id */
             student_id: string;
             /** Student Note */

@@ -130,6 +130,36 @@ class Booking(Base):
     payment_method_id = Column(String(255), nullable=True, comment="Stripe payment method ID")
     payment_intent_id = Column(String(255), nullable=True, comment="Current Stripe payment intent")
     payment_status = Column(String(50), nullable=True, comment="Computed from latest events")
+    # settlement_outcome values per v2.1.1 policy:
+    # - lesson_completed_full_payout
+    # - student_cancel_12_24_full_credit
+    # - student_cancel_lt12_split_50_50
+    # - student_cancel_gt24_no_charge
+    # - locked_cancel_ge12_full_credit
+    # - locked_cancel_lt12_split_50_50
+    # - instructor_cancel_full_refund
+    # - instructor_no_show_full_refund
+    # - student_wins_dispute_full_refund
+    settlement_outcome = Column(
+        String(50),
+        nullable=True,
+        comment="Policy settlement outcome (v2.1.1)",
+    )
+    student_credit_amount = Column(
+        Integer,
+        nullable=True,
+        comment="Student credit issued in cents (v2.1.1)",
+    )
+    instructor_payout_amount = Column(
+        Integer,
+        nullable=True,
+        comment="Instructor payout in cents (v2.1.1)",
+    )
+    refunded_to_card_amount = Column(
+        Integer,
+        nullable=True,
+        comment="Refunded to card in cents (v2.1.1)",
+    )
 
     # Relationships
     student = relationship("User", foreign_keys=[student_id], backref="student_bookings")

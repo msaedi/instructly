@@ -130,6 +130,10 @@ def test_cancel_over_24h_releases_auth(db: Session):
 
     assert result.status == BookingStatus.CANCELLED
     assert result.payment_status == "released"
+    assert result.settlement_outcome == "student_cancel_gt24_no_charge"
+    assert result.student_credit_amount == 0
+    assert result.instructor_payout_amount == 0
+    assert result.refunded_to_card_amount == 0
     mock_cancel.assert_called_once()
     mock_event.assert_called()
 
@@ -170,8 +174,14 @@ def test_cancel_12_24h_capture_reverse_credit(db: Session):
         }
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
+    expected_lesson_price = 10000  # $100/hr * 60min = $100 = 10000 cents
+
     assert result.status == BookingStatus.CANCELLED
     assert result.payment_status == "credit_issued"
+    assert result.settlement_outcome == "student_cancel_12_24_full_credit"
+    assert result.student_credit_amount == expected_lesson_price
+    assert result.instructor_payout_amount == 0
+    assert result.refunded_to_card_amount == 0
     mock_capture.assert_called_once()
     mock_reverse.assert_called_once()
 
@@ -184,7 +194,6 @@ def test_cancel_12_24h_capture_reverse_credit(db: Session):
     # Verify credit was called with LESSON PRICE (10000 cents = $100/hr * 60min)
     mock_credit.assert_called_once()
     credit_call_kwargs = mock_credit.call_args.kwargs
-    expected_lesson_price = 10000  # $100/hr * 60min = $100 = 10000 cents
     assert credit_call_kwargs["amount_cents"] == expected_lesson_price, (
         "Credit should be lesson price, not total_price with fees"
     )
@@ -193,7 +202,7 @@ def test_cancel_12_24h_capture_reverse_credit(db: Session):
     )
 
 
-def test_cancel_under_12h_capture_only(db: Session):
+def test_cancel_under_12h_split_credit_and_payout(db: Session):
     instructor, profile, svc = _create_instructor_with_service(db)
     student = _create_student(db)
     # Booking ~3 hours out. Avoid crossing midnight which would make end_time wrap to 00:00
@@ -207,13 +216,30 @@ def test_cancel_under_12h_capture_only(db: Session):
 
     service = BookingService(db)
 
-    with patch("app.services.stripe_service.StripeService.capture_payment_intent") as mock_capture:
-        mock_capture.return_value = {"amount_received": 10000}
+    with patch("app.services.stripe_service.StripeService.capture_payment_intent") as mock_capture, patch(
+        "app.services.stripe_service.StripeService.reverse_transfer"
+    ) as mock_reverse, patch(
+        "app.services.stripe_service.StripeService.create_manual_transfer"
+    ) as mock_transfer, patch(
+        "app.repositories.payment_repository.PaymentRepository.create_platform_credit"
+    ) as mock_credit, patch(
+        "app.repositories.payment_repository.PaymentRepository.get_connected_account_by_instructor_id",
+        return_value=SimpleNamespace(stripe_account_id="acct_test"),
+    ):
+        mock_capture.return_value = {
+            "transfer_id": "tr_x",
+            "amount_received": 10000,
+            "transfer_amount": 8800,
+        }
+        mock_transfer.return_value = {"transfer_id": "tr_payout"}
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
     assert result.status == BookingStatus.CANCELLED
-    assert result.payment_status == "captured"
+    assert result.payment_status in {"credit_issued", "payout_failed"}
     mock_capture.assert_called_once()
+    mock_reverse.assert_called_once()
+    mock_transfer.assert_called_once()
+    mock_credit.assert_called_once()
 
 
 def test_12_24h_cancel_no_credit_on_failed_capture(db: Session):
@@ -771,8 +797,8 @@ def test_rescheduled_booking_12_24h_gets_credit(db: Session):
     mock_credit.assert_called_once()
 
 
-def test_rescheduled_booking_under_12h_no_refund(db: Session):
-    """Rescheduled booking cancelled <12h before should have no refund (same as regular)."""
+def test_rescheduled_booking_under_12h_split_credit_and_payout(db: Session):
+    """Rescheduled booking cancelled <12h before should follow 50/50 split."""
     instructor, profile, svc = _create_instructor_with_service(db)
     student = _create_student(db)
 
@@ -794,13 +820,27 @@ def test_rescheduled_booking_under_12h_no_refund(db: Session):
 
     service = BookingService(db)
 
-    with patch("app.services.stripe_service.StripeService.capture_payment_intent") as mock_capture:
-        mock_capture.return_value = {"amount_received": 10000}
+    with patch("app.services.stripe_service.StripeService.capture_payment_intent") as mock_capture, \
+         patch("app.services.stripe_service.StripeService.reverse_transfer"), \
+         patch("app.services.stripe_service.StripeService.create_manual_transfer") as mock_transfer, \
+         patch("app.repositories.payment_repository.PaymentRepository.create_platform_credit") as mock_credit, \
+         patch(
+             "app.repositories.payment_repository.PaymentRepository.get_connected_account_by_instructor_id",
+             return_value=SimpleNamespace(stripe_account_id="acct_test"),
+         ):
+        mock_capture.return_value = {
+            "transfer_id": "tr_x",
+            "amount_received": 10000,
+            "transfer_amount": 8800,
+        }
+        mock_transfer.return_value = {"transfer_id": "tr_payout"}
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
     assert result.status == BookingStatus.CANCELLED
-    assert result.payment_status == "captured"
+    assert result.payment_status in {"credit_issued", "payout_failed"}
     mock_capture.assert_called_once()
+    mock_transfer.assert_called_once()
+    mock_credit.assert_called_once()
 
 
 def test_regular_booking_over_24h_gets_card_refund(db: Session):

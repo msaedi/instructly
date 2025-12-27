@@ -1637,6 +1637,8 @@ export type BookingCreateResponseConfirmedAt = string | null;
 
 export type BookingCreateResponseInstructorNote = string | null;
 
+export type BookingCreateResponseInstructorPayoutAmount = number | null;
+
 export type BookingCreateResponseInstructorTimezone = string | null;
 
 export type BookingCreateResponseLessonTimezone = string | null;
@@ -1647,16 +1649,22 @@ export type BookingCreateResponseMeetingLocation = string | null;
 
 export type BookingCreateResponsePaymentSummary = PaymentSummary | null;
 
+export type BookingCreateResponseRefundedToCardAmount = number | null;
+
 export type BookingCreateResponseRescheduledFrom = RescheduledFromInfo | null;
 
 export type BookingCreateResponseRescheduledFromBookingId = string | null;
 
 export type BookingCreateResponseServiceArea = string | null;
 
+export type BookingCreateResponseSettlementOutcome = string | null;
+
 /**
  * Stripe SetupIntent client_secret for collecting payment method
  */
 export type BookingCreateResponseSetupIntentClientSecret = string | null;
+
+export type BookingCreateResponseStudentCreditAmount = number | null;
 
 export type BookingCreateResponseStudentNote = string | null;
 
@@ -1684,6 +1692,7 @@ export interface BookingCreateResponse {
   instructor: InstructorInfo;
   instructor_id: string;
   instructor_note: BookingCreateResponseInstructorNote;
+  instructor_payout_amount?: BookingCreateResponseInstructorPayoutAmount;
   instructor_service: ServiceInfo;
   instructor_service_id: string;
   instructor_timezone?: BookingCreateResponseInstructorTimezone;
@@ -1691,17 +1700,20 @@ export interface BookingCreateResponse {
   location_type: BookingCreateResponseLocationType;
   meeting_location: BookingCreateResponseMeetingLocation;
   payment_summary?: BookingCreateResponsePaymentSummary;
+  refunded_to_card_amount?: BookingCreateResponseRefundedToCardAmount;
   /** Whether payment method is required before confirmation */
   requires_payment_method?: boolean;
   rescheduled_from?: BookingCreateResponseRescheduledFrom;
   rescheduled_from_booking_id?: BookingCreateResponseRescheduledFromBookingId;
   service_area: BookingCreateResponseServiceArea;
   service_name: string;
+  settlement_outcome?: BookingCreateResponseSettlementOutcome;
   /** Stripe SetupIntent client_secret for collecting payment method */
   setup_intent_client_secret?: BookingCreateResponseSetupIntentClientSecret;
   start_time: string;
   status: BookingStatus;
   student: StudentInfo;
+  student_credit_amount?: BookingCreateResponseStudentCreditAmount;
   student_id: string;
   student_note: BookingCreateResponseStudentNote;
   student_timezone?: BookingCreateResponseStudentTimezone;
@@ -1789,6 +1801,8 @@ export type BookingResponseConfirmedAt = string | null;
 
 export type BookingResponseInstructorNote = string | null;
 
+export type BookingResponseInstructorPayoutAmount = number | null;
+
 export type BookingResponseInstructorTimezone = string | null;
 
 export type BookingResponseLessonTimezone = string | null;
@@ -1799,11 +1813,17 @@ export type BookingResponseMeetingLocation = string | null;
 
 export type BookingResponsePaymentSummary = PaymentSummary | null;
 
+export type BookingResponseRefundedToCardAmount = number | null;
+
 export type BookingResponseRescheduledFrom = RescheduledFromInfo | null;
 
 export type BookingResponseRescheduledFromBookingId = string | null;
 
 export type BookingResponseServiceArea = string | null;
+
+export type BookingResponseSettlementOutcome = string | null;
+
+export type BookingResponseStudentCreditAmount = number | null;
 
 export type BookingResponseStudentNote = string | null;
 
@@ -1833,6 +1853,7 @@ export interface BookingResponse {
   instructor: InstructorInfo;
   instructor_id: string;
   instructor_note: BookingResponseInstructorNote;
+  instructor_payout_amount?: BookingResponseInstructorPayoutAmount;
   instructor_service: ServiceInfo;
   instructor_service_id: string;
   instructor_timezone?: BookingResponseInstructorTimezone;
@@ -1840,13 +1861,16 @@ export interface BookingResponse {
   location_type: BookingResponseLocationType;
   meeting_location: BookingResponseMeetingLocation;
   payment_summary?: BookingResponsePaymentSummary;
+  refunded_to_card_amount?: BookingResponseRefundedToCardAmount;
   rescheduled_from?: BookingResponseRescheduledFrom;
   rescheduled_from_booking_id?: BookingResponseRescheduledFromBookingId;
   service_area: BookingResponseServiceArea;
   service_name: string;
+  settlement_outcome?: BookingResponseSettlementOutcome;
   start_time: string;
   status: BookingStatus;
   student: StudentInfo;
+  student_credit_amount?: BookingResponseStudentCreditAmount;
   student_id: string;
   student_note: BookingResponseStudentNote;
   student_timezone?: BookingResponseStudentTimezone;

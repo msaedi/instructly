@@ -125,6 +125,12 @@ class TestPaymentTasks:
 
         # Mock repositories
         mock_payment_repo = MagicMock()
+        mock_payment_repo.get_payment_by_booking_id.return_value = types.SimpleNamespace(
+            instructor_payout_cents=8800
+        )
+        mock_payment_repo.get_payment_by_booking_id.return_value = types.SimpleNamespace(
+            instructor_payout_cents=8800
+        )
         mock_customer = MagicMock()
         mock_customer.stripe_customer_id = "cus_test123"
         mock_payment_repo.get_customer_by_user_id.return_value = mock_customer
@@ -608,6 +614,9 @@ class TestPaymentTasks:
 
         # Mock repositories
         mock_payment_repo = MagicMock()
+        mock_payment_repo.get_payment_by_booking_id.return_value = types.SimpleNamespace(
+            instructor_payout_cents=8800
+        )
         mock_booking_repo = MagicMock()
         mock_booking_repo.get_bookings_for_payment_capture.return_value = [booking]
         mock_booking_repo.get_bookings_for_auto_completion.return_value = []
@@ -623,6 +632,10 @@ class TestPaymentTasks:
         assert result["captured"] == 1
         assert result["failed"] == 0
         assert booking.payment_status == "captured"
+        assert booking.settlement_outcome == "lesson_completed_full_payout"
+        assert booking.student_credit_amount == 0
+        assert booking.instructor_payout_amount == 8800
+        assert booking.refunded_to_card_amount == 0
 
         expected_idempotency_key = (
             f"capture_instructor_completed_{booking.id}_pi_test123"
@@ -1007,10 +1020,10 @@ class TestPaymentTasks:
         mock_payment_repo.create_payment_event.assert_not_called()
 
     @patch("app.database.SessionLocal")
-    def test_retry_failed_authorizations_t12_sends_warning_and_retries(
+    def test_retry_failed_authorizations_t13_sends_warning_and_retries(
         self, mock_session_local
     ):
-        """T-12 window sends warning and attempts retry."""
+        """Final warning window sends warning and attempts retry."""
         mock_db = MagicMock()
         mock_session_local.return_value = mock_db
 
@@ -1023,7 +1036,7 @@ class TestPaymentTasks:
         booking.instructor_id = "instructor_warn"
 
         now = datetime.now(timezone.utc)
-        booking_datetime = now + timedelta(hours=11)
+        booking_datetime = now + timedelta(hours=12.5)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
@@ -1799,10 +1812,10 @@ class TestPaymentTasks:
         mock_metrics.inc_credits_applied.assert_called_once_with("authorization")
 
     @patch("app.database.SessionLocal")
-    def test_retry_failed_authorizations_t12_skips_duplicate_warning_and_fails(
+    def test_retry_failed_authorizations_t13_skips_duplicate_warning_and_fails(
         self, mock_session_local
     ):
-        """T-12 retry skips warning when already sent and records failure."""
+        """Final warning retry skips warning when already sent and records failure."""
         mock_db = MagicMock()
         mock_session_local.return_value = mock_db
 
@@ -1815,7 +1828,7 @@ class TestPaymentTasks:
         booking.instructor_id = "instructor_warn_skip"
 
         now = datetime.now(timezone.utc)
-        booking_datetime = now + timedelta(hours=11)
+        booking_datetime = now + timedelta(hours=12.5)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
