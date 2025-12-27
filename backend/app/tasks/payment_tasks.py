@@ -1790,6 +1790,7 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
     Returns:
         Dict with capture result
     """
+    db: Optional[Session] = None
     try:
         with booking_lock_sync(str(booking_id)) as acquired:
             if not acquired:
@@ -1908,7 +1909,8 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
         logger.error(f"Late cancellation capture task failed for {booking_id}: {exc}")
         raise self.retry(exc=exc, countdown=60)  # Retry in 1 minute
     finally:
-        db.close()
+        if db is not None:
+            db.close()
 
 
 @typed_task(name="app.tasks.payment_tasks.check_authorization_health")

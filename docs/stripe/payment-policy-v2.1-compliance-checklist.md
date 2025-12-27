@@ -134,6 +134,7 @@ backend_server.log:
 - API endpoints wrapped with booking lock (429 on contention): cancel, reschedule, no-show, instructor dispute, admin cancel, admin refund.
 - Celery tasks wrapped per booking (skip on contention): scheduled auth, auth retries, capture job, late-cancel capture, reauth+capture.
 - Fresh-read guardrails inside locked execution: auth tasks skip CANCELLED/not eligible; capture job skips CANCELLED/disputed/not authorized; cancel flow is idempotent for already-cancelled bookings and avoids re-capture when already captured.
+- Automated regression tests for Phase 0 mutex/guardrails: `backend/tests/unit/core/test_booking_lock.py`, `backend/tests/integration/test_booking_mutex_endpoints.py`, `backend/tests/integration/test_booking_mutex_tasks.py`, `backend/tests/integration/test_fresh_read_guardrails.py`, `backend/tests/integration/test_booking_race_conditions.py` (maps to truth tests 0.1-0.3).
 
 ## E) Phase 0 Post-Verification Results (staging)
 
