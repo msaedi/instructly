@@ -30,6 +30,8 @@ import type {
   AdminBookingStatusUpdateResponse,
   AdminCancelBookingRequest,
   AdminCancelBookingResponse,
+  AdminNoShowResolutionRequest,
+  AdminNoShowResolutionResponse,
   HTTPValidationError,
   ListAdminAuditLogApiV1AdminAuditLogGetParams,
   ListAdminBookingsApiV1AdminBookingsGetParams,
@@ -809,6 +811,94 @@ export const useAdminUpdateBookingStatusApiV1AdminBookingsBookingIdCompletePost 
 > => {
   const mutationOptions =
     getAdminUpdateBookingStatusApiV1AdminBookingsBookingIdCompletePostMutationOptions(options);
+
+  return useMutation(mutationOptions, queryClient);
+};
+/**
+ * Resolve a disputed no-show report.
+ * @summary Resolve No Show
+ */
+export const resolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePost = (
+  bookingId: string,
+  adminNoShowResolutionRequest: AdminNoShowResolutionRequest,
+  signal?: AbortSignal
+) => {
+  return customFetch<AdminNoShowResolutionResponse>({
+    url: `/api/v1/admin/bookings/${bookingId}/no-show/resolve`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: adminNoShowResolutionRequest,
+    signal,
+  });
+};
+
+export const getResolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePost>>,
+    TError,
+    { bookingId: string; data: AdminNoShowResolutionRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePost>>,
+  TError,
+  { bookingId: string; data: AdminNoShowResolutionRequest },
+  TContext
+> => {
+  const mutationKey = ['resolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePost>>,
+    { bookingId: string; data: AdminNoShowResolutionRequest }
+  > = (props) => {
+    const { bookingId, data } = props ?? {};
+
+    return resolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePost(bookingId, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePost>>
+>;
+export type ResolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePostMutationBody =
+  AdminNoShowResolutionRequest;
+export type ResolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Resolve No Show
+ */
+export const useResolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof resolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePost>>,
+      TError,
+      { bookingId: string; data: AdminNoShowResolutionRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof resolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePost>>,
+  TError,
+  { bookingId: string; data: AdminNoShowResolutionRequest },
+  TContext
+> => {
+  const mutationOptions =
+    getResolveNoShowApiV1AdminBookingsBookingIdNoShowResolvePostMutationOptions(options);
 
   return useMutation(mutationOptions, queryClient);
 };

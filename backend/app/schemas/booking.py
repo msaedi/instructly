@@ -267,6 +267,38 @@ class BookingCancel(BaseModel):
         return v
 
 
+class NoShowReportRequest(StrictRequestModel):
+    """Schema for reporting a no-show."""
+
+    no_show_type: Literal["instructor", "student"]
+    reason: Optional[str] = Field(None, max_length=500)
+
+
+class NoShowDisputeRequest(StrictRequestModel):
+    """Schema for disputing a no-show report."""
+
+    reason: str = Field(..., min_length=10, max_length=500)
+
+
+class NoShowReportResponse(StrictModel):
+    """Response for reporting a no-show."""
+
+    success: bool
+    booking_id: str
+    no_show_type: str
+    payment_status: str
+    dispute_window_ends: str
+
+
+class NoShowDisputeResponse(StrictModel):
+    """Response for disputing a no-show report."""
+
+    success: bool
+    booking_id: str
+    disputed: bool
+    requires_platform_review: bool
+
+
 class BookingBase(StandardizedModel):
     """Base booking information - self-contained record."""
 
@@ -312,6 +344,16 @@ class BookingBase(StandardizedModel):
     # Cancellation info
     cancelled_by_id: Optional[str]
     cancellation_reason: Optional[str]
+
+    # No-show tracking
+    no_show_reported_by: Optional[str] = None
+    no_show_reported_at: Optional[datetime] = None
+    no_show_type: Optional[str] = None
+    no_show_disputed: Optional[bool] = None
+    no_show_disputed_at: Optional[datetime] = None
+    no_show_dispute_reason: Optional[str] = None
+    no_show_resolved_at: Optional[datetime] = None
+    no_show_resolution: Optional[str] = None
 
     # Settlement tracking (v2.1.1)
     settlement_outcome: Optional[str] = None
@@ -529,6 +571,15 @@ class BookingResponse(BookingBase):
             # Cancellation info
             "cancelled_by_id": booking.cancelled_by_id,
             "cancellation_reason": booking.cancellation_reason,
+            # No-show tracking
+            "no_show_reported_by": _safe_str(getattr(booking, "no_show_reported_by", None)),
+            "no_show_reported_at": _safe_datetime(getattr(booking, "no_show_reported_at", None)),
+            "no_show_type": _safe_str(getattr(booking, "no_show_type", None)),
+            "no_show_disputed": _safe_bool(getattr(booking, "no_show_disputed", None)),
+            "no_show_disputed_at": _safe_datetime(getattr(booking, "no_show_disputed_at", None)),
+            "no_show_dispute_reason": _safe_str(getattr(booking, "no_show_dispute_reason", None)),
+            "no_show_resolved_at": _safe_datetime(getattr(booking, "no_show_resolved_at", None)),
+            "no_show_resolution": _safe_str(getattr(booking, "no_show_resolution", None)),
             # Settlement tracking
             "settlement_outcome": _safe_str(getattr(booking, "settlement_outcome", None)),
             "student_credit_amount": _safe_int(getattr(booking, "student_credit_amount", None)),

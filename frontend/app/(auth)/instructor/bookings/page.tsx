@@ -100,7 +100,10 @@ function BookingsPageImpl() {
   const handleConfirmNoShow = useCallback(async () => {
     if (!noShowModalBookingId) return;
     try {
-      await markNoShow.mutateAsync({ bookingId: noShowModalBookingId });
+      await markNoShow.mutateAsync({
+        bookingId: noShowModalBookingId,
+        data: { no_show_type: 'student' },
+      });
       toast.success('Lesson marked as no-show', { duration: 3000 });
       setNoShowModalBookingId(null);
       void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(noShowModalBookingId) });

@@ -1237,6 +1237,28 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error marking booking {booking_id} as no-show: {str(e)}")
             raise RepositoryException(f"Failed to mark booking as no-show: {str(e)}")
 
+    def get_no_show_reports_due_for_resolution(self, *, reported_before: datetime) -> List[Booking]:
+        """Return no-show reports older than cutoff, undisputed and unresolved."""
+        try:
+            query = (
+                self.db.query(Booking)
+                .filter(
+                    Booking.no_show_reported_at.is_not(None),
+                    Booking.no_show_reported_at <= reported_before,
+                    or_(
+                        Booking.no_show_disputed.is_(False),
+                        Booking.no_show_disputed.is_(None),
+                    ),
+                    Booking.no_show_resolved_at.is_(None),
+                    Booking.payment_status == "manual_review",
+                )
+                .order_by(Booking.no_show_reported_at.asc())
+            )
+            return cast(List[Booking], query.all())
+        except Exception as exc:
+            self.logger.error("Failed to load no-show reports due for resolution: %s", str(exc))
+            raise RepositoryException("Failed to load no-show reports due for resolution") from exc
+
     # Helper method overrides
 
     def _apply_eager_loading(self, query: Query) -> Query:

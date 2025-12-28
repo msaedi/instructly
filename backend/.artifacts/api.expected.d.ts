@@ -639,6 +639,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/bookings/{booking_id}/no-show/resolve": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["resolve_no_show_api_v1_admin_bookings__booking_id__no_show_resolve_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/bookings/{booking_id}/refund": {
  parameters: {
  query?: never;
@@ -1416,7 +1432,23 @@ export type paths = {
  };
  get?: never;
  put?: never;
- post: operations["mark_booking_no_show_api_v1_bookings__booking_id__no_show_post"];
+ post: operations["report_no_show_api_v1_bookings__booking_id__no_show_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/bookings/{booking_id}/no-show/dispute": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["dispute_no_show_api_v1_bookings__booking_id__no_show_dispute_post"];
  delete?: never;
  options?: never;
  head?: never;
@@ -4172,6 +4204,17 @@ export type components = {
  name: string;
  updated_at?: string | null;
  };
+ AdminNoShowResolution: "confirmed_after_review" | "dispute_upheld" | "cancelled";
+ AdminNoShowResolutionRequest: {
+ admin_notes?: string | null;
+ resolution: components["schemas"]["AdminNoShowResolution"];
+ };
+ AdminNoShowResolutionResponse: {
+ booking_id: string;
+ resolution: string;
+ settlement_outcome?: string | null;
+ success: boolean;
+ };
  AdminReferralsConfigOut: {
  expiry_months: number;
  flags: {
@@ -4676,6 +4719,14 @@ export type components = {
  locked_amount_cents?: number | null;
  locked_at?: string | null;
  meeting_location: string | null;
+ no_show_dispute_reason?: string | null;
+ no_show_disputed?: boolean | null;
+ no_show_disputed_at?: string | null;
+ no_show_reported_at?: string | null;
+ no_show_reported_by?: string | null;
+ no_show_resolution?: string | null;
+ no_show_resolved_at?: string | null;
+ no_show_type?: string | null;
  payment_summary?: components["schemas"]["PaymentSummary"] | null;
  refunded_to_card_amount?: number | null;
  requires_payment_method: boolean;
@@ -4754,6 +4805,14 @@ export type components = {
  locked_amount_cents?: number | null;
  locked_at?: string | null;
  meeting_location: string | null;
+ no_show_dispute_reason?: string | null;
+ no_show_disputed?: boolean | null;
+ no_show_disputed_at?: string | null;
+ no_show_reported_at?: string | null;
+ no_show_reported_by?: string | null;
+ no_show_resolution?: string | null;
+ no_show_resolved_at?: string | null;
+ no_show_type?: string | null;
  payment_summary?: components["schemas"]["PaymentSummary"] | null;
  refunded_to_card_amount?: number | null;
  rescheduled_from?: components["schemas"]["RescheduledFromInfo"] | null;
@@ -5620,6 +5679,26 @@ export type components = {
  found: boolean;
  message?: string | null;
  start_time?: string | null;
+ };
+ NoShowDisputeRequest: {
+ reason: string;
+ };
+ NoShowDisputeResponse: {
+ booking_id: string;
+ disputed: boolean;
+ requires_platform_review: boolean;
+ success: boolean;
+ };
+ NoShowReportRequest: {
+ no_show_type: "instructor" | "student";
+ reason?: string | null;
+ };
+ NoShowReportResponse: {
+ booking_id: string;
+ dispute_window_ends: string;
+ no_show_type: string;
+ payment_status: string;
+ success: boolean;
  };
  OnboardingResponse: {
  account_id: string;
@@ -7975,6 +8054,39 @@ export interface operations {
  };
  };
  };
+ resolve_no_show_api_v1_admin_bookings__booking_id__no_show_resolve_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["AdminNoShowResolutionRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminNoShowResolutionResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  admin_refund_booking_api_v1_admin_bookings__booking_id__refund_post: {
  parameters: {
  query?: never;
@@ -9501,7 +9613,7 @@ export interface operations {
  };
  };
  };
- mark_booking_no_show_api_v1_bookings__booking_id__no_show_post: {
+ report_no_show_api_v1_bookings__booking_id__no_show_post: {
  parameters: {
  query?: never;
  header?: never;
@@ -9510,14 +9622,63 @@ export interface operations {
  };
  cookie?: never;
  };
- requestBody?: never;
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["NoShowReportRequest"];
+ };
+ };
  responses: {
  200: {
  headers: {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["BookingResponse"];
+ "application/json": components["schemas"]["NoShowReportResponse"];
+ };
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ dispute_no_show_api_v1_bookings__booking_id__no_show_dispute_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["NoShowDisputeRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NoShowDisputeResponse"];
  };
  };
  403: {

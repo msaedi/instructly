@@ -38,6 +38,10 @@ import type {
   GetBookingsApiV1BookingsGetParams,
   GetUpcomingBookingsApiV1BookingsUpcomingGetParams,
   HTTPValidationError,
+  NoShowDisputeRequest,
+  NoShowDisputeResponse,
+  NoShowReportRequest,
+  NoShowReportResponse,
   PaginatedResponseBookingResponse,
   PaginatedResponseUpcomingBookingResponse,
   PricingPreviewOut,
@@ -1241,42 +1245,44 @@ export const useConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost = 
   return useMutation(mutationOptions, queryClient);
 };
 /**
- * Mark a booking as no-show (student didn't attend).
+ * Report a no-show for a booking.
 
-Only the instructor for this booking can mark it as no-show.
-The booking must be in CONFIRMED status.
-
-Requires: COMPLETE_BOOKINGS permission (instructor only)
- * @summary Mark Booking No Show
+- Student can report instructor no-show
+- Admin can report either type
+- Must be within reporting window
+ * @summary Report No Show
  */
-export const markBookingNoShowApiV1BookingsBookingIdNoShowPost = (
+export const reportNoShowApiV1BookingsBookingIdNoShowPost = (
   bookingId: string,
+  noShowReportRequest: NoShowReportRequest,
   signal?: AbortSignal
 ) => {
-  return customFetch<BookingResponse>({
+  return customFetch<NoShowReportResponse>({
     url: `/api/v1/bookings/${bookingId}/no-show`,
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: noShowReportRequest,
     signal,
   });
 };
 
-export const getMarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationOptions = <
+export const getReportNoShowApiV1BookingsBookingIdNoShowPostMutationOptions = <
   TError = ErrorType<void | HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>,
+    Awaited<ReturnType<typeof reportNoShowApiV1BookingsBookingIdNoShowPost>>,
     TError,
-    { bookingId: string },
+    { bookingId: string; data: NoShowReportRequest },
     TContext
   >;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>,
+  Awaited<ReturnType<typeof reportNoShowApiV1BookingsBookingIdNoShowPost>>,
   TError,
-  { bookingId: string },
+  { bookingId: string; data: NoShowReportRequest },
   TContext
 > => {
-  const mutationKey = ['markBookingNoShowApiV1BookingsBookingIdNoShowPost'];
+  const mutationKey = ['reportNoShowApiV1BookingsBookingIdNoShowPost'];
   const { mutation: mutationOptions } = options
     ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
       ? options
@@ -1284,48 +1290,136 @@ export const getMarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationOptions
     : { mutation: { mutationKey } };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>,
-    { bookingId: string }
+    Awaited<ReturnType<typeof reportNoShowApiV1BookingsBookingIdNoShowPost>>,
+    { bookingId: string; data: NoShowReportRequest }
   > = (props) => {
-    const { bookingId } = props ?? {};
+    const { bookingId, data } = props ?? {};
 
-    return markBookingNoShowApiV1BookingsBookingIdNoShowPost(bookingId);
+    return reportNoShowApiV1BookingsBookingIdNoShowPost(bookingId, data);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type MarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>
+export type ReportNoShowApiV1BookingsBookingIdNoShowPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reportNoShowApiV1BookingsBookingIdNoShowPost>>
 >;
-
-export type MarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationError =
+export type ReportNoShowApiV1BookingsBookingIdNoShowPostMutationBody = NoShowReportRequest;
+export type ReportNoShowApiV1BookingsBookingIdNoShowPostMutationError =
   ErrorType<void | HTTPValidationError>;
 
 /**
- * @summary Mark Booking No Show
+ * @summary Report No Show
  */
-export const useMarkBookingNoShowApiV1BookingsBookingIdNoShowPost = <
+export const useReportNoShowApiV1BookingsBookingIdNoShowPost = <
   TError = ErrorType<void | HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>,
+      Awaited<ReturnType<typeof reportNoShowApiV1BookingsBookingIdNoShowPost>>,
       TError,
-      { bookingId: string },
+      { bookingId: string; data: NoShowReportRequest },
       TContext
     >;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>,
+  Awaited<ReturnType<typeof reportNoShowApiV1BookingsBookingIdNoShowPost>>,
   TError,
-  { bookingId: string },
+  { bookingId: string; data: NoShowReportRequest },
+  TContext
+> => {
+  const mutationOptions = getReportNoShowApiV1BookingsBookingIdNoShowPostMutationOptions(options);
+
+  return useMutation(mutationOptions, queryClient);
+};
+/**
+ * Dispute a no-show report.
+
+Only the accused party can dispute within 24 hours of report.
+ * @summary Dispute No Show
+ */
+export const disputeNoShowApiV1BookingsBookingIdNoShowDisputePost = (
+  bookingId: string,
+  noShowDisputeRequest: NoShowDisputeRequest,
+  signal?: AbortSignal
+) => {
+  return customFetch<NoShowDisputeResponse>({
+    url: `/api/v1/bookings/${bookingId}/no-show/dispute`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: noShowDisputeRequest,
+    signal,
+  });
+};
+
+export const getDisputeNoShowApiV1BookingsBookingIdNoShowDisputePostMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof disputeNoShowApiV1BookingsBookingIdNoShowDisputePost>>,
+    TError,
+    { bookingId: string; data: NoShowDisputeRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof disputeNoShowApiV1BookingsBookingIdNoShowDisputePost>>,
+  TError,
+  { bookingId: string; data: NoShowDisputeRequest },
+  TContext
+> => {
+  const mutationKey = ['disputeNoShowApiV1BookingsBookingIdNoShowDisputePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof disputeNoShowApiV1BookingsBookingIdNoShowDisputePost>>,
+    { bookingId: string; data: NoShowDisputeRequest }
+  > = (props) => {
+    const { bookingId, data } = props ?? {};
+
+    return disputeNoShowApiV1BookingsBookingIdNoShowDisputePost(bookingId, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DisputeNoShowApiV1BookingsBookingIdNoShowDisputePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof disputeNoShowApiV1BookingsBookingIdNoShowDisputePost>>
+>;
+export type DisputeNoShowApiV1BookingsBookingIdNoShowDisputePostMutationBody = NoShowDisputeRequest;
+export type DisputeNoShowApiV1BookingsBookingIdNoShowDisputePostMutationError =
+  ErrorType<void | HTTPValidationError>;
+
+/**
+ * @summary Dispute No Show
+ */
+export const useDisputeNoShowApiV1BookingsBookingIdNoShowDisputePost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof disputeNoShowApiV1BookingsBookingIdNoShowDisputePost>>,
+      TError,
+      { bookingId: string; data: NoShowDisputeRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof disputeNoShowApiV1BookingsBookingIdNoShowDisputePost>>,
+  TError,
+  { bookingId: string; data: NoShowDisputeRequest },
   TContext
 > => {
   const mutationOptions =
-    getMarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationOptions(options);
+    getDisputeNoShowApiV1BookingsBookingIdNoShowDisputePostMutationOptions(options);
 
   return useMutation(mutationOptions, queryClient);
 };

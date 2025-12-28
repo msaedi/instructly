@@ -1,8 +1,8 @@
-# Payment Policy v2.1 Compliance Checklist (Phase 0–3)
+# Payment Policy v2.1 Compliance Checklist (Phase 0–4)
 
-Last updated: 2025-12-27
+Last updated: 2025-12-28
 Environment: staging DB (instainstru_stg), SITE_MODE=local, Stripe test mode
-Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), Phase 2 LOCK anti-gaming mechanism, and Phase 3 credit reservation model.
+Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), Phase 2 LOCK anti-gaming mechanism, Phase 3 credit reservation model, and Phase 4 no-show handling.
 
 ## A) Entrypoint Inventory (money movement / payment state, current state)
 
@@ -15,15 +15,18 @@ Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical mon
 | API | PATCH /api/v1/bookings/{id}/payment-method | backend/app/routes/v1/bookings.py:974 update_booking_payment_method<br>backend/app/services/booking_service.py:952 confirm_booking_payment | booking.payment_method_id<br>booking.payment_status (payment_method_saved/scheduled/authorizing)<br>booking.status (CONFIRMED), booking.confirmed_at | Optional save payment method<br>Immediate auth uses PaymentIntent create + confirm | None | None |
 | API | POST /api/v1/bookings/{id}/complete | backend/app/routes/v1/bookings.py:870 complete_booking<br>backend/app/services/booking_service.py:2053 complete_booking | booking.status (COMPLETED) + completed_at (via repository)<br>payment_events (milestone credits) | None | None | None |
 | API | POST /api/v1/instructor/bookings/{id}/complete | backend/app/routes/v1/instructor_bookings.py:255 mark_lesson_complete<br>backend/app/services/booking_service.py:2150 instructor_mark_complete | booking.status (COMPLETED), completed_at, instructor_note<br>payment_events (instructor_marked_complete) | None | None | None |
-| API | POST /api/v1/bookings/{id}/no-show | backend/app/routes/v1/bookings.py:903 mark_booking_no_show<br>backend/app/services/booking_service.py:2307 mark_no_show | booking.status (NO_SHOW via mark_no_show) | None | None | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
+| API | POST /api/v1/bookings/{id}/no-show | backend/app/routes/v1/bookings.py:956 report_no_show<br>backend/app/services/booking_service.py:3259 report_no_show | booking.payment_status -> manual_review<br>booking.no_show_reported_* | None | None | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
+| API | POST /api/v1/bookings/{id}/no-show/dispute | backend/app/routes/v1/bookings.py:1002 dispute_no_show<br>backend/app/services/booking_service.py:3361 dispute_no_show | booking.no_show_disputed* + dispute metadata | None | None | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
 | API | POST /api/v1/instructor/bookings/{id}/dispute | backend/app/routes/v1/instructor_bookings.py:315 dispute_completion<br>backend/app/services/booking_service.py:2248 instructor_dispute_completion | booking.payment_status -> disputed (if authorized)<br>payment_events completion_disputed | None | None | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
 | API | POST /api/v1/admin/bookings/{id}/cancel | backend/app/routes/v1/admin/bookings.py:131 admin_cancel_booking<br>backend/app/services/admin_booking_service.py:248 cancel_booking | booking.status (CANCELLED), cancelled_at, cancelled_by_id, cancellation_reason<br>booking.payment_status -> refunded (if refund) | Optional Stripe refund (reverse_transfer=True) | Stripe key `admin_cancel_{booking_id}_{timestamp}` | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
+| API | POST /api/v1/admin/bookings/{id}/no-show/resolve | backend/app/routes/v1/admin/bookings.py:232 resolve_no_show<br>backend/app/services/booking_service.py:3445 resolve_no_show | booking.no_show_resolution + no_show_resolved_at<br>booking.status/payment_status/settlement_outcome | Stripe refund/capture (if applicable) | Stripe idempotency in service | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
 | API | POST /api/v1/admin/refunds/{id}/refund | backend/app/routes/v1/admin/refunds.py:39 admin_refund_booking | booking.payment_status -> refunded (via apply_refund_updates)<br>refund_id/refund metadata | Stripe refund (reverse_transfer=True) | Stripe key `admin_refund_{booking_id}_{uuid}` | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
 | API | POST /api/v1/payments/webhooks/stripe | backend/app/routes/v1/payments.py:728 handle_stripe_webhook<br>backend/app/services/stripe_service.py:3061 handle_webhook_event | payment_intents.status (update_payment_status)<br>booking.status -> CONFIRMED when PI succeeds and booking PENDING<br>charge.refunded triggers credit hooks | None (webhook processing only) | None | None |
 | Task | process_scheduled_authorizations | backend/app/tasks/payment_tasks.py:375 process_scheduled_authorizations | booking.payment_status (authorized/auth_failed/auth_abandoned)<br>booking.payment_intent_id<br>payment_events auth_scheduled/auth_succeeded/auth_failed | PaymentIntent create/confirm via create_or_retry_booking_payment_intent | Stripe create/confirm idempotency handled in service (no booking-level dedupe) | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
 | Task | retry_failed_authorizations | backend/app/tasks/payment_tasks.py:708 retry_failed_authorizations | booking.payment_status (authorized/auth_retry_failed/auth_abandoned)<br>booking.status -> CANCELLED when failure at T-12 | PaymentIntent create/confirm retry | Stripe idempotency handled in service | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
 | Task | capture_completed_lessons | backend/app/tasks/payment_tasks.py:1260 capture_completed_lessons | booking.payment_status (captured/auth_expired/capture_failed/settled)<br>booking.status -> COMPLETED (auto_complete path)<br>booking.payment_intent_id (reauth)<br>locked parent booking: settlement_outcome/lock_resolution (if has_locked_funds) | PaymentIntent.capture<br>LOCK resolution (has_locked_funds): manual transfer on locked parent (new_lesson_completed)<br>Possible reauth (create_new_authorization_and_capture) | Stripe key `capture_{reason}_{booking_id}_{payment_intent_id}` | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
 | Task | capture_late_cancellation | backend/app/tasks/payment_tasks.py:1673 capture_late_cancellation | booking.payment_status -> captured<br>payment_events late_cancellation_captured | PaymentIntent.capture | Stripe key `capture_late_cancel_{booking_id}_{payment_intent_id}` | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
+| Task | resolve_undisputed_no_shows | backend/app/tasks/payment_tasks.py:2105 resolve_undisputed_no_shows | booking.no_show_resolution + no_show_resolved_at<br>booking.status/payment_status/settlement_outcome | Stripe refund/capture (via booking_service) | Stripe idempotency in service | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
 | Task | create_new_authorization_and_capture (internal) | backend/app/tasks/payment_tasks.py:1579 create_new_authorization_and_capture | booking.payment_intent_id (new)<br>booking.payment_status -> captured<br>payment_events reauth_and_capture | PaymentIntent create + capture | Stripe capture idempotency inside call | Booking mutex `booking:{booking_id}:mutex` (TTL 90s) |
 
 Notes:
@@ -196,6 +199,7 @@ status=CONFIRMED payment_status=authorized payment_intent_id=pi_3Sj14h0LanJcM8Lu
 | Settlement tracking fields on booking | PASS ✅ | `backend/app/models/booking.py`, `backend/app/services/booking_service.py`, `backend/app/tasks/payment_tasks.py` | P1 | Implemented | Tracks settlement_outcome + amount fields |
 | LOCK anti-gaming (12–24h reschedule) | PASS ✅ | `backend/tests/integration/test_lock_mechanism.py` | P0 | Implemented | Capture + reverse transfer, set locked status, resolve on new lesson outcome |
 | Credit reservation model (reserve/release/forfeit/issue) | PASS ✅ | `backend/tests/integration/test_credit_reservation.py` | P0 | Implemented | Credits reserved at checkout; released or forfeited on terminal outcomes |
+| No-show handling (report/dispute/resolve) | PASS ✅ | `backend/tests/integration/test_no_show_handling.py` | P0 | Implemented | Manual review freeze + 24h dispute window + admin/auto resolution |
 
 ## G) Phase 1 Changes Implemented
 
@@ -235,3 +239,15 @@ status=CONFIRMED payment_status=authorized payment_intent_id=pi_3Sj14h0LanJcM8Lu
 
 - Test file: `backend/tests/integration/test_credit_reservation.py`
 - Result: `pytest backend/tests/integration/test_credit_reservation.py -q` (12 passed)
+
+## M) Phase 4 Changes Implemented
+
+- No-show tracking fields on bookings: report/dispute/resolution timestamps and metadata.
+- Reporting + dispute endpoints: `/api/v1/bookings/{id}/no-show` and `/api/v1/bookings/{id}/no-show/dispute`.
+- Resolution endpoint + auto-resolution task: `/api/v1/admin/bookings/{id}/no-show/resolve`, `resolve_undisputed_no_shows` (hourly).
+- Settlement rules wired: instructor no-show refunds (incl. SF) + credit release; student no-show captures + credit forfeit.
+
+## N) Phase 4 Verification (Automated)
+
+- Test file: `backend/tests/integration/test_no_show_handling.py`
+- Result: not run yet (pending)

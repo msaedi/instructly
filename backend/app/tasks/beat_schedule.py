@@ -111,6 +111,16 @@ CELERYBEAT_SCHEDULE = {
     #     "description": "Generate comprehensive monthly platform analytics",
     # },
     # Search history cleanup - runs daily at 3 AM
+    "resolve-undisputed-no-shows": {
+        "task": "app.tasks.payment_tasks.resolve_undisputed_no_shows",
+        "schedule": crontab(minute=0),  # Every hour
+        "options": {
+            "queue": "celery",
+            "priority": 3,
+        },
+        "description": "Auto-resolve undisputed no-show reports after 24h",
+    },
+    # Search history cleanup - runs daily at 3 AM
     "cleanup-search-history": {
         "task": "privacy.cleanup_search_history",
         "schedule": crontab(hour=3, minute=0),  # Daily at 3 AM

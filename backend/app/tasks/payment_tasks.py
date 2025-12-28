@@ -33,6 +33,7 @@ from app.database import get_db
 from app.models.booking import Booking, BookingStatus
 from app.models.payment import PaymentEvent
 from app.repositories.factory import RepositoryFactory
+from app.services.booking_service import BookingService
 from app.services.config_service import ConfigService
 from app.services.notification_service import NotificationService
 from app.services.pricing_service import PricingService
@@ -85,6 +86,13 @@ class CaptureJobResults(TypedDict):
     failed: int
     auto_completed: int
     expired_handled: int
+    processed_at: str
+
+
+class NoShowResolutionResults(TypedDict):
+    resolved: int
+    skipped: int
+    failed: int
     processed_at: str
 
 
@@ -2088,6 +2096,53 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
     except Exception as exc:
         logger.error(f"Late cancellation capture task failed for {booking_id}: {exc}")
         raise self.retry(exc=exc, countdown=60)  # Retry in 1 minute
+    finally:
+        if db is not None:
+            db.close()
+
+
+@typed_task(name="app.tasks.payment_tasks.resolve_undisputed_no_shows")
+def resolve_undisputed_no_shows() -> NoShowResolutionResults:
+    """
+    Auto-resolve no-show reports that were not disputed within 24 hours.
+    """
+    db: Optional[Session] = None
+    now = datetime.now(timezone.utc)
+    results: NoShowResolutionResults = {
+        "resolved": 0,
+        "skipped": 0,
+        "failed": 0,
+        "processed_at": now.isoformat(),
+    }
+    try:
+        db = cast(Session, next(get_db()))
+        booking_repo = RepositoryFactory.get_booking_repository(db)
+        booking_service = BookingService(db)
+        cutoff = now - timedelta(hours=24)
+
+        pending = booking_repo.get_no_show_reports_due_for_resolution(reported_before=cutoff)
+        for booking in pending:
+            booking_id = booking.id
+            try:
+                with booking_lock_sync(str(booking_id)) as acquired:
+                    if not acquired:
+                        results["skipped"] += 1
+                        continue
+                    result = booking_service.resolve_no_show(
+                        booking_id=booking_id,
+                        resolution="confirmed_no_dispute",
+                        resolved_by=None,
+                        admin_notes=None,
+                    )
+                    if result.get("success"):
+                        results["resolved"] += 1
+                    else:
+                        results["failed"] += 1
+            except Exception as exc:
+                logger.error("Failed to resolve no-show for %s: %s", booking_id, exc)
+                results["failed"] += 1
+
+        return results
     finally:
         if db is not None:
             db.close()

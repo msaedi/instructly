@@ -38,7 +38,10 @@ export default function BookingDetailsPage() {
 
   const handleMarkNoShow = async () => {
     try {
-      await markNoShow.mutateAsync({ bookingId });
+      await markNoShow.mutateAsync({
+        bookingId,
+        data: { no_show_type: 'student' },
+      });
       toast.success('Lesson marked as no-show', { duration: 3000 });
       setShowNoShowModal(false);
       void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(bookingId) });

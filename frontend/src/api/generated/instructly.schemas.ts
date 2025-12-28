@@ -513,6 +513,32 @@ export interface AdminInstructorDetailResponse {
   updated_at?: AdminInstructorDetailResponseUpdatedAt;
 }
 
+export type AdminNoShowResolution =
+  (typeof AdminNoShowResolution)[keyof typeof AdminNoShowResolution];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const AdminNoShowResolution = {
+  confirmed_after_review: 'confirmed_after_review',
+  dispute_upheld: 'dispute_upheld',
+  cancelled: 'cancelled',
+} as const;
+
+export type AdminNoShowResolutionRequestAdminNotes = string | null;
+
+export interface AdminNoShowResolutionRequest {
+  admin_notes?: AdminNoShowResolutionRequestAdminNotes;
+  resolution: AdminNoShowResolution;
+}
+
+export type AdminNoShowResolutionResponseSettlementOutcome = string | null;
+
+export interface AdminNoShowResolutionResponse {
+  booking_id: string;
+  resolution: string;
+  settlement_outcome?: AdminNoShowResolutionResponseSettlementOutcome;
+  success: boolean;
+}
+
 export type AdminReferralsConfigOutFlags = { [key: string]: boolean };
 
 export type AdminReferralsConfigOutSource =
@@ -1659,6 +1685,22 @@ export type BookingCreateResponseLockedAt = string | null;
 
 export type BookingCreateResponseMeetingLocation = string | null;
 
+export type BookingCreateResponseNoShowDisputeReason = string | null;
+
+export type BookingCreateResponseNoShowDisputed = boolean | null;
+
+export type BookingCreateResponseNoShowDisputedAt = string | null;
+
+export type BookingCreateResponseNoShowReportedAt = string | null;
+
+export type BookingCreateResponseNoShowReportedBy = string | null;
+
+export type BookingCreateResponseNoShowResolution = string | null;
+
+export type BookingCreateResponseNoShowResolvedAt = string | null;
+
+export type BookingCreateResponseNoShowType = string | null;
+
 export type BookingCreateResponsePaymentSummary = PaymentSummary | null;
 
 export type BookingCreateResponseRefundedToCardAmount = number | null;
@@ -1719,6 +1761,14 @@ export interface BookingCreateResponse {
   locked_amount_cents?: BookingCreateResponseLockedAmountCents;
   locked_at?: BookingCreateResponseLockedAt;
   meeting_location: BookingCreateResponseMeetingLocation;
+  no_show_dispute_reason?: BookingCreateResponseNoShowDisputeReason;
+  no_show_disputed?: BookingCreateResponseNoShowDisputed;
+  no_show_disputed_at?: BookingCreateResponseNoShowDisputedAt;
+  no_show_reported_at?: BookingCreateResponseNoShowReportedAt;
+  no_show_reported_by?: BookingCreateResponseNoShowReportedBy;
+  no_show_resolution?: BookingCreateResponseNoShowResolution;
+  no_show_resolved_at?: BookingCreateResponseNoShowResolvedAt;
+  no_show_type?: BookingCreateResponseNoShowType;
   payment_summary?: BookingCreateResponsePaymentSummary;
   refunded_to_card_amount?: BookingCreateResponseRefundedToCardAmount;
   /** Whether payment method is required before confirmation */
@@ -1844,6 +1894,22 @@ export type BookingResponseLockedAt = string | null;
 
 export type BookingResponseMeetingLocation = string | null;
 
+export type BookingResponseNoShowDisputeReason = string | null;
+
+export type BookingResponseNoShowDisputed = boolean | null;
+
+export type BookingResponseNoShowDisputedAt = string | null;
+
+export type BookingResponseNoShowReportedAt = string | null;
+
+export type BookingResponseNoShowReportedBy = string | null;
+
+export type BookingResponseNoShowResolution = string | null;
+
+export type BookingResponseNoShowResolvedAt = string | null;
+
+export type BookingResponseNoShowType = string | null;
+
 export type BookingResponsePaymentSummary = PaymentSummary | null;
 
 export type BookingResponseRefundedToCardAmount = number | null;
@@ -1901,6 +1967,14 @@ export interface BookingResponse {
   locked_amount_cents?: BookingResponseLockedAmountCents;
   locked_at?: BookingResponseLockedAt;
   meeting_location: BookingResponseMeetingLocation;
+  no_show_dispute_reason?: BookingResponseNoShowDisputeReason;
+  no_show_disputed?: BookingResponseNoShowDisputed;
+  no_show_disputed_at?: BookingResponseNoShowDisputedAt;
+  no_show_reported_at?: BookingResponseNoShowReportedAt;
+  no_show_reported_by?: BookingResponseNoShowReportedBy;
+  no_show_resolution?: BookingResponseNoShowResolution;
+  no_show_resolved_at?: BookingResponseNoShowResolvedAt;
+  no_show_type?: BookingResponseNoShowType;
   payment_summary?: BookingResponsePaymentSummary;
   refunded_to_card_amount?: BookingResponseRefundedToCardAmount;
   rescheduled_from?: BookingResponseRescheduledFrom;
@@ -4027,6 +4101,57 @@ export interface NextAvailableSlotResponse {
   message?: NextAvailableSlotResponseMessage;
   /** Start time (HH:MM:SS) */
   start_time?: NextAvailableSlotResponseStartTime;
+}
+
+/**
+ * Schema for disputing a no-show report.
+ */
+export interface NoShowDisputeRequest {
+  /**
+   * @minLength 10
+   * @maxLength 500
+   */
+  reason: string;
+}
+
+/**
+ * Response for disputing a no-show report.
+ */
+export interface NoShowDisputeResponse {
+  booking_id: string;
+  disputed: boolean;
+  requires_platform_review: boolean;
+  success: boolean;
+}
+
+export type NoShowReportRequestNoShowType =
+  (typeof NoShowReportRequestNoShowType)[keyof typeof NoShowReportRequestNoShowType];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const NoShowReportRequestNoShowType = {
+  instructor: 'instructor',
+  student: 'student',
+} as const;
+
+export type NoShowReportRequestReason = string | null;
+
+/**
+ * Schema for reporting a no-show.
+ */
+export interface NoShowReportRequest {
+  no_show_type: NoShowReportRequestNoShowType;
+  reason?: NoShowReportRequestReason;
+}
+
+/**
+ * Response for reporting a no-show.
+ */
+export interface NoShowReportResponse {
+  booking_id: string;
+  dispute_window_ends: string;
+  no_show_type: string;
+  payment_status: string;
+  success: boolean;
 }
 
 export interface OnboardingResponse {

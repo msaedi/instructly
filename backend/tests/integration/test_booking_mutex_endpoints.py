@@ -31,7 +31,7 @@ def mock_booking_service():
     service.validate_reschedule_allowed = MagicMock()
     service.check_availability = MagicMock()
     service.create_rescheduled_booking_with_existing_payment = MagicMock()
-    service.mark_no_show = MagicMock()
+    service.report_no_show = MagicMock()
     service.instructor_dispute_completion = MagicMock()
     return service
 
@@ -79,17 +79,18 @@ def test_reschedule_returns_429_when_locked(
 
 
 def test_no_show_returns_429_when_locked(
-    client_with_mock_booking_service, auth_headers_instructor, mock_booking_service, test_booking
+    client_with_mock_booking_service, auth_headers_student, mock_booking_service, test_booking
 ):
     with patch("app.routes.v1.bookings.booking_lock", _lock_unavailable):
         response = client_with_mock_booking_service.post(
             f"/api/v1/bookings/{test_booking.id}/no-show",
-            headers=auth_headers_instructor,
+            json={"no_show_type": "instructor", "reason": "Did not show up"},
+            headers=auth_headers_student,
         )
 
     assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
     assert response.json()["detail"] == "Operation in progress"
-    mock_booking_service.mark_no_show.assert_not_called()
+    mock_booking_service.report_no_show.assert_not_called()
 
 
 def test_instructor_dispute_returns_429_when_locked(

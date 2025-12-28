@@ -16,6 +16,7 @@ All methods now under 50 lines with comprehensive observability! ⚡
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
+from decimal import ROUND_HALF_UP, Decimal
 import logging
 import os
 from types import SimpleNamespace
@@ -25,11 +26,13 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 import stripe
 
+from ..constants.pricing_defaults import PRICING_DEFAULTS
 from ..core.bgc_policy import is_verified, must_be_verified_for_public
 from ..core.enums import RoleName
 from ..core.exceptions import (
     BookingConflictException,
     BusinessRuleException,
+    ForbiddenException,
     NotFoundException,
     RepositoryException,
     ServiceException,
@@ -276,6 +279,11 @@ class BookingService(BaseService):
             role_value = default_role
 
         return {"id": actor_id, "role": str(role_value)}
+
+    @staticmethod
+    def _user_has_role(user: User, role: RoleName) -> bool:
+        roles = cast(list[Any], getattr(user, "roles", []) or [])
+        return any(cast(str, getattr(role_obj, "name", "")) == role for role_obj in roles)
 
     def _snapshot_booking(self, booking: Booking) -> dict[str, Any]:
         """Return a redacted snapshot of a booking suitable for audit logging."""
@@ -3248,6 +3256,613 @@ class BookingService(BaseService):
         if refreshed is None:
             raise NotFoundException("Booking not found after dispute")
         return refreshed
+
+    @BaseService.measure_operation("report_no_show")
+    def report_no_show(
+        self,
+        *,
+        booking_id: str,
+        reporter: User,
+        no_show_type: str,
+        reason: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Report a no-show and freeze payment automation.
+
+        Reporting window: lesson_start <= now <= lesson_end + 24h
+        """
+        from ..repositories.payment_repository import PaymentRepository
+
+        now = datetime.now(timezone.utc)
+        with self.transaction():
+            booking = self.repository.get_booking_with_details(booking_id)
+            if not booking:
+                raise NotFoundException("Booking not found")
+
+            is_admin = self._user_has_role(reporter, RoleName.ADMIN)
+            is_student = reporter.id == booking.student_id
+            is_instructor = reporter.id == booking.instructor_id
+
+            if no_show_type == "instructor":
+                if not (is_student or is_admin):
+                    raise ForbiddenException(
+                        "Only the student or admin can report an instructor no-show"
+                    )
+            elif no_show_type == "student":
+                if not is_admin:
+                    raise ForbiddenException("Only admin can report a student no-show")
+            else:
+                raise ValidationException("Invalid no_show_type")
+
+            booking_start_utc = self._get_booking_start_utc(booking)
+            booking_end_utc = self._get_booking_end_utc(booking)
+            window_end = booking_end_utc + timedelta(hours=24)
+            if not (booking_start_utc <= now <= window_end):
+                raise BusinessRuleException(
+                    "No-show can only be reported between lesson start and 24 hours after lesson end"
+                )
+
+            if booking.status == BookingStatus.CANCELLED:
+                raise BusinessRuleException("Cannot report no-show for cancelled booking")
+
+            if booking.no_show_reported_at is not None:
+                raise BusinessRuleException("No-show already reported for this booking")
+
+            audit_before = self._snapshot_booking(booking)
+            previous_payment_status = booking.payment_status
+
+            booking.payment_status = "manual_review"
+            booking.no_show_reported_by = reporter.id
+            booking.no_show_reported_at = now
+            booking.no_show_type = no_show_type
+            booking.no_show_disputed = False
+            booking.no_show_disputed_at = None
+            booking.no_show_dispute_reason = None
+            booking.no_show_resolved_at = None
+            booking.no_show_resolution = None
+
+            payment_repo = PaymentRepository(self.db)
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="no_show_reported",
+                event_data={
+                    "type": no_show_type,
+                    "reported_by": reporter.id,
+                    "reason": reason,
+                    "previous_payment_status": previous_payment_status,
+                    "dispute_window_ends": (now + timedelta(hours=24)).isoformat(),
+                },
+            )
+
+            audit_after = self._snapshot_booking(booking)
+            default_role = (
+                RoleName.STUDENT.value
+                if is_student
+                else (RoleName.INSTRUCTOR.value if is_instructor else RoleName.ADMIN.value)
+            )
+            self._write_booking_audit(
+                booking,
+                "no_show_reported",
+                actor=reporter,
+                before=audit_before,
+                after=audit_after,
+                default_role=default_role,
+            )
+
+        self._invalidate_booking_caches(booking)
+
+        return {
+            "success": True,
+            "booking_id": booking_id,
+            "no_show_type": no_show_type,
+            "payment_status": "manual_review",
+            "dispute_window_ends": (now + timedelta(hours=24)).isoformat(),
+        }
+
+    @BaseService.measure_operation("dispute_no_show")
+    def dispute_no_show(
+        self,
+        *,
+        booking_id: str,
+        disputer: User,
+        reason: str,
+    ) -> Dict[str, Any]:
+        """Dispute a no-show report within the allowed window."""
+        from ..repositories.payment_repository import PaymentRepository
+
+        now = datetime.now(timezone.utc)
+        with self.transaction():
+            booking = self.repository.get_booking_with_details(booking_id)
+            if not booking:
+                raise NotFoundException("Booking not found")
+
+            if booking.no_show_reported_at is None:
+                raise BusinessRuleException("No no-show report exists for this booking")
+
+            if booking.no_show_disputed:
+                raise BusinessRuleException("No-show already disputed")
+
+            if booking.no_show_resolved_at is not None:
+                raise BusinessRuleException("No-show already resolved")
+
+            if booking.no_show_type == "instructor":
+                if disputer.id != booking.instructor_id:
+                    raise ForbiddenException("Only the accused instructor can dispute")
+            elif booking.no_show_type == "student":
+                if disputer.id != booking.student_id:
+                    raise ForbiddenException("Only the accused student can dispute")
+            else:
+                raise BusinessRuleException("Invalid no-show type")
+
+            reported_at = booking.no_show_reported_at
+            if reported_at.tzinfo is None:
+                reported_at = reported_at.replace(tzinfo=timezone.utc)
+            dispute_deadline = reported_at + timedelta(hours=24)
+            if now > dispute_deadline:
+                raise BusinessRuleException(
+                    f"Dispute window closed at {dispute_deadline.isoformat()}"
+                )
+
+            audit_before = self._snapshot_booking(booking)
+            booking.no_show_disputed = True
+            booking.no_show_disputed_at = now
+            booking.no_show_dispute_reason = reason
+
+            payment_repo = PaymentRepository(self.db)
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="no_show_disputed",
+                event_data={
+                    "type": booking.no_show_type,
+                    "disputed_by": disputer.id,
+                    "reason": reason,
+                },
+            )
+
+            audit_after = self._snapshot_booking(booking)
+            default_role = (
+                RoleName.STUDENT.value
+                if disputer.id == booking.student_id
+                else RoleName.INSTRUCTOR.value
+            )
+            self._write_booking_audit(
+                booking,
+                "no_show_disputed",
+                actor=disputer,
+                before=audit_before,
+                after=audit_after,
+                default_role=default_role,
+            )
+
+        self._invalidate_booking_caches(booking)
+
+        return {
+            "success": True,
+            "booking_id": booking_id,
+            "disputed": True,
+            "requires_platform_review": True,
+        }
+
+    @BaseService.measure_operation("resolve_no_show")
+    def resolve_no_show(
+        self,
+        *,
+        booking_id: str,
+        resolution: str,
+        resolved_by: Optional[User],
+        admin_notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Resolve a no-show report and apply settlement.
+        """
+        from ..repositories.payment_repository import PaymentRepository
+        from ..services.credit_service import CreditService
+        from ..services.stripe_service import StripeService
+
+        now = datetime.now(timezone.utc)
+        with self.transaction():
+            booking = self.repository.get_booking_with_details(booking_id)
+            if not booking:
+                raise NotFoundException("Booking not found")
+
+            if booking.no_show_reported_at is None:
+                raise BusinessRuleException("No no-show report exists")
+
+            if booking.no_show_resolved_at is not None:
+                raise BusinessRuleException("No-show already resolved")
+
+            no_show_type = booking.no_show_type
+            payment_status = booking.payment_status or ""
+            payment_intent_id = (
+                booking.payment_intent_id
+                if isinstance(booking.payment_intent_id, str)
+                and booking.payment_intent_id.startswith("pi_")
+                else None
+            )
+            has_locked_funds = (
+                getattr(booking, "has_locked_funds", False) is True
+                and booking.rescheduled_from_booking_id is not None
+            )
+            locked_booking_id = booking.rescheduled_from_booking_id if has_locked_funds else None
+
+            payment_repo = PaymentRepository(self.db)
+            if payment_status == "manual_review":
+                payment_record = payment_repo.get_payment_by_booking_id(booking.id)
+                if payment_record and isinstance(payment_record.status, str):
+                    payment_status = payment_record.status
+            else:
+                payment_record = payment_repo.get_payment_by_booking_id(booking.id)
+
+            lesson_price_cents = int(
+                float(booking.hourly_rate) * booking.duration_minutes * 100 / 60
+            )
+            instructor_payout_cents = None
+            student_pay_cents = None
+            if payment_record:
+                if payment_record.amount is not None:
+                    try:
+                        student_pay_cents = int(payment_record.amount)
+                    except (TypeError, ValueError):
+                        student_pay_cents = None
+                payout_value = getattr(payment_record, "instructor_payout_cents", None)
+                if payout_value is not None:
+                    try:
+                        instructor_payout_cents = int(payout_value)
+                    except (TypeError, ValueError):
+                        instructor_payout_cents = None
+                if instructor_payout_cents is None:
+                    amount_value = getattr(payment_record, "amount", None)
+                    fee_value = getattr(payment_record, "application_fee", None)
+                    if amount_value is not None and fee_value is not None:
+                        try:
+                            instructor_payout_cents = max(0, int(amount_value) - int(fee_value))
+                        except (TypeError, ValueError):
+                            instructor_payout_cents = None
+                if instructor_payout_cents is None:
+                    base_price_value = getattr(payment_record, "base_price_cents", None)
+                    tier_value = getattr(payment_record, "instructor_tier_pct", None)
+                    if base_price_value is not None and tier_value is not None:
+                        try:
+                            instructor_payout_cents = int(
+                                Decimal(base_price_value)
+                                * (Decimal("1") - Decimal(str(tier_value)))
+                            )
+                        except (TypeError, ValueError, ArithmeticError):
+                            instructor_payout_cents = None
+
+            if instructor_payout_cents is None:
+                try:
+                    default_tier = max(
+                        Decimal(str(tier["pct"]))
+                        for tier in PRICING_DEFAULTS.get("instructor_tiers", [])
+                        if "pct" in tier
+                    )
+                except (ValueError, TypeError):
+                    default_tier = Decimal("0")
+                instructor_payout_cents = int(
+                    Decimal(lesson_price_cents) * (Decimal("1") - default_tier)
+                )
+
+            if student_pay_cents is None:
+                try:
+                    student_fee_pct = Decimal(str(PRICING_DEFAULTS.get("student_fee_pct", 0)))
+                except (TypeError, ValueError):
+                    student_fee_pct = Decimal("0")
+                student_fee_cents = int(
+                    (Decimal(lesson_price_cents) * student_fee_pct).quantize(
+                        Decimal("1"), rounding=ROUND_HALF_UP
+                    )
+                )
+                student_pay_cents = lesson_price_cents + student_fee_cents
+
+            audit_before = self._snapshot_booking(booking)
+
+        stripe_result: Dict[str, Any] = {}
+
+        if resolution in {"confirmed_no_dispute", "confirmed_after_review"}:
+            if no_show_type == "instructor":
+                if locked_booking_id:
+                    stripe_result = self.resolve_lock_for_booking(
+                        locked_booking_id, "instructor_cancelled"
+                    )
+                else:
+                    stripe_service = StripeService(
+                        self.db,
+                        config_service=ConfigService(self.db),
+                        pricing_service=PricingService(self.db),
+                    )
+                    stripe_result = self._refund_for_instructor_no_show(
+                        stripe_service=stripe_service,
+                        booking_id=booking_id,
+                        payment_intent_id=payment_intent_id,
+                        payment_status=payment_status,
+                    )
+            elif no_show_type == "student":
+                if locked_booking_id:
+                    stripe_result = self.resolve_lock_for_booking(
+                        locked_booking_id, "new_lesson_completed"
+                    )
+                else:
+                    stripe_service = StripeService(
+                        self.db,
+                        config_service=ConfigService(self.db),
+                        pricing_service=PricingService(self.db),
+                    )
+                    stripe_result = self._payout_for_student_no_show(
+                        stripe_service=stripe_service,
+                        booking_id=booking_id,
+                        payment_intent_id=payment_intent_id,
+                        payment_status=payment_status,
+                    )
+            else:
+                raise BusinessRuleException("Invalid no-show type")
+
+        elif resolution == "dispute_upheld":
+            if locked_booking_id:
+                stripe_result = self.resolve_lock_for_booking(
+                    locked_booking_id, "new_lesson_completed"
+                )
+            else:
+                stripe_service = StripeService(
+                    self.db,
+                    config_service=ConfigService(self.db),
+                    pricing_service=PricingService(self.db),
+                )
+                stripe_result = self._payout_for_student_no_show(
+                    stripe_service=stripe_service,
+                    booking_id=booking_id,
+                    payment_intent_id=payment_intent_id,
+                    payment_status=payment_status,
+                )
+
+        elif resolution == "cancelled":
+            stripe_result = {"skipped": True}
+        else:
+            raise ValidationException("Invalid no-show resolution")
+
+        with self.transaction():
+            booking = self.repository.get_booking_with_details(booking_id)
+            if not booking:
+                raise NotFoundException("Booking not found after resolution")
+
+            payment_repo = PaymentRepository(self.db)
+            credit_service = CreditService(self.db)
+
+            booking.no_show_resolved_at = now
+            booking.no_show_resolution = resolution
+
+            if resolution in {"confirmed_no_dispute", "confirmed_after_review"}:
+                booking.status = BookingStatus.NO_SHOW
+                if no_show_type == "instructor":
+                    self._finalize_instructor_no_show(
+                        booking=booking,
+                        stripe_result=stripe_result,
+                        credit_service=credit_service,
+                        refunded_cents=student_pay_cents,
+                        locked_booking_id=locked_booking_id,
+                    )
+                else:
+                    self._finalize_student_no_show(
+                        booking=booking,
+                        stripe_result=stripe_result,
+                        credit_service=credit_service,
+                        payout_cents=instructor_payout_cents,
+                        locked_booking_id=locked_booking_id,
+                    )
+
+            elif resolution == "dispute_upheld":
+                booking.status = BookingStatus.COMPLETED
+                self._finalize_student_no_show(
+                    booking=booking,
+                    stripe_result=stripe_result,
+                    credit_service=credit_service,
+                    payout_cents=instructor_payout_cents,
+                    locked_booking_id=locked_booking_id,
+                )
+                booking.settlement_outcome = "lesson_completed_full_payout"
+                booking.payment_status = "settled"
+
+            elif resolution == "cancelled":
+                self._cancel_no_show_report(booking)
+
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="no_show_resolved",
+                event_data={
+                    "resolution": resolution,
+                    "resolved_by": resolved_by.id if resolved_by else "system",
+                    "admin_notes": admin_notes,
+                },
+            )
+
+            audit_after = self._snapshot_booking(booking)
+            default_role = (
+                RoleName.ADMIN.value
+                if resolved_by and self._user_has_role(resolved_by, RoleName.ADMIN)
+                else "system"
+            )
+            self._write_booking_audit(
+                booking,
+                "no_show_resolved",
+                actor=resolved_by,
+                before=audit_before,
+                after=audit_after,
+                default_role=default_role,
+            )
+
+        self._invalidate_booking_caches(booking)
+
+        return {
+            "success": True,
+            "booking_id": booking_id,
+            "resolution": resolution,
+            "settlement_outcome": booking.settlement_outcome,
+        }
+
+    def _refund_for_instructor_no_show(
+        self,
+        *,
+        stripe_service: Any,
+        booking_id: str,
+        payment_intent_id: Optional[str],
+        payment_status: str,
+    ) -> Dict[str, Any]:
+        """Refund full amount for instructor no-show or release authorization."""
+        result: Dict[str, Any] = {"refund_success": False, "cancel_success": False, "error": None}
+        already_captured = payment_status in {"captured", "succeeded"}
+        if not payment_intent_id:
+            result["error"] = "missing_payment_intent"
+            return result
+
+        if already_captured:
+            try:
+                refund = stripe_service.refund_payment(
+                    payment_intent_id,
+                    reverse_transfer=True,
+                    refund_application_fee=True,
+                    idempotency_key=f"refund_instructor_noshow_{booking_id}",
+                )
+                result["refund_success"] = True
+                result["refund_data"] = refund
+            except Exception as exc:
+                result["error"] = str(exc)
+        else:
+            try:
+                stripe_service.cancel_payment_intent(
+                    payment_intent_id,
+                    idempotency_key=f"cancel_instructor_noshow_{booking_id}",
+                )
+                result["cancel_success"] = True
+            except Exception as exc:
+                result["error"] = str(exc)
+
+        return result
+
+    def _payout_for_student_no_show(
+        self,
+        *,
+        stripe_service: Any,
+        booking_id: str,
+        payment_intent_id: Optional[str],
+        payment_status: str,
+    ) -> Dict[str, Any]:
+        """Capture payment if needed for student no-show."""
+        result: Dict[str, Any] = {
+            "capture_success": False,
+            "already_captured": False,
+            "error": None,
+        }
+        already_captured = payment_status in {"captured", "succeeded"}
+        if already_captured:
+            result["already_captured"] = True
+            return result
+        if not payment_intent_id:
+            result["error"] = "missing_payment_intent"
+            return result
+
+        try:
+            capture = stripe_service.capture_payment_intent(
+                payment_intent_id,
+                idempotency_key=f"capture_student_noshow_{booking_id}",
+            )
+            result["capture_success"] = True
+            result["capture_data"] = capture
+        except Exception as exc:
+            result["error"] = str(exc)
+
+        return result
+
+    def _finalize_instructor_no_show(
+        self,
+        *,
+        booking: Booking,
+        stripe_result: Dict[str, Any],
+        credit_service: Any,
+        refunded_cents: int,
+        locked_booking_id: Optional[str],
+    ) -> None:
+        """Persist instructor no-show settlement."""
+        credit_service.release_credits_for_booking(booking_id=booking.id, use_transaction=False)
+        booking.settlement_outcome = "instructor_no_show_full_refund"
+        booking.student_credit_amount = 0
+        booking.instructor_payout_amount = 0
+
+        if locked_booking_id:
+            booking.refunded_to_card_amount = 0
+            booking.payment_status = (
+                "settled"
+                if stripe_result.get("skipped") or stripe_result.get("success")
+                else "manual_review"
+            )
+            return
+
+        refund_data = stripe_result.get("refund_data") or {}
+        refund_amount = refund_data.get("amount_refunded")
+        if refund_amount is not None:
+            try:
+                refund_amount = int(refund_amount)
+            except (TypeError, ValueError):
+                refund_amount = None
+        booking.refunded_to_card_amount = (
+            refund_amount if refund_amount is not None else refunded_cents
+        )
+
+        if stripe_result.get("refund_success") or stripe_result.get("cancel_success"):
+            booking.payment_status = "settled"
+        else:
+            booking.payment_status = "refund_failed"
+
+    def _finalize_student_no_show(
+        self,
+        *,
+        booking: Booking,
+        stripe_result: Dict[str, Any],
+        credit_service: Any,
+        payout_cents: int,
+        locked_booking_id: Optional[str],
+    ) -> None:
+        """Persist student no-show settlement."""
+        credit_service.forfeit_credits_for_booking(booking_id=booking.id, use_transaction=False)
+        booking.settlement_outcome = "lesson_completed_full_payout"
+        booking.student_credit_amount = 0
+        booking.refunded_to_card_amount = 0
+
+        if locked_booking_id:
+            booking.instructor_payout_amount = 0
+            booking.payment_status = (
+                "settled"
+                if stripe_result.get("skipped") or stripe_result.get("success")
+                else "manual_review"
+            )
+            return
+
+        booking.instructor_payout_amount = payout_cents
+        if stripe_result.get("capture_success") or stripe_result.get("already_captured"):
+            booking.payment_status = "settled"
+        else:
+            booking.payment_status = "capture_failed"
+
+    def _cancel_no_show_report(self, booking: Booking) -> None:
+        """Cancel a no-show report and restore payment status."""
+        from ..repositories.payment_repository import PaymentRepository
+
+        payment_repo = PaymentRepository(self.db)
+        payment_record = payment_repo.get_payment_by_booking_id(booking.id)
+        if payment_record and isinstance(payment_record.status, str):
+            status = payment_record.status
+            if status == "succeeded":
+                booking.payment_status = "captured"
+            elif status in {"requires_capture", "authorized"}:
+                booking.payment_status = "authorized"
+            else:
+                booking.payment_status = status
+        else:
+            booking.payment_status = "authorized" if booking.payment_intent_id else None
+
+        booking.settlement_outcome = None
+        booking.student_credit_amount = None
+        booking.instructor_payout_amount = None
+        booking.refunded_to_card_amount = None
 
     @BaseService.measure_operation("mark_no_show")
     def mark_no_show(self, booking_id: str, instructor: User) -> Booking:

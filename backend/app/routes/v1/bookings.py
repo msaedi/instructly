@@ -18,7 +18,8 @@ Endpoints:
     POST /{booking_id}/cancel - Cancel a booking
     POST /{booking_id}/reschedule - Reschedule a booking
     POST /{booking_id}/complete - Mark booking as completed
-    POST /{booking_id}/no-show - Mark booking as no-show (instructor only)
+    POST /{booking_id}/no-show - Report a no-show
+    POST /{booking_id}/no-show/dispute - Dispute a no-show report
     POST /{booking_id}/confirm-payment - Confirm payment method
     PATCH /{booking_id}/payment-method - Update booking payment method
 """
@@ -55,6 +56,10 @@ from ...schemas.booking import (
     BookingResponse,
     BookingStatsResponse,
     BookingUpdate,
+    NoShowDisputeRequest,
+    NoShowDisputeResponse,
+    NoShowReportRequest,
+    NoShowReportResponse,
     UpcomingBookingResponse,
 )
 from ...schemas.booking_responses import BookingPreviewResponse, SendRemindersResponse
@@ -941,30 +946,30 @@ async def complete_booking(
 
 @router.post(
     "/{booking_id}/no-show",
-    response_model=BookingResponse,
+    response_model=NoShowReportResponse,
     dependencies=[Depends(new_rate_limit("write"))],
     responses={
         403: {"description": "Permission denied"},
         404: {"description": "Booking not found"},
     },
 )
-async def mark_booking_no_show(
+async def report_no_show(
     booking_id: str = Path(
         ...,
         description="Booking ULID",
         pattern=ULID_PATH_PATTERN,
         examples=["01HF4G12ABCDEF3456789XYZAB"],
     ),
-    current_user: User = Depends(require_permission(PermissionName.COMPLETE_BOOKINGS)),
+    request: NoShowReportRequest = Body(...),
+    current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-) -> BookingResponse:
+) -> NoShowReportResponse:
     """
-    Mark a booking as no-show (student didn't attend).
+    Report a no-show for a booking.
 
-    Only the instructor for this booking can mark it as no-show.
-    The booking must be in CONFIRMED status.
-
-    Requires: COMPLETE_BOOKINGS permission (instructor only)
+    - Student can report instructor no-show
+    - Admin can report either type
+    - Must be within reporting window
     """
     try:
         async with booking_lock(booking_id) as acquired:
@@ -973,10 +978,57 @@ async def mark_booking_no_show(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     detail="Operation in progress",
                 )
-            booking = await asyncio.to_thread(
-                booking_service.mark_no_show, booking_id, current_user
+            result = await asyncio.to_thread(
+                booking_service.report_no_show,
+                booking_id=booking_id,
+                reporter=current_user,
+                no_show_type=request.no_show_type,
+                reason=request.reason,
             )
-            return BookingResponse.from_booking(booking)
+            return NoShowReportResponse.model_validate(result)
+    except DomainException as e:
+        handle_domain_exception(e)
+
+
+@router.post(
+    "/{booking_id}/no-show/dispute",
+    response_model=NoShowDisputeResponse,
+    dependencies=[Depends(new_rate_limit("write"))],
+    responses={
+        403: {"description": "Permission denied"},
+        404: {"description": "Booking not found"},
+    },
+)
+async def dispute_no_show(
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
+    request: NoShowDisputeRequest = Body(...),
+    current_user: User = Depends(get_current_active_user),
+    booking_service: BookingService = Depends(get_booking_service),
+) -> NoShowDisputeResponse:
+    """
+    Dispute a no-show report.
+
+    Only the accused party can dispute within 24 hours of report.
+    """
+    try:
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            result = await asyncio.to_thread(
+                booking_service.dispute_no_show,
+                booking_id=booking_id,
+                disputer=current_user,
+                reason=request.reason,
+            )
+            return NoShowDisputeResponse.model_validate(result)
     except DomainException as e:
         handle_domain_exception(e)
 

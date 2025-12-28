@@ -19,7 +19,7 @@ import {
   useCheckAvailabilityApiV1BookingsCheckAvailabilityPost,
   useRescheduleBookingApiV1BookingsBookingIdReschedulePost,
   useCompleteBookingApiV1BookingsBookingIdCompletePost,
-  useMarkBookingNoShowApiV1BookingsBookingIdNoShowPost,
+  useReportNoShowApiV1BookingsBookingIdNoShowPost,
 } from '@/src/api/generated/bookings-v1/bookings-v1';
 import type {
   GetBookingsApiV1BookingsGetParams,
@@ -352,9 +352,9 @@ export function useCompleteBooking() {
 }
 
 /**
- * Mark booking as no-show mutation (instructor only).
+ * Report booking no-show mutation.
  *
- * Marks a booking as no-show when the student didn't attend.
+ * Reports a booking no-show with the required no_show_type payload.
  *
  * @example
  * ```tsx
@@ -362,7 +362,10 @@ export function useCompleteBooking() {
  *   const markNoShow = useMarkBookingNoShow();
  *
  *   const handleNoShow = async () => {
- *     await markNoShow.mutateAsync({ bookingId });
+ *     await markNoShow.mutateAsync({
+ *       bookingId,
+ *       data: { no_show_type: 'student' }
+ *     });
  *   };
  *
  *   return <button onClick={handleNoShow}>Mark No-Show</button>;
@@ -370,7 +373,7 @@ export function useCompleteBooking() {
  * ```
  */
 export function useMarkBookingNoShow() {
-  return useMarkBookingNoShowApiV1BookingsBookingIdNoShowPost();
+  return useReportNoShowApiV1BookingsBookingIdNoShowPost();
 }
 
 /**
@@ -445,10 +448,10 @@ export { rescheduleBookingApiV1BookingsBookingIdReschedulePost as rescheduleBook
  *
  * @example
  * ```tsx
- * await markBookingNoShowImperative('01ABC...');
+ * await markBookingNoShowImperative('01ABC...', { no_show_type: 'student' });
  * ```
  */
-export { markBookingNoShowApiV1BookingsBookingIdNoShowPost as markBookingNoShowImperative } from '@/src/api/generated/bookings-v1/bookings-v1';
+export { reportNoShowApiV1BookingsBookingIdNoShowPost as markBookingNoShowImperative } from '@/src/api/generated/bookings-v1/bookings-v1';
 
 /**
  * Type exports for convenience

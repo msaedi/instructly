@@ -127,6 +127,16 @@ class Booking(Base):
     cancelled_by_id = Column(String(26), ForeignKey("users.id"), nullable=True)
     cancellation_reason = Column(Text, nullable=True)
 
+    # No-show tracking (v2.1.1)
+    no_show_reported_by = Column(String(26), ForeignKey("users.id"), nullable=True)
+    no_show_reported_at = Column(DateTime(timezone=True), nullable=True)
+    no_show_type = Column(String(20), nullable=True)  # "instructor" | "student"
+    no_show_disputed = Column(Boolean, nullable=False, default=False)
+    no_show_disputed_at = Column(DateTime(timezone=True), nullable=True)
+    no_show_dispute_reason = Column(String(500), nullable=True)
+    no_show_resolved_at = Column(DateTime(timezone=True), nullable=True)
+    no_show_resolution = Column(String(30), nullable=True)
+
     # Payment fields (Phase 1.2)
     payment_method_id = Column(String(255), nullable=True, comment="Stripe payment method ID")
     payment_intent_id = Column(String(255), nullable=True, comment="Current Stripe payment intent")
@@ -195,6 +205,7 @@ class Booking(Base):
     instructor = relationship("User", foreign_keys=[instructor_id], backref="instructor_bookings")
     instructor_service = relationship("InstructorService", backref="bookings")
     cancelled_by = relationship("User", foreign_keys=[cancelled_by_id])
+    no_show_reporter = relationship("User", foreign_keys=[no_show_reported_by])
     messages = relationship("Message", back_populates="booking", cascade="all, delete-orphan")
     payment_intent = relationship(
         "PaymentIntent", back_populates="booking", uselist=False, cascade="all, delete-orphan"
@@ -389,6 +400,20 @@ class Booking(Base):
             "cancelled_at": self.cancelled_at.isoformat() if self.cancelled_at else None,
             "cancelled_by_id": self.cancelled_by_id,
             "cancellation_reason": self.cancellation_reason,
+            "no_show_reported_by": self.no_show_reported_by,
+            "no_show_reported_at": self.no_show_reported_at.isoformat()
+            if self.no_show_reported_at
+            else None,
+            "no_show_type": self.no_show_type,
+            "no_show_disputed": self.no_show_disputed,
+            "no_show_disputed_at": self.no_show_disputed_at.isoformat()
+            if self.no_show_disputed_at
+            else None,
+            "no_show_dispute_reason": self.no_show_dispute_reason,
+            "no_show_resolved_at": self.no_show_resolved_at.isoformat()
+            if self.no_show_resolved_at
+            else None,
+            "no_show_resolution": self.no_show_resolution,
         }
 
 
