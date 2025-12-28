@@ -2534,10 +2534,12 @@ class TestStripeService:
         )
 
         start_at = (datetime.now(timezone.utc) + timedelta(hours=48)).replace(microsecond=0)
+        end_at = start_at + timedelta(hours=1)
         test_booking.booking_date = start_at.date()
         test_booking.start_time = start_at.time().replace(tzinfo=None)
+        test_booking.end_time = end_at.time().replace(tzinfo=None)
         test_booking.booking_start_utc = start_at
-        test_booking.booking_end_utc = start_at + timedelta(hours=1)
+        test_booking.booking_end_utc = end_at
 
         context = ChargeContext(
             booking_id=test_booking.id,

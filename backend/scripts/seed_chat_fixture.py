@@ -252,6 +252,11 @@ def seed_chat_fixture_booking(
     if not seed_enabled:
         return "disabled"
 
+    from app.services.cache_service import CacheService
+    from app.services.search.cache_invalidation import init_search_cache
+
+    init_search_cache(CacheService())
+
     try:
         from app.models.booking import Booking, BookingStatus
     except Exception as e:

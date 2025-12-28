@@ -260,7 +260,8 @@ def main(skip_verify: bool = False):
         logger.info("Using TEST database")
     else:
         db_url = settings.database_url
-        logger.info("Using PRODUCTION database")
+        label = "PRODUCTION" if settings.is_production_database(db_url) else "NON-PROD"
+        logger.info("Using %s database", label)
 
     # Create engine and session
     engine = create_engine(db_url)

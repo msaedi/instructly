@@ -62,11 +62,9 @@ def seed_region_settings(engine: "sa.Engine", verbose: bool = True) -> int:
 
     Returns the number of regions seeded.
     """
-    import ulid
-
     regions = [
         {
-            "id": f"region_{str(ulid.ULID())[:20]}",
+            "id": f"region_{generate_ulid()}",
             "region_code": "nyc",
             "region_name": "New York City",
             "country_code": "us",
@@ -80,7 +78,7 @@ def seed_region_settings(engine: "sa.Engine", verbose: bool = True) -> int:
         },
         # Future regions (inactive for now)
         {
-            "id": f"region_{str(ulid.ULID())[:20]}",
+            "id": f"region_{generate_ulid()}",
             "region_code": "chicago",
             "region_name": "Chicago",
             "country_code": "us",
@@ -93,7 +91,7 @@ def seed_region_settings(engine: "sa.Engine", verbose: bool = True) -> int:
             "launch_date": None,
         },
         {
-            "id": f"region_{str(ulid.ULID())[:20]}",
+            "id": f"region_{generate_ulid()}",
             "region_code": "la",
             "region_name": "Los Angeles",
             "country_code": "us",
@@ -854,6 +852,9 @@ def seed_mock_data_phases(
     from reset_and_seed_yaml import DatabaseSeeder  # noqa: E402
     from seed_catalog_only import seed_catalog  # noqa: E402
 
+    from app.services.cache_service import CacheService  # noqa: E402
+    from app.services.search.cache_invalidation import init_search_cache  # noqa: E402
+
     stats = {
         "students_seeded": 0,
         "instructors_seeded": 0,
@@ -864,6 +865,7 @@ def seed_mock_data_phases(
         "badges_awarded": 0,
     }
 
+    init_search_cache(CacheService())
     seeder = DatabaseSeeder()
 
     # Clean previous mock/test data (users with @example.com, seeded catalog, etc.)

@@ -271,9 +271,9 @@ class AnalyticsCalculator:
 
         # Invalidate catalog caches to reflect new order
         try:
-            from app.services.cache_service import CacheService
+            from app.services.cache_service import CacheService, CacheServiceSyncAdapter
 
-            cache_service = CacheService(self.db)
+            cache_service = CacheServiceSyncAdapter(CacheService(self.db))
             # Invalidate all catalog caches
             cache_service.delete_pattern("catalog:services:*")
             cache_service.delete_pattern("catalog:top-services:*")
@@ -391,7 +391,8 @@ def main():
         logger.info("Using TEST database")
     else:
         db_url = settings.database_url
-        logger.info("Using PRODUCTION database")
+        label = "PRODUCTION" if settings.is_production_database(db_url) else "NON-PROD"
+        logger.info("Using %s database", label)
 
     # Create engine and session
     engine = create_engine(db_url)
