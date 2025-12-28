@@ -34,12 +34,16 @@ test.describe('[instructor] bookings list', () => {
     });
 
     // Mock v1 instructor-bookings endpoints
-    await page.route('**/api/v1/instructor-bookings/**', async (route) => {
+    await page.route('**/api/v1/instructor-bookings**', async (route) => {
       const url = new URL(route.request().url());
       const pathname = url.pathname;
+      const upcomingParam = url.searchParams.get('upcoming');
+      const excludeFuture = url.searchParams.get('exclude_future_confirmed');
 
       const isUpcomingCall = pathname.endsWith('/upcoming');
-      const isPastCall = pathname.endsWith('/completed');
+      const isPastCall =
+        pathname.endsWith('/completed') ||
+        (pathname.endsWith('/instructor-bookings') && upcomingParam === 'false' && excludeFuture === 'true');
 
       if (isUpcomingCall) {
         resolveUpcoming?.();
