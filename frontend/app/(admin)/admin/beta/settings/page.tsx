@@ -171,7 +171,7 @@ function BetaPhaseInfo() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(withApiBase('/health'), { cache: 'no-store', credentials: 'include' });
+        const res = await fetch(withApiBase('/api/v1/health'), { cache: 'no-store', credentials: 'include' });
         const header = res.headers.get('x-beta-phase');
         setPhase(header);
       } catch {

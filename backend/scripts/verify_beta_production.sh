@@ -36,7 +36,7 @@ fi
 echo
 
 echo "[4/5] Check API health and beta headers"
-API_HEALTH_URL="${API_BASE%/}/health"
+API_HEALTH_URL="${API_BASE%/}/api/v1/health"
 echo "  GET ${API_HEALTH_URL}"
 curl -sSI "${API_HEALTH_URL}" | sed 's/^/    /'
 PHASE=$(curl -sSI "${API_HEALTH_URL}" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-beta-phase"{print $2}')

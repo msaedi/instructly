@@ -38,7 +38,7 @@ export async function middleware(request: NextRequest) {
   if (betaConfig.site === 'beta') {
     try {
       const apiBase = env.get('NEXT_PUBLIC_API_BASE') || 'http://localhost:8000';
-      const healthRes = await fetch(`${apiBase}/health`, { method: 'GET', cache: 'no-store' });
+      const healthRes = await fetch(`${apiBase}/api/v1/health`, { method: 'GET', cache: 'no-store' });
       serverPhase = healthRes.headers.get('x-beta-phase');
       serverAllowSignup = healthRes.headers.get('x-beta-allow-signup');
     } catch {}

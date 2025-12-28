@@ -78,8 +78,8 @@ echo -e "\n5. Health Check Endpoints Test"
 echo "------------------------------"
 # Start the app in background for testing
 echo "Testing health endpoints..."
-echo "  /health - Full health check"
-echo "  /health/lite - Lightweight check (no DB)"
+echo "  /api/v1/health - Full health check"
+echo "  /api/v1/health/lite - Lightweight check (no DB)"
 
 echo -e "\n6. N+1 Query Protection Test"
 echo "----------------------------"

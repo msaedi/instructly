@@ -420,7 +420,7 @@ if __name__ == "__main__":
 
     # Ensure the API is running
     try:
-        response = requests.get(f"{BASE_URL}/health")
+        response = requests.get(f"{BASE_URL}/api/v1/health")
         if response.status_code != 200:
             print("❌ API is not running. Please start the API first:")
             print("   cd backend && uvicorn app.main:app --reload")

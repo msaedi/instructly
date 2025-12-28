@@ -143,7 +143,7 @@ def main():
     try:
         import requests
 
-        resp = requests.get("http://localhost:8000/health", timeout=1)
+        resp = requests.get("http://localhost:8000/api/v1/health", timeout=1)
         if resp.status_code == 200:
             asyncio.run(test_endpoints())
         else:

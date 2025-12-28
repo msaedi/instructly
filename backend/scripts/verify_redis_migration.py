@@ -125,7 +125,7 @@ class RedisVerification:
 
         # Check main API
         try:
-            response = requests.get(f"{self.api_url}/health", timeout=10)
+            response = requests.get(f"{self.api_url}/api/v1/health", timeout=10)
             if response.status_code == 200:
                 print("✅ Main API is responding")
             else:

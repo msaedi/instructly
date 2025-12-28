@@ -22,7 +22,7 @@ def test_prometheus_metrics():
 
     # Health check
     try:
-        response = requests.get(f"{base_url}/health")
+        response = requests.get(f"{base_url}/api/v1/health")
         print(f"   - Health check: {response.status_code}")
     except Exception as e:
         print(f"   - Health check failed: {e}")

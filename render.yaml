@@ -25,7 +25,7 @@ services:
         value: 20  # Optimized for local Redis
       - key: REDIS_URL
         value: redis://instructly-redis:6379
-    healthCheckPath: /health/lite  # New lightweight health check
+    healthCheckPath: /api/v1/health/lite  # New lightweight health check
     autoDeploy: false  # Manual deploys for production safety
 
   - type: worker

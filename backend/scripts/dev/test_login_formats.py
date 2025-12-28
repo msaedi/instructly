@@ -54,6 +54,6 @@ for port, protocol in [(8000, "http"), (8001, "https")]:
 
     # 4. Test health endpoint to verify server is running
     print("\n4️⃣ Health check:")
-    response = requests.get(f"{base_url}/health", verify=False)
+    response = requests.get(f"{base_url}/api/v1/health", verify=False)
     print(f"   Status: {response.status_code}")
     print(f"   Response: {response.json()}")

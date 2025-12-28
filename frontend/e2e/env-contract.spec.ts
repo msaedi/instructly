@@ -25,8 +25,6 @@ test.describe('env-contract smoke', () => {
     // Try multiple endpoints - prefer v1 health which goes through all middleware
     const candidates = [
       '/api/v1/health',       // v1 health endpoint (preferred)
-      '/api/health',          // root health endpoint
-      '/health',              // common alias
       '/openapi.json',        // FastAPI always serves this (unless disabled)
       '/docs'                 // FastAPI docs (HTML)
     ];
@@ -61,7 +59,7 @@ test.describe('env-contract smoke', () => {
     }
     const ctx = await request.newContext({ baseURL: apiBase });
     const origin = base!;
-    const res = await ctx.fetch('/api/health', {
+    const res = await ctx.fetch('/api/v1/health', {
       method: 'OPTIONS',
       headers: {
         'Origin': origin,

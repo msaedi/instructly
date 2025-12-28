@@ -16,7 +16,7 @@ def test_https_login():
 
     # 1. Check health endpoint
     try:
-        health = requests.get("https://localhost:8001/health", verify=False)
+        health = requests.get("https://localhost:8001/api/v1/health", verify=False)
         print(f"✅ Health check: {health.json()}")
     except Exception as e:
         print(f"❌ Health check failed: {e}")

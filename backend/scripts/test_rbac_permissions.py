@@ -288,8 +288,8 @@ async def main():
     """Run all RBAC tests"""
     # Check if backend is running
     try:
-        # Health endpoint is at /health, not under /api
-        test_response = httpx.get("http://localhost:8000/health", timeout=5.0)
+        # Health endpoint is under /api/v1/health
+        test_response = httpx.get("http://localhost:8000/api/v1/health", timeout=5.0)
         if test_response.status_code != 200:
             print(f"{Fore.RED}Backend is not healthy. Please start it first.")
             return

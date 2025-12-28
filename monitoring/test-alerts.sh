@@ -28,7 +28,7 @@ print_status() {
 # Check if backend is running
 check_backend() {
     print_status $YELLOW "Checking backend availability..."
-    if curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/health" | grep -q "200"; then
+    if curl -s -o /dev/null -w "%{http_code}" "${BACKEND_URL%/}/api/v1/health" | grep -q "200"; then
         print_status $GREEN "✓ Backend is running"
         return 0
     else
