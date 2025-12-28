@@ -176,7 +176,7 @@ function JoinInner() {
                 Don’t have a code? We’re hand-selecting our founding instructors.{' '}
                 <a
                   className="focus-link text-[#7E22CE] hover:underline"
-                  href="mailto:teach@instainstru.com"
+                  href="/instructor/apply"
                   onClick={() => trackInviteEvent('apply_access_click')}
                 >
                   Apply

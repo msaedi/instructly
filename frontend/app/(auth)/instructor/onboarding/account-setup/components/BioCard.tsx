@@ -15,6 +15,17 @@ type BioCardProps = {
   isOpen?: boolean;
   onToggle?: () => void;
   onGenerateBio: () => void;
+  minBioChars?: number;
+  maxBioChars?: number;
+  showMinCharHint?: boolean;
+  showCharCount?: boolean;
+  showRewriteButton?: boolean;
+  bioLabel?: string;
+  bioPlaceholder?: string;
+  yearsLabel?: string;
+  yearsMin?: number;
+  yearsMax?: number;
+  allowEmptyYears?: boolean;
 };
 
 export function BioCard({
@@ -28,11 +39,24 @@ export function BioCard({
   isOpen = true,
   onToggle,
   onGenerateBio,
+  minBioChars = 400,
+  maxBioChars,
+  showMinCharHint = true,
+  showCharCount = false,
+  showRewriteButton = true,
+  bioLabel = 'Introduce Yourself',
+  bioPlaceholder = 'Highlight your experience, favorite teaching methods, and the type of students you enjoy working with.',
+  yearsLabel = 'Years of Experience',
+  yearsMin = 1,
+  yearsMax = 70,
+  allowEmptyYears = false,
 }: BioCardProps) {
   const isOnboarding = context === 'onboarding';
   const collapsible = context !== 'onboarding' && typeof onToggle === 'function';
   const expanded = collapsible ? Boolean(isOpen) : true;
   const showInlinePhotoUpload = embedded || isOnboarding;
+  const showBioWarning = showMinCharHint && bioTouched && bioTooShort;
+  const yearsValue = allowEmptyYears && profile.years_experience === 0 ? '' : profile.years_experience;
 
   const header = (
     <div className="w-full flex items-center justify-between text-left">
@@ -52,8 +76,17 @@ export function BioCard({
   );
 
   const handleYearsChange = (value: string) => {
-    const n = Math.max(1, Math.min(70, parseInt(value || '0', 10)));
-    onProfileChange({ years_experience: Number.isNaN(n) ? 1 : n });
+    if (allowEmptyYears && value.trim().length === 0) {
+      onProfileChange({ years_experience: 0 });
+      return;
+    }
+    const parsed = parseInt(value || '0', 10);
+    if (Number.isNaN(parsed)) {
+      onProfileChange({ years_experience: yearsMin });
+      return;
+    }
+    const next = Math.max(yearsMin, Math.min(yearsMax, parsed));
+    onProfileChange({ years_experience: next });
   };
 
   return (
@@ -85,51 +118,61 @@ export function BioCard({
             </div>
           )}
           <div className="mb-2">
-            <p className="text-gray-600 mt-1">Introduce Yourself</p>
+            <p className="text-gray-600 mt-1">{bioLabel}</p>
           </div>
           <div>
             <div className="relative">
               <textarea
                 rows={4}
-                className={`w-full rounded-md border px-3 py-2 pr-16 pb-8 text-sm focus:outline-none ${bioTouched && bioTooShort ? 'border-red-300 focus:border-red-500' : 'border-gray-300 focus:border-purple-500'}`}
-                placeholder="Highlight your experience, favorite teaching methods, and the type of students you enjoy working with."
+                className={`w-full rounded-md border px-3 py-2 pr-16 pb-8 text-sm focus:outline-none ${showBioWarning ? 'border-red-300 focus:border-red-500' : 'border-gray-300 focus:border-purple-500'}`}
+                placeholder={bioPlaceholder}
                 value={profile.bio}
                 onChange={(e) => onProfileChange({ bio: e.target.value })}
                 onBlur={() => setBioTouched(true)}
+                maxLength={maxBioChars}
               />
-              <div className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-gray-500 z-10 bg-white/80 px-1">
-                Minimum 400 characters
-              </div>
+              {showMinCharHint && minBioChars > 0 && (
+                <div className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-gray-500 z-10 bg-white/80 px-1">
+                  Minimum {minBioChars} characters
+                </div>
+              )}
             </div>
-            {bioTooShort && (
-              <div className="mt-1 text-xs text-red-600">Your bio is under 400 characters. You can still save and complete it later.</div>
+            {showMinCharHint && bioTooShort && (
+              <div className="mt-1 text-xs text-red-600">Your bio is under {minBioChars} characters. You can still save and complete it later.</div>
+            )}
+            {showCharCount && (
+              <div className="mt-1 text-xs text-gray-500">
+                {profile.bio.length}{maxBioChars ? `/${maxBioChars}` : ''} characters
+              </div>
             )}
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label htmlFor="details_years_experience" className="block text-sm text-gray-600 mb-1">Years of Experience</label>
+                <label htmlFor="details_years_experience" className="block text-sm text-gray-600 mb-1">{yearsLabel}</label>
                 <input
                   id="details_years_experience"
                   type="number"
-                  min={1}
-                  max={70}
+                  min={yearsMin}
+                  max={yearsMax}
                   step={1}
                   inputMode="numeric"
-                  value={profile.years_experience}
+                  value={yearsValue}
                   onKeyDown={(e) => { if ([".", ",", "e", "E", "+", "-"].includes(e.key)) { e.preventDefault(); } }}
                   onChange={(e) => handleYearsChange(e.target.value)}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 no-spinner"
                 />
               </div>
             </div>
-            <div className="mt-3 flex justify-end">
-              <button
-                type="button"
-                onClick={onGenerateBio}
-                className="inline-flex items-center justify-center px-3 py-1.5 rounded-md text-sm sm:text-xs bg-[#7E22CE] text-white shadow-sm hover:bg-[#7E22CE]"
-              >
-                Rewrite with AI
-              </button>
-            </div>
+            {showRewriteButton && (
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={onGenerateBio}
+                  className="inline-flex items-center justify-center px-3 py-1.5 rounded-md text-sm sm:text-xs bg-[#7E22CE] text-white shadow-sm hover:bg-[#7E22CE]"
+                >
+                  Rewrite with AI
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
