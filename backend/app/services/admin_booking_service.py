@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+import logging
 import math
 import os
 from typing import Any, Iterable, Optional, Sequence
@@ -38,6 +39,8 @@ from app.services.base import BaseService
 from app.services.config_service import ConfigService
 from app.services.pricing_service import PricingService
 from app.services.stripe_service import StripeService
+
+logger = logging.getLogger(__name__)
 
 AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
 
@@ -294,6 +297,21 @@ class AdminBookingService(BaseService):
             booking.cancelled_at = datetime.now(timezone.utc)
             booking.cancelled_by_id = actor.id
             booking.cancellation_reason = reason
+
+            try:
+                from app.services.credit_service import CreditService
+
+                credit_service = CreditService(self.db)
+                credit_service.release_credits_for_booking(
+                    booking_id=booking.id, use_transaction=False
+                )
+                booking.credits_reserved_cents = 0
+            except Exception as exc:
+                logger.warning(
+                    "Failed to release reserved credits for booking %s: %s",
+                    booking.id,
+                    exc,
+                )
 
             if refund:
                 booking.payment_status = "refunded"

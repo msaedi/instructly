@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+import logging
 import os
 from typing import Optional
 
@@ -18,6 +19,8 @@ from app.services.audit_redaction import redact
 from app.services.base import BaseService
 
 AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
+
+logger = logging.getLogger(__name__)
 
 REASON_TO_BOOKING_STATUS = {
     AdminRefundReason.INSTRUCTOR_NO_SHOW: "NO_SHOW",
@@ -80,6 +83,21 @@ class AdminRefundService(BaseService):
                 booking.cancelled_at = datetime.now(timezone.utc)
             if reason == AdminRefundReason.INSTRUCTOR_NO_SHOW:
                 booking.cancelled_by_id = booking.instructor_id
+
+            try:
+                from app.services.credit_service import CreditService
+
+                credit_service = CreditService(self.db)
+                credit_service.release_credits_for_booking(
+                    booking_id=booking.id, use_transaction=False
+                )
+                booking.credits_reserved_cents = 0
+            except Exception as exc:
+                logger.warning(
+                    "Failed to release reserved credits for booking %s: %s",
+                    booking.id,
+                    exc,
+                )
 
             refund_payload = {
                 "reason": reason.value,

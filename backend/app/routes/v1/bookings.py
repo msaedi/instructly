@@ -26,7 +26,7 @@ Endpoints:
 import asyncio
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, NoReturn, Optional
+from typing import Any, NoReturn, Optional, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from fastapi.params import Path
@@ -825,9 +825,9 @@ async def reschedule_booking(
                     new_booking_data,
                     payload.selected_duration,
                     original.id,
-                    raw_payment_intent_id,
-                    normalized_payment_status,
-                    getattr(original, "payment_method_id", None),
+                    cast(str, raw_payment_intent_id),
+                    cast(Optional[str], normalized_payment_status),
+                    cast(Optional[str], getattr(original, "payment_method_id", None)),
                 )
             else:
                 # Preflight: Check payment method (using service method, no direct db access)

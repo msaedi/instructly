@@ -545,6 +545,18 @@ def _cancel_booking_payment_failed(
         booking.cancellation_reason = "Payment authorization failed after multiple attempts"
 
         payment_repo = RepositoryFactory.get_payment_repository(db)
+        try:
+            from app.services.credit_service import CreditService
+
+            credit_service = CreditService(db)
+            credit_service.release_credits_for_booking(booking_id=booking_id, use_transaction=False)
+            booking.credits_reserved_cents = 0
+        except Exception as exc:
+            logger.warning(
+                "Failed to release reserved credits for booking %s: %s",
+                booking_id,
+                exc,
+            )
         payment_repo.create_payment_event(
             booking_id=booking_id,
             event_type="auth_abandoned",
@@ -1233,7 +1245,21 @@ def _process_capture_for_booking(
                 return None
 
         if stripe_result.get("success"):
+            from app.services.credit_service import CreditService
+
             booking.payment_status = "captured"
+            try:
+                credit_service = CreditService(db3)
+                credit_service.forfeit_credits_for_booking(
+                    booking_id=booking_id, use_transaction=False
+                )
+                booking.credits_reserved_cents = 0
+            except Exception as exc:
+                logger.warning(
+                    "Failed to forfeit reserved credits for booking %s: %s",
+                    booking_id,
+                    exc,
+                )
             if booking.status == BookingStatus.COMPLETED:
                 booking.settlement_outcome = "lesson_completed_full_payout"
                 booking.student_credit_amount = 0
@@ -1254,7 +1280,21 @@ def _process_capture_for_booking(
             )
 
         elif stripe_result.get("already_captured"):
+            from app.services.credit_service import CreditService
+
             booking.payment_status = "captured"
+            try:
+                credit_service = CreditService(db3)
+                credit_service.forfeit_credits_for_booking(
+                    booking_id=booking_id, use_transaction=False
+                )
+                booking.credits_reserved_cents = 0
+            except Exception as exc:
+                logger.warning(
+                    "Failed to forfeit reserved credits for booking %s: %s",
+                    booking_id,
+                    exc,
+                )
             if booking.status == BookingStatus.COMPLETED:
                 booking.settlement_outcome = "lesson_completed_full_payout"
                 booking.student_credit_amount = 0
@@ -1842,6 +1882,18 @@ def create_new_authorization_and_capture(
         resolved_intent_id = str(resolved_intent_id)
         booking.payment_status = "captured"
         booking.payment_intent_id = resolved_intent_id
+        try:
+            from app.services.credit_service import CreditService
+
+            credit_service = CreditService(db)
+            credit_service.forfeit_credits_for_booking(booking_id=booking.id, use_transaction=False)
+            booking.credits_reserved_cents = 0
+        except Exception as exc:
+            logger.warning(
+                "Failed to forfeit reserved credits for booking %s: %s",
+                booking.id,
+                exc,
+            )
         if booking.status == BookingStatus.COMPLETED:
             payout_cents: Optional[int] = None
             try:
@@ -1958,6 +2010,20 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
                 )
 
                 booking.payment_status = "captured"
+                try:
+                    from app.services.credit_service import CreditService
+
+                    credit_service = CreditService(db)
+                    credit_service.forfeit_credits_for_booking(
+                        booking_id=booking.id, use_transaction=False
+                    )
+                    booking.credits_reserved_cents = 0
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to forfeit reserved credits for booking %s: %s",
+                        booking.id,
+                        exc,
+                    )
 
                 amount_received = getattr(captured_intent, "amount_received", None)
                 _payment_repo.create_payment_event(

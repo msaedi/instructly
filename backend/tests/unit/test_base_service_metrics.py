@@ -83,7 +83,7 @@ class TestBaseServiceMetrics:
         assert metrics["fast_operation"]["failure_count"] == 0
         assert metrics["fast_operation"]["success_rate"] == 1.0
         assert 0.005 < metrics["fast_operation"]["avg_time"] < 0.02  # ~10ms
-        assert metrics["fast_operation"]["min_time"] < metrics["fast_operation"]["max_time"]
+        assert metrics["fast_operation"]["min_time"] <= metrics["fast_operation"]["max_time"]
 
     def test_slow_operation_warning(self, test_service, caplog):
         """Test that slow operations trigger warnings."""

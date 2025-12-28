@@ -4656,6 +4656,7 @@ export type components = {
  completed_at: string | null;
  confirmed_at: string | null;
  created_at: string;
+ credits_reserved_cents?: number | null;
  duration_minutes: number;
  end_time: string;
  has_locked_funds?: boolean | null;
@@ -4733,6 +4734,7 @@ export type components = {
  completed_at: string | null;
  confirmed_at: string | null;
  created_at: string;
+ credits_reserved_cents?: number | null;
  duration_minutes: number;
  end_time: string;
  has_locked_funds?: boolean | null;

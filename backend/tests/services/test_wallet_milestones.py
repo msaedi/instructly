@@ -10,6 +10,7 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories.payment_repository import PaymentRepository
+from app.services.credit_service import CreditService
 from app.services.student_credit_service import StudentCreditService
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
@@ -221,6 +222,9 @@ def test_reinstate_used_credits(db, student, instructor_setup):
         booking_id=refund_booking.id,
         amount_cents=credit_amount,
     )
+    db.commit()
+    credit_service = CreditService(db)
+    credit_service.forfeit_credits_for_booking(booking_id=refund_booking.id)
     db.commit()
 
     reinstated = service.reinstate_used_credits(refunded_booking_id=refund_booking.id)

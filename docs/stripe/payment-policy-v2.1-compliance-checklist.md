@@ -1,8 +1,8 @@
-# Payment Policy v2.1 Compliance Checklist (Phase 0–2)
+# Payment Policy v2.1 Compliance Checklist (Phase 0–3)
 
 Last updated: 2025-12-27
 Environment: staging DB (instainstru_stg), SITE_MODE=local, Stripe test mode
-Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), and Phase 2 LOCK anti-gaming mechanism.
+Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), Phase 2 LOCK anti-gaming mechanism, and Phase 3 credit reservation model.
 
 ## A) Entrypoint Inventory (money movement / payment state, current state)
 
@@ -185,7 +185,7 @@ booking state (new):
 status=CONFIRMED payment_status=authorized payment_intent_id=pi_3Sj14h0LanJcM8Lu1X0t6Kqn
 ```
 
-## F) Gap Matrix (Phase 0–1)
+## F) Gap Matrix (Phase 0–3)
 
 | Scenario | Status | Evidence | Severity | Proposed fix | Notes |
 | --- | --- | --- | --- | --- | --- |
@@ -195,6 +195,7 @@ status=CONFIRMED payment_status=authorized payment_intent_id=pi_3Sj14h0LanJcM8Lu
 | Auth retry hard deadline at T-12h | PASS ✅ | `backend/tests/unit/tasks/test_auth_retry_deadline.py` | P0 | Implemented | Replaces prior T-6h cutoff |
 | Settlement tracking fields on booking | PASS ✅ | `backend/app/models/booking.py`, `backend/app/services/booking_service.py`, `backend/app/tasks/payment_tasks.py` | P1 | Implemented | Tracks settlement_outcome + amount fields |
 | LOCK anti-gaming (12–24h reschedule) | PASS ✅ | `backend/tests/integration/test_lock_mechanism.py` | P0 | Implemented | Capture + reverse transfer, set locked status, resolve on new lesson outcome |
+| Credit reservation model (reserve/release/forfeit/issue) | PASS ✅ | `backend/tests/integration/test_credit_reservation.py` | P0 | Implemented | Credits reserved at checkout; released or forfeited on terminal outcomes |
 
 ## G) Phase 1 Changes Implemented
 
@@ -222,3 +223,15 @@ status=CONFIRMED payment_status=authorized payment_intent_id=pi_3Sj14h0LanJcM8Lu
 
 - Test file: `backend/tests/integration/test_lock_mechanism.py`
 - Result: `pytest backend/tests/integration/test_lock_mechanism.py -q` (14 passed)
+
+## K) Phase 3 Changes Implemented
+
+- Credit reservation lifecycle: new `CreditService` + `CreditRepository` (reserve/release/forfeit/issue/expire).
+- Platform credits now track `status`, reservation fields, and source_type/source_booking_id; booking tracks `credits_reserved_cents`.
+- Checkout now reserves credits (FIFO) and persists reserved amount; credits never cover student fee.
+- Cancellation/capture/LOCK flows release or forfeit reserved credits and issue new credits per policy.
+
+## L) Phase 3 Verification (Automated)
+
+- Test file: `backend/tests/integration/test_credit_reservation.py`
+- Result: `pytest backend/tests/integration/test_credit_reservation.py -q` (12 passed)

@@ -165,6 +165,13 @@ def upgrade() -> None:
         sa.Column("payment_method_id", sa.String(255), nullable=True, comment="Stripe payment method ID"),
         sa.Column("payment_intent_id", sa.String(255), nullable=True, comment="Current Stripe payment intent"),
         sa.Column("payment_status", sa.String(50), nullable=True, comment="Computed from latest events"),
+        sa.Column(
+            "credits_reserved_cents",
+            sa.Integer(),
+            nullable=False,
+            server_default=sa.text("0"),
+            comment="Credits reserved for this booking in cents (v2.1.1)",
+        ),
         sa.Column("settlement_outcome", sa.String(50), nullable=True, comment="Policy settlement outcome (v2.1.1)"),
         sa.Column("student_credit_amount", sa.Integer(), nullable=True, comment="Student credit issued in cents (v2.1.1)"),
         sa.Column("instructor_payout_amount", sa.Integer(), nullable=True, comment="Instructor payout in cents (v2.1.1)"),

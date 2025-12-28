@@ -1635,6 +1635,8 @@ export type BookingCreateResponseCompletedAt = string | null;
 
 export type BookingCreateResponseConfirmedAt = string | null;
 
+export type BookingCreateResponseCreditsReservedCents = number | null;
+
 export type BookingCreateResponseHasLockedFunds = boolean | null;
 
 export type BookingCreateResponseInstructorNote = string | null;
@@ -1697,6 +1699,7 @@ export interface BookingCreateResponse {
   completed_at: BookingCreateResponseCompletedAt;
   confirmed_at: BookingCreateResponseConfirmedAt;
   created_at: string;
+  credits_reserved_cents?: BookingCreateResponseCreditsReservedCents;
   duration_minutes: number;
   end_time: string;
   has_locked_funds?: BookingCreateResponseHasLockedFunds;
@@ -1817,6 +1820,8 @@ export type BookingResponseCompletedAt = string | null;
 
 export type BookingResponseConfirmedAt = string | null;
 
+export type BookingResponseCreditsReservedCents = number | null;
+
 export type BookingResponseHasLockedFunds = boolean | null;
 
 export type BookingResponseInstructorNote = string | null;
@@ -1876,6 +1881,7 @@ export interface BookingResponse {
   completed_at: BookingResponseCompletedAt;
   confirmed_at: BookingResponseConfirmedAt;
   created_at: string;
+  credits_reserved_cents?: BookingResponseCreditsReservedCents;
   duration_minutes: number;
   end_time: string;
   has_locked_funds?: BookingResponseHasLockedFunds;
@@ -2521,7 +2527,7 @@ export interface CreditBalanceResponse {
   available: number;
   /** Credit expiration date */
   expires_at?: CreditBalanceResponseExpiresAt;
-  /** Pending credits */
+  /** Reserved (pending) credits */
   pending: number;
 }
 

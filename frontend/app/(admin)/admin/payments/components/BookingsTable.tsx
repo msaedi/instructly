@@ -36,6 +36,7 @@ const paymentStyles: Record<PaymentStatus, string> = {
   pending: 'bg-gray-200 text-gray-600',
   authorized: 'bg-blue-100 text-blue-700',
   captured: 'bg-emerald-100 text-emerald-700',
+  locked: 'bg-teal-100 text-teal-700',
   refunded: 'bg-orange-100 text-orange-700',
   failed: 'bg-rose-100 text-rose-700',
 };

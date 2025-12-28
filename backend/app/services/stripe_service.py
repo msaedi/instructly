@@ -1166,12 +1166,15 @@ class StripeService(BaseService):
     @BaseService.measure_operation("stripe_get_user_credit_balance")
     def get_user_credit_balance(self, *, user: User) -> CreditBalanceResponse:
         """Return credit balance for a user."""
-        payment_repo = self.payment_repository
-        total_cents = payment_repo.get_total_available_credits(user.id)
+        from .credit_service import CreditService
+
+        credit_service = CreditService(self.db)
+        total_cents = credit_service.get_available_balance(user_id=user.id)
+        reserved_cents = credit_service.get_reserved_balance(user_id=user.id)
 
         earliest_exp: str | None = None
         try:
-            credits = payment_repo.get_available_credits(user.id)
+            credits = credit_service.credit_repository.get_available_credits(user_id=user.id)
             expiries = [c.expires_at for c in credits if getattr(c, "expires_at", None) is not None]
             if expiries:
                 earliest_exp = min(expiries).isoformat()
@@ -1181,7 +1184,7 @@ class StripeService(BaseService):
         response_payload = {
             "available": float(total_cents) / 100.0,
             "expires_at": earliest_exp,
-            "pending": 0.0,
+            "pending": float(reserved_cents) / 100.0,
         }
         return CreditBalanceResponse(**response_payload)
 
@@ -1608,15 +1611,23 @@ class StripeService(BaseService):
                         max_applicable_credits = min(
                             int(requested_credit_cents), lesson_price_cents
                         )
+                        from .credit_service import CreditService
 
-                        credit_result = self.payment_repository.apply_credits_for_booking(
+                        credit_service = CreditService(self.db)
+                        applied_credit_cents = credit_service.reserve_credits_for_booking(
                             user_id=booking.student_id,
                             booking_id=booking_id,
-                            amount_cents=max_applicable_credits,
+                            max_amount_cents=max_applicable_credits,
+                            use_transaction=False,
                         )
-                        applied_credit_cents = int(credit_result.get("applied_cents") or 0)
+                        booking.credits_reserved_cents = applied_credit_cents
                 else:
                     applied_credit_cents = existing_applied
+
+                if existing_applied > 0 and (
+                    getattr(booking, "credits_reserved_cents", 0) != existing_applied
+                ):
+                    booking.credits_reserved_cents = existing_applied
 
                 pricing = self.pricing_service.compute_booking_pricing(
                     booking_id=booking_id,

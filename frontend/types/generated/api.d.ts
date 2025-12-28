@@ -7548,6 +7548,8 @@ export type components = {
              * Format: date-time
              */
             created_at: string;
+            /** Credits Reserved Cents */
+            credits_reserved_cents?: number | null;
             /** Duration Minutes */
             duration_minutes: number;
             /**
@@ -7751,6 +7753,8 @@ export type components = {
              * Format: date-time
              */
             created_at: string;
+            /** Credits Reserved Cents */
+            credits_reserved_cents?: number | null;
             /** Duration Minutes */
             duration_minutes: number;
             /**
@@ -8655,7 +8659,7 @@ export type components = {
             expires_at?: string | null;
             /**
              * Pending
-             * @description Pending credits
+             * @description Reserved (pending) credits
              */
             pending: number;
         };

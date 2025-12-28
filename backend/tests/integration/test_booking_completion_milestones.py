@@ -10,6 +10,7 @@ import ulid
 from app.core.enums import RoleName
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
+from app.models.payment import PlatformCredit
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
@@ -164,6 +165,11 @@ async def test_booking_completion_milestones_flow(db, milestone_setup):
         c for c in payment_repo.get_credits_issued_for_source(refund_booking.id)
         if c.reason == "refund_reinstate"
     ]
-    assert len(reinstated) == 1
-    assert reinstated[0].amount_cents == 600
-    assert reinstated[0].used_at is None
+    assert reinstated == []
+
+    reserved = (
+        db.query(PlatformCredit)
+        .filter(PlatformCredit.reserved_for_booking_id == refund_booking.id)
+        .all()
+    )
+    assert reserved == []

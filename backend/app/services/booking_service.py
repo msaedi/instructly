@@ -79,6 +79,10 @@ CANCELLATION_CREDIT_REASONS = {
     "Rescheduled booking cancellation (lesson price credit)",
     "Locked cancellation >=12 hours (lesson price credit)",
     "Locked cancellation <12 hours (50% lesson price credit)",
+    "cancel_credit_12_24",
+    "cancel_credit_lt12",
+    "locked_cancel_ge12",
+    "locked_cancel_lt12",
 }
 
 
@@ -910,6 +914,28 @@ class BookingService(BaseService):
                 if isinstance(payment_status, str):
                     booking.payment_status = payment_status
 
+                # Transfer reserved credits to the new booking when reusing payment
+                try:
+                    credit_repo = RepositoryFactory.create_credit_repository(self.db)
+                    reserved_credits = credit_repo.get_reserved_credits_for_booking(
+                        booking_id=old_booking.id
+                    )
+                    reserved_total = 0
+                    for credit in reserved_credits:
+                        reserved_total += int(
+                            credit.reserved_amount_cents or credit.amount_cents or 0
+                        )
+                        credit.reserved_for_booking_id = booking.id
+                    if reserved_total > 0:
+                        booking.credits_reserved_cents = reserved_total
+                        old_booking.credits_reserved_cents = 0
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to transfer reserved credits from booking %s: %s",
+                        old_booking.id,
+                        exc,
+                    )
+
                 # Move PaymentIntent record to the new booking if it exists
                 payment_repo = PaymentRepository(self.db)
                 payment_record = payment_repo.get_payment_by_intent_id(payment_intent_id)
@@ -1607,6 +1633,9 @@ class BookingService(BaseService):
                 raise NotFoundException("Booking not found after lock capture")
 
             payment_repo = PaymentRepository(self.db)
+            from ..services.credit_service import CreditService
+
+            credit_service = CreditService(self.db)
             if reverse_failed:
                 booking.payment_status = "reversal_failed"
                 payment_repo.create_payment_event(
@@ -1619,6 +1648,17 @@ class BookingService(BaseService):
                     },
                 )
             else:
+                try:
+                    credit_service.forfeit_credits_for_booking(
+                        booking_id=booking.id, use_transaction=False
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to forfeit reserved credits for lock activation %s: %s",
+                        booking.id,
+                        exc,
+                    )
+                booking.credits_reserved_cents = 0
                 booking.payment_status = "locked"
                 booking.locked_at = datetime.now(timezone.utc)
                 booking.locked_amount_cents = locked_amount
@@ -1663,16 +1703,6 @@ class BookingService(BaseService):
             )
 
             payment_repo = PaymentRepository(self.db)
-            used_credit_cents = 0
-            try:
-                used = payment_repo.get_credits_used_by_booking(locked_booking.id)
-                used_credit_cents = sum(amount for _, amount in used)
-            except Exception as exc:
-                logger.warning(
-                    "Failed to load used credits for locked booking %s: %s",
-                    locked_booking.id,
-                    exc,
-                )
 
             instructor_stripe_account_id: Optional[str] = None
             try:
@@ -1784,6 +1814,9 @@ class BookingService(BaseService):
                 raise NotFoundException("Locked booking not found after resolution")
 
             payment_repo = PaymentRepository(self.db)
+            from ..services.credit_service import CreditService
+
+            credit_service = CreditService(self.db)
 
             def _credit_already_issued() -> bool:
                 try:
@@ -1797,6 +1830,7 @@ class BookingService(BaseService):
                     return False
                 return any(
                     getattr(credit, "reason", None) in CANCELLATION_CREDIT_REASONS
+                    or getattr(credit, "source_type", None) in CANCELLATION_CREDIT_REASONS
                     for credit in credits
                 )
 
@@ -1805,40 +1839,45 @@ class BookingService(BaseService):
                 locked_booking.student_credit_amount = 0
                 locked_booking.instructor_payout_amount = stripe_result.get("payout_amount_cents")
                 locked_booking.refunded_to_card_amount = 0
+                locked_booking.credits_reserved_cents = 0
                 locked_booking.payment_status = (
                     "settled" if stripe_result.get("payout_success") else "payout_failed"
                 )
 
             elif resolution == "new_lesson_cancelled_ge12":
                 credit_amount = lesson_price_cents
-                net_credit_cents = max(0, credit_amount - used_credit_cents)
                 if not _credit_already_issued():
-                    payment_repo.create_platform_credit(
+                    credit_service.issue_credit(
                         user_id=locked_booking.student_id,
-                        amount_cents=net_credit_cents,
+                        amount_cents=credit_amount,
+                        source_type="locked_cancel_ge12",
                         reason="Locked cancellation >=12 hours (lesson price credit)",
                         source_booking_id=locked_booking_id,
+                        use_transaction=False,
                     )
                 locked_booking.settlement_outcome = "locked_cancel_ge12_full_credit"
-                locked_booking.student_credit_amount = net_credit_cents
+                locked_booking.student_credit_amount = credit_amount
                 locked_booking.instructor_payout_amount = 0
                 locked_booking.refunded_to_card_amount = 0
+                locked_booking.credits_reserved_cents = 0
                 locked_booking.payment_status = "settled"
 
             elif resolution == "new_lesson_cancelled_lt12":
                 credit_amount = int(round(lesson_price_cents * 0.5))
-                net_credit_cents = max(0, credit_amount - used_credit_cents)
                 if not _credit_already_issued():
-                    payment_repo.create_platform_credit(
+                    credit_service.issue_credit(
                         user_id=locked_booking.student_id,
-                        amount_cents=net_credit_cents,
+                        amount_cents=credit_amount,
+                        source_type="locked_cancel_lt12",
                         reason="Locked cancellation <12 hours (50% lesson price credit)",
                         source_booking_id=locked_booking_id,
+                        use_transaction=False,
                     )
                 locked_booking.settlement_outcome = "locked_cancel_lt12_split_50_50"
-                locked_booking.student_credit_amount = net_credit_cents
+                locked_booking.student_credit_amount = credit_amount
                 locked_booking.instructor_payout_amount = stripe_result.get("payout_amount_cents")
                 locked_booking.refunded_to_card_amount = 0
+                locked_booking.credits_reserved_cents = 0
                 locked_booking.payment_status = (
                     "settled" if stripe_result.get("payout_success") else "payout_failed"
                 )
@@ -1857,6 +1896,7 @@ class BookingService(BaseService):
                 locked_booking.refunded_to_card_amount = (
                     refund_amount if refund_amount is not None else locked_amount_cents or 0
                 )
+                locked_booking.credits_reserved_cents = 0
                 locked_booking.payment_status = (
                     "settled" if stripe_result.get("refund_success") else "refund_failed"
                 )
@@ -1942,14 +1982,11 @@ class BookingService(BaseService):
             RoleName.STUDENT.value if user.id == booking.student_id else RoleName.INSTRUCTOR.value
         )
 
-        used_credit_cents = 0
         instructor_stripe_account_id: Optional[str] = None
         try:
             from ..repositories.payment_repository import PaymentRepository
 
             payment_repo = PaymentRepository(self.db)
-            used = payment_repo.get_credits_used_by_booking(booking.id)
-            used_credit_cents = sum(amount for _, amount in used)
             try:
                 instructor_profile = self.conflict_checker_repository.get_instructor_profile(
                     booking.instructor_id
@@ -1968,7 +2005,7 @@ class BookingService(BaseService):
                 )
         except Exception as exc:
             logger.warning(
-                "Failed to load credits used by booking %s: %s",
+                "Failed to load instructor Stripe account for booking %s: %s",
                 booking.id,
                 exc,
             )
@@ -1984,7 +2021,6 @@ class BookingService(BaseService):
             "hours_from_original": hours_from_original,
             "was_gaming_reschedule": was_gaming_reschedule,
             "lesson_price_cents": lesson_price_cents,
-            "used_credit_cents": used_credit_cents,
             "instructor_stripe_account_id": instructor_stripe_account_id,
             "rescheduled_from_booking_id": booking.rescheduled_from_booking_id,
             "original_lesson_datetime": booking.original_lesson_datetime,
@@ -2252,6 +2288,9 @@ class BookingService(BaseService):
         """
         scenario = ctx["scenario"]
         booking_id = ctx["booking_id"]
+        from ..services.credit_service import CreditService
+
+        credit_service = CreditService(self.db)
 
         def _cancellation_credit_already_issued() -> bool:
             try:
@@ -2264,7 +2303,9 @@ class BookingService(BaseService):
                 )
                 return False
             return any(
-                getattr(credit, "reason", None) in CANCELLATION_CREDIT_REASONS for credit in credits
+                getattr(credit, "reason", None) in CANCELLATION_CREDIT_REASONS
+                or getattr(credit, "source_type", None) in CANCELLATION_CREDIT_REASONS
+                for credit in credits
             )
 
         def _apply_settlement(
@@ -2296,18 +2337,29 @@ class BookingService(BaseService):
                         booking_id,
                     )
                     return
-                net_credit_cents = max(
-                    0, ctx["lesson_price_cents"] - ctx.get("used_credit_cents", 0)
-                )
+                credit_amount_cents = ctx["lesson_price_cents"]
+                try:
+                    credit_service.forfeit_credits_for_booking(
+                        booking_id=booking_id, use_transaction=False
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to forfeit reserved credits for booking %s: %s",
+                        booking_id,
+                        exc,
+                    )
+                booking.credits_reserved_cents = 0
                 if _cancellation_credit_already_issued():
                     booking.payment_status = "credit_issued"
                 else:
                     try:
-                        payment_repo.create_platform_credit(
+                        credit_service.issue_credit(
                             user_id=ctx["student_id"],
-                            amount_cents=net_credit_cents,
+                            amount_cents=credit_amount_cents,
+                            source_type="cancel_credit_12_24",
                             reason="Rescheduled booking cancellation (lesson price credit)",
                             source_booking_id=booking_id,
+                            use_transaction=False,
                         )
                     except Exception as e:
                         logger.error(
@@ -2323,8 +2375,7 @@ class BookingService(BaseService):
                             if ctx["hours_from_original"] is not None
                             else None,
                             "lesson_price_cents": ctx["lesson_price_cents"],
-                            "used_credit_cents": ctx.get("used_credit_cents", 0),
-                            "credit_issued_cents": net_credit_cents,
+                            "credit_issued_cents": credit_amount_cents,
                             "rescheduled_from": ctx["rescheduled_from_booking_id"],
                             "original_lesson_datetime": ctx["original_lesson_datetime"].isoformat()
                             if ctx["original_lesson_datetime"]
@@ -2334,7 +2385,7 @@ class BookingService(BaseService):
                 booking.payment_status = "credit_issued"
                 _apply_settlement(
                     "student_cancel_12_24_full_credit",
-                    student_credit_cents=net_credit_cents,
+                    student_credit_cents=credit_amount_cents,
                     instructor_payout_cents=0,
                     refunded_cents=0,
                 )
@@ -2350,6 +2401,17 @@ class BookingService(BaseService):
                 booking.payment_status = "capture_failed"
 
         elif scenario == "over_24h_regular":
+            try:
+                credit_service.release_credits_for_booking(
+                    booking_id=booking_id, use_transaction=False
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to release reserved credits for booking %s: %s",
+                    booking_id,
+                    exc,
+                )
+            booking.credits_reserved_cents = 0
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="auth_released",
@@ -2396,18 +2458,29 @@ class BookingService(BaseService):
                         booking_id,
                     )
                     return
-                net_credit_cents = max(
-                    0, ctx["lesson_price_cents"] - ctx.get("used_credit_cents", 0)
-                )
+                credit_amount_cents = ctx["lesson_price_cents"]
+                try:
+                    credit_service.forfeit_credits_for_booking(
+                        booking_id=booking_id, use_transaction=False
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to forfeit reserved credits for booking %s: %s",
+                        booking_id,
+                        exc,
+                    )
+                booking.credits_reserved_cents = 0
                 if _cancellation_credit_already_issued():
                     booking.payment_status = "credit_issued"
                 else:
                     try:
-                        payment_repo.create_platform_credit(
+                        credit_service.issue_credit(
                             user_id=ctx["student_id"],
-                            amount_cents=net_credit_cents,
+                            amount_cents=credit_amount_cents,
+                            source_type="cancel_credit_12_24",
                             reason="Cancellation 12-24 hours before lesson (lesson price credit)",
                             source_booking_id=booking_id,
+                            use_transaction=False,
                         )
                     except Exception as e:
                         logger.error(
@@ -2418,16 +2491,15 @@ class BookingService(BaseService):
                         booking_id=booking_id,
                         event_type="credit_created_late_cancel",
                         event_data={
-                            "amount": net_credit_cents,
+                            "amount": credit_amount_cents,
                             "lesson_price_cents": ctx["lesson_price_cents"],
-                            "used_credit_cents": ctx.get("used_credit_cents", 0),
                             "total_charged_cents": capture_data.get("amount_received"),
                         },
                     )
                     booking.payment_status = "credit_issued"
                 _apply_settlement(
                     "student_cancel_12_24_full_credit",
-                    student_credit_cents=net_credit_cents,
+                    student_credit_cents=credit_amount_cents,
                     instructor_payout_cents=0,
                     refunded_cents=0,
                 )
@@ -2504,16 +2576,28 @@ class BookingService(BaseService):
                     )
 
                 credit_return_cents = int(round(ctx["lesson_price_cents"] * 0.5))
-                net_credit_cents = max(0, credit_return_cents - ctx.get("used_credit_cents", 0))
+                try:
+                    credit_service.forfeit_credits_for_booking(
+                        booking_id=booking_id, use_transaction=False
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to forfeit reserved credits for booking %s: %s",
+                        booking_id,
+                        exc,
+                    )
+                booking.credits_reserved_cents = 0
                 if _cancellation_credit_already_issued():
                     booking.payment_status = "credit_issued"
                 else:
                     try:
-                        payment_repo.create_platform_credit(
+                        credit_service.issue_credit(
                             user_id=ctx["student_id"],
-                            amount_cents=net_credit_cents,
+                            amount_cents=credit_return_cents,
+                            source_type="cancel_credit_lt12",
                             reason="Cancellation <12 hours before lesson (50% lesson price credit)",
                             source_booking_id=booking_id,
+                            use_transaction=False,
                         )
                     except Exception as e:
                         logger.error(
@@ -2524,9 +2608,8 @@ class BookingService(BaseService):
                         booking_id=booking_id,
                         event_type="credit_created_last_minute_cancel",
                         event_data={
-                            "amount": net_credit_cents,
+                            "amount": credit_return_cents,
                             "lesson_price_cents": ctx["lesson_price_cents"],
-                            "used_credit_cents": ctx.get("used_credit_cents", 0),
                             "total_charged_cents": capture_data.get("amount_received"),
                             "payout_amount_cents": stripe_results.get("payout_amount_cents"),
                         },
@@ -2541,7 +2624,7 @@ class BookingService(BaseService):
                         payout_amount_cents = None
                 _apply_settlement(
                     "student_cancel_lt12_split_50_50",
-                    student_credit_cents=net_credit_cents,
+                    student_credit_cents=credit_return_cents,
                     instructor_payout_cents=payout_amount_cents or 0,
                     refunded_cents=0,
                 )
@@ -2554,6 +2637,17 @@ class BookingService(BaseService):
                 booking.payment_status = "capture_failed"
 
         elif scenario == "under_12h_no_pi":
+            try:
+                credit_service.release_credits_for_booking(
+                    booking_id=booking_id, use_transaction=False
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to release reserved credits for booking %s: %s",
+                    booking_id,
+                    exc,
+                )
+            booking.credits_reserved_cents = 0
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="capture_skipped_no_intent",
@@ -2562,6 +2656,17 @@ class BookingService(BaseService):
             booking.payment_status = "capture_not_possible"
 
         elif scenario == "pending_payment":
+            try:
+                credit_service.release_credits_for_booking(
+                    booking_id=booking_id, use_transaction=False
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to release reserved credits for booking %s: %s",
+                    booking_id,
+                    exc,
+                )
+            booking.credits_reserved_cents = 0
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="cancelled_before_payment",
@@ -2570,6 +2675,17 @@ class BookingService(BaseService):
             booking.payment_status = "not_started"
 
         elif scenario in ("instructor_cancel_over_24h", "instructor_cancel_under_24h"):
+            try:
+                credit_service.release_credits_for_booking(
+                    booking_id=booking_id, use_transaction=False
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to release reserved credits for booking %s: %s",
+                    booking_id,
+                    exc,
+                )
+            booking.credits_reserved_cents = 0
             if stripe_results.get("refund_success"):
                 refund_data = stripe_results.get("refund_data") or {}
                 payment_repo.create_payment_event(

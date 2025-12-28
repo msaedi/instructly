@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from .bulk_operation_repository import BulkOperationRepository
     from .conflict_checker_repository import ConflictCheckerRepository
     from .conversation_repository import ConversationRepository
+    from .credit_repository import CreditRepository
     from .event_outbox_repository import EventOutboxRepository
     from .instructor_preferred_place_repository import InstructorPreferredPlaceRepository
     from .instructor_profile_repository import InstructorProfileRepository
@@ -89,6 +90,13 @@ class RepositoryFactory:
         from .conflict_checker_repository import ConflictCheckerRepository
 
         return ConflictCheckerRepository(db)
+
+    @staticmethod
+    def create_credit_repository(db: Session) -> "CreditRepository":
+        """Create repository for credit lifecycle queries."""
+        from .credit_repository import CreditRepository
+
+        return CreditRepository(db)
 
     @staticmethod
     def create_bulk_operation_repository(db: Session) -> "BulkOperationRepository":

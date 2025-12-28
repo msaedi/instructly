@@ -1142,6 +1142,13 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         """Return total cents of credits applied to the booking so far."""
 
         try:
+            try:
+                booking = self.db.query(Booking).filter(Booking.id == booking_id).first()
+                if booking and getattr(booking, "credits_reserved_cents", None):
+                    return max(0, int(booking.credits_reserved_cents or 0))
+            except Exception:
+                pass
+
             credit_use_events = (
                 self.db.query(PaymentEvent)
                 .filter(
@@ -1192,8 +1199,10 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         user_id: str,
         amount_cents: int,
         reason: str,
+        source_type: Optional[str] = None,
         source_booking_id: Optional[str] = None,
         expires_at: Optional[datetime] = None,
+        status: Optional[str] = None,
     ) -> PlatformCredit:
         """
         Create a platform credit for a user.
@@ -1220,8 +1229,11 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 user_id=user_id,
                 amount_cents=amount_cents,
                 reason=reason,
+                source_type=source_type or reason or "legacy",
                 source_booking_id=source_booking_id,
                 expires_at=expires_at,
+                status=status or "available",
+                reserved_amount_cents=0,
             )
             self.db.add(credit)
             self.db.flush()
@@ -1234,10 +1246,10 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         self, *, user_id: str, booking_id: str, amount_cents: int
     ) -> Dict[str, Any]:
         """
-        Consume available platform credits to offset an amount for a booking.
+        Reserve available platform credits to offset an amount for a booking.
 
-        - Uses earliest expiring credits first
-        - Marks used credits; if a credit exceeds remaining amount, creates a remainder credit
+        - Uses FIFO ordering (oldest credits first)
+        - Reserves credits; if a credit exceeds remaining amount, creates a remainder credit
         - Emits per-credit and summary payment events
 
         Returns a dict with applied amount and credit IDs used.
@@ -1251,47 +1263,60 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             applied_total = 0
             used_ids: List[str] = []
             remainder_credit_id: Optional[str] = None
+            now = datetime.now(timezone.utc)
 
             for credit in available:
                 if remaining <= 0:
                     break
 
-                use_amount = min(credit.amount_cents, remaining)
-
-                # Mark credit used
-                credit.used_at = datetime.now(timezone.utc)
-                credit.used_booking_id = booking_id
-                self.db.flush()
-                used_ids.append(credit.id)
+                original_credit_cents = int(credit.amount_cents or 0)
+                reserve_amount = min(original_credit_cents, remaining)
+                if reserve_amount <= 0:
+                    continue
 
                 # Create remainder credit if needed
-                if credit.amount_cents > use_amount:
+                local_remainder_id: Optional[str] = None
+                if original_credit_cents > reserve_amount:
                     remainder = PlatformCredit(
                         id=str(ulid.ULID()),
                         user_id=user_id,
-                        amount_cents=credit.amount_cents - use_amount,
+                        amount_cents=original_credit_cents - reserve_amount,
                         reason=f"Remainder of {credit.id}",
+                        source_type=getattr(credit, "source_type", "legacy"),
                         source_booking_id=credit.source_booking_id,
                         expires_at=credit.expires_at,
+                        status="available",
+                        reserved_amount_cents=0,
                     )
                     self.db.add(remainder)
                     self.db.flush()
                     remainder_credit_id = remainder.id
+                    local_remainder_id = remainder.id
+                    credit.amount_cents = reserve_amount
+                else:
+                    local_remainder_id = None
 
-                # Per-credit usage event
+                credit.reserved_amount_cents = reserve_amount
+                credit.reserved_for_booking_id = booking_id
+                credit.reserved_at = now
+                credit.status = "reserved"
+                self.db.flush()
+                used_ids.append(credit.id)
+
+                # Per-credit reservation event
                 self.create_payment_event(
                     booking_id=booking_id,
-                    event_type="credit_used",
+                    event_type="credit_reserved",
                     event_data={
                         "credit_id": credit.id,
-                        "used_cents": use_amount,
-                        "original_credit_cents": credit.amount_cents,
-                        "remainder_credit_id": remainder_credit_id,
+                        "reserved_cents": reserve_amount,
+                        "original_credit_cents": original_credit_cents,
+                        "remainder_credit_id": local_remainder_id,
                     },
                 )
 
-                applied_total += use_amount
-                remaining -= use_amount
+                applied_total += reserve_amount
+                remaining -= reserve_amount
 
             if applied_total > 0:
                 self.create_payment_event(
@@ -1336,7 +1361,10 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                     .filter(
                         and_(
                             PlatformCredit.user_id == user_id,
-                            PlatformCredit.used_at.is_(None),
+                            (
+                                PlatformCredit.status.is_(None)
+                                | (PlatformCredit.status == "available")
+                            ),
                             # Either no expiration or not expired yet
                             (
                                 PlatformCredit.expires_at.is_(None)
@@ -1345,8 +1373,9 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                         )
                     )
                     .order_by(
-                        PlatformCredit.expires_at.asc().nullslast()
-                    )  # Use expiring credits first
+                        PlatformCredit.created_at.asc(),
+                        PlatformCredit.id.asc(),
+                    )  # FIFO by oldest credit
                     .all()
                 ),
             )
@@ -1390,6 +1419,25 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         """Return list of (credit_id, used_amount_cents) for credits applied to a booking."""
 
         try:
+            used: List[Tuple[str, int]] = []
+            credits = (
+                self.db.query(PlatformCredit)
+                .filter(PlatformCredit.used_booking_id == booking_id)
+                .all()
+            )
+
+            for credit in credits:
+                try:
+                    amount_int = int(credit.amount_cents or 0)
+                except (TypeError, ValueError):
+                    continue
+                if amount_int <= 0:
+                    continue
+                used.append((str(credit.id), amount_int))
+
+            if used:
+                return used
+
             events = (
                 self.db.query(PaymentEvent)
                 .filter(
@@ -1399,7 +1447,6 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 .all()
             )
 
-            used: List[Tuple[str, int]] = []
             for event in events:
                 data = event.event_data or {}
                 credit_id = data.get("credit_id")
@@ -1440,7 +1487,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 .filter(
                     and_(
                         PlatformCredit.user_id == user_id,
-                        PlatformCredit.used_at.is_(None),
+                        (PlatformCredit.status.is_(None) | (PlatformCredit.status == "available")),
                         (PlatformCredit.expires_at.is_(None) | (PlatformCredit.expires_at > now)),
                     )
                 )
@@ -1477,8 +1524,12 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 raise RepositoryException(f"Platform credit {credit_id} already used")
 
             credit = credit_opt
-            credit.used_at = datetime.now(timezone.utc)
+            now = datetime.now(timezone.utc)
+            credit.used_at = now
             credit.used_booking_id = used_booking_id
+            credit.forfeited_at = now
+            credit.status = "forfeited"
+            credit.reserved_amount_cents = 0
             self.db.flush()
             return credit
         except RepositoryException:

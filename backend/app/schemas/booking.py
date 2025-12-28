@@ -318,6 +318,7 @@ class BookingBase(StandardizedModel):
     student_credit_amount: Optional[int] = None
     instructor_payout_amount: Optional[int] = None
     refunded_to_card_amount: Optional[int] = None
+    credits_reserved_cents: Optional[int] = None
     # LOCK mechanism fields (v2.1.1)
     locked_at: Optional[datetime] = None
     locked_amount_cents: Optional[int] = None
@@ -535,6 +536,7 @@ class BookingResponse(BookingBase):
                 getattr(booking, "instructor_payout_amount", None)
             ),
             "refunded_to_card_amount": _safe_int(getattr(booking, "refunded_to_card_amount", None)),
+            "credits_reserved_cents": _safe_int(getattr(booking, "credits_reserved_cents", None)),
             "locked_at": _safe_datetime(getattr(booking, "locked_at", None)),
             "locked_amount_cents": _safe_int(getattr(booking, "locked_amount_cents", None)),
             "lock_resolved_at": _safe_datetime(getattr(booking, "lock_resolved_at", None)),

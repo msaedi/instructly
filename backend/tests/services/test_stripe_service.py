@@ -1017,20 +1017,23 @@ class TestStripeService:
             "instructor_tier_pct": float(tier_pct),
         }
 
-        apply_mock = MagicMock(return_value={"applied_cents": 700})
-        stripe_service.payment_repository.apply_credits_for_booking = apply_mock
         stripe_service.payment_repository.get_applied_credit_cents_for_booking = MagicMock(
             return_value=0
         )
 
-        context = stripe_service.build_charge_context(
-            booking_id=test_booking.id, requested_credit_cents=900
-        )
+        with patch(
+            "app.services.credit_service.CreditService.reserve_credits_for_booking"
+        ) as reserve_mock:
+            reserve_mock.return_value = 700
+            context = stripe_service.build_charge_context(
+                booking_id=test_booking.id, requested_credit_cents=900
+            )
 
-        apply_mock.assert_called_once_with(
+        reserve_mock.assert_called_once_with(
             user_id=test_booking.student_id,
             booking_id=test_booking.id,
-            amount_cents=900,
+            max_amount_cents=900,
+            use_transaction=False,
         )
         stripe_service.payment_repository.get_applied_credit_cents_for_booking.assert_called_once_with(
             test_booking.id
@@ -1078,17 +1081,18 @@ class TestStripeService:
             "instructor_tier_pct": float(tier_pct),
         }
 
-        apply_mock = MagicMock()
-        stripe_service.payment_repository.apply_credits_for_booking = apply_mock
         stripe_service.payment_repository.get_applied_credit_cents_for_booking = MagicMock(
             return_value=locked_credit
         )
 
-        context = stripe_service.build_charge_context(
-            booking_id=test_booking.id, requested_credit_cents=None
-        )
+        with patch(
+            "app.services.credit_service.CreditService.reserve_credits_for_booking"
+        ) as reserve_mock:
+            context = stripe_service.build_charge_context(
+                booking_id=test_booking.id, requested_credit_cents=None
+            )
 
-        apply_mock.assert_not_called()
+        reserve_mock.assert_not_called()
         stripe_service.payment_repository.get_applied_credit_cents_for_booking.assert_called_once_with(
             test_booking.id
         )
@@ -1134,14 +1138,15 @@ class TestStripeService:
         stripe_service.payment_repository.get_applied_credit_cents_for_booking = MagicMock(
             return_value=locked_credit_cents
         )
-        stripe_service.payment_repository.apply_credits_for_booking = MagicMock()
 
-        with caplog.at_level(logging.WARNING):
+        with patch(
+            "app.services.credit_service.CreditService.reserve_credits_for_booking"
+        ) as reserve_mock, caplog.at_level(logging.WARNING):
             context = stripe_service.build_charge_context(
                 booking_id=test_booking.id, requested_credit_cents=5000
             )
 
-        stripe_service.payment_repository.apply_credits_for_booking.assert_not_called()
+        reserve_mock.assert_not_called()
         assert context.applied_credit_cents == locked_credit_cents
         assert any(
             record.message == "requested_credit_ignored_due_to_existing_usage"

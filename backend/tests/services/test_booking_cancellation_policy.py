@@ -442,8 +442,8 @@ def test_platform_retains_fee_on_12_24h_cancel(db: Session):
     )
 
 
-def test_12_24h_cancel_net_credit_when_credits_used(db: Session):
-    """Cancellation credit should not double-count previously applied credits."""
+def test_12_24h_cancel_full_credit_when_credits_reserved(db: Session):
+    """Cancellation credit is full lesson price even when credits were reserved."""
     instructor, profile, svc = _create_instructor_with_service(db)
     student = _create_student(db)
 
@@ -482,7 +482,10 @@ def test_12_24h_cancel_net_credit_when_credits_used(db: Session):
         service.cancel_booking(bk.id, user=student, reason="test")
 
     credit_amounts = [call.kwargs.get("amount_cents") for call in mock_credit.call_args_list]
-    assert 7000 in credit_amounts, "Net credit should exclude previously applied credits"
+    expected_lesson_price = int(float(bk.hourly_rate) * 100)
+    assert expected_lesson_price in credit_amounts, (
+        "Credit should be full lesson price (reserved credits are forfeited)"
+    )
     mock_refund_hooks.assert_not_called()
 
 

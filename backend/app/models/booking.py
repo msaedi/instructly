@@ -131,6 +131,12 @@ class Booking(Base):
     payment_method_id = Column(String(255), nullable=True, comment="Stripe payment method ID")
     payment_intent_id = Column(String(255), nullable=True, comment="Current Stripe payment intent")
     payment_status = Column(String(50), nullable=True, comment="Computed from latest events")
+    credits_reserved_cents = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Credits reserved for this booking in cents (v2.1.1)",
+    )
     # settlement_outcome values per v2.1.1 policy:
     # - lesson_completed_full_payout
     # - student_cancel_12_24_full_credit
@@ -205,6 +211,11 @@ class Booking(Base):
         "PlatformCredit",
         foreign_keys="PlatformCredit.used_booking_id",
         back_populates="used_booking",
+    )
+    reserved_credits = relationship(
+        "PlatformCredit",
+        foreign_keys="PlatformCredit.reserved_for_booking_id",
+        back_populates="reserved_for_booking",
     )
 
     # Optional linkage when created by reschedule

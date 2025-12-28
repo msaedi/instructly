@@ -248,7 +248,7 @@ class CreditBalanceResponse(StrictModel):
 
     available: float = Field(..., description="Available credit balance")
     expires_at: Optional[str] = Field(None, description="Credit expiration date")
-    pending: float = Field(..., description="Pending credits")
+    pending: float = Field(..., description="Reserved (pending) credits")
 
 
 # ========== Error Response Models ==========

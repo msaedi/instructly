@@ -196,6 +196,12 @@ class PlatformCredit(Base):
         Integer, nullable=False, comment="Amount in cents to avoid float precision issues"
     )
     reason: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="legacy",
+        comment="Credit source type (v2.1.1)",
+    )
     source_booking_id: Mapped[Optional[str]] = mapped_column(
         String(26),
         ForeignKey("bookings.id", ondelete="SET NULL"),
@@ -208,8 +214,36 @@ class PlatformCredit(Base):
         nullable=True,
         comment="Booking where credit was used",
     )
+    reserved_amount_cents: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Amount reserved for a booking (v2.1.1)",
+    )
+    reserved_for_booking_id: Mapped[Optional[str]] = mapped_column(
+        String(26),
+        ForeignKey("bookings.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Booking holding a reservation on this credit (v2.1.1)",
+    )
+    reserved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When credit was reserved (v2.1.1)",
+    )
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    forfeited_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When credit was forfeited (v2.1.1)",
+    )
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="available",
+        comment="Credit status: available, reserved, forfeited, expired (v2.1.1)",
+    )
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
@@ -224,10 +258,17 @@ class PlatformCredit(Base):
     used_booking: Mapped[Optional["Booking"]] = relationship(
         "Booking", foreign_keys=[used_booking_id], back_populates="used_credits"
     )
+    reserved_for_booking: Mapped[Optional["Booking"]] = relationship(
+        "Booking", foreign_keys=[reserved_for_booking_id], back_populates="reserved_credits"
+    )
 
     @property
     def is_expired(self) -> bool:
         """Check if the credit has expired."""
+        if getattr(self, "status", None) == "reserved":
+            return False
+        if getattr(self, "status", None) == "expired":
+            return True
         if not self.expires_at:
             return False
         # Always compare using timezone-aware UTC now to avoid naive/aware mismatches
@@ -241,10 +282,13 @@ class PlatformCredit(Base):
     @property
     def is_available(self) -> bool:
         """Check if the credit is available for use."""
-        return self.used_at is None and not self.is_expired
+        return getattr(self, "status", None) == "available" and not self.is_expired
 
     def __repr__(self) -> str:
-        return f"<PlatformCredit(user_id={self.user_id}, amount={self.amount_cents}, available={self.is_available})>"
+        return (
+            f"<PlatformCredit(user_id={self.user_id}, amount={self.amount_cents}, "
+            f"status={getattr(self, 'status', None)}, available={self.is_available})>"
+        )
 
 
 class InstructorPayoutEvent(Base):
