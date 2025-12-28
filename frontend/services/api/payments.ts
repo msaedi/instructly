@@ -1,6 +1,7 @@
 import { logger } from '@/lib/logger';
 import { withApiBase } from '@/lib/apiBase';
 import { httpGet, httpPost } from '@/lib/http';
+import type { CheckoutResponse } from '@/types/api/checkout';
 
 export interface PaymentMethod {
   id: string;
@@ -41,16 +42,6 @@ export interface Transaction {
   total_paid: number;
   status: string;
   created_at: string;
-}
-
-export interface CheckoutResponse {
-  success: boolean;
-  payment_intent_id: string;
-  status: string;
-  amount: number;
-  application_fee: number;
-  client_secret?: string;
-  requires_action?: boolean;
 }
 
 export interface OnboardingResponse {

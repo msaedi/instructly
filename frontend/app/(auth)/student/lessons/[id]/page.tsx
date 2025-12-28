@@ -22,6 +22,8 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useReviewForBooking } from '@/src/api/services/reviews';
 import { resolveBookingDateTimes } from '@/lib/timezone/formatBookingTime';
 
+const IN_PROGRESS_VARIANT = 'pending';
+
 type LessonPaymentSummary = {
   lesson_amount: number;
   service_fee: number;
@@ -223,7 +225,7 @@ export default function LessonDetailsPage() {
                 {lesson.service_name}
               </h1>
               {isInProgress && (
-                <StatusBadge variant="pending" label="In Progress" showIcon={true} />
+                <StatusBadge variant={IN_PROGRESS_VARIANT} label="In Progress" showIcon={true} />
               )}
               {!isInProgress && isCompleted && (
                 <StatusBadge variant="success" label="Completed" showIcon={true} />

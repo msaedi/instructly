@@ -341,11 +341,18 @@ If authorization fails at T-24:
 - Set `payment_status = payment_method_required`
 - Create `t24_first_failure_email_sent` event
 - Send email via `notification_service.send_final_payment_warning()`
-- Retry authorization every 30 minutes
+- Retry authorization with exponential backoff:
+  - 1st retry: 1 hour after initial failure
+  - 2nd retry: 4 hours after 1st retry
+  - 3rd retry: 8 hours after 2nd retry
+  - Subsequent retries: every 8 hours
+- Send final warning at T-13h: "Your booking will be cancelled in 1 hour if payment is not resolved."
 
 **Hard deadline:** If still not authorized by **T-12h**, auto-cancel booking:
 - Student receives no penalty (equivalent to `>=24h` cancel)
 - Instructor is not expected to hold the slot without payment certainty
+
+**Rationale:** Exponential backoff prevents email spam while giving students adequate time to fix payment issues.
 
 ### 10.2 Capture failure at payout time
 If capture fails at `lesson_end + 24h`:

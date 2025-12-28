@@ -4072,7 +4072,7 @@ class BookingService(BaseService):
     ) -> None:
         """Persist student no-show settlement."""
         credit_service.forfeit_credits_for_booking(booking_id=booking.id, use_transaction=False)
-        booking.settlement_outcome = "lesson_completed_full_payout"
+        booking.settlement_outcome = "student_no_show_full_payout"
         booking.student_credit_amount = 0
         booking.refunded_to_card_amount = 0
 

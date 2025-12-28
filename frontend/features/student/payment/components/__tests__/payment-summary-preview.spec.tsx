@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import PaymentConfirmation from '../PaymentConfirmation';
 import { PaymentSection } from '../PaymentSection';
-import { BookingPayment, PaymentMethod, PaymentStatus } from '../../types';
+import { BookingPayment, PaymentMethod, PAYMENT_STATUS } from '../../types';
 import { BookingType } from '@/features/shared/types/booking';
 import { PricingPreviewContext } from '../../hooks/usePricingPreview';
 import {
@@ -204,7 +204,7 @@ const BASE_BOOKING: BookingPayment & {
   basePrice: 225,
   totalAmount: 252,
   bookingType: BookingType.STANDARD,
-  paymentStatus: PaymentStatus.PENDING,
+  paymentStatus: PAYMENT_STATUS.SCHEDULED,
   serviceId: 'svc-1',
   metadata: {
     serviceId: 'svc-1',

@@ -1,8 +1,8 @@
-# Payment Policy v2.1 Compliance Checklist (Phase 0–6)
+# Payment Policy v2.1 Compliance Checklist (Phase 0–7)
 
 Last updated: 2025-12-28
 Environment: staging DB (instainstru_stg), SITE_MODE=local, Stripe test mode
-Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), Phase 2 LOCK anti-gaming mechanism, Phase 3 credit reservation model, Phase 4 no-show handling, Phase 5 authorization timing, and Phase 6 state machine alignment + failure handling.
+Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), Phase 2 LOCK anti-gaming mechanism, Phase 3 credit reservation model, Phase 4 no-show handling, Phase 5 authorization timing, Phase 6 state machine alignment + failure handling, and Phase 7 frontend alignment + compliance hardening.
 
 Note: As of Phase 6, booking.payment_status is canonical (scheduled, authorized, payment_method_required, manual_review, locked, settled). Legacy labels (captured/refunded/released/credit_issued/auth_failed/capture_failed/disputed) are now expressed via settlement_outcome + failure fields.
 
@@ -207,7 +207,7 @@ Canonical payment_status mapping summary:
 | Capture failure (retrying) | payment_method_required | - |
 | Capture failure (escalated) | manual_review | capture_failure_instructor_paid |
 
-## F) Gap Matrix (Phase 0–6)
+## F) Gap Matrix (Phase 0–7)
 
 | Scenario | Status | Evidence | Severity | Proposed fix | Notes |
 | --- | --- | --- | --- | --- | --- |
@@ -347,7 +347,20 @@ Celery tasks (booking_lock_sync required):
 | retry_failed_captures | ✅ | Skips if locked |
 | resolve_undisputed_no_shows | ✅ | Skips if locked |
 
-## U) v2.1.1 Compliance Summary
+## U) Phase 7: Frontend Alignment & Compliance Hardening
+
+### Gap Matrix (Phase 7)
+
+| Gap | Severity | Status | Evidence |
+| --- | --- | --- | --- |
+| Frontend accepts "scheduled" status for checkout | P0 | ✅ PASS | `frontend/features/student/payment/components/PaymentSection.tsx` |
+| Policy doc retry cadence matches implementation | P1 | ✅ PASS | `docs/stripe/instainstru-payment-policy-v2.1.1.md` (Section 10.1) |
+| Reserved credits protected from expiration | P1 | ✅ PASS | `backend/tests/integration/test_credit_reservation.py` (TestCreditExpiration) |
+| No-show settlement outcomes use specific strings | P2 | ✅ PASS | `backend/tests/integration/test_no_show_handling.py` |
+
+Phase 7 Verification: ✅ COMPLETE
+
+## V) v2.1.1 Compliance Summary
 
 Status: ✅ FULLY ALIGNED
 
@@ -360,6 +373,7 @@ Status: ✅ FULLY ALIGNED
 | Phase 4 | No-show handling | ✅ PASS | `backend/tests/integration/test_no_show_handling.py` |
 | Phase 5 | Authorization timing | ✅ PASS | Booking payment boundary + task tests |
 | Phase 6 | State machine & failures | ✅ PASS | Canonical status + capture failure + dispute tests |
+| Phase 7 | Frontend alignment + compliance hardening | ✅ PASS | Checkout status + policy update + no-show outcome tests |
 
 Canonical payment_status values (Section 4.1):
 - [x] Only 6 values used: scheduled, authorized, payment_method_required, manual_review, locked, settled

@@ -6,15 +6,10 @@ import type {
   ListAdminBookingsApiV1AdminBookingsGetParams,
 } from '@/src/api/generated/instructly.schemas';
 import { listAdminBookingsApiV1AdminBookingsGet } from '@/src/api/generated/admin-bookings/admin-bookings';
+import { PAYMENT_STATUS, type PaymentStatus } from '@/features/shared/types/paymentStatus';
+export type { PaymentStatus };
 
 export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
-export type PaymentStatus =
-  | 'pending'
-  | 'authorized'
-  | 'captured'
-  | 'locked'
-  | 'refunded'
-  | 'failed';
 
 export interface BookingPerson {
   id: string;
@@ -61,7 +56,7 @@ export interface BookingFiltersState {
   status: 'all' | BookingStatus;
   payment_status: 'all' | PaymentStatus;
   date_range: 'last_7_days' | 'last_30_days' | 'last_90_days' | 'all';
-  quick_filter: 'all' | 'needs_action' | 'disputed' | 'refunded';
+  quick_filter: 'all' | 'needs_action' | 'disputed' | 'settled';
   page: number;
   per_page: number;
 }
@@ -84,12 +79,12 @@ export const bookingStatusOptions: { value: BookingFiltersState['status']; label
 
 export const paymentStatusOptions: { value: BookingFiltersState['payment_status']; label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'authorized', label: 'Authorized' },
-  { value: 'captured', label: 'Captured' },
-  { value: 'locked', label: 'Locked' },
-  { value: 'refunded', label: 'Refunded' },
-  { value: 'failed', label: 'Failed' },
+  { value: PAYMENT_STATUS.SCHEDULED, label: 'Scheduled' },
+  { value: PAYMENT_STATUS.AUTHORIZED, label: 'Authorized' },
+  { value: PAYMENT_STATUS.PAYMENT_METHOD_REQUIRED, label: 'Payment required' },
+  { value: PAYMENT_STATUS.MANUAL_REVIEW, label: 'Manual review' },
+  { value: PAYMENT_STATUS.LOCKED, label: 'Locked' },
+  { value: PAYMENT_STATUS.SETTLED, label: 'Settled' },
 ];
 
 export const dateRangeOptions: { value: BookingFiltersState['date_range']; label: string }[] = [
@@ -100,12 +95,12 @@ export const dateRangeOptions: { value: BookingFiltersState['date_range']; label
 ];
 
 const PAYMENT_STATUS_VALUES: PaymentStatus[] = [
-  'pending',
-  'authorized',
-  'captured',
-  'locked',
-  'refunded',
-  'failed',
+  PAYMENT_STATUS.SCHEDULED,
+  PAYMENT_STATUS.AUTHORIZED,
+  PAYMENT_STATUS.PAYMENT_METHOD_REQUIRED,
+  PAYMENT_STATUS.MANUAL_REVIEW,
+  PAYMENT_STATUS.LOCKED,
+  PAYMENT_STATUS.SETTLED,
 ];
 
 const BOOKING_STATUS_VALUES: BookingStatus[] = [
@@ -130,12 +125,12 @@ const resolveDateRange = (range: BookingFiltersState['date_range']) => {
 
 const normalizePaymentStatus = (value?: string | null): PaymentStatus => {
   if (!value) {
-    return 'pending';
+    return PAYMENT_STATUS.SCHEDULED;
   }
   const lowered = value.toLowerCase();
   return PAYMENT_STATUS_VALUES.includes(lowered as PaymentStatus)
     ? (lowered as PaymentStatus)
-    : 'pending';
+    : PAYMENT_STATUS.SCHEDULED;
 };
 
 const normalizeBookingStatus = (value?: string | null): BookingStatus => {
@@ -256,8 +251,8 @@ const buildBookingQueryParams = (
     params.status = [filters.status];
   }
 
-  if (filters.quick_filter === 'refunded') {
-    params.payment_status = ['refunded'];
+  if (filters.quick_filter === 'settled') {
+    params.payment_status = [PAYMENT_STATUS.SETTLED];
   } else if (filters.payment_status !== 'all') {
     params.payment_status = [filters.payment_status];
   }

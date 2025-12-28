@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { BookingPayment, PaymentMethod, PaymentStatus, PaymentCard } from '../types';
+import { BookingPayment, PaymentMethod, PaymentCard, PAYMENT_STATUS } from '../types';
 
 interface UsePaymentFlowProps {
   booking: BookingPayment;
@@ -96,7 +96,7 @@ export function usePaymentFlow({
       const result = await response.json();
 
       // Update booking with payment info
-      booking.paymentStatus = PaymentStatus.AUTHORIZED;
+      booking.paymentStatus = PAYMENT_STATUS.AUTHORIZED;
       booking.stripeIntentId = result.paymentIntentId;
 
       goToStep(PaymentStep.SUCCESS);

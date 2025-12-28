@@ -17,7 +17,7 @@ import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailabi
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { useRouter as useNextRouter } from 'next/navigation';
 import { calculateEndTime } from '@/features/shared/utils/booking';
-import { BookingPayment, PaymentStatus } from '@/features/student/payment';
+import { BookingPayment, PAYMENT_STATUS } from '@/features/student/payment';
 import { BookingType } from '@/features/shared/types/booking';
 import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
@@ -268,7 +268,7 @@ function InstructorProfileContent() {
         basePrice,
         totalAmount,
         bookingType,
-        paymentStatus: PaymentStatus.PENDING,
+        paymentStatus: PAYMENT_STATUS.SCHEDULED,
         ...(bookingType === BookingType.STANDARD && {
           freeCancellationUntil: new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
         }),
@@ -671,7 +671,7 @@ function InstructorProfileContent() {
                 basePrice,
                 totalAmount,
                 bookingType,
-                paymentStatus: PaymentStatus.PENDING,
+                paymentStatus: PAYMENT_STATUS.SCHEDULED,
                 ...(bookingType === BookingType.STANDARD && {
                   freeCancellationUntil: new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
                 }),

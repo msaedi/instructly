@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PaymentSection } from '@/features/student/payment';
-import { BookingPayment, PaymentStatus } from '@/features/student/payment/types';
+import { BookingPayment, PAYMENT_STATUS } from '@/features/student/payment/types';
 import ReferralShareModal from '@/components/referrals/ReferralShareModal';
 import { fetchMyReferrals } from '@/features/shared/referrals/api';
 // booking helpers are imported elsewhere as needed
@@ -117,7 +117,7 @@ export default function BookingConfirmationPage() {
             basePrice,
             totalAmount,
             bookingType: BookingType.STANDARD,
-            paymentStatus: PaymentStatus.PENDING,
+            paymentStatus: PAYMENT_STATUS.SCHEDULED,
             freeCancellationUntil: isNaN(freeCancel.getTime()) ? undefined : freeCancel,
           } as BookingPayment;
 

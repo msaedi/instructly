@@ -11,7 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import { storeBookingIntent, calculateEndTime } from '@/features/shared/utils/booking';
 import { at } from '@/lib/ts/safe';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
-import { BookingPayment, PaymentStatus } from '@/features/student/payment/types';
+import { BookingPayment, PAYMENT_STATUS } from '@/features/student/payment/types';
 import { BookingType } from '@/features/shared/types/booking';
 import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 
@@ -174,7 +174,7 @@ export default function BookingModal({
         basePrice,
         totalAmount,
         bookingType,
-        paymentStatus: PaymentStatus.PENDING,
+        paymentStatus: PAYMENT_STATUS.SCHEDULED,
         ...(bookingType === BookingType.STANDARD && {
           freeCancellationUntil: new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
         }),
@@ -259,7 +259,7 @@ export default function BookingModal({
       basePrice,
       totalAmount,
       bookingType,
-      paymentStatus: PaymentStatus.PENDING,
+      paymentStatus: PAYMENT_STATUS.SCHEDULED,
       ...(bookingType === BookingType.STANDARD && {
         freeCancellationUntil: new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
       }),

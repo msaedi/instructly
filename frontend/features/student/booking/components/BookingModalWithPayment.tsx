@@ -13,7 +13,7 @@ import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServ
 import { useAuth } from '../hooks/useAuth';
 import { storeBookingIntent, calculateEndTime } from '@/features/shared/utils/booking';
 import CheckoutFlow from '@/components/booking/CheckoutFlow';
-import { BookingPayment, PaymentStatus } from '@/features/student/payment/types';
+import { BookingPayment, PAYMENT_STATUS } from '@/features/student/payment/types';
 import { BookingType } from '@/features/shared/types/booking';
 import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 
@@ -147,7 +147,7 @@ export default function BookingModalWithPayment({
         basePrice,
         totalAmount,
         bookingType,
-        paymentStatus: PaymentStatus.PENDING,
+        paymentStatus: PAYMENT_STATUS.SCHEDULED,
         ...(bookingType === BookingType.STANDARD && {
           freeCancellationUntil: new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
         }),

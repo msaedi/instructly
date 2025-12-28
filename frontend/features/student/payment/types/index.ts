@@ -1,14 +1,5 @@
 // Payment types following A-Team's hybrid model
-
-export enum PaymentStatus {
-  PENDING = 'pending',
-  AUTHORIZED = 'authorized',
-  CAPTURED = 'captured',
-  LOCKED = 'locked',
-  FAILED = 'failed',
-  REFUNDED = 'refunded',
-  RELEASED = 'released',
-}
+export { PAYMENT_STATUS, type PaymentStatus } from '@/features/shared/types/paymentStatus';
 
 export enum PaymentMethod {
   CREDIT_CARD = 'credit_card',
@@ -23,7 +14,7 @@ export interface PaymentIntent {
   id: string;
   amount: number;
   currency: string;
-  status: PaymentStatus;
+  status: import('@/features/shared/types/paymentStatus').PaymentStatus;
   captureMethod: 'manual' | 'automatic';
   metadata: Record<string, unknown>;
 }
@@ -43,7 +34,7 @@ export interface BookingPayment {
   totalAmount: number;
 
   bookingType: import('@/features/shared/types/booking').BookingType;
-  paymentStatus: PaymentStatus;
+  paymentStatus: import('@/features/shared/types/paymentStatus').PaymentStatus;
   stripeIntentId?: string;
 
   // For mixed payments

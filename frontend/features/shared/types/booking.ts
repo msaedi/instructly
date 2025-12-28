@@ -1,4 +1,6 @@
 // Canonical booking-related shared types/constants used across features
+import type { PaymentStatus } from '@/features/shared/types/paymentStatus';
+export type { PaymentStatus } from '@/features/shared/types/paymentStatus';
 
 export enum BookingType {
   STANDARD = 'standard',
@@ -10,16 +12,6 @@ export const TRANSACTION_LIMITS = {
   MAX_TRANSACTION: 1000, // $1,000 max per transaction
   CREDIT_EXPIRY_MONTHS: 12,
 };
-
-export enum PaymentStatus {
-  PENDING = 'pending',
-  AUTHORIZED = 'authorized',
-  CAPTURED = 'captured',
-  LOCKED = 'locked',
-  FAILED = 'failed',
-  REFUNDED = 'refunded',
-  RELEASED = 'released',
-}
 
 export interface BookingPayment {
   bookingId: string;

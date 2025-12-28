@@ -1,6 +1,6 @@
 import { buildCreateBookingPayload } from '../buildCreateBookingPayload';
 import type { BookingPayment } from '../../types';
-import { PaymentStatus } from '../../types';
+import { PAYMENT_STATUS } from '../../types';
 import { BookingType } from '@/features/shared/types/booking';
 
 describe('buildCreateBookingPayload', () => {
@@ -17,7 +17,7 @@ describe('buildCreateBookingPayload', () => {
     basePrice: 80,
     totalAmount: 95,
     bookingType: BookingType.STANDARD,
-    paymentStatus: PaymentStatus.PENDING,
+    paymentStatus: PAYMENT_STATUS.SCHEDULED,
     metadata: {
       modality: 'remote',
     },

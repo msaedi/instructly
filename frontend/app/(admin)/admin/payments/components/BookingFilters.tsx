@@ -22,7 +22,7 @@ interface BookingFiltersProps {
 const quickFilters: { value: BookingFiltersState['quick_filter']; label: string }[] = [
   { value: 'needs_action', label: 'Needs Action' },
   { value: 'disputed', label: 'Disputed' },
-  { value: 'refunded', label: 'Refunded' },
+  { value: 'settled', label: 'Settled' },
 ];
 
 export default function BookingFilters({ filters, onChange }: BookingFiltersProps) {

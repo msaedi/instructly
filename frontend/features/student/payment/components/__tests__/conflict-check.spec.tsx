@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
 import PaymentConfirmation from '../PaymentConfirmation';
-import { PaymentMethod, PaymentStatus } from '../../types';
+import { PaymentMethod, PAYMENT_STATUS, type PaymentStatus } from '../../types';
 import { BookingType } from '@/features/shared/types/booking';
 
 const mockFetchBookingsList = jest.fn();
@@ -121,7 +121,7 @@ function createBooking(overrides: Partial<BookingWithMetadata> = {}): BookingWit
     basePrice: 80,
     totalAmount: 95,
     bookingType: BookingType.STANDARD,
-    paymentStatus: PaymentStatus.PENDING,
+    paymentStatus: PAYMENT_STATUS.SCHEDULED,
     metadata: { modality: 'remote' },
     ...overrides,
   };

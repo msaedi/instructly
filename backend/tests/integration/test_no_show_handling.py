@@ -451,5 +451,7 @@ class TestNoShowSettlement:
             )
 
         db.refresh(credit)
+        db.refresh(test_booking)
         assert credit.status == "forfeited"
         assert credit.reserved_amount_cents == 0
+        assert test_booking.settlement_outcome == "student_no_show_full_payout"

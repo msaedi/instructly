@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React, { useState } from 'react';
 import PaymentConfirmation from '../PaymentConfirmation';
-import { PaymentMethod, PaymentStatus, BookingType, type BookingPayment } from '../../types';
+import { PaymentMethod, PAYMENT_STATUS, BookingType, type BookingPayment } from '../../types';
 
 jest.mock('@/features/shared/api/client', () => ({
   protectedApi: {
@@ -69,7 +69,7 @@ const baseBooking: BookingPayment & { metadata?: Record<string, unknown> } = {
   basePrice: 90,
   totalAmount: 100,
   bookingType: BookingType.STANDARD,
-  paymentStatus: PaymentStatus.PENDING,
+  paymentStatus: PAYMENT_STATUS.SCHEDULED,
   metadata: { modality: 'in_person' },
 };
 
