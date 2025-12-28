@@ -2,6 +2,7 @@
 Tests for payment processing Celery tasks.
 """
 
+from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 import types
@@ -28,6 +29,7 @@ from app.tasks.payment_tasks import (
     capture_completed_lessons,
     capture_late_cancellation,
     check_authorization_health,
+    check_immediate_auth_timeout,
     create_new_authorization_and_capture,
     process_scheduled_authorizations,
     retry_failed_authorizations,
@@ -76,6 +78,11 @@ def _apply_utc_timezone_context(booking: Any) -> None:
     booking.lesson_timezone = "UTC"
     booking.instructor_tz_at_booking = "UTC"
     booking.student_tz_at_booking = "UTC"
+
+
+@contextmanager
+def _always_acquire_lock(*_args, **_kwargs):
+    yield True
 
 
 class TestPaymentTasks:
@@ -375,6 +382,8 @@ class TestPaymentTasks:
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
+        booking.auth_attempted_at = now - timedelta(hours=2)
+        booking.auth_failure_count = 1
         booking.total_price = 100.00
         booking.student_id = "student_123"
         booking.instructor_id = "instructor_123"
@@ -1020,6 +1029,52 @@ class TestPaymentTasks:
         mock_payment_repo.create_payment_event.assert_not_called()
 
     @patch("app.database.SessionLocal")
+    def test_process_scheduled_authorizations_uses_auth_scheduled_for(self, mock_session_local):
+        """Bookings with auth_scheduled_for in the past are processed even outside the window."""
+        mock_db = MagicMock()
+        mock_session_local.return_value = mock_db
+
+        booking = MagicMock(spec=Booking)
+        booking.id = str(ulid.ULID())
+        booking.status = BookingStatus.CONFIRMED
+        booking.payment_status = "scheduled"
+        booking.payment_method_id = "pm_due"
+        booking.student_id = "student_due"
+        booking.instructor_id = "instructor_due"
+
+        now = datetime.now(timezone.utc)
+        booking_datetime = now + timedelta(hours=30)
+        booking.booking_date = booking_datetime.date()
+        booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
+        booking.auth_scheduled_for = now - timedelta(minutes=5)
+
+        mock_payment_repo = MagicMock()
+        mock_booking_repo = MagicMock()
+        mock_booking_repo.get_bookings_for_payment_authorization.return_value = [booking]
+
+        with patch(
+            "app.tasks.payment_tasks.RepositoryFactory.get_payment_repository",
+            return_value=mock_payment_repo,
+        ):
+            with patch(
+                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository",
+                return_value=mock_booking_repo,
+            ):
+                with patch(
+                    "app.tasks.payment_tasks.booking_lock_sync",
+                    _always_acquire_lock,
+                ):
+                    with patch(
+                        "app.tasks.payment_tasks._process_authorization_for_booking",
+                        return_value={"success": True},
+                    ) as mock_process:
+                        result = process_scheduled_authorizations()
+
+        assert result["success"] == 1
+        mock_process.assert_called_once()
+
+    @patch("app.database.SessionLocal")
     def test_retry_failed_authorizations_t13_sends_warning_and_retries(
         self, mock_session_local
     ):
@@ -1040,9 +1095,8 @@ class TestPaymentTasks:
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
-        _apply_utc_timezone_context(booking)
-        _apply_utc_timezone_context(booking)
-        _apply_utc_timezone_context(booking)
+        booking.auth_attempted_at = now - timedelta(hours=2)
+        booking.auth_failure_count = 1
 
         # Setup query mock to return the booking for direct db.query() calls
         mock_db.query.return_value.filter.return_value.first.return_value = booking
@@ -1101,13 +1155,11 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=20)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
-
-        recent_event = MagicMock()
-        recent_event.event_type = "auth_retry_attempted"
-        recent_event.created_at = now - timedelta(minutes=10)
-
+        _apply_utc_timezone_context(booking)
+        booking.auth_attempted_at = now - timedelta(minutes=30)
+        booking.auth_failure_count = 1
         mock_payment_repo = MagicMock()
-        mock_payment_repo.get_payment_events_for_booking.return_value = [recent_event]
+        mock_payment_repo.get_payment_events_for_booking.return_value = []
 
         mock_booking_repo = MagicMock()
         mock_booking_repo.get_bookings_for_payment_retry.return_value = [booking]
@@ -1123,15 +1175,15 @@ class TestPaymentTasks:
                 with patch("app.tasks.payment_tasks.NotificationService"):
                     with patch("app.tasks.payment_tasks.StripeService"):
                         with patch(
-                            "app.tasks.payment_tasks.attempt_authorization_retry",
-                            return_value=True,
-                        ) as mock_attempt:
+                            "app.tasks.payment_tasks._process_retry_authorization",
+                            return_value={"success": True},
+                        ) as mock_retry:
                             result = retry_failed_authorizations()
 
         assert result["retried"] == 0
         assert result["success"] == 0
         assert result["failed"] == 0
-        mock_attempt.assert_not_called()
+        mock_retry.assert_not_called()
 
     def test_attempt_authorization_retry_credits_only(self):
         """Retry flow authorizes when credits cover the full student pay."""
@@ -1832,6 +1884,8 @@ class TestPaymentTasks:
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
+        booking.auth_attempted_at = now - timedelta(hours=2)
+        booking.auth_failure_count = 1
 
         mock_db.query.return_value.filter.return_value.first.return_value = booking
 
@@ -1856,8 +1910,8 @@ class TestPaymentTasks:
                 with patch("app.tasks.payment_tasks.NotificationService") as mock_notification:
                     with patch("app.tasks.payment_tasks.StripeService"):
                         with patch(
-                            "app.tasks.payment_tasks.attempt_authorization_retry",
-                            return_value=False,
+                            "app.tasks.payment_tasks._process_retry_authorization",
+                            return_value={"success": False},
                         ):
                             result = retry_failed_authorizations()
 
@@ -2341,6 +2395,8 @@ class TestPaymentTasks:
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
+        booking.auth_attempted_at = now - timedelta(hours=2)
+        booking.auth_failure_count = 1
 
         mock_db.query.return_value.filter.return_value.first.return_value = booking
 
@@ -2360,13 +2416,71 @@ class TestPaymentTasks:
             ):
                 with patch("app.tasks.payment_tasks.StripeService"):
                     with patch(
-                        "app.tasks.payment_tasks.attempt_authorization_retry",
-                        return_value=False,
+                        "app.tasks.payment_tasks._process_retry_authorization",
+                        return_value={"success": False},
                     ):
                         result = retry_failed_authorizations()
 
         assert result["retried"] == 1
         assert result["failed"] == 1
+
+    @patch("app.database.SessionLocal")
+    def test_check_immediate_auth_timeout_cancels_after_window(self, mock_session_local):
+        """Immediate auth failures are auto-cancelled after 30 minutes."""
+        mock_db = MagicMock()
+        mock_session_local.return_value = mock_db
+
+        booking = MagicMock(spec=Booking)
+        booking.id = str(ulid.ULID())
+        booking.status = BookingStatus.CONFIRMED
+        booking.payment_status = "auth_failed"
+        booking.auth_attempted_at = datetime.now(timezone.utc) - timedelta(minutes=31)
+        booking.booking_date = date.today() + timedelta(days=1)
+        booking.start_time = time(10, 0)
+        _apply_utc_timezone_context(booking)
+
+        mock_db.query.return_value.filter.return_value.first.return_value = booking
+
+        with patch("app.tasks.payment_tasks.booking_lock_sync", _always_acquire_lock):
+            with patch(
+                "app.tasks.payment_tasks.TimezoneService.hours_until",
+                return_value=10.0,
+            ):
+                with patch(
+                    "app.tasks.payment_tasks._cancel_booking_payment_failed",
+                    return_value=True,
+                ) as mock_cancel:
+                    result = check_immediate_auth_timeout(booking.id)
+
+        assert result["cancelled"] is True
+        mock_cancel.assert_called_once()
+
+    @patch("app.database.SessionLocal")
+    def test_check_immediate_auth_timeout_skips_within_window(self, mock_session_local):
+        """Immediate auth failures remain open during the 30-minute retry window."""
+        mock_db = MagicMock()
+        mock_session_local.return_value = mock_db
+
+        booking = MagicMock(spec=Booking)
+        booking.id = str(ulid.ULID())
+        booking.status = BookingStatus.CONFIRMED
+        booking.payment_status = "auth_failed"
+        booking.auth_attempted_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+        booking.booking_date = date.today() + timedelta(days=1)
+        booking.start_time = time(10, 0)
+        _apply_utc_timezone_context(booking)
+
+        mock_db.query.return_value.filter.return_value.first.return_value = booking
+
+        with patch("app.tasks.payment_tasks.booking_lock_sync", _always_acquire_lock):
+            with patch(
+                "app.tasks.payment_tasks._cancel_booking_payment_failed",
+            ) as mock_cancel:
+                result = check_immediate_auth_timeout(booking.id)
+
+        assert result["skipped"] is True
+        assert result["reason"] == "retry_window_open"
+        mock_cancel.assert_not_called()
 
     def test_attempt_authorization_retry_missing_connected_account(self):
         """Missing connected accounts fail retry attempts."""

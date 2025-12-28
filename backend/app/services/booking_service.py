@@ -1091,6 +1091,39 @@ class BookingService(BaseService):
 
         return booking
 
+    def _determine_auth_timing(self, lesson_start_at: datetime) -> Dict[str, Any]:
+        """
+        Determine authorization timing based on lesson start time.
+
+        Returns:
+            {
+                "immediate": bool,
+                "scheduled_for": datetime | None,
+                "initial_payment_status": str,
+                "hours_until_lesson": float,
+            }
+        """
+        if lesson_start_at.tzinfo is None:
+            lesson_start_at = lesson_start_at.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        hours_until_lesson = (lesson_start_at - now).total_seconds() / 3600
+
+        if hours_until_lesson >= 24:
+            scheduled_for = lesson_start_at - timedelta(hours=24)
+            return {
+                "immediate": False,
+                "scheduled_for": scheduled_for,
+                "initial_payment_status": "scheduled",
+                "hours_until_lesson": hours_until_lesson,
+            }
+
+        return {
+            "immediate": True,
+            "scheduled_for": None,
+            "initial_payment_status": "authorizing",
+            "hours_until_lesson": hours_until_lesson,
+        }
+
     @BaseService.measure_operation("confirm_booking_payment")
     def confirm_booking_payment(
         self,
@@ -1156,7 +1189,8 @@ class BookingService(BaseService):
 
             # Phase 2.2: Schedule authorization based on lesson timing (UTC)
             booking_start_utc = self._get_booking_start_utc(booking)
-            hours_until_lesson = TimezoneService.hours_until(booking_start_utc)
+            auth_timing = self._determine_auth_timing(booking_start_utc)
+            hours_until_lesson = auth_timing["hours_until_lesson"]
 
             is_gaming_reschedule = False
             hours_from_original: Optional[float] = None
@@ -1177,6 +1211,9 @@ class BookingService(BaseService):
             if is_gaming_reschedule:
                 # Gaming reschedule: authorize immediately to prevent delayed-auth loophole.
                 booking.payment_status = "authorizing"
+                booking.auth_scheduled_for = None
+                booking.auth_last_error = None
+                booking.auth_failure_count = 0
                 trigger_immediate_auth = True
                 immediate_auth_hours_until = hours_until_lesson
 
@@ -1193,9 +1230,12 @@ class BookingService(BaseService):
                     },
                 )
 
-            elif hours_until_lesson <= 24:
+            elif auth_timing["immediate"]:
                 # Lesson is within 24 hours - mark for immediate authorization by background task
                 booking.payment_status = "authorizing"
+                booking.auth_scheduled_for = None
+                booking.auth_last_error = None
+                booking.auth_failure_count = 0
 
                 # Create auth event; actual authorization is handled by worker
                 payment_repo = PaymentRepository(self.db)
@@ -1213,8 +1253,11 @@ class BookingService(BaseService):
 
             else:
                 # Lesson is >24 hours away - schedule authorization
-                auth_time = booking_start_utc - timedelta(hours=24)
+                auth_time = auth_timing["scheduled_for"]
                 booking.payment_status = "scheduled"
+                booking.auth_scheduled_for = auth_time
+                booking.auth_last_error = None
+                booking.auth_failure_count = 0
 
                 # Create scheduled event using repository
                 payment_repo = PaymentRepository(self.db)
@@ -1223,7 +1266,7 @@ class BookingService(BaseService):
                     event_type="auth_scheduled",
                     event_data={
                         "payment_method_id": payment_method_id,
-                        "scheduled_for": auth_time.isoformat(),
+                        "scheduled_for": auth_time.isoformat() if auth_time else None,
                         "hours_until_lesson": hours_until_lesson,
                     },
                 )
@@ -1312,6 +1355,147 @@ class BookingService(BaseService):
         except Exception:
             pass
         return booking
+
+    @BaseService.measure_operation("retry_authorization")
+    def retry_authorization(self, *, booking_id: str, user: User) -> Dict[str, Any]:
+        """
+        Retry payment authorization for a booking after failure.
+        """
+        from ..repositories.payment_repository import PaymentRepository
+        from ..services.stripe_service import StripeService
+
+        booking = self.repository.get_booking_with_details(booking_id)
+        if not booking:
+            raise NotFoundException("Booking not found")
+
+        if booking.student_id != user.id:
+            raise ForbiddenException("Only the student can retry payment authorization")
+
+        if booking.status == BookingStatus.CANCELLED:
+            raise BusinessRuleException("Booking has been cancelled")
+
+        if booking.payment_status not in {"auth_failed", "auth_retry_failed", "scheduled"}:
+            raise BusinessRuleException(f"Cannot retry payment in status: {booking.payment_status}")
+
+        payment_repo = PaymentRepository(self.db)
+        default_method = payment_repo.get_default_payment_method(user.id)
+        payment_method_id = (
+            default_method.stripe_payment_method_id
+            if default_method and default_method.stripe_payment_method_id
+            else booking.payment_method_id
+        )
+
+        if not payment_method_id:
+            raise ValidationException("No payment method available for retry")
+
+        stripe_service = StripeService(
+            self.db,
+            config_service=ConfigService(self.db),
+            pricing_service=PricingService(self.db),
+        )
+
+        ctx = stripe_service.build_charge_context(
+            booking_id=booking.id, requested_credit_cents=None
+        )
+
+        now = datetime.now(timezone.utc)
+        if ctx.student_pay_cents <= 0:
+            with self.transaction():
+                booking = self.repository.get_booking_with_details(booking_id)
+                if not booking:
+                    raise NotFoundException("Booking not found")
+                booking.payment_status = "authorized"
+                booking.auth_attempted_at = now
+                booking.auth_failure_count = 0
+                booking.auth_last_error = None
+                booking.payment_method_id = payment_method_id
+
+                payment_repo.create_payment_event(
+                    booking_id=booking.id,
+                    event_type="auth_retry_succeeded",
+                    event_data={
+                        "credits_applied_cents": ctx.applied_credit_cents,
+                        "authorized_at": now.isoformat(),
+                    },
+                )
+
+            return {
+                "success": True,
+                "payment_status": "authorized",
+                "failure_count": 0,
+            }
+
+        payment_intent_id = (
+            booking.payment_intent_id
+            if isinstance(booking.payment_intent_id, str)
+            and booking.payment_intent_id.startswith("pi_")
+            else None
+        )
+
+        stripe_error: Optional[str] = None
+        stripe_status: Optional[str] = None
+        try:
+            if payment_intent_id:
+                payment_record = stripe_service.confirm_payment_intent(
+                    payment_intent_id, payment_method_id
+                )
+                stripe_status = getattr(payment_record, "status", None)
+            else:
+                payment_intent = stripe_service.create_or_retry_booking_payment_intent(
+                    booking_id=booking.id,
+                    payment_method_id=payment_method_id,
+                    requested_credit_cents=None,
+                )
+                payment_intent_id = getattr(payment_intent, "id", None)
+                stripe_status = getattr(payment_intent, "status", None)
+        except Exception as exc:
+            stripe_error = str(exc)
+
+        success = stripe_status in {"requires_capture", "succeeded"}
+        with self.transaction():
+            booking = self.repository.get_booking_with_details(booking_id)
+            if not booking:
+                raise NotFoundException("Booking not found")
+
+            booking.payment_method_id = payment_method_id
+            booking.auth_attempted_at = now
+            booking.auth_scheduled_for = None
+
+            if success:
+                booking.payment_status = "authorized"
+                booking.payment_intent_id = payment_intent_id
+                booking.auth_failure_count = 0
+                booking.auth_last_error = None
+                payment_repo.create_payment_event(
+                    booking_id=booking.id,
+                    event_type="auth_retry_succeeded",
+                    event_data={
+                        "payment_intent_id": payment_intent_id,
+                        "authorized_at": now.isoformat(),
+                        "amount_cents": ctx.student_pay_cents,
+                        "application_fee_cents": ctx.application_fee_cents,
+                    },
+                )
+            else:
+                booking.payment_status = "auth_failed"
+                booking.auth_failure_count = int(getattr(booking, "auth_failure_count", 0) or 0) + 1
+                booking.auth_last_error = stripe_error or stripe_status or "authorization_failed"
+                payment_repo.create_payment_event(
+                    booking_id=booking.id,
+                    event_type="auth_retry_failed",
+                    event_data={
+                        "payment_intent_id": payment_intent_id,
+                        "error": booking.auth_last_error,
+                        "failed_at": now.isoformat(),
+                    },
+                )
+
+        return {
+            "success": success,
+            "payment_status": booking.payment_status,
+            "failure_count": booking.auth_failure_count,
+            "error": None if success else booking.auth_last_error,
+        }
 
     @BaseService.measure_operation("find_booking_opportunities")
     def find_booking_opportunities(

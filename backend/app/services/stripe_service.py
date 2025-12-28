@@ -20,7 +20,7 @@ Architecture:
 """
 
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 import logging
 from types import SimpleNamespace
@@ -490,6 +490,7 @@ class StripeService(BaseService):
         if payment_result["success"] and payment_result["status"] in [
             "succeeded",
             "requires_capture",
+            "scheduled",
         ]:
             booking.status = "CONFIRMED"
             # Set payment_status to reflect authorization state
@@ -2876,6 +2877,24 @@ class StripeService(BaseService):
                 if not connected_account or not connected_account.onboarding_completed:
                     raise ServiceException("Instructor payment account not set up")
 
+                booking_start_utc = booking.booking_start_utc
+                if not isinstance(booking_start_utc, datetime):
+                    booking_start_utc = datetime.combine(  # tz-pattern-ok: fallback for legacy
+                        booking.booking_date,
+                        booking.start_time,
+                        tzinfo=timezone.utc,
+                    )
+                elif booking_start_utc.tzinfo is None:
+                    booking_start_utc = booking_start_utc.replace(tzinfo=timezone.utc)
+
+                hours_until_lesson = (
+                    booking_start_utc - datetime.now(timezone.utc)
+                ).total_seconds() / 3600
+                immediate_auth = hours_until_lesson < 24
+                auth_scheduled_for = (
+                    booking_start_utc - timedelta(hours=24) if not immediate_auth else None
+                )
+
                 # Store IDs for Phase 2 (avoid holding ORM objects across phases)
                 student_id = booking.student_id
                 stripe_account_id = connected_account.stripe_account_id
@@ -2907,6 +2926,9 @@ class StripeService(BaseService):
                         except Exception:
                             pass
                         booking.payment_status = "authorized"
+                        booking.auth_attempted_at = datetime.now(timezone.utc)
+                        booking.auth_failure_count = 0
+                        booking.auth_last_error = None
 
                 return {
                     "success": True,
@@ -2928,49 +2950,126 @@ class StripeService(BaseService):
                 charge_context=charge_context,
             )
 
-            # Direct Stripe call - NO transaction held during network call
-            try:
-                stripe_intent = stripe.PaymentIntent.confirm(
-                    payment_record.stripe_payment_intent_id,
-                    payment_method=payment_method_id,
-                    return_url=f"{settings.frontend_url}/student/payment/complete",
-                )
-            except stripe.error.CardError as e:
-                raise ServiceException(f"Card error: {str(e)}")
+            stripe_error: Optional[str] = None
+            if immediate_auth:
+                # Direct Stripe call - NO transaction held during network call
+                try:
+                    stripe_intent = stripe.PaymentIntent.confirm(
+                        payment_record.stripe_payment_intent_id,
+                        payment_method=payment_method_id,
+                        return_url=f"{settings.frontend_url}/student/payment/complete",
+                    )
+                except stripe.error.CardError as e:
+                    stripe_intent = None
+                    stripe_error = str(e)
+                except Exception as e:
+                    stripe_intent = None
+                    stripe_error = str(e)
+            else:
+                stripe_intent = None
+                stripe_error = None
 
             # ========== PHASE 3: Write (quick transaction) ==========
             with self.transaction():
                 # Re-fetch booking to avoid stale ORM object
                 booking = self.booking_repository.get_by_id(booking_id)
                 if booking:
-                    # Persist updated status
-                    try:
-                        self.payment_repository.update_payment_status(
-                            payment_record.stripe_payment_intent_id, stripe_intent.status
-                        )
-                    except Exception:
-                        pass
-
-                    # Set booking payment_intent_id and payment_status for capture task
                     booking.payment_intent_id = payment_record.stripe_payment_intent_id
-                    if stripe_intent.status in {"requires_capture", "succeeded"}:
-                        booking.payment_status = "authorized"
+                    booking.payment_method_id = payment_method_id
 
-            requires_action = stripe_intent.status in [
-                "requires_action",
-                "requires_confirmation",
-            ]
-            client_secret = (
-                getattr(stripe_intent, "client_secret", None) if requires_action else None
+                    if immediate_auth:
+                        now = datetime.now(timezone.utc)
+                        if stripe_intent and stripe_intent.status in {
+                            "requires_capture",
+                            "succeeded",
+                        }:
+                            try:
+                                self.payment_repository.update_payment_status(
+                                    payment_record.stripe_payment_intent_id, stripe_intent.status
+                                )
+                            except Exception:
+                                pass
+                            booking.payment_status = "authorized"
+                            booking.auth_attempted_at = now
+                            booking.auth_failure_count = 0
+                            booking.auth_last_error = None
+                            booking.auth_scheduled_for = None
+                        else:
+                            booking.payment_status = "auth_failed"
+                            booking.auth_attempted_at = now
+                            booking.auth_failure_count = (
+                                int(getattr(booking, "auth_failure_count", 0) or 0) + 1
+                            )
+                            booking.auth_last_error = stripe_error or "authorization_failed"
+                            booking.auth_scheduled_for = None
+                    else:
+                        booking.payment_status = "scheduled"
+                        booking.auth_scheduled_for = auth_scheduled_for
+                        booking.auth_failure_count = 0
+                        booking.auth_last_error = None
+
+                        try:
+                            self.payment_repository.create_payment_event(
+                                booking_id=booking.id,
+                                event_type="auth_scheduled",
+                                event_data={
+                                    "payment_method_id": payment_method_id,
+                                    "scheduled_for": auth_scheduled_for.isoformat()
+                                    if auth_scheduled_for
+                                    else None,
+                                    "hours_until_lesson": hours_until_lesson,
+                                },
+                            )
+                        except Exception:
+                            pass
+
+            immediate_failed = immediate_auth and (
+                stripe_intent is None
+                or stripe_intent.status not in {"requires_capture", "succeeded"}
             )
+            if immediate_failed:
+                try:
+                    from app.tasks.payment_tasks import check_immediate_auth_timeout
+
+                    check_immediate_auth_timeout.apply_async(args=[booking_id], countdown=30 * 60)
+                except Exception:
+                    pass
+
+            if immediate_auth:
+                requires_action = stripe_intent is not None and stripe_intent.status in [
+                    "requires_action",
+                    "requires_confirmation",
+                ]
+                client_secret = (
+                    getattr(stripe_intent, "client_secret", None) if requires_action else None
+                )
+
+                if stripe_intent is None:
+                    return {
+                        "success": False,
+                        "payment_intent_id": payment_record.stripe_payment_intent_id,
+                        "status": "auth_failed",
+                        "amount": payment_record.amount,
+                        "application_fee": payment_record.application_fee,
+                        "client_secret": None,
+                    }
+
+                return {
+                    "success": stripe_intent.status in {"requires_capture", "succeeded"},
+                    "payment_intent_id": payment_record.stripe_payment_intent_id,
+                    "status": stripe_intent.status,
+                    "amount": payment_record.amount,
+                    "application_fee": payment_record.application_fee,
+                    "client_secret": client_secret,
+                }
 
             return {
                 "success": True,
                 "payment_intent_id": payment_record.stripe_payment_intent_id,
-                "status": stripe_intent.status,
+                "status": "scheduled",
                 "amount": payment_record.amount,
                 "application_fee": payment_record.application_fee,
-                "client_secret": client_secret,
+                "client_secret": None,
             }
 
         except Exception as e:

@@ -60,6 +60,7 @@ from ...schemas.booking import (
     NoShowDisputeResponse,
     NoShowReportRequest,
     NoShowReportResponse,
+    RetryPaymentResponse,
     UpcomingBookingResponse,
 )
 from ...schemas.booking_responses import BookingPreviewResponse, SendRemindersResponse
@@ -1103,5 +1104,41 @@ async def update_booking_payment_method(
             payment_data.set_as_default,
         )
         return BookingResponse.from_booking(booking)
+    except DomainException as e:
+        handle_domain_exception(e)
+
+
+@router.post(
+    "/{booking_id}/retry-payment",
+    response_model=RetryPaymentResponse,
+    dependencies=[Depends(new_rate_limit("payment"))],
+    responses={404: {"description": "Booking not found"}},
+)
+async def retry_payment_authorization(
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
+    current_user: User = Depends(get_current_active_user),
+    booking_service: BookingService = Depends(get_booking_service),
+) -> RetryPaymentResponse:
+    """
+    Retry payment authorization after a failed attempt.
+    """
+    try:
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            result = await asyncio.to_thread(
+                booking_service.retry_authorization,
+                booking_id=booking_id,
+                user=current_user,
+            )
+            return RetryPaymentResponse.model_validate(result)
     except DomainException as e:
         handle_domain_exception(e)

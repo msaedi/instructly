@@ -29,6 +29,7 @@ import stripe
 
 from app.core.booking_lock import booking_lock_sync
 from app.core.config import settings
+from app.core.exceptions import ServiceException
 from app.database import get_db
 from app.models.booking import Booking, BookingStatus
 from app.models.payment import PaymentEvent
@@ -206,6 +207,7 @@ def _process_authorization_for_booking(
     db1: Session = SessionLocal()
     phase1_error: str | None = None
     payment_method_id: str | None = None
+    existing_payment_intent_id: str | None = None
     try:
         booking = db1.query(Booking).filter(Booking.id == booking_id).first()
         if not booking:
@@ -224,6 +226,12 @@ def _process_authorization_for_booking(
             return {"success": False, "skipped": True, "reason": "not_eligible"}
 
         payment_repo = RepositoryFactory.get_payment_repository(db1)
+        existing_payment_intent_id = (
+            booking.payment_intent_id
+            if isinstance(booking.payment_intent_id, str)
+            and booking.payment_intent_id.startswith("pi_")
+            else None
+        )
 
         # Get student's Stripe customer
         student_customer = payment_repo.get_customer_by_user_id(booking.student_id)
@@ -283,20 +291,41 @@ def _process_authorization_for_booking(
                         "applied_credit_cents": ctx.applied_credit_cents,
                     }
                 else:
-                    # Make Stripe authorization call
-                    payment_intent = stripe_service.create_or_retry_booking_payment_intent(
-                        booking_id=booking_id,
-                        payment_method_id=payment_method_id,
-                        requested_credit_cents=None,
-                    )
+                    if not payment_method_id:
+                        raise ServiceException("Payment method required for authorization")
 
-                    stripe_result = {
-                        "success": True,
-                        "payment_intent_id": getattr(payment_intent, "id", None),
-                        "student_pay_cents": ctx.student_pay_cents,
-                        "application_fee_cents": ctx.application_fee_cents,
-                        "applied_credit_cents": ctx.applied_credit_cents,
-                    }
+                    if existing_payment_intent_id:
+                        payment_record = stripe_service.confirm_payment_intent(
+                            existing_payment_intent_id,
+                            payment_method_id,
+                        )
+                        payment_status = getattr(payment_record, "status", None)
+                        if payment_status not in {"requires_capture", "succeeded"}:
+                            raise ServiceException(
+                                f"Unexpected PaymentIntent status: {payment_status}"
+                            )
+                        stripe_result = {
+                            "success": True,
+                            "payment_intent_id": existing_payment_intent_id,
+                            "student_pay_cents": ctx.student_pay_cents,
+                            "application_fee_cents": ctx.application_fee_cents,
+                            "applied_credit_cents": ctx.applied_credit_cents,
+                        }
+                    else:
+                        # Make Stripe authorization call
+                        payment_intent = stripe_service.create_or_retry_booking_payment_intent(
+                            booking_id=booking_id,
+                            payment_method_id=payment_method_id,
+                            requested_credit_cents=None,
+                        )
+
+                        stripe_result = {
+                            "success": True,
+                            "payment_intent_id": getattr(payment_intent, "id", None),
+                            "student_pay_cents": ctx.student_pay_cents,
+                            "application_fee_cents": ctx.application_fee_cents,
+                            "applied_credit_cents": ctx.applied_credit_cents,
+                        }
 
                 db_stripe.commit()
             finally:
@@ -324,9 +353,14 @@ def _process_authorization_for_booking(
 
         payment_repo = RepositoryFactory.get_payment_repository(db3)
 
+        attempted_at = datetime.now(timezone.utc)
+
         if stripe_result.get("success"):
             if stripe_result.get("credits_only"):
                 booking.payment_status = "authorized"
+                booking.auth_attempted_at = attempted_at
+                booking.auth_failure_count = 0
+                booking.auth_last_error = None
                 payment_repo.create_payment_event(
                     booking_id=booking_id,
                     event_type="auth_succeeded_credits_only",
@@ -341,6 +375,9 @@ def _process_authorization_for_booking(
             else:
                 booking.payment_intent_id = stripe_result.get("payment_intent_id")
                 booking.payment_status = "authorized"
+                booking.auth_attempted_at = attempted_at
+                booking.auth_failure_count = 0
+                booking.auth_last_error = None
 
                 # Record metrics
                 if stripe_result.get("applied_credit_cents"):
@@ -368,6 +405,9 @@ def _process_authorization_for_booking(
         else:
             # Record failure
             booking.payment_status = "auth_failed"
+            booking.auth_attempted_at = attempted_at
+            booking.auth_failure_count = int(getattr(booking, "auth_failure_count", 0) or 0) + 1
+            booking.auth_last_error = stripe_result.get("error")
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="auth_failed",
@@ -385,6 +425,12 @@ def _process_authorization_for_booking(
         db3.commit()  # Commit and release lock immediately
     finally:
         db3.close()
+
+    if not stripe_result.get("success") and hours_until_lesson < 24:
+        try:
+            check_immediate_auth_timeout.apply_async(args=[booking_id], countdown=30 * 60)
+        except Exception:
+            pass
 
     return stripe_result
 
@@ -434,8 +480,18 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
             booking_start_utc = _get_booking_start_utc(booking)
             hours_until_lesson = TimezoneService.hours_until(booking_start_utc)
 
-            # Only process if in the 23.5-24.5 hour window
-            if 23.5 <= hours_until_lesson <= 24.5:
+            due_for_auth = False
+            if booking.payment_status == "scheduled":
+                scheduled_for = getattr(booking, "auth_scheduled_for", None)
+                if isinstance(scheduled_for, datetime):
+                    due_for_auth = scheduled_for <= now
+                else:
+                    # Legacy path: process if in the 23.5-24.5 hour window
+                    due_for_auth = 23.5 <= hours_until_lesson <= 24.5
+            elif booking.payment_status == "authorizing":
+                due_for_auth = hours_until_lesson <= 24
+
+            if due_for_auth:
                 booking_data.append(
                     {
                         "booking_id": booking.id,
@@ -715,11 +771,16 @@ def _process_retry_authorization(booking_id: str, hours_until_lesson: float) -> 
 
         payment_repo = RepositoryFactory.get_payment_repository(db3)
 
+        attempted_at = datetime.now(timezone.utc)
+
         if stripe_result.get("success"):
             booking.payment_intent_id = (
                 stripe_result.get("payment_intent_id") or booking.payment_intent_id
             )
             booking.payment_status = "authorized"
+            booking.auth_attempted_at = attempted_at
+            booking.auth_failure_count = 0
+            booking.auth_last_error = None
 
             payment_repo.create_payment_event(
                 booking_id=booking_id,
@@ -738,6 +799,9 @@ def _process_retry_authorization(booking_id: str, hours_until_lesson: float) -> 
             )
         else:
             booking.payment_status = "auth_retry_failed"
+            booking.auth_attempted_at = attempted_at
+            booking.auth_failure_count = int(getattr(booking, "auth_failure_count", 0) or 0) + 1
+            booking.auth_last_error = stripe_result.get("error")
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="auth_retry_failed",
@@ -759,13 +823,13 @@ def _process_retry_authorization(booking_id: str, hours_until_lesson: float) -> 
 @typed_task(bind=True, max_retries=5, name="app.tasks.payment_tasks.retry_failed_authorizations")
 def retry_failed_authorizations(self: Any) -> RetryJobResults:
     """
-    Retry failed payment authorizations at specific time windows.
+    Retry failed payment authorizations based on time since last attempt.
 
-    Retry windows:
-    - T-22hr: First retry
-    - T-20hr: Second retry
-    - T-18hr: Third retry
-    - T-13hr: Final warning email + retry
+    Retry schedule:
+    - After first failure: wait 1 hour
+    - After second failure: wait 4 hours
+    - After third+ failures: wait 8 hours
+    - T-13hr: Final warning email (and retry if eligible)
     - T-12hr: Cancel booking if still failing
 
     Uses 3-phase pattern to minimize lock contention:
@@ -809,7 +873,6 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
             if hours_until_lesson < 0:
                 continue
 
-            # Determine action
             if hours_until_lesson <= 12:
                 booking_actions.append(
                     {
@@ -818,38 +881,41 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
                         "action": "cancel",
                     }
                 )
-            elif hours_until_lesson <= 13:
+                continue
+
+            should_retry = _should_retry_auth(booking, now)
+
+            if hours_until_lesson <= 13:
                 has_warning = has_event_type(payment_repo, booking.id, "final_warning_sent")
+                if not has_warning:
+                    booking_actions.append(
+                        {
+                            "booking_id": booking.id,
+                            "hours_until_lesson": hours_until_lesson,
+                            "action": "warn_only",
+                            "needs_warning": True,
+                        }
+                    )
+
+                if should_retry:
+                    booking_actions.append(
+                        {
+                            "booking_id": booking.id,
+                            "hours_until_lesson": hours_until_lesson,
+                            "action": "retry_with_warning",
+                            "needs_warning": False,
+                        }
+                    )
+                continue
+
+            if should_retry:
                 booking_actions.append(
                     {
                         "booking_id": booking.id,
                         "hours_until_lesson": hours_until_lesson,
-                        "action": "retry_with_warning",
-                        "needs_warning": not has_warning,
+                        "action": "silent_retry",
                     }
                 )
-            elif 17 <= hours_until_lesson < 23:
-                # Check if in retry window
-                retry_windows = [18, 20, 22]
-                should_retry = any(abs(hours_until_lesson - w) < 0.5 for w in retry_windows)
-
-                if should_retry:
-                    recent_events = payment_repo.get_payment_events_for_booking(booking.id)
-                    recent_retry_times = [
-                        e.created_at
-                        for e in recent_events
-                        if e.event_type in ["auth_retry_attempted", "auth_retry_succeeded"]
-                        and (now - e.created_at).total_seconds() < 3600
-                    ]
-
-                    if not recent_retry_times:
-                        booking_actions.append(
-                            {
-                                "booking_id": booking.id,
-                                "hours_until_lesson": hours_until_lesson,
-                                "action": "silent_retry",
-                            }
-                        )
 
         db_read.commit()  # Release locks from read phase
     finally:
@@ -869,6 +935,37 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
                 if action == "cancel":
                     if _cancel_booking_payment_failed(booking_id, hours_until_lesson, now):
                         results["cancelled"] += 1
+
+                elif action == "warn_only":
+                    if action_data.get("needs_warning"):
+                        db_warn: Session = SessionLocal()
+                        try:
+                            booking = (
+                                db_warn.query(Booking).filter(Booking.id == booking_id).first()
+                            )
+                            if (
+                                booking
+                                and booking.status == BookingStatus.CONFIRMED
+                                and (booking.payment_status in ["auth_failed", "auth_retry_failed"])
+                            ):
+                                notification_service = NotificationService(db_warn)
+                                notification_service.send_final_payment_warning(
+                                    booking, hours_until_lesson
+                                )
+
+                                payment_repo = RepositoryFactory.get_payment_repository(db_warn)
+                                payment_repo.create_payment_event(
+                                    booking_id=booking_id,
+                                    event_type="final_warning_sent",
+                                    event_data={
+                                        "hours_until_lesson": round(hours_until_lesson, 1),
+                                        "sent_at": now.isoformat(),
+                                    },
+                                )
+                                results["warnings_sent"] += 1
+                            db_warn.commit()
+                        finally:
+                            db_warn.close()
 
                 elif action == "retry_with_warning":
                     # Send warning if needed (in separate transaction)
@@ -932,6 +1029,42 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
         f"{results['cancelled']} cancelled, {results['warnings_sent']} warnings sent"
     )
     return results
+
+
+@typed_task(name="app.tasks.payment_tasks.check_immediate_auth_timeout")
+def check_immediate_auth_timeout(booking_id: str) -> Dict[str, Any]:
+    """
+    Auto-cancel immediate auth failures after 30 minutes.
+    """
+    from app.database import SessionLocal
+
+    db: Session = SessionLocal()
+    now = datetime.now(timezone.utc)
+    try:
+        with booking_lock_sync(booking_id) as acquired:
+            if not acquired:
+                return {"skipped": True}
+
+            booking = db.query(Booking).filter(Booking.id == booking_id).first()
+            if not booking:
+                return {"error": "Booking not found"}
+
+            if booking.status == BookingStatus.CANCELLED:
+                return {"skipped": True, "reason": "cancelled"}
+
+            if booking.payment_status != "auth_failed":
+                return {"resolved": True}
+
+            attempted_at = getattr(booking, "auth_attempted_at", None)
+            if isinstance(attempted_at, datetime):
+                if (now - attempted_at).total_seconds() < 30 * 60:
+                    return {"skipped": True, "reason": "retry_window_open"}
+
+            hours_until_lesson = TimezoneService.hours_until(_get_booking_start_utc(booking))
+            cancelled = _cancel_booking_payment_failed(booking_id, hours_until_lesson, now)
+            return {"cancelled": cancelled}
+    finally:
+        db.close()
 
 
 def handle_authorization_failure(
@@ -1055,6 +1188,32 @@ def attempt_authorization_retry(
         booking.payment_status = "auth_retry_failed"
         logger.error(f"Retry failed for booking {booking.id}: {e}")
         return False
+
+
+def _should_retry_auth(booking: Booking, now: datetime) -> bool:
+    """
+    Determine if a failed authorization should be retried based on retry intervals.
+
+    Retry intervals (hours since last attempt):
+    - failure_count 1 -> 1 hour
+    - failure_count 2 -> 4 hours
+    - failure_count 3+ -> 8 hours
+    """
+    attempted_at = getattr(booking, "auth_attempted_at", None)
+    if not isinstance(attempted_at, datetime):
+        return True
+
+    hours_since_attempt = (now - attempted_at).total_seconds() / 3600
+    failure_count = int(getattr(booking, "auth_failure_count", 0) or 0)
+
+    if failure_count <= 1:
+        required_wait = 1
+    elif failure_count == 2:
+        required_wait = 4
+    else:
+        required_wait = 8
+
+    return hours_since_attempt >= required_wait
 
 
 def has_event_type(payment_repo: Any, booking_id: Union[int, str], event_type: str) -> bool:

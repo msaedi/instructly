@@ -2020,6 +2020,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bookings/{booking_id}/retry-payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Payment Authorization
+         * @description Retry payment authorization after a failed attempt.
+         */
+        post: operations["retry_payment_authorization_api_v1_bookings__booking_id__retry_payment_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/config/pricing": {
         parameters: {
             query?: never;
@@ -7587,6 +7607,14 @@ export type components = {
          *     Includes SetupIntent client_secret for collecting payment method.
          */
         BookingCreateResponse: {
+            /** Auth Attempted At */
+            auth_attempted_at?: string | null;
+            /** Auth Failure Count */
+            auth_failure_count?: number | null;
+            /** Auth Last Error */
+            auth_last_error?: string | null;
+            /** Auth Scheduled For */
+            auth_scheduled_for?: string | null;
             /**
              * Booking Date
              * Format: date
@@ -7808,6 +7836,14 @@ export type components = {
          *     Clean Architecture: No availability slot references.
          */
         BookingResponse: {
+            /** Auth Attempted At */
+            auth_attempted_at?: string | null;
+            /** Auth Failure Count */
+            auth_failure_count?: number | null;
+            /** Auth Last Error */
+            auth_last_error?: string | null;
+            /** Auth Scheduled For */
+            auth_scheduled_for?: string | null;
             /**
              * Booking Date
              * Format: date
@@ -12564,6 +12600,20 @@ export type components = {
              * @description Status of the retention policy application
              */
             status: string;
+        };
+        /**
+         * RetryPaymentResponse
+         * @description Response for retrying payment authorization.
+         */
+        RetryPaymentResponse: {
+            /** Error */
+            error?: string | null;
+            /** Failure Count */
+            failure_count: number;
+            /** Payment Status */
+            payment_status: string;
+            /** Success */
+            success: boolean;
         };
         /** ReviewItem */
         ReviewItem: {
@@ -18065,6 +18115,45 @@ export interface operations {
             };
             /** @description Time conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_payment_authorization_api_v1_bookings__booking_id__retry_payment_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Booking ULID */
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetryPaymentResponse"];
+                };
+            };
+            /** @description Booking not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

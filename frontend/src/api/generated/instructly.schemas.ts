@@ -1647,6 +1647,14 @@ export interface BookingCreate {
   timezone?: BookingCreateTimezone;
 }
 
+export type BookingCreateResponseAuthAttemptedAt = string | null;
+
+export type BookingCreateResponseAuthFailureCount = number | null;
+
+export type BookingCreateResponseAuthLastError = string | null;
+
+export type BookingCreateResponseAuthScheduledFor = string | null;
+
 export type BookingCreateResponseBookingEndUtc = string | null;
 
 export type BookingCreateResponseBookingStartUtc = string | null;
@@ -1732,6 +1740,10 @@ export type BookingCreateResponseStudentTimezone = string | null;
 Includes SetupIntent client_secret for collecting payment method.
  */
 export interface BookingCreateResponse {
+  auth_attempted_at?: BookingCreateResponseAuthAttemptedAt;
+  auth_failure_count?: BookingCreateResponseAuthFailureCount;
+  auth_last_error?: BookingCreateResponseAuthLastError;
+  auth_scheduled_for?: BookingCreateResponseAuthScheduledFor;
   booking_date: string;
   booking_end_utc?: BookingCreateResponseBookingEndUtc;
   booking_start_utc?: BookingCreateResponseBookingStartUtc;
@@ -1856,6 +1868,14 @@ export interface BookingRescheduleRequest {
   start_time: string;
 }
 
+export type BookingResponseAuthAttemptedAt = string | null;
+
+export type BookingResponseAuthFailureCount = number | null;
+
+export type BookingResponseAuthLastError = string | null;
+
+export type BookingResponseAuthScheduledFor = string | null;
+
 export type BookingResponseBookingEndUtc = string | null;
 
 export type BookingResponseBookingStartUtc = string | null;
@@ -1938,6 +1958,10 @@ Students see their own full information.
 Clean Architecture: No availability slot references.
  */
 export interface BookingResponse {
+  auth_attempted_at?: BookingResponseAuthAttemptedAt;
+  auth_failure_count?: BookingResponseAuthFailureCount;
+  auth_last_error?: BookingResponseAuthLastError;
+  auth_scheduled_for?: BookingResponseAuthScheduledFor;
   booking_date: string;
   booking_end_utc?: BookingResponseBookingEndUtc;
   booking_start_utc?: BookingResponseBookingStartUtc;
@@ -5417,6 +5441,18 @@ export interface RetentionPolicyResponse {
   stats: RetentionPolicyResponseStats;
   /** Status of the retention policy application */
   status: string;
+}
+
+export type RetryPaymentResponseError = string | null;
+
+/**
+ * Response for retrying payment authorization.
+ */
+export interface RetryPaymentResponse {
+  error?: RetryPaymentResponseError;
+  failure_count: number;
+  payment_status: string;
+  success: boolean;
 }
 
 export type ReviewItemReviewText = string | null;

@@ -141,6 +141,27 @@ class Booking(Base):
     payment_method_id = Column(String(255), nullable=True, comment="Stripe payment method ID")
     payment_intent_id = Column(String(255), nullable=True, comment="Current Stripe payment intent")
     payment_status = Column(String(50), nullable=True, comment="Computed from latest events")
+    auth_scheduled_for = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When authorization is scheduled to run (v2.1.1)",
+    )
+    auth_attempted_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Last time authorization was attempted (v2.1.1)",
+    )
+    auth_failure_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Authorization failure count (v2.1.1)",
+    )
+    auth_last_error = Column(
+        String(500),
+        nullable=True,
+        comment="Last authorization error (v2.1.1)",
+    )
     credits_reserved_cents = Column(
         Integer,
         nullable=False,

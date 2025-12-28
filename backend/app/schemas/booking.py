@@ -299,6 +299,15 @@ class NoShowDisputeResponse(StrictModel):
     requires_platform_review: bool
 
 
+class RetryPaymentResponse(StrictModel):
+    """Response for retrying payment authorization."""
+
+    success: bool
+    payment_status: str
+    failure_count: int
+    error: Optional[str] = None
+
+
 class BookingBase(StandardizedModel):
     """Base booking information - self-contained record."""
 
@@ -361,6 +370,11 @@ class BookingBase(StandardizedModel):
     instructor_payout_amount: Optional[int] = None
     refunded_to_card_amount: Optional[int] = None
     credits_reserved_cents: Optional[int] = None
+    # Authorization scheduling (v2.1.1)
+    auth_scheduled_for: Optional[datetime] = None
+    auth_attempted_at: Optional[datetime] = None
+    auth_failure_count: Optional[int] = None
+    auth_last_error: Optional[str] = None
     # LOCK mechanism fields (v2.1.1)
     locked_at: Optional[datetime] = None
     locked_amount_cents: Optional[int] = None
@@ -588,6 +602,10 @@ class BookingResponse(BookingBase):
             ),
             "refunded_to_card_amount": _safe_int(getattr(booking, "refunded_to_card_amount", None)),
             "credits_reserved_cents": _safe_int(getattr(booking, "credits_reserved_cents", None)),
+            "auth_scheduled_for": _safe_datetime(getattr(booking, "auth_scheduled_for", None)),
+            "auth_attempted_at": _safe_datetime(getattr(booking, "auth_attempted_at", None)),
+            "auth_failure_count": _safe_int(getattr(booking, "auth_failure_count", None)),
+            "auth_last_error": _safe_str(getattr(booking, "auth_last_error", None)),
             "locked_at": _safe_datetime(getattr(booking, "locked_at", None)),
             "locked_amount_cents": _safe_int(getattr(booking, "locked_amount_cents", None)),
             "lock_resolved_at": _safe_datetime(getattr(booking, "lock_resolved_at", None)),

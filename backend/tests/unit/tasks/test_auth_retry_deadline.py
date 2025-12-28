@@ -89,7 +89,7 @@ def test_retries_before_12h_deadline():
         _always_acquire_lock,
     ), patch(
         "app.tasks.payment_tasks.TimezoneService.hours_until",
-        return_value=13.0,
+        return_value=14.0,
     ), patch(
         "app.tasks.payment_tasks._process_retry_authorization",
         return_value={"success": True},

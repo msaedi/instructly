@@ -1519,6 +1519,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/bookings/{booking_id}/retry-payment": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["retry_payment_authorization_api_v1_bookings__booking_id__retry_payment_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/config/pricing": {
  parameters: {
  query?: never;
@@ -4690,6 +4706,10 @@ export type components = {
  timezone?: string | null;
  };
  BookingCreateResponse: {
+ auth_attempted_at?: string | null;
+ auth_failure_count?: number | null;
+ auth_last_error?: string | null;
+ auth_scheduled_for?: string | null;
  booking_date: string;
  booking_end_utc?: string | null;
  booking_start_utc?: string | null;
@@ -4776,6 +4796,10 @@ export type components = {
  start_time: string;
  };
  BookingResponse: {
+ auth_attempted_at?: string | null;
+ auth_failure_count?: number | null;
+ auth_last_error?: string | null;
+ auth_scheduled_for?: string | null;
  booking_date: string;
  booking_end_utc?: string | null;
  booking_start_utc?: string | null;
@@ -6185,6 +6209,12 @@ export type components = {
  [key: string]: unknown;
  };
  status: string;
+ };
+ RetryPaymentResponse: {
+ error?: string | null;
+ failure_count: number;
+ payment_status: string;
+ success: boolean;
  };
  ReviewItem: {
  created_at: string;
@@ -9850,6 +9880,41 @@ export interface operations {
  content?: never;
  };
  409: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ retry_payment_authorization_api_v1_bookings__booking_id__retry_payment_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RetryPaymentResponse"];
+ };
+ };
+ 404: {
  headers: {
  [name: string]: unknown;
  };

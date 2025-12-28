@@ -172,20 +172,20 @@ CELERYBEAT_SCHEDULE = {
         },
     },
     # ==================== PAYMENT PROCESSING TASKS ====================
-    # Process scheduled authorizations - runs every 30 minutes
+    # Process scheduled authorizations - runs every 5 minutes
     "process-scheduled-authorizations": {
         "task": "app.tasks.payment_tasks.process_scheduled_authorizations",
-        "schedule": crontab(minute="*/30"),  # Every 30 minutes
+        "schedule": crontab(minute="*/5"),  # Every 5 minutes
         "options": {
             "queue": "payments",
             "priority": 9,  # High priority - critical for payment processing
         },
         # Note: Authorize payments for bookings approaching 24-hour window
     },
-    # Retry failed authorizations - runs every 2 hours
+    # Retry failed authorizations - runs every 15 minutes
     "retry-failed-authorizations": {
         "task": "app.tasks.payment_tasks.retry_failed_authorizations",
-        "schedule": crontab(minute=0, hour="*/2"),  # Every 2 hours
+        "schedule": crontab(minute="*/15"),  # Every 15 minutes
         "options": {
             "queue": "payments",
             "priority": 8,

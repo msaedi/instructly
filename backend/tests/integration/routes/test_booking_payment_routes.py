@@ -30,6 +30,7 @@ def instructor_setup(db: Session, test_instructor: User):
     profile = db.query(InstructorProfile).filter_by(user_id=instructor.id).first()
     assert profile is not None, "Instructor profile not found"
     profile.min_advance_booking_hours = 0
+    profile.buffer_time_minutes = 0
     db.add(profile)
     db.commit()
     service = db.query(Service).filter_by(instructor_profile_id=profile.id, is_active=True).first()
@@ -74,7 +75,13 @@ def test_confirm_booking_payment_boundary_route(
         booking_date=booking_date,
         start_time=start_time,
         end_time=end_time,
-        **booking_timezone_fields(booking_date, start_time, end_time),
+        **booking_timezone_fields(
+            booking_date,
+            start_time,
+            end_time,
+            instructor_timezone="UTC",
+            student_timezone="UTC",
+        ),
         service_name="Boundary Test",
         hourly_rate=100.00,
         total_price=100.00,

@@ -45,6 +45,7 @@ import type {
   PaginatedResponseBookingResponse,
   PaginatedResponseUpcomingBookingResponse,
   PricingPreviewOut,
+  RetryPaymentResponse,
   SendRemindersResponse,
 } from '../instructly.schemas';
 
@@ -1930,6 +1931,91 @@ export const useRescheduleBookingApiV1BookingsBookingIdReschedulePost = <
 > => {
   const mutationOptions =
     getRescheduleBookingApiV1BookingsBookingIdReschedulePostMutationOptions(options);
+
+  return useMutation(mutationOptions, queryClient);
+};
+/**
+ * Retry payment authorization after a failed attempt.
+ * @summary Retry Payment Authorization
+ */
+export const retryPaymentAuthorizationApiV1BookingsBookingIdRetryPaymentPost = (
+  bookingId: string,
+  signal?: AbortSignal
+) => {
+  return customFetch<RetryPaymentResponse>({
+    url: `/api/v1/bookings/${bookingId}/retry-payment`,
+    method: 'POST',
+    signal,
+  });
+};
+
+export const getRetryPaymentAuthorizationApiV1BookingsBookingIdRetryPaymentPostMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof retryPaymentAuthorizationApiV1BookingsBookingIdRetryPaymentPost>>,
+    TError,
+    { bookingId: string },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof retryPaymentAuthorizationApiV1BookingsBookingIdRetryPaymentPost>>,
+  TError,
+  { bookingId: string },
+  TContext
+> => {
+  const mutationKey = ['retryPaymentAuthorizationApiV1BookingsBookingIdRetryPaymentPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof retryPaymentAuthorizationApiV1BookingsBookingIdRetryPaymentPost>>,
+    { bookingId: string }
+  > = (props) => {
+    const { bookingId } = props ?? {};
+
+    return retryPaymentAuthorizationApiV1BookingsBookingIdRetryPaymentPost(bookingId);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RetryPaymentAuthorizationApiV1BookingsBookingIdRetryPaymentPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof retryPaymentAuthorizationApiV1BookingsBookingIdRetryPaymentPost>>
+  >;
+
+export type RetryPaymentAuthorizationApiV1BookingsBookingIdRetryPaymentPostMutationError =
+  ErrorType<void | HTTPValidationError>;
+
+/**
+ * @summary Retry Payment Authorization
+ */
+export const useRetryPaymentAuthorizationApiV1BookingsBookingIdRetryPaymentPost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof retryPaymentAuthorizationApiV1BookingsBookingIdRetryPaymentPost>>,
+      TError,
+      { bookingId: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof retryPaymentAuthorizationApiV1BookingsBookingIdRetryPaymentPost>>,
+  TError,
+  { bookingId: string },
+  TContext
+> => {
+  const mutationOptions =
+    getRetryPaymentAuthorizationApiV1BookingsBookingIdRetryPaymentPostMutationOptions(options);
 
   return useMutation(mutationOptions, queryClient);
 };

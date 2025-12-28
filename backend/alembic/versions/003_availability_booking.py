@@ -178,6 +178,10 @@ def upgrade() -> None:
         sa.Column("payment_method_id", sa.String(255), nullable=True, comment="Stripe payment method ID"),
         sa.Column("payment_intent_id", sa.String(255), nullable=True, comment="Current Stripe payment intent"),
         sa.Column("payment_status", sa.String(50), nullable=True, comment="Computed from latest events"),
+        sa.Column("auth_scheduled_for", sa.DateTime(timezone=True), nullable=True, comment="When authorization is scheduled to run (v2.1.1)"),
+        sa.Column("auth_attempted_at", sa.DateTime(timezone=True), nullable=True, comment="Last time authorization was attempted (v2.1.1)"),
+        sa.Column("auth_failure_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Authorization failure count (v2.1.1)"),
+        sa.Column("auth_last_error", sa.String(500), nullable=True, comment="Last authorization error (v2.1.1)"),
         sa.Column(
             "credits_reserved_cents",
             sa.Integer(),

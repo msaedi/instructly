@@ -103,6 +103,7 @@ class TestBookingRoutes:
         mock_service.get_hours_until_start = Mock(return_value=48)
         mock_service.activate_lock_for_reschedule = Mock()
         mock_service.create_rescheduled_booking_with_locked_funds = Mock()
+        mock_service.retry_authorization = Mock()
 
         return mock_service
 
@@ -181,6 +182,32 @@ class TestBookingRoutes:
 
         # Verify service was called with correct parameters
         mock_booking_service.create_booking_with_payment_setup.assert_called_once()
+
+    def test_retry_payment_authorization_success(
+        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
+    ):
+        """Retry payment authorization returns success payload."""
+        booking_id = generate_ulid()
+        mock_booking_service.retry_authorization.return_value = {
+            "success": True,
+            "payment_status": "authorized",
+            "failure_count": 0,
+            "error": None,
+        }
+
+        response = client_with_mock_booking_service.post(
+            f"/api/v1/bookings/{booking_id}/retry-payment",
+            headers=auth_headers_student,
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        payload = response.json()
+        assert payload["success"] is True
+        assert payload["payment_status"] == "authorized"
+        assert payload["failure_count"] == 0
+
+        _, kwargs = mock_booking_service.retry_authorization.call_args
+        assert kwargs["booking_id"] == booking_id
 
     def test_create_booking_no_slot_id(self, client_with_mock_booking_service, auth_headers_student, booking_data):
         """Test that booking creation doesn't accept availability_slot_id."""
