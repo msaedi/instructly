@@ -1059,15 +1059,21 @@ async def confirm_booking_payment(
     Deprecated: use /api/v1/payments/checkout instead.
     """
     try:
-        booking = await asyncio.to_thread(
-            booking_service.confirm_booking_payment,
-            booking_id,
-            current_user,
-            payment_data.payment_method_id,
-            payment_data.save_payment_method,
-        )
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            booking = await asyncio.to_thread(
+                booking_service.confirm_booking_payment,
+                booking_id,
+                current_user,
+                payment_data.payment_method_id,
+                payment_data.save_payment_method,
+            )
 
-        return BookingResponse.from_booking(booking)
+            return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -1097,14 +1103,20 @@ async def update_booking_payment_method(
     - Retries authorization off-session (immediate if <24h)
     """
     try:
-        booking = await asyncio.to_thread(
-            booking_service.confirm_booking_payment,
-            booking_id,
-            current_user,
-            payment_data.payment_method_id,
-            payment_data.set_as_default,
-        )
-        return BookingResponse.from_booking(booking)
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            booking = await asyncio.to_thread(
+                booking_service.confirm_booking_payment,
+                booking_id,
+                current_user,
+                payment_data.payment_method_id,
+                payment_data.set_as_default,
+            )
+            return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
 
