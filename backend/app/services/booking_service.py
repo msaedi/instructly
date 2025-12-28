@@ -1550,7 +1550,7 @@ class BookingService(BaseService):
     def get_hours_until_start(self, booking: Booking) -> float:
         """Public helper: hours until booking start (UTC)."""
         booking_start_utc = self._get_booking_start_utc(booking)
-        return TimezoneService.hours_until(booking_start_utc)
+        return float(TimezoneService.hours_until(booking_start_utc))
 
     def _should_trigger_lock(self, booking: Booking, initiated_by: str) -> bool:
         """Return True when LOCK should activate for a reschedule."""
@@ -1562,7 +1562,7 @@ class BookingService(BaseService):
             return False
 
         booking_start_utc = self._get_booking_start_utc(booking)
-        hours_until_start = TimezoneService.hours_until(booking_start_utc)
+        hours_until_start = float(TimezoneService.hours_until(booking_start_utc))
         return 12 <= hours_until_start < 24
 
     @BaseService.measure_operation("activate_reschedule_lock")
