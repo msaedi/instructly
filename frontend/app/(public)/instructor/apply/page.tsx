@@ -21,9 +21,11 @@ const REFERRAL_OPTIONS = [
 ] as const;
 
 type FormErrorKey =
-  | 'fullName'
+  | 'firstName'
+  | 'lastName'
   | 'email'
   | 'phone'
+  | 'ageGroup'
   | 'category'
   | 'subcategory'
   | 'neighborhood'
@@ -52,7 +54,8 @@ export default function InstructorApplyPage() {
   const { data: categoriesData, isLoading: categoriesLoading } = useServiceCategories();
   const { data: servicesData, isLoading: servicesLoading } = useAllServicesWithInstructors();
 
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [category, setCategory] = useState('');
@@ -60,6 +63,8 @@ export default function InstructorApplyPage() {
   const [hourlyRate, setHourlyRate] = useState('');
   const [hasExistingClients, setHasExistingClients] = useState(false);
   const [referralSource, setReferralSource] = useState('');
+  const [teachesKids, setTeachesKids] = useState(false);
+  const [teachesAdults, setTeachesAdults] = useState(false);
   const [profile, setProfile] = useState<ProfileFormState>({
     first_name: '',
     last_name: '',
@@ -186,11 +191,13 @@ export default function InstructorApplyPage() {
 
   const validate = (): FormErrors => {
     const nextErrors: FormErrors = {};
-    if (!fullName.trim()) nextErrors.fullName = 'Full name is required.';
+    if (!firstName.trim()) nextErrors.firstName = 'First name is required.';
+    if (!lastName.trim()) nextErrors.lastName = 'Last name is required.';
     if (!email.trim()) nextErrors.email = 'Email is required.';
     else if (!emailPattern.test(email.trim())) nextErrors.email = 'Enter a valid email address.';
     if (!phone.trim()) nextErrors.phone = 'Phone number is required.';
     else if (phone.replace(/\D/g, '').length < 7) nextErrors.phone = 'Enter a valid phone number.';
+    if (!teachesKids && !teachesAdults) nextErrors.ageGroup = 'Select at least one age group.';
     if (!category) nextErrors.category = 'Select a service category.';
     if (!subcategory) nextErrors.subcategory = 'Select a subcategory.';
     if (!selectedNeighborhoodId) nextErrors.neighborhood = 'Select your primary neighborhood.';
@@ -225,7 +232,8 @@ export default function InstructorApplyPage() {
     try {
       const payload = {
         instructor: {
-          name: fullName.trim(),
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
           email: email.trim(),
           phone: phone.trim(),
           category,
@@ -235,6 +243,8 @@ export default function InstructorApplyPage() {
           hourly_rate: hourlyRate.trim().length > 0 ? Number(hourlyRate) : null,
           bio: profile.bio.trim() || null,
           has_existing_clients: hasExistingClients,
+          teaches_kids: teachesKids,
+          teaches_adults: teachesAdults,
         },
         referral_source: referralSource || null,
         source: 'founding_instructor_application',
@@ -284,26 +294,51 @@ export default function InstructorApplyPage() {
             <form onSubmit={handleSubmit} className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="full-name" className="block text-sm font-medium text-gray-700">
-                    Full Name <span className="text-rose-500">*</span>
+                  <label htmlFor="first-name" className="block text-sm font-medium text-gray-700">
+                    First Name <span className="text-rose-500">*</span>
                   </label>
                   <input
-                    id="full-name"
+                    id="first-name"
                     type="text"
-                    value={fullName}
+                    value={firstName}
                     onChange={(event) => {
-                      setFullName(event.target.value);
-                      clearError('fullName');
+                      setFirstName(event.target.value);
+                      clearError('firstName');
                     }}
                     required
                     className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white text-gray-900"
-                    placeholder="Jane Doe"
-                    aria-invalid={Boolean(errors.fullName)}
-                    aria-describedby={errors.fullName ? 'full-name-error' : undefined}
+                    placeholder="Jane"
+                    aria-invalid={Boolean(errors.firstName)}
+                    aria-describedby={errors.firstName ? 'first-name-error' : undefined}
                   />
-                  {errors.fullName && (
-                    <p id="full-name-error" className="mt-1 text-sm text-red-600">
-                      {errors.fullName}
+                  {errors.firstName && (
+                    <p id="first-name-error" className="mt-1 text-sm text-red-600">
+                      {errors.firstName}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="last-name" className="block text-sm font-medium text-gray-700">
+                    Last Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    id="last-name"
+                    type="text"
+                    value={lastName}
+                    onChange={(event) => {
+                      setLastName(event.target.value);
+                      clearError('lastName');
+                    }}
+                    required
+                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white text-gray-900"
+                    placeholder="Doe"
+                    aria-invalid={Boolean(errors.lastName)}
+                    aria-describedby={errors.lastName ? 'last-name-error' : undefined}
+                  />
+                  {errors.lastName && (
+                    <p id="last-name-error" className="mt-1 text-sm text-red-600">
+                      {errors.lastName}
                     </p>
                   )}
                 </div>
@@ -447,6 +482,46 @@ export default function InstructorApplyPage() {
                 {errors.subcategory && (
                   <p id="subcategory-error" className="mt-1 text-sm text-red-600">
                     {errors.subcategory}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <div className="bg-white rounded-lg p-4 border border-gray-200 dark:bg-gray-900/70 dark:border-gray-800/80">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                    Age Group <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="flex gap-2">
+                    {(['kids', 'adults'] as const).map((ageType) => {
+                      const isSelected = ageType === 'kids' ? teachesKids : teachesAdults;
+                      return (
+                        <button
+                          key={ageType}
+                          type="button"
+                          onClick={() => {
+                            if (ageType === 'kids') {
+                              setTeachesKids((prev) => !prev);
+                            } else {
+                              setTeachesAdults((prev) => !prev);
+                            }
+                            clearError('ageGroup');
+                          }}
+                          className={`flex-1 px-3 py-2 text-sm rounded-md transition-colors ${
+                            isSelected
+                              ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-700/80'
+                          }`}
+                          aria-pressed={isSelected}
+                        >
+                          {ageType === 'kids' ? 'Kids' : 'Adults'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {errors.ageGroup && (
+                  <p className="mt-2 text-sm text-red-600" id="age-group-error">
+                    {errors.ageGroup}
                   </p>
                 )}
               </div>
