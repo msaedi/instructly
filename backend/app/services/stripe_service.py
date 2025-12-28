@@ -35,8 +35,10 @@ from stripe._transfer import Transfer as StripeTransfer
 
 from ..constants.payment_status import map_payment_status
 from ..constants.pricing_defaults import PRICING_DEFAULTS
+from ..core.booking_lock import booking_lock_sync
 from ..core.config import settings
 from ..core.exceptions import ServiceException
+from ..models.booking import PaymentStatus
 from ..models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
@@ -495,7 +497,9 @@ class StripeService(BaseService):
             booking.status = "CONFIRMED"
             # Set payment_status to reflect authorization state
             if payment_result["status"] == "requires_capture":
-                booking.payment_status = "authorized"
+                booking.payment_status = PaymentStatus.AUTHORIZED.value
+            elif payment_result["status"] == "scheduled":
+                booking.payment_status = PaymentStatus.SCHEDULED.value
             booking_service.repository.flush()
             try:
                 booking_service.invalidate_booking_cache(booking)
@@ -1402,7 +1406,7 @@ class StripeService(BaseService):
                     instructor_payout_cents=context.target_instructor_payout_cents,
                 )
                 booking.payment_intent_id = mock_id
-                booking.payment_status = "authorized"
+                booking.payment_status = PaymentStatus.AUTHORIZED.value
                 return SimpleNamespace(id=mock_id, status="requires_payment_method")
             raise
 
@@ -1419,7 +1423,7 @@ class StripeService(BaseService):
 
         booking.payment_intent_id = stripe_intent.id
         if stripe_intent.status in {"requires_capture", "requires_confirmation", "succeeded"}:
-            booking.payment_status = "authorized"
+            booking.payment_status = PaymentStatus.AUTHORIZED.value
 
         return stripe_intent
 
@@ -2925,7 +2929,7 @@ class StripeService(BaseService):
                             )
                         except Exception:
                             pass
-                        booking.payment_status = "authorized"
+                        booking.payment_status = PaymentStatus.AUTHORIZED.value
                         booking.auth_attempted_at = datetime.now(timezone.utc)
                         booking.auth_failure_count = 0
                         booking.auth_last_error = None
@@ -2989,13 +2993,13 @@ class StripeService(BaseService):
                                 )
                             except Exception:
                                 pass
-                            booking.payment_status = "authorized"
+                            booking.payment_status = PaymentStatus.AUTHORIZED.value
                             booking.auth_attempted_at = now
                             booking.auth_failure_count = 0
                             booking.auth_last_error = None
                             booking.auth_scheduled_for = None
                         else:
-                            booking.payment_status = "auth_failed"
+                            booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
                             booking.auth_attempted_at = now
                             booking.auth_failure_count = (
                                 int(getattr(booking, "auth_failure_count", 0) or 0) + 1
@@ -3003,7 +3007,7 @@ class StripeService(BaseService):
                             booking.auth_last_error = stripe_error or "authorization_failed"
                             booking.auth_scheduled_for = None
                     else:
-                        booking.payment_status = "scheduled"
+                        booking.payment_status = PaymentStatus.SCHEDULED.value
                         booking.auth_scheduled_for = auth_scheduled_for
                         booking.auth_failure_count = 0
                         booking.auth_last_error = None
@@ -3543,6 +3547,11 @@ class StripeService(BaseService):
         """Handle Stripe charge events."""
         try:
             event_type = event.get("type", "")
+            if event_type == "charge.dispute.created":
+                return self._handle_dispute_created(event)
+            if event_type == "charge.dispute.closed":
+                return self._handle_dispute_closed(event)
+
             charge_data = event.get("data", {}).get("object", {})
             charge_id = charge_data.get("id")
 
@@ -3589,6 +3598,194 @@ class StripeService(BaseService):
         except Exception as e:
             self.logger.error(f"Error handling charge webhook: {str(e)}")
             return False
+
+    def _resolve_payment_intent_id_from_charge(self, charge_id: Optional[str]) -> Optional[str]:
+        if not charge_id or not self.stripe_configured:
+            return None
+        try:
+            charge_resource = getattr(stripe, "Charge", None)
+            if charge_resource is None:
+                return None
+            charge = charge_resource.retrieve(charge_id)
+            payment_intent_id = getattr(charge, "payment_intent", None)
+            if payment_intent_id is None and hasattr(charge, "get"):
+                payment_intent_id = charge.get("payment_intent")
+            return cast(Optional[str], payment_intent_id)
+        except Exception as exc:  # pragma: no cover - network path
+            self.logger.warning(
+                "Failed to resolve payment_intent from charge %s: %s", charge_id, exc
+            )
+            return None
+
+    def _handle_dispute_created(self, event: Dict[str, Any]) -> bool:
+        """Handle charge.dispute.created events."""
+        dispute = event.get("data", {}).get("object", {}) or {}
+        dispute_id = dispute.get("id")
+        payment_intent_id = dispute.get(
+            "payment_intent"
+        ) or self._resolve_payment_intent_id_from_charge(dispute.get("charge"))
+
+        if not payment_intent_id:
+            self.logger.warning("Dispute %s missing payment_intent", dispute_id)
+            return False
+
+        payment_record = self.payment_repository.get_payment_by_intent_id(payment_intent_id)
+        if not payment_record:
+            self.logger.warning(
+                "Dispute %s for unknown payment_intent %s", dispute_id, payment_intent_id
+            )
+            return False
+
+        booking = self.booking_repository.get_by_id(payment_record.booking_id)
+        if not booking:
+            self.logger.warning(
+                "Dispute %s for unknown booking %s", dispute_id, payment_record.booking_id
+            )
+            return False
+
+        with booking_lock_sync(booking.id) as acquired:
+            if not acquired:
+                self.logger.warning(
+                    "Dispute %s skipped due to lock for booking %s", dispute_id, booking.id
+                )
+                return False
+
+            transfer_id = booking.stripe_transfer_id
+            reversal_id: Optional[str] = None
+            reversal_error: Optional[str] = None
+
+            if transfer_id and not booking.transfer_reversed:
+                try:
+                    reversal = self.reverse_transfer(
+                        transfer_id=transfer_id,
+                        idempotency_key=f"dispute_reversal_{booking.id}",
+                        reason="dispute_opened",
+                    )
+                    reversal_payload = reversal.get("reversal")
+                    reversal_id = (
+                        reversal_payload.get("id")
+                        if isinstance(reversal_payload, dict)
+                        else getattr(reversal_payload, "id", None)
+                    )
+                except Exception as exc:
+                    reversal_error = str(exc)
+
+            with self.transaction():
+                booking = self.booking_repository.get_by_id(booking.id)
+                if not booking:
+                    return False
+
+                booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
+                booking.dispute_id = dispute_id
+                booking.dispute_status = dispute.get("status")
+                booking.dispute_amount = dispute.get("amount")
+                booking.dispute_created_at = datetime.now(timezone.utc)
+
+                if reversal_id:
+                    booking.transfer_reversed = True
+                    booking.transfer_reversal_id = reversal_id
+                elif reversal_error:
+                    booking.transfer_reversal_failed = True
+                    booking.transfer_reversal_error = reversal_error
+
+                from .credit_service import CreditService
+
+                credit_service = CreditService(self.db)
+                credit_service.freeze_credits_for_booking(
+                    booking_id=booking.id,
+                    reason=f"Dispute opened for booking {booking.id}",
+                    use_transaction=False,
+                )
+
+                try:
+                    self.payment_repository.create_payment_event(
+                        booking_id=booking.id,
+                        event_type="dispute_opened",
+                        event_data={
+                            "dispute_id": dispute_id,
+                            "payment_intent_id": payment_intent_id,
+                            "status": dispute.get("status"),
+                            "amount": dispute.get("amount"),
+                            "transfer_reversal_id": reversal_id,
+                            "transfer_reversal_error": reversal_error,
+                        },
+                    )
+                except Exception:
+                    pass
+
+        return True
+
+    def _handle_dispute_closed(self, event: Dict[str, Any]) -> bool:
+        """Handle charge.dispute.closed events."""
+        dispute = event.get("data", {}).get("object", {}) or {}
+        dispute_id = dispute.get("id")
+        payment_intent_id = dispute.get(
+            "payment_intent"
+        ) or self._resolve_payment_intent_id_from_charge(dispute.get("charge"))
+
+        if not payment_intent_id:
+            self.logger.warning("Dispute %s missing payment_intent", dispute_id)
+            return False
+
+        payment_record = self.payment_repository.get_payment_by_intent_id(payment_intent_id)
+        if not payment_record:
+            self.logger.warning(
+                "Dispute %s for unknown payment_intent %s", dispute_id, payment_intent_id
+            )
+            return False
+
+        booking = self.booking_repository.get_by_id(payment_record.booking_id)
+        if not booking:
+            self.logger.warning(
+                "Dispute %s for unknown booking %s", dispute_id, payment_record.booking_id
+            )
+            return False
+
+        status = dispute.get("status")
+
+        with booking_lock_sync(booking.id) as acquired:
+            if not acquired:
+                self.logger.warning(
+                    "Dispute %s skipped due to lock for booking %s", dispute_id, booking.id
+                )
+                return False
+
+            with self.transaction():
+                booking = self.booking_repository.get_by_id(booking.id)
+                if not booking:
+                    return False
+
+                booking.dispute_status = status
+                booking.dispute_resolved_at = datetime.now(timezone.utc)
+
+                from .credit_service import CreditService
+
+                credit_service = CreditService(self.db)
+
+                if status in {"won", "warning_closed"}:
+                    credit_service.unfreeze_credits_for_booking(
+                        booking_id=booking.id, use_transaction=False
+                    )
+                    booking.payment_status = PaymentStatus.SETTLED.value
+                    booking.settlement_outcome = "dispute_won"
+                elif status == "lost":
+                    booking.payment_status = PaymentStatus.SETTLED.value
+                    booking.settlement_outcome = "student_wins_dispute_full_refund"
+
+                try:
+                    self.payment_repository.create_payment_event(
+                        booking_id=booking.id,
+                        event_type="dispute_closed",
+                        event_data={
+                            "dispute_id": dispute_id,
+                            "payment_intent_id": payment_intent_id,
+                            "status": status,
+                        },
+                    )
+                except Exception:
+                    pass
+
+        return True
 
     def _handle_payout_webhook(self, event: Dict[str, Any]) -> bool:
         """Handle Stripe payout events for connected accounts."""

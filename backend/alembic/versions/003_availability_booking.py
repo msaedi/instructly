@@ -193,6 +193,18 @@ def upgrade() -> None:
         sa.Column("student_credit_amount", sa.Integer(), nullable=True, comment="Student credit issued in cents (v2.1.1)"),
         sa.Column("instructor_payout_amount", sa.Integer(), nullable=True, comment="Instructor payout in cents (v2.1.1)"),
         sa.Column("refunded_to_card_amount", sa.Integer(), nullable=True, comment="Refunded to card in cents (v2.1.1)"),
+        sa.Column("dispute_id", sa.String(100), nullable=True, comment="Stripe dispute id (v2.1.1)"),
+        sa.Column("dispute_status", sa.String(30), nullable=True, comment="Stripe dispute status (v2.1.1)"),
+        sa.Column("dispute_amount", sa.Integer(), nullable=True, comment="Dispute amount in cents (v2.1.1)"),
+        sa.Column("dispute_created_at", sa.DateTime(timezone=True), nullable=True, comment="Dispute opened at (v2.1.1)"),
+        sa.Column("dispute_resolved_at", sa.DateTime(timezone=True), nullable=True, comment="Dispute resolved at (v2.1.1)"),
+        sa.Column("stripe_transfer_id", sa.String(100), nullable=True, comment="Stripe transfer id (v2.1.1)"),
+        sa.Column("transfer_reversed", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="Transfer reversed (v2.1.1)"),
+        sa.Column("transfer_reversal_id", sa.String(100), nullable=True, comment="Stripe transfer reversal id (v2.1.1)"),
+        sa.Column("transfer_reversal_failed", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="Transfer reversal failed (v2.1.1)"),
+        sa.Column("transfer_reversal_error", sa.String(500), nullable=True, comment="Transfer reversal error (v2.1.1)"),
+        sa.Column("capture_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Capture failure timestamp (v2.1.1)"),
+        sa.Column("capture_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Capture retry count (v2.1.1)"),
         sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True, comment="When LOCK was activated (v2.1.1)"),
         sa.Column("locked_amount_cents", sa.Integer(), nullable=True, comment="Amount held under LOCK in cents (v2.1.1)"),
         sa.Column("lock_resolved_at", sa.DateTime(timezone=True), nullable=True, comment="When LOCK was resolved (v2.1.1)"),
@@ -250,6 +262,13 @@ def upgrade() -> None:
         "ck_bookings_location_type",
         "bookings",
         "location_type IN ('student_home', 'instructor_location', 'neutral', 'remote', 'online')",
+    )
+    op.create_check_constraint(
+        "ck_bookings_payment_status",
+        "bookings",
+        "payment_status IS NULL OR payment_status IN ("
+        "'scheduled','authorized','payment_method_required','manual_review','locked','settled'"
+        ")",
     )
     op.create_check_constraint(
         "check_duration_positive",
@@ -709,6 +728,7 @@ def downgrade() -> None:
     op.drop_constraint("check_rate_positive", "bookings", type_="check")
     op.drop_constraint("check_price_non_negative", "bookings", type_="check")
     op.drop_constraint("check_duration_positive", "bookings", type_="check")
+    op.drop_constraint("ck_bookings_payment_status", "bookings", type_="check")
     op.drop_constraint("ck_bookings_location_type", "bookings", type_="check")
     op.drop_constraint("ck_bookings_status", "bookings", type_="check")
 

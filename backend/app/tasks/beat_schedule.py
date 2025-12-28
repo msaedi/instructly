@@ -202,6 +202,16 @@ CELERYBEAT_SCHEDULE = {
         },
         # Note: Capture pre-authorized payments for completed lessons
     },
+    # Retry failed captures - runs every 4 hours
+    "retry-failed-captures": {
+        "task": "app.tasks.payment_tasks.retry_failed_captures",
+        "schedule": crontab(minute=0, hour="*/4"),  # Every 4 hours
+        "options": {
+            "queue": "payments",
+            "priority": 6,
+        },
+        # Note: Retry captures that failed after lesson completion
+    },
     # Payment system health check - runs every 15 minutes
     "payment-health-check": {
         "task": "app.tasks.payment_tasks.check_authorization_health",

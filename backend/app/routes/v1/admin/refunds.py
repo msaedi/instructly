@@ -70,7 +70,17 @@ async def admin_refund_booking(
                 detail="Booking has no payment to refund",
             )
 
-        if (booking.payment_status or "").lower() == "refunded":
+        if (
+            booking.refunded_to_card_amount
+            and booking.refunded_to_card_amount > 0
+            or (booking.settlement_outcome or "")
+            in {
+                "admin_refund",
+                "instructor_cancel_full_refund",
+                "instructor_no_show_full_refund",
+                "student_wins_dispute_full_refund",
+            }
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Booking already refunded",

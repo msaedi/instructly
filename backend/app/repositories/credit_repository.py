@@ -101,6 +101,28 @@ class CreditRepository(BaseRepository[PlatformCredit]):
             )
             raise RepositoryException("Failed to get reserved credits for booking") from exc
 
+    def get_credits_for_source_booking(
+        self,
+        *,
+        booking_id: str,
+        statuses: Optional[List[str]] = None,
+    ) -> List[PlatformCredit]:
+        """Return credits generated from the given booking."""
+        try:
+            query = self.db.query(PlatformCredit).filter(
+                PlatformCredit.source_booking_id == booking_id
+            )
+            if statuses:
+                query = query.filter(PlatformCredit.status.in_(statuses))
+            return cast(List[PlatformCredit], query.all())
+        except Exception as exc:
+            self.logger.error(
+                "Failed to get credits for source booking %s: %s",
+                booking_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to load source credits") from exc
+
     def get_total_available_credits(self, *, user_id: str) -> int:
         """Return total available credit balance in cents."""
         try:

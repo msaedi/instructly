@@ -12,7 +12,7 @@ from typing import List, Optional
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
-from ..models.booking import Booking, BookingStatus
+from ..models.booking import Booking, BookingStatus, PaymentStatus
 from ..models.payment import PaymentEvent
 
 
@@ -95,7 +95,7 @@ class PaymentMonitoringRepository:
             .filter(
                 and_(
                     Booking.status == BookingStatus.CONFIRMED,
-                    Booking.payment_status == "scheduled",
+                    Booking.payment_status == PaymentStatus.SCHEDULED.value,
                     Booking.booking_date <= as_of_date.date(),
                 )
             )

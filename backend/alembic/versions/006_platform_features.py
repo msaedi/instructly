@@ -570,6 +570,8 @@ def upgrade() -> None:
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("forfeited_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("frozen_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("frozen_reason", sa.String(500), nullable=True),
         sa.Column("status", sa.String(20), nullable=False, server_default="available"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),

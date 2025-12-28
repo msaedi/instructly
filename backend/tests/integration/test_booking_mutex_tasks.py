@@ -64,7 +64,7 @@ def test_retry_failed_authorizations_skips_locked_booking(db, test_booking):
         db,
         test_booking,
         status=BookingStatus.CONFIRMED,
-        payment_status="auth_failed",
+        payment_status = "payment_method_required",
         payment_method_id="pm_test",
         booking_start_utc=now + timedelta(hours=10),
     )

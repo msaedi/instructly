@@ -40,7 +40,7 @@ from ...core.enums import PermissionName
 from ...core.exceptions import DomainException, NotFoundException, ValidationException
 from ...dependencies.permissions import require_permission
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
-from ...models.booking import BookingStatus
+from ...models.booking import BookingStatus, PaymentStatus
 from ...models.user import User
 from ...ratelimit.dependency import rate_limit as new_rate_limit
 from ...schemas.base_responses import PaginatedResponse
@@ -795,14 +795,15 @@ async def reschedule_booking(
             raw_payment_status = getattr(original, "payment_status", None)
             normalized_payment_status = raw_payment_status
             if raw_payment_status == "requires_capture":
-                normalized_payment_status = "authorized"
+                normalized_payment_status = PaymentStatus.AUTHORIZED.value
             elif raw_payment_status == "succeeded":
-                normalized_payment_status = "captured"
+                normalized_payment_status = PaymentStatus.SETTLED.value
             reuse_payment = (
                 isinstance(raw_payment_intent_id, str)
                 and raw_payment_intent_id.startswith("pi_")
                 and isinstance(normalized_payment_status, str)
-                and normalized_payment_status in {"authorized", "captured"}
+                and normalized_payment_status
+                in {PaymentStatus.AUTHORIZED.value, PaymentStatus.SETTLED.value}
             )
 
             initiator_role = "student" if current_user.id == original.student_id else "instructor"

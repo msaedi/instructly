@@ -1375,7 +1375,7 @@ class TestBookingRoutes:
         original.student_note = "Bring sheet music"
         original.instructor_note = None
         original.payment_intent_id = "pi_test123"
-        original.payment_status = "captured"
+        original.payment_status = "settled"
         original.payment_method_id = "pm_test123"
         original.student = Mock(id=generate_ulid(), first_name="Stu", last_name="Dent", email="s@example.com")
         original.instructor = Mock(id=generate_ulid(), first_name="Ins", last_name="Tructor", email="i@example.com")

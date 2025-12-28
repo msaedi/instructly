@@ -119,7 +119,7 @@ def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         total_price=100.0,
         duration_minutes=60,
         status=BookingStatus.PENDING,
-        payment_status="pending_payment_method",
+        payment_status = "payment_method_required",
         offset_index=0,
     )
     def _authorize_now(booking_id: str, _hours_until: float):
@@ -170,7 +170,7 @@ def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         total_price=100.0,
         duration_minutes=duration_minutes,
         status=BookingStatus.PENDING,
-        payment_status="pending_payment_method",
+        payment_status = "payment_method_required",
         offset_index=2,
     )
     c2 = svc.confirm_booking_payment(b2.id, student, "pm_x", False)

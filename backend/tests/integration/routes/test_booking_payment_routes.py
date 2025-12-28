@@ -87,7 +87,7 @@ def test_confirm_booking_payment_boundary_route(
         total_price=100.00,
         duration_minutes=60,
         status=BookingStatus.PENDING,
-        payment_status="pending_payment_method",
+        payment_status = "payment_method_required",
     )
     db.add(booking)
     db.commit()
@@ -331,7 +331,7 @@ class TestBookingPaymentRoutes:
         booking = db.query(Booking).filter_by(id=data["id"]).first()
         assert booking is not None
         assert booking.status == BookingStatus.PENDING
-        assert booking.payment_status == "pending_payment_method"
+        assert booking.payment_status == "payment_method_required"
         assert booking.payment_intent_id is None
 
     def test_create_booking_invalid_duration(
@@ -452,7 +452,7 @@ class TestBookingPaymentRoutes:
             total_price=100.00,
             duration_minutes=60,
             status=BookingStatus.PENDING,
-            payment_status="pending_payment_method",
+            payment_status = "payment_method_required",
         )
         db.add(booking)
         db.commit()  # Need to commit, not just flush
@@ -529,7 +529,7 @@ class TestBookingPaymentRoutes:
             total_price=100.00,
             duration_minutes=60,
             status=BookingStatus.PENDING,
-            payment_status="pending_payment_method",
+            payment_status = "payment_method_required",
         )
         db.add(booking)
         db.commit()  # Need to commit, not just flush

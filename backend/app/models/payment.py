@@ -238,11 +238,21 @@ class PlatformCredit(Base):
         nullable=True,
         comment="When credit was forfeited (v2.1.1)",
     )
+    frozen_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When credit was frozen (v2.1.1)",
+    )
+    frozen_reason: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Reason credit was frozen (v2.1.1)",
+    )
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
         default="available",
-        comment="Credit status: available, reserved, forfeited, expired (v2.1.1)",
+        comment="Credit status: available, reserved, forfeited, expired, frozen (v2.1.1)",
     )
 
     # Timestamps
@@ -266,6 +276,8 @@ class PlatformCredit(Base):
     def is_expired(self) -> bool:
         """Check if the credit has expired."""
         if getattr(self, "status", None) == "reserved":
+            return False
+        if getattr(self, "status", None) == "frozen":
             return False
         if getattr(self, "status", None) == "expired":
             return True

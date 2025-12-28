@@ -30,7 +30,7 @@ from sqlalchemy.orm import Query, Session, aliased, joinedload
 from ..core.enums import RoleName
 from ..core.exceptions import NotFoundException, RepositoryException
 from ..core.timezone_utils import get_user_now_by_id, get_user_today_by_id
-from ..models.booking import Booking, BookingStatus
+from ..models.booking import Booking, BookingStatus, PaymentStatus
 from ..models.user import User
 from .base_repository import BaseRepository
 from .cached_repository_mixin import CachedRepositoryMixin, cached_method
@@ -932,8 +932,25 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     filters = []
                     if "pending" in cleaned:
                         filters.append(Booking.payment_status.is_(None))
-                        filters.append(func.lower(Booking.payment_status) == "pending")
+                        filters.append(
+                            func.lower(Booking.payment_status)
+                            == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+                        )
                         cleaned = [status for status in cleaned if status != "pending"]
+                    if "refunded" in cleaned:
+                        refund_outcomes = {
+                            "admin_refund",
+                            "instructor_cancel_full_refund",
+                            "instructor_no_show_full_refund",
+                            "student_wins_dispute_full_refund",
+                        }
+                        filters.append(
+                            and_(
+                                func.lower(Booking.payment_status) == PaymentStatus.SETTLED.value,
+                                Booking.settlement_outcome.in_(refund_outcomes),
+                            )
+                        )
+                        cleaned = [status for status in cleaned if status != "refunded"]
                     if cleaned:
                         filters.append(func.lower(Booking.payment_status).in_(cleaned))
                     query = query.filter(or_(*filters))
@@ -1250,7 +1267,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         Booking.no_show_disputed.is_(None),
                     ),
                     Booking.no_show_resolved_at.is_(None),
-                    Booking.payment_status == "manual_review",
+                    Booking.payment_status == PaymentStatus.MANUAL_REVIEW.value,
                 )
                 .order_by(Booking.no_show_reported_at.asc())
             )
@@ -1363,7 +1380,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .filter(
                     and_(
                         Booking.status == BookingStatus.CONFIRMED,
-                        Booking.payment_status.in_(["scheduled", "authorizing"]),
+                        Booking.payment_status == PaymentStatus.SCHEDULED.value,
                         Booking.payment_method_id.isnot(None),
                     )
                 )
@@ -1379,7 +1396,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
         Returns bookings that are:
         - Status: CONFIRMED
-        - Payment status: auth_failed or auth_retry_failed
+        - Payment status: payment_method_required (auth failures only)
         - Have payment method ID
         """
         try:
@@ -1389,7 +1406,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .filter(
                     and_(
                         Booking.status == BookingStatus.CONFIRMED,
-                        Booking.payment_status.in_(["auth_failed", "auth_retry_failed"]),
+                        Booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+                        Booking.capture_failed_at.is_(None),
                         Booking.payment_method_id.isnot(None),
                     )
                 )
@@ -1418,7 +1436,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         Booking.status == BookingStatus.COMPLETED,
                         or_(
                             and_(
-                                Booking.payment_status == "authorized",
+                                Booking.payment_status == PaymentStatus.AUTHORIZED.value,
                                 Booking.payment_intent_id.isnot(None),
                             ),
                             and_(
@@ -1453,7 +1471,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         Booking.status == BookingStatus.CONFIRMED,
                         or_(
                             and_(
-                                Booking.payment_status == "authorized",
+                                Booking.payment_status == PaymentStatus.AUTHORIZED.value,
                                 Booking.payment_intent_id.isnot(None),
                             ),
                             and_(
@@ -1483,7 +1501,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 self.db.query(Booking)
                 .filter(
                     and_(
-                        Booking.payment_status == "authorized",
+                        Booking.payment_status == PaymentStatus.AUTHORIZED.value,
                         Booking.payment_intent_id.isnot(None),
                     )
                 )
@@ -1509,7 +1527,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .filter(
                     and_(
                         Booking.status == BookingStatus.CONFIRMED,
-                        Booking.payment_status == "scheduled",
+                        Booking.payment_status == PaymentStatus.SCHEDULED.value,
                         Booking.booking_date <= current_date,
                     )
                 )

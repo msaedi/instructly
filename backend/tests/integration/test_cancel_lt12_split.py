@@ -240,7 +240,7 @@ def test_payment_events_logged(lt12_booking, db: Session):
         "app.services.stripe_service.StripeService.reverse_transfer"
     ), patch(
         "app.services.stripe_service.StripeService.create_manual_transfer"
-    ), patch(
+    ) as mock_transfer, patch(
         "app.repositories.payment_repository.PaymentRepository.create_payment_event"
     ) as mock_events, patch(
         "app.repositories.payment_repository.PaymentRepository.create_platform_credit"
@@ -250,6 +250,7 @@ def test_payment_events_logged(lt12_booking, db: Session):
             "amount_received": 13440,
             "transfer_amount": 10560,
         }
+        mock_transfer.return_value = {"transfer_id": "tr_payout"}
         service.cancel_booking(booking.id, user=student, reason="test")
 
     event_types = [kwargs.get("event_type") for _, kwargs in mock_events.call_args_list]

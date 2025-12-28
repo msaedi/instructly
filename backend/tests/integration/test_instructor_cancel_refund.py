@@ -120,7 +120,7 @@ def test_refund_when_captured(db: Session):
     student = _create_student(db)
     when = datetime.combine(date.today() + timedelta(days=1), time(14, 0))
     booking = _create_booking(db, student, instructor, svc, when)
-    booking.payment_status = "captured"
+    booking.payment_status = "settled"
     db.commit()
 
     service = BookingService(db)
@@ -133,7 +133,8 @@ def test_refund_when_captured(db: Session):
         mock_refund.return_value = {"refund_id": "re_test", "amount_refunded": 10000}
         result = service.cancel_booking(booking.id, user=instructor, reason="test")
 
-    assert result.payment_status == "refunded"
+    assert result.payment_status == "settled"
+    assert result.settlement_outcome == "instructor_cancel_full_refund"
     assert result.settlement_outcome == "instructor_cancel_full_refund"
     assert result.student_credit_amount == 0
     assert result.instructor_payout_amount == 0
@@ -164,7 +165,7 @@ def test_release_auth_when_not_captured(db: Session):
     ) as mock_credit_service:
         result = service.cancel_booking(booking.id, user=instructor, reason="test")
 
-    assert result.payment_status == "released"
+    assert result.payment_status == "settled"
     assert result.settlement_outcome == "instructor_cancel_full_refund"
     assert result.student_credit_amount == 0
     assert result.instructor_payout_amount == 0

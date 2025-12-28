@@ -21,7 +21,7 @@ def _make_booking() -> Booking:
     booking = MagicMock(spec=Booking)
     booking.id = str(ulid.ULID())
     booking.status = BookingStatus.CONFIRMED
-    booking.payment_status = "auth_failed"
+    booking.payment_status = "payment_method_required"
     booking.payment_method_id = "pm_deadline"
     booking.student_id = "student_deadline"
     booking.instructor_id = "instructor_deadline"

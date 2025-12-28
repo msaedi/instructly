@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ServiceException
 from app.models.audit_log import AuditLog
-from app.models.booking import Booking, BookingStatus
+from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.payment import PaymentEvent, PaymentIntent
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
@@ -270,7 +270,17 @@ class AdminBookingService(BaseService):
         if refund:
             if not booking.payment_intent_id:
                 raise ServiceException("Booking has no payment to refund", code="invalid_request")
-            if (booking.payment_status or "").lower() == "refunded":
+            if (
+                booking.refunded_to_card_amount
+                and booking.refunded_to_card_amount > 0
+                or (booking.settlement_outcome or "")
+                in {
+                    "admin_refund",
+                    "instructor_cancel_full_refund",
+                    "instructor_no_show_full_refund",
+                    "student_wins_dispute_full_refund",
+                }
+            ):
                 raise ServiceException("Booking already refunded", code="invalid_request")
             amount_cents = self._resolve_full_refund_cents(booking)
             if amount_cents <= 0:
@@ -314,7 +324,10 @@ class AdminBookingService(BaseService):
                 )
 
             if refund:
-                booking.payment_status = "refunded"
+                booking.payment_status = PaymentStatus.SETTLED.value
+                booking.settlement_outcome = "admin_refund"
+                if amount_cents is not None:
+                    booking.refunded_to_card_amount = amount_cents
 
             audit_after = redact(booking.to_dict()) or {}
             audit_after["payment_status"] = booking.payment_status

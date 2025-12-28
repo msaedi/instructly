@@ -3101,7 +3101,7 @@ class TestStripeService:
 
         assert result["success"] is False
         assert result["status"] == "auth_failed"
-        assert test_booking.payment_status == "auth_failed"
+        assert test_booking.payment_status == "payment_method_required"
 
     def test_process_booking_payment_update_status_failure(
         self, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple

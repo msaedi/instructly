@@ -5,7 +5,7 @@ Integration tests for fresh-read guardrails in payment tasks and cancel flow.
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from app.models.booking import BookingStatus
+from app.models.booking import BookingStatus, PaymentStatus
 from app.tasks.payment_tasks import (
     _process_authorization_for_booking,
     _process_capture_for_booking,
@@ -67,7 +67,7 @@ def test_capture_task_skips_disputed_booking(db, test_booking):
         db,
         test_booking,
         status=BookingStatus.COMPLETED,
-        payment_status="disputed",
+        payment_status=PaymentStatus.MANUAL_REVIEW.value,
         payment_intent_id="pi_test",
     )
     result = _process_capture_for_booking(test_booking.id, "test")
@@ -80,7 +80,7 @@ def test_capture_task_skips_already_captured_booking(db, test_booking):
         db,
         test_booking,
         status=BookingStatus.COMPLETED,
-        payment_status="captured",
+        payment_status = "settled",
         payment_intent_id="pi_test",
     )
     result = _process_capture_for_booking(test_booking.id, "test")

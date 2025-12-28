@@ -166,6 +166,46 @@ class TestBookingServiceAccountStatus:
         assert "cannot receive bookings" in str(exc_info.value)
 
     @pytest.mark.asyncio
+    async def test_create_booking_with_locked_student(
+        self, db: Session, test_instructor_with_availability: User, test_student: User, mock_notification_service
+    ):
+        """Locked students cannot create new bookings."""
+        test_student.account_locked = True
+        db.commit()
+
+        profile = test_instructor_with_availability.instructor_profile
+        service = next((s for s in profile.instructor_services if s.is_active), None)
+
+        tomorrow = date.today() + timedelta(days=1)
+        windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+        if not windows:
+            seed_day(db, test_instructor_with_availability.id, tomorrow, [("09:00", "12:00")])
+            windows = get_day_windows(db, test_instructor_with_availability.id, tomorrow)
+
+        start_str, _ = windows[0]
+        from datetime import time as dt_time
+
+        start_time = dt_time.fromisoformat(start_str)
+
+        booking_service = BookingService(db, mock_notification_service)
+        booking_data = BookingCreate(
+            instructor_id=test_instructor_with_availability.id,
+            instructor_service_id=service.id,
+            booking_date=tomorrow,
+            start_time=start_time,
+            selected_duration=60,
+            end_time=time(start_time.hour + 1, start_time.minute),
+            location_type="neutral",
+            meeting_location="Online",
+            student_note="Test booking",
+        )
+
+        with pytest.raises(BusinessRuleException) as exc_info:
+            await asyncio.to_thread(booking_service.create_booking, test_student, booking_data, 60)
+
+        assert "account is locked" in str(exc_info.value).lower()
+
+    @pytest.mark.asyncio
     async def test_create_booking_with_active_instructor_succeeds(
         self, db: Session, test_instructor_with_availability: User, test_student: User, mock_notification_service
     ):

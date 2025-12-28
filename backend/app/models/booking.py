@@ -65,6 +65,27 @@ class BookingStatus(str, Enum):
         return None
 
 
+class PaymentStatus(str, Enum):
+    """Canonical payment statuses per v2.1.1 policy."""
+
+    SCHEDULED = "scheduled"
+    AUTHORIZED = "authorized"
+    PAYMENT_METHOD_REQUIRED = "payment_method_required"
+    MANUAL_REVIEW = "manual_review"
+    LOCKED = "locked"
+    SETTLED = "settled"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "PaymentStatus | None":
+        """Handle case-insensitive enum lookup."""
+        if isinstance(value, str):
+            lower_value = value.lower()
+            for member in cls:
+                if member.value == lower_value:
+                    return member
+        return None
+
+
 class LocationType(str, Enum):
     """Where the lesson will take place."""
 
@@ -140,7 +161,11 @@ class Booking(Base):
     # Payment fields (Phase 1.2)
     payment_method_id = Column(String(255), nullable=True, comment="Stripe payment method ID")
     payment_intent_id = Column(String(255), nullable=True, comment="Current Stripe payment intent")
-    payment_status = Column(String(50), nullable=True, comment="Computed from latest events")
+    payment_status = Column(
+        String(50),
+        nullable=True,
+        comment="Canonical payment status per v2.1.1 policy",
+    )
     auth_scheduled_for = Column(
         DateTime(timezone=True),
         nullable=True,
@@ -178,6 +203,9 @@ class Booking(Base):
     # - instructor_cancel_full_refund
     # - instructor_no_show_full_refund
     # - student_wins_dispute_full_refund
+    # - capture_failure_instructor_paid
+    # - dispute_won
+    # - admin_refund
     settlement_outcome = Column(
         String(50),
         nullable=True,
@@ -197,6 +225,63 @@ class Booking(Base):
         Integer,
         nullable=True,
         comment="Refunded to card in cents (v2.1.1)",
+    )
+
+    # Dispute tracking (v2.1.1 failure handling)
+    dispute_id = Column(String(100), nullable=True, comment="Stripe dispute id (v2.1.1)")
+    dispute_status = Column(String(30), nullable=True, comment="Stripe dispute status (v2.1.1)")
+    dispute_amount = Column(Integer, nullable=True, comment="Dispute amount in cents (v2.1.1)")
+    dispute_created_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Dispute opened at (v2.1.1)",
+    )
+    dispute_resolved_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Dispute resolved at (v2.1.1)",
+    )
+
+    # Transfer reversal tracking (v2.1.1 failure handling)
+    stripe_transfer_id = Column(
+        String(100),
+        nullable=True,
+        comment="Stripe transfer id (v2.1.1)",
+    )
+    transfer_reversed = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Transfer reversed (v2.1.1)",
+    )
+    transfer_reversal_id = Column(
+        String(100),
+        nullable=True,
+        comment="Stripe transfer reversal id (v2.1.1)",
+    )
+    transfer_reversal_failed = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Transfer reversal failed (v2.1.1)",
+    )
+    transfer_reversal_error = Column(
+        String(500),
+        nullable=True,
+        comment="Transfer reversal error (v2.1.1)",
+    )
+
+    # Capture failure tracking (v2.1.1 failure handling)
+    capture_failed_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Capture failure timestamp (v2.1.1)",
+    )
+    capture_retry_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Capture retry count (v2.1.1)",
     )
 
     # LOCK mechanism fields (v2.1.1 anti-gaming)
@@ -298,6 +383,12 @@ class Booking(Base):
         CheckConstraint("duration_minutes > 0", name="check_duration_positive"),
         CheckConstraint("total_price >= 0", name="check_price_non_negative"),
         CheckConstraint("hourly_rate > 0", name="check_rate_positive"),
+        CheckConstraint(
+            "payment_status IS NULL OR payment_status IN ("
+            "'scheduled','authorized','payment_method_required','manual_review','locked','settled'"
+            ")",
+            name="ck_bookings_payment_status",
+        ),
     ]
 
     if not IS_SQLITE:

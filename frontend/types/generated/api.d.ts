@@ -11196,21 +11196,22 @@ export type components = {
          * @example {
          *       "alerts": [],
          *       "metrics": {
-         *         "abandoned": 0,
          *         "authorized": 25,
-         *         "captured": 150,
-         *         "failed": 2,
-         *         "pending": 5,
-         *         "scheduled": 12
+         *         "locked": 3,
+         *         "manual_review": 1,
+         *         "payment_method_required": 5,
+         *         "scheduled": 12,
+         *         "settled": 150
          *       },
          *       "minutes_since_last_auth": 45,
          *       "overdue_authorizations": 0,
          *       "payment_stats": {
-         *         "auth_failed": 2,
          *         "authorized": 25,
-         *         "captured": 150,
-         *         "pending_payment_method": 5,
-         *         "scheduled": 12
+         *         "locked": 3,
+         *         "manual_review": 1,
+         *         "payment_method_required": 5,
+         *         "scheduled": 12,
+         *         "settled": 150
          *       },
          *       "recent_events": {
          *         "auth_failed": 2,

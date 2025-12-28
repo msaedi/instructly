@@ -245,6 +245,9 @@ def upgrade() -> None:
             nullable=False,
             server_default="active",
         ),
+        sa.Column("account_locked", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("account_locked_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("account_locked_reason", sa.String(500), nullable=True),
         sa.Column(
             "timezone",
             sa.String(50),

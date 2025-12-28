@@ -127,8 +127,8 @@ async def test_booking_availability_flow(monkeypatch, db: Session, test_instruct
         total_price=price,
         duration_minutes=duration,
     )
-    booking_one.payment_status = "captured"
-    booking_two.payment_status = "captured"
+    booking_one.payment_status = "settled"
+    booking_two.payment_status = "settled"
     db.commit()
 
     cancelled_booking = await asyncio.to_thread(booking_service.cancel_booking, booking_two.id, student)

@@ -225,6 +225,68 @@ class CreditService(BaseService):
                 return _issue()
         return _issue()
 
+    @BaseService.measure_operation("credit_freeze_for_booking")
+    def freeze_credits_for_booking(
+        self,
+        *,
+        booking_id: str,
+        reason: str,
+        use_transaction: bool = True,
+    ) -> int:
+        """Freeze credits issued from a booking (dispute handling)."""
+
+        def _freeze() -> int:
+            credits = self.credit_repository.get_credits_for_source_booking(
+                booking_id=booking_id,
+                statuses=["available", "reserved"],
+            )
+            if not credits:
+                return 0
+            now = datetime.now(timezone.utc)
+            for credit in credits:
+                credit.status = "frozen"
+                credit.frozen_at = now
+                credit.frozen_reason = reason
+            return len(credits)
+
+        if use_transaction:
+            with self.transaction():
+                return _freeze()
+        return _freeze()
+
+    @BaseService.measure_operation("credit_unfreeze_for_booking")
+    def unfreeze_credits_for_booking(
+        self,
+        *,
+        booking_id: str,
+        use_transaction: bool = True,
+    ) -> int:
+        """Unfreeze credits issued from a booking after dispute resolution."""
+
+        def _unfreeze() -> int:
+            credits = self.credit_repository.get_credits_for_source_booking(
+                booking_id=booking_id,
+                statuses=["frozen"],
+            )
+            if not credits:
+                return 0
+            now = datetime.now(timezone.utc)
+            for credit in credits:
+                credit.frozen_at = None
+                credit.frozen_reason = None
+                if credit.reserved_for_booking_id or (credit.reserved_amount_cents or 0) > 0:
+                    credit.status = "reserved"
+                elif credit.expires_at and credit.expires_at <= now:
+                    credit.status = "expired"
+                else:
+                    credit.status = "available"
+            return len(credits)
+
+        if use_transaction:
+            with self.transaction():
+                return _unfreeze()
+        return _unfreeze()
+
     @BaseService.measure_operation("credit_balance_available")
     def get_available_balance(self, *, user_id: str) -> int:
         """Return available credit balance in cents."""

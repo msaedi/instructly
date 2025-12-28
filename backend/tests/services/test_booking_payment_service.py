@@ -68,7 +68,7 @@ async def test_confirm_booking_payment_boundary_within_24h(db, auth_headers_stud
         total_price=100.0,
         duration_minutes=60,
         status=BookingStatus.PENDING,
-        payment_status="pending_payment_method",
+        payment_status = "payment_method_required",
     )
     db.add(booking)
     db.flush()
@@ -152,7 +152,7 @@ async def test_confirm_booking_payment_boundary_beyond_24h(db, auth_headers_stud
         total_price=100.0,
         duration_minutes=60,
         status=BookingStatus.PENDING,
-        payment_status="pending_payment_method",
+        payment_status = "payment_method_required",
     )
     db.add(booking)
     db.flush()
@@ -375,7 +375,7 @@ class TestBookingPaymentService:
         # Verify booking created with PENDING status
         assert booking.id is not None
         assert booking.status == BookingStatus.PENDING
-        assert booking.payment_status == "pending_payment_method"
+        assert booking.payment_status == "payment_method_required"
         assert booking.payment_intent_id is None
         assert hasattr(booking, "setup_intent_client_secret")
         assert booking.setup_intent_client_secret == "seti_test123_secret"
@@ -453,7 +453,7 @@ class TestBookingPaymentService:
             total_price=100.00,
             duration_minutes=60,
             status=BookingStatus.PENDING,
-            payment_status="pending_payment_method",
+            payment_status = "payment_method_required",
         )
         db.add(booking)
         db.flush()
@@ -520,7 +520,7 @@ class TestBookingPaymentService:
             total_price=100.00,
             duration_minutes=60,
             status=BookingStatus.PENDING,
-            payment_status="pending_payment_method",
+            payment_status = "payment_method_required",
         )
         db.add(booking)
         db.flush()

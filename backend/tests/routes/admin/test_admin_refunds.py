@@ -8,7 +8,7 @@ from app.models.booking import Booking
 
 def _prepare_booking_for_refund(db, booking: Booking) -> Booking:
     booking.payment_intent_id = booking.payment_intent_id or "pi_test_123"
-    booking.payment_status = "captured"
+    booking.payment_status = "settled"
     db.commit()
     db.refresh(booking)
     return booking
@@ -45,7 +45,8 @@ def test_admin_can_refund_booking(
     assert mock_refund_payment.call_args.kwargs["amount_cents"] == expected_cents
 
     db.refresh(booking)
-    assert booking.payment_status == "refunded"
+    assert booking.payment_status == "settled"
+    assert booking.settlement_outcome == "instructor_no_show_full_refund"
 
 
 @patch("app.services.stripe_service.StripeService.refund_payment")
@@ -98,7 +99,9 @@ def test_refund_nonexistent_booking(client, auth_headers_admin):
 
 def test_refund_already_refunded_booking(client, db, test_booking, auth_headers_admin):
     booking = _prepare_booking_for_refund(db, test_booking)
-    booking.payment_status = "refunded"
+    booking.payment_status = "settled"
+    booking.settlement_outcome = "admin_refund"
+    booking.refunded_to_card_amount = 5000
     db.commit()
 
     response = client.post(
@@ -134,7 +137,8 @@ def test_instructor_no_show_sets_no_show_status(
     assert response.status_code == 200
     db.refresh(booking)
     assert booking.status == "NO_SHOW"
-    assert booking.payment_status == "refunded"
+    assert booking.payment_status == "settled"
+    assert booking.settlement_outcome == "instructor_no_show_full_refund"
 
 
 @patch("app.services.stripe_service.StripeService.refund_payment")

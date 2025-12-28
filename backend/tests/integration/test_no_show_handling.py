@@ -290,7 +290,7 @@ class TestNoShowAdminResolution:
         test_booking.no_show_reported_at = now - timedelta(hours=1)
         test_booking.no_show_reported_by = test_booking.student_id
         test_booking.no_show_type = "instructor"
-        test_booking.payment_status = "captured"
+        test_booking.payment_status = "settled"
         pi_id = f"pi_{generate_ulid()}"
         test_booking.payment_intent_id = pi_id
         db.commit()
@@ -387,7 +387,7 @@ class TestNoShowSettlement:
         test_booking.no_show_reported_at = now - timedelta(hours=1)
         test_booking.no_show_reported_by = test_booking.student_id
         test_booking.no_show_type = "instructor"
-        test_booking.payment_status = "captured"
+        test_booking.payment_status = "settled"
         pi_id = f"pi_{generate_ulid()}"
         test_booking.payment_intent_id = pi_id
         db.commit()
