@@ -248,6 +248,11 @@ def upgrade() -> None:
         sa.Column("account_locked", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("account_locked_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("account_locked_reason", sa.String(500), nullable=True),
+        sa.Column("credit_balance_cents", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("credit_balance_frozen", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("account_restricted", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("account_restricted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("account_restricted_reason", sa.String(500), nullable=True),
         sa.Column(
             "timezone",
             sa.String(50),

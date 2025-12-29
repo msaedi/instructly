@@ -182,6 +182,8 @@ def upgrade() -> None:
         sa.Column("auth_attempted_at", sa.DateTime(timezone=True), nullable=True, comment="Last time authorization was attempted (v2.1.1)"),
         sa.Column("auth_failure_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Authorization failure count (v2.1.1)"),
         sa.Column("auth_last_error", sa.String(500), nullable=True, comment="Last authorization error (v2.1.1)"),
+        sa.Column("auth_failure_first_email_sent_at", sa.DateTime(timezone=True), nullable=True, comment="First auth failure email sent at (v2.1.1)"),
+        sa.Column("auth_failure_t13_warning_sent_at", sa.DateTime(timezone=True), nullable=True, comment="T-13 warning email sent at (v2.1.1)"),
         sa.Column(
             "credits_reserved_cents",
             sa.Integer(),
@@ -199,16 +201,34 @@ def upgrade() -> None:
         sa.Column("dispute_created_at", sa.DateTime(timezone=True), nullable=True, comment="Dispute opened at (v2.1.1)"),
         sa.Column("dispute_resolved_at", sa.DateTime(timezone=True), nullable=True, comment="Dispute resolved at (v2.1.1)"),
         sa.Column("stripe_transfer_id", sa.String(100), nullable=True, comment="Stripe transfer id (v2.1.1)"),
+        sa.Column("refund_id", sa.String(100), nullable=True, comment="Stripe refund id (v2.1.1)"),
+        sa.Column("payout_transfer_id", sa.String(100), nullable=True, comment="Manual payout transfer id (v2.1.1)"),
+        sa.Column("advanced_payout_transfer_id", sa.String(100), nullable=True, comment="Manual payout transfer id for capture failure escalation (v2.1.1)"),
+        sa.Column("transfer_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Transfer failure timestamp (v2.1.1)"),
+        sa.Column("transfer_error", sa.String(500), nullable=True, comment="Transfer error (v2.1.1)"),
+        sa.Column("transfer_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Transfer retry count (v2.1.1)"),
         sa.Column("transfer_reversed", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="Transfer reversed (v2.1.1)"),
         sa.Column("transfer_reversal_id", sa.String(100), nullable=True, comment="Stripe transfer reversal id (v2.1.1)"),
         sa.Column("transfer_reversal_failed", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="Transfer reversal failed (v2.1.1)"),
         sa.Column("transfer_reversal_error", sa.String(500), nullable=True, comment="Transfer reversal error (v2.1.1)"),
+        sa.Column("transfer_reversal_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Transfer reversal failure timestamp (v2.1.1)"),
+        sa.Column("transfer_reversal_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Transfer reversal retry count (v2.1.1)"),
+        sa.Column("refund_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Refund failure timestamp (v2.1.1)"),
+        sa.Column("refund_error", sa.String(500), nullable=True, comment="Refund error (v2.1.1)"),
+        sa.Column("refund_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Refund retry count (v2.1.1)"),
+        sa.Column("payout_transfer_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Manual payout transfer failure timestamp (v2.1.1)"),
+        sa.Column("payout_transfer_error", sa.String(500), nullable=True, comment="Manual payout transfer error (v2.1.1)"),
+        sa.Column("payout_transfer_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Manual payout transfer retry count (v2.1.1)"),
         sa.Column("capture_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Capture failure timestamp (v2.1.1)"),
+        sa.Column("capture_escalated_at", sa.DateTime(timezone=True), nullable=True, comment="Capture escalation timestamp (v2.1.1)"),
         sa.Column("capture_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Capture retry count (v2.1.1)"),
+        sa.Column("capture_error", sa.String(500), nullable=True, comment="Capture error (v2.1.1)"),
         sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True, comment="When LOCK was activated (v2.1.1)"),
         sa.Column("locked_amount_cents", sa.Integer(), nullable=True, comment="Amount held under LOCK in cents (v2.1.1)"),
         sa.Column("lock_resolved_at", sa.DateTime(timezone=True), nullable=True, comment="When LOCK was resolved (v2.1.1)"),
         sa.Column("lock_resolution", sa.String(50), nullable=True, comment="LOCK resolution outcome (v2.1.1)"),
+        sa.Column("late_reschedule_used", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="Late reschedule used in 12-24h window (v2.1.1)"),
+        sa.Column("reschedule_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Total reschedule count (v2.1.1)"),
         sa.Column("rescheduled_to_booking_id", sa.String(26), nullable=True),
         sa.Column("has_locked_funds", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="New booking has locked funds from reschedule (v2.1.1)"),
         sa.ForeignKeyConstraint(["student_id"], ["users.id"]),
@@ -321,7 +341,7 @@ def upgrade() -> None:
                 instructor_id WITH =,
                 booking_span WITH &&
               )
-              WHERE (cancelled_at IS NULL)
+              WHERE (cancelled_at IS NULL AND status IN ('CONFIRMED','COMPLETED','NO_SHOW'))
             """
         )
         op.execute(
@@ -332,7 +352,7 @@ def upgrade() -> None:
                 student_id WITH =,
                 booking_span WITH &&
               )
-              WHERE (cancelled_at IS NULL)
+              WHERE (cancelled_at IS NULL AND status IN ('CONFIRMED','COMPLETED','NO_SHOW'))
             """
         )
 

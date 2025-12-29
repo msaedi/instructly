@@ -333,7 +333,7 @@ class TestAdminBookingStats:
 
     def test_get_stats_this_week(self, client, auth_headers_admin, db, test_student, test_instructor_with_availability):
         today = datetime.now(timezone.utc).date()
-        yesterday = today - timedelta(days=1)
+        yesterday = today - timedelta(days=1) if today.weekday() > 0 else today
         service_id = _get_active_service_id(db, test_instructor_with_availability.id)
 
         booking_today = create_booking_pg_safe(

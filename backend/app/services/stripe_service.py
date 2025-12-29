@@ -3687,6 +3687,10 @@ class StripeService(BaseService):
                 elif reversal_error:
                     booking.transfer_reversal_failed = True
                     booking.transfer_reversal_error = reversal_error
+                    booking.transfer_reversal_failed_at = datetime.now(timezone.utc)
+                    booking.transfer_reversal_retry_count = (
+                        int(getattr(booking, "transfer_reversal_retry_count", 0) or 0) + 1
+                    )
 
                 from .credit_service import CreditService
 
@@ -3696,6 +3700,35 @@ class StripeService(BaseService):
                     reason=f"Dispute opened for booking {booking.id}",
                     use_transaction=False,
                 )
+                try:
+                    events = self.payment_repository.get_payment_events_for_booking(booking.id)
+                except Exception:
+                    events = []
+                already_applied = any(
+                    getattr(event, "event_type", None) == "negative_balance_applied"
+                    and isinstance(getattr(event, "event_data", None), dict)
+                    and getattr(event, "event_data", {}).get("dispute_id") == dispute_id
+                    for event in events
+                )
+                spent_cents = credit_service.get_spent_credits_for_booking(booking_id=booking.id)
+                if spent_cents > 0 and not already_applied:
+                    credit_service.apply_negative_balance(
+                        user_id=booking.student_id,
+                        amount_cents=spent_cents,
+                        reason=f"dispute_opened:{dispute_id}",
+                        use_transaction=False,
+                    )
+                    try:
+                        self.payment_repository.create_payment_event(
+                            booking_id=booking.id,
+                            event_type="negative_balance_applied",
+                            event_data={
+                                "dispute_id": dispute_id,
+                                "amount_cents": spent_cents,
+                            },
+                        )
+                    except Exception:
+                        pass
 
                 try:
                     self.payment_repository.create_payment_event(
@@ -3763,12 +3796,97 @@ class StripeService(BaseService):
                 credit_service = CreditService(self.db)
 
                 if status in {"won", "warning_closed"}:
+                    try:
+                        events = self.payment_repository.get_payment_events_for_booking(booking.id)
+                    except Exception:
+                        events = []
+                    negative_event = next(
+                        (
+                            event
+                            for event in events
+                            if getattr(event, "event_type", None) == "negative_balance_applied"
+                            and isinstance(getattr(event, "event_data", None), dict)
+                            and getattr(event, "event_data", {}).get("dispute_id") == dispute_id
+                        ),
+                        None,
+                    )
+                    if negative_event:
+                        spent_cents = credit_service.get_spent_credits_for_booking(
+                            booking_id=booking.id
+                        )
+                        event_payload = getattr(negative_event, "event_data", None)
+                        if isinstance(event_payload, dict):
+                            try:
+                                spent_cents = int(
+                                    event_payload.get("amount_cents", spent_cents) or spent_cents
+                                )
+                            except (TypeError, ValueError):
+                                pass
+                        credit_service.clear_negative_balance(
+                            user_id=booking.student_id,
+                            amount_cents=spent_cents,
+                            reason=f"dispute_won:{dispute_id}",
+                            use_transaction=False,
+                        )
+                        try:
+                            self.payment_repository.create_payment_event(
+                                booking_id=booking.id,
+                                event_type="negative_balance_cleared",
+                                event_data={
+                                    "dispute_id": dispute_id,
+                                    "amount_cents": spent_cents,
+                                },
+                            )
+                        except Exception:
+                            pass
                     credit_service.unfreeze_credits_for_booking(
                         booking_id=booking.id, use_transaction=False
                     )
                     booking.payment_status = PaymentStatus.SETTLED.value
                     booking.settlement_outcome = "dispute_won"
                 elif status == "lost":
+                    credit_service.revoke_credits_for_booking(
+                        booking_id=booking.id,
+                        reason=f"dispute_lost:{dispute_id}",
+                        use_transaction=False,
+                    )
+                    spent_cents = credit_service.get_spent_credits_for_booking(
+                        booking_id=booking.id
+                    )
+                    try:
+                        events = self.payment_repository.get_payment_events_for_booking(booking.id)
+                    except Exception:
+                        events = []
+                    already_applied = any(
+                        getattr(event, "event_type", None) == "negative_balance_applied"
+                        and isinstance(getattr(event, "event_data", None), dict)
+                        and getattr(event, "event_data", {}).get("dispute_id") == dispute_id
+                        for event in events
+                    )
+                    if spent_cents > 0 and not already_applied:
+                        credit_service.apply_negative_balance(
+                            user_id=booking.student_id,
+                            amount_cents=spent_cents,
+                            reason=f"dispute_lost:{dispute_id}",
+                            use_transaction=False,
+                        )
+                        try:
+                            self.payment_repository.create_payment_event(
+                                booking_id=booking.id,
+                                event_type="negative_balance_applied",
+                                event_data={
+                                    "dispute_id": dispute_id,
+                                    "amount_cents": spent_cents,
+                                },
+                            )
+                        except Exception:
+                            pass
+                    user_repo = RepositoryFactory.create_base_repository(self.db, User)
+                    user = user_repo.get_by_id(booking.student_id)
+                    if user:
+                        user.account_restricted = True
+                        user.account_restricted_at = datetime.now(timezone.utc)
+                        user.account_restricted_reason = f"dispute_lost:{dispute_id}"
                     booking.payment_status = PaymentStatus.SETTLED.value
                     booking.settlement_outcome = "student_wins_dispute_full_refund"
 

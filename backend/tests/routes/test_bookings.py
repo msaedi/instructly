@@ -27,6 +27,7 @@ from app.core.exceptions import ConflictException, NotFoundException, Validation
 from app.core.ulid_helper import generate_ulid
 from app.main import fastapi_app as app
 from app.models.booking import BookingStatus
+from app.models.payment import StripeConnectedAccount
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.booking_timezone import booking_timezone_fields
@@ -63,7 +64,7 @@ class TestBookingRoutes:
     @pytest.fixture
     def booking_data(self):
         """Standard booking data following time-based pattern."""
-        tomorrow = date.today() + timedelta(days=1)
+        tomorrow = date.today() + timedelta(days=2)
         return {
             "instructor_id": generate_ulid(),
             "instructor_service_id": generate_ulid(),
@@ -1555,6 +1556,22 @@ class TestBookingIntegration:
             .filter_by(instructor_profile_id=test_instructor_with_availability.instructor_profile.id, is_active=True)
             .first()
         )
+        profile = test_instructor_with_availability.instructor_profile
+        existing_account = (
+            db.query(StripeConnectedAccount)
+            .filter(StripeConnectedAccount.instructor_profile_id == profile.id)
+            .first()
+        )
+        if not existing_account:
+            db.add(
+                StripeConnectedAccount(
+                    id=generate_ulid(),
+                    instructor_profile_id=profile.id,
+                    stripe_account_id=f"acct_{generate_ulid()}",
+                    onboarding_completed=True,
+                )
+            )
+            db.commit()
 
         # Create booking
         tomorrow = date.today() + timedelta(days=1)
@@ -1588,7 +1605,10 @@ class TestBookingIntegration:
         # Mock the Stripe payment confirmation
         from unittest.mock import patch
 
-        with patch("app.services.stripe_service.StripeService.save_payment_method"):
+        with patch("app.services.stripe_service.StripeService.save_payment_method"), patch(
+            "app.tasks.payment_tasks._process_authorization_for_booking",
+            return_value={"success": True},
+        ):
             payment_data = {
                 "payment_method_id": "pm_test_mock",
                 "save_payment_method": False,

@@ -1202,6 +1202,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         source_type: Optional[str] = None,
         source_booking_id: Optional[str] = None,
         expires_at: Optional[datetime] = None,
+        original_expires_at: Optional[datetime] = None,
         status: Optional[str] = None,
     ) -> PlatformCredit:
         """
@@ -1224,6 +1225,8 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             # Default expiry: 1 year if not provided
             if expires_at is None:
                 expires_at = datetime.now(timezone.utc) + timedelta(days=365)
+            if original_expires_at is None:
+                original_expires_at = expires_at
             credit = PlatformCredit(
                 id=str(ulid.ULID()),
                 user_id=user_id,
@@ -1232,6 +1235,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 source_type=source_type or reason or "legacy",
                 source_booking_id=source_booking_id,
                 expires_at=expires_at,
+                original_expires_at=original_expires_at,
                 status=status or "available",
                 reserved_amount_cents=0,
             )

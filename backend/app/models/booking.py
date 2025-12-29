@@ -187,6 +187,16 @@ class Booking(Base):
         nullable=True,
         comment="Last authorization error (v2.1.1)",
     )
+    auth_failure_first_email_sent_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="First auth failure email sent at (v2.1.1)",
+    )
+    auth_failure_t13_warning_sent_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="T-13 warning email sent at (v2.1.1)",
+    )
     credits_reserved_cents = Column(
         Integer,
         nullable=False,
@@ -248,6 +258,37 @@ class Booking(Base):
         nullable=True,
         comment="Stripe transfer id (v2.1.1)",
     )
+    refund_id = Column(
+        String(100),
+        nullable=True,
+        comment="Stripe refund id (v2.1.1)",
+    )
+    payout_transfer_id = Column(
+        String(100),
+        nullable=True,
+        comment="Manual payout transfer id (v2.1.1)",
+    )
+    advanced_payout_transfer_id = Column(
+        String(100),
+        nullable=True,
+        comment="Manual payout transfer id for capture failure escalation (v2.1.1)",
+    )
+    transfer_failed_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Transfer failure timestamp (v2.1.1)",
+    )
+    transfer_error = Column(
+        String(500),
+        nullable=True,
+        comment="Transfer error (v2.1.1)",
+    )
+    transfer_retry_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Transfer retry count (v2.1.1)",
+    )
     transfer_reversed = Column(
         Boolean,
         nullable=False,
@@ -270,6 +311,49 @@ class Booking(Base):
         nullable=True,
         comment="Transfer reversal error (v2.1.1)",
     )
+    transfer_reversal_failed_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Transfer reversal failure timestamp (v2.1.1)",
+    )
+    transfer_reversal_retry_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Transfer reversal retry count (v2.1.1)",
+    )
+    refund_failed_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Refund failure timestamp (v2.1.1)",
+    )
+    refund_error = Column(
+        String(500),
+        nullable=True,
+        comment="Refund error (v2.1.1)",
+    )
+    refund_retry_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Refund retry count (v2.1.1)",
+    )
+    payout_transfer_failed_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Manual payout transfer failure timestamp (v2.1.1)",
+    )
+    payout_transfer_error = Column(
+        String(500),
+        nullable=True,
+        comment="Manual payout transfer error (v2.1.1)",
+    )
+    payout_transfer_retry_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Manual payout transfer retry count (v2.1.1)",
+    )
 
     # Capture failure tracking (v2.1.1 failure handling)
     capture_failed_at = Column(
@@ -277,11 +361,21 @@ class Booking(Base):
         nullable=True,
         comment="Capture failure timestamp (v2.1.1)",
     )
+    capture_escalated_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Capture escalation timestamp (v2.1.1)",
+    )
     capture_retry_count = Column(
         Integer,
         nullable=False,
         default=0,
         comment="Capture retry count (v2.1.1)",
+    )
+    capture_error = Column(
+        String(500),
+        nullable=True,
+        comment="Capture error (v2.1.1)",
     )
 
     # LOCK mechanism fields (v2.1.1 anti-gaming)
@@ -304,6 +398,20 @@ class Booking(Base):
         String(50),
         nullable=True,
         comment="LOCK resolution outcome (v2.1.1)",
+    )
+
+    # Reschedule tracking (v2.1.1)
+    late_reschedule_used = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Late reschedule used in 12-24h window (v2.1.1)",
+    )
+    reschedule_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Total reschedule count (v2.1.1)",
     )
 
     # Relationships

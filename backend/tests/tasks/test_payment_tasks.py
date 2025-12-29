@@ -111,6 +111,9 @@ class TestPaymentTasks:
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
+        booking.auth_failure_first_email_sent_at = None
+        booking.auth_failure_first_email_sent_at = None
+        booking.auth_failure_first_email_sent_at = None
         booking.total_price = 100.00
 
         # Mock query to return the booking
@@ -206,6 +209,8 @@ class TestPaymentTasks:
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
+        booking.auth_failure_first_email_sent_at = None
+        booking.auth_failure_first_email_sent_at = None
         booking.total_price = 100.00
 
         mock_query = MagicMock()
@@ -293,6 +298,8 @@ class TestPaymentTasks:
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
+        booking.auth_failure_first_email_sent_at = None
+        booking.auth_failure_first_email_sent_at = None
         booking.total_price = 100.00
 
         mock_query = MagicMock()
@@ -386,9 +393,7 @@ class TestPaymentTasks:
         booking.auth_attempted_at = now - timedelta(hours=2)
         booking.auth_failure_count = 1
         booking.capture_failed_at = None
-        booking.capture_failed_at = None
-        booking.capture_failed_at = None
-        booking.capture_failed_at = None
+        booking.auth_failure_t13_warning_sent_at = None
         booking.total_price = 100.00
         booking.student_id = "student_123"
         booking.instructor_id = "instructor_123"
@@ -1104,6 +1109,7 @@ class TestPaymentTasks:
         booking.auth_attempted_at = now - timedelta(hours=2)
         booking.auth_failure_count = 1
         booking.capture_failed_at = None
+        booking.auth_failure_t13_warning_sent_at = None
 
         # Setup query mock to return the booking for direct db.query() calls
         mock_db.query.return_value.filter.return_value.first.return_value = booking
@@ -2079,6 +2085,7 @@ class TestPaymentTasks:
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
+        booking.auth_failure_first_email_sent_at = None
 
         # Setup query mock to return the booking for direct db.query() calls
         mock_db.query.return_value.filter.return_value.first.return_value = booking
@@ -2134,6 +2141,7 @@ class TestPaymentTasks:
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
+        booking.auth_failure_first_email_sent_at = None
 
         # Setup query mock to return the booking for direct db.query() calls
         mock_db.query.return_value.filter.return_value.first.return_value = booking
@@ -2188,6 +2196,7 @@ class TestPaymentTasks:
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
         _apply_utc_timezone_context(booking)
+        booking.auth_failure_first_email_sent_at = None
 
         # Setup query mock to return the booking for direct db.query() calls
         mock_db.query.return_value.filter.return_value.first.return_value = booking

@@ -31,6 +31,7 @@ const INSTRUCTOR_PASSWORD = process.env['E2E_INSTRUCTOR_PASSWORD'] || 'Test1234'
 const ADMIN_EMAIL = process.env['E2E_ADMIN_EMAIL'] || 'admin@instainstru.com';
 const ADMIN_PASSWORD = process.env['E2E_ADMIN_PASSWORD'] || 'ChangeMeSuperSecure123!';
 const PROJECT = process.env['E2E_PROJECT'] || 'instructor';
+const SKIP_AUTH_SETUP = process.env['CI_LOCAL_E2E'] === '1' && process.env['E2E_FORCE_LOGIN'] !== '1';
 
 type StateConfig = {
   email: string;
@@ -119,6 +120,13 @@ async function globalSetup(_config: FullConfig) {
   await ensureDir(STORAGE_DIR);
   if (STATE_CONFIGS.length === 0) {
     // anon project does not require storage state
+    return;
+  }
+  if (SKIP_AUTH_SETUP) {
+    const emptyState = JSON.stringify({ cookies: [], origins: [] }, null, 2);
+    for (const config of STATE_CONFIGS) {
+      await fs.writeFile(config.statePath, emptyState, 'utf8');
+    }
     return;
   }
   const lockPath = path.join(STORAGE_DIR, '.lock');

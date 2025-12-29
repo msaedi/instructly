@@ -1,8 +1,8 @@
-# Payment Policy v2.1 Compliance Checklist (Phase 0–7)
+# Payment Policy v2.1 Compliance Checklist (Phase 0–8)
 
 Last updated: 2025-12-28
 Environment: staging DB (instainstru_stg), SITE_MODE=local, Stripe test mode
-Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), Phase 2 LOCK anti-gaming mechanism, Phase 3 credit reservation model, Phase 4 no-show handling, Phase 5 authorization timing, Phase 6 state machine alignment + failure handling, and Phase 7 frontend alignment + compliance hardening.
+Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), Phase 2 LOCK anti-gaming mechanism, Phase 3 credit reservation model, Phase 4 no-show handling, Phase 5 authorization timing, Phase 6 state machine alignment + failure handling, Phase 7 frontend alignment + compliance hardening, and Phase 8 full compliance closure.
 
 Note: As of Phase 6, booking.payment_status is canonical (scheduled, authorized, payment_method_required, manual_review, locked, settled). Legacy labels (captured/refunded/released/credit_issued/auth_failed/capture_failed/disputed) are now expressed via settlement_outcome + failure fields.
 
@@ -360,7 +360,44 @@ Celery tasks (booking_lock_sync required):
 
 Phase 7 Verification: ✅ COMPLETE
 
-## V) v2.1.1 Compliance Summary
+## V) Phase 8: Full Compliance Closure
+
+### Gap Matrix (Phase 8)
+
+| # | Item | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 | Policy: `capture_failure_instructor_paid` defined | ✅ PASS | `docs/stripe/instainstru-payment-policy-v2.1.1.md` |
+| 2 | Inside-24h confirmation gating | ✅ PASS | `backend/tests/integration/test_immediate_auth_gating.py` |
+| 3 | Locked cancel credit-only | ✅ PASS | `backend/tests/integration/test_locked_cancellation_credit_only.py` |
+| 4 | UTC boundary handling | ✅ PASS | `backend/tests/integration/test_payment_boundaries_utc.py` |
+| 5 | Auth failure notifications (T-24/T-13) | ✅ PASS | `backend/tests/integration/test_auth_failure_notifications.py` |
+| 6 | Stored Stripe IDs for retry/recovery | ✅ PASS | `backend/tests/integration/test_stripe_id_persistence.py` |
+| 7 | Credit expiration rules (1y, reserved protected) | ✅ PASS | `backend/tests/integration/test_credit_expiration_rules.py` |
+| 8 | Reschedule enforcement (same instructor, one late) | ✅ PASS | `backend/tests/integration/test_reschedule_enforcement.py` |
+| 9 | Negative balance mechanics | ✅ PASS | `backend/tests/integration/test_negative_balance.py` |
+| 10 | on_behalf_of decision documented | ✅ PASS | Section: on_behalf_of usage |
+| 11 | Dispute lost handling (revoke credits, restrict) | ✅ PASS | `backend/tests/integration/test_dispute_resolution.py` |
+| 12 | Audit fields for transfer/reversal/refund failures | ✅ PASS | `backend/app/models/booking.py` |
+
+Phase 8 Verification: ✅ COMPLETE
+
+### on_behalf_of Usage
+
+Decision: Not used.
+Rationale: Destination charges with platform as merchant of record; on_behalf_of not required for our Stripe Connect configuration.
+
+### Audit Fields for Failure Tracking
+
+| Operation | Timestamp Field | Error Field | Retry Count |
+| --- | --- | --- | --- |
+| Transfer | `transfer_failed_at` | `transfer_error` | `transfer_retry_count` |
+| Reversal | `transfer_reversal_failed_at` | `transfer_reversal_error` | `transfer_reversal_retry_count` |
+| Refund | `refund_failed_at` | `refund_error` | `refund_retry_count` |
+| Manual Payout | `payout_transfer_failed_at` | `payout_transfer_error` | `payout_transfer_retry_count` |
+| Capture | `capture_failed_at` | `capture_error` | `capture_retry_count` |
+| Auth | `auth_attempted_at` | `auth_last_error` | `auth_failure_count` |
+
+## W) v2.1.1 Compliance Summary
 
 Status: ✅ FULLY ALIGNED
 
@@ -374,6 +411,7 @@ Status: ✅ FULLY ALIGNED
 | Phase 5 | Authorization timing | ✅ PASS | Booking payment boundary + task tests |
 | Phase 6 | State machine & failures | ✅ PASS | Canonical status + capture failure + dispute tests |
 | Phase 7 | Frontend alignment + compliance hardening | ✅ PASS | Checkout status + policy update + no-show outcome tests |
+| Phase 8 | Full compliance closure | ✅ PASS | Phase 8 coverage + policy updates |
 
 Canonical payment_status values (Section 4.1):
 - [x] Only 6 values used: scheduled, authorized, payment_method_required, manual_review, locked, settled

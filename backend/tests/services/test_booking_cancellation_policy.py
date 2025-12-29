@@ -1131,10 +1131,11 @@ def test_second_reschedule_blocked(db: Session):
     when = datetime.combine(date.today() + timedelta(days=3), time(14, 0))
     original_booking = _create_booking(db, student, instructor, svc, when)
 
-    # Create "rescheduled" booking (simulating first reschedule)
+    # Create "rescheduled" booking (simulating late reschedule use)
     rescheduled_when = datetime.combine(date.today() + timedelta(days=5), time(15, 0))
     rescheduled_booking = _create_booking(db, student, instructor, svc, rescheduled_when)
     rescheduled_booking.rescheduled_from_booking_id = original_booking.id
+    rescheduled_booking.late_reschedule_used = True
     db.flush()
 
     service = BookingService(db)
@@ -1160,10 +1161,11 @@ def test_second_reschedule_error_message(db: Session):
     when = datetime.combine(date.today() + timedelta(days=3), time(14, 0))
     original_booking = _create_booking(db, student, instructor, svc, when)
 
-    # Create "rescheduled" booking
+    # Create "rescheduled" booking (simulating late reschedule use)
     rescheduled_when = datetime.combine(date.today() + timedelta(days=5), time(15, 0))
     rescheduled_booking = _create_booking(db, student, instructor, svc, rescheduled_when)
     rescheduled_booking.rescheduled_from_booking_id = original_booking.id
+    rescheduled_booking.late_reschedule_used = True
     db.flush()
 
     service = BookingService(db)
@@ -1174,7 +1176,6 @@ def test_second_reschedule_error_message(db: Session):
     error_message = exc_info.value.message
 
     # Verify the message contains key guidance
-    assert "already rescheduled" in error_message.lower()
+    assert "late reschedule" in error_message.lower()
     assert "cancel" in error_message.lower()
-    assert "credit" in error_message.lower()
     assert "book a new lesson" in error_message.lower()

@@ -91,7 +91,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 Booking.instructor_id == instructor_id,
                 Booking.booking_date == booking_date,
                 Booking.status.in_(
-                    [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+                    [
+                        BookingStatus.PENDING,
+                        BookingStatus.CONFIRMED,
+                        BookingStatus.COMPLETED,
+                    ]
                 ),
                 # Any overlap with the time range
                 Booking.start_time < end_time,
@@ -135,7 +139,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 Booking.instructor_id == instructor_id,
                 Booking.booking_date == booking_date,
                 Booking.status.in_(
-                    [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+                    [BookingStatus.CONFIRMED, BookingStatus.COMPLETED, BookingStatus.NO_SHOW]
                 ),
                 # Time overlap check
                 Booking.start_time < end_time,
@@ -177,7 +181,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 Booking.student_id == student_id,
                 Booking.booking_date == booking_date,
                 Booking.status.in_(
-                    [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+                    [BookingStatus.CONFIRMED, BookingStatus.COMPLETED, BookingStatus.NO_SHOW]
                 ),
                 # Time overlap check: start_time < other_end_time AND end_time > other_start_time
                 Booking.start_time < end_time,

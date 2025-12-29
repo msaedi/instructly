@@ -15,7 +15,8 @@ except ModuleNotFoundError:  # pragma: no cover
     from tests.utils.booking_timezone import booking_timezone_fields
 
 ACTIVE_STATUSES: Dict[str, BookingStatus] = {
-    status.name: status for status in (BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED)
+    status.name: status
+    for status in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED, BookingStatus.NO_SHOW)
 }
 
 

@@ -227,9 +227,9 @@ def _process_authorization_for_booking(
             db1.commit()
             return {"success": False, "skipped": True, "reason": "cancelled"}
 
-        if booking.status != BookingStatus.CONFIRMED or booking.payment_status not in [
-            PaymentStatus.SCHEDULED.value,
-        ]:
+        if booking.status not in {BookingStatus.CONFIRMED, BookingStatus.PENDING} or (
+            booking.payment_status not in [PaymentStatus.SCHEDULED.value]
+        ):
             db1.commit()
             return {"success": False, "skipped": True, "reason": "not_eligible"}
 
@@ -369,6 +369,9 @@ def _process_authorization_for_booking(
                 booking.auth_attempted_at = attempted_at
                 booking.auth_failure_count = 0
                 booking.auth_last_error = None
+                if booking.status == BookingStatus.PENDING:
+                    booking.status = BookingStatus.CONFIRMED
+                    booking.confirmed_at = attempted_at
                 payment_repo.create_payment_event(
                     booking_id=booking_id,
                     event_type="auth_succeeded_credits_only",
@@ -386,6 +389,9 @@ def _process_authorization_for_booking(
                 booking.auth_attempted_at = attempted_at
                 booking.auth_failure_count = 0
                 booking.auth_last_error = None
+                if booking.status == BookingStatus.PENDING:
+                    booking.status = BookingStatus.CONFIRMED
+                    booking.confirmed_at = attempted_at
 
                 # Record metrics
                 if stripe_result.get("applied_credit_cents"):
@@ -549,8 +555,14 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
                                 db_notify.query(Booking).filter(Booking.id == booking_id).first()
                             )
                             if booking:
+                                if booking.auth_failure_first_email_sent_at is not None:
+                                    db_notify.commit()
+                                    continue
                                 notification_service.send_final_payment_warning(
                                     booking, hours_until_lesson
+                                )
+                                booking.auth_failure_first_email_sent_at = datetime.now(
+                                    timezone.utc
                                 )
                                 payment_repo.create_payment_event(
                                     booking_id=booking_id,
@@ -961,10 +973,14 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
                                 == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
                                 and booking.capture_failed_at is None
                             ):
+                                if booking.auth_failure_t13_warning_sent_at is not None:
+                                    db_warn_retry.commit()
+                                    continue
                                 notification_service = NotificationService(db_warn_retry)
                                 notification_service.send_final_payment_warning(
                                     booking, hours_until_lesson
                                 )
+                                booking.auth_failure_t13_warning_sent_at = now
 
                                 payment_repo = RepositoryFactory.get_payment_repository(
                                     db_warn_retry
@@ -997,10 +1013,14 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
                                 == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
                                 and booking.capture_failed_at is None
                             ):
+                                if booking.auth_failure_t13_warning_sent_at is not None:
+                                    db_warn.commit()
+                                    continue
                                 notification_service = NotificationService(db_warn)
                                 notification_service.send_final_payment_warning(
                                     booking, hours_until_lesson
                                 )
+                                booking.auth_failure_t13_warning_sent_at = now
 
                                 payment_repo = RepositoryFactory.get_payment_repository(db_warn)
                                 payment_repo.create_payment_event(
@@ -1247,17 +1267,29 @@ def _escalate_capture_failure(booking_id: str, now: datetime) -> None:
         booking.settlement_outcome = (
             "capture_failure_instructor_paid" if transfer_id else "capture_failure_escalated"
         )
+        booking.capture_escalated_at = now
         booking.instructor_payout_amount = int(payout_cents or 0) if transfer_id else 0
         booking.student_credit_amount = 0
         booking.refunded_to_card_amount = 0
         if transfer_id:
+            booking.advanced_payout_transfer_id = transfer_id
+            booking.payout_transfer_id = transfer_id
             booking.stripe_transfer_id = transfer_id
+        else:
+            booking.payout_transfer_failed_at = now
+            booking.payout_transfer_error = transfer_error
+            booking.payout_transfer_retry_count = (
+                int(getattr(booking, "payout_transfer_retry_count", 0) or 0) + 1
+            )
+            booking.transfer_failed_at = booking.payout_transfer_failed_at
+            booking.transfer_error = booking.payout_transfer_error
+            booking.transfer_retry_count = int(getattr(booking, "transfer_retry_count", 0) or 0) + 1
 
         student = db_write.query(User).filter(User.id == booking.student_id).first()
         if student:
             student.account_locked = True
             student.account_locked_at = now
-            student.account_locked_reason = f"Capture failure for booking {booking.id}"
+            student.account_locked_reason = f"capture_failure_escalated:{booking.id}"
 
         payment_repo = RepositoryFactory.get_payment_repository(db_write)
         payment_repo.create_payment_event(
@@ -1576,10 +1608,12 @@ def _process_capture_for_booking(
 
         payment_intent = None
         amount_received = None
+        transfer_id = None
 
         if isinstance(capture_payload, dict):
             payment_intent = capture_payload.get("payment_intent")
             amount_received = capture_payload.get("amount_received")
+            transfer_id = capture_payload.get("transfer_id")
         else:
             payment_intent = capture_payload
 
@@ -1593,6 +1627,7 @@ def _process_capture_for_booking(
             "success": True,
             "amount_received": amount_received,
             "payment_intent_id": payment_intent_id,
+            "transfer_id": transfer_id,
         }
 
     except stripe.error.InvalidRequestError as e:
@@ -1713,6 +1748,7 @@ def _process_capture_for_booking(
             booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
             booking.capture_failed_at = datetime.now(timezone.utc)
             booking.capture_retry_count = int(getattr(booking, "capture_retry_count", 0) or 0) + 1
+            booking.capture_error = stripe_result.get("error")
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="capture_failed_expired",
@@ -1727,6 +1763,7 @@ def _process_capture_for_booking(
             booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
             booking.capture_failed_at = datetime.now(timezone.utc)
             booking.capture_retry_count = int(getattr(booking, "capture_retry_count", 0) or 0) + 1
+            booking.capture_error = stripe_result.get("error")
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="capture_failed_card",
@@ -1742,6 +1779,7 @@ def _process_capture_for_booking(
             booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
             booking.capture_failed_at = datetime.now(timezone.utc)
             booking.capture_retry_count = int(getattr(booking, "capture_retry_count", 0) or 0) + 1
+            booking.capture_error = stripe_result.get("error")
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="capture_failed",

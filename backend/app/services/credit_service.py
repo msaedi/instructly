@@ -9,6 +9,7 @@ from typing import Dict, Optional
 from sqlalchemy.orm import Session
 
 from app.models.payment import PlatformCredit
+from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 
 from .base import BaseService
@@ -66,6 +67,8 @@ class CreditService(BaseService):
                         source_type=getattr(credit, "source_type", "legacy"),
                         source_booking_id=credit.source_booking_id,
                         expires_at=credit.expires_at,
+                        original_expires_at=getattr(credit, "original_expires_at", None)
+                        or credit.expires_at,
                         status="available",
                     )
                     remainder_credit_id = remainder.id
@@ -254,6 +257,37 @@ class CreditService(BaseService):
                 return _freeze()
         return _freeze()
 
+    @BaseService.measure_operation("credit_revoke_for_booking")
+    def revoke_credits_for_booking(
+        self,
+        *,
+        booking_id: str,
+        reason: str,
+        use_transaction: bool = True,
+    ) -> int:
+        """Revoke credits issued from a booking (dispute lost)."""
+
+        def _revoke() -> int:
+            credits = self.credit_repository.get_credits_for_source_booking(booking_id=booking_id)
+            if not credits:
+                return 0
+            now = datetime.now(timezone.utc)
+            revoked_count = 0
+            for credit in credits:
+                if getattr(credit, "status", None) == "revoked":
+                    continue
+                credit.status = "revoked"
+                credit.revoked = True
+                credit.revoked_at = now
+                credit.revoked_reason = reason
+                revoked_count += 1
+            return revoked_count
+
+        if use_transaction:
+            with self.transaction():
+                return _revoke()
+        return _revoke()
+
     @BaseService.measure_operation("credit_unfreeze_for_booking")
     def unfreeze_credits_for_booking(
         self,
@@ -286,6 +320,90 @@ class CreditService(BaseService):
             with self.transaction():
                 return _unfreeze()
         return _unfreeze()
+
+    @BaseService.measure_operation("credit_spent_for_booking")
+    def get_spent_credits_for_booking(self, *, booking_id: str) -> int:
+        """Return total spent credits issued from a booking."""
+        try:
+            credits = self.credit_repository.get_credits_for_source_booking(booking_id=booking_id)
+        except Exception:
+            return 0
+
+        spent_total = 0
+        for credit in credits:
+            status = getattr(credit, "status", None)
+            if getattr(credit, "used_at", None) is not None:
+                spent_total += int(getattr(credit, "amount_cents", 0) or 0)
+                continue
+            if getattr(credit, "used_booking_id", None):
+                spent_total += int(getattr(credit, "amount_cents", 0) or 0)
+                continue
+            if status in {"forfeited", "expired"}:
+                spent_total += int(getattr(credit, "amount_cents", 0) or 0)
+        return spent_total
+
+    @BaseService.measure_operation("credit_negative_balance_apply")
+    def apply_negative_balance(
+        self,
+        *,
+        user_id: str,
+        amount_cents: int,
+        reason: str,
+        use_transaction: bool = True,
+    ) -> None:
+        """Apply a negative credit balance to a user."""
+        if amount_cents <= 0:
+            return
+
+        def _apply() -> None:
+            user_repo = RepositoryFactory.create_base_repository(self.db, User)
+            user = user_repo.get_by_id(user_id)
+            if not user:
+                return
+            current = int(getattr(user, "credit_balance_cents", 0) or 0)
+            user.credit_balance_cents = current - amount_cents
+            if user.credit_balance_cents < 0:
+                user.account_restricted = True
+                user.account_restricted_at = datetime.now(timezone.utc)
+                user.account_restricted_reason = reason
+
+        if use_transaction:
+            with self.transaction():
+                _apply()
+            return
+        _apply()
+
+    @BaseService.measure_operation("credit_negative_balance_clear")
+    def clear_negative_balance(
+        self,
+        *,
+        user_id: str,
+        amount_cents: int,
+        reason: str,
+        use_transaction: bool = True,
+    ) -> None:
+        """Clear (or reduce) a negative balance after dispute resolution."""
+        if amount_cents <= 0:
+            return
+
+        def _clear() -> None:
+            user_repo = RepositoryFactory.create_base_repository(self.db, User)
+            user = user_repo.get_by_id(user_id)
+            if not user:
+                return
+            current = int(getattr(user, "credit_balance_cents", 0) or 0)
+            user.credit_balance_cents = current + amount_cents
+            if user.credit_balance_cents >= 0:
+                user.account_restricted = False
+                user.account_restricted_at = None
+                if getattr(user, "account_restricted_reason", ""):
+                    user.account_restricted_reason = None
+
+        if use_transaction:
+            with self.transaction():
+                _clear()
+            return
+        _clear()
 
     @BaseService.measure_operation("credit_balance_available")
     def get_available_balance(self, *, user_id: str) -> int:

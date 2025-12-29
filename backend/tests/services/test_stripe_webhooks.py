@@ -340,7 +340,7 @@ def test_dispute_closed_lost_sets_refund_outcome(
 
     assert booking.payment_status == PaymentStatus.SETTLED.value
     assert booking.settlement_outcome == "student_wins_dispute_full_refund"
-    assert credit.status == "frozen"
+    assert credit.status == "revoked"
 
 
 @patch("stripe.Webhook.construct_event")

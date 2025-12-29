@@ -83,6 +83,8 @@ def test_confirm_payment_immediate_defers_and_emits_event(db: Session):
     # Create a PENDING booking within 24h (tomorrow earlier than now's time)
     now_utc = datetime.now(timezone.utc).replace(second=0, microsecond=0)
     lesson_utc = now_utc + timedelta(hours=23)
+    if (lesson_utc + timedelta(hours=1)).date() != lesson_utc.date():
+        lesson_utc -= timedelta(hours=2)
     booking = Booking(
         id=str(ulid.ULID()),
         student_id=student.id,

@@ -1,9 +1,14 @@
 import { test, expect, type Page } from '@playwright/test';
+import { seedSessionCookie } from './support/cookies';
 import { isInstructor } from './utils/projects';
 
 test.beforeAll(({}, workerInfo) => {
   test.skip(!isInstructor(workerInfo), `Instructor-only spec (current project: ${workerInfo.project.name})`);
 });
+
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';
+const SESSION_TOKEN = process.env.TEST_SESSION_TOKEN ?? 'fake.jwt.value';
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME;
 
 type ScheduleEntry = { date: string; start_time: string; end_time: string };
 type ScheduleSeed = Record<string, Array<Omit<ScheduleEntry, 'date'>>>;
@@ -102,6 +107,81 @@ const fulfillJson = async (
   await route.fulfill({ status, contentType: 'application/json', headers, body: JSON.stringify(body) });
 };
 
+const stubAuthMe = async (page: Page) => {
+  await page.route('**/api/v1/auth/me', async (route, request) => {
+    if (request.method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'instructor-1',
+          first_name: 'Test',
+          last_name: 'Instructor',
+          roles: ['instructor'],
+        }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+};
+
+const stubInstructorProfile = async (page: Page) => {
+  const profilePayload = {
+    id: 'instructor-profile',
+    bio: 'Experienced instructor ready to teach.',
+    service_area_summary: 'Manhattan',
+    service_area_boroughs: ['Manhattan'],
+    service_area_neighborhoods: [
+      {
+        neighborhood_id: 'MN01',
+        name: 'Central Village',
+        borough: 'Manhattan',
+        ntacode: 'MN01',
+      },
+    ],
+    years_experience: 5,
+    min_advance_booking_hours: 2,
+    buffer_time_minutes: 15,
+    preferred_teaching_locations: [],
+    preferred_public_spaces: [],
+    services: [],
+    user: {
+      id: 'mock-user',
+      first_name: 'Test',
+      last_name: 'Instructor',
+      roles: ['instructor'],
+    },
+    is_live: true,
+  };
+
+  await page.route('**/instructors/me', async (route, request) => {
+    if (request.method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(profilePayload),
+      });
+      return;
+    }
+    if (request.method() === 'PUT' || request.method() === 'PATCH') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(profilePayload),
+      });
+      return;
+    }
+    await route.continue();
+  });
+};
+
+const setupInstructorSession = async (page: Page) => {
+  await seedSessionCookie(page.context(), BASE_URL, SESSION_TOKEN, SESSION_COOKIE_NAME);
+  await stubAuthMe(page);
+  await stubInstructorProfile(page);
+};
+
 const alignCalendarToWeek = async (page: Page, mondayISO: string) => {
   const header = page.getByTestId('week-header');
   await expect(header).toBeVisible();
@@ -159,6 +239,9 @@ const waitForWeekResponse = (page: Page, method: 'GET' | 'POST', weekStart?: str
 
 test.describe('Instructor availability calendar', () => {
   test.describe.configure({ mode: 'serial' });
+  test.beforeEach(async ({ page }) => {
+    await setupInstructorSession(page);
+  });
   test('persists past edits with ETag handshake', async ({ page }) => {
     const week = createWeekContext();
     const initialSchedule = createInitialSchedule(week.iso);

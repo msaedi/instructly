@@ -232,11 +232,32 @@ class PlatformCredit(Base):
         comment="When credit was reserved (v2.1.1)",
     )
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    original_expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Original expiration timestamp (v2.1.1)",
+    )
     used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     forfeited_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         comment="When credit was forfeited (v2.1.1)",
+    )
+    revoked: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Whether credit was revoked (v2.1.1)",
+    )
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When credit was revoked (v2.1.1)",
+    )
+    revoked_reason: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Reason credit was revoked (v2.1.1)",
     )
     frozen_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
@@ -252,7 +273,7 @@ class PlatformCredit(Base):
         String(20),
         nullable=False,
         default="available",
-        comment="Credit status: available, reserved, forfeited, expired, frozen (v2.1.1)",
+        comment="Credit status: available, reserved, forfeited, expired, frozen, revoked (v2.1.1)",
     )
 
     # Timestamps
@@ -278,6 +299,8 @@ class PlatformCredit(Base):
         if getattr(self, "status", None) == "reserved":
             return False
         if getattr(self, "status", None) == "frozen":
+            return False
+        if getattr(self, "status", None) == "revoked":
             return False
         if getattr(self, "status", None) == "expired":
             return True

@@ -108,6 +108,8 @@ def test_confirm_booking_payment_boundary_route(
         assert target is not None
         target.payment_status = "authorized"
         target.payment_intent_id = "pi_test"
+        target.status = BookingStatus.CONFIRMED
+        target.confirmed_at = fixed_now
         db.commit()
         return {"success": True}
 

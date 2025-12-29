@@ -42,7 +42,7 @@ test.describe('Scheduled Payment Booking (>24h)', () => {
       await route.fallback();
     });
 
-    await setupAllMocks(page, context);
+    await setupAllMocks(page, context, { forceAuth: true });
 
     await page.route('**/api/v1/auth/me', async (route) => {
       if (route.request().method() === 'OPTIONS') {

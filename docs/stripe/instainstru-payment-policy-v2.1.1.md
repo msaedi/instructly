@@ -109,6 +109,7 @@ When `payment_status = settled`, we record one of:
 - `instructor_cancel_full_refund`
 - `instructor_no_show_full_refund`
 - `student_wins_dispute_full_refund`
+- `capture_failure_instructor_paid` (capture failed after retry window; instructor paid via manual transfer; platform absorbs loss pending collection)
 
 Also record:
 - `student_credit_amount` (0 / 50% LP / 100% LP)
@@ -365,7 +366,11 @@ Instructor payout policy:
 
 After retry window:
 - Mark `payment_status = manual_review`
-- Lock student account from new bookings until resolved
+- Set `settlement_outcome = capture_failure_instructor_paid`
+- Lock student account (`account_locked = True`, `account_locked_reason = "capture_failure_escalated"`)
+- Pay instructor via manual transfer (platform advances payout)
+- Notify admin for collection from student
+- Record: `capture_escalated_at`, `advanced_payout_transfer_id`, `advanced_payout_amount` (stored in `instructor_payout_amount`)
 
 ### 10.3 Transfer reversal failure
 If transfer reversal fails (API error, insufficient balance, restrictions):

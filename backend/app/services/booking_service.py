@@ -56,6 +56,7 @@ from .cache_service import CacheService, CacheServiceSyncAdapter
 from .config_service import ConfigService
 from .notification_service import NotificationService
 from .pricing_service import PricingService
+from .stripe_service import StripeService
 from .student_credit_service import StudentCreditService
 from .system_message_service import SystemMessageService
 from .timezone_service import TimezoneService
@@ -425,8 +426,9 @@ class BookingService(BaseService):
 
     def _get_booking_start_utc(self, booking: Booking) -> datetime:
         """Get booking start time in UTC, handling legacy bookings."""
-        if booking.booking_start_utc:
-            return cast(datetime, booking.booking_start_utc)
+        booking_start_utc = getattr(booking, "booking_start_utc", None)
+        if isinstance(booking_start_utc, datetime):
+            return booking_start_utc
 
         lesson_tz = booking.lesson_timezone or booking.instructor_tz_at_booking
         if not lesson_tz and booking.instructor:
@@ -441,8 +443,9 @@ class BookingService(BaseService):
 
     def _get_booking_end_utc(self, booking: Booking) -> datetime:
         """Get booking end time in UTC, handling legacy bookings."""
-        if booking.booking_end_utc:
-            return cast(datetime, booking.booking_end_utc)
+        booking_end_utc = getattr(booking, "booking_end_utc", None)
+        if isinstance(booking_end_utc, datetime):
+            return booking_end_utc
 
         lesson_tz = booking.lesson_timezone or booking.instructor_tz_at_booking
         if not lesson_tz and booking.instructor:
@@ -743,6 +746,14 @@ class BookingService(BaseService):
                             booking = updated_booking
                         if previous_booking:
                             previous_booking.rescheduled_to_booking_id = booking.id
+                            previous_count = int(
+                                getattr(previous_booking, "reschedule_count", 0) or 0
+                            )
+                            new_count = previous_count + 1
+                            previous_booking.reschedule_count = new_count
+                            booking.reschedule_count = new_count
+                            if getattr(previous_booking, "late_reschedule_used", False):
+                                booking.late_reschedule_used = True
                     except Exception:
                         # Non-fatal; linkage is analytics-only
                         pass
@@ -874,6 +885,14 @@ class BookingService(BaseService):
             original_booking_id=original_booking_id,
         )
 
+        existing_booking = self.repository.get_by_id(original_booking_id)
+        if not existing_booking:
+            raise NotFoundException("Original booking not found")
+        if booking_data.instructor_id != existing_booking.instructor_id:
+            raise BusinessRuleException(
+                "Cannot change instructor during reschedule. Please cancel and create a new booking."
+            )
+
         # 1. Validate and load required data
         service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
 
@@ -909,11 +928,21 @@ class BookingService(BaseService):
                 old_booking = self.repository.get_by_id(original_booking_id)
                 if not old_booking:
                     raise NotFoundException("Original booking not found")
+                if booking_data.instructor_id != old_booking.instructor_id:
+                    raise BusinessRuleException(
+                        "Cannot change instructor during reschedule. Please cancel and create a new booking."
+                    )
 
                 original_lesson_dt = self._get_booking_start_utc(old_booking)
                 booking.rescheduled_from_booking_id = old_booking.id
                 booking.original_lesson_datetime = original_lesson_dt
                 old_booking.rescheduled_to_booking_id = booking.id
+                previous_count = int(getattr(old_booking, "reschedule_count", 0) or 0)
+                new_count = previous_count + 1
+                old_booking.reschedule_count = new_count
+                booking.reschedule_count = new_count
+                if getattr(old_booking, "late_reschedule_used", False):
+                    booking.late_reschedule_used = True
 
                 # Reuse payment fields from the original booking
                 booking.payment_intent_id = payment_intent_id
@@ -1011,6 +1040,14 @@ class BookingService(BaseService):
             original_booking_id=original_booking_id,
         )
 
+        existing_booking = self.repository.get_by_id(original_booking_id)
+        if not existing_booking:
+            raise NotFoundException("Original booking not found")
+        if booking_data.instructor_id != existing_booking.instructor_id:
+            raise BusinessRuleException(
+                "Cannot change instructor during reschedule. Please cancel and create a new booking."
+            )
+
         # 1. Validate and load required data
         service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
 
@@ -1045,6 +1082,10 @@ class BookingService(BaseService):
                 old_booking = self.repository.get_by_id(original_booking_id)
                 if not old_booking:
                     raise NotFoundException("Original booking not found")
+                if booking_data.instructor_id != old_booking.instructor_id:
+                    raise BusinessRuleException(
+                        "Cannot change instructor during reschedule. Please cancel and create a new booking."
+                    )
 
                 original_lesson_dt = self._get_booking_start_utc(old_booking)
                 booking.rescheduled_from_booking_id = old_booking.id
@@ -1052,6 +1093,11 @@ class BookingService(BaseService):
                 booking.has_locked_funds = True
                 booking.payment_status = PaymentStatus.LOCKED.value
                 old_booking.rescheduled_to_booking_id = booking.id
+                previous_count = int(getattr(old_booking, "reschedule_count", 0) or 0)
+                new_count = previous_count + 1
+                old_booking.reschedule_count = new_count
+                booking.reschedule_count = new_count
+                booking.late_reschedule_used = True
 
                 self._enqueue_booking_outbox_event(booking, "booking.created")
                 audit_after = self._snapshot_booking(booking)
@@ -1171,8 +1217,6 @@ class BookingService(BaseService):
 
         # Save payment method for future use (Stripe call should be outside DB transaction)
         if save_payment_method:
-            from ..services.stripe_service import StripeService
-
             stripe_service = StripeService(
                 self.db,
                 config_service=ConfigService(self.db),
@@ -1271,9 +1315,14 @@ class BookingService(BaseService):
                     },
                 )
 
-            # Update booking status to CONFIRMED
-            booking.status = BookingStatus.CONFIRMED
-            booking.confirmed_at = datetime.now(timezone.utc)
+            # Update booking status to CONFIRMED only when auth is scheduled (>24h)
+            # For immediate auth (<24h), confirmation happens after successful authorization.
+            if not trigger_immediate_auth:
+                booking.status = BookingStatus.CONFIRMED
+                booking.confirmed_at = datetime.now(timezone.utc)
+            else:
+                booking.status = BookingStatus.PENDING
+                booking.confirmed_at = None
 
             # Transaction handles flush/commit automatically
 
@@ -1283,6 +1332,7 @@ class BookingService(BaseService):
             payment_status=booking.payment_status,
         )
 
+        auth_result: Optional[Dict[str, Any]] = None
         if trigger_immediate_auth:
             try:
                 from app.tasks.payment_tasks import _process_authorization_for_booking
@@ -1303,12 +1353,28 @@ class BookingService(BaseService):
                     exc,
                 )
 
+        if auth_result and auth_result.get("success"):
+            try:
+                with self.transaction():
+                    refreshed = self.repository.get_by_id(booking.id)
+                    if refreshed and refreshed.status == BookingStatus.PENDING:
+                        refreshed.status = BookingStatus.CONFIRMED
+                        refreshed.confirmed_at = datetime.now(timezone.utc)
+                        if refreshed.payment_status == PaymentStatus.SCHEDULED.value:
+                            refreshed.payment_status = PaymentStatus.AUTHORIZED.value
+                self.repository.refresh(booking)
+            except Exception:
+                pass
+        elif trigger_immediate_auth:
             try:
                 self.repository.refresh(booking)
             except Exception:
                 pass
 
-        # Create system message in conversation
+        # Create system message in conversation only after confirmation
+        if booking.status != BookingStatus.CONFIRMED:
+            return booking
+
         try:
             service_name = "Lesson"
             if booking.instructor_service and booking.instructor_service.name:
@@ -1577,7 +1643,6 @@ class BookingService(BaseService):
             BusinessRuleException: If booking not cancellable
         """
         from ..repositories.payment_repository import PaymentRepository
-        from ..services.stripe_service import StripeService
 
         # ========== PHASE 1: Read/validate (quick transaction) ==========
         with self.transaction():
@@ -1614,6 +1679,25 @@ class BookingService(BaseService):
 
                 lock_ctx = {
                     "locked_booking_id": booking.rescheduled_from_booking_id,
+                    "resolution": resolution,
+                    "cancelled_by_role": cancelled_by_role,
+                    "default_role": (
+                        RoleName.STUDENT.value
+                        if cancelled_by_role == "student"
+                        else RoleName.INSTRUCTOR.value
+                    ),
+                }
+            elif booking.payment_status == PaymentStatus.LOCKED.value:
+                booking_start_utc = self._get_booking_start_utc(booking)
+                hours_until = TimezoneService.hours_until(booking_start_utc)
+                if cancelled_by_role == "instructor":
+                    resolution = "instructor_cancelled"
+                elif hours_until >= 12:
+                    resolution = "new_lesson_cancelled_ge12"
+                else:
+                    resolution = "new_lesson_cancelled_lt12"
+                lock_ctx = {
+                    "locked_booking_id": booking.id,
                     "resolution": resolution,
                     "cancelled_by_role": cancelled_by_role,
                     "default_role": (
@@ -1841,6 +1925,10 @@ class BookingService(BaseService):
                 booking.stripe_transfer_id = transfer_id
                 booking.transfer_reversal_failed = True
                 booking.transfer_reversal_error = reversal_error
+                booking.transfer_reversal_failed_at = datetime.now(timezone.utc)
+                booking.transfer_reversal_retry_count = (
+                    int(getattr(booking, "transfer_reversal_retry_count", 0) or 0) + 1
+                )
                 payment_repo.create_payment_event(
                     booking_id=booking.id,
                     event_type="lock_activation_failed",
@@ -1868,6 +1956,7 @@ class BookingService(BaseService):
                 booking.stripe_transfer_id = transfer_id
                 booking.transfer_reversed = True if transfer_id else False
                 booking.transfer_reversal_id = reversal_id
+                booking.late_reschedule_used = True
                 payment_repo.create_payment_event(
                     booking_id=booking.id,
                     event_type="lock_activated",
@@ -1888,7 +1977,6 @@ class BookingService(BaseService):
     def resolve_lock_for_booking(self, locked_booking_id: str, resolution: str) -> Dict[str, Any]:
         """Resolve a LOCK based on the new lesson outcome."""
         from ..repositories.payment_repository import PaymentRepository
-        from ..services.stripe_service import StripeService
 
         # Phase 1: Load locked booking and context
         with self.transaction():
@@ -2048,9 +2136,19 @@ class BookingService(BaseService):
                 locked_booking.credits_reserved_cents = 0
                 if stripe_result.get("payout_success"):
                     locked_booking.payment_status = PaymentStatus.SETTLED.value
-                    locked_booking.stripe_transfer_id = stripe_result.get("payout_transfer_id")
+                    locked_booking.payout_transfer_id = stripe_result.get("payout_transfer_id")
                 else:
                     locked_booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
+                    locked_booking.payout_transfer_failed_at = datetime.now(timezone.utc)
+                    locked_booking.payout_transfer_error = stripe_result.get("error")
+                    locked_booking.payout_transfer_retry_count = (
+                        int(getattr(locked_booking, "payout_transfer_retry_count", 0) or 0) + 1
+                    )
+                    locked_booking.transfer_failed_at = locked_booking.payout_transfer_failed_at
+                    locked_booking.transfer_error = locked_booking.payout_transfer_error
+                    locked_booking.transfer_retry_count = (
+                        int(getattr(locked_booking, "transfer_retry_count", 0) or 0) + 1
+                    )
 
             elif resolution == "new_lesson_cancelled_ge12":
                 credit_amount = lesson_price_cents
@@ -2088,9 +2186,19 @@ class BookingService(BaseService):
                 locked_booking.credits_reserved_cents = 0
                 if stripe_result.get("payout_success"):
                     locked_booking.payment_status = PaymentStatus.SETTLED.value
-                    locked_booking.stripe_transfer_id = stripe_result.get("payout_transfer_id")
+                    locked_booking.payout_transfer_id = stripe_result.get("payout_transfer_id")
                 else:
                     locked_booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
+                    locked_booking.payout_transfer_failed_at = datetime.now(timezone.utc)
+                    locked_booking.payout_transfer_error = stripe_result.get("error")
+                    locked_booking.payout_transfer_retry_count = (
+                        int(getattr(locked_booking, "payout_transfer_retry_count", 0) or 0) + 1
+                    )
+                    locked_booking.transfer_failed_at = locked_booking.payout_transfer_failed_at
+                    locked_booking.transfer_error = locked_booking.payout_transfer_error
+                    locked_booking.transfer_retry_count = (
+                        int(getattr(locked_booking, "transfer_retry_count", 0) or 0) + 1
+                    )
 
             elif resolution == "instructor_cancelled":
                 refund_data = stripe_result.get("refund_data") or {}
@@ -2106,12 +2214,20 @@ class BookingService(BaseService):
                 locked_booking.refunded_to_card_amount = (
                     refund_amount if refund_amount is not None else locked_amount_cents or 0
                 )
+                if stripe_result.get("refund_success"):
+                    locked_booking.refund_id = refund_data.get("refund_id")
                 locked_booking.credits_reserved_cents = 0
                 locked_booking.payment_status = (
                     PaymentStatus.SETTLED.value
                     if stripe_result.get("refund_success")
                     else PaymentStatus.MANUAL_REVIEW.value
                 )
+                if not stripe_result.get("refund_success"):
+                    locked_booking.refund_failed_at = datetime.now(timezone.utc)
+                    locked_booking.refund_error = stripe_result.get("error")
+                    locked_booking.refund_retry_count = (
+                        int(getattr(locked_booking, "refund_retry_count", 0) or 0) + 1
+                    )
 
             locked_booking.lock_resolution = resolution
             locked_booking.lock_resolved_at = datetime.now(timezone.utc)
@@ -2258,6 +2374,7 @@ class BookingService(BaseService):
             "reverse_success": False,
             "reverse_attempted": False,
             "reverse_failed": False,
+            "reverse_reversal_id": None,
             "refund_success": False,
             "refund_failed": False,
             "refund_data": None,
@@ -2303,13 +2420,21 @@ class BookingService(BaseService):
                     if transfer_id and transfer_amount:
                         results["reverse_attempted"] = True
                         try:
-                            stripe_service.reverse_transfer(
+                            reversal = stripe_service.reverse_transfer(
                                 transfer_id=transfer_id,
                                 amount_cents=transfer_amount,
                                 idempotency_key=f"reverse_resched_{booking_id}",
                                 reason="gaming_reschedule_cancel",
                             )
                             results["reverse_success"] = True
+                            reversal_obj = (
+                                reversal.get("reversal") if isinstance(reversal, dict) else None
+                            )
+                            results["reverse_reversal_id"] = (
+                                reversal_obj.get("id")
+                                if isinstance(reversal_obj, dict)
+                                else getattr(reversal_obj, "id", None)
+                            )
                         except Exception as e:
                             results["reverse_failed"] = True
                             logger.error(f"Transfer reversal failed for booking {booking_id}: {e}")
@@ -2382,13 +2507,21 @@ class BookingService(BaseService):
                     if transfer_id and transfer_amount:
                         results["reverse_attempted"] = True
                         try:
-                            stripe_service.reverse_transfer(
+                            reversal = stripe_service.reverse_transfer(
                                 transfer_id=transfer_id,
                                 amount_cents=transfer_amount,
                                 idempotency_key=f"reverse_{booking_id}",
                                 reason="student_cancel_12-24h",
                             )
                             results["reverse_success"] = True
+                            reversal_obj = (
+                                reversal.get("reversal") if isinstance(reversal, dict) else None
+                            )
+                            results["reverse_reversal_id"] = (
+                                reversal_obj.get("id")
+                                if isinstance(reversal_obj, dict)
+                                else getattr(reversal_obj, "id", None)
+                            )
                         except Exception as e:
                             results["reverse_failed"] = True
                             logger.error(f"Transfer reversal failed for booking {booking_id}: {e}")
@@ -2422,13 +2555,21 @@ class BookingService(BaseService):
                     if transfer_id:
                         results["reverse_attempted"] = True
                         try:
-                            stripe_service.reverse_transfer(
+                            reversal = stripe_service.reverse_transfer(
                                 transfer_id=transfer_id,
                                 amount_cents=transfer_amount,
                                 idempotency_key=f"reverse_lt12_{booking_id}",
                                 reason="student_cancel_under_12h",
                             )
                             results["reverse_success"] = True
+                            reversal_obj = (
+                                reversal.get("reversal") if isinstance(reversal, dict) else None
+                            )
+                            results["reverse_reversal_id"] = (
+                                reversal_obj.get("id")
+                                if isinstance(reversal_obj, dict)
+                                else getattr(reversal_obj, "id", None)
+                            )
                         except Exception as e:
                             results["reverse_failed"] = True
                             logger.error(f"Transfer reversal failed for booking {booking_id}: {e}")
@@ -2544,6 +2685,7 @@ class BookingService(BaseService):
             booking.capture_retry_count = int(getattr(booking, "capture_retry_count", 0) or 0) + 1
             if error:
                 booking.auth_last_error = error
+                booking.capture_error = error
 
         def _mark_manual_review(reason: Optional[str]) -> None:
             booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
@@ -2564,12 +2706,19 @@ class BookingService(BaseService):
                         },
                     )
                     booking.transfer_reversal_failed = True
+                    booking.transfer_reversal_failed_at = datetime.now(timezone.utc)
+                    booking.transfer_reversal_retry_count = (
+                        int(getattr(booking, "transfer_reversal_retry_count", 0) or 0) + 1
+                    )
+                    booking.transfer_reversal_error = stripe_results.get("error")
                     _mark_manual_review("transfer_reversal_failed")
                     logger.error(
                         "Transfer reversal failed for booking %s; manual review required",
                         booking_id,
                     )
                     return
+                if stripe_results.get("reverse_reversal_id"):
+                    booking.transfer_reversal_id = stripe_results.get("reverse_reversal_id")
                 credit_amount_cents = ctx["lesson_price_cents"]
                 try:
                     credit_service.forfeit_credits_for_booking(
@@ -2676,6 +2825,8 @@ class BookingService(BaseService):
                         "original_charge_amount": capture_data.get("amount_received"),
                     },
                 )
+                if stripe_results.get("reverse_reversal_id"):
+                    booking.transfer_reversal_id = stripe_results.get("reverse_reversal_id")
 
             if stripe_results["capture_success"]:
                 if stripe_results.get("reverse_failed"):
@@ -2688,6 +2839,11 @@ class BookingService(BaseService):
                         },
                     )
                     booking.transfer_reversal_failed = True
+                    booking.transfer_reversal_failed_at = datetime.now(timezone.utc)
+                    booking.transfer_reversal_retry_count = (
+                        int(getattr(booking, "transfer_reversal_retry_count", 0) or 0) + 1
+                    )
+                    booking.transfer_reversal_error = stripe_results.get("error")
                     _mark_manual_review("transfer_reversal_failed")
                     logger.error(
                         "Transfer reversal failed for booking %s; manual review required",
@@ -2788,6 +2944,8 @@ class BookingService(BaseService):
                             "original_charge_amount": capture_data.get("amount_received"),
                         },
                     )
+                    if stripe_results.get("reverse_reversal_id"):
+                        booking.transfer_reversal_id = stripe_results.get("reverse_reversal_id")
 
                 if stripe_results.get("payout_failed"):
                     payment_repo.create_payment_event(
@@ -2798,6 +2956,16 @@ class BookingService(BaseService):
                             "payout_amount_cents": stripe_results.get("payout_amount_cents"),
                             "error": stripe_results.get("error"),
                         },
+                    )
+                    booking.payout_transfer_failed_at = datetime.now(timezone.utc)
+                    booking.payout_transfer_error = stripe_results.get("error")
+                    booking.payout_transfer_retry_count = (
+                        int(getattr(booking, "payout_transfer_retry_count", 0) or 0) + 1
+                    )
+                    booking.transfer_failed_at = booking.payout_transfer_failed_at
+                    booking.transfer_error = booking.payout_transfer_error
+                    booking.transfer_retry_count = (
+                        int(getattr(booking, "transfer_retry_count", 0) or 0) + 1
                     )
                     _mark_manual_review(stripe_results.get("error"))
 
@@ -2810,7 +2978,7 @@ class BookingService(BaseService):
                             "payout_amount_cents": stripe_results.get("payout_amount_cents"),
                         },
                     )
-                    booking.stripe_transfer_id = stripe_results.get("payout_transfer_id")
+                    booking.payout_transfer_id = stripe_results.get("payout_transfer_id")
 
                 credit_return_cents = int(round(ctx["lesson_price_cents"] * 0.5))
                 try:
@@ -2940,6 +3108,7 @@ class BookingService(BaseService):
                     },
                 )
                 booking.payment_status = PaymentStatus.SETTLED.value
+                booking.refund_id = refund_data.get("refund_id")
                 refund_amount = refund_data.get("amount_refunded")
                 if refund_amount is not None:
                     try:
@@ -2952,6 +3121,11 @@ class BookingService(BaseService):
                     instructor_payout_cents=0,
                     refunded_cents=refund_amount or 0,
                 )
+            elif stripe_results.get("refund_failed"):
+                booking.refund_failed_at = datetime.now(timezone.utc)
+                booking.refund_error = stripe_results.get("error")
+                booking.refund_retry_count = int(getattr(booking, "refund_retry_count", 0) or 0) + 1
+                _mark_manual_review(stripe_results.get("error"))
             elif stripe_results.get("cancel_pi_success"):
                 payment_repo.create_payment_event(
                     booking_id=booking_id,
@@ -4057,8 +4231,13 @@ class BookingService(BaseService):
         )
 
         if stripe_result.get("refund_success") or stripe_result.get("cancel_success"):
+            if stripe_result.get("refund_success"):
+                booking.refund_id = refund_data.get("refund_id")
             booking.payment_status = PaymentStatus.SETTLED.value
         else:
+            booking.refund_failed_at = datetime.now(timezone.utc)
+            booking.refund_error = stripe_result.get("error")
+            booking.refund_retry_count = int(getattr(booking, "refund_retry_count", 0) or 0) + 1
             booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
 
     def _finalize_student_no_show(
@@ -4087,11 +4266,15 @@ class BookingService(BaseService):
 
         booking.instructor_payout_amount = payout_cents
         if stripe_result.get("capture_success") or stripe_result.get("already_captured"):
+            capture_data = stripe_result.get("capture_data") or {}
+            if capture_data.get("transfer_id"):
+                booking.stripe_transfer_id = capture_data.get("transfer_id")
             booking.payment_status = PaymentStatus.SETTLED.value
         else:
             booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
             booking.capture_failed_at = datetime.now(timezone.utc)
             booking.capture_retry_count = int(getattr(booking, "capture_retry_count", 0) or 0) + 1
+            booking.capture_error = stripe_result.get("error")
 
     def _cancel_no_show_report(self, booking: Booking) -> None:
         """Cancel a no-show report and restore payment status."""
@@ -4193,7 +4376,8 @@ class BookingService(BaseService):
         booking_date: date,
         start_time: time,
         end_time: time,
-        service_id: str,
+        service_id: Optional[str] = None,
+        instructor_service_id: Optional[str] = None,
         exclude_booking_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
@@ -4221,8 +4405,12 @@ class BookingService(BaseService):
         if has_conflict:
             return {"available": False, "reason": "Time slot has conflicts with existing bookings"}
 
+        resolved_service_id = service_id or instructor_service_id
+        if not resolved_service_id:
+            return {"available": False, "reason": "Service not found or no longer available"}
+
         # Get service and instructor profile using repositories
-        service = self.conflict_checker_repository.get_active_service(service_id)
+        service = self.conflict_checker_repository.get_active_service(resolved_service_id)
         if not service:
             return {"available": False, "reason": "Service not found or no longer available"}
 
@@ -4343,6 +4531,16 @@ class BookingService(BaseService):
         if getattr(student, "account_locked", False):
             raise BusinessRuleException(
                 "Your account is locked due to payment issues. Please contact support."
+            )
+        if getattr(student, "account_restricted", False):
+            raise BusinessRuleException(
+                "Your account is restricted due to a payment dispute. Please contact support."
+            )
+        if getattr(student, "credit_balance_frozen", False) or (
+            int(getattr(student, "credit_balance_cents", 0) or 0) < 0
+        ):
+            raise BusinessRuleException(
+                "Your account has a negative credit balance. Please contact support."
             )
 
         # Use repositories instead of direct queries
@@ -5024,10 +5222,13 @@ class BookingService(BaseService):
     @BaseService.measure_operation("validate_reschedule_allowed")
     def validate_reschedule_allowed(self, booking: "Booking") -> None:
         """
-        Validate that a booking can be rescheduled (Part 5: Block Second Reschedule).
+        Validate that a booking can be rescheduled (v2.1.1 rules).
 
-        A booking can only be rescheduled ONCE. If it was already created via
-        reschedule (rescheduled_from_booking_id is set), it cannot be rescheduled again.
+        Rules:
+        - Reschedule blocked when <12h before lesson
+        - Exactly one late reschedule allowed in 12-24h window (late_reschedule_used)
+        - Unlimited reschedules when >=24h
+        - Locked bookings cannot be rescheduled
 
         Args:
             booking: The booking to validate
@@ -5035,9 +5236,28 @@ class BookingService(BaseService):
         Raises:
             BusinessRuleException: If booking has already been rescheduled once
         """
-        if booking.rescheduled_from_booking_id:
+        if booking.payment_status == PaymentStatus.LOCKED.value:
             raise BusinessRuleException(
-                message="You've already rescheduled this booking. To change the date again, please cancel (for credit) and book a new lesson.",
+                message="This booking has locked funds and cannot be rescheduled.",
+                code="reschedule_locked",
+            )
+
+        hours_until_start = self.get_hours_until_start(booking)
+        if hours_until_start < 12:
+            raise BusinessRuleException(
+                message=(
+                    "Cannot reschedule within 12 hours of lesson start. "
+                    "Please cancel if you cannot attend."
+                ),
+                code="reschedule_window_closed",
+            )
+
+        if getattr(booking, "late_reschedule_used", False):
+            raise BusinessRuleException(
+                message=(
+                    "You've already used your late reschedule for this booking. "
+                    "Please cancel and book a new lesson."
+                ),
                 code="reschedule_limit_reached",
             )
 

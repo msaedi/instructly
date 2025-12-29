@@ -1,4 +1,5 @@
 from datetime import date, datetime, time, timedelta, timezone
+from unittest.mock import patch
 
 import pytest
 
@@ -158,7 +159,8 @@ class TestAdminBookingService:
         assert "payment_captured" in events
 
     def test_calculate_stats(self, db, test_student, test_instructor_with_availability):
-        today = datetime.now(timezone.utc).date()
+        fixed_now = datetime(2025, 1, 15, 12, 0, tzinfo=timezone.utc)
+        today = fixed_now.date()
         yesterday = today - timedelta(days=1)
         service_id = _get_active_service_id(db, test_instructor_with_availability.id)
 
@@ -196,7 +198,14 @@ class TestAdminBookingService:
         db.commit()
 
         service = AdminBookingService(db)
-        stats = service.get_booking_stats()
+
+        class _FixedDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return fixed_now
+
+        with patch("app.services.admin_booking_service.datetime", _FixedDateTime):
+            stats = service.get_booking_stats()
         assert stats.today.booking_count == 1
         assert stats.today.revenue == pytest.approx(75.0)
         assert stats.this_week.gmv == pytest.approx(150.0)
