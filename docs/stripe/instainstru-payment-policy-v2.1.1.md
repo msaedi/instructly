@@ -23,7 +23,14 @@ This is a **policy and behavior spec**. It is not legal advice.
 ### 1.1 Connect model
 - iNSTAiNSTRU is a marketplace: students book lessons with instructors.
 - We use **Stripe Connect** and **destination charges** (PaymentIntents created on the platform, with `transfer_data.destination` set to the instructor’s connected account).
-- We should set `on_behalf_of` so that the instructor is the settlement merchant / merchant of record on receipts where applicable (confirm with counsel for your jurisdiction).
+
+### on_behalf_of Parameter
+
+**Decision:** Not used.
+
+**Rationale:** InstaInstru operates as the merchant of record using destination charges. The `on_behalf_of` parameter is not required for our Stripe Connect configuration. The platform handles all customer interactions, receipts, and support directly.
+
+**Note:** This decision may be revisited if compliance requirements change or if we transition to a different Connect model.
 
 ### 1.2 Key Stripe mechanics (must-haves)
 1. **Authorization** = hold funds on student card using `capture_method="manual"`.
