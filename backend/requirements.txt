@@ -52,7 +52,7 @@ stripe==14.1.0
 
 # Monitoring & Utilities
 prometheus-client==0.23.1
-psutil==7.1.3
+psutil==7.2.1
 python-ulid==3.1.0
 python-dotenv==1.2.1
 PyYAML==6.0.3
