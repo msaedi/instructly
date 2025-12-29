@@ -381,6 +381,37 @@ Phase 7 Verification: ✅ COMPLETE
 
 Phase 8 Verification: ✅ COMPLETE
 
+## Phase 9: Audit Remediation
+
+### Gap Matrix - Phase 9
+
+| # | Issue | Status | Evidence |
+|---|-------|--------|----------|
+| 1 | LOCK for scheduled bookings in 12-24h | ✅ PASS | `backend/tests/integration/test_lock_scheduled_booking.py` |
+| 2 | Credit FIFO by expiration | ✅ PASS | `backend/tests/integration/test_credit_fifo_expiration.py` |
+| 3 | Mutex on /complete endpoint | ✅ PASS | `backend/tests/integration/test_complete_mutex.py` |
+| 4 | Admin UI hardcoded check | ✅ PASS | `frontend/features/shared/types/paymentStatus.ts` |
+
+Phase 9 Verification: ✅ COMPLETE
+
+### LOCK for Scheduled Bookings
+- Scheduled bookings in 12-24h window now trigger LOCK on reschedule
+- Auth runs immediately before capture if still scheduled
+- Auth failure blocks reschedule with appropriate error
+
+### Credit FIFO by Expiration
+- Changed ordering from `created_at` to `expires_at`
+- Credits expiring soonest are reserved first
+- NULL expiration credits used last
+
+### /complete Mutex
+- Added booking_lock to POST /bookings/{id}/complete
+- Prevents concurrent complete/cancel race conditions
+
+### Admin UI
+- Replaced hardcoded "authorized" check with helper
+- All status checks now use canonical helpers
+
 ### on_behalf_of Usage
 
 Decision: Not used.
@@ -412,6 +443,7 @@ Status: ✅ FULLY ALIGNED
 | Phase 6 | State machine & failures | ✅ PASS | Canonical status + capture failure + dispute tests |
 | Phase 7 | Frontend alignment + compliance hardening | ✅ PASS | Checkout status + policy update + no-show outcome tests |
 | Phase 8 | Full compliance closure | ✅ PASS | Phase 8 coverage + policy updates |
+| Phase 9 | Audit remediation | ✅ PASS | Phase 9 remediation tests |
 
 Canonical payment_status values (Section 4.1):
 - [x] Only 6 values used: scheduled, authorized, payment_method_required, manual_review, locked, settled

@@ -31,24 +31,20 @@ class CreditRepository(BaseRepository[PlatformCredit]):
         self.logger = logging.getLogger(__name__)
 
     def get_available_credits(
-        self, *, user_id: str, order_by: str = "created_at"
+        self, *, user_id: str, order_by: str = "expires_at"
     ) -> List[PlatformCredit]:
         """Return available (non-reserved, non-expired) credits for a user."""
         try:
             now = datetime.now(timezone.utc)
-            query = (
-                self.db.query(PlatformCredit)
-                .filter(
-                    and_(
-                        PlatformCredit.user_id == user_id,
-                        or_(
-                            PlatformCredit.status.is_(None),
-                            PlatformCredit.status == "available",
-                        ),
-                        (PlatformCredit.expires_at.is_(None) | (PlatformCredit.expires_at > now)),
-                    )
+            query = self.db.query(PlatformCredit).filter(
+                and_(
+                    PlatformCredit.user_id == user_id,
+                    or_(
+                        PlatformCredit.status.is_(None),
+                        PlatformCredit.status == "available",
+                    ),
+                    (PlatformCredit.expires_at.is_(None) | (PlatformCredit.expires_at > now)),
                 )
-                .order_by(PlatformCredit.created_at.asc(), PlatformCredit.id.asc())
             )
             if order_by == "expires_at":
                 query = query.order_by(
@@ -56,6 +52,8 @@ class CreditRepository(BaseRepository[PlatformCredit]):
                     PlatformCredit.created_at.asc(),
                     PlatformCredit.id.asc(),
                 )
+            else:
+                query = query.order_by(PlatformCredit.created_at.asc(), PlatformCredit.id.asc())
             return cast(List[PlatformCredit], query.all())
         except Exception as exc:
             self.logger.error("Failed to get available credits: %s", str(exc))

@@ -938,10 +938,16 @@ async def complete_booking(
     Requires: COMPLETE_BOOKINGS permission (instructor only)
     """
     try:
-        booking = await asyncio.to_thread(
-            booking_service.complete_booking, booking_id, current_user
-        )
-        return BookingResponse.from_booking(booking)
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            booking = await asyncio.to_thread(
+                booking_service.complete_booking, booking_id, current_user
+            )
+            return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
 

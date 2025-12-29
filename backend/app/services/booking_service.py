@@ -1836,13 +1836,19 @@ class BookingService(BaseService):
         if initiated_by != "student":
             return False
 
-        payment_status = (booking.payment_status or "").lower()
-        if payment_status != PaymentStatus.AUTHORIZED.value:
-            return False
-
         booking_start_utc = self._get_booking_start_utc(booking)
         hours_until_start = float(TimezoneService.hours_until(booking_start_utc))
-        return 12 <= hours_until_start < 24
+        if not (12 <= hours_until_start < 24):
+            return False
+
+        payment_status = (booking.payment_status or "").lower()
+        if payment_status == PaymentStatus.LOCKED.value:
+            return False
+
+        return payment_status in {
+            PaymentStatus.AUTHORIZED.value,
+            PaymentStatus.SCHEDULED.value,
+        }
 
     @BaseService.measure_operation("activate_reschedule_lock")
     def activate_lock_for_reschedule(self, booking_id: str) -> Dict[str, Any]:
@@ -1851,6 +1857,8 @@ class BookingService(BaseService):
         from ..services.stripe_service import StripeService
 
         # Phase 1: Load booking and validate
+        hours_until_lesson: Optional[float] = None
+        needs_authorization = False
         with self.transaction():
             booking = self.repository.get_booking_with_details(booking_id)
             if not booking:
@@ -1859,14 +1867,48 @@ class BookingService(BaseService):
             if booking.payment_status == PaymentStatus.LOCKED.value:
                 return {"locked": True, "already_locked": True}
 
-            payment_intent_id = (
-                booking.payment_intent_id
-                if isinstance(booking.payment_intent_id, str)
-                and booking.payment_intent_id.startswith("pi_")
-                else None
-            )
-            if not payment_intent_id:
-                raise BusinessRuleException("No authorized payment available to lock")
+            payment_status = (booking.payment_status or "").lower()
+            if payment_status not in {
+                PaymentStatus.AUTHORIZED.value,
+                PaymentStatus.SCHEDULED.value,
+            }:
+                raise BusinessRuleException(
+                    f"Cannot lock booking with status {booking.payment_status}"
+                )
+
+            if payment_status == PaymentStatus.SCHEDULED.value:
+                booking_start_utc = self._get_booking_start_utc(booking)
+                hours_until_lesson = float(TimezoneService.hours_until(booking_start_utc))
+                needs_authorization = True
+
+        if needs_authorization:
+            from app.tasks.payment_tasks import _process_authorization_for_booking
+
+            auth_result = _process_authorization_for_booking(booking_id, hours_until_lesson or 0.0)
+            if not auth_result.get("success"):
+                raise BusinessRuleException(
+                    f"Unable to authorize payment for lock: {auth_result.get('error')}"
+                )
+            try:
+                self.db.expire_all()
+            except Exception:
+                pass
+
+        # Refresh booking after possible authorization
+        booking = self.repository.get_booking_with_details(booking_id)
+        if not booking:
+            raise NotFoundException("Booking not found after authorization")
+
+        payment_intent_id = (
+            booking.payment_intent_id
+            if isinstance(booking.payment_intent_id, str)
+            and booking.payment_intent_id.startswith("pi_")
+            else None
+        )
+        if not payment_intent_id:
+            raise BusinessRuleException("No authorized payment available to lock")
+        if booking.payment_status != PaymentStatus.AUTHORIZED.value:
+            raise BusinessRuleException(f"Cannot lock booking with status {booking.payment_status}")
 
         # Phase 2: Stripe calls (no transaction)
         stripe_service = StripeService(

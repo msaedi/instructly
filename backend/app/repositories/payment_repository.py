@@ -1377,9 +1377,10 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                         )
                     )
                     .order_by(
+                        PlatformCredit.expires_at.asc().nullslast(),
                         PlatformCredit.created_at.asc(),
                         PlatformCredit.id.asc(),
-                    )  # FIFO by oldest credit
+                    )
                     .all()
                 ),
             )

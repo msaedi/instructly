@@ -40,7 +40,7 @@ class CreditService(BaseService):
 
         def _reserve() -> int:
             available = self.credit_repository.get_available_credits(
-                user_id=user_id, order_by="created_at"
+                user_id=user_id, order_by="expires_at"
             )
             remaining = max_amount_cents
             total_reserved = 0

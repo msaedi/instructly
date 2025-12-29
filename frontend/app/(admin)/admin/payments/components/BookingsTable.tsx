@@ -3,6 +3,7 @@ import { CheckCircle2, FileText, Mail, MoreVertical, UserRound, XCircle } from '
 
 import { cn } from '@/lib/utils';
 import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/formatBookingTime';
+import { isRefundable } from '@/features/shared/types/paymentStatus';
 
 import type { AdminBooking, BookingStatus, PaymentStatus } from '../hooks/useAdminBookings';
 import { formatCurrency } from '../utils';
@@ -122,8 +123,7 @@ export default function BookingsTable({
           </thead>
           <tbody className="divide-y divide-gray-200/70 dark:divide-gray-700/60">
             {bookings.map((booking) => {
-              const canRefund =
-                booking.payment_status === 'authorized' || booking.payment_status === 'settled';
+              const canRefund = isRefundable(booking.payment_status);
               const canMark = booking.status === 'CONFIRMED' && isLessonPast(booking);
               const canCancel = booking.status === 'CONFIRMED';
               return (

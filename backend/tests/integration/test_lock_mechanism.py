@@ -150,7 +150,7 @@ def _create_booking(
         (30, "student", "authorized", False),
         (8, "student", "authorized", False),
         (18, "instructor", "authorized", False),
-        (18, "student", "scheduled", False),
+        (18, "student", "scheduled", True),
     ],
 )
 def test_should_trigger_lock(hours_until, initiated_by, payment_status, expected, db: Session):

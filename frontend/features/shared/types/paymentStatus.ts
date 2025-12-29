@@ -17,6 +17,19 @@ export const CHECKOUT_SUCCESS_STATUSES: readonly PaymentStatus[] = [
 export const isCheckoutSuccess = (status: string | null | undefined): status is PaymentStatus =>
   !!status && CHECKOUT_SUCCESS_STATUSES.includes(status as PaymentStatus);
 
+export const REFUNDABLE_STATUSES: readonly PaymentStatus[] = [PAYMENT_STATUS.SETTLED];
+
+export const isRefundable = (status: string | null | undefined): status is PaymentStatus =>
+  !!status && REFUNDABLE_STATUSES.includes(status as PaymentStatus);
+
+export const ACTIVE_HOLD_STATUSES: readonly PaymentStatus[] = [
+  PAYMENT_STATUS.AUTHORIZED,
+  PAYMENT_STATUS.SCHEDULED,
+];
+
+export const hasActiveHold = (status: string | null | undefined): status is PaymentStatus =>
+  !!status && ACTIVE_HOLD_STATUSES.includes(status as PaymentStatus);
+
 export const BOOKING_ACTIVE_STATUSES: readonly PaymentStatus[] = [
   PAYMENT_STATUS.SCHEDULED,
   PAYMENT_STATUS.AUTHORIZED,
