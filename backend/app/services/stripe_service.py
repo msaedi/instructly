@@ -37,8 +37,12 @@ from ..constants.payment_status import map_payment_status
 from ..constants.pricing_defaults import PRICING_DEFAULTS
 from ..core.booking_lock import booking_lock_sync
 from ..core.config import settings
-from ..core.exceptions import ServiceException
-from ..models.booking import PaymentStatus
+from ..core.exceptions import (
+    BookingCancelledException,
+    BookingNotFoundException,
+    ServiceException,
+)
+from ..models.booking import BookingStatus, PaymentStatus
 from ..models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
@@ -489,17 +493,46 @@ class StripeService(BaseService):
 
         # With capture_method: "manual", successful authorization returns "requires_capture"
         # We treat both "succeeded" (legacy/credits-only) and "requires_capture" as successful auth
-        if payment_result["success"] and payment_result["status"] in [
+        if payment_result["success"] and payment_result["status"] in {
             "succeeded",
             "requires_capture",
             "scheduled",
-        ]:
-            booking.status = "CONFIRMED"
+        }:
+            payment_intent_id = payment_result.get("payment_intent_id")
+            fresh_booking = self.booking_repository.get_by_id_for_update(booking.id)
+
+            if not fresh_booking:
+                self._void_or_refund_payment(payment_intent_id)
+                raise BookingNotFoundException(
+                    "Booking no longer exists. Payment has been refunded."
+                )
+
+            if fresh_booking.status == BookingStatus.CANCELLED.value:
+                self._void_or_refund_payment(payment_intent_id)
+                raise BookingCancelledException(
+                    "This booking was cancelled by the instructor during checkout. "
+                    "Your payment has been refunded."
+                )
+
+            if fresh_booking.status not in {
+                BookingStatus.PENDING.value,
+                BookingStatus.CONFIRMED.value,
+            }:
+                self._void_or_refund_payment(payment_intent_id)
+                raise ServiceException(
+                    f"Booking is in unexpected state '{fresh_booking.status}'. "
+                    "Payment has been refunded.",
+                    code="invalid_booking_state",
+                )
+
+            fresh_booking.status = BookingStatus.CONFIRMED.value
             # Set payment_status to reflect authorization state
             if payment_result["status"] == "requires_capture":
-                booking.payment_status = PaymentStatus.AUTHORIZED.value
+                fresh_booking.payment_status = PaymentStatus.AUTHORIZED.value
             elif payment_result["status"] == "scheduled":
-                booking.payment_status = PaymentStatus.SCHEDULED.value
+                fresh_booking.payment_status = PaymentStatus.SCHEDULED.value
+
+            booking = fresh_booking
             booking_service.repository.flush()
             try:
                 booking_service.invalidate_booking_cache(booking)
@@ -2753,6 +2786,53 @@ class StripeService(BaseService):
         except Exception as e:
             self.logger.error(f"Error canceling payment intent: {str(e)}")
             raise ServiceException(f"Failed to cancel payment intent: {str(e)}")
+
+    @BaseService.measure_operation("stripe_void_or_refund_payment")
+    def _void_or_refund_payment(self, payment_intent_id: Optional[str]) -> None:
+        """Void an uncaptured payment or refund a captured payment intent."""
+        if not payment_intent_id:
+            return
+
+        if not payment_intent_id.startswith("pi_"):
+            self.logger.info(
+                "Skipping void/refund for non-Stripe payment intent %s", payment_intent_id
+            )
+            return
+
+        if not self.stripe_configured:
+            self.logger.info(
+                "Stripe not configured; skipping void/refund for %s", payment_intent_id
+            )
+            return
+
+        try:
+            pi = stripe.PaymentIntent.retrieve(payment_intent_id)
+            status = getattr(pi, "status", None)
+
+            if status == "requires_capture":
+                self.cancel_payment_intent(
+                    payment_intent_id,
+                    idempotency_key=f"void_{payment_intent_id}",
+                )
+                self.logger.info("Voided uncaptured payment %s", payment_intent_id)
+            elif status == "succeeded":
+                self.refund_payment(
+                    payment_intent_id,
+                    reverse_transfer=True,
+                    refund_application_fee=True,
+                    idempotency_key=f"refund_{payment_intent_id}",
+                )
+                self.logger.info("Refunded captured payment %s", payment_intent_id)
+            else:
+                self.logger.info(
+                    "Payment %s in state %s; no refund action required",
+                    payment_intent_id,
+                    status,
+                )
+        except stripe.StripeError as e:
+            self.logger.error("Failed to void/refund payment %s: %s", payment_intent_id, e)
+        except Exception as e:
+            self.logger.error("Failed to void/refund payment %s: %s", payment_intent_id, e)
 
     @BaseService.measure_operation("stripe_refund_payment")
     def refund_payment(

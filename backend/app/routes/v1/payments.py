@@ -41,7 +41,7 @@ import stripe
 
 from ...api.dependencies.auth import get_current_active_user
 from ...core.config import settings
-from ...core.exceptions import ServiceException
+from ...core.exceptions import BookingCancelledException, BookingNotFoundException, ServiceException
 from ...database import get_db
 from ...idempotency.cache import get_cached, set_cached
 from ...models.user import User
@@ -552,6 +552,12 @@ async def create_checkout(
 
     except HTTPException:
         raise
+    except BookingCancelledException as e:
+        logger.error(f"Checkout failed due to cancelled booking: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except BookingNotFoundException as e:
+        logger.error(f"Checkout failed due to missing booking: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ServiceException as e:
         logger.error(f"Service error creating checkout: {str(e)}")
         status_code = status.HTTP_400_BAD_REQUEST

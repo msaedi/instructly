@@ -1,8 +1,8 @@
-# Payment Policy v2.1 Compliance Checklist (Phase 0–8)
+# Payment Policy v2.1 Compliance Checklist (Phase 0–10)
 
 Last updated: 2025-12-28
 Environment: staging DB (instainstru_stg), SITE_MODE=local, Stripe test mode
-Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), Phase 2 LOCK anti-gaming mechanism, Phase 3 credit reservation model, Phase 4 no-show handling, Phase 5 authorization timing, Phase 6 state machine alignment + failure handling, Phase 7 frontend alignment + compliance hardening, and Phase 8 full compliance closure.
+Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), Phase 2 LOCK anti-gaming mechanism, Phase 3 credit reservation model, Phase 4 no-show handling, Phase 5 authorization timing, Phase 6 state machine alignment + failure handling, Phase 7 frontend alignment + compliance hardening, Phase 8 full compliance closure, Phase 9 audit remediation, and Phase 10 checkout race condition fix.
 
 Note: As of Phase 6, booking.payment_status is canonical (scheduled, authorized, payment_method_required, manual_review, locked, settled). Legacy labels (captured/refunded/released/credit_issued/auth_failed/capture_failed/disputed) are now expressed via settlement_outcome + failure fields.
 
@@ -412,6 +412,26 @@ Phase 9 Verification: ✅ COMPLETE
 - Replaced hardcoded "authorized" check with helper
 - All status checks now use canonical helpers
 
+## Phase 10: Checkout Race Condition Fix
+
+### Issue
+POST /checkout used a stale booking object after payment success.
+Race condition: instructor cancel during checkout would result in charging for a cancelled booking.
+
+### Fix
+- Added post-payment fresh read with `SELECT FOR UPDATE`
+- Detect CANCELLED/deleted booking after payment succeeds
+- Automatically void or refund payment if booking state invalid
+- Return appropriate error to frontend
+
+### Evidence
+- Fresh read: `backend/app/services/stripe_service.py`
+- Void/refund helper: `backend/app/services/stripe_service.py` (`_void_or_refund_payment`)
+- Exception handling: `backend/app/routes/v1/payments.py`
+- Test coverage: `backend/tests/integration/test_checkout_race_condition.py`
+
+Phase 10 Verification: ✅ COMPLETE
+
 ### on_behalf_of Usage
 
 Decision: Not used.
@@ -444,6 +464,7 @@ Status: ✅ FULLY ALIGNED
 | Phase 7 | Frontend alignment + compliance hardening | ✅ PASS | Checkout status + policy update + no-show outcome tests |
 | Phase 8 | Full compliance closure | ✅ PASS | Phase 8 coverage + policy updates |
 | Phase 9 | Audit remediation | ✅ PASS | Phase 9 remediation tests |
+| Phase 10 | Checkout race condition fix | ✅ PASS | `backend/tests/integration/test_checkout_race_condition.py` |
 
 Canonical payment_status values (Section 4.1):
 - [x] Only 6 values used: scheduled, authorized, payment_method_required, manual_review, locked, settled

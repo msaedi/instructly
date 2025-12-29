@@ -882,6 +882,37 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error getting booking details: {str(e)}")
             raise RepositoryException(f"Failed to get booking details: {str(e)}")
 
+    def get_by_id_for_update(
+        self,
+        booking_id: str,
+        *,
+        load_relationships: bool = True,
+        populate_existing: bool = True,
+    ) -> Optional[Booking]:
+        """
+        Get a booking by ID with row-level lock (SELECT FOR UPDATE).
+
+        Args:
+            booking_id: The booking ID
+            load_relationships: Whether to eager load relationships
+            populate_existing: Whether to refresh any existing instance in the session
+
+        Returns:
+            The booking if found, otherwise None
+        """
+        try:
+            query = (
+                self.db.query(Booking).filter(Booking.id == booking_id).with_for_update(of=Booking)
+            )
+            if load_relationships:
+                query = self._apply_eager_loading(query)
+            if populate_existing:
+                query = query.populate_existing()
+            return cast(Optional[Booking], query.first())
+        except Exception as e:
+            self.logger.error(f"Error getting booking for update: {str(e)}")
+            raise RepositoryException(f"Failed to get booking for update: {str(e)}")
+
     def list_admin_bookings(
         self,
         *,
