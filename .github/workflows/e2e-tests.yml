@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Setup Node.js (admin)
       if: ${{ matrix.project == 'admin' }}
@@ -163,7 +163,7 @@ jobs:
           - 6379:6379
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Ensure required tools are installed
       run: |
@@ -705,7 +705,7 @@ jobs:
       PLAYWRIGHT_BASE_URL: http://localhost:3000
       REDIS_URL: redis://localhost:6379/0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Append beta-local host alias
         run: echo "127.0.0.1 beta-local.instainstru.com" | sudo tee -a /etc/hosts
@@ -897,7 +897,7 @@ jobs:
       PLAYWRIGHT_BASE_URL: http://localhost:3000
       REDIS_URL: redis://localhost:6379/0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Append beta-local host aliases
         run: |
