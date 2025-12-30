@@ -191,8 +191,10 @@ test.describe('Scheduled Payment Booking (>24h)', () => {
 
     await page.goto('/student/booking/confirm', { waitUntil: 'domcontentloaded' });
 
-    const bookNowButton = page.getByRole('button', { name: 'Book now!' });
+    const bookNowButton = page.getByTestId('booking-confirm-cta');
+    await expect(bookNowButton).toBeVisible({ timeout: 10000 });
     await expect(bookNowButton).toBeEnabled({ timeout: 10000 });
+    await expect(bookNowButton).toHaveText('Book now!', { timeout: 10000 });
     await bookNowButton.click();
 
     await expect(
