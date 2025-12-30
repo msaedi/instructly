@@ -31,9 +31,13 @@ class CreditRepository(BaseRepository[PlatformCredit]):
         self.logger = logging.getLogger(__name__)
 
     def get_available_credits(
-        self, *, user_id: str, order_by: str = "expires_at"
+        self,
+        *,
+        user_id: str,
+        order_by: str = "expires_at",
+        for_update: bool = False,
     ) -> List[PlatformCredit]:
-        """Return available (non-reserved, non-expired) credits for a user."""
+        """Return available (non-reserved, non-expired) credits for a user, optionally locking rows."""
         try:
             now = datetime.now(timezone.utc)
             query = self.db.query(PlatformCredit).filter(
@@ -46,6 +50,8 @@ class CreditRepository(BaseRepository[PlatformCredit]):
                     (PlatformCredit.expires_at.is_(None) | (PlatformCredit.expires_at > now)),
                 )
             )
+            if for_update:
+                query = query.with_for_update(of=PlatformCredit)
             if order_by == "expires_at":
                 query = query.order_by(
                     PlatformCredit.expires_at.asc().nullslast(),

@@ -137,6 +137,13 @@ availability_events_suppressed_total = Counter(
     registry=REGISTRY,
 )
 
+booking_lock_operations_total = Counter(
+    "instainstru_booking_lock_operations_total",
+    "Booking lock operations by action and outcome",
+    ["action", "outcome"],
+    registry=REGISTRY,
+)
+
 notifications_dispatch_seconds = Histogram(
     "instainstru_notifications_dispatch_seconds",
     "Notification provider dispatch duration in seconds",
@@ -327,6 +334,12 @@ class PrometheusMetrics:
         """Record audit log list metrics."""
         audit_log_read_total.inc()
         audit_log_list_seconds.observe(duration_seconds)
+        PrometheusMetrics._invalidate_cache()
+
+    @staticmethod
+    def record_booking_lock(action: str, outcome: str) -> None:
+        """Record booking lock operations by action and outcome."""
+        booking_lock_operations_total.labels(action=action, outcome=outcome).inc()
         PrometheusMetrics._invalidate_cache()
 
     @staticmethod

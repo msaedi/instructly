@@ -1,8 +1,8 @@
-# Payment Policy v2.1 Compliance Checklist (Phase 0–10)
+# Payment Policy v2.1 Compliance Checklist (Phase 0–11)
 
 Last updated: 2025-12-28
 Environment: staging DB (instainstru_stg), SITE_MODE=local, Stripe test mode
-Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), Phase 2 LOCK anti-gaming mechanism, Phase 3 credit reservation model, Phase 4 no-show handling, Phase 5 authorization timing, Phase 6 state machine alignment + failure handling, Phase 7 frontend alignment + compliance hardening, Phase 8 full compliance closure, Phase 9 audit remediation, and Phase 10 checkout race condition fix.
+Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), Phase 2 LOCK anti-gaming mechanism, Phase 3 credit reservation model, Phase 4 no-show handling, Phase 5 authorization timing, Phase 6 state machine alignment + failure handling, Phase 7 frontend alignment + compliance hardening, Phase 8 full compliance closure, Phase 9 audit remediation, Phase 10 checkout race condition fix, and Phase 11 final audit remediation.
 
 Note: As of Phase 6, booking.payment_status is canonical (scheduled, authorized, payment_method_required, manual_review, locked, settled). Legacy labels (captured/refunded/released/credit_issued/auth_failed/capture_failed/disputed) are now expressed via settlement_outcome + failure fields.
 
@@ -432,6 +432,36 @@ Race condition: instructor cancel during checkout would result in charging for a
 
 Phase 10 Verification: ✅ COMPLETE
 
+## Phase 11: Final Audit Remediation
+
+### Issues Addressed
+
+| # | Issue | Fix | Evidence |
+|---|-------|-----|----------|
+| 1 | Credit double-spend race | Added SELECT FOR UPDATE to credit reservation + idempotency check | `backend/app/repositories/credit_repository.py`, `backend/app/services/credit_service.py` |
+| 2 | Missing DB indexes | Added payment status / auth schedule / lock indexes | `backend/alembic/versions/003_availability_booking.py` |
+| 3 | CheckoutResponse type mismatch | CheckoutResponse now sourced from OpenAPI types | `frontend/types/api/checkout.ts` |
+| 4 | Lock release alerting | Added booking lock metrics and structured logging | `backend/app/core/booking_lock.py`, `backend/app/monitoring/prometheus_metrics.py` |
+
+### Credit Reservation Protection
+- `get_available_credits()` now supports `for_update=True`
+- `reserve_credits_for_booking()` locks rows during reservation
+- Idempotency check prevents duplicate reservation for the same booking
+- Test: `backend/tests/integration/test_credit_double_spend.py`
+
+### Database Indexes Added
+- `ix_bookings_payment_status`
+- `ix_bookings_auth_scheduled_for`
+- `ix_bookings_locked_at`
+- `ix_bookings_payment_status_auth_scheduled`
+
+### Lock Observability
+- Metrics for acquire/release success/blocked/error states
+- Redis unavailability tracked separately
+- Structured logging includes booking_id context
+
+Phase 11 Verification: ✅ COMPLETE
+
 ### on_behalf_of Usage
 
 Decision: Not used.
@@ -465,6 +495,7 @@ Status: ✅ FULLY ALIGNED
 | Phase 8 | Full compliance closure | ✅ PASS | Phase 8 coverage + policy updates |
 | Phase 9 | Audit remediation | ✅ PASS | Phase 9 remediation tests |
 | Phase 10 | Checkout race condition fix | ✅ PASS | `backend/tests/integration/test_checkout_race_condition.py` |
+| Phase 11 | Final audit remediation | ✅ PASS | `backend/tests/integration/test_credit_double_spend.py` |
 
 Canonical payment_status values (Section 4.1):
 - [x] Only 6 values used: scheduled, authorized, payment_method_required, manual_review, locked, settled

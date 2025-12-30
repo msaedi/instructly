@@ -39,8 +39,19 @@ class CreditService(BaseService):
             return 0
 
         def _reserve() -> int:
+            existing = self.credit_repository.get_reserved_credits_for_booking(
+                booking_id=booking_id
+            )
+            if existing:
+                return sum(
+                    int(credit.reserved_amount_cents or credit.amount_cents or 0)
+                    for credit in existing
+                )
+
             available = self.credit_repository.get_available_credits(
-                user_id=user_id, order_by="expires_at"
+                user_id=user_id,
+                order_by="expires_at",
+                for_update=True,
             )
             remaining = max_amount_cents
             total_reserved = 0

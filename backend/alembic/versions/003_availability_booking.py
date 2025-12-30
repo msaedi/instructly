@@ -272,6 +272,29 @@ def upgrade() -> None:
     op.create_index("idx_bookings_cancelled_by_id", "bookings", ["cancelled_by_id"])
     op.create_index("idx_bookings_rescheduled_from_id", "bookings", ["rescheduled_from_booking_id"])
     op.create_index("idx_bookings_rescheduled_to_id", "bookings", ["rescheduled_to_booking_id"])
+    op.create_index(
+        "ix_bookings_payment_status",
+        "bookings",
+        ["payment_status"],
+        postgresql_where=sa.text("payment_status IS NOT NULL"),
+    )
+    op.create_index(
+        "ix_bookings_auth_scheduled_for",
+        "bookings",
+        ["auth_scheduled_for"],
+        postgresql_where=sa.text("auth_scheduled_for IS NOT NULL"),
+    )
+    op.create_index(
+        "ix_bookings_locked_at",
+        "bookings",
+        ["locked_at"],
+        postgresql_where=sa.text("locked_at IS NOT NULL"),
+    )
+    op.create_index(
+        "ix_bookings_payment_status_auth_scheduled",
+        "bookings",
+        ["payment_status", "auth_scheduled_for"],
+    )
 
     op.create_check_constraint(
         "ck_bookings_status",
@@ -752,6 +775,10 @@ def downgrade() -> None:
     op.drop_constraint("ck_bookings_location_type", "bookings", type_="check")
     op.drop_constraint("ck_bookings_status", "bookings", type_="check")
 
+    op.drop_index("ix_bookings_payment_status_auth_scheduled", table_name="bookings")
+    op.drop_index("ix_bookings_locked_at", table_name="bookings")
+    op.drop_index("ix_bookings_auth_scheduled_for", table_name="bookings")
+    op.drop_index("ix_bookings_payment_status", table_name="bookings")
     op.drop_index("idx_bookings_rescheduled_to_id", table_name="bookings")
     op.drop_index("idx_bookings_rescheduled_from_id", table_name="bookings")
     op.drop_index("idx_bookings_cancelled_by_id", table_name="bookings")

@@ -1,9 +1,3 @@
-export interface CheckoutResponse {
-  success: boolean;
-  payment_intent_id: string;
-  status: string;
-  amount: number;
-  application_fee: number;
-  client_secret?: string | null;
-  requires_action?: boolean;
-}
+import type { components } from '@/types/generated/api';
+
+export type CheckoutResponse = components['schemas']['CheckoutResponse'];
