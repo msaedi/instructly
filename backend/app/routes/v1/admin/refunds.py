@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import asyncio
-import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -103,7 +102,8 @@ async def admin_refund_booking(
             )
 
         stripe_reason = REASON_TO_STRIPE.get(request.reason, "requested_by_customer")
-        idempotency_key = f"admin_refund_{booking_id}_{uuid.uuid4().hex[:8]}"
+        amount_key = amount_cents if amount_cents is not None else "full"
+        idempotency_key = f"admin_refund_{booking_id}_{amount_key}"
 
         stripe_service = StripeService(
             db,

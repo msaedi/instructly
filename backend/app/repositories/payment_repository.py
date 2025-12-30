@@ -996,6 +996,37 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             self.logger.error(f"Failed to create payment event: {str(e)}")
             raise RepositoryException(f"Failed to create payment event: {str(e)}")
 
+    def bulk_create_payment_events(self, events: List[Dict[str, Any]]) -> List[PaymentEvent]:
+        """
+        Bulk insert payment events for a booking.
+
+        Args:
+            events: List of dicts containing booking_id, event_type, and optional event_data
+
+        Returns:
+            List of PaymentEvent objects (IDs populated)
+        """
+        if not events:
+            return []
+        try:
+            now = datetime.now(timezone.utc)
+            payment_events = [
+                PaymentEvent(
+                    id=str(ulid.ULID()),
+                    booking_id=event["booking_id"],
+                    event_type=event["event_type"],
+                    event_data=event.get("event_data", {}),
+                    created_at=event.get("created_at", now),
+                )
+                for event in events
+            ]
+            self.db.bulk_save_objects(payment_events)
+            self.db.flush()
+            return payment_events
+        except Exception as e:
+            self.logger.error(f"Failed to bulk create payment events: {str(e)}")
+            raise RepositoryException(f"Failed to bulk create payment events: {str(e)}")
+
     def get_payment_events_for_booking(self, booking_id: str) -> List[PaymentEvent]:
         """
         Get all payment events for a booking.

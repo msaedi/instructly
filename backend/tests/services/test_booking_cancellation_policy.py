@@ -712,6 +712,7 @@ def _create_rescheduled_booking(
         payment_intent_id="pi_x",
         rescheduled_from_booking_id=original_booking_id,
         original_lesson_datetime=original_lesson_datetime,  # For fair policy!
+        created_at=datetime.now(timezone.utc),
     )
     db.add(bk)
     db.flush()
@@ -731,7 +732,7 @@ def test_rescheduled_booking_over_24h_gets_credit_not_refund(db: Session):
 
     # Create an actual original booking (FK requires it to exist)
     # Original was in 12-24h window (~18h away) = GAMING scenario
-    original_time = datetime.now() + timedelta(hours=18)
+    original_time = datetime.now(timezone.utc) + timedelta(hours=18)
     original_time = original_time.replace(minute=0, second=0, microsecond=0)
     if (original_time + timedelta(hours=1)).date() != original_time.date():
         original_time = (original_time + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
@@ -748,6 +749,7 @@ def test_rescheduled_booking_over_24h_gets_credit_not_refund(db: Session):
         original_lesson_datetime=original_time,  # Gaming: original was ~18h away
     )
     bk.payment_status = "authorized"
+    db.flush()
 
     service = BookingService(db)
 
@@ -909,7 +911,7 @@ def test_reschedule_loophole_closed(db: Session):
     student = _create_student(db)
 
     # Step 1: Create original booking 20 hours out (in 12-24h window) = GAMING scenario
-    original_time = datetime.now() + timedelta(hours=20)
+    original_time = datetime.now(timezone.utc) + timedelta(hours=20)
     original_time = original_time.replace(minute=0, second=0, microsecond=0)
     if (original_time + timedelta(hours=1)).date() != original_time.date():
         original_time = (original_time + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
@@ -926,6 +928,7 @@ def test_reschedule_loophole_closed(db: Session):
         original_lesson_datetime=original_time,  # Gaming: original was ~20h away
     )
     rescheduled_booking.payment_status = "authorized"
+    db.flush()
 
     # Step 3: Student tries to cancel the rescheduled booking (now >24h away)
     service = BookingService(db)

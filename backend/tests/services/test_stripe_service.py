@@ -2533,7 +2533,9 @@ class TestStripeService:
             profile.id, "acct_sched123", onboarding_completed=True
         )
 
-        start_at = (datetime.now(timezone.utc) + timedelta(hours=48)).replace(microsecond=0)
+        start_at = (datetime.now(timezone.utc) + timedelta(hours=48)).replace(
+            hour=10, minute=0, second=0, microsecond=0
+        )
         end_at = start_at + timedelta(hours=1)
         test_booking.booking_date = start_at.date()
         test_booking.start_time = start_at.time().replace(tzinfo=None)

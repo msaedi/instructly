@@ -639,7 +639,7 @@ class AdminBookingService(BaseService):
                 amount_cents=amount_cents,
                 reason=self._stripe_reason_for_cancel(reason),
                 reverse_transfer=True,
-                idempotency_key=f"admin_cancel_{booking.id}_{int(datetime.now(timezone.utc).timestamp())}",
+                idempotency_key=f"admin_cancel_{booking.id}_{amount_cents}",
             )
         except ServiceException:
             raise

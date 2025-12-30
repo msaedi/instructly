@@ -1,8 +1,8 @@
-# Payment Policy v2.1 Compliance Checklist (Phase 0–11)
+# Payment Policy v2.1 Compliance Checklist (Phase 0–12)
 
 Last updated: 2025-12-28
 Environment: staging DB (instainstru_stg), SITE_MODE=local, Stripe test mode
-Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), Phase 2 LOCK anti-gaming mechanism, Phase 3 credit reservation model, Phase 4 no-show handling, Phase 5 authorization timing, Phase 6 state machine alignment + failure handling, Phase 7 frontend alignment + compliance hardening, Phase 8 full compliance closure, Phase 9 audit remediation, Phase 10 checkout race condition fix, and Phase 11 final audit remediation.
+Scope: Baseline pre-audit (Phase 0), Phase 0 mutex changes, Phase 1 critical money fixes (Tasks 1.1–1.4), Phase 2 LOCK anti-gaming mechanism, Phase 3 credit reservation model, Phase 4 no-show handling, Phase 5 authorization timing, Phase 6 state machine alignment + failure handling, Phase 7 frontend alignment + compliance hardening, Phase 8 full compliance closure, Phase 9 audit remediation, Phase 10 checkout race condition fix, Phase 11 final audit remediation, and Phase 12 critical audit fixes.
 
 Note: As of Phase 6, booking.payment_status is canonical (scheduled, authorized, payment_method_required, manual_review, locked, settled). Legacy labels (captured/refunded/released/credit_issued/auth_failed/capture_failed/disputed) are now expressed via settlement_outcome + failure fields.
 
@@ -462,6 +462,36 @@ Phase 10 Verification: ✅ COMPLETE
 
 Phase 11 Verification: ✅ COMPLETE
 
+## Phase 12: Critical Audit Fixes
+
+### Issues Addressed
+
+| # | Issue | Severity | Fix |
+|---|-------|----------|-----|
+| 1 | LOCK resolution lacks row lock | CRITICAL | Added SELECT FOR UPDATE + idempotency check |
+| 2 | Admin refund non-deterministic keys | HIGH | Made idempotency keys deterministic |
+| 3 | Cancel/LOCK activation no row lock backup | HIGH | Added SELECT FOR UPDATE as defense-in-depth |
+| 4 | N+1 query in credit reservation | MEDIUM | Batched payment event creation |
+
+### Defense-in-Depth Strategy
+
+Critical payment paths now have TWO layers of protection:
+1. **Redis mutex** at route/task level (fast, distributed)
+2. **PostgreSQL row lock** at service level (backup if Redis fails)
+
+This ensures payment operations are protected even during:
+- Redis connection failures
+- Redis failover
+- Lock TTL expiration edge cases
+
+### Idempotency Keys
+
+All admin payment operations now use deterministic keys:
+- `admin_refund_{booking_id}_{amount_or_full}`
+- `admin_cancel_{booking_id}_{amount_cents}`
+
+Phase 12 Verification: ✅ COMPLETE
+
 ### on_behalf_of Usage
 
 Decision: Not used.
@@ -496,6 +526,7 @@ Status: ✅ FULLY ALIGNED
 | Phase 9 | Audit remediation | ✅ PASS | Phase 9 remediation tests |
 | Phase 10 | Checkout race condition fix | ✅ PASS | `backend/tests/integration/test_checkout_race_condition.py` |
 | Phase 11 | Final audit remediation | ✅ PASS | `backend/tests/integration/test_credit_double_spend.py` |
+| Phase 12 | Critical audit fixes | ✅ PASS | `backend/tests/integration/test_lock_resolution_concurrency.py` |
 
 Canonical payment_status values (Section 4.1):
 - [x] Only 6 values used: scheduled, authorized, payment_method_required, manual_review, locked, settled

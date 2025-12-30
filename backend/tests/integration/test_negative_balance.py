@@ -46,7 +46,7 @@ def _create_booking_with_payment(
     db: Session, *, student: User, instructor: User, payment_intent_id: str
 ) -> Booking:
     now = datetime.now(timezone.utc)
-    start_dt = (now + timedelta(days=2)).replace(minute=0, second=0, microsecond=0)
+    start_dt = (now + timedelta(days=2)).replace(hour=10, minute=0, second=0, microsecond=0)
     booking = create_booking_pg_safe(
         db,
         student_id=student.id,
@@ -159,7 +159,11 @@ def test_negative_balance_blocks_new_bookings(
         instructor_id=test_instructor.id,
         instructor_service_id=service.id,
         booking_date=datetime.now(timezone.utc).date() + timedelta(days=3),
-        start_time=datetime.now(timezone.utc).time(),
+        start_time=(
+            datetime.now(timezone.utc)
+            .replace(hour=10, minute=0, second=0, microsecond=0)
+            .time()
+        ),
         selected_duration=60,
         student_note=None,
         meeting_location="Test",

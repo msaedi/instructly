@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
 
@@ -56,6 +56,7 @@ class CreditService(BaseService):
             remaining = max_amount_cents
             total_reserved = 0
             reserved_ids: list[str] = []
+            reserved_events: list[Dict[str, Any]] = []
             remainder_credit_id: Optional[str] = None
             now = datetime.now(timezone.utc)
 
@@ -92,19 +93,24 @@ class CreditService(BaseService):
                 credit.status = "reserved"
                 reserved_ids.append(credit.id)
 
-                self.payment_repository.create_payment_event(
-                    booking_id=booking_id,
-                    event_type="credit_reserved",
-                    event_data={
-                        "credit_id": credit.id,
-                        "reserved_cents": reserve_amount,
-                        "original_credit_cents": original_credit_cents,
-                        "remainder_credit_id": local_remainder_id,
-                    },
+                reserved_events.append(
+                    {
+                        "booking_id": booking_id,
+                        "event_type": "credit_reserved",
+                        "event_data": {
+                            "credit_id": credit.id,
+                            "reserved_cents": reserve_amount,
+                            "original_credit_cents": original_credit_cents,
+                            "remainder_credit_id": local_remainder_id,
+                        },
+                    }
                 )
 
                 total_reserved += reserve_amount
                 remaining -= reserve_amount
+
+            if reserved_events:
+                self.payment_repository.bulk_create_payment_events(reserved_events)
 
             if total_reserved > 0:
                 self.payment_repository.create_payment_event(

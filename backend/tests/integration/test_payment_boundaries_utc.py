@@ -16,7 +16,9 @@ except ModuleNotFoundError:  # pragma: no cover
 
 
 def _create_booking(db: Session, *, student: User, instructor: User) -> str:
-    start_dt = datetime.now(timezone.utc) + timedelta(days=2)
+    start_dt = (datetime.now(timezone.utc) + timedelta(days=2)).replace(
+        hour=10, minute=0, second=0, microsecond=0
+    )
     booking = create_booking_pg_safe(
         db,
         student_id=student.id,
