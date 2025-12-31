@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Setup Node.js (admin)
       if: ${{ matrix.project == 'admin' }}
@@ -163,7 +163,7 @@ jobs:
           - 6379:6379
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Ensure required tools are installed
       run: |
@@ -244,13 +244,13 @@ jobs:
     # Backend setup
     - name: Setup Python (admin)
       if: ${{ matrix.project == 'admin' }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: '3.11'
 
     - name: Setup Python (non-admin)
       if: ${{ matrix.project != 'admin' }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: '3.11'
         cache: 'pip'
@@ -437,7 +437,7 @@ jobs:
 
     - name: Cache Playwright & Next caches
       if: ${{ matrix.project != 'admin' }}
-      uses: actions/cache@v3
+      uses: actions/cache@v5
       with:
         path: |
           ~/.cache/ms-playwright
@@ -705,7 +705,7 @@ jobs:
       PLAYWRIGHT_BASE_URL: http://localhost:3000
       REDIS_URL: redis://localhost:6379/0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Append beta-local host alias
         run: echo "127.0.0.1 beta-local.instainstru.com" | sudo tee -a /etc/hosts
@@ -723,7 +723,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -761,7 +761,7 @@ jobs:
         run: npm ci
 
       - name: Cache Playwright & Next caches
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/ms-playwright
@@ -897,7 +897,7 @@ jobs:
       PLAYWRIGHT_BASE_URL: http://localhost:3000
       REDIS_URL: redis://localhost:6379/0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Append beta-local host aliases
         run: |
@@ -917,7 +917,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -955,7 +955,7 @@ jobs:
         run: npm ci
 
       - name: Cache Playwright & Next caches
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/ms-playwright
