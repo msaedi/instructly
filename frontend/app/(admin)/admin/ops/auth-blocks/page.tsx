@@ -182,14 +182,6 @@ function BlockedAccountCard({
   }, []);
 
   // Reset TTLs when account changes
-  useEffect(() => {
-    setTtls({
-      lockout: account.blocks.lockout?.ttl_seconds ?? 0,
-      minute: account.blocks.rate_limit_minute?.ttl_seconds ?? 0,
-      hour: account.blocks.rate_limit_hour?.ttl_seconds ?? 0,
-    });
-  }, [account]);
-
   const hasLockout = account.blocks.lockout?.active && ttls.lockout > 0;
   const hasRateLimit =
     (account.blocks.rate_limit_minute?.active && ttls.minute > 0) ||
@@ -546,7 +538,13 @@ export default function AuthBlocksPage() {
                 ) : (
                   accountsData?.accounts?.map((account) => (
                     <BlockedAccountCard
-                      key={account.email}
+                      key={[
+                        account.email,
+                        account.blocks.lockout?.ttl_seconds ?? 0,
+                        account.blocks.rate_limit_minute?.ttl_seconds ?? 0,
+                        account.blocks.rate_limit_hour?.ttl_seconds ?? 0,
+                        account.blocks.captcha_required?.active ? '1' : '0',
+                      ].join(':')}
                       account={account}
                       onClear={handleClear}
                       isClearing={clearingEmail === account.email}

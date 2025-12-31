@@ -177,6 +177,9 @@ def create_booking_pg_safe(
         end_time = _bump_time(end_time, initial_offset)
 
     duration_minutes = _minutes_between(start_time, end_time)
+    if end_time <= start_time:
+        # Normalize to satisfy booking time order constraints.
+        end_time = _bump_time(start_time, max(duration_minutes, 1))
     attempts = 0
     max_attempts = max_shifts if max_shifts > 0 else 1
 

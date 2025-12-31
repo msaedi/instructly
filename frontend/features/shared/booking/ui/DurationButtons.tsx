@@ -1,5 +1,6 @@
 'use client';
 
+import { useId } from 'react';
 import { logger } from '@/lib/logger';
 
 interface DurationButtonsProps {
@@ -23,6 +24,7 @@ export default function DurationButtons({
     optionsLength: durationOptions.length,
     selectedDuration,
   });
+  const radioName = `duration-modal-${useId()}`;
 
   // Only show if instructor has multiple duration options
   if (durationOptions.length <= 1) {
@@ -40,7 +42,6 @@ export default function DurationButtons({
           {durationOptions.map((option) => {
             const isSelected = selectedDuration === option.duration;
             const isDisabled = disabledDurations.includes(option.duration);
-            const radioName = `duration-modal-${Date.now()}`; // Unique name to avoid conflicts
 
             return (
               <label

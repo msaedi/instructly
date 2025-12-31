@@ -31,7 +31,14 @@ export default function AvailabilityCalendar({
   instructor,
 }: AvailabilityCalendarProps) {
 
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [bookingIntent] = useState(() => getBookingIntent());
+  const shouldRestoreIntent = Boolean(
+    bookingIntent && bookingIntent.instructorId === instructor.user_id
+  );
+
+  const [selectedDate, setSelectedDate] = useState<string | null>(() =>
+    shouldRestoreIntent ? bookingIntent?.date ?? null : null
+  );
 
   // Use React Query hook for availability (prevents duplicate API calls)
   const { data: availabilityData, isLoading: loading, error: queryError } = useInstructorAvailability(
@@ -44,11 +51,19 @@ export default function AvailabilityCalendar({
 
   // Modal State
   const [isTimeSelectionModalOpen, setIsTimeSelectionModalOpen] = useState(false);
-  const [selectedTime, setSelectedTime] = useState<string>('');
-  const [preSelectedDate, setPreSelectedDate] = useState<string | undefined>();
-  const [preSelectedTime, setPreSelectedTime] = useState<string | undefined>();
-  const [preSelectedServiceId, setPreSelectedServiceId] = useState<string | undefined>();
-  const [shouldOpenModalFromIntent, setShouldOpenModalFromIntent] = useState(false);
+  const [selectedTime, setSelectedTime] = useState<string>(() =>
+    shouldRestoreIntent ? bookingIntent?.time ?? '' : ''
+  );
+  const [preSelectedDate, setPreSelectedDate] = useState<string | undefined>(() =>
+    shouldRestoreIntent ? bookingIntent?.date : undefined
+  );
+  const [preSelectedTime, setPreSelectedTime] = useState<string | undefined>(() =>
+    shouldRestoreIntent ? bookingIntent?.time : undefined
+  );
+  const [preSelectedServiceId, setPreSelectedServiceId] = useState<string | undefined>(() =>
+    shouldRestoreIntent ? bookingIntent?.serviceId : undefined
+  );
+  const [shouldOpenModalFromIntent, setShouldOpenModalFromIntent] = useState(shouldRestoreIntent);
 
   // Handle time slot selection - opens TimeSelectionModal with pre-selected values
   const handleTimeSlotSelect = (date: string, startTime: string, endTime: string) => {
@@ -73,6 +88,7 @@ export default function AvailabilityCalendar({
     setPreSelectedDate(undefined);
     setPreSelectedTime(undefined);
     setPreSelectedServiceId(undefined);
+    setShouldOpenModalFromIntent(false);
   };
 
   // Generate next 14 days starting from today - memoize to avoid regeneration
@@ -93,38 +109,11 @@ export default function AvailabilityCalendar({
     return days;
   });
 
-  // Check for stored booking intent on mount
   useEffect(() => {
-    const intent = getBookingIntent();
-    logger.info('Checking for booking intent', {
-      hasIntent: !!intent,
-      instructorId: instructor.user_id,
-      intentInstructorId: intent?.instructorId,
-    });
-
-    if (intent && intent.instructorId === instructor.user_id) {
-      logger.info('Found matching booking intent, restoring state', intent);
-      setSelectedDate(intent.date);
-      setSelectedTime(intent.time);
-      setPreSelectedDate(intent.date);
-      setPreSelectedTime(intent.time);
-      if (intent.serviceId) {
-        setPreSelectedServiceId(intent.serviceId);
-      }
-      setShouldOpenModalFromIntent(true);
-      clearBookingIntent();
-    }
-  }, [instructor.user_id]);
-
-  // Open modal when booking intent is restored
-  useEffect(() => {
-    if (shouldOpenModalFromIntent && selectedDate && selectedTime && !loading) {
-      setIsTimeSelectionModalOpen(true);
-      setPreSelectedDate(selectedDate);
-      setPreSelectedTime(selectedTime);
-      setShouldOpenModalFromIntent(false);
-    }
-  }, [shouldOpenModalFromIntent, selectedDate, selectedTime, loading]);
+    if (!shouldRestoreIntent) return;
+    logger.info('Found matching booking intent, restoring state', bookingIntent);
+    clearBookingIntent();
+  }, [bookingIntent, shouldRestoreIntent]);
 
   // Transform hook data into AvailabilityDay[] format
   const availability = useMemo((): AvailabilityDay[] => {
@@ -255,6 +244,10 @@ export default function AvailabilityCalendar({
       </div>
     );
   }
+
+  const isModalOpen =
+    isTimeSelectionModalOpen ||
+    (shouldOpenModalFromIntent && !!selectedDate && !!selectedTime && !loading);
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
@@ -408,7 +401,7 @@ export default function AvailabilityCalendar({
 
       {/* Time Selection Modal */}
       <TimeSelectionModal
-        isOpen={isTimeSelectionModalOpen}
+        isOpen={isModalOpen}
         onClose={handleCloseTimeSelectionModal}
         instructor={instructor}
         {...(preSelectedDate && { preSelectedDate })}

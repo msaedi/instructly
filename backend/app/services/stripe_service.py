@@ -499,7 +499,9 @@ class StripeService(BaseService):
             "scheduled",
         }:
             payment_intent_id = payment_result.get("payment_intent_id")
-            fresh_booking = self.booking_repository.get_by_id_for_update(booking.id)
+            fresh_booking = self.booking_repository.get_by_id_for_update(
+                booking.id, load_relationships=False
+            )
 
             if not fresh_booking:
                 self._void_or_refund_payment(payment_intent_id)

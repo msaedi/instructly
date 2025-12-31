@@ -10,7 +10,7 @@
  * @module components/modals
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Calendar, Info } from 'lucide-react';
 import Modal from '@/components/Modal';
 import { formatDateForAPI, getEndDateForOption } from '@/lib/availability/dateHelpers';
@@ -63,18 +63,12 @@ export default function ApplyToFutureWeeksModal({
 }: ApplyToFutureWeeksModalProps): React.ReactElement | null {
   const [selectedOption, setSelectedOption] = useState<ApplyOption>('end-of-year');
   const [customDate, setCustomDate] = useState<string>('');
-
-  /**
-   * Initialize default custom date
-   */
-  useEffect(() => {
-    if (isOpen && !customDate) {
-      // Default to end of next month
-      const defaultDate = new Date();
-      defaultDate.setMonth(defaultDate.getMonth() + 2, 0);
-      setCustomDate(formatDateForAPI(defaultDate));
-    }
-  }, [isOpen, customDate]);
+  const defaultCustomDate = useMemo(() => {
+    const defaultDate = new Date();
+    defaultDate.setMonth(defaultDate.getMonth() + 2, 0);
+    return formatDateForAPI(defaultDate);
+  }, []);
+  const resolvedCustomDate = customDate || defaultCustomDate;
 
   if (!isOpen) return null;
 
@@ -82,7 +76,7 @@ export default function ApplyToFutureWeeksModal({
    * Handle confirm action
    */
   const handleConfirm = () => {
-    const endDate = getEndDateForOption(selectedOption, customDate);
+    const endDate = getEndDateForOption(selectedOption, resolvedCustomDate);
 
     logger.info('Apply to future weeks confirmed', {
       option: selectedOption,
@@ -91,6 +85,11 @@ export default function ApplyToFutureWeeksModal({
     });
 
     onConfirm(endDate);
+    handleClose();
+  };
+  const handleClose = () => {
+    setSelectedOption('end-of-year');
+    setCustomDate('');
     onClose();
   };
 
@@ -104,7 +103,7 @@ export default function ApplyToFutureWeeksModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Apply Schedule to Future Weeks" size="md">
+    <Modal isOpen={isOpen} onClose={handleClose} title="Apply Schedule to Future Weeks" size="md">
       <div className="space-y-6">
         {/* Description */}
         <div className="flex items-start gap-3">
@@ -150,7 +149,7 @@ export default function ApplyToFutureWeeksModal({
               <div className="ml-7 mt-2">
                 <input
                   type="date"
-                  value={customDate}
+                  value={resolvedCustomDate}
                   onChange={(e) => setCustomDate(e.target.value)}
                   min={getMinDate()}
                   className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
@@ -176,7 +175,7 @@ export default function ApplyToFutureWeeksModal({
         {/* Action Buttons */}
         <div className="flex gap-3 justify-end pt-2">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg
                      hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
                      focus:ring-gray-500 transition-colors"

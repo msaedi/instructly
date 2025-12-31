@@ -59,7 +59,12 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => {
       id,
       style,
     }, ref) => {
-      latestSelect = onSelectSuggestion;
+      React.useEffect(() => {
+        latestSelect = onSelectSuggestion;
+        return () => {
+          latestSelect = undefined;
+        };
+      }, [onSelectSuggestion]);
 
       return (
         <input

@@ -10,7 +10,7 @@
  * Handles proper focus management and accessibility.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Chat } from './Chat';
@@ -45,8 +45,6 @@ export function ChatModal({
   lessonDate,
   isReadOnly = false,
 }: ChatModalProps) {
-  const [isMounted, setIsMounted] = useState(false);
-
   // Handle escape key and mounting
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -59,17 +57,11 @@ export function ChatModal({
       document.addEventListener('keydown', handleEscape);
       // Prevent body scroll on mobile
       document.body.style.overflow = 'hidden';
-      // Delay mounting the Chat component slightly to ensure modal is ready
-      const mountTimer = setTimeout(() => setIsMounted(true), 50);
 
       return () => {
-        clearTimeout(mountTimer);
         document.removeEventListener('keydown', handleEscape);
         document.body.style.overflow = '';
-        setIsMounted(false);
       };
-    } else {
-      setIsMounted(false);
     }
 
     return () => {
@@ -149,7 +141,7 @@ export function ChatModal({
         </div>
 
         {/* Chat component - wrapped in error boundary for graceful error handling */}
-        {isMounted && resolvedConversationId && (
+        {resolvedConversationId && (
           <QueryErrorBoundary>
             <Chat
               conversationId={resolvedConversationId}
@@ -163,7 +155,7 @@ export function ChatModal({
             />
           </QueryErrorBoundary>
         )}
-        {isMounted && !resolvedConversationId && isLoadingConversation && (
+        {!resolvedConversationId && isLoadingConversation && (
           <div className="flex flex-1 items-center justify-center text-sm text-gray-500">
             Loading conversation...
           </div>

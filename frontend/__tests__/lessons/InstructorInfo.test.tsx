@@ -1,6 +1,21 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { InstructorInfo } from '@/components/lessons/InstructorInfo';
+
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  Wrapper.displayName = 'QueryClientWrapper';
+  return Wrapper;
+};
+
+const renderWithQueryClient = (ui: React.ReactElement) =>
+  render(ui, { wrapper: createWrapper() });
 
 describe('InstructorInfo', () => {
   const mockInstructor = {
@@ -19,7 +34,7 @@ describe('InstructorInfo', () => {
   });
 
   it('renders instructor information correctly', () => {
-    render(
+    renderWithQueryClient(
       <InstructorInfo
         instructor={mockInstructor}
         rating={4.8}
@@ -41,13 +56,13 @@ describe('InstructorInfo', () => {
   });
 
   it('renders avatar fallback initials when no photo', () => {
-    render(<InstructorInfo instructor={mockInstructor} onChat={mockOnChat} />);
+    renderWithQueryClient(<InstructorInfo instructor={mockInstructor} onChat={mockOnChat} />);
     // Our UserAvatar now falls back to first initial rather than glyph
     expect(screen.getByText('J')).toBeInTheDocument();
   });
 
   it('calls onChat when chat button is clicked', () => {
-    render(<InstructorInfo instructor={mockInstructor} onChat={mockOnChat} />);
+    renderWithQueryClient(<InstructorInfo instructor={mockInstructor} onChat={mockOnChat} />);
 
     const chatButton = screen.getByRole('button', { name: /chat/i });
     fireEvent.click(chatButton);
@@ -56,20 +71,22 @@ describe('InstructorInfo', () => {
   });
 
   it('returns null when instructor is not provided', () => {
-    const { container } = render(<InstructorInfo onChat={mockOnChat} />);
+    const { container } = renderWithQueryClient(<InstructorInfo onChat={mockOnChat} />);
 
     expect(container.firstChild).toBeNull();
   });
 
   it('hides rating when rating info not provided', () => {
-    render(<InstructorInfo instructor={mockInstructor} onChat={mockOnChat} />);
+    renderWithQueryClient(<InstructorInfo instructor={mockInstructor} onChat={mockOnChat} />);
 
     expect(screen.queryByText('4.9')).not.toBeInTheDocument(); // no default rating
     expect(screen.queryByText('(0 reviews)')).not.toBeInTheDocument(); // no default review count
   });
 
   it('handles single lesson count correctly', () => {
-    render(<InstructorInfo instructor={mockInstructor} lessonsCompleted={1} onChat={mockOnChat} />);
+    renderWithQueryClient(
+      <InstructorInfo instructor={mockInstructor} lessonsCompleted={1} onChat={mockOnChat} />
+    );
 
     expect(screen.getByText('1 lessons completed')).toBeInTheDocument();
   });
@@ -81,7 +98,7 @@ describe('InstructorInfo', () => {
       last_initial: 'M',
     };
 
-    render(<InstructorInfo instructor={longNameInstructor} onChat={mockOnChat} />);
+    renderWithQueryClient(<InstructorInfo instructor={longNameInstructor} onChat={mockOnChat} />);
 
     expect(screen.getByText('Alexandra M.')).toBeInTheDocument();
     // Fallback initial is shown when no profile pic
@@ -91,7 +108,7 @@ describe('InstructorInfo', () => {
   it('shows review and tip button for completed lessons', () => {
     const mockOnReview = jest.fn();
 
-    render(
+    renderWithQueryClient(
       <InstructorInfo
         instructor={mockInstructor}
         onChat={mockOnChat}
@@ -108,7 +125,7 @@ describe('InstructorInfo', () => {
   });
 
   it('does not show review button when showReviewButton is false', () => {
-    render(
+    renderWithQueryClient(
       <InstructorInfo instructor={mockInstructor} onChat={mockOnChat} showReviewButton={false} />
     );
 
@@ -116,7 +133,7 @@ describe('InstructorInfo', () => {
   });
 
   it('does not show chat button when onChat is not provided', () => {
-    render(<InstructorInfo instructor={mockInstructor} />);
+    renderWithQueryClient(<InstructorInfo instructor={mockInstructor} />);
 
     expect(screen.queryByRole('button', { name: /chat/i })).not.toBeInTheDocument();
   });
@@ -125,7 +142,7 @@ describe('InstructorInfo', () => {
     const mockEvent = { stopPropagation: jest.fn() };
     const mockOnChatWithEvent = jest.fn();
 
-    render(<InstructorInfo instructor={mockInstructor} onChat={mockOnChatWithEvent} />);
+    renderWithQueryClient(<InstructorInfo instructor={mockInstructor} onChat={mockOnChatWithEvent} />);
 
     const chatButton = screen.getByRole('button', { name: /chat/i });
     fireEvent.click(chatButton, mockEvent as unknown as React.MouseEvent<HTMLButtonElement>);
@@ -134,14 +151,16 @@ describe('InstructorInfo', () => {
   });
 
   it('does not show lessons completed when count is 0', () => {
-    render(<InstructorInfo instructor={mockInstructor} lessonsCompleted={0} onChat={mockOnChat} />);
+    renderWithQueryClient(
+      <InstructorInfo instructor={mockInstructor} lessonsCompleted={0} onChat={mockOnChat} />
+    );
 
     // When lessons completed is 0, it should not show the text
     expect(screen.queryByText(/lessons completed/)).not.toBeInTheDocument();
   });
 
   it('handles missing optional props gracefully', () => {
-    render(<InstructorInfo instructor={mockInstructor} />);
+    renderWithQueryClient(<InstructorInfo instructor={mockInstructor} />);
 
     // Should render with defaults and no buttons (privacy-protected: Jane S.)
     expect(screen.getByText('Jane S.')).toBeInTheDocument();

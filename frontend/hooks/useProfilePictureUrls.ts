@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 import { fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
@@ -240,42 +241,28 @@ export function useProfilePictureUrls(
     return ordered;
   }, [serializedUserIds]);
 
-  const [urls, setUrls] = useState<AvatarUrlMap>(() => buildFallbackMap(dedupedRequests));
+  const fallbackMap = useMemo(() => buildFallbackMap(dedupedRequests), [dedupedRequests]);
+  const requestKey = useMemo(
+    () => dedupedRequests.map((req) => compositeKey(req)).join('|'),
+    [dedupedRequests]
+  );
+
+  const { data: fetchedUrls, error } = useQuery<AvatarUrlMap, Error>({
+    queryKey: ['avatar-urls', variant, requestKey],
+    queryFn: () => enqueueFetch(dedupedRequests, variant),
+    enabled: dedupedRequests.length > 0,
+    staleTime: CACHE_TTL_MS,
+  });
 
   useEffect(() => {
-    let cancelled = false;
-
-    if (!dedupedRequests.length) {
-      setUrls({});
-      return () => {
-        cancelled = true;
-      };
+    if (error) {
+      logger.warn('Falling back to placeholder avatars after batch failure', error);
     }
+  }, [error]);
 
-    setUrls(buildFallbackMap(dedupedRequests));
-
-    enqueueFetch(dedupedRequests, variant)
-      .then((result) => {
-        if (!cancelled) {
-          setUrls((prev) => {
-            if (Object.keys(prev).length === dedupedRequests.length) {
-              return { ...prev, ...result };
-            }
-            return { ...buildFallbackMap(dedupedRequests), ...result };
-          });
-        }
-      })
-      .catch((error) => {
-        logger.warn('Falling back to placeholder avatars after batch failure', error);
-        if (!cancelled) {
-          setUrls(buildFallbackMap(dedupedRequests));
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [dedupedRequests, variant]);
-
-  return urls;
+  return useMemo(() => {
+    if (!dedupedRequests.length) return {};
+    if (!fetchedUrls) return fallbackMap;
+    return { ...fallbackMap, ...fetchedUrls };
+  }, [dedupedRequests.length, fallbackMap, fetchedUrls]);
 }

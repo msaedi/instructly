@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { User, Calendar, LogOut, ChevronDown, AlertCircle, Gift } from 'lucide-react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -18,7 +18,11 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
   const router = useRouter();
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
+  const isMounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
   const [isMobileViewport] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -48,23 +52,16 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
 
 
 
-  // Ensure component only renders on client
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
   // No-op viewport effect (reverted to desktop-style dropdown only)
 
-  // Calculate dropdown position and handle open/close side-effects
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + window.scrollY + 8,
-        right: window.innerWidth - (rect.right + window.scrollX),
-      });
-    }
-  }, [isOpen]);
+  const updateDropdownPosition = useCallback(() => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    setDropdownPosition({
+      top: rect.bottom + window.scrollY + 8,
+      right: window.innerWidth - (rect.right + window.scrollX),
+    });
+  }, []);
 
   // Remove ResizeObserver/spacer logic to restore stable behavior
 
@@ -128,7 +125,15 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
       {/* Desktop trigger */}
       <button
         ref={buttonRef}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() =>
+          setIsOpen((prev) => {
+            const next = !prev;
+            if (next) {
+              updateDropdownPosition();
+            }
+            return next;
+          })
+        }
         className="hidden sm:inline-flex items-center justify-center gap-2 rounded-full pr-2 pl-1 py-1 transition-colors mr-0 focus:outline-none"
         aria-label={isOpen ? 'Close user menu' : 'Open user menu'}
         aria-haspopup="menu"

@@ -96,7 +96,14 @@ function StudentDashboardContent() {
   );
 
   type TabKey = (typeof tabs)[number]['key'];
-  const [activeTab, setActiveTab] = useState<TabKey>('profile');
+  const initialTab = useMemo<TabKey>(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && tabs.some((t) => t.key === tabParam)) {
+      return tabParam as TabKey;
+    }
+    return 'profile';
+  }, [searchParams, tabs]);
+  const [activeTab, setActiveTab] = useState<TabKey>(() => initialTab);
 
   // Fetch user data with React Query
   const {
@@ -135,15 +142,6 @@ function StudentDashboardContent() {
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   });
-
-  // Sync active tab with URL (?tab=...)
-  useEffect(() => {
-    const initial = searchParams.get('tab');
-    if (initial && tabs.some(t => t.key === (initial as TabKey))) {
-      setActiveTab(initial as TabKey);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time initialization with stable inputs
-  }, []);
 
   // Handle authentication and role-based redirects
   useEffect(() => {
@@ -1179,8 +1177,8 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const suppressAutocompleteRef = useRef(false);
 
-  useEffect(() => {
-    if (!query) {
+  const scheduleAutocomplete = (value: string) => {
+    if (!value) {
       setSuggestions([]);
       return;
     }
@@ -1192,13 +1190,21 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetchWithAuth(`/api/v1/addresses/places/autocomplete?q=${encodeURIComponent(query)}`);
+        const res = await fetchWithAuth(
+          `/api/v1/addresses/places/autocomplete?q=${encodeURIComponent(value)}`,
+        );
         if (!res.ok) return;
         const data = await res.json();
         setSuggestions(data.items || []);
       } catch {}
     }, 250);
-  }, [query]);
+  };
+
+  const handleQueryChange = (value: string) => {
+    suppressAutocompleteRef.current = false;
+    setQuery(value);
+    scheduleAutocomplete(value);
+  };
 
   const save = async () => {
     setLoading(true);
@@ -1273,7 +1279,12 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Address</label>
-            <input className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200" placeholder="Start typing…" value={query} onChange={(e) => { suppressAutocompleteRef.current = false; setQuery(e.target.value); }} />
+            <input
+              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+              placeholder="Start typing…"
+              value={query}
+              onChange={(e) => handleQueryChange(e.target.value)}
+            />
             {suggestions.length > 0 && (
               <div className="mt-1 max-h-56 overflow-auto rounded-md border border-gray-200 bg-white text-sm shadow">
                 {suggestions.map((s) => (

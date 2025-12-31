@@ -1,4 +1,6 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 
 import { fetchWithAuth } from '@/lib/api';
 import { useProfilePictureUrls } from '../useProfilePictureUrls';
@@ -8,6 +10,17 @@ jest.mock('@/lib/api', () => ({
 }));
 
 const fetchMock = fetchWithAuth as jest.MockedFunction<typeof fetchWithAuth>;
+
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const Wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  Wrapper.displayName = 'QueryClientWrapper';
+  return Wrapper;
+};
 
 describe('useProfilePictureUrls', () => {
   beforeEach(() => {
@@ -31,7 +44,9 @@ describe('useProfilePictureUrls', () => {
       }),
     } as Response);
 
-    const { result } = renderHook(() => useProfilePictureUrls(['user-a', 'user-b']));
+    const { result } = renderHook(() => useProfilePictureUrls(['user-a', 'user-b']), {
+      wrapper: createWrapper(),
+    });
 
     expect(result.current['user-a']).toBeNull();
     expect(result.current['user-b']).toBeNull();
@@ -52,14 +67,18 @@ describe('useProfilePictureUrls', () => {
     }
     const [requestUrl] = firstCall;
     expect(requestUrl).toContain('/api/v1/users/profile-picture-urls?');
-    expect(result.current['user-a']).toBe('https://cdn/avatar/a');
+    await waitFor(() => {
+      expect(result.current['user-a']).toBe('https://cdn/avatar/a');
+    });
     expect(result.current['user-b']).toBeNull();
   });
 
   it('falls back to placeholders when the request fails', async () => {
     fetchMock.mockRejectedValue(new Error('network error'));
 
-    const { result } = renderHook(() => useProfilePictureUrls(['user-x']));
+    const { result } = renderHook(() => useProfilePictureUrls(['user-x']), {
+      wrapper: createWrapper(),
+    });
 
     act(() => {
       jest.runOnlyPendingTimers();

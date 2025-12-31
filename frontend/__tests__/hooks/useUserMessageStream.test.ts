@@ -105,6 +105,7 @@ describe('useUserMessageStream', () => {
     mockUseAuth.mockReturnValue({
       isAuthenticated: true,
       user: { id: 'user1', email: 'test@example.com' },
+      checkAuth: jest.fn(),
     });
 
     // Mock SSE token fetch

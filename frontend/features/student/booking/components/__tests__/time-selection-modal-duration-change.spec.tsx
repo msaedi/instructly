@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TimeSelectionModal, { type TimeSelectionModalProps } from '../TimeSelectionModal';
 import { publicApi } from '@/features/shared/api/client';
 
@@ -49,6 +50,20 @@ jest.mock('@/lib/api/pricing', () => {
 });
 
 const availabilityMock = publicApi.getInstructorAvailability as jest.MockedFunction<typeof publicApi.getInstructorAvailability>;
+
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  Wrapper.displayName = 'QueryClientWrapper';
+  return Wrapper;
+};
+
+const renderWithQueryClient = (ui: React.ReactElement) =>
+  render(ui, { wrapper: createWrapper() });
 
 const buildAvailabilityResponse = (
   availabilityByDate: Record<string, { available_slots: Array<{ start_time: string; end_time: string }> }>
@@ -113,6 +128,14 @@ const baseProps = {
 };
 
 describe('TimeSelectionModal duration changes', () => {
+  beforeAll(() => {
+    jest.spyOn(console, 'info').mockImplementation(() => {});
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     sessionStorage.clear();
@@ -130,7 +153,7 @@ describe('TimeSelectionModal duration changes', () => {
       })
     );
 
-    render(<TimeSelectionModal {...baseProps} />);
+    renderWithQueryClient(<TimeSelectionModal {...baseProps} />);
 
     await waitFor(() => expect(availabilityMock).toHaveBeenCalled());
 
@@ -157,7 +180,7 @@ describe('TimeSelectionModal duration changes', () => {
       })
     );
 
-    render(<TimeSelectionModal {...baseProps} />);
+    renderWithQueryClient(<TimeSelectionModal {...baseProps} />);
 
     await waitFor(() => expect(availabilityMock).toHaveBeenCalled());
     const timeButtons = await screen.findAllByRole('button', { name: /1:30pm/i });
@@ -178,7 +201,7 @@ describe('TimeSelectionModal duration changes', () => {
       })
     );
 
-    render(<TimeSelectionModal {...baseProps} />);
+    renderWithQueryClient(<TimeSelectionModal {...baseProps} />);
 
     await waitFor(() => expect(availabilityMock).toHaveBeenCalled());
 
@@ -209,7 +232,7 @@ describe('TimeSelectionModal duration changes', () => {
       })
     );
 
-    render(<TimeSelectionModal {...baseProps} />);
+    renderWithQueryClient(<TimeSelectionModal {...baseProps} />);
 
     await waitFor(() => expect(availabilityMock).toHaveBeenCalled());
     const timeButtons = await screen.findAllByText(/5:00pm/i);
@@ -225,7 +248,7 @@ describe('TimeSelectionModal duration changes', () => {
       })
     );
 
-    render(<TimeSelectionModal {...baseProps} />);
+    renderWithQueryClient(<TimeSelectionModal {...baseProps} />);
 
     await waitFor(() => expect(availabilityMock).toHaveBeenCalled());
     const timeButtons = await screen.findAllByText(/11:30pm/i);

@@ -30,7 +30,7 @@ const HEARTBEAT_TIMEOUT = 45000; // 45 seconds (server sends every 10s, 4.5x buf
 const debugTimestamp = () => new Date().toISOString();
 
 export function useUserMessageStream() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, checkAuth } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
@@ -48,6 +48,7 @@ export function useUserMessageStream() {
   const heartbeatTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isConnectingRef = useRef(false);
+  const authRejectedRef = useRef(false);
 
   // Deduplication: Track recently processed message IDs to prevent duplicates
   // during reconnect race conditions (catch-up + Redis subscription overlap)
@@ -239,9 +240,15 @@ export function useUserMessageStream() {
 
   // Connect to SSE
   const connect = useCallback(() => {
-    if (!isAuthenticated || eventSourceRef.current || isConnectingRef.current) {
+    if (
+      !isAuthenticated ||
+      authRejectedRef.current ||
+      eventSourceRef.current ||
+      isConnectingRef.current
+    ) {
       logger.debug('[MSG-DEBUG] SSE: Skipping connect', {
         isAuthenticated,
+        authRejected: authRejectedRef.current,
         hasExistingConnection: !!eventSourceRef.current,
         isConnecting: isConnectingRef.current,
         timestamp: debugTimestamp(),
@@ -257,6 +264,17 @@ export function useUserMessageStream() {
 
       try {
         const response = await fetchWithAuth(SSE_TOKEN_ENDPOINT, { method: 'POST' });
+        if (response.status === 401 || response.status === 403) {
+          authRejectedRef.current = true;
+          setIsConnected(false);
+          setConnectionError('Not authenticated');
+          logger.warn('[SSE] Unauthorized for SSE token; skipping stream connect', {
+            status: response.status,
+            timestamp: debugTimestamp(),
+          });
+          void checkAuth();
+          return;
+        }
         if (response.ok) {
           const data = (await response.json()) as { token?: string };
           if (data?.token) {
@@ -436,7 +454,9 @@ export function useUserMessageStream() {
         reconnectTimeoutRef.current = setTimeout(() => {
           logger.debug('[MSG-DEBUG] SSE: Attempting reconnect...', { timestamp: debugTimestamp() });
           logger.info('[SSE] Attempting reconnect...');
-          connect();
+          if (connectRef.current) {
+            connectRef.current();
+          }
         }, RECONNECT_DELAY);
       };
 
@@ -446,12 +466,18 @@ export function useUserMessageStream() {
     void connectWithToken().finally(() => {
       isConnectingRef.current = false;
     });
-  }, [isAuthenticated, resetHeartbeat, routeEvent]);
+  }, [checkAuth, isAuthenticated, resetHeartbeat, routeEvent]);
 
   // Keep connectRef updated so heartbeat timeout can call it
   useEffect(() => {
     connectRef.current = connect;
   }, [connect]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      authRejectedRef.current = false;
+    }
+  }, [isAuthenticated]);
 
   // Connect on mount, cleanup on unmount
   useEffect(() => {

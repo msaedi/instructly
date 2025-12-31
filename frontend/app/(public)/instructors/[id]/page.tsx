@@ -1,7 +1,7 @@
 'use client';
 // frontend/app/(public)/instructors/[id]/page.tsx
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
@@ -32,53 +32,95 @@ import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 
 import { storeBookingIntent, getBookingIntent, clearBookingIntent } from '@/features/shared/utils/booking';
 
-function InstructorProfileContent() {
-  const params = useParams();
-  const router = useRouter();
-  const nextRouter = useNextRouter();
-  const instructorId = params['id'] as string;
-  const [selectedSlot, setSelectedSlot] = useState<{ date: string; time: string; duration: number; availableDuration?: number } | null>(null);
-  const [isSlotUserSelected, setIsSlotUserSelected] = useState(false); // Track if slot was manually selected by user
-  const [weekStart, setWeekStart] = useState<Date | null>(null);
-  const [hasRestoredIntent, setHasRestoredIntent] = useState(false);
-  const { isAuthenticated } = useAuth();
+function RateLimitBanner({ initialSeconds, onRetry }: { initialSeconds: number; onRetry: () => void }) {
+  const [rateSecs, setRateSecs] = useState(initialSeconds);
 
-  const { data: instructor, isLoading, error, refetch, isFetching } = useInstructorProfile(instructorId);
-  const [rateSecs, setRateSecs] = useState<number | null>(null);
-  const { setActivity } = useBackgroundConfig();
-  // Detect rate limit errors and auto-retry once with a friendly inline banner
   useEffect(() => {
-    if (!error) return;
-    const message = getString(error, 'message', '');
-    const isRateLimited = /hamsters|Too Many Requests|rate limit/i.test(message);
-    if (!isRateLimited) return;
-    const m = message.match(/(\d+)s/);
-    const secondStr = m ? at(m, 1) : undefined;
-    const seconds = secondStr ? parseInt(secondStr, 10) : 3;
-    setRateSecs(seconds);
     const interval = setInterval(() => {
       setRateSecs((prev) => {
-        if (prev === null) return prev;
         if (prev <= 1) {
           clearInterval(interval);
-          void refetch();
-          return null;
+          void onRetry();
+          return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [error, refetch]);
+  }, [onRetry]);
 
-  const RateLimitBanner = () => (
-    rateSecs !== null ? (
-      <div className="container mx-auto px-4 max-w-6xl">
-        <div className="mb-4 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-900 px-3 py-2 text-sm">
-          Our hamsters are sprinting. Give them {rateSecs}s.
-        </div>
+  if (rateSecs <= 0) {
+    return null;
+  }
+
+  return (
+    <div className="container mx-auto px-4 max-w-6xl">
+      <div className="mb-4 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-900 px-3 py-2 text-sm">
+        Our hamsters are sprinting. Give them {rateSecs}s.
       </div>
-    ) : null
+    </div>
   );
+}
+
+function InstructorProfileContent() {
+  const params = useParams();
+  const router = useRouter();
+  const nextRouter = useNextRouter();
+  const instructorId = params['id'] as string;
+  type SelectedSlot = {
+    date: string;
+    time: string;
+    duration: number;
+    availableDuration?: number;
+  };
+
+  const initialRestore = useMemo(() => {
+    const restoredSlot = navigationStateManager.getBookingFlow(instructorId);
+    const bookingIntent = getBookingIntent();
+    let slot: SelectedSlot | null = null;
+    let openModalFromIntent = false;
+
+    if (restoredSlot) {
+      slot = {
+        date: restoredSlot.date,
+        time: restoredSlot.time,
+        duration: restoredSlot.duration,
+      };
+    } else if (bookingIntent && bookingIntent.instructorId === instructorId) {
+      slot = {
+        date: bookingIntent.date,
+        time: bookingIntent.time,
+        duration: bookingIntent.duration,
+      };
+      openModalFromIntent = !bookingIntent.skipModal;
+    }
+
+    return { restoredSlot, bookingIntent, slot, openModalFromIntent };
+  }, [instructorId]);
+  const [selectedSlot, setSelectedSlot] = useState<SelectedSlot | null>(
+    () => initialRestore.slot
+  );
+  const [isSlotUserSelected, setIsSlotUserSelected] = useState(
+    () => Boolean(initialRestore.slot)
+  ); // Track if slot was manually selected by user
+  const weekStart = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  }, []);
+  const { isAuthenticated } = useAuth();
+
+  const { data: instructor, isLoading, error, refetch, isFetching } = useInstructorProfile(instructorId);
+  const { setActivity } = useBackgroundConfig();
+  const rateLimitSeconds = useMemo(() => {
+    if (!error) return null;
+    const message = getString(error, 'message', '');
+    const isRateLimited = /hamsters|Too Many Requests|rate limit/i.test(message);
+    if (!isRateLimited) return null;
+    const m = message.match(/(\d+)s/);
+    const secondStr = m ? at(m, 1) : undefined;
+    return secondStr ? parseInt(secondStr, 10) : 3;
+  }, [error]);
 
 
   // Set background activity based on the service the user likely arrived for
@@ -100,6 +142,31 @@ function InstructorProfileContent() {
   );
 
   const bookingModal = useBookingModal();
+  useEffect(() => {
+    if (initialRestore.restoredSlot) {
+      navigationStateManager.clearBookingFlow();
+    }
+  }, [initialRestore.restoredSlot]);
+
+  useEffect(() => {
+    if (initialRestore.bookingIntent) {
+      clearBookingIntent();
+    }
+  }, [initialRestore.bookingIntent]);
+
+  useEffect(() => {
+    if (!initialRestore.bookingIntent || !initialRestore.openModalFromIntent) {
+      return;
+    }
+    if (typeof window === 'undefined') {
+      return;
+    }
+    bookingModal.openBookingModal({
+      date: initialRestore.bookingIntent.date,
+      time: initialRestore.bookingIntent.time,
+      duration: initialRestore.bookingIntent.duration,
+    });
+  }, [bookingModal, initialRestore.bookingIntent, initialRestore.openModalFromIntent]);
   const serviceAreaBoroughs = instructor ? getServiceAreaBoroughs(instructor) : [];
   const preferredTeachingLocations =
     Array.isArray(instructor?.preferred_teaching_locations)
@@ -227,7 +294,7 @@ function InstructorProfileContent() {
     const duration = serviceDuration || 60; // Use provided duration or default
 
     // Always open the booking modal to select a time; authentication is handled after selection
-    if (!selectedSlot || !isSlotUserSelected) {
+    if (!activeSelectedSlot || !hasUserSelectedSlot) {
       const modalOptions: {
         date?: string;
         time?: string;
@@ -247,8 +314,8 @@ function InstructorProfileContent() {
       return;
     }
 
-    if (selectedSlot && selectedService && instructor) {
-      const bookingDate = new Date(selectedSlot.date + 'T' + selectedSlot.time);
+    if (activeSelectedSlot && selectedService && instructor) {
+      const bookingDate = new Date(activeSelectedSlot.date + 'T' + activeSelectedSlot.time);
       const hourlyRate = getNumber(selectedService, 'hourly_rate', 0);
       const totalPrice = hourlyRate * (duration / 60);
       const basePrice = totalPrice;
@@ -261,8 +328,8 @@ function InstructorProfileContent() {
         instructorName: instructor.user ? `${instructor.user.first_name} ${instructor.user.last_initial ? instructor.user.last_initial + '.' : ''}`.trim() : `Instructor #${instructor.user_id}`,
         lessonType: getString(selectedService, 'skill', ''),
         date: bookingDate,
-        startTime: selectedSlot.time,
-        endTime: calculateEndTime(selectedSlot.time, duration),
+        startTime: activeSelectedSlot.time,
+        endTime: calculateEndTime(activeSelectedSlot.time, duration),
         duration,
         location: '', // Let user enter their address on confirmation page
         basePrice,
@@ -279,8 +346,8 @@ function InstructorProfileContent() {
       sessionStorage.setItem('serviceId', String(selectedService.id));
       try {
         sessionStorage.setItem('selectedSlot', JSON.stringify({
-          date: selectedSlot.date,
-          time: selectedSlot.time,
+          date: activeSelectedSlot.date,
+          time: activeSelectedSlot.time,
           duration,
           instructorId: instructor.user_id,
         }));
@@ -288,8 +355,8 @@ function InstructorProfileContent() {
 
       // Use navigation state manager to track booking flow properly
       navigationStateManager.saveBookingFlow({
-        date: selectedSlot.date,
-        time: selectedSlot.time,
+        date: activeSelectedSlot.date,
+        time: activeSelectedSlot.time,
         duration,
         instructorId
         // availableDuration will be recalculated on restore
@@ -306,8 +373,8 @@ function InstructorProfileContent() {
           skipModal?: boolean;
         } = {
           instructorId: instructor.user_id,
-          date: selectedSlot.date,
-          time: selectedSlot.time,
+          date: activeSelectedSlot.date,
+          time: activeSelectedSlot.time,
           duration,
           skipModal: true,
         };
@@ -327,180 +394,84 @@ function InstructorProfileContent() {
     }
   };
 
-  // Initialize weekStart to today for rolling 7-day window
-  useEffect(() => {
-    // Always use today as the start for consistency
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    setWeekStart(today);
-  }, [instructorId]);
-
-  // If availability returns dates outside current weekStart window, align to earliest available
-  useEffect(() => {
-    if (!availability || !availability.availability_by_date || !weekStart) return;
+  const autoSelectedSlot: SelectedSlot | null = (() => {
+    if (!availability?.availability_by_date || selectedSlot) {
+      return null;
+    }
     const dates = Object.keys(availability.availability_by_date).sort();
-    if (dates.length === 0) return;
-    const earliest = at(dates, 0);
-    if (!earliest) return;
-    const dateParts = earliest.split('-');
-    const y = Number(at(dateParts, 0) || 0);
-    const m = Number(at(dateParts, 1) || 1);
-    const d = Number(at(dateParts, 2) || 1);
-    const earliestDate = new Date(y, (m || 1) - 1, d || 1);
-
-    // If earliest available is after current week window end, shift weekStart to earliest
-    const windowEnd = new Date(weekStart);
-    windowEnd.setDate(weekStart.getDate() + 6);
-    if (earliestDate > windowEnd) {
-      setWeekStart(earliestDate);
-    }
-  }, [availability, weekStart]);
-
-  // Check for stored selected slot ONLY when returning from payment/auth pages
-  useEffect(() => {
-    // Prevent repeated restoration causing state update loops
-    if (hasRestoredIntent) return;
-    // Use navigation state manager to handle slot restoration intelligently
-    const restoredSlot = navigationStateManager.getBookingFlow(instructorId);
-
-    if (restoredSlot && !selectedSlot && !hasRestoredIntent) {
-      // Initially restore without availableDuration - it will be recalculated
-      // when availability data loads
-      setSelectedSlot({
-        date: restoredSlot.date,
-        time: restoredSlot.time,
-        duration: restoredSlot.duration,
-        // Don't restore availableDuration - will be recalculated below
-      });
-      setIsSlotUserSelected(true); // Restored slots are considered user-selected
-      setHasRestoredIntent(true);
-      // Clear saved flow so we don't restore again
-      navigationStateManager.clearBookingFlow();
-
-      // Don't change weekStart here - keep it consistent with initial load (today)
-      // This prevents the calendar from jumping to a different week
-    }
-
-    // Check for booking intent (from login flow)
-    const bookingIntent = getBookingIntent();
-
-    if (bookingIntent && bookingIntent.instructorId === instructorId && !selectedSlot && !hasRestoredIntent) {
-      // If skipModal flag is set, user already went through login and should go to payment
-      if (bookingIntent.skipModal) {
-        // The login redirect should have gone directly to /student/booking/confirm
-        // But if we're here, clear the intent
-        clearBookingIntent();
-      } else {
-        // Normal flow: restore slot and open modal
-        setSelectedSlot({
-          date: bookingIntent.date,
-          time: bookingIntent.time,
-          duration: bookingIntent.duration,
-        });
-        setIsSlotUserSelected(true); // Booking intent slots are considered user-selected
-        setHasRestoredIntent(true);
-
-        if (typeof window !== 'undefined') {
-          bookingModal.openBookingModal({
-            date: bookingIntent.date,
-            time: bookingIntent.time,
-            duration: bookingIntent.duration,
-          });
-        }
-
-        clearBookingIntent();
+    for (const date of dates) {
+      const dayData = availability.availability_by_date[date];
+      if (dayData && !dayData.is_blackout && dayData.available_slots.length > 0 && dayData.available_slots[0]) {
+        return {
+          date,
+          time: dayData.available_slots[0].start_time,
+          duration: 60,
+        };
       }
     }
-  }, [instructorId, bookingModal, hasRestoredIntent, selectedSlot]);
+    return null;
+  })();
 
-  // Recalculate availableDuration when availability data loads and we have a selected slot
-  useEffect(() => {
-    if (availability && selectedSlot && !selectedSlot.availableDuration) {
-      // We have a selected slot but no availableDuration - recalculate it
-      const dayData = availability.availability_by_date?.[selectedSlot.date];
-      if (dayData?.available_slots) {
-        // Parse the start hour from the time string
-        const timeParts = selectedSlot.time.split(':');
-        const startHourStr = at(timeParts, 0);
-        if (!startHourStr) return;
-        const startHour = parseInt(startHourStr);
+  const activeSelectedSlot = (() => {
+    const baseSlot = selectedSlot ?? autoSelectedSlot;
+    if (!baseSlot) return null;
+    if (baseSlot.availableDuration || !availability?.availability_by_date) return baseSlot;
+    const dayData = availability.availability_by_date?.[baseSlot.date];
+    if (!dayData?.available_slots) return baseSlot;
 
-        // Find the slot that contains this start time
-        const containingSlot = dayData.available_slots.find((slot: Record<string, unknown>) => {
-          const startTimeStr = getString(slot, 'start_time');
-          const endTimeStr = getString(slot, 'end_time');
-          if (!startTimeStr || !endTimeStr) return false;
-          const startParts = startTimeStr.split(':');
-          const endParts = endTimeStr.split(':');
-          const slotStartStr = at(startParts, 0);
-          const slotEndStr = at(endParts, 0);
-          if (!slotStartStr || !slotEndStr) return false;
-          const slotStart = parseInt(slotStartStr);
-          const slotEnd = parseInt(slotEndStr);
-          return startHour >= slotStart && startHour < slotEnd;
-        });
+    const timeParts = baseSlot.time.split(':');
+    const startHourStr = at(timeParts, 0);
+    if (!startHourStr) return baseSlot;
+    const startHour = parseInt(startHourStr);
 
-        if (containingSlot) {
-          // Calculate how many minutes are available from the start time to the end of the slot
-          const slotEndTime = containingSlot.end_time.split(':');
-          const slotEndHour = parseInt(slotEndTime[0] || '0');
-          const availableHours = slotEndHour - startHour;
-          const calculatedDuration = availableHours * 60;
+    const containingSlot = dayData.available_slots.find((slot: Record<string, unknown>) => {
+      const startTimeStr = getString(slot, 'start_time');
+      const endTimeStr = getString(slot, 'end_time');
+      if (!startTimeStr || !endTimeStr) return false;
+      const startParts = startTimeStr.split(':');
+      const endParts = endTimeStr.split(':');
+      const slotStartStr = at(startParts, 0);
+      const slotEndStr = at(endParts, 0);
+      if (!slotStartStr || !slotEndStr) return false;
+      const slotStart = parseInt(slotStartStr);
+      const slotEnd = parseInt(slotEndStr);
+      return startHour >= slotStart && startHour < slotEnd;
+    });
 
-          // Update the selected slot with the calculated available duration
-          setSelectedSlot(prev => prev ? {
-            ...prev,
-            availableDuration: calculatedDuration
-          } : null);
-        }
-      }
+    if (!containingSlot) {
+      return baseSlot;
     }
-  }, [availability, selectedSlot]);
 
-  useEffect(() => {
-    // IMPORTANT: Race Condition Fix
-    // This checks for pending slot restoration BEFORE auto-selecting.
-    // Without this check, the auto-selection useEffect would run with stale state
-    // and override the restored slot selection when navigating back from payment.
-    // The restoredSlot check ensures we skip auto-selection if there's a saved slot
-    // waiting to be restored from sessionStorage.
-    const restoredSlot = navigationStateManager.getBookingFlow(instructorId);
+    const slotEndTime = containingSlot.end_time.split(':');
+    const slotEndHour = parseInt(slotEndTime[0] || '0');
+    const availableHours = slotEndHour - startHour;
+    const calculatedDuration = availableHours * 60;
 
-    // Only auto-select a slot if:
-    // 1. We have availability data
-    // 2. No slot is currently selected
-    // 3. We haven't restored a booking intent
-    // 4. There's no slot waiting to be restored
-    if (availability && availability.availability_by_date && !selectedSlot && !hasRestoredIntent && !restoredSlot) {
-      // Pre-select the earliest available slot
-      const dates = Object.keys(availability.availability_by_date).sort();
-      for (const date of dates) {
-        const dayData = availability.availability_by_date[date];
-        if (dayData && !dayData.is_blackout && dayData.available_slots.length > 0 && dayData.available_slots[0]) {
-          const autoSelectedSlot = {
-            date,
-            time: dayData.available_slots[0].start_time,
-            duration: 60 // Default duration
-          };
-          setSelectedSlot(autoSelectedSlot);
-          setIsSlotUserSelected(false); // Auto-selected slots are not user-selected
-          break;
-        }
-      }
-    }
-  }, [availability, selectedSlot, hasRestoredIntent, instructorId]);
+    return {
+      ...baseSlot,
+      availableDuration: calculatedDuration,
+    };
+  })();
+
+  const hasUserSelectedSlot = Boolean(selectedSlot && isSlotUserSelected);
 
 
-  if (isLoading || (rateSecs !== null) || isFetching) {
+  if (isLoading || rateLimitSeconds !== null || isFetching) {
     return (
       <>
-        <RateLimitBanner />
+        {rateLimitSeconds !== null ? (
+          <RateLimitBanner
+            key={`rate-limit-${getString(error, 'message', '')}`}
+            initialSeconds={rateLimitSeconds}
+            onRetry={refetch}
+          />
+        ) : null}
         <InstructorProfileSkeleton />
       </>
     );
   }
 
-  if ((error && rateSecs === null) || !instructor) {
+  if ((error && rateLimitSeconds === null) || !instructor) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="text-center py-12">
@@ -556,7 +527,7 @@ function InstructorProfileContent() {
             <h2 className="text-xl font-semibold mb-4">Skills and pricing</h2>
             <ServiceCards
               services={instructor.services}
-              selectedSlot={selectedSlot}
+              selectedSlot={activeSelectedSlot}
               onBookService={(service, duration) => handleBookingClick(service, duration)}
             />
           </section>
@@ -585,7 +556,7 @@ function InstructorProfileContent() {
               <h2 className="text-lg text-gray-600 mb-4">Skills and pricing</h2>
               <ServiceCards
                 services={instructor.services}
-                selectedSlot={selectedSlot}
+                selectedSlot={activeSelectedSlot}
                 onBookService={(service, duration) => handleBookingClick(service, duration)}
               />
             </div>

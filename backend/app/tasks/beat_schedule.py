@@ -118,7 +118,6 @@ CELERYBEAT_SCHEDULE = {
             "queue": "celery",
             "priority": 3,
         },
-        "description": "Auto-resolve undisputed no-show reports after 24h",
     },
     # Search history cleanup - runs daily at 3 AM
     "cleanup-search-history": {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { logger } from '@/lib/logger';
 import { getString, getArray } from '@/lib/typesafe';
 import { MapContainer, TileLayer, GeoJSON, AttributionControl, useMap } from 'react-leaflet';
@@ -174,11 +174,11 @@ export default function InstructorCoverageMap({
 
 function FitToCoverage({ featureCollection, focusInstructorId }: { featureCollection: FeatureCollection; focusInstructorId?: string | null }) {
   const map = useMap();
-  const [hasInitiallyFit, setHasInitiallyFit] = useState(false);
+  const hasInitiallyFitRef = useRef(false);
 
   // Initial fit to all coverage (only once)
   useEffect(() => {
-    if (!hasInitiallyFit && !focusInstructorId) {
+    if (!hasInitiallyFitRef.current && !focusInstructorId) {
       try {
         const layer = L.geoJSON(featureCollection);
         const bounds = layer.getBounds();
@@ -187,12 +187,12 @@ function FitToCoverage({ featureCollection, focusInstructorId }: { featureCollec
             paddingTopLeft: [20, 20],
             paddingBottomRight: [20, 60]
           });
-          setHasInitiallyFit(true);
+          hasInitiallyFitRef.current = true;
         }
         layer.remove();
       } catch {}
     }
-  }, [featureCollection, map, focusInstructorId, hasInitiallyFit]);
+  }, [featureCollection, map, focusInstructorId]);
 
   // Focus on specific instructor's coverage when clicked
   useEffect(() => {

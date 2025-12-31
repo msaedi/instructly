@@ -1,7 +1,7 @@
 // frontend/app/(public)/page.tsx
 'use client';
 
-import { useState, useEffect, useLayoutEffect } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 // import removed; background handled globally
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -119,15 +119,36 @@ const PrivacySettings = dynamic(
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('arts');
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'arts';
+    const saved = sessionStorage.getItem('homeSelectedCategory');
+    if (!saved) return 'arts';
+    const valid = ['arts', 'sports-fitness', 'tutoring', 'language', 'music', 'kids', 'hidden-gems'];
+    return valid.includes(saved) ? saved : 'arts';
+  });
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
-  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [isTouchDevice] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  });
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [userHasBookingHistory, setUserHasBookingHistory] = useState<boolean | null>(null);
-  const [isClient, setIsClient] = useState(false);
-  const [hasSessionCookie, setHasSessionCookie] = useState(false);
-  const router = useRouter();
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const hasSessionCookie = useMemo(() => {
+    if (!isAuthLoading && !isAuthenticated) return false;
+    if (typeof document === 'undefined') return false;
+    try {
+      return document.cookie.split('; ').some((cookie) => cookie.startsWith('__Host-sid'));
+    } catch {
+      return false;
+    }
+  }, [isAuthenticated, isAuthLoading]);
+  const router = useRouter();
   const isInstructor = isAuthenticated && hasRole(user, RoleName.INSTRUCTOR);
 
   // Use React Query hook for instructor profile (deduplicates API calls)
@@ -171,42 +192,6 @@ export default function HomePage() {
   const categoriesFromDb = categoriesData || [];
   const heroLeftImageSrc = ensureHeroPanelSize(getActivityBackground('home', 'desktop'));
   const heroRightImageSrc = ensureHeroPanelSize(getActivityBackground('music', 'desktop'));
-  const sessionCookiePrefix = '__Host-sid';
-
-  useLayoutEffect(() => {
-    if (typeof document === 'undefined') return;
-    try {
-      const hasCookie = document.cookie.split('; ').some((cookie) => cookie.startsWith(sessionCookiePrefix));
-      setHasSessionCookie(hasCookie);
-    } catch {
-      setHasSessionCookie(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isAuthLoading && !isAuthenticated) {
-      setHasSessionCookie(false);
-    }
-  }, [isAuthenticated, isAuthLoading]);
-
-  // Set isClient to true after mount to avoid hydration issues
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  // Restore previously selected category when returning from search/services
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const saved = sessionStorage.getItem('homeSelectedCategory');
-    if (saved) {
-      // Validate against known categories
-      const valid = ['arts', 'sports-fitness', 'tutoring', 'language', 'music', 'kids', 'hidden-gems'];
-      if (valid.includes(saved)) {
-        setSelectedCategory(saved);
-        setHoveredCategory(null);
-      }
-    }
-  }, [isClient]);
 
   // Fetch top services on mount (client-only) to avoid SSR/client hook order issues
 
@@ -269,11 +254,6 @@ export default function HomePage() {
   };
 
   // Instructor live status now loaded via useInstructorProfileMe hook above
-
-  // Detect touch device
-  useEffect(() => {
-    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
-  }, []);
 
   // Background handled globally via GlobalBackground
 

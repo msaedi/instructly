@@ -28,6 +28,8 @@ test.describe('Scheduled Payment Booking (>24h)', () => {
       },
     ]);
 
+    await setupAllMocks(page, context, { forceAuth: true });
+
     await page.route('**/api/v1/bookings**', async (route) => {
       if (route.request().method() === 'GET') {
         await respondWithCors(route, {
@@ -41,8 +43,6 @@ test.describe('Scheduled Payment Booking (>24h)', () => {
       }
       await route.fallback();
     });
-
-    await setupAllMocks(page, context, { forceAuth: true });
 
     await page.route('**/api/v1/auth/me', async (route) => {
       if (route.request().method() === 'OPTIONS') {

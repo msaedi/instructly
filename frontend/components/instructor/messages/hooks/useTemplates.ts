@@ -7,7 +7,7 @@
  * - Template CRUD operations
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { TemplateItem } from '../types';
 import { loadStoredTemplates, saveTemplatesToCookie, deriveTemplatePreview } from '../utils/templates';
 
@@ -23,14 +23,14 @@ export type UseTemplatesResult = {
 };
 
 export function useTemplates(): UseTemplatesResult {
-  const initialTemplatesRef = useRef<TemplateItem[]>(loadStoredTemplates());
+  const initialTemplates = loadStoredTemplates();
 
-  const [templates, setTemplates] = useState<TemplateItem[]>(initialTemplatesRef.current);
+  const [templates, setTemplates] = useState<TemplateItem[]>(() => initialTemplates);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
-    initialTemplatesRef.current[0]?.id ?? null
+    () => initialTemplates[0]?.id ?? null
   );
   const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>(() => {
-    const entries = initialTemplatesRef.current.map((template) => [template.id, template.body]) as [string, string][];
+    const entries = initialTemplates.map((template) => [template.id, template.body]) as [string, string][];
     return Object.fromEntries(entries);
   });
 

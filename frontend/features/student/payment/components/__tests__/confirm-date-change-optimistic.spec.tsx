@@ -28,7 +28,12 @@ jest.mock('../PaymentConfirmation', () => {
       onBookingUpdate?: (updater: (prev: BookingWithOptionalService) => BookingWithOptionalService) => void;
     },
   ) {
-    bookingUpdateHandlerRef.current = props.onBookingUpdate ?? null;
+    React.useEffect(() => {
+      bookingUpdateHandlerRef.current = props.onBookingUpdate ?? null;
+      return () => {
+        bookingUpdateHandlerRef.current = null;
+      };
+    }, [props.onBookingUpdate]);
     const controller = usePricingPreview(true);
     const loading = controller?.loading ?? false;
     const preview = controller?.preview ?? null;

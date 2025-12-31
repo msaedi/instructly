@@ -26,6 +26,29 @@ const TYPE_LABELS = {
   search_history: 'Search History',
 };
 
+const SearchTypesTooltip = ({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ name: string; value: number; payload: { percentage: number } }>;
+}) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
+        <p className="font-medium text-gray-900 dark:text-gray-100">{at(payload, 0)?.name}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Count: {at(payload, 0)?.value.toLocaleString()}
+        </p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          {at(payload, 0)?.payload.percentage.toFixed(1)}%
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
 export function SearchTypesChart({ summary, loading }: SearchTypesChartProps) {
   if (loading) {
     return (
@@ -58,23 +81,6 @@ export function SearchTypesChart({ summary, loading }: SearchTypesChartProps) {
     percentage: data.percentage,
   }));
 
-  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { percentage: number } }> }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
-          <p className="font-medium text-gray-900 dark:text-gray-100">{at(payload, 0)?.name}</p>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Count: {at(payload, 0)?.value.toLocaleString()}
-          </p>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            {at(payload, 0)?.payload.percentage.toFixed(1)}%
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
-
   return (
     <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
@@ -101,7 +107,7 @@ export function SearchTypesChart({ summary, loading }: SearchTypesChartProps) {
                 return <Cell key={`cell-${index}`} fill={color} />;
               })}
             </Pie>
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<SearchTypesTooltip />} />
             <Legend />
           </PieChart>
         </ResponsiveContainer>

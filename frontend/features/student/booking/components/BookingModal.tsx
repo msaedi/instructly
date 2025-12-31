@@ -1,7 +1,7 @@
 // frontend/features/student/booking/components/BookingModal.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, MapPin, Clock, DollarSign, User, Mail, Phone, MessageSquare } from 'lucide-react';
 import { BookingModalProps, Service } from '../types';
@@ -24,91 +24,46 @@ export default function BookingModal({
 }: BookingModalProps) {
   const router = useRouter();
   const { user, isAuthenticated, redirectToLogin } = useAuth();
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [duration, setDuration] = useState(60); // Default to 60 minutes
-  const [totalPrice, setTotalPrice] = useState(0);
-  const [showBookingForm, setShowBookingForm] = useState(false);
-  const [bookingFormData, setBookingFormData] = useState({
-    name: '',
-    email: '',
+  const defaultService = at(instructor.services, 0) ?? null;
+  const defaultDuration = defaultService?.duration ?? 60;
+  const [selectedService, setSelectedService] = useState<Service | null>(() => defaultService);
+  const [duration, setDuration] = useState(() => defaultDuration); // Default to 60 minutes
+  const totalPrice = useMemo(() => {
+    if (!selectedService) return 0;
+    const rateRaw = selectedService.hourly_rate as unknown;
+    const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
+    const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
+    const hours = duration / 60;
+    return safeRate * hours;
+  }, [selectedService, duration]);
+  const [showBookingForm, setShowBookingForm] = useState(() => isAuthenticated);
+  const [bookingFormData, setBookingFormData] = useState(() => ({
+    name: user?.full_name || '',
+    email: user?.email || '',
     phone: '',
     notes: '',
     agreedToTerms: false,
-  });
+  }));
   const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
   const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'NYC';
   const primaryServiceArea = serviceAreaBoroughs[0] ?? serviceAreaDisplay;
 
-  // Initialize with first service if multiple, or use the only service
-  useEffect(() => {
-    if (instructor.services.length > 0 && !selectedService) {
-      const firstService = at(instructor.services, 0);
-      if (!firstService) return;
-      setSelectedService(firstService);
-      setDuration(firstService.duration);
-      setTotalPrice(firstService.hourly_rate * (firstService.duration / 60));
-    }
-  }, [instructor.services, selectedService]);
-
-  // Pre-fill form with user data if authenticated
-  useEffect(() => {
-    if (user && showBookingForm) {
-      setBookingFormData((prev) => ({
-        ...prev,
-        name: formatFullName(user) || '',
-        email: user.email || '',
-      }));
-    }
-  }, [user, showBookingForm]);
-
-  // Reset modal state when it opens
-  useEffect(() => {
-    if (isOpen) {
-      // Set initial service if not set
-      if (!selectedService && instructor.services.length > 0) {
-        const firstService = at(instructor.services, 0);
-        if (firstService) {
-          setSelectedService(firstService);
-          setDuration(firstService.duration);
-        }
-      }
-
-      // For authenticated users, show the booking form directly
-      if (isAuthenticated) {
-        setShowBookingForm(true);
-      } else {
-        // For unauthenticated users, we'll redirect when they try to continue
-        setShowBookingForm(false);
-      }
-
-      // Reset form data
-      setBookingFormData({
-        name: user?.full_name || '',
-        email: user?.email || '',
-        phone: '',
-        notes: '',
-        agreedToTerms: false,
-      });
-    }
-  }, [
-    isOpen,
-    isAuthenticated,
-    instructor.services,
-    selectedService,
-    user?.full_name,
-    user?.email,
-  ]);
-
-  // Update price when service or duration changes
-  useEffect(() => {
-    if (selectedService) {
-      const rateRaw = (selectedService.hourly_rate as unknown);
-      const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
-      const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
-      const hours = duration / 60;
-      setTotalPrice(safeRate * hours);
-    }
-  }, [selectedService, duration]);
+  const resetState = () => {
+    setSelectedService(defaultService);
+    setDuration(defaultDuration);
+    setShowBookingForm(isAuthenticated);
+    setBookingFormData({
+      name: user?.full_name || '',
+      email: user?.email || '',
+      phone: '',
+      notes: '',
+      agreedToTerms: false,
+    });
+  };
+  const handleClose = () => {
+    resetState();
+    onClose();
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -217,6 +172,13 @@ export default function BookingModal({
 
     // If authenticated, show booking form
     setShowBookingForm(true);
+    if (user) {
+      setBookingFormData((prev) => ({
+        ...prev,
+        name: formatFullName(user) || '',
+        email: user.email || '',
+      }));
+    }
     logger.info('User authenticated, showing booking form', {
       userId: user?.id,
       userEmail: user?.email,
@@ -283,7 +245,7 @@ export default function BookingModal({
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
-      onClose();
+      handleClose();
     }
   };
 
@@ -312,7 +274,7 @@ export default function BookingModal({
             Confirm Your Lesson
           </h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             aria-label="Close modal"
           >

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { mutationFn } from '@/lib/react-query/api';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 interface SavedInstructor {
   instructor_id: string;
@@ -15,18 +15,17 @@ interface SavedInstructor {
 export function useSaveInstructor(instructorId: string) {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
-  const [isSaved, setIsSaved] = useState(false);
-
-  // Check if instructor is saved (sessionStorage for non-authenticated users)
-  useEffect(() => {
-    if (!isAuthenticated) {
-      const savedInstructors = sessionStorage.getItem('savedInstructors');
-      if (savedInstructors) {
-        const saved = JSON.parse(savedInstructors) as string[];
-        setIsSaved(saved.includes(instructorId));
-      }
+  const [isSaved, setIsSaved] = useState(() => {
+    if (typeof window === 'undefined' || isAuthenticated) {
+      return false;
     }
-  }, [instructorId, isAuthenticated]);
+    const savedInstructors = sessionStorage.getItem('savedInstructors');
+    if (!savedInstructors) {
+      return false;
+    }
+    const saved = JSON.parse(savedInstructors) as string[];
+    return saved.includes(instructorId);
+  });
 
   // Mutation for saving instructor (authenticated users)
   const saveMutation = useMutation<SavedInstructor, Error, void>({

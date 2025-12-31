@@ -1,7 +1,7 @@
 // frontend/components/NotificationBar.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
@@ -14,16 +14,24 @@ interface NotificationMessage {
 
 export function NotificationBar() {
   const { user, isAuthenticated } = useAuth();
-  const [currentNotification, setCurrentNotification] = useState<NotificationMessage | null>(null);
-  const [isDismissed, setIsDismissed] = useState(false);
+  const [dismissedMap, setDismissedMap] = useState<Record<string, number>>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      return JSON.parse(sessionStorage.getItem('dismissedNotifications') || '{}');
+    } catch {
+      return {};
+    }
+  });
 
+  const [nowMs, setNowMs] = useState<number | null>(null);
   useEffect(() => {
-    if (!isAuthenticated || isDismissed) return;
+    const timer = setTimeout(() => setNowMs(Date.now()), 0);
+    return () => clearTimeout(timer);
+  }, [isAuthenticated, user?.created_at, dismissedMap]);
 
-    // Generate notifications based on user state
-    const notifications: NotificationMessage[] = [];
+  const notifications: NotificationMessage[] = [];
+  if (isAuthenticated) {
 
-    // Credits notification
     if (user?.credits_balance && user.credits_balance > 0) {
       notifications.push({
         id: 'credits',
@@ -33,10 +41,10 @@ export function NotificationBar() {
       });
     }
 
-    // New user welcome
     const isNewUser =
       user?.created_at &&
-      new Date(user.created_at).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000;
+      typeof nowMs === 'number' &&
+      new Date(user.created_at).getTime() > nowMs - 7 * 24 * 60 * 60 * 1000;
 
     if (isNewUser) {
       notifications.push({
@@ -48,7 +56,6 @@ export function NotificationBar() {
       });
     }
 
-    // Sample notifications (would come from API in production)
     notifications.push({
       id: 'new_instructors',
       type: 'new_instructors',
@@ -63,39 +70,37 @@ export function NotificationBar() {
       priority: 4,
     });
 
-    // Select highest priority notification
-    if (notifications.length > 0) {
-      const sorted = notifications.sort((a, b) => a.priority - b.priority);
-      const firstNotification = sorted[0];
-      if (firstNotification) {
-        setCurrentNotification(firstNotification);
-      }
-    }
-  }, [isAuthenticated, user, isDismissed]);
+  }
+
+  const currentNotification = (() => {
+    if (!notifications.length) return null;
+    const sorted = [...notifications].sort((a, b) => a.priority - b.priority);
+    return sorted[0] ?? null;
+  })();
+
+  const isDismissed = (() => {
+    if (!currentNotification) return false;
+    const dismissedTime = dismissedMap[currentNotification.id];
+    return (
+      typeof dismissedTime === 'number' &&
+      typeof nowMs === 'number' &&
+      nowMs - dismissedTime < 24 * 60 * 60 * 1000
+    );
+  })();
 
   const handleDismiss = () => {
-    setIsDismissed(true);
-
     // Store dismissal in sessionStorage to prevent reappearing
     if (currentNotification) {
-      const dismissed = JSON.parse(sessionStorage.getItem('dismissedNotifications') || '{}');
-      dismissed[currentNotification.id] = Date.now();
-      sessionStorage.setItem('dismissedNotifications', JSON.stringify(dismissed));
+      const timestamp = Date.now();
+      setDismissedMap((prev) => {
+        const next = { ...prev, [currentNotification.id]: timestamp };
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('dismissedNotifications', JSON.stringify(next));
+        }
+        return next;
+      });
     }
   };
-
-  // Check if notification was recently dismissed
-  useEffect(() => {
-    if (currentNotification) {
-      const dismissed = JSON.parse(sessionStorage.getItem('dismissedNotifications') || '{}');
-      const dismissedTime = dismissed[currentNotification.id] as number | undefined;
-
-      // Hide if dismissed within last 24 hours
-      if (typeof dismissedTime === 'number' && Date.now() - dismissedTime < 24 * 60 * 60 * 1000) {
-        setIsDismissed(true);
-      }
-    }
-  }, [currentNotification]);
 
   if (!isAuthenticated || !currentNotification || isDismissed) {
     return null;

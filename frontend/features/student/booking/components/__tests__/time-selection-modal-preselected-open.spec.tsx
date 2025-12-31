@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TimeSelectionModal from '../TimeSelectionModal';
 import { publicApi } from '@/features/shared/api/client';
 
@@ -52,14 +53,30 @@ const availabilityMock = publicApi.getInstructorAvailability as jest.MockedFunct
   typeof publicApi.getInstructorAvailability
 >;
 
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  Wrapper.displayName = 'QueryClientWrapper';
+  return Wrapper;
+};
+
+const renderWithQueryClient = (ui: React.ReactElement) =>
+  render(ui, { wrapper: createWrapper() });
+
 describe('TimeSelectionModal preselected initialization', () => {
   beforeAll(() => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2030-10-10T12:00:00Z'));
+    jest.spyOn(console, 'info').mockImplementation(() => {});
   });
 
   afterAll(() => {
     jest.useRealTimers();
+    jest.restoreAllMocks();
   });
 
   beforeEach(() => {
@@ -89,7 +106,7 @@ describe('TimeSelectionModal preselected initialization', () => {
       },
     });
 
-    render(
+    renderWithQueryClient(
       <TimeSelectionModal
         isOpen
         onClose={jest.fn()}
@@ -154,7 +171,7 @@ describe('TimeSelectionModal preselected initialization', () => {
       },
     });
 
-    render(
+    renderWithQueryClient(
       <TimeSelectionModal
         isOpen
         onClose={jest.fn()}

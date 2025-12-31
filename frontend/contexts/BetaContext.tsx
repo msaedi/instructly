@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useMemo, useState, useEffect } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import type { BetaConfig } from '@/lib/beta-config';
 import { getBetaConfig } from '@/lib/beta-config';
 
@@ -11,12 +11,7 @@ interface BetaContextValue {
 const BetaContext = createContext<BetaContextValue | undefined>(undefined);
 
 export function BetaProvider({ children }: { children: React.ReactNode }) {
-  const [config, setConfig] = useState<BetaConfig>(() => getBetaConfig());
-
-  useEffect(() => {
-    // On mount in client, recompute using window hostname (guards SSR mismatch)
-    setConfig(getBetaConfig());
-  }, []);
+  const config = useMemo(() => getBetaConfig(), []);
 
   const value = useMemo(() => ({ config }), [config]);
   return <BetaContext.Provider value={value}>{children}</BetaContext.Provider>;
@@ -30,18 +25,13 @@ export function useBeta(): BetaContextValue {
 
 export function BetaBanner() {
   const { config } = useBeta();
-  const [visible, setVisible] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return Boolean(sessionStorage.getItem('beta_banner_dismissed'));
+  });
+  const isVisible = config.site === 'beta' && config.showBanner && !isDismissed;
 
-  useEffect(() => {
-    if (config.site !== 'beta' || !config.showBanner) {
-      setVisible(false);
-      return;
-    }
-    const dismissed = typeof window !== 'undefined' && sessionStorage.getItem('beta_banner_dismissed');
-    setVisible(!dismissed);
-  }, [config]);
-
-  if (!visible) return null;
+  if (!isVisible) return null;
 
   const colorClass = config.phase === 'instructor_only' ? 'bg-[#FFD400] text-black'
                     : config.phase === 'alpha' ? 'bg-blue-100 text-blue-900'
@@ -54,7 +44,7 @@ export function BetaBanner() {
         className="underline"
         onClick={() => {
           sessionStorage.setItem('beta_banner_dismissed', '1');
-          setVisible(false);
+          setIsDismissed(true);
         }}
       >
         Dismiss
