@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense, useMemo } from 'react';
+import { useState, useEffect, Suspense, useMemo, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useCurrentLessons, useCompletedLessons } from '@/hooks/useMyLessons';
 import { LessonCard } from '@/components/lessons/LessonCard';
@@ -26,7 +26,11 @@ function MyLessonsContent() {
   // Chat modal state
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [hasMounted, setHasMounted] = useState(false);
+  const hasMounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   // Initialize tab from URL or default to 'upcoming'
   const tabFromUrl = searchParams.get('tab');
@@ -38,10 +42,6 @@ function MyLessonsContent() {
     }
     return 'upcoming';
   });
-
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
 
   const {
     data: upcomingLessons,

@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, screen, waitFor } from '@testing-library/react';
 import { PaymentSection } from '../PaymentSection';
-import { BookingPayment, PaymentStatus } from '../../types';
+import { BookingPayment, PAYMENT_STATUS } from '../../types';
 import { BookingType } from '@/features/shared/types/booking';
 import {
   fetchPricingPreview,
@@ -28,7 +28,12 @@ jest.mock('../PaymentConfirmation', () => {
       onBookingUpdate?: (updater: (prev: BookingWithOptionalService) => BookingWithOptionalService) => void;
     },
   ) {
-    bookingUpdateHandlerRef.current = props.onBookingUpdate ?? null;
+    React.useEffect(() => {
+      bookingUpdateHandlerRef.current = props.onBookingUpdate ?? null;
+      return () => {
+        bookingUpdateHandlerRef.current = null;
+      };
+    }, [props.onBookingUpdate]);
     const controller = usePricingPreview(true);
     const loading = controller?.loading ?? false;
     const preview = controller?.preview ?? null;
@@ -194,7 +199,7 @@ const BASE_BOOKING: BookingWithOptionalService = {
   basePrice: 225,
   totalAmount: 252,
   bookingType: BookingType.STANDARD,
-  paymentStatus: PaymentStatus.PENDING,
+  paymentStatus: PAYMENT_STATUS.SCHEDULED,
   serviceId: 'svc-1',
   metadata: {
     serviceId: 'svc-1',

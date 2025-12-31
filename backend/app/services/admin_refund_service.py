@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+import logging
 import os
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
-from app.models.booking import Booking
+from app.models.booking import Booking, PaymentStatus
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 from app.schemas.admin_refunds import AdminRefundReason
@@ -18,6 +19,8 @@ from app.services.audit_redaction import redact
 from app.services.base import BaseService
 
 AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
+
+logger = logging.getLogger(__name__)
 
 REASON_TO_BOOKING_STATUS = {
     AdminRefundReason.INSTRUCTOR_NO_SHOW: "NO_SHOW",
@@ -74,12 +77,35 @@ class AdminRefundService(BaseService):
             audit_before = redact(booking.to_dict()) or {}
             audit_before["payment_status"] = booking.payment_status
 
-            booking.payment_status = "refunded"
+            booking.payment_status = PaymentStatus.SETTLED.value
             booking.status = REASON_TO_BOOKING_STATUS[reason]
             if not booking.cancelled_at:
                 booking.cancelled_at = datetime.now(timezone.utc)
             if reason == AdminRefundReason.INSTRUCTOR_NO_SHOW:
                 booking.cancelled_by_id = booking.instructor_id
+                booking.settlement_outcome = "instructor_no_show_full_refund"
+            elif reason == AdminRefundReason.DISPUTE:
+                booking.settlement_outcome = "student_wins_dispute_full_refund"
+            else:
+                booking.settlement_outcome = "admin_refund"
+            booking.refunded_to_card_amount = amount_cents
+            booking.student_credit_amount = 0
+            booking.instructor_payout_amount = 0
+
+            try:
+                from app.services.credit_service import CreditService
+
+                credit_service = CreditService(self.db)
+                credit_service.release_credits_for_booking(
+                    booking_id=booking.id, use_transaction=False
+                )
+                booking.credits_reserved_cents = 0
+            except Exception as exc:
+                logger.warning(
+                    "Failed to release reserved credits for booking %s: %s",
+                    booking.id,
+                    exc,
+                )
 
             refund_payload = {
                 "reason": reason.value,

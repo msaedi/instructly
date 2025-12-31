@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from ...api.dependencies import get_current_active_user
 from ...api.dependencies.auth import require_beta_access
+from ...core.booking_lock import booking_lock
 from ...core.enums import PermissionName
 from ...database import get_db
 from ...models.booking import Booking, BookingStatus
@@ -347,13 +348,19 @@ async def dispute_completion(
     check_permission(current_user, PermissionName.COMPLETE_BOOKINGS, db)
 
     try:
-        booking = await asyncio.to_thread(
-            booking_service.instructor_dispute_completion,
-            booking_id=booking_id,
-            instructor=current_user,
-            reason=reason,
-        )
-        return BookingResponse.from_booking(booking)
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            booking = await asyncio.to_thread(
+                booking_service.instructor_dispute_completion,
+                booking_id=booking_id,
+                instructor=current_user,
+                reason=reason,
+            )
+            return BookingResponse.from_booking(booking)
     except NotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValidationException as e:

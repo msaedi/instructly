@@ -267,6 +267,47 @@ class BookingCancel(BaseModel):
         return v
 
 
+class NoShowReportRequest(StrictRequestModel):
+    """Schema for reporting a no-show."""
+
+    no_show_type: Literal["instructor", "student"]
+    reason: Optional[str] = Field(None, max_length=500)
+
+
+class NoShowDisputeRequest(StrictRequestModel):
+    """Schema for disputing a no-show report."""
+
+    reason: str = Field(..., min_length=10, max_length=500)
+
+
+class NoShowReportResponse(StrictModel):
+    """Response for reporting a no-show."""
+
+    success: bool
+    booking_id: str
+    no_show_type: str
+    payment_status: str
+    dispute_window_ends: str
+
+
+class NoShowDisputeResponse(StrictModel):
+    """Response for disputing a no-show report."""
+
+    success: bool
+    booking_id: str
+    disputed: bool
+    requires_platform_review: bool
+
+
+class RetryPaymentResponse(StrictModel):
+    """Response for retrying payment authorization."""
+
+    success: bool
+    payment_status: str
+    failure_count: int
+    error: Optional[str] = None
+
+
 class BookingBase(StandardizedModel):
     """Base booking information - self-contained record."""
 
@@ -276,6 +317,8 @@ class BookingBase(StandardizedModel):
     instructor_service_id: str
     # If this booking was created by rescheduling another booking
     rescheduled_from_booking_id: Optional[str] = None
+    rescheduled_to_booking_id: Optional[str] = None
+    has_locked_funds: Optional[bool] = None
 
     # Self-contained booking details
     booking_date: date
@@ -310,6 +353,33 @@ class BookingBase(StandardizedModel):
     # Cancellation info
     cancelled_by_id: Optional[str]
     cancellation_reason: Optional[str]
+
+    # No-show tracking
+    no_show_reported_by: Optional[str] = None
+    no_show_reported_at: Optional[datetime] = None
+    no_show_type: Optional[str] = None
+    no_show_disputed: Optional[bool] = None
+    no_show_disputed_at: Optional[datetime] = None
+    no_show_dispute_reason: Optional[str] = None
+    no_show_resolved_at: Optional[datetime] = None
+    no_show_resolution: Optional[str] = None
+
+    # Settlement tracking (v2.1.1)
+    settlement_outcome: Optional[str] = None
+    student_credit_amount: Optional[int] = None
+    instructor_payout_amount: Optional[int] = None
+    refunded_to_card_amount: Optional[int] = None
+    credits_reserved_cents: Optional[int] = None
+    # Authorization scheduling (v2.1.1)
+    auth_scheduled_for: Optional[datetime] = None
+    auth_attempted_at: Optional[datetime] = None
+    auth_failure_count: Optional[int] = None
+    auth_last_error: Optional[str] = None
+    # LOCK mechanism fields (v2.1.1)
+    locked_at: Optional[datetime] = None
+    locked_amount_cents: Optional[int] = None
+    lock_resolved_at: Optional[datetime] = None
+    lock_resolution: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -462,6 +532,15 @@ class BookingResponse(BookingBase):
         def _safe_str(value: object) -> Optional[str]:
             return value if isinstance(value, str) else None
 
+        def _safe_int(value: object) -> Optional[int]:
+            # Avoid bools (subclass of int) and mocked values.
+            if isinstance(value, bool):
+                return None
+            return value if isinstance(value, int) else None
+
+        def _safe_bool(value: object) -> Optional[bool]:
+            return value if isinstance(value, bool) else None
+
         rescheduled_from_booking_id_value = getattr(booking, "rescheduled_from_booking_id", None)
 
         response_data = {
@@ -473,6 +552,10 @@ class BookingResponse(BookingBase):
             "rescheduled_from_booking_id": rescheduled_from_booking_id_value
             if isinstance(rescheduled_from_booking_id_value, str)
             else None,
+            "rescheduled_to_booking_id": _safe_str(
+                getattr(booking, "rescheduled_to_booking_id", None)
+            ),
+            "has_locked_funds": _safe_bool(getattr(booking, "has_locked_funds", None)),
             # Booking details
             "booking_date": booking.booking_date,
             "start_time": booking.start_time,
@@ -502,6 +585,31 @@ class BookingResponse(BookingBase):
             # Cancellation info
             "cancelled_by_id": booking.cancelled_by_id,
             "cancellation_reason": booking.cancellation_reason,
+            # No-show tracking
+            "no_show_reported_by": _safe_str(getattr(booking, "no_show_reported_by", None)),
+            "no_show_reported_at": _safe_datetime(getattr(booking, "no_show_reported_at", None)),
+            "no_show_type": _safe_str(getattr(booking, "no_show_type", None)),
+            "no_show_disputed": _safe_bool(getattr(booking, "no_show_disputed", None)),
+            "no_show_disputed_at": _safe_datetime(getattr(booking, "no_show_disputed_at", None)),
+            "no_show_dispute_reason": _safe_str(getattr(booking, "no_show_dispute_reason", None)),
+            "no_show_resolved_at": _safe_datetime(getattr(booking, "no_show_resolved_at", None)),
+            "no_show_resolution": _safe_str(getattr(booking, "no_show_resolution", None)),
+            # Settlement tracking
+            "settlement_outcome": _safe_str(getattr(booking, "settlement_outcome", None)),
+            "student_credit_amount": _safe_int(getattr(booking, "student_credit_amount", None)),
+            "instructor_payout_amount": _safe_int(
+                getattr(booking, "instructor_payout_amount", None)
+            ),
+            "refunded_to_card_amount": _safe_int(getattr(booking, "refunded_to_card_amount", None)),
+            "credits_reserved_cents": _safe_int(getattr(booking, "credits_reserved_cents", None)),
+            "auth_scheduled_for": _safe_datetime(getattr(booking, "auth_scheduled_for", None)),
+            "auth_attempted_at": _safe_datetime(getattr(booking, "auth_attempted_at", None)),
+            "auth_failure_count": _safe_int(getattr(booking, "auth_failure_count", None)),
+            "auth_last_error": _safe_str(getattr(booking, "auth_last_error", None)),
+            "locked_at": _safe_datetime(getattr(booking, "locked_at", None)),
+            "locked_amount_cents": _safe_int(getattr(booking, "locked_amount_cents", None)),
+            "lock_resolved_at": _safe_datetime(getattr(booking, "lock_resolved_at", None)),
+            "lock_resolution": _safe_str(getattr(booking, "lock_resolution", None)),
             # Privacy-protected nested objects
             "student": StudentInfo.model_validate(booking.student) if booking.student else None,
             "instructor": InstructorInfo.from_user(booking.instructor)

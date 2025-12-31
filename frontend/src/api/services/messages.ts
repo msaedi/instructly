@@ -5,6 +5,8 @@
  * Components should use these hooks instead of calling fetch directly.
  */
 
+import { useEffect } from 'react';
+import type { UseQueryOptions } from '@tanstack/react-query';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/api/queryKeys';
 import { withApiBase } from '@/lib/apiBase';
@@ -111,11 +113,19 @@ export function useConversationMessages(
   conversationId: string | undefined,
   limit: number = 50,
   before?: string,
-  enabled: boolean = true
+  enabled: boolean = true,
+  options?: Omit<
+    UseQueryOptions<ConversationMessagesResponse, Error, ConversationMessagesResponse>,
+    'queryKey' | 'queryFn' | 'onSuccess' | 'onError'
+  > & {
+    onSuccess?: (data: ConversationMessagesResponse) => void;
+    onError?: (error: Error) => void;
+  }
 ) {
   const pagination = before ? { limit, before } : { limit };
+  const { onSuccess, onError, ...queryOptions } = options ?? {};
 
-  return useQuery<ConversationMessagesResponse>({
+  const query = useQuery<ConversationMessagesResponse, Error>({
     queryKey: queryKeys.messages.conversationMessages(conversationId ?? '', pagination),
     queryFn: async (): Promise<ConversationMessagesResponse> => {
       const params = new URLSearchParams({ limit: String(limit) });
@@ -135,7 +145,22 @@ export function useConversationMessages(
     },
     staleTime: 1000 * 60, // 1 minute
     enabled: enabled && !!conversationId,
+    ...queryOptions,
   });
+
+  useEffect(() => {
+    if (query.data && onSuccess) {
+      onSuccess(query.data);
+    }
+  }, [onSuccess, query.data]);
+
+  useEffect(() => {
+    if (query.error && onError) {
+      onError(query.error);
+    }
+  }, [onError, query.error]);
+
+  return query;
 }
 
 /**

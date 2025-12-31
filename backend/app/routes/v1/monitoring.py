@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 from app.core.config import settings
 from app.database import get_db, get_db_pool_status
+from app.models.booking import PaymentStatus
 from app.monitoring.production_monitor import monitor
 from app.schemas.monitoring_responses import (
     AlertAcknowledgeResponse,
@@ -284,9 +285,9 @@ async def get_payment_system_health(
             health_status = "warning"
         alerts.append(f"No successful authorizations in {minutes_since_auth} minutes")
 
-    failed_auth_count = stats_dict.get("auth_failed", 0)
-    if failed_auth_count > 5:
-        alerts.append(f"{failed_auth_count} bookings with failed authorization")
+    payment_method_required_count = stats_dict.get(PaymentStatus.PAYMENT_METHOD_REQUIRED.value, 0)
+    if payment_method_required_count > 5:
+        alerts.append(f"{payment_method_required_count} bookings need payment method update")
 
     return PaymentHealthResponse(
         status=health_status,
@@ -297,12 +298,12 @@ async def get_payment_system_health(
         minutes_since_last_auth=minutes_since_auth,
         alerts=alerts,
         metrics={
-            "pending": stats_dict.get("pending_payment_method", 0),
-            "scheduled": stats_dict.get("scheduled", 0),
-            "authorized": stats_dict.get("authorized", 0),
-            "captured": stats_dict.get("captured", 0),
-            "failed": failed_auth_count,
-            "abandoned": stats_dict.get("auth_abandoned", 0),
+            "payment_method_required": payment_method_required_count,
+            "scheduled": stats_dict.get(PaymentStatus.SCHEDULED.value, 0),
+            "authorized": stats_dict.get(PaymentStatus.AUTHORIZED.value, 0),
+            "locked": stats_dict.get(PaymentStatus.LOCKED.value, 0),
+            "manual_review": stats_dict.get(PaymentStatus.MANUAL_REVIEW.value, 0),
+            "settled": stats_dict.get(PaymentStatus.SETTLED.value, 0),
         },
     )
 

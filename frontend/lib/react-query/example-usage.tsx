@@ -6,7 +6,7 @@
  * throughout the application.
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession, useCurrentUser } from '@/src/api/hooks/useSession';
@@ -93,8 +93,13 @@ function InstructorSearch() {
  * Example 4: Instructor availability with real-time updates
  */
 function InstructorAvailability({ instructorId }: { instructorId: string }) {
-  const today = new Date().toISOString().split('T')[0];
-  const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const { today, nextWeek } = useMemo(() => {
+    const now = new Date();
+    const todayIso = now.toISOString().split('T')[0];
+    const nextWeekDate = new Date(now);
+    nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+    return { today: todayIso, nextWeek: nextWeekDate.toISOString().split('T')[0] };
+  }, []);
 
   useQuery({
     queryKey: queryKeys.instructors.availability(instructorId, today),

@@ -18,7 +18,8 @@ Endpoints:
     POST /{booking_id}/cancel - Cancel a booking
     POST /{booking_id}/reschedule - Reschedule a booking
     POST /{booking_id}/complete - Mark booking as completed
-    POST /{booking_id}/no-show - Mark booking as no-show (instructor only)
+    POST /{booking_id}/no-show - Report a no-show
+    POST /{booking_id}/no-show/dispute - Dispute a no-show report
     POST /{booking_id}/confirm-payment - Confirm payment method
     PATCH /{booking_id}/payment-method - Update booking payment method
 """
@@ -26,19 +27,20 @@ Endpoints:
 import asyncio
 from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, NoReturn, Optional
+from typing import Any, NoReturn, Optional, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from fastapi.params import Path
 
 from ...api.dependencies import get_booking_service, get_current_active_user
 from ...api.dependencies.auth import require_beta_phase_access
+from ...core.booking_lock import booking_lock
 from ...core.config import settings
 from ...core.enums import PermissionName
 from ...core.exceptions import DomainException, NotFoundException, ValidationException
 from ...dependencies.permissions import require_permission
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
-from ...models.booking import BookingStatus
+from ...models.booking import BookingStatus, PaymentStatus
 from ...models.user import User
 from ...ratelimit.dependency import rate_limit as new_rate_limit
 from ...schemas.base_responses import PaginatedResponse
@@ -54,6 +56,11 @@ from ...schemas.booking import (
     BookingResponse,
     BookingStatsResponse,
     BookingUpdate,
+    NoShowDisputeRequest,
+    NoShowDisputeResponse,
+    NoShowReportRequest,
+    NoShowReportResponse,
+    RetryPaymentResponse,
     UpcomingBookingResponse,
 )
 from ...schemas.booking_responses import BookingPreviewResponse, SendRemindersResponse
@@ -648,13 +655,19 @@ async def cancel_booking(
 ) -> BookingResponse:
     """Cancel a booking."""
     try:
-        booking = await asyncio.to_thread(
-            booking_service.cancel_booking,
-            booking_id,
-            current_user,
-            cancel_data.reason,
-        )
-        return BookingResponse.from_booking(booking)
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            booking = await asyncio.to_thread(
+                booking_service.cancel_booking,
+                booking_id,
+                current_user,
+                cancel_data.reason,
+            )
+            return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -684,150 +697,218 @@ async def reschedule_booking(
     - Returns the new booking
     """
     try:
-        # Load original booking
-        original = await asyncio.to_thread(
-            booking_service.get_booking_for_user, booking_id, current_user
-        )
-        if not original:
-            raise NotFoundException("Booking not found")
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            # Load original booking
+            original = await asyncio.to_thread(
+                booking_service.get_booking_for_user, booking_id, current_user
+            )
+            if not original:
+                raise NotFoundException("Booking not found")
 
-        # Part 5: Block second reschedule - a booking can only be rescheduled once
-        await asyncio.to_thread(booking_service.validate_reschedule_allowed, original)
+            # Part 5: Block second reschedule - a booking can only be rescheduled once
+            await asyncio.to_thread(booking_service.validate_reschedule_allowed, original)
 
-        # Pre-validate the requested slot
-        start_dt = datetime.combine(  # tz-pattern-ok: duration math only
-            payload.booking_date, payload.start_time, tzinfo=timezone.utc
-        )
-        end_dt = start_dt + timedelta(minutes=payload.selected_duration)
-        proposed_end_time = end_dt.time()
+            # Pre-validate the requested slot
+            start_dt = datetime.combine(  # tz-pattern-ok: duration math only
+                payload.booking_date, payload.start_time, tzinfo=timezone.utc
+            )
+            end_dt = start_dt + timedelta(minutes=payload.selected_duration)
+            proposed_end_time = end_dt.time()
 
-        availability = await asyncio.to_thread(
-            booking_service.check_availability,
-            original.instructor_id,
-            payload.booking_date,
-            payload.start_time,
-            proposed_end_time,
-            payload.instructor_service_id or original.instructor_service_id,
-            original.id,
-        )
+            availability = await asyncio.to_thread(
+                booking_service.check_availability,
+                original.instructor_id,
+                payload.booking_date,
+                payload.start_time,
+                proposed_end_time,
+                payload.instructor_service_id or original.instructor_service_id,
+                original.id,
+            )
 
-        if isinstance(availability, dict):
-            available_flag = availability.get("available", False)
-        else:
-            try:
-                available_flag = bool(availability)
-            except Exception:
-                available_flag = False
-
-        if not available_flag:
-            reason = None
             if isinstance(availability, dict):
-                reason = availability.get("reason")
-            reason = reason or "Requested time is unavailable"
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
+                available_flag = availability.get("available", False)
+            else:
+                try:
+                    available_flag = bool(availability)
+                except Exception:
+                    available_flag = False
 
-        # Check student self-conflict (using service method, no direct repo access)
-        has_student_conflict = await asyncio.to_thread(
-            booking_service.check_student_time_conflict,
-            student_id=current_user.id,
-            booking_date=payload.booking_date,
-            start_time=payload.start_time,
-            end_time=proposed_end_time,
-            exclude_booking_id=original.id,
-        )
+            if not available_flag:
+                reason = None
+                if isinstance(availability, dict):
+                    reason = availability.get("reason")
+                reason = reason or "Requested time is unavailable"
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
 
-        if has_student_conflict:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="You already have a booking scheduled at this time",
+            # Check student self-conflict (using service method, no direct repo access)
+            has_student_conflict = await asyncio.to_thread(
+                booking_service.check_student_time_conflict,
+                student_id=current_user.id,
+                booking_date=payload.booking_date,
+                start_time=payload.start_time,
+                end_time=proposed_end_time,
+                exclude_booking_id=original.id,
             )
 
-        # Preflight: Check payment method (using service method, no direct db access)
-        has_payment_method, stripe_pm_id = await asyncio.to_thread(
-            booking_service.validate_reschedule_payment_method,
-            current_user.id,
-        )
+            if has_student_conflict:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="You already have a booking scheduled at this time",
+                )
 
-        if not has_payment_method or not stripe_pm_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "code": "payment_method_required_for_reschedule",
-                    "message": "A payment method is required to reschedule this lesson. Please add a payment method and try again.",
-                },
+            _student_note = (
+                original.student_note
+                if isinstance(getattr(original, "student_note", None), str)
+                else None
+            )
+            _meeting_location = (
+                original.meeting_location
+                if isinstance(getattr(original, "meeting_location", None), str)
+                else None
+            )
+            _location_type_raw = getattr(original, "location_type", None)
+            _location_type = (
+                _location_type_raw
+                if isinstance(_location_type_raw, str)
+                and _location_type_raw in ["student_home", "instructor_location", "neutral"]
+                else "neutral"
             )
 
-        # Create new booking
-        _student_note = (
-            original.student_note
-            if isinstance(getattr(original, "student_note", None), str)
-            else None
-        )
-        _meeting_location = (
-            original.meeting_location
-            if isinstance(getattr(original, "meeting_location", None), str)
-            else None
-        )
-        _location_type_raw = getattr(original, "location_type", None)
-        _location_type = (
-            _location_type_raw
-            if isinstance(_location_type_raw, str)
-            and _location_type_raw in ["student_home", "instructor_location", "neutral"]
-            else "neutral"
-        )
-
-        new_booking_data = BookingCreate(
-            instructor_id=original.instructor_id,
-            instructor_service_id=payload.instructor_service_id or original.instructor_service_id,
-            booking_date=payload.booking_date,
-            start_time=payload.start_time,
-            selected_duration=payload.selected_duration,
-            student_note=_student_note,
-            meeting_location=_meeting_location,
-            location_type=_location_type,
-        )
-
-        new_booking = await asyncio.to_thread(
-            booking_service.create_booking_with_payment_setup,
-            current_user,
-            new_booking_data,
-            payload.selected_duration,
-            original.id,
-        )
-
-        # Auto-confirm payment
-        try:
-            new_booking = await asyncio.to_thread(
-                booking_service.confirm_booking_payment,
-                new_booking.id,
-                current_user,
-                stripe_pm_id,
-                False,
-            )
-        except Exception as e:
-            logger.error(f"Failed to confirm payment for rescheduled booking: {e}")
-            # Abort the pending booking (using service method, no direct db access)
-            await asyncio.to_thread(booking_service.abort_pending_booking, new_booking.id)
-
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "code": "payment_confirmation_failed",
-                    "message": "We couldn't process your payment method. Please try again or update your payment method.",
-                },
+            new_booking_data = BookingCreate(
+                instructor_id=original.instructor_id,
+                instructor_service_id=payload.instructor_service_id
+                or original.instructor_service_id,
+                booking_date=payload.booking_date,
+                start_time=payload.start_time,
+                selected_duration=payload.selected_duration,
+                student_note=_student_note,
+                meeting_location=_meeting_location,
+                location_type=_location_type,
             )
 
-        # Cancel original booking
-        try:
-            await asyncio.to_thread(
-                booking_service.cancel_booking, booking_id, current_user, "Rescheduled"
+            raw_payment_intent_id = getattr(original, "payment_intent_id", None)
+            raw_payment_status = getattr(original, "payment_status", None)
+            normalized_payment_status = raw_payment_status
+            if raw_payment_status == "requires_capture":
+                normalized_payment_status = PaymentStatus.AUTHORIZED.value
+            elif raw_payment_status == "succeeded":
+                normalized_payment_status = PaymentStatus.SETTLED.value
+            reuse_payment = (
+                isinstance(raw_payment_intent_id, str)
+                and raw_payment_intent_id.startswith("pi_")
+                and isinstance(normalized_payment_status, str)
+                and normalized_payment_status
+                in {PaymentStatus.AUTHORIZED.value, PaymentStatus.SETTLED.value}
             )
-        except DomainException as e:
-            raise e
-        except Exception:
-            pass
 
-        return BookingResponse.from_booking(new_booking)
+            initiator_role = "student" if current_user.id == original.student_id else "instructor"
+            hours_until_original = await asyncio.to_thread(
+                booking_service.get_hours_until_start, original
+            )
+            should_lock = await asyncio.to_thread(
+                booking_service.should_trigger_lock, original, initiator_role
+            )
+
+            force_stripe_cancel = initiator_role == "student" and hours_until_original < 12
+
+            if should_lock:
+                await asyncio.to_thread(booking_service.activate_lock_for_reschedule, original.id)
+                new_booking = await asyncio.to_thread(
+                    booking_service.create_rescheduled_booking_with_locked_funds,
+                    current_user,
+                    new_booking_data,
+                    payload.selected_duration,
+                    original.id,
+                )
+            elif reuse_payment and not force_stripe_cancel:
+                new_booking = await asyncio.to_thread(
+                    booking_service.create_rescheduled_booking_with_existing_payment,
+                    current_user,
+                    new_booking_data,
+                    payload.selected_duration,
+                    original.id,
+                    cast(str, raw_payment_intent_id),
+                    cast(Optional[str], normalized_payment_status),
+                    cast(Optional[str], getattr(original, "payment_method_id", None)),
+                )
+            else:
+                # Preflight: Check payment method (using service method, no direct db access)
+                has_payment_method, stripe_pm_id = await asyncio.to_thread(
+                    booking_service.validate_reschedule_payment_method,
+                    current_user.id,
+                )
+
+                if not has_payment_method or not stripe_pm_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "code": "payment_method_required_for_reschedule",
+                            "message": "A payment method is required to reschedule this lesson. Please add a payment method and try again.",
+                        },
+                    )
+
+                new_booking = await asyncio.to_thread(
+                    booking_service.create_booking_with_payment_setup,
+                    current_user,
+                    new_booking_data,
+                    payload.selected_duration,
+                    original.id,
+                )
+
+                # Auto-confirm payment
+                try:
+                    new_booking = await asyncio.to_thread(
+                        booking_service.confirm_booking_payment,
+                        new_booking.id,
+                        current_user,
+                        stripe_pm_id,
+                        False,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to confirm payment for rescheduled booking: {e}")
+                    # Abort the pending booking (using service method, no direct db access)
+                    await asyncio.to_thread(booking_service.abort_pending_booking, new_booking.id)
+
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "code": "payment_confirmation_failed",
+                            "message": "We couldn't process your payment method. Please try again or update your payment method.",
+                        },
+                    )
+
+            # Cancel original booking
+            try:
+                if should_lock:
+                    await asyncio.to_thread(
+                        booking_service.cancel_booking_without_stripe,
+                        booking_id,
+                        current_user,
+                        "Rescheduled",
+                    )
+                elif reuse_payment and not force_stripe_cancel:
+                    await asyncio.to_thread(
+                        booking_service.cancel_booking_without_stripe,
+                        booking_id,
+                        current_user,
+                        "Rescheduled",
+                        clear_payment_intent=True,
+                    )
+                else:
+                    await asyncio.to_thread(
+                        booking_service.cancel_booking, booking_id, current_user, "Rescheduled"
+                    )
+            except DomainException as e:
+                raise e
+            except Exception:
+                pass
+
+            return BookingResponse.from_booking(new_booking)
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -857,44 +938,105 @@ async def complete_booking(
     Requires: COMPLETE_BOOKINGS permission (instructor only)
     """
     try:
-        booking = await asyncio.to_thread(
-            booking_service.complete_booking, booking_id, current_user
-        )
-        return BookingResponse.from_booking(booking)
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            booking = await asyncio.to_thread(
+                booking_service.complete_booking, booking_id, current_user
+            )
+            return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
 
 
 @router.post(
     "/{booking_id}/no-show",
-    response_model=BookingResponse,
+    response_model=NoShowReportResponse,
     dependencies=[Depends(new_rate_limit("write"))],
     responses={
         403: {"description": "Permission denied"},
         404: {"description": "Booking not found"},
     },
 )
-async def mark_booking_no_show(
+async def report_no_show(
     booking_id: str = Path(
         ...,
         description="Booking ULID",
         pattern=ULID_PATH_PATTERN,
         examples=["01HF4G12ABCDEF3456789XYZAB"],
     ),
-    current_user: User = Depends(require_permission(PermissionName.COMPLETE_BOOKINGS)),
+    request: NoShowReportRequest = Body(...),
+    current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-) -> BookingResponse:
+) -> NoShowReportResponse:
     """
-    Mark a booking as no-show (student didn't attend).
+    Report a no-show for a booking.
 
-    Only the instructor for this booking can mark it as no-show.
-    The booking must be in CONFIRMED status.
-
-    Requires: COMPLETE_BOOKINGS permission (instructor only)
+    - Student can report instructor no-show
+    - Admin can report either type
+    - Must be within reporting window
     """
     try:
-        booking = await asyncio.to_thread(booking_service.mark_no_show, booking_id, current_user)
-        return BookingResponse.from_booking(booking)
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            result = await asyncio.to_thread(
+                booking_service.report_no_show,
+                booking_id=booking_id,
+                reporter=current_user,
+                no_show_type=request.no_show_type,
+                reason=request.reason,
+            )
+            return NoShowReportResponse.model_validate(result)
+    except DomainException as e:
+        handle_domain_exception(e)
+
+
+@router.post(
+    "/{booking_id}/no-show/dispute",
+    response_model=NoShowDisputeResponse,
+    dependencies=[Depends(new_rate_limit("write"))],
+    responses={
+        403: {"description": "Permission denied"},
+        404: {"description": "Booking not found"},
+    },
+)
+async def dispute_no_show(
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
+    request: NoShowDisputeRequest = Body(...),
+    current_user: User = Depends(get_current_active_user),
+    booking_service: BookingService = Depends(get_booking_service),
+) -> NoShowDisputeResponse:
+    """
+    Dispute a no-show report.
+
+    Only the accused party can dispute within 24 hours of report.
+    """
+    try:
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            result = await asyncio.to_thread(
+                booking_service.dispute_no_show,
+                booking_id=booking_id,
+                disputer=current_user,
+                reason=request.reason,
+            )
+            return NoShowDisputeResponse.model_validate(result)
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -923,15 +1065,21 @@ async def confirm_booking_payment(
     Deprecated: use /api/v1/payments/checkout instead.
     """
     try:
-        booking = await asyncio.to_thread(
-            booking_service.confirm_booking_payment,
-            booking_id,
-            current_user,
-            payment_data.payment_method_id,
-            payment_data.save_payment_method,
-        )
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            booking = await asyncio.to_thread(
+                booking_service.confirm_booking_payment,
+                booking_id,
+                current_user,
+                payment_data.payment_method_id,
+                payment_data.save_payment_method,
+            )
 
-        return BookingResponse.from_booking(booking)
+            return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -961,13 +1109,55 @@ async def update_booking_payment_method(
     - Retries authorization off-session (immediate if <24h)
     """
     try:
-        booking = await asyncio.to_thread(
-            booking_service.confirm_booking_payment,
-            booking_id,
-            current_user,
-            payment_data.payment_method_id,
-            payment_data.set_as_default,
-        )
-        return BookingResponse.from_booking(booking)
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            booking = await asyncio.to_thread(
+                booking_service.confirm_booking_payment,
+                booking_id,
+                current_user,
+                payment_data.payment_method_id,
+                payment_data.set_as_default,
+            )
+            return BookingResponse.from_booking(booking)
+    except DomainException as e:
+        handle_domain_exception(e)
+
+
+@router.post(
+    "/{booking_id}/retry-payment",
+    response_model=RetryPaymentResponse,
+    dependencies=[Depends(new_rate_limit("payment"))],
+    responses={404: {"description": "Booking not found"}},
+)
+async def retry_payment_authorization(
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
+    current_user: User = Depends(get_current_active_user),
+    booking_service: BookingService = Depends(get_booking_service),
+) -> RetryPaymentResponse:
+    """
+    Retry payment authorization after a failed attempt.
+    """
+    try:
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            result = await asyncio.to_thread(
+                booking_service.retry_authorization,
+                booking_id=booking_id,
+                user=current_user,
+            )
+            return RetryPaymentResponse.model_validate(result)
     except DomainException as e:
         handle_domain_exception(e)

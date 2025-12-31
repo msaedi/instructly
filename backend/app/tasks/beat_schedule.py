@@ -111,6 +111,15 @@ CELERYBEAT_SCHEDULE = {
     #     "description": "Generate comprehensive monthly platform analytics",
     # },
     # Search history cleanup - runs daily at 3 AM
+    "resolve-undisputed-no-shows": {
+        "task": "app.tasks.payment_tasks.resolve_undisputed_no_shows",
+        "schedule": crontab(minute=0),  # Every hour
+        "options": {
+            "queue": "celery",
+            "priority": 3,
+        },
+    },
+    # Search history cleanup - runs daily at 3 AM
     "cleanup-search-history": {
         "task": "privacy.cleanup_search_history",
         "schedule": crontab(hour=3, minute=0),  # Daily at 3 AM
@@ -162,20 +171,20 @@ CELERYBEAT_SCHEDULE = {
         },
     },
     # ==================== PAYMENT PROCESSING TASKS ====================
-    # Process scheduled authorizations - runs every 30 minutes
+    # Process scheduled authorizations - runs every 5 minutes
     "process-scheduled-authorizations": {
         "task": "app.tasks.payment_tasks.process_scheduled_authorizations",
-        "schedule": crontab(minute="*/30"),  # Every 30 minutes
+        "schedule": crontab(minute="*/5"),  # Every 5 minutes
         "options": {
             "queue": "payments",
             "priority": 9,  # High priority - critical for payment processing
         },
         # Note: Authorize payments for bookings approaching 24-hour window
     },
-    # Retry failed authorizations - runs every 2 hours
+    # Retry failed authorizations - runs every 15 minutes
     "retry-failed-authorizations": {
         "task": "app.tasks.payment_tasks.retry_failed_authorizations",
-        "schedule": crontab(minute=0, hour="*/2"),  # Every 2 hours
+        "schedule": crontab(minute="*/15"),  # Every 15 minutes
         "options": {
             "queue": "payments",
             "priority": 8,
@@ -191,6 +200,16 @@ CELERYBEAT_SCHEDULE = {
             "priority": 7,
         },
         # Note: Capture pre-authorized payments for completed lessons
+    },
+    # Retry failed captures - runs every 4 hours
+    "retry-failed-captures": {
+        "task": "app.tasks.payment_tasks.retry_failed_captures",
+        "schedule": crontab(minute=0, hour="*/4"),  # Every 4 hours
+        "options": {
+            "queue": "payments",
+            "priority": 6,
+        },
+        # Note: Retry captures that failed after lesson completion
     },
     # Payment system health check - runs every 15 minutes
     "payment-health-check": {

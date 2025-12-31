@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { Calendar, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -13,13 +13,7 @@ interface AvailabilityCalendarProps {
 }
 
 export function AvailabilityCalendar({ instructorId, onSelectSlot }: AvailabilityCalendarProps) {
-  // Initialize with null to avoid hydration mismatch
-  const [weekStart, setWeekStart] = useState<Date | null>(null);
-
-  // Set the date on client side only - use current week starting from today
-  useEffect(() => {
-    setWeekStart(new Date());
-  }, []);
+  const weekStart = useMemo(() => new Date(), []);
 
   const { data, isLoading, error } = useInstructorAvailability(
     instructorId.toString(),
@@ -27,7 +21,7 @@ export function AvailabilityCalendar({ instructorId, onSelectSlot }: Availabilit
   );
 
   // Show loading state while weekStart is being initialized or data is loading
-  if (!weekStart || isLoading) {
+  if (isLoading) {
     return (
       <Card className="p-4">
         <div className="space-y-3">

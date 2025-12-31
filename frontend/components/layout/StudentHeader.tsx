@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Home, Search, Calendar, User, LogOut, ChevronDown, Gift } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import { BRAND } from '@/app/config/brand';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -18,7 +18,11 @@ export function StudentHeader() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const [isMounted, setIsMounted] = useState(false);
+  const isMounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -30,11 +34,6 @@ export function StudentHeader() {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Ensure client-only data (like auth user) does not cause SSR/client mismatch
-  useEffect(() => {
-    setIsMounted(true);
   }, []);
 
   const handleLogout = () => {

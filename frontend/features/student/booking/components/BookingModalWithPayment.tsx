@@ -2,7 +2,7 @@
 // This is an enhanced version of BookingModal that integrates payment flow
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, MapPin, Clock, DollarSign, ChevronLeft } from 'lucide-react';
 import { BookingModalProps, Service } from '../types';
@@ -13,7 +13,7 @@ import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServ
 import { useAuth } from '../hooks/useAuth';
 import { storeBookingIntent, calculateEndTime } from '@/features/shared/utils/booking';
 import CheckoutFlow from '@/components/booking/CheckoutFlow';
-import { BookingPayment, PaymentStatus } from '@/features/student/payment/types';
+import { BookingPayment, PAYMENT_STATUS } from '@/features/student/payment/types';
 import { BookingType } from '@/features/shared/types/booking';
 import { determineBookingType } from '@/features/shared/utils/paymentCalculations';
 
@@ -43,88 +43,49 @@ export default function BookingModalWithPayment({
   const router = useRouter();
   const { user, isAuthenticated, redirectToLogin } = useAuth();
   const [currentStep, setCurrentStep] = useState<ModalStep>('select-time');
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [duration, setDuration] = useState(60); // Default to 60 minutes
-  const [totalPrice, setTotalPrice] = useState(0);
-  const [showBookingForm, setShowBookingForm] = useState(false);
+  const defaultService = at(instructor.services, 0) ?? null;
+  const defaultDuration = defaultService?.duration ?? 60;
+  const [selectedService, setSelectedService] = useState<Service | null>(() => defaultService);
+  const [duration, setDuration] = useState(() => defaultDuration); // Default to 60 minutes
+  const totalPrice = useMemo(() => {
+    if (!selectedService) return 0;
+    const rateRaw = selectedService.hourly_rate as unknown;
+    const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
+    const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
+    const hours = duration / 60;
+    return safeRate * hours;
+  }, [selectedService, duration]);
+  const [showBookingForm, setShowBookingForm] = useState(() => isAuthenticated);
   const [pendingBooking, setPendingBooking] = useState<PendingBooking | null>(null);
-  const [bookingFormData, setBookingFormData] = useState({
-    name: '',
-    email: '',
+  const [bookingFormData, setBookingFormData] = useState(() => ({
+    name: user?.full_name || '',
+    email: user?.email || '',
     phone: '',
     notes: '',
     agreedToTerms: false,
-  });
+  }));
   const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
   const serviceAreaDisplayFull = getServiceAreaDisplay(instructor) || 'NYC';
   const primaryServiceArea = serviceAreaBoroughs[0] ?? serviceAreaDisplayFull;
 
-  // Initialize with first service if multiple, or use the only service
-  useEffect(() => {
-    if (instructor.services.length > 0 && !selectedService) {
-      const firstService = at(instructor.services, 0);
-      if (firstService) {
-        setSelectedService(firstService);
-        setDuration(firstService.duration);
-        setTotalPrice(firstService.hourly_rate * (firstService.duration / 60));
-      }
-    }
-  }, [instructor.services, selectedService]);
-
-  // Pre-fill form with user data if authenticated
-  useEffect(() => {
-    if (user && showBookingForm) {
-      setBookingFormData((prev) => ({
-        ...prev,
-        name: formatFullName(user) || '',
-        email: user.email || '',
-      }));
-    }
-  }, [user, showBookingForm]);
-
-  // Reset modal state when it opens
-  useEffect(() => {
-    if (isOpen) {
-      setCurrentStep('select-time');
-      setPendingBooking(null);
-
-      // Set initial service if not set
-      if (!selectedService && instructor.services.length > 0) {
-        const firstService = at(instructor.services, 0);
-        if (firstService) {
-          setSelectedService(firstService);
-          setDuration(firstService.duration);
-        }
-      }
-
-      // For authenticated users, show the booking form directly
-      if (isAuthenticated) {
-        setShowBookingForm(true);
-      } else {
-        setShowBookingForm(false);
-      }
-
-      // Reset form data
-      setBookingFormData({
-        name: user?.full_name || '',
-        email: user?.email || '',
-        phone: '',
-        notes: '',
-        agreedToTerms: false,
-      });
-    }
-  }, [isOpen, isAuthenticated, instructor.services, selectedService, user?.full_name, user?.email]);
-
-  // Update price when service or duration changes
-  useEffect(() => {
-    if (selectedService) {
-      const rateRaw = (selectedService.hourly_rate as unknown);
-      const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
-      const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
-      const hours = duration / 60;
-      setTotalPrice(safeRate * hours);
-    }
-  }, [selectedService, duration]);
+  const resetState = () => {
+    setCurrentStep('select-time');
+    setPendingBooking(null);
+    setSelectedService(defaultService);
+    setDuration(defaultDuration);
+    setShowBookingForm(isAuthenticated);
+    setBookingFormData({
+      name: user?.full_name || '',
+      email: user?.email || '',
+      phone: '',
+      notes: '',
+      agreedToTerms: false,
+    });
+  };
+  const handleClose = () => {
+    resetState();
+    onClose();
+  };
 
   const handleContinueToBooking = () => {
     if (!isAuthenticated) {
@@ -147,7 +108,7 @@ export default function BookingModalWithPayment({
         basePrice,
         totalAmount,
         bookingType,
-        paymentStatus: PaymentStatus.PENDING,
+        paymentStatus: PAYMENT_STATUS.SCHEDULED,
         ...(bookingType === BookingType.STANDARD && {
           freeCancellationUntil: new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
         }),
@@ -183,6 +144,13 @@ export default function BookingModalWithPayment({
     // If authenticated, move to booking details step
     setCurrentStep('booking-details');
     setShowBookingForm(true);
+    if (user) {
+      setBookingFormData((prev) => ({
+        ...prev,
+        name: formatFullName(user) || '',
+        email: user.email || '',
+      }));
+    }
   };
 
   const handleBookingSubmit = async () => {
@@ -228,7 +196,7 @@ export default function BookingModalWithPayment({
 
     // Navigate to success page after a short delay
     setTimeout(() => {
-      onClose();
+      handleClose();
       router.push('/student/dashboard');
     }, 2000);
   };
@@ -266,7 +234,7 @@ export default function BookingModalWithPayment({
             </h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
             aria-label="Close booking modal"
           >

@@ -94,9 +94,8 @@ function DashboardPopover({
   containerRef?: RefObject<HTMLDivElement> | MutableRefObject<HTMLDivElement | null>;
   badgeCount?: number;
 }) {
-  const containerEl = containerRef?.current ?? null;
   const refProp = containerRef ?? undefined;
-  const containerReady = containerEl !== null;
+  const containerReady = Boolean(containerRef);
 
   const hasBadge = typeof badgeCount === 'number' && badgeCount > 0;
   const badgeLabel = hasBadge ? (badgeCount > 9 ? '9+' : String(badgeCount)) : '';

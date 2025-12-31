@@ -1092,12 +1092,12 @@ class TestPaymentRepository:
     def test_apply_credits_for_booking_full_and_partial(
         self, payment_repo: PaymentRepository, test_user: User, test_booking: Booking
     ):
-        """Test applying multiple credits, including creating a remainder credit when needed."""
+        """Test reserving multiple credits, including creating a remainder credit when needed."""
         # Create two credits: 3000 and 1000 cents
         c1 = payment_repo.create_platform_credit(user_id=test_user.id, amount_cents=3000, reason="c1", expires_at=None)
         c2 = payment_repo.create_platform_credit(user_id=test_user.id, amount_cents=1000, reason="c2", expires_at=None)
 
-        # Apply against 3500 cents to cover fully with a remainder from c1
+        # Apply against 3500 cents to cover fully with a remainder from c2
         result = payment_repo.apply_credits_for_booking(
             user_id=test_user.id, booking_id=test_booking.id, amount_cents=3500
         )
@@ -1105,18 +1105,24 @@ class TestPaymentRepository:
         assert result["applied_cents"] == 3500
         assert set(result["used_credit_ids"]) == {c1.id, c2.id}
 
-        # Verify credits marked used
+        # Verify credits marked reserved
         payment_repo.db.refresh(c1)
         payment_repo.db.refresh(c2)
-        assert c1.used_at is not None and c1.used_booking_id == test_booking.id
-        assert c2.used_at is not None and c2.used_booking_id == test_booking.id
+        assert c1.status == "reserved"
+        assert c1.reserved_for_booking_id == test_booking.id
+        assert c1.reserved_amount_cents == 3000
+        assert c2.status == "reserved"
+        assert c2.reserved_for_booking_id == test_booking.id
+        assert c2.reserved_amount_cents == 500
+        assert c2.amount_cents == 500
 
-        # Remainder credit should exist for 3000-2500=500 cents
+        # Remainder credit should exist for 1000-500=500 cents
         remainder_id = result["remainder_credit_id"]
         assert remainder_id is not None
         remainder = payment_repo.db.query(PlatformCredit).filter(PlatformCredit.id == remainder_id).first()
         assert remainder is not None
         assert remainder.amount_cents == 500
+        assert remainder.status == "available"
 
     def test_apply_credits_noop_when_zero(
         self, payment_repo: PaymentRepository, test_user: User, test_booking: Booking
@@ -1239,7 +1245,7 @@ class TestPaymentRepository:
         available = payment_repo.get_available_credits(test_user.id)
 
         assert len(available) == 2
-        # Should be ordered by expiration (soonest first, then no expiration)
+        # Should be ordered FIFO by created_at
         assert available[0].id == credit1.id
         assert available[1].id == credit2.id
 
@@ -1408,7 +1414,8 @@ class TestPaymentRepository:
         assert set(result["used_credit_ids"]) == {c1.id, c2.id}
 
         payment_repo.db.refresh(c3)
-        assert c3.used_at is None
+        assert c3.status == "available"
+        assert c3.reserved_for_booking_id is None
 
     def test_apply_credits_for_booking_no_available_credits(
         self, payment_repo: PaymentRepository, test_user: User, test_booking: Booking

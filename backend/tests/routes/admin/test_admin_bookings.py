@@ -53,7 +53,7 @@ def _create_related_booking(
 def _attach_payment_details(db, booking: Booking, *, amount_cents: int, fee_cents: int) -> str:
     payment_intent_id = booking.payment_intent_id or f"pi_{generate_ulid()}"
     booking.payment_intent_id = payment_intent_id
-    booking.payment_status = "captured"
+    booking.payment_status = "settled"
     booking.completed_at = booking.completed_at or datetime.now(timezone.utc)
     booking.status = BookingStatus.COMPLETED
     db.flush()
@@ -168,8 +168,10 @@ class TestAdminBookingsList:
             booking_date=date.today(),
             status=BookingStatus.CANCELLED,
             offset_index=2,
-            payment_status="refunded",
+            payment_status="settled",
         )
+        refunded.settlement_outcome = "admin_refund"
+        db.commit()
 
         response = client.get(
             "/api/v1/admin/bookings",
@@ -179,7 +181,7 @@ class TestAdminBookingsList:
         assert response.status_code == 200
         data = response.json()
         assert any(item["id"] == refunded.id for item in data["bookings"])
-        assert all(item["payment_status"] == "refunded" for item in data["bookings"])
+        assert all(item["payment_status"] == "settled" for item in data["bookings"])
 
     def test_list_bookings_filter_by_date_range(self, client, auth_headers_admin, test_booking, db):
         past_booking = _create_related_booking(
@@ -331,7 +333,7 @@ class TestAdminBookingStats:
 
     def test_get_stats_this_week(self, client, auth_headers_admin, db, test_student, test_instructor_with_availability):
         today = datetime.now(timezone.utc).date()
-        yesterday = today - timedelta(days=1)
+        yesterday = today - timedelta(days=1) if today.weekday() > 0 else today
         service_id = _get_active_service_id(db, test_instructor_with_availability.id)
 
         booking_today = create_booking_pg_safe(
@@ -538,7 +540,7 @@ class TestAdminCancelBooking:
         auth_headers_admin,
     ):
         test_booking.payment_intent_id = "pi_cancel"
-        test_booking.payment_status = "captured"
+        test_booking.payment_status = "settled"
         db.commit()
 
         mock_refund_payment.return_value = {"refund_id": "re_cancel"}
@@ -555,7 +557,8 @@ class TestAdminCancelBooking:
 
         db.refresh(test_booking)
         assert test_booking.status == BookingStatus.CANCELLED
-        assert test_booking.payment_status == "refunded"
+        assert test_booking.payment_status == "settled"
+        assert test_booking.settlement_outcome == "admin_refund"
 
     def test_admin_cancel_without_refund(self, client, db, test_booking, auth_headers_admin):
         response = client.post(

@@ -82,6 +82,16 @@ class User(Base):
     # Account lifecycle status - active, suspended, or deactivated
     # Check constraint in migration ensures valid values
     account_status = Column(String(20), nullable=False, default="active")
+    # Payment failure locking (v2.1.1)
+    account_locked = Column(Boolean, nullable=False, default=False)
+    account_locked_at = Column(DateTime(timezone=True), nullable=True)
+    account_locked_reason = Column(String(500), nullable=True)
+    # Credit balance and dispute restriction (v2.1.1)
+    credit_balance_cents = Column(Integer, nullable=False, default=0)
+    credit_balance_frozen = Column(Boolean, nullable=False, default=False)
+    account_restricted = Column(Boolean, nullable=False, default=False)
+    account_restricted_at = Column(DateTime(timezone=True), nullable=True)
+    account_restricted_reason = Column(String(500), nullable=True)
     timezone = Column(String(50), nullable=False, default="America/New_York")
     # Profile picture metadata (versioned, private storage)
     profile_picture_key = Column(String(255), nullable=True)

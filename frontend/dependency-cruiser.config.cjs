@@ -1,4 +1,4 @@
-/* eslint-env node */
+/* global module, require */
 module.exports = {
   options: {
     doNotFollow: {

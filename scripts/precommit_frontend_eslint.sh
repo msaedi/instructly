@@ -24,4 +24,4 @@ if [[ ! -d node_modules ]]; then
   echo "[pre-commit] skipping ESLint (frontend/node_modules not installed)"
   exit 0
 fi
-npx --yes eslint --max-warnings=0 --report-unused-disable-directives --cache --cache-location .artifacts/.eslintcache "${frontend_files[@]}"
+npx --yes eslint --max-warnings=0 --no-warn-ignored --report-unused-disable-directives --cache --cache-location .artifacts/.eslintcache "${frontend_files[@]}"

@@ -335,6 +335,8 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
     def get_guest_searches_for_conversion(self, guest_session_id: str) -> List[SearchHistory]:
         """
         Get all guest searches for conversion to user account, including deleted ones.
+
+        Ordered by first search time, then query to break ties deterministically.
         """
         return cast(
             List[SearchHistory],
@@ -343,7 +345,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
                 SearchHistory.guest_session_id == guest_session_id,
                 SearchHistory.converted_to_user_id.is_(None),
             )
-            .order_by(SearchHistory.first_searched_at)
+            .order_by(SearchHistory.first_searched_at, SearchHistory.search_query)
             .all(),
         )
 

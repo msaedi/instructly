@@ -1,11 +1,12 @@
 import { Card } from '@/components/ui/card';
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { reviewsApi } from '@/services/api/reviews';
 import { Booking } from '@/types/booking';
 import { LessonStatus } from './LessonStatus';
 import { InstructorInfo } from './InstructorInfo';
 import { Calendar, Clock, DollarSign, ChevronRight } from 'lucide-react';
 import { formatBookingDate, formatBookingTime } from '@/lib/timezone/formatBookingTime';
+import { useQuery } from '@tanstack/react-query';
 // formatLessonStatus utility available at: '@/hooks/useMyLessons'
 
 interface LessonCardProps {
@@ -39,7 +40,6 @@ export function LessonCard({
   suppressFetchRating,
   suppressFetchReviewed,
 }: LessonCardProps) {
-  const [reviewed, setReviewed] = useState<boolean | null>(null);
   const formattedDate = formatBookingDate(lesson);
   const formattedTime = formatBookingTime(lesson);
   const showInProgressBadge = lesson.status === 'CONFIRMED' && isInProgress;
@@ -49,75 +49,67 @@ export function LessonCard({
 
   // Status formatting helper available: formatLessonStatus(lesson.status, lesson.cancelled_at)
 
-  useEffect(() => {
-    // If a prefetched value is provided, always use it and skip fetching
-    if (typeof prefetchedReviewed === 'boolean') {
-      setReviewed(prefetchedReviewed);
-      return;
-    }
-    if (suppressFetchReviewed) {
-      return;
-    }
-    let mounted = true;
-    // Only check for completed lessons where review CTA might show
-    if (isCompleted && (lesson.status === 'COMPLETED' || lesson.status === 'CONFIRMED')) {
-      (async () => {
-        try {
-          const r = await reviewsApi.getByBooking(lesson.id);
-          if (mounted) setReviewed(!!r);
-        } catch {
-          if (mounted) setReviewed(false);
-        }
-      })();
-    } else {
-      setReviewed(null);
-    }
-    return () => {
-      mounted = false;
-    };
-  }, [isCompleted, lesson.id, lesson.status, prefetchedReviewed, suppressFetchReviewed]);
+  const shouldFetchReviewed = Boolean(
+    !suppressFetchReviewed &&
+      typeof prefetchedReviewed !== 'boolean' &&
+      isCompleted &&
+      (lesson.status === 'COMPLETED' || lesson.status === 'CONFIRMED')
+  );
+  const {
+    data: reviewedData,
+    isError: reviewedError,
+  } = useQuery({
+    queryKey: ['lesson-reviewed', lesson.id],
+    queryFn: () => reviewsApi.getByBooking(lesson.id),
+    enabled: shouldFetchReviewed,
+  });
+  const reviewed = useMemo(() => {
+    if (typeof prefetchedReviewed === 'boolean') return prefetchedReviewed;
+    if (suppressFetchReviewed) return null;
+    if (!shouldFetchReviewed) return null;
+    if (reviewedError) return false;
+    return Boolean(reviewedData);
+  }, [prefetchedReviewed, suppressFetchReviewed, shouldFetchReviewed, reviewedData, reviewedError]);
 
-  const [rating, setRating] = useState<number | undefined>(undefined);
-  const [reviewCount, setReviewCount] = useState<number | undefined>(undefined);
-
-  useEffect(() => {
-    if (suppressFetchRating) {
-      // Use prefetched if present, else skip
-      if (typeof prefetchedRating === 'number' && typeof prefetchedReviewCount === 'number') {
-        setRating(prefetchedRating);
-        setReviewCount(prefetchedReviewCount);
-      }
-      return;
-    }
+  const shouldFetchRating = Boolean(
+    !suppressFetchRating &&
+      !(typeof prefetchedRating === 'number' && typeof prefetchedReviewCount === 'number')
+  );
+  const {
+    data: ratingData,
+    isError: ratingError,
+  } = useQuery({
+    queryKey: ['instructor-ratings', lesson.instructor_id],
+    queryFn: () => reviewsApi.getInstructorRatings(lesson.instructor_id),
+    enabled: shouldFetchRating,
+  });
+  const { rating, reviewCount } = useMemo(() => {
     if (typeof prefetchedRating === 'number' && typeof prefetchedReviewCount === 'number') {
-      setRating(prefetchedRating);
-      setReviewCount(prefetchedReviewCount);
-      return;
+      const count = prefetchedReviewCount;
+      return {
+        rating: count >= 3 ? prefetchedRating : undefined,
+        reviewCount: count,
+      };
     }
-    let mounted = true;
-    (async () => {
-      try {
-        const data = await reviewsApi.getInstructorRatings(lesson.instructor_id);
-        if (!mounted || !data) return;
-        const count = data.overall?.total_reviews ?? 0;
-        setReviewCount(count);
-        // Only show rating when we have enough reviews (threshold aligned with backend display)
-        if (count >= 3) {
-          setRating(data.overall?.rating ?? undefined);
-        } else {
-          setRating(undefined);
-        }
-      } catch {
-        if (mounted) {
-          setRating(undefined);
-          setReviewCount(undefined);
-        }
-      }
-    })();
-    return () => {
-      mounted = false;
+    if (suppressFetchRating) {
+      return { rating: undefined, reviewCount: undefined };
+    }
+    if (!shouldFetchRating || ratingError || !ratingData) {
+      return { rating: undefined, reviewCount: undefined };
+    }
+    const count = ratingData.overall?.total_reviews ?? 0;
+    return {
+      rating: count >= 3 ? ratingData.overall?.rating ?? undefined : undefined,
+      reviewCount: count,
     };
-  }, [lesson.instructor_id, prefetchedRating, prefetchedReviewCount, suppressFetchRating]);
+  }, [
+    prefetchedRating,
+    prefetchedReviewCount,
+    suppressFetchRating,
+    shouldFetchRating,
+    ratingData,
+    ratingError,
+  ]);
 
   return (
     <Card

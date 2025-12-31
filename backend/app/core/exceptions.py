@@ -156,6 +156,38 @@ class BookingConflictException(ConflictException):
         )
 
 
+class BookingCancelledException(ConflictException):
+    """Raised when attempting to confirm a cancelled booking."""
+
+    def __init__(
+        self,
+        message: Optional[str] = None,
+        *,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=message or "Booking was cancelled during checkout",
+            code="BOOKING_CANCELLED",
+            details=details or {},
+        )
+
+
+class BookingNotFoundException(NotFoundException):
+    """Raised when a booking no longer exists."""
+
+    def __init__(
+        self,
+        message: Optional[str] = None,
+        *,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=message or "Booking no longer exists",
+            code="BOOKING_NOT_FOUND",
+            details=details or {},
+        )
+
+
 class InsufficientNoticeException(BusinessRuleException):
     """Raised when booking doesn't meet minimum advance notice."""
 

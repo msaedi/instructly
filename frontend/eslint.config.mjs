@@ -1,16 +1,12 @@
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { FlatCompat } from '@eslint/eslintrc';
+import nextConfig from 'eslint-config-next/core-web-vitals';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import noOnlyTests from 'eslint-plugin-no-only-tests';
 import tsParser from '@typescript-eslint/parser';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
 
 const eslintConfig = [
   {
@@ -21,12 +17,16 @@ const eslintConfig = [
       'node_modules/**/*',
       'playwright-report/**/*',
       'test-results/**/*',
+      '.artifacts/**/*',
+      'lhci.config.js',
       'next-env.d.ts',
       'src/api/generated/**/*', // Orval-generated files
+      'types/generated/**/*',  // Generated OpenAPI types - don't lint
     ],
   },
-  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  ...nextConfig,
   {
+    files: ['**/*.{js,jsx,mjs,ts,tsx,mts,cts}'],
     plugins: {
       'react-refresh': reactRefresh,
       'no-only-tests': noOnlyTests,
@@ -35,13 +35,29 @@ const eslintConfig = [
       // Ban console usage in app code; prefer our logger. Allow warn/error in server.js and tests via overrides.
       'no-console': ['error'],
       // Calibrate default strictness to prior behavior; critical rules enforced via targeted overrides below
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', ignoreRestSiblings: true }],
       '@next/next/no-html-link-for-pages': 'warn',
       'react/no-unescaped-entities': 'warn',
-      '@typescript-eslint/ban-ts-comment': 'warn',
     },
     languageOptions: { ecmaVersion: 2022, sourceType: 'module' },
+  },
+  {
+    files: ['**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
+      '@typescript-eslint/ban-ts-comment': 'warn',
+    },
+  },
+  // Test-only exceptions for React Hooks state/global rules
+  {
+    files: ['**/*.spec.{ts,tsx}', '**/*.test.{ts,tsx}'],
+    rules: {
+      'react-hooks/immutability': 'off',
+      'react-hooks/globals': 'off',
+    },
   },
   // Typed rule hardening in API shim layer (low-churn surface)
   {
@@ -277,7 +293,6 @@ const eslintConfig = [
     files: ['server.js', 'scripts/**/*.js', 'jest.config.js', 'next.config.js', 'lib/logger.ts'],
     rules: {
       'no-console': 'off',
-      '@typescript-eslint/no-require-imports': 'off',
     },
   },
 ];

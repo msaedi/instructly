@@ -195,6 +195,24 @@ class AdminBookingStatusUpdateResponse(StrictModel):
     booking_status: str
 
 
+class AdminNoShowResolution(str, Enum):
+    CONFIRMED_AFTER_REVIEW = "confirmed_after_review"
+    DISPUTE_UPHELD = "dispute_upheld"
+    CANCELLED = "cancelled"
+
+
+class AdminNoShowResolutionRequest(StrictRequestModel):
+    resolution: AdminNoShowResolution
+    admin_notes: Optional[str] = Field(None, max_length=1000)
+
+
+class AdminNoShowResolutionResponse(StrictModel):
+    success: bool
+    booking_id: str
+    resolution: str
+    settlement_outcome: Optional[str] = None
+
+
 __all__ = [
     "AdminAuditEntry",
     "AdminAuditLogResponse",
@@ -216,4 +234,7 @@ __all__ = [
     "AdminBookingStatusUpdateResponse",
     "AdminCancelBookingRequest",
     "AdminCancelBookingResponse",
+    "AdminNoShowResolution",
+    "AdminNoShowResolutionRequest",
+    "AdminNoShowResolutionResponse",
 ]

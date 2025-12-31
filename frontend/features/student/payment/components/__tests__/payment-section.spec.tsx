@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import type { BookingResponse } from '@/src/api/generated/instructly.schemas';
-import { BookingType, PaymentMethod, PaymentStatus } from '../../types';
+import { BookingType, PaymentMethod, PAYMENT_STATUS } from '../../types';
 
 // Mock v1 bookings service
 const mockFetchBookingDetails = jest.fn();
@@ -267,7 +267,7 @@ describe('PaymentSection referral integration', () => {
       basePrice: 100,
       totalAmount: 120,
       bookingType: BookingType.STANDARD,
-      paymentStatus: PaymentStatus.PENDING,
+      paymentStatus: PAYMENT_STATUS.SCHEDULED,
     } as const;
 
     render(
@@ -344,7 +344,7 @@ describe('PaymentSection credits behavior', () => {
       basePrice: 45,
       totalAmount: 45,
       bookingType: BookingType.STANDARD,
-      paymentStatus: PaymentStatus.PENDING,
+      paymentStatus: PAYMENT_STATUS.SCHEDULED,
     } as const;
 
     render(
@@ -427,7 +427,7 @@ describe('PaymentSection credits behavior', () => {
       basePrice: 45,
       totalAmount: 45,
       bookingType: BookingType.STANDARD,
-      paymentStatus: PaymentStatus.PENDING,
+      paymentStatus: PAYMENT_STATUS.SCHEDULED,
     } as const;
 
     render(

@@ -8,25 +8,30 @@ import { httpGet } from '@/lib/http';
 
 function WelcomeInner() {
   const params = useSearchParams();
-  const [code, setCode] = useState('');
+  const rawInviteCode = params.get('invite_code') || '';
   const email = params.get('email') || '';
+  const [code] = useState(() => {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+    const normalized = rawInviteCode ? rawInviteCode.toUpperCase() : '';
+    const stored = sessionStorage.getItem('invite_code') || '';
+    const resolved = normalized || stored;
+    if (resolved) {
+      try {
+        sessionStorage.setItem('invite_code', resolved);
+      } catch {}
+    }
+    return resolved;
+  });
 
   useEffect(() => {
-    const rawParam = params.get('invite_code') || '';
-    const qp = rawParam ? rawParam.toUpperCase() : '';
-    if (qp) {
-      setCode(qp);
-      try { sessionStorage.setItem('invite_code', qp); } catch {}
-    } else {
-      const stored = typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') : '';
-      if (stored) setCode(stored);
-    }
-
     let cancelled = false;
 
     const redirectToJoin = () => {
       const joinUrl = new URL('/instructor/join', window.location.origin);
-      const redirectCode = rawParam || (typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') || '' : '');
+      const redirectCode =
+        rawInviteCode || (typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') || '' : '');
       if (redirectCode) joinUrl.searchParams.set('invite_code', redirectCode);
       if (email) joinUrl.searchParams.set('email', email);
       window.location.replace(joinUrl.toString());
@@ -36,14 +41,14 @@ function WelcomeInner() {
       try {
         await httpGet('/api/v1/beta/invites/verified');
 
-        const current = qp || (typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') || '' : '');
+        const current =
+          rawInviteCode || (typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') || '' : '');
         if (!current) {
           redirectToJoin();
           return;
         }
 
         if (!cancelled) {
-          setCode(current);
           try { sessionStorage.setItem('invite_code', current); } catch {}
         }
       } catch {
@@ -56,7 +61,7 @@ function WelcomeInner() {
     return () => {
       cancelled = true;
     };
-  }, [email, params]);
+  }, [email, rawInviteCode]);
 
   const signupHref = `/signup?role=instructor&founding=true${code ? `&invite_code=${encodeURIComponent(code)}` : ''}${email ? `&email=${encodeURIComponent(email)}` : ''}&redirect=${encodeURIComponent('/instructor/onboarding/welcome')}`;
 

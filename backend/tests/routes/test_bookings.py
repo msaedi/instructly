@@ -27,6 +27,7 @@ from app.core.exceptions import ConflictException, NotFoundException, Validation
 from app.core.ulid_helper import generate_ulid
 from app.main import fastapi_app as app
 from app.models.booking import BookingStatus
+from app.models.payment import StripeConnectedAccount
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.booking_timezone import booking_timezone_fields
@@ -63,7 +64,7 @@ class TestBookingRoutes:
     @pytest.fixture
     def booking_data(self):
         """Standard booking data following time-based pattern."""
-        tomorrow = date.today() + timedelta(days=1)
+        tomorrow = date.today() + timedelta(days=2)
         return {
             "instructor_id": generate_ulid(),
             "instructor_service_id": generate_ulid(),
@@ -97,6 +98,13 @@ class TestBookingRoutes:
         mock_service.get_booking_stats_for_instructor = Mock()
         mock_service.send_booking_reminders = Mock()
         mock_service.update_booking = Mock()
+        mock_service.create_rescheduled_booking_with_existing_payment = Mock()
+        mock_service.cancel_booking_without_stripe = Mock()
+        mock_service.should_trigger_lock = Mock(return_value=False)
+        mock_service.get_hours_until_start = Mock(return_value=48)
+        mock_service.activate_lock_for_reschedule = Mock()
+        mock_service.create_rescheduled_booking_with_locked_funds = Mock()
+        mock_service.retry_authorization = Mock()
 
         return mock_service
 
@@ -175,6 +183,32 @@ class TestBookingRoutes:
 
         # Verify service was called with correct parameters
         mock_booking_service.create_booking_with_payment_setup.assert_called_once()
+
+    def test_retry_payment_authorization_success(
+        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
+    ):
+        """Retry payment authorization returns success payload."""
+        booking_id = generate_ulid()
+        mock_booking_service.retry_authorization.return_value = {
+            "success": True,
+            "payment_status": "authorized",
+            "failure_count": 0,
+            "error": None,
+        }
+
+        response = client_with_mock_booking_service.post(
+            f"/api/v1/bookings/{booking_id}/retry-payment",
+            headers=auth_headers_student,
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        payload = response.json()
+        assert payload["success"] is True
+        assert payload["payment_status"] == "authorized"
+        assert payload["failure_count"] == 0
+
+        _, kwargs = mock_booking_service.retry_authorization.call_args
+        assert kwargs["booking_id"] == booking_id
 
     def test_create_booking_no_slot_id(self, client_with_mock_booking_service, auth_headers_student, booking_data):
         """Test that booking creation doesn't accept availability_slot_id."""
@@ -1316,6 +1350,101 @@ class TestBookingRoutes:
         # New flow: create new booking first, then cancel the original
         assert method_names.index("create_booking_with_payment_setup") < method_names.index("cancel_booking")
 
+    def test_reschedule_reuses_existing_payment_intent(
+        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
+    ):
+        """Reschedule should reuse an existing authorized/captured payment without creating a new PI."""
+        original_id = generate_ulid()
+        new_id = generate_ulid()
+
+        original = Mock()
+        original.id = original_id
+        original.student_id = generate_ulid()
+        original.instructor_id = generate_ulid()
+        original.instructor_service_id = generate_ulid()
+        original.booking_date = date.today() + timedelta(days=2)
+        original.start_time = time(9, 0)
+        original.end_time = time(10, 0)
+        original.status = BookingStatus.CONFIRMED
+        original.service_name = "Piano"
+        original.total_price = 50.0
+        original.hourly_rate = 50.0
+        original.duration_minutes = 60
+        original.service_area = "Manhattan"
+        original.meeting_location = "Studio"
+        original.location_type = "neutral"
+        original.student_note = "Bring sheet music"
+        original.instructor_note = None
+        original.payment_intent_id = "pi_test123"
+        original.payment_status = "settled"
+        original.payment_method_id = "pm_test123"
+        original.student = Mock(id=generate_ulid(), first_name="Stu", last_name="Dent", email="s@example.com")
+        original.instructor = Mock(id=generate_ulid(), first_name="Ins", last_name="Tructor", email="i@example.com")
+        original.instructor_service = self._create_mock_instructor_service(name="Piano Lessons")
+        mock_booking_service.get_booking_for_user.return_value = original
+
+        new_booking = Mock()
+        new_booking.id = new_id
+        new_booking.student_id = original.student_id
+        new_booking.instructor_id = original.instructor_id
+        new_booking.instructor_service_id = original.instructor_service_id
+        new_booking.rescheduled_from_booking_id = original_id
+        new_booking.booking_date = date.today() + timedelta(days=3)
+        new_booking.start_time = time(11, 0)
+        new_booking.end_time = time(12, 0)
+        new_booking.status = BookingStatus.CONFIRMED
+        new_booking.service_name = original.service_name
+        new_booking.total_price = 50.0
+        new_booking.hourly_rate = 50.0
+        new_booking.duration_minutes = 60
+        new_booking.service_area = original.service_area
+        new_booking.meeting_location = original.meeting_location
+        new_booking.location_type = original.location_type
+        new_booking.student_note = original.student_note
+        new_booking.instructor_note = None
+        new_booking.created_at = datetime.now()
+        new_booking.confirmed_at = datetime.now()
+        new_booking.completed_at = None
+        new_booking.cancelled_at = None
+        new_booking.cancelled_by_id = None
+        new_booking.cancellation_reason = None
+        new_booking.student = original.student
+        new_booking.instructor = original.instructor
+        new_booking.instructor_service = original.instructor_service
+
+        mock_booking_service.check_availability = MagicMock(return_value={"available": True})
+        mock_booking_service.check_student_time_conflict = MagicMock(return_value=False)
+        mock_booking_service.create_rescheduled_booking_with_existing_payment = MagicMock(
+            return_value=new_booking
+        )
+        mock_booking_service.cancel_booking_without_stripe = MagicMock()
+        mock_booking_service.create_booking_with_payment_setup = MagicMock()
+        mock_booking_service.confirm_booking_payment = MagicMock()
+        mock_booking_service.validate_reschedule_payment_method = MagicMock()
+
+        payload = {
+            "booking_date": (date.today() + timedelta(days=3)).isoformat(),
+            "start_time": "11:00",
+            "selected_duration": 60,
+        }
+        response = client_with_mock_booking_service.post(
+            f"/api/v1/bookings/{original_id}/reschedule", json=payload, headers=auth_headers_student
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["id"] == new_id
+        assert data["status"] == BookingStatus.CONFIRMED.value
+
+        mock_booking_service.create_rescheduled_booking_with_existing_payment.assert_called_once()
+        mock_booking_service.create_booking_with_payment_setup.assert_not_called()
+        mock_booking_service.confirm_booking_payment.assert_not_called()
+        mock_booking_service.validate_reschedule_payment_method.assert_not_called()
+
+        mock_booking_service.cancel_booking_without_stripe.assert_called_once()
+        _, cancel_kwargs = mock_booking_service.cancel_booking_without_stripe.call_args
+        assert cancel_kwargs.get("clear_payment_intent") is True
+
     def test_reschedule_booking_not_found(
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
     ):
@@ -1427,6 +1556,22 @@ class TestBookingIntegration:
             .filter_by(instructor_profile_id=test_instructor_with_availability.instructor_profile.id, is_active=True)
             .first()
         )
+        profile = test_instructor_with_availability.instructor_profile
+        existing_account = (
+            db.query(StripeConnectedAccount)
+            .filter(StripeConnectedAccount.instructor_profile_id == profile.id)
+            .first()
+        )
+        if not existing_account:
+            db.add(
+                StripeConnectedAccount(
+                    id=generate_ulid(),
+                    instructor_profile_id=profile.id,
+                    stripe_account_id=f"acct_{generate_ulid()}",
+                    onboarding_completed=True,
+                )
+            )
+            db.commit()
 
         # Create booking
         tomorrow = date.today() + timedelta(days=1)
@@ -1460,7 +1605,10 @@ class TestBookingIntegration:
         # Mock the Stripe payment confirmation
         from unittest.mock import patch
 
-        with patch("app.services.stripe_service.StripeService.save_payment_method"):
+        with patch("app.services.stripe_service.StripeService.save_payment_method"), patch(
+            "app.tasks.payment_tasks._process_authorization_for_booking",
+            return_value={"success": True},
+        ):
             payment_data = {
                 "payment_method_id": "pm_test_mock",
                 "save_payment_method": False,

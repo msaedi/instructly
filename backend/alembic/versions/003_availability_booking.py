@@ -162,14 +162,82 @@ def upgrade() -> None:
         sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("cancelled_by_id", sa.String(26), nullable=True),
         sa.Column("cancellation_reason", sa.Text(), nullable=True),
+        sa.Column("no_show_reported_by", sa.String(26), nullable=True),
+        sa.Column("no_show_reported_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("no_show_type", sa.String(20), nullable=True),
+        sa.Column(
+            "no_show_disputed",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
+        sa.Column("no_show_disputed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("no_show_dispute_reason", sa.String(500), nullable=True),
+        sa.Column("no_show_resolved_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("no_show_resolution", sa.String(30), nullable=True),
         sa.Column("payment_method_id", sa.String(255), nullable=True, comment="Stripe payment method ID"),
         sa.Column("payment_intent_id", sa.String(255), nullable=True, comment="Current Stripe payment intent"),
         sa.Column("payment_status", sa.String(50), nullable=True, comment="Computed from latest events"),
+        sa.Column("auth_scheduled_for", sa.DateTime(timezone=True), nullable=True, comment="When authorization is scheduled to run (v2.1.1)"),
+        sa.Column("auth_attempted_at", sa.DateTime(timezone=True), nullable=True, comment="Last time authorization was attempted (v2.1.1)"),
+        sa.Column("auth_failure_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Authorization failure count (v2.1.1)"),
+        sa.Column("auth_last_error", sa.String(500), nullable=True, comment="Last authorization error (v2.1.1)"),
+        sa.Column("auth_failure_first_email_sent_at", sa.DateTime(timezone=True), nullable=True, comment="First auth failure email sent at (v2.1.1)"),
+        sa.Column("auth_failure_t13_warning_sent_at", sa.DateTime(timezone=True), nullable=True, comment="T-13 warning email sent at (v2.1.1)"),
+        sa.Column(
+            "credits_reserved_cents",
+            sa.Integer(),
+            nullable=False,
+            server_default=sa.text("0"),
+            comment="Credits reserved for this booking in cents (v2.1.1)",
+        ),
+        sa.Column("settlement_outcome", sa.String(50), nullable=True, comment="Policy settlement outcome (v2.1.1)"),
+        sa.Column("student_credit_amount", sa.Integer(), nullable=True, comment="Student credit issued in cents (v2.1.1)"),
+        sa.Column("instructor_payout_amount", sa.Integer(), nullable=True, comment="Instructor payout in cents (v2.1.1)"),
+        sa.Column("refunded_to_card_amount", sa.Integer(), nullable=True, comment="Refunded to card in cents (v2.1.1)"),
+        sa.Column("dispute_id", sa.String(100), nullable=True, comment="Stripe dispute id (v2.1.1)"),
+        sa.Column("dispute_status", sa.String(30), nullable=True, comment="Stripe dispute status (v2.1.1)"),
+        sa.Column("dispute_amount", sa.Integer(), nullable=True, comment="Dispute amount in cents (v2.1.1)"),
+        sa.Column("dispute_created_at", sa.DateTime(timezone=True), nullable=True, comment="Dispute opened at (v2.1.1)"),
+        sa.Column("dispute_resolved_at", sa.DateTime(timezone=True), nullable=True, comment="Dispute resolved at (v2.1.1)"),
+        sa.Column("stripe_transfer_id", sa.String(100), nullable=True, comment="Stripe transfer id (v2.1.1)"),
+        sa.Column("refund_id", sa.String(100), nullable=True, comment="Stripe refund id (v2.1.1)"),
+        sa.Column("payout_transfer_id", sa.String(100), nullable=True, comment="Manual payout transfer id (v2.1.1)"),
+        sa.Column("advanced_payout_transfer_id", sa.String(100), nullable=True, comment="Manual payout transfer id for capture failure escalation (v2.1.1)"),
+        sa.Column("transfer_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Transfer failure timestamp (v2.1.1)"),
+        sa.Column("transfer_error", sa.String(500), nullable=True, comment="Transfer error (v2.1.1)"),
+        sa.Column("transfer_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Transfer retry count (v2.1.1)"),
+        sa.Column("transfer_reversed", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="Transfer reversed (v2.1.1)"),
+        sa.Column("transfer_reversal_id", sa.String(100), nullable=True, comment="Stripe transfer reversal id (v2.1.1)"),
+        sa.Column("transfer_reversal_failed", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="Transfer reversal failed (v2.1.1)"),
+        sa.Column("transfer_reversal_error", sa.String(500), nullable=True, comment="Transfer reversal error (v2.1.1)"),
+        sa.Column("transfer_reversal_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Transfer reversal failure timestamp (v2.1.1)"),
+        sa.Column("transfer_reversal_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Transfer reversal retry count (v2.1.1)"),
+        sa.Column("refund_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Refund failure timestamp (v2.1.1)"),
+        sa.Column("refund_error", sa.String(500), nullable=True, comment="Refund error (v2.1.1)"),
+        sa.Column("refund_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Refund retry count (v2.1.1)"),
+        sa.Column("payout_transfer_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Manual payout transfer failure timestamp (v2.1.1)"),
+        sa.Column("payout_transfer_error", sa.String(500), nullable=True, comment="Manual payout transfer error (v2.1.1)"),
+        sa.Column("payout_transfer_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Manual payout transfer retry count (v2.1.1)"),
+        sa.Column("capture_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Capture failure timestamp (v2.1.1)"),
+        sa.Column("capture_escalated_at", sa.DateTime(timezone=True), nullable=True, comment="Capture escalation timestamp (v2.1.1)"),
+        sa.Column("capture_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Capture retry count (v2.1.1)"),
+        sa.Column("capture_error", sa.String(500), nullable=True, comment="Capture error (v2.1.1)"),
+        sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True, comment="When LOCK was activated (v2.1.1)"),
+        sa.Column("locked_amount_cents", sa.Integer(), nullable=True, comment="Amount held under LOCK in cents (v2.1.1)"),
+        sa.Column("lock_resolved_at", sa.DateTime(timezone=True), nullable=True, comment="When LOCK was resolved (v2.1.1)"),
+        sa.Column("lock_resolution", sa.String(50), nullable=True, comment="LOCK resolution outcome (v2.1.1)"),
+        sa.Column("late_reschedule_used", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="Late reschedule used in 12-24h window (v2.1.1)"),
+        sa.Column("reschedule_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Total reschedule count (v2.1.1)"),
+        sa.Column("rescheduled_to_booking_id", sa.String(26), nullable=True),
+        sa.Column("has_locked_funds", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="New booking has locked funds from reschedule (v2.1.1)"),
         sa.ForeignKeyConstraint(["student_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["instructor_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["instructor_service_id"], ["instructor_services.id"]),
         sa.ForeignKeyConstraint(["rescheduled_from_booking_id"], ["bookings.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["rescheduled_to_booking_id"], ["bookings.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["cancelled_by_id"], ["users.id"]),
+        sa.ForeignKeyConstraint(["no_show_reported_by"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
         comment="Self-contained booking records - no dependency on availability slots",
     )
@@ -203,6 +271,30 @@ def upgrade() -> None:
     op.create_index("idx_bookings_instructor_service_id", "bookings", ["instructor_service_id"])
     op.create_index("idx_bookings_cancelled_by_id", "bookings", ["cancelled_by_id"])
     op.create_index("idx_bookings_rescheduled_from_id", "bookings", ["rescheduled_from_booking_id"])
+    op.create_index("idx_bookings_rescheduled_to_id", "bookings", ["rescheduled_to_booking_id"])
+    op.create_index(
+        "ix_bookings_payment_status",
+        "bookings",
+        ["payment_status"],
+        postgresql_where=sa.text("payment_status IS NOT NULL"),
+    )
+    op.create_index(
+        "ix_bookings_auth_scheduled_for",
+        "bookings",
+        ["auth_scheduled_for"],
+        postgresql_where=sa.text("auth_scheduled_for IS NOT NULL"),
+    )
+    op.create_index(
+        "ix_bookings_locked_at",
+        "bookings",
+        ["locked_at"],
+        postgresql_where=sa.text("locked_at IS NOT NULL"),
+    )
+    op.create_index(
+        "ix_bookings_payment_status_auth_scheduled",
+        "bookings",
+        ["payment_status", "auth_scheduled_for"],
+    )
 
     op.create_check_constraint(
         "ck_bookings_status",
@@ -213,6 +305,13 @@ def upgrade() -> None:
         "ck_bookings_location_type",
         "bookings",
         "location_type IN ('student_home', 'instructor_location', 'neutral', 'remote', 'online')",
+    )
+    op.create_check_constraint(
+        "ck_bookings_payment_status",
+        "bookings",
+        "payment_status IS NULL OR payment_status IN ("
+        "'scheduled','authorized','payment_method_required','manual_review','locked','settled'"
+        ")",
     )
     op.create_check_constraint(
         "check_duration_positive",
@@ -265,7 +364,7 @@ def upgrade() -> None:
                 instructor_id WITH =,
                 booking_span WITH &&
               )
-              WHERE (cancelled_at IS NULL)
+              WHERE (cancelled_at IS NULL AND status IN ('CONFIRMED','COMPLETED','NO_SHOW'))
             """
         )
         op.execute(
@@ -276,7 +375,7 @@ def upgrade() -> None:
                 student_id WITH =,
                 booking_span WITH &&
               )
-              WHERE (cancelled_at IS NULL)
+              WHERE (cancelled_at IS NULL AND status IN ('CONFIRMED','COMPLETED','NO_SHOW'))
             """
         )
 
@@ -672,9 +771,15 @@ def downgrade() -> None:
     op.drop_constraint("check_rate_positive", "bookings", type_="check")
     op.drop_constraint("check_price_non_negative", "bookings", type_="check")
     op.drop_constraint("check_duration_positive", "bookings", type_="check")
+    op.drop_constraint("ck_bookings_payment_status", "bookings", type_="check")
     op.drop_constraint("ck_bookings_location_type", "bookings", type_="check")
     op.drop_constraint("ck_bookings_status", "bookings", type_="check")
 
+    op.drop_index("ix_bookings_payment_status_auth_scheduled", table_name="bookings")
+    op.drop_index("ix_bookings_locked_at", table_name="bookings")
+    op.drop_index("ix_bookings_auth_scheduled_for", table_name="bookings")
+    op.drop_index("ix_bookings_payment_status", table_name="bookings")
+    op.drop_index("idx_bookings_rescheduled_to_id", table_name="bookings")
     op.drop_index("idx_bookings_rescheduled_from_id", table_name="bookings")
     op.drop_index("idx_bookings_cancelled_by_id", table_name="bookings")
     op.drop_index("idx_bookings_instructor_service_id", table_name="bookings")

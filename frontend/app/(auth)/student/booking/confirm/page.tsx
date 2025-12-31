@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PaymentSection } from '@/features/student/payment';
-import { BookingPayment, PaymentStatus } from '@/features/student/payment/types';
+import { BookingPayment, PAYMENT_STATUS } from '@/features/student/payment/types';
 import ReferralShareModal from '@/components/referrals/ReferralShareModal';
 import { fetchMyReferrals } from '@/features/shared/referrals/api';
 // booking helpers are imported elsewhere as needed
@@ -15,14 +15,110 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { at } from '@/lib/ts/safe';
 
+type InitialBookingLoad = {
+  bookingData: BookingPayment | null;
+  serviceId: string | null;
+  needsRedirect: boolean;
+};
+
 export default function BookingConfirmationPage() {
-  const [bookingData, setBookingData] = useState<BookingPayment | null>(null);
-  const [serviceId, setServiceId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [initialLoad] = useState<InitialBookingLoad>(() => {
+    if (typeof window === 'undefined') {
+      return { bookingData: null, serviceId: null, needsRedirect: false };
+    }
+
+    const storedData = sessionStorage.getItem('bookingData');
+    const storedServiceId = sessionStorage.getItem('serviceId');
+    if (storedData) {
+      try {
+        const parsedData = JSON.parse(storedData) as BookingPayment;
+        return { bookingData: parsedData, serviceId: storedServiceId, needsRedirect: false };
+      } catch (error) {
+        logger.error('[BOOKING CONFIRM] Failed to parse booking data', error as Error);
+        return { bookingData: null, serviceId: null, needsRedirect: true };
+      }
+    }
+
+    const storedReschedule = sessionStorage.getItem('rescheduleData');
+    if (storedReschedule) {
+      try {
+        const rd = JSON.parse(storedReschedule);
+
+        const toStartTime = (display: string): string => {
+          const lower = String(display).toLowerCase();
+          const core = lower.replace(/am|pm/g, '').trim();
+          const [hh, mm] = core.split(':');
+          let hour = parseInt(hh || '0', 10);
+          const minute = parseInt(mm || '0', 10);
+          const isPM = lower.includes('pm');
+          const isAM = lower.includes('am');
+          if (isPM && hour !== 12) hour += 12;
+          if (isAM && hour === 12) hour = 0;
+          return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
+        };
+
+        const startTime = toStartTime(rd.time);
+        const parts = startTime.split(':');
+        const sh = parseInt(at(parts, 0) || '0', 10);
+        const sm = parseInt(at(parts, 1) || '0', 10);
+        const duration = parseInt(String(rd.duration || 0), 10) || 0;
+        const endTotal = sh * 60 + (sm || 0) + duration;
+        const endHour = Math.floor(endTotal / 60);
+        const endMinute = endTotal % 60;
+        const endTime = `${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}:00`;
+
+        const basePrice = Math.round(((rd.hourlyRate || 0) * duration) / 60);
+        const totalAmount = basePrice;
+
+        const freeCancel = new Date(`${rd.date}T${startTime}`);
+        if (!isNaN(freeCancel.getTime())) {
+          freeCancel.setHours(freeCancel.getHours() - 24);
+        }
+
+        const paymentBooking: BookingPayment = {
+          bookingId: '',
+          instructorId: rd.instructorId,
+          instructorName: rd.instructorName || 'Instructor',
+          // Preserve service ULID for downstream API call
+          // Also carry it on the top-level object for convenience
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore
+          serviceId: rd.serviceId,
+          lessonType: rd.serviceName || 'Lesson',
+          date: new Date(rd.date),
+          startTime,
+          endTime,
+          duration,
+          location: 'Online',
+          basePrice,
+          totalAmount,
+          bookingType: BookingType.STANDARD,
+          paymentStatus: PAYMENT_STATUS.SCHEDULED,
+          freeCancellationUntil: isNaN(freeCancel.getTime()) ? undefined : freeCancel,
+        } as BookingPayment;
+
+        return {
+          bookingData: paymentBooking,
+          serviceId: rd.serviceId || null,
+          needsRedirect: false,
+        };
+      } catch (error) {
+        logger.error('[BOOKING CONFIRM] Failed to parse reschedule data', error as Error);
+        return { bookingData: null, serviceId: null, needsRedirect: true };
+      }
+    }
+
+    return { bookingData: null, serviceId: null, needsRedirect: true };
+  });
+
+  const [bookingData] = useState<BookingPayment | null>(initialLoad.bookingData);
+  const [serviceId] = useState<string | null>(initialLoad.serviceId);
+  const [isLoading] = useState(false);
   const [paymentComplete, setPaymentComplete] = useState(false);
   const [confirmationNumber, setConfirmationNumber] = useState<string>('');
   const [referralShare, setReferralShare] = useState<{ code: string; shareUrl: string } | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [needsRedirect] = useState(initialLoad.needsRedirect);
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
@@ -37,108 +133,12 @@ export default function BookingConfirmationPage() {
   }, [authLoading, isAuthenticated, router]);
 
   useEffect(() => {
-    // Skip if already loaded
-    if (bookingData) {
+    if (!needsRedirect) {
       return;
     }
-
-    // Retrieve booking data from sessionStorage
-    const storedData = sessionStorage.getItem('bookingData');
-    const storedServiceId = sessionStorage.getItem('serviceId');
-
-
-    if (storedData) {
-      try {
-        const parsedData = JSON.parse(storedData);
-        setBookingData(parsedData);
-        setServiceId(storedServiceId);
-
-        setIsLoading(false);
-      } catch (error) {
-        logger.error('[BOOKING CONFIRM] Failed to parse booking data', error as Error);
-        setIsLoading(false);
-        // Delay redirect to avoid React strict mode issues
-        setTimeout(() => router.push('/student/lessons'), 100);
-      }
-    } else {
-      // Attempt to recover from reschedule flow
-      const storedReschedule = sessionStorage.getItem('rescheduleData');
-      if (storedReschedule) {
-        try {
-          const rd = JSON.parse(storedReschedule);
-
-          // Parse display time like "8:00am" to 24h HH:MM:SS
-          const toStartTime = (display: string): string => {
-            const lower = String(display).toLowerCase();
-            const core = lower.replace(/am|pm/g, '').trim();
-            const [hh, mm] = core.split(':');
-            let hour = parseInt(hh || '0', 10);
-            const minute = parseInt(mm || '0', 10);
-            const isPM = lower.includes('pm');
-            const isAM = lower.includes('am');
-            if (isPM && hour !== 12) hour += 12;
-            if (isAM && hour === 12) hour = 0;
-            return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
-          };
-
-          const startTime = toStartTime(rd.time);
-          const parts = startTime.split(':');
-          const sh = parseInt(at(parts, 0) || '0', 10);
-          const sm = parseInt(at(parts, 1) || '0', 10);
-          const duration = parseInt(String(rd.duration || 0), 10) || 0;
-          const endTotal = sh * 60 + (sm || 0) + duration;
-          const endHour = Math.floor(endTotal / 60);
-          const endMinute = endTotal % 60;
-          const endTime = `${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}:00`;
-
-          const basePrice = Math.round(((rd.hourlyRate || 0) * duration) / 60);
-          const totalAmount = basePrice;
-
-          const freeCancel = new Date(`${rd.date}T${startTime}`);
-          if (!isNaN(freeCancel.getTime())) {
-            freeCancel.setHours(freeCancel.getHours() - 24);
-          }
-
-          const paymentBooking: BookingPayment = {
-            bookingId: '',
-            instructorId: rd.instructorId,
-            instructorName: rd.instructorName || 'Instructor',
-            // Preserve service ULID for downstream API call
-            // Also carry it on the top-level object for convenience
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
-            serviceId: rd.serviceId,
-            lessonType: rd.serviceName || 'Lesson',
-            date: new Date(rd.date),
-            startTime,
-            endTime,
-            duration,
-            location: 'Online',
-            basePrice,
-            totalAmount,
-            bookingType: BookingType.STANDARD,
-            paymentStatus: PaymentStatus.PENDING,
-            freeCancellationUntil: isNaN(freeCancel.getTime()) ? undefined : freeCancel,
-          } as BookingPayment;
-
-          setBookingData(paymentBooking);
-          setServiceId(rd.serviceId || null);
-          setIsLoading(false);
-          return;
-        } catch (e) {
-          logger.error('[BOOKING CONFIRM] Failed to parse reschedule data', e as Error);
-          setIsLoading(false);
-          setTimeout(() => router.push('/student/lessons'), 100);
-          return;
-        }
-      }
-
-      // Redirect back if no booking data and no reschedule data
-      setIsLoading(false);
-      // Delay redirect to avoid React strict mode issues
-      setTimeout(() => router.push('/student/lessons'), 100);
-    }
-  }, [bookingData, router]);
+    // Delay redirect to avoid React strict mode issues
+    setTimeout(() => router.push('/student/lessons'), 100);
+  }, [needsRedirect, router]);
 
   const handlePaymentSuccess = (confirmationNum: string) => {
     // Set payment complete state
@@ -156,32 +156,16 @@ export default function BookingConfirmationPage() {
     setTimeout(() => {
       router.push('/student/lessons');
     }, 5000); // 5 seconds to show success message
-  };
 
-  useEffect(() => {
-    if (!paymentComplete) {
-      return;
-    }
-
-    let active = true;
-
-    const loadReferralSummary = async () => {
-      try {
-        const summary = await fetchMyReferrals();
-        if (!active) return;
+    void fetchMyReferrals()
+      .then((summary) => {
         setReferralShare({ code: summary.code, shareUrl: summary.share_url });
         setShareModalOpen(true);
-      } catch (error) {
+      })
+      .catch((error) => {
         logger.warn('[BOOKING CONFIRM] Failed to load referral summary', error as Error);
-      }
-    };
-
-    void loadReferralSummary();
-
-    return () => {
-      active = false;
-    };
-  }, [paymentComplete]);
+      });
+  };
 
   const handlePaymentError = (error: Error) => {
     logger.error('[BOOKING CONFIRM] Payment failed', error);

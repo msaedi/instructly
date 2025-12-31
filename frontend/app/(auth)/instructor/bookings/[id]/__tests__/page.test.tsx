@@ -358,7 +358,10 @@ describe('Instructor Booking Details Page', () => {
       fireEvent.click(screen.getByText('Confirm No-Show'));
 
       await waitFor(() => {
-        expect(mockMutateAsync).toHaveBeenCalledWith({ bookingId: '01ABC123456789DEFGHIJKLMN' });
+        expect(mockMutateAsync).toHaveBeenCalledWith({
+          bookingId: '01ABC123456789DEFGHIJKLMN',
+          data: { no_show_type: 'student' },
+        });
       });
 
       expect(mockToastSuccess).toHaveBeenCalledWith('Lesson marked as no-show', expect.any(Object));

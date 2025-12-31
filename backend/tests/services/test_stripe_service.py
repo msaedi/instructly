@@ -1017,20 +1017,23 @@ class TestStripeService:
             "instructor_tier_pct": float(tier_pct),
         }
 
-        apply_mock = MagicMock(return_value={"applied_cents": 700})
-        stripe_service.payment_repository.apply_credits_for_booking = apply_mock
         stripe_service.payment_repository.get_applied_credit_cents_for_booking = MagicMock(
             return_value=0
         )
 
-        context = stripe_service.build_charge_context(
-            booking_id=test_booking.id, requested_credit_cents=900
-        )
+        with patch(
+            "app.services.credit_service.CreditService.reserve_credits_for_booking"
+        ) as reserve_mock:
+            reserve_mock.return_value = 700
+            context = stripe_service.build_charge_context(
+                booking_id=test_booking.id, requested_credit_cents=900
+            )
 
-        apply_mock.assert_called_once_with(
+        reserve_mock.assert_called_once_with(
             user_id=test_booking.student_id,
             booking_id=test_booking.id,
-            amount_cents=900,
+            max_amount_cents=900,
+            use_transaction=False,
         )
         stripe_service.payment_repository.get_applied_credit_cents_for_booking.assert_called_once_with(
             test_booking.id
@@ -1078,17 +1081,18 @@ class TestStripeService:
             "instructor_tier_pct": float(tier_pct),
         }
 
-        apply_mock = MagicMock()
-        stripe_service.payment_repository.apply_credits_for_booking = apply_mock
         stripe_service.payment_repository.get_applied_credit_cents_for_booking = MagicMock(
             return_value=locked_credit
         )
 
-        context = stripe_service.build_charge_context(
-            booking_id=test_booking.id, requested_credit_cents=None
-        )
+        with patch(
+            "app.services.credit_service.CreditService.reserve_credits_for_booking"
+        ) as reserve_mock:
+            context = stripe_service.build_charge_context(
+                booking_id=test_booking.id, requested_credit_cents=None
+            )
 
-        apply_mock.assert_not_called()
+        reserve_mock.assert_not_called()
         stripe_service.payment_repository.get_applied_credit_cents_for_booking.assert_called_once_with(
             test_booking.id
         )
@@ -1134,14 +1138,15 @@ class TestStripeService:
         stripe_service.payment_repository.get_applied_credit_cents_for_booking = MagicMock(
             return_value=locked_credit_cents
         )
-        stripe_service.payment_repository.apply_credits_for_booking = MagicMock()
 
-        with caplog.at_level(logging.WARNING):
+        with patch(
+            "app.services.credit_service.CreditService.reserve_credits_for_booking"
+        ) as reserve_mock, caplog.at_level(logging.WARNING):
             context = stripe_service.build_charge_context(
                 booking_id=test_booking.id, requested_credit_cents=5000
             )
 
-        stripe_service.payment_repository.apply_credits_for_booking.assert_not_called()
+        reserve_mock.assert_not_called()
         assert context.applied_credit_cents == locked_credit_cents
         assert any(
             record.message == "requested_credit_ignored_due_to_existing_usage"
@@ -2515,6 +2520,56 @@ class TestStripeService:
         # Platform retained amount stored in application_fee field
         assert result["application_fee"] == application_fee_cents
 
+    @patch("stripe.PaymentIntent.confirm")
+    @patch("stripe.PaymentIntent.create")
+    def test_process_booking_payment_scheduled_auth(
+        self, mock_create, mock_confirm, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+    ):
+        """Bookings >=24h away should schedule authorization without confirming."""
+        _, profile, _ = test_instructor
+
+        stripe_service.payment_repository.create_customer_record(test_booking.student_id, "cus_sched123")
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_sched123", onboarding_completed=True
+        )
+
+        start_at = (datetime.now(timezone.utc) + timedelta(hours=48)).replace(
+            hour=10, minute=0, second=0, microsecond=0
+        )
+        end_at = start_at + timedelta(hours=1)
+        test_booking.booking_date = start_at.date()
+        test_booking.start_time = start_at.time().replace(tzinfo=None)
+        test_booking.end_time = end_at.time().replace(tzinfo=None)
+        test_booking.booking_start_utc = start_at
+        test_booking.booking_end_utc = end_at
+
+        context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=0,
+            base_price_cents=5000,
+            student_fee_cents=0,
+            instructor_platform_fee_cents=0,
+            target_instructor_payout_cents=5000,
+            student_pay_cents=5000,
+            application_fee_cents=0,
+            top_up_transfer_cents=0,
+            instructor_tier_pct=Decimal("0"),
+        )
+        stripe_service.build_charge_context = MagicMock(return_value=context)
+
+        mock_intent = MagicMock()
+        mock_intent.id = "pi_sched123"
+        mock_intent.status = "requires_payment_method"
+        mock_create.return_value = mock_intent
+
+        result = stripe_service.process_booking_payment(test_booking.id, "pm_card123")
+
+        assert result["success"] is True
+        assert result["status"] == "scheduled"
+        assert test_booking.payment_status == "scheduled"
+        assert test_booking.auth_scheduled_for == start_at - timedelta(hours=24)
+        mock_confirm.assert_not_called()
+
     def test_process_booking_payment_credit_only(
         self, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
     ) -> None:
@@ -3046,8 +3101,11 @@ class TestStripeService:
             json_body={"error": {"message": "Card declined"}},
         )
         with patch("stripe.PaymentIntent.confirm", side_effect=card_error):
-            with pytest.raises(ServiceException, match="Card error"):
-                stripe_service.process_booking_payment(test_booking.id, "pm_declined")
+            result = stripe_service.process_booking_payment(test_booking.id, "pm_declined")
+
+        assert result["success"] is False
+        assert result["status"] == "auth_failed"
+        assert test_booking.payment_status == "payment_method_required"
 
     def test_process_booking_payment_update_status_failure(
         self, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple

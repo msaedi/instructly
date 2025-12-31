@@ -9,8 +9,10 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import get_booking_service
 from app.api.dependencies.auth import get_current_user, require_admin
 from app.api.dependencies.database import get_db
+from app.core.booking_lock import booking_lock
 from app.core.enums import PermissionName
 from app.core.exceptions import ServiceException
 from app.dependencies.permissions import require_permission
@@ -25,8 +27,11 @@ from app.schemas.admin_bookings import (
     AdminBookingStatusUpdateResponse,
     AdminCancelBookingRequest,
     AdminCancelBookingResponse,
+    AdminNoShowResolutionRequest,
+    AdminNoShowResolutionResponse,
 )
 from app.services.admin_booking_service import AdminBookingService
+from app.services.booking_service import BookingService
 
 router = APIRouter(tags=["admin-bookings"])
 
@@ -143,14 +148,20 @@ async def admin_cancel_booking(
 ) -> AdminCancelBookingResponse:
     service = AdminBookingService(db)
     try:
-        booking, refund_id = await asyncio.to_thread(
-            service.cancel_booking,
-            booking_id=booking_id,
-            reason=request.reason,
-            note=request.note,
-            refund=request.refund,
-            actor=current_user,
-        )
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            booking, refund_id = await asyncio.to_thread(
+                service.cancel_booking,
+                booking_id=booking_id,
+                reason=request.reason,
+                note=request.note,
+                refund=request.refund,
+                actor=current_user,
+            )
     except ServiceException as exc:
         if exc.code == "stripe_error":
             raise HTTPException(
@@ -214,4 +225,47 @@ async def admin_update_booking_status(
         booking_status=booking.status.value
         if hasattr(booking.status, "value")
         else str(booking.status),
+    )
+
+
+@router.post(
+    "/bookings/{booking_id}/no-show/resolve",
+    response_model=AdminNoShowResolutionResponse,
+    dependencies=[
+        Depends(require_admin),
+        Depends(require_permission(PermissionName.MANAGE_FINANCIALS)),
+    ],
+)
+async def resolve_no_show(
+    booking_id: str,
+    request: AdminNoShowResolutionRequest,
+    booking_service: BookingService = Depends(get_booking_service),
+    current_user: User = Depends(get_current_user),
+) -> AdminNoShowResolutionResponse:
+    """Resolve a disputed no-show report."""
+    try:
+        async with booking_lock(booking_id) as acquired:
+            if not acquired:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Operation in progress",
+                )
+            result = await asyncio.to_thread(
+                booking_service.resolve_no_show,
+                booking_id=booking_id,
+                resolution=request.resolution.value,
+                resolved_by=current_user,
+                admin_notes=request.admin_notes,
+            )
+    except ServiceException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return AdminNoShowResolutionResponse(
+        success=bool(result.get("success")),
+        booking_id=result.get("booking_id", booking_id),
+        resolution=result.get("resolution", request.resolution.value),
+        settlement_outcome=result.get("settlement_outcome"),
     )

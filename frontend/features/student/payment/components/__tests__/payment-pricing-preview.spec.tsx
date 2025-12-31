@@ -5,7 +5,7 @@ import { fetchPricingPreview, fetchPricingPreviewQuote } from '@/lib/api/pricing
 import { paymentService } from '@/services/api/payments';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { PaymentSection } from '../PaymentSection';
-import { BookingPayment, BookingType, PaymentStatus } from '../../types';
+import { BookingPayment, BookingType, PAYMENT_STATUS } from '../../types';
 import { renderWithQueryClient } from '../testUtils';
 
 jest.mock('@/lib/pricing/usePricingFloors', () => ({
@@ -78,7 +78,7 @@ const baseBookingData: BookingPayment & {
   basePrice: 100,
   totalAmount: 112,
   bookingType: BookingType.STANDARD,
-  paymentStatus: PaymentStatus.PENDING,
+  paymentStatus: PAYMENT_STATUS.SCHEDULED,
   serviceId: 'svc-1',
   metadata: {
     serviceId: 'svc-1',

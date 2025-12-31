@@ -17,6 +17,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 type StatusFilter = 'pending' | 'confirmed' | 'revoked';
 
+const STATUS_FILTERS = {
+  PENDING: 'pending',
+  CONFIRMED: 'confirmed',
+  REVOKED: 'revoked',
+} as const;
+
 const DEFAULT_LIMIT = 50;
 
 const statusColors: Record<StatusFilter, string> = {
@@ -30,7 +36,7 @@ export default function AdminPendingBadgesPage() {
   const { logout } = useAuth();
   const queryClient = useQueryClient();
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(STATUS_FILTERS.PENDING);
   const [beforeFilter, setBeforeFilter] = useState('');
   const [offset, setOffset] = useState(0);
 
@@ -214,9 +220,9 @@ export default function AdminPendingBadgesPage() {
                         <SelectValue placeholder="Status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="confirmed">Confirmed</SelectItem>
-                        <SelectItem value="revoked">Revoked</SelectItem>
+                        <SelectItem value={STATUS_FILTERS.PENDING}>Pending</SelectItem>
+                        <SelectItem value={STATUS_FILTERS.CONFIRMED}>Confirmed</SelectItem>
+                        <SelectItem value={STATUS_FILTERS.REVOKED}>Revoked</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

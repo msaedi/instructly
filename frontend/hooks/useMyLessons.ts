@@ -154,7 +154,7 @@ export function useCancelLesson() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
       await queryClient.invalidateQueries({ queryKey: ['bookings'] });
       await queryClient.invalidateQueries({ queryKey: ['bookings', 'student'] });
-      return result as Booking;
+      return result;
     },
   };
 }
@@ -236,7 +236,7 @@ export function useRescheduleLesson() {
       await queryClient.invalidateQueries({ queryKey: ['bookings'] });
       await queryClient.invalidateQueries({ queryKey: ['bookings', 'student'] });
 
-      return result as Booking;
+      return result;
     },
   };
 }
@@ -286,7 +286,7 @@ export function useCompleteLesson() {
       await queryClient.invalidateQueries({ queryKey: ['bookings'] });
       await queryClient.invalidateQueries({ queryKey: ['bookings', 'student'] });
       await queryClient.invalidateQueries({ queryKey: ['bookings', 'instructor'] });
-      return result as Booking;
+      return result;
     },
   };
 }
@@ -307,34 +307,37 @@ export function useMarkNoShow() {
       options?: { onSuccess?: () => void; onError?: (error: Error) => void }
     ) => {
       markNoShowMutation.mutate(
-        { bookingId: lessonId },
+        { bookingId: lessonId, data: { no_show_type: 'student' } },
         {
-          onSuccess: async (data) => {
+          onSuccess: async () => {
             // Update cache - invalidate ALL booking-related queries
             await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
             await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.upcoming() });
             await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
-            await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(String(data.id)) });
+            await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(lessonId) });
             await queryClient.invalidateQueries({ queryKey: ['bookings'] });
             await queryClient.invalidateQueries({ queryKey: ['bookings', 'instructor'] });
             options?.onSuccess?.();
           },
-          onError: (error) => {
+          onError: (error: unknown) => {
             options?.onError?.(error as Error);
           },
         }
       );
     },
     mutateAsync: async (lessonId: string) => {
-      const result = await markNoShowMutation.mutateAsync({ bookingId: lessonId });
+      const result = await markNoShowMutation.mutateAsync({
+        bookingId: lessonId,
+        data: { no_show_type: 'student' },
+      });
       // Update cache - invalidate ALL booking-related queries
       await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
       await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.upcoming() });
       await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(String(result.id)) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(lessonId) });
       await queryClient.invalidateQueries({ queryKey: ['bookings'] });
       await queryClient.invalidateQueries({ queryKey: ['bookings', 'instructor'] });
-      return result as Booking;
+      return result;
     },
   };
 }

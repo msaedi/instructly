@@ -1676,6 +1676,7 @@ function PaymentConfirmationInner({
           <button
             onClick={onConfirm}
             disabled={ctaDisabled}
+            data-testid="booking-confirm-cta"
             className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 ${
               ctaDisabled
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'

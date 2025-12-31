@@ -20,7 +20,7 @@ Architecture:
 """
 
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 import logging
 from types import SimpleNamespace
@@ -35,8 +35,14 @@ from stripe._transfer import Transfer as StripeTransfer
 
 from ..constants.payment_status import map_payment_status
 from ..constants.pricing_defaults import PRICING_DEFAULTS
+from ..core.booking_lock import booking_lock_sync
 from ..core.config import settings
-from ..core.exceptions import ServiceException
+from ..core.exceptions import (
+    BookingCancelledException,
+    BookingNotFoundException,
+    ServiceException,
+)
+from ..models.booking import BookingStatus, PaymentStatus
 from ..models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
@@ -487,14 +493,48 @@ class StripeService(BaseService):
 
         # With capture_method: "manual", successful authorization returns "requires_capture"
         # We treat both "succeeded" (legacy/credits-only) and "requires_capture" as successful auth
-        if payment_result["success"] and payment_result["status"] in [
+        if payment_result["success"] and payment_result["status"] in {
             "succeeded",
             "requires_capture",
-        ]:
-            booking.status = "CONFIRMED"
+            "scheduled",
+        }:
+            payment_intent_id = payment_result.get("payment_intent_id")
+            fresh_booking = self.booking_repository.get_by_id_for_update(
+                booking.id, load_relationships=False
+            )
+
+            if not fresh_booking:
+                self._void_or_refund_payment(payment_intent_id)
+                raise BookingNotFoundException(
+                    "Booking no longer exists. Payment has been refunded."
+                )
+
+            if fresh_booking.status == BookingStatus.CANCELLED.value:
+                self._void_or_refund_payment(payment_intent_id)
+                raise BookingCancelledException(
+                    "This booking was cancelled by the instructor during checkout. "
+                    "Your payment has been refunded."
+                )
+
+            if fresh_booking.status not in {
+                BookingStatus.PENDING.value,
+                BookingStatus.CONFIRMED.value,
+            }:
+                self._void_or_refund_payment(payment_intent_id)
+                raise ServiceException(
+                    f"Booking is in unexpected state '{fresh_booking.status}'. "
+                    "Payment has been refunded.",
+                    code="invalid_booking_state",
+                )
+
+            fresh_booking.status = BookingStatus.CONFIRMED.value
             # Set payment_status to reflect authorization state
             if payment_result["status"] == "requires_capture":
-                booking.payment_status = "authorized"
+                fresh_booking.payment_status = PaymentStatus.AUTHORIZED.value
+            elif payment_result["status"] == "scheduled":
+                fresh_booking.payment_status = PaymentStatus.SCHEDULED.value
+
+            booking = fresh_booking
             booking_service.repository.flush()
             try:
                 booking_service.invalidate_booking_cache(booking)
@@ -1166,12 +1206,15 @@ class StripeService(BaseService):
     @BaseService.measure_operation("stripe_get_user_credit_balance")
     def get_user_credit_balance(self, *, user: User) -> CreditBalanceResponse:
         """Return credit balance for a user."""
-        payment_repo = self.payment_repository
-        total_cents = payment_repo.get_total_available_credits(user.id)
+        from .credit_service import CreditService
+
+        credit_service = CreditService(self.db)
+        total_cents = credit_service.get_available_balance(user_id=user.id)
+        reserved_cents = credit_service.get_reserved_balance(user_id=user.id)
 
         earliest_exp: str | None = None
         try:
-            credits = payment_repo.get_available_credits(user.id)
+            credits = credit_service.credit_repository.get_available_credits(user_id=user.id)
             expiries = [c.expires_at for c in credits if getattr(c, "expires_at", None) is not None]
             if expiries:
                 earliest_exp = min(expiries).isoformat()
@@ -1181,7 +1224,7 @@ class StripeService(BaseService):
         response_payload = {
             "available": float(total_cents) / 100.0,
             "expires_at": earliest_exp,
-            "pending": 0.0,
+            "pending": float(reserved_cents) / 100.0,
         }
         return CreditBalanceResponse(**response_payload)
 
@@ -1253,6 +1296,58 @@ class StripeService(BaseService):
                 str(exc),
             )
             raise ServiceException("Failed to create top-up transfer") from exc
+
+    @BaseService.measure_operation("stripe_create_manual_transfer")
+    def create_manual_transfer(
+        self,
+        *,
+        booking_id: str,
+        destination_account_id: str,
+        amount_cents: int,
+        idempotency_key: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Create a manual transfer to a connected account."""
+        if amount_cents <= 0:
+            return {"skipped": True, "transfer_id": None}
+
+        transfer_metadata = {
+            "booking_id": booking_id,
+        }
+        if metadata:
+            transfer_metadata.update(metadata)
+
+        try:
+            transfer = stripe.Transfer.create(  # type: ignore[attr-defined]
+                amount=amount_cents,
+                currency="usd",
+                destination=destination_account_id,
+                transfer_group=f"booking:{booking_id}",
+                metadata=transfer_metadata,
+                idempotency_key=idempotency_key,
+            )
+            transfer_id = (
+                transfer.get("id") if isinstance(transfer, dict) else getattr(transfer, "id", None)
+            )
+            return {
+                "transfer": transfer,
+                "transfer_id": transfer_id,
+                "amount": amount_cents,
+            }
+        except stripe.StripeError as exc:  # pragma: no cover - network path
+            self.logger.error(
+                "Stripe error creating transfer for booking %s: %s",
+                booking_id,
+                str(exc),
+            )
+            raise ServiceException("Failed to create transfer") from exc
+        except Exception as exc:
+            self.logger.error(
+                "Unexpected error creating transfer for booking %s: %s",
+                booking_id,
+                str(exc),
+            )
+            raise ServiceException("Failed to create transfer") from exc
 
     @BaseService.measure_operation("stripe_create_or_retry_booking_pi")
     def create_or_retry_booking_payment_intent(
@@ -1346,7 +1441,7 @@ class StripeService(BaseService):
                     instructor_payout_cents=context.target_instructor_payout_cents,
                 )
                 booking.payment_intent_id = mock_id
-                booking.payment_status = "authorized"
+                booking.payment_status = PaymentStatus.AUTHORIZED.value
                 return SimpleNamespace(id=mock_id, status="requires_payment_method")
             raise
 
@@ -1363,7 +1458,7 @@ class StripeService(BaseService):
 
         booking.payment_intent_id = stripe_intent.id
         if stripe_intent.status in {"requires_capture", "requires_confirmation", "succeeded"}:
-            booking.payment_status = "authorized"
+            booking.payment_status = PaymentStatus.AUTHORIZED.value
 
         return stripe_intent
 
@@ -1556,15 +1651,23 @@ class StripeService(BaseService):
                         max_applicable_credits = min(
                             int(requested_credit_cents), lesson_price_cents
                         )
+                        from .credit_service import CreditService
 
-                        credit_result = self.payment_repository.apply_credits_for_booking(
+                        credit_service = CreditService(self.db)
+                        applied_credit_cents = credit_service.reserve_credits_for_booking(
                             user_id=booking.student_id,
                             booking_id=booking_id,
-                            amount_cents=max_applicable_credits,
+                            max_amount_cents=max_applicable_credits,
+                            use_transaction=False,
                         )
-                        applied_credit_cents = int(credit_result.get("applied_cents") or 0)
+                        booking.credits_reserved_cents = applied_credit_cents
                 else:
                     applied_credit_cents = existing_applied
+
+                if existing_applied > 0 and (
+                    getattr(booking, "credits_reserved_cents", 0) != existing_applied
+                ):
+                    booking.credits_reserved_cents = existing_applied
 
                 pricing = self.pricing_service.compute_booking_pricing(
                     booking_id=booking_id,
@@ -2530,6 +2633,72 @@ class StripeService(BaseService):
             self.logger.error(f"Error capturing payment intent: {str(e)}")
             raise ServiceException(f"Failed to capture payment: {str(e)}")
 
+    @BaseService.measure_operation("stripe_get_payment_intent_details")
+    def get_payment_intent_capture_details(self, payment_intent_id: str) -> Dict[str, Any]:
+        """
+        Retrieve a PaymentIntent and extract charge/transfer details without capturing.
+        """
+        try:
+            pi = stripe.PaymentIntent.retrieve(payment_intent_id)
+        except stripe.StripeError as e:
+            self.logger.error(f"Stripe error retrieving payment intent: {str(e)}")
+            raise ServiceException(f"Failed to retrieve payment intent: {str(e)}")
+        except Exception as e:
+            self.logger.error(f"Error retrieving payment intent: {str(e)}")
+            raise ServiceException(f"Failed to retrieve payment intent: {str(e)}")
+
+        charge_id = None
+        transfer_id = None
+        amount_received = None
+        transfer_amount = None
+
+        try:
+            if pi.get("charges") and pi["charges"]["data"]:
+                charge = pi["charges"]["data"][0]
+                charge_id = charge.get("id")
+                amount_received = charge.get("amount") or pi.get("amount_received")
+                transfer_id = charge.get("transfer")
+
+                if transfer_id:
+                    try:
+                        transfer = StripeTransfer.retrieve(transfer_id)
+                        transfer_amount = (
+                            transfer.get("amount")
+                            if hasattr(transfer, "get")
+                            else getattr(transfer, "amount", None)
+                        )
+                    except Exception:
+                        metadata = pi.get("metadata", {}) if hasattr(pi, "get") else {}
+                        if metadata and metadata.get("target_instructor_payout_cents"):
+                            try:
+                                transfer_amount = int(metadata["target_instructor_payout_cents"])
+                            except (ValueError, TypeError):
+                                pass
+        except Exception:
+            pass
+
+        if amount_received is None:
+            amount_received = getattr(pi, "amount_received", None)
+            if amount_received is None and hasattr(pi, "get"):
+                amount_received = pi.get("amount_received")
+        if amount_received is None:
+            fallback_amount = getattr(pi, "amount", None)
+            if fallback_amount is None and hasattr(pi, "get"):
+                fallback_amount = pi.get("amount")
+            if fallback_amount is not None:
+                try:
+                    amount_received = int(fallback_amount)
+                except (TypeError, ValueError):
+                    amount_received = fallback_amount
+
+        return {
+            "payment_intent": pi,
+            "charge_id": charge_id,
+            "transfer_id": transfer_id,
+            "amount_received": amount_received,
+            "transfer_amount": transfer_amount,
+        }
+
     @BaseService.measure_operation("stripe_reverse_transfer")
     def reverse_transfer(
         self,
@@ -2620,6 +2789,53 @@ class StripeService(BaseService):
             self.logger.error(f"Error canceling payment intent: {str(e)}")
             raise ServiceException(f"Failed to cancel payment intent: {str(e)}")
 
+    @BaseService.measure_operation("stripe_void_or_refund_payment")
+    def _void_or_refund_payment(self, payment_intent_id: Optional[str]) -> None:
+        """Void an uncaptured payment or refund a captured payment intent."""
+        if not payment_intent_id:
+            return
+
+        if not payment_intent_id.startswith("pi_"):
+            self.logger.info(
+                "Skipping void/refund for non-Stripe payment intent %s", payment_intent_id
+            )
+            return
+
+        if not self.stripe_configured:
+            self.logger.info(
+                "Stripe not configured; skipping void/refund for %s", payment_intent_id
+            )
+            return
+
+        try:
+            pi = stripe.PaymentIntent.retrieve(payment_intent_id)
+            status = getattr(pi, "status", None)
+
+            if status == "requires_capture":
+                self.cancel_payment_intent(
+                    payment_intent_id,
+                    idempotency_key=f"void_{payment_intent_id}",
+                )
+                self.logger.info("Voided uncaptured payment %s", payment_intent_id)
+            elif status == "succeeded":
+                self.refund_payment(
+                    payment_intent_id,
+                    reverse_transfer=True,
+                    refund_application_fee=True,
+                    idempotency_key=f"refund_{payment_intent_id}",
+                )
+                self.logger.info("Refunded captured payment %s", payment_intent_id)
+            else:
+                self.logger.info(
+                    "Payment %s in state %s; no refund action required",
+                    payment_intent_id,
+                    status,
+                )
+        except stripe.StripeError as e:
+            self.logger.error("Failed to void/refund payment %s: %s", payment_intent_id, e)
+        except Exception as e:
+            self.logger.error("Failed to void/refund payment %s: %s", payment_intent_id, e)
+
     @BaseService.measure_operation("stripe_refund_payment")
     def refund_payment(
         self,
@@ -2628,6 +2844,7 @@ class StripeService(BaseService):
         amount_cents: Optional[int] = None,
         reason: str = "requested_by_customer",
         reverse_transfer: bool = True,
+        refund_application_fee: bool = False,
         idempotency_key: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
@@ -2641,6 +2858,7 @@ class StripeService(BaseService):
             amount_cents: Optional partial refund amount (None = full refund)
             reason: Refund reason (requested_by_customer, duplicate, fraudulent)
             reverse_transfer: Whether to reverse the instructor's transfer (default True)
+            refund_application_fee: Whether to refund the application fee (default False)
             idempotency_key: Optional idempotency key
 
         Returns:
@@ -2663,6 +2881,9 @@ class StripeService(BaseService):
                 valid_reasons = {"requested_by_customer", "duplicate", "fraudulent"}
                 if reason in valid_reasons:
                     refund_kwargs["reason"] = reason
+
+            if refund_application_fee:
+                refund_kwargs["refund_application_fee"] = True
 
             if idempotency_key:
                 refund_kwargs["idempotency_key"] = idempotency_key
@@ -2742,6 +2963,24 @@ class StripeService(BaseService):
                 if not connected_account or not connected_account.onboarding_completed:
                     raise ServiceException("Instructor payment account not set up")
 
+                booking_start_utc = booking.booking_start_utc
+                if not isinstance(booking_start_utc, datetime):
+                    booking_start_utc = datetime.combine(  # tz-pattern-ok: fallback for legacy
+                        booking.booking_date,
+                        booking.start_time,
+                        tzinfo=timezone.utc,
+                    )
+                elif booking_start_utc.tzinfo is None:
+                    booking_start_utc = booking_start_utc.replace(tzinfo=timezone.utc)
+
+                hours_until_lesson = (
+                    booking_start_utc - datetime.now(timezone.utc)
+                ).total_seconds() / 3600
+                immediate_auth = hours_until_lesson < 24
+                auth_scheduled_for = (
+                    booking_start_utc - timedelta(hours=24) if not immediate_auth else None
+                )
+
                 # Store IDs for Phase 2 (avoid holding ORM objects across phases)
                 student_id = booking.student_id
                 stripe_account_id = connected_account.stripe_account_id
@@ -2772,7 +3011,10 @@ class StripeService(BaseService):
                             )
                         except Exception:
                             pass
-                        booking.payment_status = "authorized"
+                        booking.payment_status = PaymentStatus.AUTHORIZED.value
+                        booking.auth_attempted_at = datetime.now(timezone.utc)
+                        booking.auth_failure_count = 0
+                        booking.auth_last_error = None
 
                 return {
                     "success": True,
@@ -2794,49 +3036,126 @@ class StripeService(BaseService):
                 charge_context=charge_context,
             )
 
-            # Direct Stripe call - NO transaction held during network call
-            try:
-                stripe_intent = stripe.PaymentIntent.confirm(
-                    payment_record.stripe_payment_intent_id,
-                    payment_method=payment_method_id,
-                    return_url=f"{settings.frontend_url}/student/payment/complete",
-                )
-            except stripe.error.CardError as e:
-                raise ServiceException(f"Card error: {str(e)}")
+            stripe_error: Optional[str] = None
+            if immediate_auth:
+                # Direct Stripe call - NO transaction held during network call
+                try:
+                    stripe_intent = stripe.PaymentIntent.confirm(
+                        payment_record.stripe_payment_intent_id,
+                        payment_method=payment_method_id,
+                        return_url=f"{settings.frontend_url}/student/payment/complete",
+                    )
+                except stripe.error.CardError as e:
+                    stripe_intent = None
+                    stripe_error = str(e)
+                except Exception as e:
+                    stripe_intent = None
+                    stripe_error = str(e)
+            else:
+                stripe_intent = None
+                stripe_error = None
 
             # ========== PHASE 3: Write (quick transaction) ==========
             with self.transaction():
                 # Re-fetch booking to avoid stale ORM object
                 booking = self.booking_repository.get_by_id(booking_id)
                 if booking:
-                    # Persist updated status
-                    try:
-                        self.payment_repository.update_payment_status(
-                            payment_record.stripe_payment_intent_id, stripe_intent.status
-                        )
-                    except Exception:
-                        pass
-
-                    # Set booking payment_intent_id and payment_status for capture task
                     booking.payment_intent_id = payment_record.stripe_payment_intent_id
-                    if stripe_intent.status in {"requires_capture", "succeeded"}:
-                        booking.payment_status = "authorized"
+                    booking.payment_method_id = payment_method_id
 
-            requires_action = stripe_intent.status in [
-                "requires_action",
-                "requires_confirmation",
-            ]
-            client_secret = (
-                getattr(stripe_intent, "client_secret", None) if requires_action else None
+                    if immediate_auth:
+                        now = datetime.now(timezone.utc)
+                        if stripe_intent and stripe_intent.status in {
+                            "requires_capture",
+                            "succeeded",
+                        }:
+                            try:
+                                self.payment_repository.update_payment_status(
+                                    payment_record.stripe_payment_intent_id, stripe_intent.status
+                                )
+                            except Exception:
+                                pass
+                            booking.payment_status = PaymentStatus.AUTHORIZED.value
+                            booking.auth_attempted_at = now
+                            booking.auth_failure_count = 0
+                            booking.auth_last_error = None
+                            booking.auth_scheduled_for = None
+                        else:
+                            booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+                            booking.auth_attempted_at = now
+                            booking.auth_failure_count = (
+                                int(getattr(booking, "auth_failure_count", 0) or 0) + 1
+                            )
+                            booking.auth_last_error = stripe_error or "authorization_failed"
+                            booking.auth_scheduled_for = None
+                    else:
+                        booking.payment_status = PaymentStatus.SCHEDULED.value
+                        booking.auth_scheduled_for = auth_scheduled_for
+                        booking.auth_failure_count = 0
+                        booking.auth_last_error = None
+
+                        try:
+                            self.payment_repository.create_payment_event(
+                                booking_id=booking.id,
+                                event_type="auth_scheduled",
+                                event_data={
+                                    "payment_method_id": payment_method_id,
+                                    "scheduled_for": auth_scheduled_for.isoformat()
+                                    if auth_scheduled_for
+                                    else None,
+                                    "hours_until_lesson": hours_until_lesson,
+                                },
+                            )
+                        except Exception:
+                            pass
+
+            immediate_failed = immediate_auth and (
+                stripe_intent is None
+                or stripe_intent.status not in {"requires_capture", "succeeded"}
             )
+            if immediate_failed:
+                try:
+                    from app.tasks.payment_tasks import check_immediate_auth_timeout
+
+                    check_immediate_auth_timeout.apply_async(args=[booking_id], countdown=30 * 60)
+                except Exception:
+                    pass
+
+            if immediate_auth:
+                requires_action = stripe_intent is not None and stripe_intent.status in [
+                    "requires_action",
+                    "requires_confirmation",
+                ]
+                client_secret = (
+                    getattr(stripe_intent, "client_secret", None) if requires_action else None
+                )
+
+                if stripe_intent is None:
+                    return {
+                        "success": False,
+                        "payment_intent_id": payment_record.stripe_payment_intent_id,
+                        "status": "auth_failed",
+                        "amount": payment_record.amount,
+                        "application_fee": payment_record.application_fee,
+                        "client_secret": None,
+                    }
+
+                return {
+                    "success": stripe_intent.status in {"requires_capture", "succeeded"},
+                    "payment_intent_id": payment_record.stripe_payment_intent_id,
+                    "status": stripe_intent.status,
+                    "amount": payment_record.amount,
+                    "application_fee": payment_record.application_fee,
+                    "client_secret": client_secret,
+                }
 
             return {
                 "success": True,
                 "payment_intent_id": payment_record.stripe_payment_intent_id,
-                "status": stripe_intent.status,
+                "status": "scheduled",
                 "amount": payment_record.amount,
                 "application_fee": payment_record.application_fee,
-                "client_secret": client_secret,
+                "client_secret": None,
             }
 
         except Exception as e:
@@ -3310,6 +3629,11 @@ class StripeService(BaseService):
         """Handle Stripe charge events."""
         try:
             event_type = event.get("type", "")
+            if event_type == "charge.dispute.created":
+                return self._handle_dispute_created(event)
+            if event_type == "charge.dispute.closed":
+                return self._handle_dispute_closed(event)
+
             charge_data = event.get("data", {}).get("object", {})
             charge_id = charge_data.get("id")
 
@@ -3356,6 +3680,312 @@ class StripeService(BaseService):
         except Exception as e:
             self.logger.error(f"Error handling charge webhook: {str(e)}")
             return False
+
+    def _resolve_payment_intent_id_from_charge(self, charge_id: Optional[str]) -> Optional[str]:
+        if not charge_id or not self.stripe_configured:
+            return None
+        try:
+            charge_resource = getattr(stripe, "Charge", None)
+            if charge_resource is None:
+                return None
+            charge = charge_resource.retrieve(charge_id)
+            payment_intent_id = getattr(charge, "payment_intent", None)
+            if payment_intent_id is None and hasattr(charge, "get"):
+                payment_intent_id = charge.get("payment_intent")
+            return cast(Optional[str], payment_intent_id)
+        except Exception as exc:  # pragma: no cover - network path
+            self.logger.warning(
+                "Failed to resolve payment_intent from charge %s: %s", charge_id, exc
+            )
+            return None
+
+    def _handle_dispute_created(self, event: Dict[str, Any]) -> bool:
+        """Handle charge.dispute.created events."""
+        dispute = event.get("data", {}).get("object", {}) or {}
+        dispute_id = dispute.get("id")
+        payment_intent_id = dispute.get(
+            "payment_intent"
+        ) or self._resolve_payment_intent_id_from_charge(dispute.get("charge"))
+
+        if not payment_intent_id:
+            self.logger.warning("Dispute %s missing payment_intent", dispute_id)
+            return False
+
+        payment_record = self.payment_repository.get_payment_by_intent_id(payment_intent_id)
+        if not payment_record:
+            self.logger.warning(
+                "Dispute %s for unknown payment_intent %s", dispute_id, payment_intent_id
+            )
+            return False
+
+        booking = self.booking_repository.get_by_id(payment_record.booking_id)
+        if not booking:
+            self.logger.warning(
+                "Dispute %s for unknown booking %s", dispute_id, payment_record.booking_id
+            )
+            return False
+
+        with booking_lock_sync(booking.id) as acquired:
+            if not acquired:
+                self.logger.warning(
+                    "Dispute %s skipped due to lock for booking %s", dispute_id, booking.id
+                )
+                return False
+
+            transfer_id = booking.stripe_transfer_id
+            reversal_id: Optional[str] = None
+            reversal_error: Optional[str] = None
+
+            if transfer_id and not booking.transfer_reversed:
+                try:
+                    reversal = self.reverse_transfer(
+                        transfer_id=transfer_id,
+                        idempotency_key=f"dispute_reversal_{booking.id}",
+                        reason="dispute_opened",
+                    )
+                    reversal_payload = reversal.get("reversal")
+                    reversal_id = (
+                        reversal_payload.get("id")
+                        if isinstance(reversal_payload, dict)
+                        else getattr(reversal_payload, "id", None)
+                    )
+                except Exception as exc:
+                    reversal_error = str(exc)
+
+            with self.transaction():
+                booking = self.booking_repository.get_by_id(booking.id)
+                if not booking:
+                    return False
+
+                booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
+                booking.dispute_id = dispute_id
+                booking.dispute_status = dispute.get("status")
+                booking.dispute_amount = dispute.get("amount")
+                booking.dispute_created_at = datetime.now(timezone.utc)
+
+                if reversal_id:
+                    booking.transfer_reversed = True
+                    booking.transfer_reversal_id = reversal_id
+                elif reversal_error:
+                    booking.transfer_reversal_failed = True
+                    booking.transfer_reversal_error = reversal_error
+                    booking.transfer_reversal_failed_at = datetime.now(timezone.utc)
+                    booking.transfer_reversal_retry_count = (
+                        int(getattr(booking, "transfer_reversal_retry_count", 0) or 0) + 1
+                    )
+
+                from .credit_service import CreditService
+
+                credit_service = CreditService(self.db)
+                credit_service.freeze_credits_for_booking(
+                    booking_id=booking.id,
+                    reason=f"Dispute opened for booking {booking.id}",
+                    use_transaction=False,
+                )
+                try:
+                    events = self.payment_repository.get_payment_events_for_booking(booking.id)
+                except Exception:
+                    events = []
+                already_applied = any(
+                    getattr(event, "event_type", None) == "negative_balance_applied"
+                    and isinstance(getattr(event, "event_data", None), dict)
+                    and getattr(event, "event_data", {}).get("dispute_id") == dispute_id
+                    for event in events
+                )
+                spent_cents = credit_service.get_spent_credits_for_booking(booking_id=booking.id)
+                if spent_cents > 0 and not already_applied:
+                    credit_service.apply_negative_balance(
+                        user_id=booking.student_id,
+                        amount_cents=spent_cents,
+                        reason=f"dispute_opened:{dispute_id}",
+                        use_transaction=False,
+                    )
+                    try:
+                        self.payment_repository.create_payment_event(
+                            booking_id=booking.id,
+                            event_type="negative_balance_applied",
+                            event_data={
+                                "dispute_id": dispute_id,
+                                "amount_cents": spent_cents,
+                            },
+                        )
+                    except Exception:
+                        pass
+
+                try:
+                    self.payment_repository.create_payment_event(
+                        booking_id=booking.id,
+                        event_type="dispute_opened",
+                        event_data={
+                            "dispute_id": dispute_id,
+                            "payment_intent_id": payment_intent_id,
+                            "status": dispute.get("status"),
+                            "amount": dispute.get("amount"),
+                            "transfer_reversal_id": reversal_id,
+                            "transfer_reversal_error": reversal_error,
+                        },
+                    )
+                except Exception:
+                    pass
+
+        return True
+
+    def _handle_dispute_closed(self, event: Dict[str, Any]) -> bool:
+        """Handle charge.dispute.closed events."""
+        dispute = event.get("data", {}).get("object", {}) or {}
+        dispute_id = dispute.get("id")
+        payment_intent_id = dispute.get(
+            "payment_intent"
+        ) or self._resolve_payment_intent_id_from_charge(dispute.get("charge"))
+
+        if not payment_intent_id:
+            self.logger.warning("Dispute %s missing payment_intent", dispute_id)
+            return False
+
+        payment_record = self.payment_repository.get_payment_by_intent_id(payment_intent_id)
+        if not payment_record:
+            self.logger.warning(
+                "Dispute %s for unknown payment_intent %s", dispute_id, payment_intent_id
+            )
+            return False
+
+        booking = self.booking_repository.get_by_id(payment_record.booking_id)
+        if not booking:
+            self.logger.warning(
+                "Dispute %s for unknown booking %s", dispute_id, payment_record.booking_id
+            )
+            return False
+
+        status = dispute.get("status")
+
+        with booking_lock_sync(booking.id) as acquired:
+            if not acquired:
+                self.logger.warning(
+                    "Dispute %s skipped due to lock for booking %s", dispute_id, booking.id
+                )
+                return False
+
+            with self.transaction():
+                booking = self.booking_repository.get_by_id(booking.id)
+                if not booking:
+                    return False
+
+                booking.dispute_status = status
+                booking.dispute_resolved_at = datetime.now(timezone.utc)
+
+                from .credit_service import CreditService
+
+                credit_service = CreditService(self.db)
+
+                if status in {"won", "warning_closed"}:
+                    try:
+                        events = self.payment_repository.get_payment_events_for_booking(booking.id)
+                    except Exception:
+                        events = []
+                    negative_event = next(
+                        (
+                            event
+                            for event in events
+                            if getattr(event, "event_type", None) == "negative_balance_applied"
+                            and isinstance(getattr(event, "event_data", None), dict)
+                            and getattr(event, "event_data", {}).get("dispute_id") == dispute_id
+                        ),
+                        None,
+                    )
+                    if negative_event:
+                        spent_cents = credit_service.get_spent_credits_for_booking(
+                            booking_id=booking.id
+                        )
+                        event_payload = getattr(negative_event, "event_data", None)
+                        if isinstance(event_payload, dict):
+                            try:
+                                spent_cents = int(
+                                    event_payload.get("amount_cents", spent_cents) or spent_cents
+                                )
+                            except (TypeError, ValueError):
+                                pass
+                        credit_service.clear_negative_balance(
+                            user_id=booking.student_id,
+                            amount_cents=spent_cents,
+                            reason=f"dispute_won:{dispute_id}",
+                            use_transaction=False,
+                        )
+                        try:
+                            self.payment_repository.create_payment_event(
+                                booking_id=booking.id,
+                                event_type="negative_balance_cleared",
+                                event_data={
+                                    "dispute_id": dispute_id,
+                                    "amount_cents": spent_cents,
+                                },
+                            )
+                        except Exception:
+                            pass
+                    credit_service.unfreeze_credits_for_booking(
+                        booking_id=booking.id, use_transaction=False
+                    )
+                    booking.payment_status = PaymentStatus.SETTLED.value
+                    booking.settlement_outcome = "dispute_won"
+                elif status == "lost":
+                    credit_service.revoke_credits_for_booking(
+                        booking_id=booking.id,
+                        reason=f"dispute_lost:{dispute_id}",
+                        use_transaction=False,
+                    )
+                    spent_cents = credit_service.get_spent_credits_for_booking(
+                        booking_id=booking.id
+                    )
+                    try:
+                        events = self.payment_repository.get_payment_events_for_booking(booking.id)
+                    except Exception:
+                        events = []
+                    already_applied = any(
+                        getattr(event, "event_type", None) == "negative_balance_applied"
+                        and isinstance(getattr(event, "event_data", None), dict)
+                        and getattr(event, "event_data", {}).get("dispute_id") == dispute_id
+                        for event in events
+                    )
+                    if spent_cents > 0 and not already_applied:
+                        credit_service.apply_negative_balance(
+                            user_id=booking.student_id,
+                            amount_cents=spent_cents,
+                            reason=f"dispute_lost:{dispute_id}",
+                            use_transaction=False,
+                        )
+                        try:
+                            self.payment_repository.create_payment_event(
+                                booking_id=booking.id,
+                                event_type="negative_balance_applied",
+                                event_data={
+                                    "dispute_id": dispute_id,
+                                    "amount_cents": spent_cents,
+                                },
+                            )
+                        except Exception:
+                            pass
+                    user_repo = RepositoryFactory.create_base_repository(self.db, User)
+                    user = user_repo.get_by_id(booking.student_id)
+                    if user:
+                        user.account_restricted = True
+                        user.account_restricted_at = datetime.now(timezone.utc)
+                        user.account_restricted_reason = f"dispute_lost:{dispute_id}"
+                    booking.payment_status = PaymentStatus.SETTLED.value
+                    booking.settlement_outcome = "student_wins_dispute_full_refund"
+
+                try:
+                    self.payment_repository.create_payment_event(
+                        booking_id=booking.id,
+                        event_type="dispute_closed",
+                        event_data={
+                            "dispute_id": dispute_id,
+                            "payment_intent_id": payment_intent_id,
+                            "status": status,
+                        },
+                    )
+                except Exception:
+                    pass
+
+        return True
 
     def _handle_payout_webhook(self, event: Dict[str, Any]) -> bool:
         """Handle Stripe payout events for connected accounts."""

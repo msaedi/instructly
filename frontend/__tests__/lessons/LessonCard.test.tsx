@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LessonCard } from '@/components/lessons/LessonCard';
 import { Booking, Service } from '@/types/booking';
 
@@ -14,6 +15,20 @@ jest.mock('next/navigation', () => ({
 jest.mock('@/hooks/useMyLessons', () => ({
   formatLessonStatus: jest.fn((status) => status),
 }));
+
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  Wrapper.displayName = 'QueryClientWrapper';
+  return Wrapper;
+};
+
+const renderWithQueryClient = (ui: React.ReactElement) =>
+  render(ui, { wrapper: createWrapper() });
 
 describe('LessonCard', () => {
   const mockBooking: Booking = {
@@ -49,7 +64,7 @@ describe('LessonCard', () => {
   });
 
   it('renders lesson card with correct information', () => {
-    render(
+    renderWithQueryClient(
       <LessonCard
         lesson={mockBooking}
         isCompleted={false}
@@ -74,7 +89,7 @@ describe('LessonCard', () => {
   });
 
   it('shows no badge for upcoming confirmed lessons', () => {
-    render(
+    renderWithQueryClient(
       <LessonCard
         lesson={mockBooking}
         isCompleted={false}
@@ -89,7 +104,7 @@ describe('LessonCard', () => {
   });
 
   it('shows in progress badge for in-progress confirmed lessons', () => {
-    render(
+    renderWithQueryClient(
       <LessonCard
         lesson={mockBooking}
         isCompleted={false}
@@ -109,7 +124,7 @@ describe('LessonCard', () => {
       status: 'COMPLETED' as const,
     };
 
-    render(
+    renderWithQueryClient(
       <LessonCard
         lesson={completedBooking}
         isCompleted={true}
@@ -132,7 +147,7 @@ describe('LessonCard', () => {
       cancelled_by: 'STUDENT' as const,
     };
 
-    render(
+    renderWithQueryClient(
       <LessonCard
         lesson={cancelledBooking}
         isCompleted={true}
@@ -147,7 +162,7 @@ describe('LessonCard', () => {
   });
 
   it('calls onViewDetails when card is clicked', () => {
-    render(
+    renderWithQueryClient(
       <LessonCard
         lesson={mockBooking}
         isCompleted={false}
@@ -165,7 +180,7 @@ describe('LessonCard', () => {
   });
 
   it('applies cursor-pointer class to card', () => {
-    const { container } = render(
+    const { container } = renderWithQueryClient(
       <LessonCard
         lesson={mockBooking}
         isCompleted={false}
@@ -185,7 +200,7 @@ describe('LessonCard', () => {
       instructor: undefined,
     };
 
-    render(
+    renderWithQueryClient(
       <LessonCard
         lesson={bookingWithoutInstructor as unknown as Booking}
         isCompleted={false}
@@ -207,7 +222,7 @@ describe('LessonCard', () => {
 
     const mockOnBookAgain = jest.fn();
 
-    render(
+    renderWithQueryClient(
       <LessonCard
         lesson={completedBooking}
         isCompleted={true}
@@ -232,7 +247,7 @@ describe('LessonCard', () => {
       end_time: '10:30:00',
     };
 
-    render(
+    renderWithQueryClient(
       <LessonCard
         lesson={morningBooking}
         isCompleted={false}
@@ -252,7 +267,7 @@ describe('LessonCard', () => {
       cancelled_at: '2024-12-24T10:00:00Z', // Cancelled >24 hours before
     };
 
-    render(
+    renderWithQueryClient(
       <LessonCard
         lesson={cancelledBooking}
         isCompleted={true}
@@ -267,7 +282,7 @@ describe('LessonCard', () => {
   });
 
   it('shows See lesson details link', () => {
-    render(
+    renderWithQueryClient(
       <LessonCard
         lesson={mockBooking}
         isCompleted={false}
@@ -288,7 +303,7 @@ describe('LessonCard', () => {
 
     const mockOnBookAgain = jest.fn();
 
-    render(
+    renderWithQueryClient(
       <LessonCard
         lesson={completedBooking}
         isCompleted={true}

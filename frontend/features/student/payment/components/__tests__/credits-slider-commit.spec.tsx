@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 import PaymentConfirmation from '../PaymentConfirmation';
 import { PricingPreviewContext } from '../../hooks/usePricingPreview';
-import { PaymentMethod, PaymentStatus, type BookingPayment } from '../../types';
+import { PaymentMethod, PAYMENT_STATUS, type BookingPayment } from '../../types';
 import { BookingType } from '@/features/shared/types/booking';
 import type { PricingPreviewResponse } from '@/lib/api/pricing';
 
@@ -143,7 +143,7 @@ const BASE_BOOKING: BookingPayment & { metadata?: Record<string, unknown> } = {
   basePrice: 225,
   totalAmount: 252,
   bookingType: BookingType.STANDARD,
-  paymentStatus: PaymentStatus.PENDING,
+  paymentStatus: PAYMENT_STATUS.SCHEDULED,
   creditsAvailable: 0,
   creditsApplied: 0,
   cardAmount: 252,

@@ -1,7 +1,7 @@
 import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import { PaymentSection } from '../PaymentSection';
-import { BookingPayment, PaymentStatus } from '../../types';
+import { BookingPayment, PAYMENT_STATUS } from '../../types';
 import { BookingType } from '@/features/shared/types/booking';
 import {
   fetchPricingPreview,
@@ -104,7 +104,7 @@ const BASE_BOOKING: BookingPayment & {
   basePrice: 100,
   totalAmount: 120,
   bookingType: BookingType.STANDARD,
-  paymentStatus: PaymentStatus.PENDING,
+  paymentStatus: PAYMENT_STATUS.SCHEDULED,
   serviceId: 'svc-1',
   metadata: {
     serviceId: 'svc-1',

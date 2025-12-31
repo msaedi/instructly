@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+import logging
 import math
 import os
 from typing import Any, Iterable, Optional, Sequence
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ServiceException
 from app.models.audit_log import AuditLog
-from app.models.booking import Booking, BookingStatus
+from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.payment import PaymentEvent, PaymentIntent
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
@@ -38,6 +39,8 @@ from app.services.base import BaseService
 from app.services.config_service import ConfigService
 from app.services.pricing_service import PricingService
 from app.services.stripe_service import StripeService
+
+logger = logging.getLogger(__name__)
 
 AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
 
@@ -267,7 +270,17 @@ class AdminBookingService(BaseService):
         if refund:
             if not booking.payment_intent_id:
                 raise ServiceException("Booking has no payment to refund", code="invalid_request")
-            if (booking.payment_status or "").lower() == "refunded":
+            if (
+                booking.refunded_to_card_amount
+                and booking.refunded_to_card_amount > 0
+                or (booking.settlement_outcome or "")
+                in {
+                    "admin_refund",
+                    "instructor_cancel_full_refund",
+                    "instructor_no_show_full_refund",
+                    "student_wins_dispute_full_refund",
+                }
+            ):
                 raise ServiceException("Booking already refunded", code="invalid_request")
             amount_cents = self._resolve_full_refund_cents(booking)
             if amount_cents <= 0:
@@ -295,8 +308,26 @@ class AdminBookingService(BaseService):
             booking.cancelled_by_id = actor.id
             booking.cancellation_reason = reason
 
+            try:
+                from app.services.credit_service import CreditService
+
+                credit_service = CreditService(self.db)
+                credit_service.release_credits_for_booking(
+                    booking_id=booking.id, use_transaction=False
+                )
+                booking.credits_reserved_cents = 0
+            except Exception as exc:
+                logger.warning(
+                    "Failed to release reserved credits for booking %s: %s",
+                    booking.id,
+                    exc,
+                )
+
             if refund:
-                booking.payment_status = "refunded"
+                booking.payment_status = PaymentStatus.SETTLED.value
+                booking.settlement_outcome = "admin_refund"
+                if amount_cents is not None:
+                    booking.refunded_to_card_amount = amount_cents
 
             audit_after = redact(booking.to_dict()) or {}
             audit_after["payment_status"] = booking.payment_status
@@ -608,7 +639,7 @@ class AdminBookingService(BaseService):
                 amount_cents=amount_cents,
                 reason=self._stripe_reason_for_cancel(reason),
                 reverse_transfer=True,
-                idempotency_key=f"admin_cancel_{booking.id}_{int(datetime.now(timezone.utc).timestamp())}",
+                idempotency_key=f"admin_cancel_{booking.id}_{amount_cents}",
             )
         except ServiceException:
             raise

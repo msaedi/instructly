@@ -142,9 +142,16 @@ export async function mockBookingCreation(page: Page) {
   });
 }
 
-export async function mockAuthentication(routeContext: Page | { route: (pattern: string, handler: (route: Route) => Promise<void>) => Promise<void> }) {
+type MockAuthOptions = {
+  forceAuth?: boolean;
+};
+
+export async function mockAuthentication(
+  routeContext: Page | { route: (pattern: string, handler: (route: Route) => Promise<void>) => Promise<void> },
+  options: MockAuthOptions = {}
+) {
   // Track auth state per test run (cookie is primary, this helps where cookies are flaky in headless)
-  let isAuthenticated = false;
+  let isAuthenticated = Boolean(options.forceAuth);
 
   // Mock login endpoint
   await routeContext.route('**/api/v1/auth/login', async (route: Route) => {
@@ -306,7 +313,7 @@ export async function mockAuthentication(routeContext: Page | { route: (pattern:
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     const cookieHeader = route.request().headers()['cookie'] || '';
     const hasCookie = /(?:^|;\s*)access_token=/.test(cookieHeader);
-    if (isAuthenticated || hasCookie) {
+    if (options.forceAuth || isAuthenticated || hasCookie) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -343,12 +350,16 @@ export async function mockAuthentication(routeContext: Page | { route: (pattern:
   });
 }
 
-export async function setupAllMocks(page: Page, context: { route: (pattern: string, handler: (route: Route) => Promise<void>) => Promise<void> } | null = null) {
+export async function setupAllMocks(
+  page: Page,
+  context: { route: (pattern: string, handler: (route: Route) => Promise<void>) => Promise<void> } | null = null,
+  options: MockAuthOptions = {}
+) {
   // Use broader API pattern matching like in debug test
   const routeContext = context || page;
 
   // Set up authentication mocks first
-  await mockAuthentication(routeContext);
+  await mockAuthentication(routeContext, options);
 
   // Ensure guest session bootstrap does not hit real backend (avoid CORS flakes)
   await routeContext.route('**/api/v1/public/session/guest', async (route: Route) => {

@@ -77,10 +77,6 @@ function ReviewsPageImpl() {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, []);
 
-  useEffect(() => {
-    setPage(1);
-  }, [selectedRating, withCommentsOnly, instructorId]);
-
   const filterLabel = filter === 'all' ? 'All reviews' : `${filter} stars`;
   return (
     <div className="min-h-screen">
@@ -197,7 +193,10 @@ function ReviewsPageImpl() {
             <button
               type="button"
               aria-pressed={withCommentsOnly}
-              onClick={() => setWithCommentsOnly((v) => !v)}
+              onClick={() => {
+                setWithCommentsOnly((v) => !v);
+                setPage(1);
+              }}
               className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
                 withCommentsOnly ? 'border-purple-300 bg-purple-50 text-[#7E22CE]' : 'border-gray-300 bg-white text-gray-700'
               }`}

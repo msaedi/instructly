@@ -803,6 +803,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/bookings/{booking_id}/no-show/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve No Show
+         * @description Resolve a disputed no-show report.
+         */
+        post: operations["resolve_no_show_api_v1_admin_bookings__booking_id__no_show_resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/bookings/{booking_id}/refund": {
         parameters: {
             query?: never;
@@ -1876,15 +1896,36 @@ export type paths = {
         get?: never;
         put?: never;
         /**
-         * Mark Booking No Show
-         * @description Mark a booking as no-show (student didn't attend).
+         * Report No Show
+         * @description Report a no-show for a booking.
          *
-         *     Only the instructor for this booking can mark it as no-show.
-         *     The booking must be in CONFIRMED status.
-         *
-         *     Requires: COMPLETE_BOOKINGS permission (instructor only)
+         *     - Student can report instructor no-show
+         *     - Admin can report either type
+         *     - Must be within reporting window
          */
-        post: operations["mark_booking_no_show_api_v1_bookings__booking_id__no_show_post"];
+        post: operations["report_no_show_api_v1_bookings__booking_id__no_show_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{booking_id}/no-show/dispute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dispute No Show
+         * @description Dispute a no-show report.
+         *
+         *     Only the accused party can dispute within 24 hours of report.
+         */
+        post: operations["dispute_no_show_api_v1_bookings__booking_id__no_show_dispute_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1973,6 +2014,26 @@ export type paths = {
          *     - Returns the new booking
          */
         post: operations["reschedule_booking_api_v1_bookings__booking_id__reschedule_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{booking_id}/retry-payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Payment Authorization
+         * @description Retry payment authorization after a failed attempt.
+         */
+        post: operations["retry_payment_authorization_api_v1_bookings__booking_id__retry_payment_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6153,6 +6214,28 @@ export type components = {
             updated_at?: string | null;
         };
         /**
+         * AdminNoShowResolution
+         * @enum {string}
+         */
+        AdminNoShowResolution: "confirmed_after_review" | "dispute_upheld" | "cancelled";
+        /** AdminNoShowResolutionRequest */
+        AdminNoShowResolutionRequest: {
+            /** Admin Notes */
+            admin_notes?: string | null;
+            resolution: components["schemas"]["AdminNoShowResolution"];
+        };
+        /** AdminNoShowResolutionResponse */
+        AdminNoShowResolutionResponse: {
+            /** Booking Id */
+            booking_id: string;
+            /** Resolution */
+            resolution: string;
+            /** Settlement Outcome */
+            settlement_outcome?: string | null;
+            /** Success */
+            success: boolean;
+        };
+        /**
          * AdminReferralsConfigOut
          * @description Configuration snapshot for the referral program.
          */
@@ -7524,6 +7607,14 @@ export type components = {
          *     Includes SetupIntent client_secret for collecting payment method.
          */
         BookingCreateResponse: {
+            /** Auth Attempted At */
+            auth_attempted_at?: string | null;
+            /** Auth Failure Count */
+            auth_failure_count?: number | null;
+            /** Auth Last Error */
+            auth_last_error?: string | null;
+            /** Auth Scheduled For */
+            auth_scheduled_for?: string | null;
             /**
              * Booking Date
              * Format: date
@@ -7548,6 +7639,8 @@ export type components = {
              * Format: date-time
              */
             created_at: string;
+            /** Credits Reserved Cents */
+            credits_reserved_cents?: number | null;
             /** Duration Minutes */
             duration_minutes: number;
             /**
@@ -7555,6 +7648,8 @@ export type components = {
              * Format: time
              */
             end_time: string;
+            /** Has Locked Funds */
+            has_locked_funds?: boolean | null;
             /** Hourly Rate */
             hourly_rate: number;
             /** Id */
@@ -7564,6 +7659,8 @@ export type components = {
             instructor_id: string;
             /** Instructor Note */
             instructor_note: string | null;
+            /** Instructor Payout Amount */
+            instructor_payout_amount?: number | null;
             instructor_service: components["schemas"]["ServiceInfo"];
             /** Instructor Service Id */
             instructor_service_id: string;
@@ -7573,9 +7670,35 @@ export type components = {
             lesson_timezone?: string | null;
             /** Location Type */
             location_type: string | null;
+            /** Lock Resolution */
+            lock_resolution?: string | null;
+            /** Lock Resolved At */
+            lock_resolved_at?: string | null;
+            /** Locked Amount Cents */
+            locked_amount_cents?: number | null;
+            /** Locked At */
+            locked_at?: string | null;
             /** Meeting Location */
             meeting_location: string | null;
+            /** No Show Dispute Reason */
+            no_show_dispute_reason?: string | null;
+            /** No Show Disputed */
+            no_show_disputed?: boolean | null;
+            /** No Show Disputed At */
+            no_show_disputed_at?: string | null;
+            /** No Show Reported At */
+            no_show_reported_at?: string | null;
+            /** No Show Reported By */
+            no_show_reported_by?: string | null;
+            /** No Show Resolution */
+            no_show_resolution?: string | null;
+            /** No Show Resolved At */
+            no_show_resolved_at?: string | null;
+            /** No Show Type */
+            no_show_type?: string | null;
             payment_summary?: components["schemas"]["PaymentSummary"] | null;
+            /** Refunded To Card Amount */
+            refunded_to_card_amount?: number | null;
             /**
              * Requires Payment Method
              * @description Whether payment method is required before confirmation
@@ -7585,10 +7708,14 @@ export type components = {
             rescheduled_from?: components["schemas"]["RescheduledFromInfo"] | null;
             /** Rescheduled From Booking Id */
             rescheduled_from_booking_id?: string | null;
+            /** Rescheduled To Booking Id */
+            rescheduled_to_booking_id?: string | null;
             /** Service Area */
             service_area: string | null;
             /** Service Name */
             service_name: string;
+            /** Settlement Outcome */
+            settlement_outcome?: string | null;
             /**
              * Setup Intent Client Secret
              * @description Stripe SetupIntent client_secret for collecting payment method
@@ -7601,6 +7728,8 @@ export type components = {
             start_time: string;
             status: components["schemas"]["BookingStatus"];
             student: components["schemas"]["StudentInfo"];
+            /** Student Credit Amount */
+            student_credit_amount?: number | null;
             /** Student Id */
             student_id: string;
             /** Student Note */
@@ -7707,6 +7836,14 @@ export type components = {
          *     Clean Architecture: No availability slot references.
          */
         BookingResponse: {
+            /** Auth Attempted At */
+            auth_attempted_at?: string | null;
+            /** Auth Failure Count */
+            auth_failure_count?: number | null;
+            /** Auth Last Error */
+            auth_last_error?: string | null;
+            /** Auth Scheduled For */
+            auth_scheduled_for?: string | null;
             /**
              * Booking Date
              * Format: date
@@ -7731,6 +7868,8 @@ export type components = {
              * Format: date-time
              */
             created_at: string;
+            /** Credits Reserved Cents */
+            credits_reserved_cents?: number | null;
             /** Duration Minutes */
             duration_minutes: number;
             /**
@@ -7738,6 +7877,8 @@ export type components = {
              * Format: time
              */
             end_time: string;
+            /** Has Locked Funds */
+            has_locked_funds?: boolean | null;
             /** Hourly Rate */
             hourly_rate: number;
             /** Id */
@@ -7747,6 +7888,8 @@ export type components = {
             instructor_id: string;
             /** Instructor Note */
             instructor_note: string | null;
+            /** Instructor Payout Amount */
+            instructor_payout_amount?: number | null;
             instructor_service: components["schemas"]["ServiceInfo"];
             /** Instructor Service Id */
             instructor_service_id: string;
@@ -7756,16 +7899,46 @@ export type components = {
             lesson_timezone?: string | null;
             /** Location Type */
             location_type: string | null;
+            /** Lock Resolution */
+            lock_resolution?: string | null;
+            /** Lock Resolved At */
+            lock_resolved_at?: string | null;
+            /** Locked Amount Cents */
+            locked_amount_cents?: number | null;
+            /** Locked At */
+            locked_at?: string | null;
             /** Meeting Location */
             meeting_location: string | null;
+            /** No Show Dispute Reason */
+            no_show_dispute_reason?: string | null;
+            /** No Show Disputed */
+            no_show_disputed?: boolean | null;
+            /** No Show Disputed At */
+            no_show_disputed_at?: string | null;
+            /** No Show Reported At */
+            no_show_reported_at?: string | null;
+            /** No Show Reported By */
+            no_show_reported_by?: string | null;
+            /** No Show Resolution */
+            no_show_resolution?: string | null;
+            /** No Show Resolved At */
+            no_show_resolved_at?: string | null;
+            /** No Show Type */
+            no_show_type?: string | null;
             payment_summary?: components["schemas"]["PaymentSummary"] | null;
+            /** Refunded To Card Amount */
+            refunded_to_card_amount?: number | null;
             rescheduled_from?: components["schemas"]["RescheduledFromInfo"] | null;
             /** Rescheduled From Booking Id */
             rescheduled_from_booking_id?: string | null;
+            /** Rescheduled To Booking Id */
+            rescheduled_to_booking_id?: string | null;
             /** Service Area */
             service_area: string | null;
             /** Service Name */
             service_name: string;
+            /** Settlement Outcome */
+            settlement_outcome?: string | null;
             /**
              * Start Time
              * Format: time
@@ -7773,6 +7946,8 @@ export type components = {
             start_time: string;
             status: components["schemas"]["BookingStatus"];
             student: components["schemas"]["StudentInfo"];
+            /** Student Credit Amount */
+            student_credit_amount?: number | null;
             /** Student Id */
             student_id: string;
             /** Student Note */
@@ -8615,7 +8790,7 @@ export type components = {
             expires_at?: string | null;
             /**
              * Pending
-             * @description Pending credits
+             * @description Reserved (pending) credits
              */
             pending: number;
         };
@@ -10608,6 +10783,57 @@ export type components = {
              */
             start_time?: string | null;
         };
+        /**
+         * NoShowDisputeRequest
+         * @description Schema for disputing a no-show report.
+         */
+        NoShowDisputeRequest: {
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * NoShowDisputeResponse
+         * @description Response for disputing a no-show report.
+         */
+        NoShowDisputeResponse: {
+            /** Booking Id */
+            booking_id: string;
+            /** Disputed */
+            disputed: boolean;
+            /** Requires Platform Review */
+            requires_platform_review: boolean;
+            /** Success */
+            success: boolean;
+        };
+        /**
+         * NoShowReportRequest
+         * @description Schema for reporting a no-show.
+         */
+        NoShowReportRequest: {
+            /**
+             * No Show Type
+             * @enum {string}
+             */
+            no_show_type: "instructor" | "student";
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * NoShowReportResponse
+         * @description Response for reporting a no-show.
+         */
+        NoShowReportResponse: {
+            /** Booking Id */
+            booking_id: string;
+            /** Dispute Window Ends */
+            dispute_window_ends: string;
+            /** No Show Type */
+            no_show_type: string;
+            /** Payment Status */
+            payment_status: string;
+            /** Success */
+            success: boolean;
+        };
         /** OnboardingResponse */
         OnboardingResponse: {
             /**
@@ -10970,21 +11196,22 @@ export type components = {
          * @example {
          *       "alerts": [],
          *       "metrics": {
-         *         "abandoned": 0,
          *         "authorized": 25,
-         *         "captured": 150,
-         *         "failed": 2,
-         *         "pending": 5,
-         *         "scheduled": 12
+         *         "locked": 3,
+         *         "manual_review": 1,
+         *         "payment_method_required": 5,
+         *         "scheduled": 12,
+         *         "settled": 150
          *       },
          *       "minutes_since_last_auth": 45,
          *       "overdue_authorizations": 0,
          *       "payment_stats": {
-         *         "auth_failed": 2,
          *         "authorized": 25,
-         *         "captured": 150,
-         *         "pending_payment_method": 5,
-         *         "scheduled": 12
+         *         "locked": 3,
+         *         "manual_review": 1,
+         *         "payment_method_required": 5,
+         *         "scheduled": 12,
+         *         "settled": 150
          *       },
          *       "recent_events": {
          *         "auth_failed": 2,
@@ -12374,6 +12601,20 @@ export type components = {
              * @description Status of the retention policy application
              */
             status: string;
+        };
+        /**
+         * RetryPaymentResponse
+         * @description Response for retrying payment authorization.
+         */
+        RetryPaymentResponse: {
+            /** Error */
+            error?: string | null;
+            /** Failure Count */
+            failure_count: number;
+            /** Payment Status */
+            payment_status: string;
+            /** Success */
+            success: boolean;
         };
         /** ReviewItem */
         ReviewItem: {
@@ -15942,6 +16183,41 @@ export interface operations {
             };
         };
     };
+    resolve_no_show_api_v1_admin_bookings__booking_id__no_show_resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminNoShowResolutionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminNoShowResolutionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_refund_booking_api_v1_admin_bookings__booking_id__refund_post: {
         parameters: {
             query?: never;
@@ -17576,7 +17852,7 @@ export interface operations {
             };
         };
     };
-    mark_booking_no_show_api_v1_bookings__booking_id__no_show_post: {
+    report_no_show_api_v1_bookings__booking_id__no_show_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -17586,7 +17862,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoShowReportRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -17594,7 +17874,57 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookingResponse"];
+                    "application/json": components["schemas"]["NoShowReportResponse"];
+                };
+            };
+            /** @description Permission denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Booking not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dispute_no_show_api_v1_bookings__booking_id__no_show_dispute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Booking ULID */
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoShowDisputeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoShowDisputeResponse"];
                 };
             };
             /** @description Permission denied */
@@ -17786,6 +18116,45 @@ export interface operations {
             };
             /** @description Time conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_payment_authorization_api_v1_bookings__booking_id__retry_payment_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Booking ULID */
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetryPaymentResponse"];
+                };
+            };
+            /** @description Booking not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

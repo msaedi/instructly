@@ -18,6 +18,7 @@ import os
 from typing import Any, Callable, Optional, cast
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     Date,
@@ -60,6 +61,27 @@ class BookingStatus(str, Enum):
             upper_value = value.upper()
             for member in cls:
                 if member.value == upper_value:
+                    return member
+        return None
+
+
+class PaymentStatus(str, Enum):
+    """Canonical payment statuses per v2.1.1 policy."""
+
+    SCHEDULED = "scheduled"
+    AUTHORIZED = "authorized"
+    PAYMENT_METHOD_REQUIRED = "payment_method_required"
+    MANUAL_REVIEW = "manual_review"
+    LOCKED = "locked"
+    SETTLED = "settled"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "PaymentStatus | None":
+        """Handle case-insensitive enum lookup."""
+        if isinstance(value, str):
+            lower_value = value.lower()
+            for member in cls:
+                if member.value == lower_value:
                     return member
         return None
 
@@ -126,16 +148,278 @@ class Booking(Base):
     cancelled_by_id = Column(String(26), ForeignKey("users.id"), nullable=True)
     cancellation_reason = Column(Text, nullable=True)
 
+    # No-show tracking (v2.1.1)
+    no_show_reported_by = Column(String(26), ForeignKey("users.id"), nullable=True)
+    no_show_reported_at = Column(DateTime(timezone=True), nullable=True)
+    no_show_type = Column(String(20), nullable=True)  # "instructor" | "student"
+    no_show_disputed = Column(Boolean, nullable=False, default=False)
+    no_show_disputed_at = Column(DateTime(timezone=True), nullable=True)
+    no_show_dispute_reason = Column(String(500), nullable=True)
+    no_show_resolved_at = Column(DateTime(timezone=True), nullable=True)
+    no_show_resolution = Column(String(30), nullable=True)
+
     # Payment fields (Phase 1.2)
     payment_method_id = Column(String(255), nullable=True, comment="Stripe payment method ID")
     payment_intent_id = Column(String(255), nullable=True, comment="Current Stripe payment intent")
-    payment_status = Column(String(50), nullable=True, comment="Computed from latest events")
+    payment_status = Column(
+        String(50),
+        nullable=True,
+        comment="Canonical payment status per v2.1.1 policy",
+    )
+    auth_scheduled_for = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When authorization is scheduled to run (v2.1.1)",
+    )
+    auth_attempted_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Last time authorization was attempted (v2.1.1)",
+    )
+    auth_failure_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Authorization failure count (v2.1.1)",
+    )
+    auth_last_error = Column(
+        String(500),
+        nullable=True,
+        comment="Last authorization error (v2.1.1)",
+    )
+    auth_failure_first_email_sent_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="First auth failure email sent at (v2.1.1)",
+    )
+    auth_failure_t13_warning_sent_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="T-13 warning email sent at (v2.1.1)",
+    )
+    credits_reserved_cents = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Credits reserved for this booking in cents (v2.1.1)",
+    )
+    # settlement_outcome values per v2.1.1 policy:
+    # - lesson_completed_full_payout
+    # - student_cancel_12_24_full_credit
+    # - student_cancel_lt12_split_50_50
+    # - student_cancel_gt24_no_charge
+    # - locked_cancel_ge12_full_credit
+    # - locked_cancel_lt12_split_50_50
+    # - instructor_cancel_full_refund
+    # - instructor_no_show_full_refund
+    # - student_wins_dispute_full_refund
+    # - capture_failure_instructor_paid
+    # - dispute_won
+    # - admin_refund
+    settlement_outcome = Column(
+        String(50),
+        nullable=True,
+        comment="Policy settlement outcome (v2.1.1)",
+    )
+    student_credit_amount = Column(
+        Integer,
+        nullable=True,
+        comment="Student credit issued in cents (v2.1.1)",
+    )
+    instructor_payout_amount = Column(
+        Integer,
+        nullable=True,
+        comment="Instructor payout in cents (v2.1.1)",
+    )
+    refunded_to_card_amount = Column(
+        Integer,
+        nullable=True,
+        comment="Refunded to card in cents (v2.1.1)",
+    )
+
+    # Dispute tracking (v2.1.1 failure handling)
+    dispute_id = Column(String(100), nullable=True, comment="Stripe dispute id (v2.1.1)")
+    dispute_status = Column(String(30), nullable=True, comment="Stripe dispute status (v2.1.1)")
+    dispute_amount = Column(Integer, nullable=True, comment="Dispute amount in cents (v2.1.1)")
+    dispute_created_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Dispute opened at (v2.1.1)",
+    )
+    dispute_resolved_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Dispute resolved at (v2.1.1)",
+    )
+
+    # Transfer reversal tracking (v2.1.1 failure handling)
+    stripe_transfer_id = Column(
+        String(100),
+        nullable=True,
+        comment="Stripe transfer id (v2.1.1)",
+    )
+    refund_id = Column(
+        String(100),
+        nullable=True,
+        comment="Stripe refund id (v2.1.1)",
+    )
+    payout_transfer_id = Column(
+        String(100),
+        nullable=True,
+        comment="Manual payout transfer id (v2.1.1)",
+    )
+    advanced_payout_transfer_id = Column(
+        String(100),
+        nullable=True,
+        comment="Manual payout transfer id for capture failure escalation (v2.1.1)",
+    )
+    transfer_failed_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Transfer failure timestamp (v2.1.1)",
+    )
+    transfer_error = Column(
+        String(500),
+        nullable=True,
+        comment="Transfer error (v2.1.1)",
+    )
+    transfer_retry_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Transfer retry count (v2.1.1)",
+    )
+    transfer_reversed = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Transfer reversed (v2.1.1)",
+    )
+    transfer_reversal_id = Column(
+        String(100),
+        nullable=True,
+        comment="Stripe transfer reversal id (v2.1.1)",
+    )
+    transfer_reversal_failed = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Transfer reversal failed (v2.1.1)",
+    )
+    transfer_reversal_error = Column(
+        String(500),
+        nullable=True,
+        comment="Transfer reversal error (v2.1.1)",
+    )
+    transfer_reversal_failed_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Transfer reversal failure timestamp (v2.1.1)",
+    )
+    transfer_reversal_retry_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Transfer reversal retry count (v2.1.1)",
+    )
+    refund_failed_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Refund failure timestamp (v2.1.1)",
+    )
+    refund_error = Column(
+        String(500),
+        nullable=True,
+        comment="Refund error (v2.1.1)",
+    )
+    refund_retry_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Refund retry count (v2.1.1)",
+    )
+    payout_transfer_failed_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Manual payout transfer failure timestamp (v2.1.1)",
+    )
+    payout_transfer_error = Column(
+        String(500),
+        nullable=True,
+        comment="Manual payout transfer error (v2.1.1)",
+    )
+    payout_transfer_retry_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Manual payout transfer retry count (v2.1.1)",
+    )
+
+    # Capture failure tracking (v2.1.1 failure handling)
+    capture_failed_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Capture failure timestamp (v2.1.1)",
+    )
+    capture_escalated_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Capture escalation timestamp (v2.1.1)",
+    )
+    capture_retry_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Capture retry count (v2.1.1)",
+    )
+    capture_error = Column(
+        String(500),
+        nullable=True,
+        comment="Capture error (v2.1.1)",
+    )
+
+    # LOCK mechanism fields (v2.1.1 anti-gaming)
+    locked_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When LOCK was activated (v2.1.1)",
+    )
+    locked_amount_cents = Column(
+        Integer,
+        nullable=True,
+        comment="Amount held under LOCK in cents (v2.1.1)",
+    )
+    lock_resolved_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When LOCK was resolved (v2.1.1)",
+    )
+    lock_resolution = Column(
+        String(50),
+        nullable=True,
+        comment="LOCK resolution outcome (v2.1.1)",
+    )
+
+    # Reschedule tracking (v2.1.1)
+    late_reschedule_used = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Late reschedule used in 12-24h window (v2.1.1)",
+    )
+    reschedule_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Total reschedule count (v2.1.1)",
+    )
 
     # Relationships
     student = relationship("User", foreign_keys=[student_id], backref="student_bookings")
     instructor = relationship("User", foreign_keys=[instructor_id], backref="instructor_bookings")
     instructor_service = relationship("InstructorService", backref="bookings")
     cancelled_by = relationship("User", foreign_keys=[cancelled_by_id])
+    no_show_reporter = relationship("User", foreign_keys=[no_show_reported_by])
     messages = relationship("Message", back_populates="booking", cascade="all, delete-orphan")
     payment_intent = relationship(
         "PaymentIntent", back_populates="booking", uselist=False, cascade="all, delete-orphan"
@@ -153,10 +437,35 @@ class Booking(Base):
         foreign_keys="PlatformCredit.used_booking_id",
         back_populates="used_booking",
     )
+    reserved_credits = relationship(
+        "PlatformCredit",
+        foreign_keys="PlatformCredit.reserved_for_booking_id",
+        back_populates="reserved_for_booking",
+    )
 
     # Optional linkage when created by reschedule
     rescheduled_from_booking_id = Column(String(26), ForeignKey("bookings.id"), nullable=True)
-    rescheduled_from = relationship("Booking", remote_side=[id], uselist=False, post_update=True)
+    rescheduled_from = relationship(
+        "Booking",
+        remote_side=[id],
+        uselist=False,
+        post_update=True,
+        foreign_keys=[rescheduled_from_booking_id],
+    )
+    rescheduled_to_booking_id = Column(String(26), ForeignKey("bookings.id"), nullable=True)
+    rescheduled_to = relationship(
+        "Booking",
+        remote_side=[id],
+        uselist=False,
+        post_update=True,
+        foreign_keys=[rescheduled_to_booking_id],
+    )
+    has_locked_funds = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="New booking has funds locked from reschedule (v2.1.1)",
+    )
 
     # Lesson datetime of the IMMEDIATE previous booking when rescheduled.
     # Used for Part 4b: Fair Reschedule Loophole Fix - gaming detection.
@@ -182,6 +491,12 @@ class Booking(Base):
         CheckConstraint("duration_minutes > 0", name="check_duration_positive"),
         CheckConstraint("total_price >= 0", name="check_price_non_negative"),
         CheckConstraint("hourly_rate > 0", name="check_rate_positive"),
+        CheckConstraint(
+            "payment_status IS NULL OR payment_status IN ("
+            "'scheduled','authorized','payment_method_required','manual_review','locked','settled'"
+            ")",
+            name="ck_bookings_payment_status",
+        ),
     ]
 
     if not IS_SQLITE:
@@ -305,6 +620,20 @@ class Booking(Base):
             "cancelled_at": self.cancelled_at.isoformat() if self.cancelled_at else None,
             "cancelled_by_id": self.cancelled_by_id,
             "cancellation_reason": self.cancellation_reason,
+            "no_show_reported_by": self.no_show_reported_by,
+            "no_show_reported_at": self.no_show_reported_at.isoformat()
+            if self.no_show_reported_at
+            else None,
+            "no_show_type": self.no_show_type,
+            "no_show_disputed": self.no_show_disputed,
+            "no_show_disputed_at": self.no_show_disputed_at.isoformat()
+            if self.no_show_disputed_at
+            else None,
+            "no_show_dispute_reason": self.no_show_dispute_reason,
+            "no_show_resolved_at": self.no_show_resolved_at.isoformat()
+            if self.no_show_resolved_at
+            else None,
+            "no_show_resolution": self.no_show_resolution,
         }
 
 

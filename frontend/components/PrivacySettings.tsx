@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { setUserPreference } from '@/lib/searchTracking';
 import { logger } from '@/lib/logger';
 
@@ -15,12 +15,7 @@ interface PrivacySettingsProps {
 
 export function PrivacySettings({ className = '' }: PrivacySettingsProps) {
   const [clearDataOnLogout, setClearDataOnLogout] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Load current preference on mount (delegate to setUserPreference getter indirectly)
-  useEffect(() => {
-    setIsLoading(false);
-  }, []);
+  const isLoading = false;
 
   const handleToggle = (checked: boolean) => {
     setClearDataOnLogout(checked);

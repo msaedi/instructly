@@ -25,6 +25,7 @@ import type {
   MessageAttachment,
   SSEMessageWithOwnership,
 } from '../types';
+import type { ConversationMessagesResponse } from '@/types/conversation';
 import { COMPOSE_THREAD_ID } from '../constants';
 import { mapMessageFromResponse, computeUnreadFromMessages, formatRelativeTimestamp } from '../utils';
 
@@ -125,6 +126,86 @@ export function useMessageThread({
     staleThreadsRef.current.delete(threadId);
   }, []);
 
+  const handleHistorySuccess = useCallback(
+    (data: ConversationMessagesResponse) => {
+      if (!historyTarget || !currentUserId) return;
+
+      const { threadId, conversation } = historyTarget;
+      const messages = data.messages || [];
+
+      const lastMessage = messages.at(-1);
+      const lastMessageId = lastMessage?.id ?? 'none';
+      const dedupeKey = `${threadId}:${messages.length}:${lastMessageId}`;
+      if (lastHistoryAppliedRef.current === dedupeKey) {
+        return;
+      }
+      lastHistoryAppliedRef.current = dedupeKey;
+
+      const mappedMessages = messages.map((msg) =>
+        mapMessageFromResponse(msg, conversation, currentUserId)
+      );
+
+      const existing = messagesByThreadRef.current[threadId] || [];
+      const historyIds = new Set(mappedMessages.map((m) => m.id));
+      const sseOnlyMessages = existing.filter((m) => !historyIds.has(m.id));
+
+      const mergedMessages = [...mappedMessages, ...sseOnlyMessages].sort((a, b) => {
+        const timeA = new Date(a.createdAt || '').getTime();
+        const timeB = new Date(b.createdAt || '').getTime();
+        return timeA - timeB;
+      });
+
+      setMessagesByThread((prev) => ({ ...prev, [threadId]: mergedMessages }));
+      setThreadMessages(mergedMessages);
+
+      const lastMergedMessage = mergedMessages.at(-1);
+      const lastTimestamp = lastMergedMessage?.createdAt
+        ? new Date(lastMergedMessage.createdAt).getTime()
+        : (conversation.latestMessageAt ?? undefined);
+      updateLastSeenTimestamp(threadId, lastTimestamp);
+
+      const unreadCount = computeUnreadFromMessages(
+        messages,
+        conversation,
+        currentUserId
+      );
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === threadId ? { ...conv, unread: unreadCount } : conv
+        )
+      );
+
+      const messageIdsToMark = mergedMessages.map((m) => m.id);
+      if (messageIdsToMark.length > 0) {
+        const lastCount = markedReadThreadsRef.current.get(conversation.id);
+        const shouldMarkRead = unreadCount > 0 || lastCount === undefined;
+
+        if (shouldMarkRead) {
+          markedReadThreadsRef.current.set(conversation.id, unreadCount);
+          markMessagesAsReadImperative({ message_ids: messageIdsToMark })
+            .then(() => {
+              setConversations((prev) =>
+                prev.map((conv) =>
+                  conv.id === threadId ? { ...conv, unread: 0 } : conv
+                )
+              );
+              markedReadThreadsRef.current.set(conversation.id, 0);
+            })
+            .catch(() => {
+              if (lastCount !== undefined) {
+                markedReadThreadsRef.current.set(conversation.id, lastCount);
+              } else {
+                markedReadThreadsRef.current.delete(conversation.id);
+              }
+            });
+        } else {
+          markedReadThreadsRef.current.set(conversation.id, 0);
+        }
+      }
+    },
+    [currentUserId, historyTarget, setConversations, updateLastSeenTimestamp]
+  );
+
   // When conversation list updates, mark stale threads whose latestMessageAt advanced
   useEffect(() => {
     if (!conversationsRef.current) return;
@@ -141,10 +222,13 @@ export function useMessageThread({
   }, [_conversations]);
 
   const conversationId = historyTarget?.conversation.id ?? '';
-  const {
-    data: historyData,
-    error: historyError,
-  } = useConversationMessages(conversationId, HISTORY_LIMIT, undefined, Boolean(conversationId));
+  const { error: historyError } = useConversationMessages(
+    conversationId,
+    HISTORY_LIMIT,
+    undefined,
+    Boolean(conversationId),
+    { onSuccess: handleHistorySuccess }
+  );
 
   // Set thread messages for current display mode
   const setThreadMessagesForDisplay = useCallback((
@@ -207,89 +291,6 @@ export function useMessageThread({
       });
     }
   }, [currentUserId]);
-
-  // When React Query returns history data, merge it into local state and handle read status
-  useEffect(() => {
-    if (!historyTarget || !historyData || !currentUserId) return;
-
-    const { threadId, conversation } = historyTarget;
-    const messages = historyData.messages || [];
-
-    // Guard against re-processing identical history payloads (prevents render loops in tests)
-    const lastMessage = messages.at(-1);
-    const lastMessageId = lastMessage?.id ?? 'none';
-    const dedupeKey = `${threadId}:${messages.length}:${lastMessageId}`;
-    if (lastHistoryAppliedRef.current === dedupeKey) {
-      return;
-    }
-    lastHistoryAppliedRef.current = dedupeKey;
-
-    const mappedMessages = messages.map((msg) =>
-      mapMessageFromResponse(msg, conversation, currentUserId)
-    );
-
-    // Merge history with any SSE-only messages we already have
-    const existing = messagesByThreadRef.current[threadId] || [];
-    const historyIds = new Set(mappedMessages.map((m) => m.id));
-    const sseOnlyMessages = existing.filter((m) => !historyIds.has(m.id));
-
-    const mergedMessages = [...mappedMessages, ...sseOnlyMessages].sort((a, b) => {
-      const timeA = new Date(a.createdAt || '').getTime();
-      const timeB = new Date(b.createdAt || '').getTime();
-      return timeA - timeB;
-    });
-
-    setMessagesByThread((prev) => ({ ...prev, [threadId]: mergedMessages }));
-    setThreadMessages(mergedMessages);
-
-    // Track last seen message timestamp for staleness checks
-    const lastMergedMessage = mergedMessages.at(-1);
-    const lastTimestamp = lastMergedMessage?.createdAt
-      ? new Date(lastMergedMessage.createdAt).getTime()
-      : (conversation.latestMessageAt ?? undefined);
-    updateLastSeenTimestamp(threadId, lastTimestamp);
-
-    // Update conversation unread count
-    const unreadCount = computeUnreadFromMessages(
-      messages,
-      conversation,
-      currentUserId
-    );
-    setConversations((prev) =>
-      prev.map((conv) =>
-        conv.id === threadId ? { ...conv, unread: unreadCount } : conv
-      )
-    );
-
-    // Mark messages as read for this booking when needed
-    const messageIdsToMark = mergedMessages.map((m) => m.id);
-    if (messageIdsToMark.length > 0) {
-      const lastCount = markedReadThreadsRef.current.get(conversation.id);
-      const shouldMarkRead = unreadCount > 0 || lastCount === undefined;
-
-      if (shouldMarkRead) {
-        markedReadThreadsRef.current.set(conversation.id, unreadCount);
-        markMessagesAsReadImperative({ message_ids: messageIdsToMark })
-          .then(() => {
-            setConversations((prev) =>
-              prev.map((conv) =>
-                conv.id === threadId ? { ...conv, unread: 0 } : conv
-              )
-            );
-            markedReadThreadsRef.current.set(conversation.id, 0);
-          })
-          .catch(() => {
-            if (lastCount !== undefined) {
-              markedReadThreadsRef.current.set(conversation.id, lastCount);
-            } else {
-              markedReadThreadsRef.current.delete(conversation.id);
-            }
-          });
-      } else {
-        markedReadThreadsRef.current.set(conversation.id, 0);
-      }
-    }
-  }, [historyData, historyTarget, currentUserId, setConversations, updateLastSeenTimestamp]);
 
   useEffect(() => {
     if (historyError && historyTarget) {

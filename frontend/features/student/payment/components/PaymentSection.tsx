@@ -13,6 +13,7 @@ import { logger } from '@/lib/logger';
 import { requireString } from '@/lib/ts/safe';
 import { toDateOnlyString } from '@/lib/availability/dateHelpers';
 import { useCreateBooking } from '@/features/student/booking/hooks/useCreateBooking';
+import { getPaymentStatusFromResponse, isCheckoutSuccess } from '@/features/shared/types/paymentStatus';
 import { paymentService, type CreateCheckoutRequest } from '@/services/api/payments';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { fetchBookingDetails, cancelBookingImperative } from '@/src/api/services/bookings';
@@ -1309,11 +1310,17 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
           // Valid success states:
           // - 'succeeded': Payment fully captured
-          // - 'requires_capture': Pre-authorized, will be captured after lesson (Phase 2)
+          // - 'requires_capture': Pre-authorized, will be captured after lesson
           // - 'processing': Still processing (rare)
-          const isSuccessStatus = ['succeeded', 'requires_capture', 'processing'].includes(checkoutResult.status);
+          // - 'authorized': Authorized immediately (<24h bookings)
+          // - 'scheduled': Authorization scheduled for T-24h (>=24h bookings)
+          const checkoutStatus = getPaymentStatusFromResponse(checkoutResult);
+          const isStripeSuccessStatus = ['succeeded', 'requires_capture', 'processing'].includes(
+            checkoutResult.status
+          );
+          const isSuccessStatus = isStripeSuccessStatus || isCheckoutSuccess(checkoutStatus);
           if (!isSuccessStatus) {
-            throw new Error(`Payment failed with status: ${checkoutResult.status}`);
+            throw new Error(`Payment failed with status: ${checkoutStatus}`);
           }
         } else if (amountDue > 0) {
           throw new Error('Payment method required');

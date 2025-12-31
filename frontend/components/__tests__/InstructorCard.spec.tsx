@@ -1,20 +1,28 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import InstructorCard, { type InstructorAvailabilityData } from '@/components/InstructorCard';
 import type { Instructor } from '@/types/api';
 
 const pushMock = jest.fn();
 
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  Wrapper.displayName = 'QueryClientWrapper';
+  return Wrapper;
+};
+
+const renderWithQueryClient = (ui: React.ReactElement) =>
+  render(ui, { wrapper: createWrapper() });
+
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
     push: pushMock,
-  }),
-}));
-
-jest.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({
-    invalidateQueries: jest.fn(),
-    setQueryData: jest.fn(),
   }),
 }));
 
@@ -111,7 +119,7 @@ describe('InstructorCard next available booking', () => {
   });
 
   it('uses the selected duration when booking the next available slot', async () => {
-    render(
+    renderWithQueryClient(
       <InstructorCard
         instructor={buildInstructor()}
         availabilityData={buildAvailabilityData({
@@ -136,7 +144,7 @@ describe('InstructorCard next available booking', () => {
     expect(parsed.totalAmount).toBe(60);
   });
   it('updates the next available label when duration changes', async () => {
-    render(
+    renderWithQueryClient(
       <InstructorCard
         instructor={buildInstructor()}
         availabilityData={buildAvailabilityData({
@@ -163,7 +171,7 @@ describe('InstructorCard next available booking', () => {
   });
 
   it('keeps today when the next slot ends at midnight', () => {
-    render(
+    renderWithQueryClient(
       <InstructorCard
         instructor={buildInstructor()}
         availabilityData={buildAvailabilityData({

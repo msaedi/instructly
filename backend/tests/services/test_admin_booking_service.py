@@ -1,4 +1,5 @@
 from datetime import date, datetime, time, timedelta, timezone
+from unittest.mock import patch
 
 import pytest
 
@@ -71,7 +72,7 @@ def _create_booking(
 
 def _attach_payment_events(db, booking: Booking, *, amount_cents: int) -> None:
     booking.payment_intent_id = booking.payment_intent_id or f"pi_{generate_ulid()}"
-    booking.payment_status = "captured"
+    booking.payment_status = "settled"
     booking.created_at = booking.created_at or datetime.now(timezone.utc)
     booking.completed_at = booking.completed_at or datetime.now(timezone.utc)
     booking.status = BookingStatus.COMPLETED
@@ -115,8 +116,9 @@ class TestAdminBookingService:
             status=BookingStatus.CANCELLED,
             offset_index=0,
             service_name="Refunded Lesson",
-            payment_status="refunded",
+            payment_status="settled",
         )
+        booking_refunded.settlement_outcome = "admin_refund"
         booking_captured = _create_booking(
             db,
             student_id=test_student.id,
@@ -126,7 +128,7 @@ class TestAdminBookingService:
             status=BookingStatus.CONFIRMED,
             offset_index=1,
             service_name="Captured Lesson",
-            payment_status="captured",
+            payment_status = "settled",
         )
 
         service = AdminBookingService(db)
@@ -157,7 +159,8 @@ class TestAdminBookingService:
         assert "payment_captured" in events
 
     def test_calculate_stats(self, db, test_student, test_instructor_with_availability):
-        today = datetime.now(timezone.utc).date()
+        fixed_now = datetime(2025, 1, 15, 12, 0, tzinfo=timezone.utc)
+        today = fixed_now.date()
         yesterday = today - timedelta(days=1)
         service_id = _get_active_service_id(db, test_instructor_with_availability.id)
 
@@ -195,7 +198,14 @@ class TestAdminBookingService:
         db.commit()
 
         service = AdminBookingService(db)
-        stats = service.get_booking_stats()
+
+        class _FixedDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return fixed_now
+
+        with patch("app.services.admin_booking_service.datetime", _FixedDateTime):
+            stats = service.get_booking_stats()
         assert stats.today.booking_count == 1
         assert stats.today.revenue == pytest.approx(75.0)
         assert stats.this_week.gmv == pytest.approx(150.0)

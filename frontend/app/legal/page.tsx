@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import Link from 'next/link';
 import { BRAND } from '@/app/config/brand';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -1005,25 +1005,22 @@ const DEFAULT_SELECTED_ID = LEGAL_DOCUMENTS[0]?.id ?? 'terms';
 
 export default function LegalResourceCenter() {
   const { user, isAuthenticated } = useAuth();
-  const [selectedId, setSelectedId] = useState<string>(DEFAULT_SELECTED_ID);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const hash = window.location.hash.replace('#', '').trim();
-    if (hash && LEGAL_DOCUMENTS.some((doc) => doc.id === hash)) {
-      setSelectedId(hash);
+  const hashId = useSyncExternalStore(
+    (onStoreChange) => {
+      if (typeof window === 'undefined') return () => {};
+      const handleChange = () => onStoreChange();
+      window.addEventListener('hashchange', handleChange);
+      return () => window.removeEventListener('hashchange', handleChange);
+    },
+    () => (typeof window === 'undefined' ? '' : window.location.hash.replace('#', '').trim()),
+    () => ''
+  );
+  const selectedId = useMemo(() => {
+    if (hashId && LEGAL_DOCUMENTS.some((doc) => doc.id === hashId)) {
+      return hashId;
     }
-
-    const onHashChange = () => {
-      const next = window.location.hash.replace('#', '').trim();
-      if (next && LEGAL_DOCUMENTS.some((doc) => doc.id === next)) {
-        setSelectedId(next);
-      }
-    };
-
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
-  }, []);
+    return DEFAULT_SELECTED_ID;
+  }, [hashId]);
 
   const selectedDocument = useMemo<LegalDocument | null>(() => {
     return LEGAL_DOCUMENTS.find((doc) => doc.id === selectedId) ?? LEGAL_DOCUMENTS[0] ?? null;
@@ -1090,9 +1087,8 @@ export default function LegalResourceCenter() {
                       key={doc.id}
                       type="button"
                       onClick={() => {
-                        setSelectedId(doc.id);
                         if (typeof window !== 'undefined') {
-                          window.history.replaceState(null, '', `#${doc.id}`);
+                          window.location.hash = doc.id;
                         }
                       }}
                       className={cn(

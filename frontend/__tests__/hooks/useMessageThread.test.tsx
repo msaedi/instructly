@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
 import { useMessageThread } from '@/components/instructor/messages/hooks/useMessageThread';
 import type { ConversationEntry } from '@/components/instructor/messages/types';
+import type { ConversationMessage, ConversationMessagesResponse } from '@/types/conversation';
 
 // Mock the API services
 const mockUseConversationMessages = jest.fn();
@@ -32,6 +33,44 @@ const createWrapper = () => {
   Wrapper.displayName = 'TestWrapper';
   return Wrapper;
 };
+
+const scheduleMicrotask =
+  typeof queueMicrotask === 'function'
+    ? queueMicrotask
+    : (callback: () => void) => {
+        Promise.resolve().then(callback);
+      };
+
+const triggerSuccess = (
+  options: { onSuccess?: (data: ConversationMessagesResponse) => void } | undefined,
+  data: ConversationMessagesResponse | undefined
+) => {
+  if (!options?.onSuccess || !data) return;
+  scheduleMicrotask(() => {
+    options.onSuccess?.(data);
+  });
+};
+
+const buildMessage = (
+  overrides: Partial<ConversationMessage> = {}
+): ConversationMessage => ({
+  id: 'msg1',
+  conversation_id: 'conv1',
+  content: 'Hello',
+  sender_id: 'student1',
+  is_from_me: false,
+  message_type: 'user',
+  created_at: '2024-01-01T12:00:00Z',
+  is_deleted: false,
+  read_by: [],
+  reactions: [],
+  ...overrides,
+});
+
+const buildResponse = (messages: ConversationMessage[]): ConversationMessagesResponse => ({
+  messages,
+  has_more: false,
+});
 
 describe('useMessageThread', () => {
   const currentUserId = 'instructor1';
@@ -81,70 +120,78 @@ describe('useMessageThread', () => {
     jest.clearAllMocks();
     setConversationsMock = jest.fn();
 
-    mockUseConversationMessages.mockImplementation((conversationId: string) => {
-      if (!conversationId) {
-        return { data: undefined, isLoading: false, error: undefined };
+    mockUseConversationMessages.mockImplementation(
+      (
+        conversationId: string,
+        _limit?: number,
+        _before?: string,
+        _enabled?: boolean,
+        options?: { onSuccess?: (data: ConversationMessagesResponse) => void }
+      ) => {
+        if (!conversationId) {
+          return { data: undefined, isLoading: false, error: undefined };
+        }
+        const data = buildResponse([
+          buildMessage({
+            booking_id: 'booking1',
+          }),
+        ]);
+        triggerSuccess(options, data);
+        return {
+          data,
+          isLoading: false,
+          error: undefined,
+        };
       }
-      return {
-        data: {
-          messages: [
-            {
-              id: 'msg1',
-              content: 'Hello',
-              sender_id: 'student1',
-              created_at: '2024-01-01T12:00:00Z',
-              updated_at: '2024-01-01T12:00:00Z',
-              booking_id: 'booking1',
-            },
-          ],
-        },
-        isLoading: false,
-        error: undefined,
-      };
-    });
+    );
 
     mockMarkMessagesAsReadImperative.mockResolvedValue({});
   });
 
   describe('conversation switching', () => {
     it('loads history for the selected conversation and switches cleanly', async () => {
-      mockUseConversationMessages.mockImplementation((conversationId: string) => {
-        if (!conversationId) return { data: undefined, isLoading: false, error: undefined };
-        if (conversationId === 'conv1') {
+      mockUseConversationMessages.mockImplementation(
+        (
+          conversationId: string,
+          _limit?: number,
+          _before?: string,
+          _enabled?: boolean,
+          options?: { onSuccess?: (data: ConversationMessagesResponse) => void }
+        ) => {
+          if (!conversationId) return { data: undefined, isLoading: false, error: undefined };
+          if (conversationId === 'conv1') {
+            const data = buildResponse([
+              buildMessage({
+                conversation_id: 'conv1',
+                content: 'Hello from conv1',
+                sender_id: 'student1',
+                booking_id: 'booking1',
+              }),
+            ]);
+            triggerSuccess(options, data);
+            return {
+              data,
+              isLoading: false,
+              error: undefined,
+            };
+          }
+          const data = buildResponse([
+            buildMessage({
+              id: 'msg2',
+              conversation_id: 'conv2',
+              content: 'Hello from conv2',
+              sender_id: 'student2',
+              booking_id: 'booking2',
+            }),
+          ]);
+          triggerSuccess(options, data);
           return {
-            data: {
-              messages: [
-                {
-                  id: 'msg1',
-                  content: 'Hello from conv1',
-                  sender_id: 'student1',
-                  created_at: '2024-01-01T12:00:00Z',
-                  updated_at: '2024-01-01T12:00:00Z',
-                  booking_id: 'booking1',
-                },
-              ],
-            },
+            data,
             isLoading: false,
             error: undefined,
           };
         }
-        return {
-          data: {
-            messages: [
-              {
-                id: 'msg2',
-                content: 'Hello from conv2',
-                sender_id: 'student2',
-                created_at: '2024-01-01T12:00:00Z',
-                updated_at: '2024-01-01T12:00:00Z',
-                booking_id: 'booking2',
-              },
-            ],
-          },
-          isLoading: false,
-          error: undefined,
-        };
-      });
+      );
 
       const { result } = renderWithProps([mockConversation, mockConversation2]);
 
@@ -262,23 +309,30 @@ describe('useMessageThread', () => {
 
   describe('unread count management', () => {
     it('should update conversation unread count after loading', async () => {
-      mockUseConversationMessages.mockImplementation((_conversationId: string) => ({
-        data: {
-          messages: [
-            {
-              id: 'msg1',
+      mockUseConversationMessages.mockImplementation(
+        (
+          _conversationId: string,
+          _limit?: number,
+          _before?: string,
+          _enabled?: boolean,
+          options?: { onSuccess?: (data: ConversationMessagesResponse) => void }
+        ) => {
+          const data = buildResponse([
+            buildMessage({
               content: 'Unread message',
               sender_id: 'student1', // From student, not current user
-              created_at: '2024-01-01T12:00:00Z',
-              updated_at: '2024-01-01T12:00:00Z',
               booking_id: 'booking1',
               read_by: [], // Not read by current user
-            },
-          ],
-        },
-        isLoading: false,
-        error: undefined,
-      }));
+            }),
+          ]);
+          triggerSuccess(options, data);
+          return {
+            data,
+            isLoading: false,
+            error: undefined,
+          };
+        }
+      );
 
       const { result } = renderWithProps([mockConversation]);
 

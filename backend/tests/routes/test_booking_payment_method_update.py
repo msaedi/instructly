@@ -40,7 +40,7 @@ async def test_update_payment_method_retriggers_auth(client, db, test_student, t
     )
 
     # Create booking tomorrow (pending flow through API)
-    tomorrow = date.today() + timedelta(days=1)
+    tomorrow = date.today() + timedelta(days=2)
     payload = {
         "instructor_id": test_instructor_with_availability.id,
         "instructor_service_id": svc.id,

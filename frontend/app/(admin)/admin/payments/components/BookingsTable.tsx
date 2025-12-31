@@ -3,6 +3,7 @@ import { CheckCircle2, FileText, Mail, MoreVertical, UserRound, XCircle } from '
 
 import { cn } from '@/lib/utils';
 import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/formatBookingTime';
+import { isRefundable } from '@/features/shared/types/paymentStatus';
 
 import type { AdminBooking, BookingStatus, PaymentStatus } from '../hooks/useAdminBookings';
 import { formatCurrency } from '../utils';
@@ -33,11 +34,21 @@ const statusStyles: Record<BookingStatus, string> = {
 };
 
 const paymentStyles: Record<PaymentStatus, string> = {
-  pending: 'bg-gray-200 text-gray-600',
-  authorized: 'bg-blue-100 text-blue-700',
-  captured: 'bg-emerald-100 text-emerald-700',
-  refunded: 'bg-orange-100 text-orange-700',
-  failed: 'bg-rose-100 text-rose-700',
+  scheduled: 'bg-blue-100 text-blue-700',
+  authorized: 'bg-emerald-100 text-emerald-700',
+  payment_method_required: 'bg-rose-100 text-rose-700',
+  manual_review: 'bg-amber-100 text-amber-700',
+  locked: 'bg-teal-100 text-teal-700',
+  settled: 'bg-gray-200 text-gray-600',
+};
+
+const paymentLabels: Record<PaymentStatus, string> = {
+  scheduled: 'Scheduled',
+  authorized: 'Authorized',
+  payment_method_required: 'Payment required',
+  manual_review: 'Manual review',
+  locked: 'Locked',
+  settled: 'Settled',
 };
 
 function StatusBadge({ value }: { value: BookingStatus }) {
@@ -51,7 +62,7 @@ function StatusBadge({ value }: { value: BookingStatus }) {
 function PaymentBadge({ value }: { value: PaymentStatus }) {
   return (
     <span className={cn('inline-flex rounded-full px-2.5 py-1 text-xs font-semibold', paymentStyles[value])}>
-      {value}
+      {paymentLabels[value]}
     </span>
   );
 }
@@ -112,8 +123,7 @@ export default function BookingsTable({
           </thead>
           <tbody className="divide-y divide-gray-200/70 dark:divide-gray-700/60">
             {bookings.map((booking) => {
-              const canRefund =
-                booking.payment_status === 'authorized' || booking.payment_status === 'captured';
+              const canRefund = isRefundable(booking.payment_status);
               const canMark = booking.status === 'CONFIRMED' && isLessonPast(booking);
               const canCancel = booking.status === 'CONFIRMED';
               return (

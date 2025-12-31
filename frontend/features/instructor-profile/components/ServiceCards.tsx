@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Layers, MonitorSmartphone } from 'lucide-react';
 import type { InstructorService } from '@/types/instructor';
@@ -26,7 +26,7 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
   const [selectedDuration, setSelectedDuration] = useState(duration);
 
   // Create a unique ID for this card instance
-  const cardId = `${service.id}-${Date.now()}-${Math.random()}`;
+  const cardId = useId();
 
   // Get all duration options for this service
   const durationOptions = Array.isArray(service.duration_options) && service.duration_options.length > 0

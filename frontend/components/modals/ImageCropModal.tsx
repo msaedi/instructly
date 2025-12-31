@@ -40,8 +40,15 @@ export default function ImageCropModal({
   // Load image when file changes
   useEffect(() => {
     if (!file) {
-      setImage(null);
-      setNatural(null);
+      queueMicrotask(() => {
+        setImage(null);
+        setNatural(null);
+        setScale(1);
+        setMinScale(0.5);
+        setMaxScale(4);
+        setOffset({ x: 0, y: 0 });
+        setDragStart(null);
+      });
       return;
     }
     const url = URL.createObjectURL(file);

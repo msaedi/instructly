@@ -2,7 +2,7 @@
 Webhook handler tests for StripeService.
 """
 
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,9 +11,9 @@ import stripe
 import ulid
 
 from app.core.exceptions import ServiceException
-from app.models.booking import Booking, BookingStatus
+from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.instructor import InstructorProfile
-from app.models.payment import InstructorPayoutEvent
+from app.models.payment import InstructorPayoutEvent, PaymentIntent, PlatformCredit
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.services.config_service import ConfigService
@@ -142,6 +142,17 @@ def test_booking(db: Session, test_user: User, test_instructor: tuple) -> Bookin
     return booking
 
 
+@pytest.fixture
+def _always_acquire_lock():
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _lock(*_args, **_kwargs):
+        yield True
+
+    return _lock
+
+
 @patch("stripe.Webhook.construct_event")
 @patch("app.services.stripe_service.settings")
 def test_verify_webhook_signature_valid(
@@ -197,6 +208,139 @@ def test_handle_webhook_invalid_signature(
 
     with pytest.raises(ServiceException, match="Invalid webhook signature"):
         stripe_service.handle_webhook("{}", "sig")
+
+
+def _create_payment_record(db: Session, booking: Booking, pi_id: str) -> PaymentIntent:
+    payment_record = PaymentIntent(
+        booking_id=booking.id,
+        stripe_payment_intent_id=pi_id,
+        amount=10000,
+        application_fee=0,
+        status="succeeded",
+    )
+    db.add(payment_record)
+    db.commit()
+    return payment_record
+
+
+def _create_credit(db: Session, booking: Booking, status: str = "available") -> PlatformCredit:
+    credit = PlatformCredit(
+        id=str(ulid.ULID()),
+        user_id=booking.student_id,
+        amount_cents=5000,
+        reason="cancel_credit_12_24",
+        reserved_amount_cents=0,
+        source_type="cancel_credit_12_24",
+        source_booking_id=booking.id,
+        status=status,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=30),
+    )
+    db.add(credit)
+    db.commit()
+    return credit
+
+
+def test_dispute_created_sets_manual_review_and_freezes_credits(
+    db: Session,
+    stripe_service: StripeService,
+    test_booking: Booking,
+    _always_acquire_lock,
+):
+    """Dispute created moves booking to manual_review and freezes credits."""
+    booking = test_booking
+    booking.payment_status = PaymentStatus.SETTLED.value
+    booking.stripe_transfer_id = "tr_test"
+    db.commit()
+
+    _create_payment_record(db, booking, "pi_dispute")
+    credit = _create_credit(db, booking)
+
+    event = {
+        "type": "charge.dispute.created",
+        "data": {"object": {"id": "dp_test", "payment_intent": "pi_dispute", "status": "needs_response", "amount": 10000}},
+    }
+
+    with patch("app.services.stripe_service.booking_lock_sync", _always_acquire_lock):
+        with patch.object(
+            stripe_service,
+            "reverse_transfer",
+            return_value={"reversal": {"id": "trr_test"}},
+        ):
+            result = stripe_service._handle_dispute_created(event)
+
+    assert result is True
+    db.refresh(booking)
+    db.refresh(credit)
+
+    assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
+    assert booking.dispute_id == "dp_test"
+    assert booking.transfer_reversed is True
+    assert booking.transfer_reversal_id == "trr_test"
+    assert credit.status == "frozen"
+
+
+def test_dispute_closed_won_unfreezes_credits(
+    db: Session,
+    stripe_service: StripeService,
+    test_booking: Booking,
+    _always_acquire_lock,
+):
+    """Winning a dispute unfreezes credits and settles booking."""
+    booking = test_booking
+    booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
+    booking.dispute_id = "dp_won"
+    db.commit()
+
+    _create_payment_record(db, booking, "pi_won")
+    credit = _create_credit(db, booking, status="frozen")
+
+    event = {
+        "type": "charge.dispute.closed",
+        "data": {"object": {"id": "dp_won", "payment_intent": "pi_won", "status": "won"}},
+    }
+
+    with patch("app.services.stripe_service.booking_lock_sync", _always_acquire_lock):
+        result = stripe_service._handle_dispute_closed(event)
+
+    assert result is True
+    db.refresh(booking)
+    db.refresh(credit)
+
+    assert booking.payment_status == PaymentStatus.SETTLED.value
+    assert booking.settlement_outcome == "dispute_won"
+    assert credit.status == "available"
+
+
+def test_dispute_closed_lost_sets_refund_outcome(
+    db: Session,
+    stripe_service: StripeService,
+    test_booking: Booking,
+    _always_acquire_lock,
+):
+    """Losing a dispute finalizes settlement as student refund."""
+    booking = test_booking
+    booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
+    booking.dispute_id = "dp_lost"
+    db.commit()
+
+    _create_payment_record(db, booking, "pi_lost")
+    credit = _create_credit(db, booking, status="frozen")
+
+    event = {
+        "type": "charge.dispute.closed",
+        "data": {"object": {"id": "dp_lost", "payment_intent": "pi_lost", "status": "lost"}},
+    }
+
+    with patch("app.services.stripe_service.booking_lock_sync", _always_acquire_lock):
+        result = stripe_service._handle_dispute_closed(event)
+
+    assert result is True
+    db.refresh(booking)
+    db.refresh(credit)
+
+    assert booking.payment_status == PaymentStatus.SETTLED.value
+    assert booking.settlement_outcome == "student_wins_dispute_full_refund"
+    assert credit.status == "revoked"
 
 
 @patch("stripe.Webhook.construct_event")

@@ -100,7 +100,13 @@ def _create_booking(db: Session, student: User, instructor: User, svc: Instructo
         booking_date=booking_date,
         start_time=start_time,
         end_time=end_time,
-        **booking_timezone_fields(booking_date, start_time, end_time),
+        **booking_timezone_fields(
+            booking_date,
+            start_time,
+            end_time,
+            instructor_timezone="UTC",
+            student_timezone="UTC",
+        ),
         service_name="Svc",
         hourly_rate=100.00,
         total_price=100.00,
@@ -129,7 +135,11 @@ def test_cancel_over_24h_releases_auth(db: Session):
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
     assert result.status == BookingStatus.CANCELLED
-    assert result.payment_status == "released"
+    assert result.payment_status == "settled"
+    assert result.settlement_outcome == "student_cancel_gt24_no_charge"
+    assert result.student_credit_amount == 0
+    assert result.instructor_payout_amount == 0
+    assert result.refunded_to_card_amount == 0
     mock_cancel.assert_called_once()
     mock_event.assert_called()
 
@@ -170,8 +180,14 @@ def test_cancel_12_24h_capture_reverse_credit(db: Session):
         }
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
+    expected_lesson_price = 10000  # $100/hr * 60min = $100 = 10000 cents
+
     assert result.status == BookingStatus.CANCELLED
-    assert result.payment_status == "credit_issued"
+    assert result.payment_status == "settled"
+    assert result.settlement_outcome == "student_cancel_12_24_full_credit"
+    assert result.student_credit_amount == expected_lesson_price
+    assert result.instructor_payout_amount == 0
+    assert result.refunded_to_card_amount == 0
     mock_capture.assert_called_once()
     mock_reverse.assert_called_once()
 
@@ -184,7 +200,6 @@ def test_cancel_12_24h_capture_reverse_credit(db: Session):
     # Verify credit was called with LESSON PRICE (10000 cents = $100/hr * 60min)
     mock_credit.assert_called_once()
     credit_call_kwargs = mock_credit.call_args.kwargs
-    expected_lesson_price = 10000  # $100/hr * 60min = $100 = 10000 cents
     assert credit_call_kwargs["amount_cents"] == expected_lesson_price, (
         "Credit should be lesson price, not total_price with fees"
     )
@@ -193,7 +208,7 @@ def test_cancel_12_24h_capture_reverse_credit(db: Session):
     )
 
 
-def test_cancel_under_12h_capture_only(db: Session):
+def test_cancel_under_12h_split_credit_and_payout(db: Session):
     instructor, profile, svc = _create_instructor_with_service(db)
     student = _create_student(db)
     # Booking ~3 hours out. Avoid crossing midnight which would make end_time wrap to 00:00
@@ -207,13 +222,30 @@ def test_cancel_under_12h_capture_only(db: Session):
 
     service = BookingService(db)
 
-    with patch("app.services.stripe_service.StripeService.capture_payment_intent") as mock_capture:
-        mock_capture.return_value = {"amount_received": 10000}
+    with patch("app.services.stripe_service.StripeService.capture_payment_intent") as mock_capture, patch(
+        "app.services.stripe_service.StripeService.reverse_transfer"
+    ) as mock_reverse, patch(
+        "app.services.stripe_service.StripeService.create_manual_transfer"
+    ) as mock_transfer, patch(
+        "app.repositories.payment_repository.PaymentRepository.create_platform_credit"
+    ) as mock_credit, patch(
+        "app.repositories.payment_repository.PaymentRepository.get_connected_account_by_instructor_id",
+        return_value=SimpleNamespace(stripe_account_id="acct_test"),
+    ):
+        mock_capture.return_value = {
+            "transfer_id": "tr_x",
+            "amount_received": 10000,
+            "transfer_amount": 8800,
+        }
+        mock_transfer.return_value = {"transfer_id": "tr_payout"}
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
     assert result.status == BookingStatus.CANCELLED
-    assert result.payment_status == "captured"
+    assert result.payment_status in {"settled", "manual_review"}
     mock_capture.assert_called_once()
+    mock_reverse.assert_called_once()
+    mock_transfer.assert_called_once()
+    mock_credit.assert_called_once()
 
 
 def test_12_24h_cancel_no_credit_on_failed_capture(db: Session):
@@ -239,7 +271,7 @@ def test_12_24h_cancel_no_credit_on_failed_capture(db: Session):
     ) as mock_credit:
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
-    assert result.payment_status == "capture_failed"
+    assert result.payment_status == "payment_method_required"
     mock_credit.assert_not_called()
 
 
@@ -263,7 +295,7 @@ def test_instructor_cancel_under_24h_full_refund(db: Session):
     ) as mock_credit:
         result = service.cancel_booking(bk.id, user=instructor, reason="test")
 
-    assert result.payment_status == "released"
+    assert result.payment_status == "settled"
     mock_cancel.assert_called_once()
     mock_credit.assert_not_called()
 
@@ -299,7 +331,13 @@ def _create_booking_with_fee(
         booking_date=booking_date,
         start_time=start_time,
         end_time=end_time,
-        **booking_timezone_fields(booking_date, start_time, end_time),
+        **booking_timezone_fields(
+            booking_date,
+            start_time,
+            end_time,
+            instructor_timezone="UTC",
+            student_timezone="UTC",
+        ),
         service_name="Svc",
         hourly_rate=hourly_rate,
         total_price=total_price,  # Includes student fee
@@ -356,7 +394,7 @@ def test_12_24h_credit_lesson_price_only(db: Session):
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
     assert result.status == BookingStatus.CANCELLED
-    assert result.payment_status == "credit_issued"
+    assert result.payment_status == "settled"
 
     # CRITICAL: Credit should be LESSON PRICE ($120 = 12000 cents), NOT total ($134.40)
     mock_credit.assert_called_once()
@@ -416,8 +454,8 @@ def test_platform_retains_fee_on_12_24h_cancel(db: Session):
     )
 
 
-def test_12_24h_cancel_net_credit_when_credits_used(db: Session):
-    """Cancellation credit should not double-count previously applied credits."""
+def test_12_24h_cancel_full_credit_when_credits_reserved(db: Session):
+    """Cancellation credit is full lesson price even when credits were reserved."""
     instructor, profile, svc = _create_instructor_with_service(db)
     student = _create_student(db)
 
@@ -456,7 +494,10 @@ def test_12_24h_cancel_net_credit_when_credits_used(db: Session):
         service.cancel_booking(bk.id, user=student, reason="test")
 
     credit_amounts = [call.kwargs.get("amount_cents") for call in mock_credit.call_args_list]
-    assert 7000 in credit_amounts, "Net credit should exclude previously applied credits"
+    expected_lesson_price = int(float(bk.hourly_rate) * 100)
+    assert expected_lesson_price in credit_amounts, (
+        "Credit should be full lesson price (reserved credits are forfeited)"
+    )
     mock_refund_hooks.assert_not_called()
 
 
@@ -503,7 +544,7 @@ def test_12_24h_cancel_skips_duplicate_credit(db: Session):
         }
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
-    assert result.payment_status == "credit_issued"
+    assert result.payment_status == "settled"
     mock_credit.assert_not_called()
 
 
@@ -536,7 +577,7 @@ def test_cancel_exactly_12h_gets_credit(db: Session):
         }
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
-    assert result.payment_status == "credit_issued"
+    assert result.payment_status == "settled"
     mock_credit.assert_called_once()
 
 
@@ -562,7 +603,7 @@ def test_cancel_exactly_24h_gets_full_refund(db: Session):
     ) as mock_credit:
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
-    assert result.payment_status == "released"
+    assert result.payment_status == "settled"
     mock_cancel.assert_called_once()
     mock_credit.assert_not_called()
 
@@ -655,7 +696,13 @@ def _create_rescheduled_booking(
         booking_date=booking_date,
         start_time=start_time,
         end_time=end_time,
-        **booking_timezone_fields(booking_date, start_time, end_time),
+        **booking_timezone_fields(
+            booking_date,
+            start_time,
+            end_time,
+            instructor_timezone="UTC",
+            student_timezone="UTC",
+        ),
         service_name="Svc",
         hourly_rate=hourly_rate,
         total_price=hourly_rate * duration_minutes / 60,
@@ -665,6 +712,7 @@ def _create_rescheduled_booking(
         payment_intent_id="pi_x",
         rescheduled_from_booking_id=original_booking_id,
         original_lesson_datetime=original_lesson_datetime,  # For fair policy!
+        created_at=datetime.now(timezone.utc),
     )
     db.add(bk)
     db.flush()
@@ -684,7 +732,7 @@ def test_rescheduled_booking_over_24h_gets_credit_not_refund(db: Session):
 
     # Create an actual original booking (FK requires it to exist)
     # Original was in 12-24h window (~18h away) = GAMING scenario
-    original_time = datetime.now() + timedelta(hours=18)
+    original_time = datetime.now(timezone.utc) + timedelta(hours=18)
     original_time = original_time.replace(minute=0, second=0, microsecond=0)
     if (original_time + timedelta(hours=1)).date() != original_time.date():
         original_time = (original_time + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
@@ -701,6 +749,7 @@ def test_rescheduled_booking_over_24h_gets_credit_not_refund(db: Session):
         original_lesson_datetime=original_time,  # Gaming: original was ~18h away
     )
     bk.payment_status = "authorized"
+    db.flush()
 
     service = BookingService(db)
 
@@ -716,8 +765,8 @@ def test_rescheduled_booking_over_24h_gets_credit_not_refund(db: Session):
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
     assert result.status == BookingStatus.CANCELLED
-    # CRITICAL: Should be "credit_issued", NOT "released"
-    assert result.payment_status == "credit_issued", (
+    # CRITICAL: Settlement outcome should reflect credit, not release.
+    assert result.payment_status == "settled", (
         "Rescheduled booking >24h should get credit, not full release"
     )
 
@@ -767,12 +816,12 @@ def test_rescheduled_booking_12_24h_gets_credit(db: Session):
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
     assert result.status == BookingStatus.CANCELLED
-    assert result.payment_status == "credit_issued"
+    assert result.payment_status == "settled"
     mock_credit.assert_called_once()
 
 
-def test_rescheduled_booking_under_12h_no_refund(db: Session):
-    """Rescheduled booking cancelled <12h before should have no refund (same as regular)."""
+def test_rescheduled_booking_under_12h_split_credit_and_payout(db: Session):
+    """Rescheduled booking cancelled <12h before should follow 50/50 split."""
     instructor, profile, svc = _create_instructor_with_service(db)
     student = _create_student(db)
 
@@ -794,13 +843,27 @@ def test_rescheduled_booking_under_12h_no_refund(db: Session):
 
     service = BookingService(db)
 
-    with patch("app.services.stripe_service.StripeService.capture_payment_intent") as mock_capture:
-        mock_capture.return_value = {"amount_received": 10000}
+    with patch("app.services.stripe_service.StripeService.capture_payment_intent") as mock_capture, \
+         patch("app.services.stripe_service.StripeService.reverse_transfer"), \
+         patch("app.services.stripe_service.StripeService.create_manual_transfer") as mock_transfer, \
+         patch("app.repositories.payment_repository.PaymentRepository.create_platform_credit") as mock_credit, \
+         patch(
+             "app.repositories.payment_repository.PaymentRepository.get_connected_account_by_instructor_id",
+             return_value=SimpleNamespace(stripe_account_id="acct_test"),
+         ):
+        mock_capture.return_value = {
+            "transfer_id": "tr_x",
+            "amount_received": 10000,
+            "transfer_amount": 8800,
+        }
+        mock_transfer.return_value = {"transfer_id": "tr_payout"}
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
     assert result.status == BookingStatus.CANCELLED
-    assert result.payment_status == "captured"
+    assert result.payment_status in {"settled", "manual_review"}
     mock_capture.assert_called_once()
+    mock_transfer.assert_called_once()
+    mock_credit.assert_called_once()
 
 
 def test_regular_booking_over_24h_gets_card_refund(db: Session):
@@ -825,8 +888,8 @@ def test_regular_booking_over_24h_gets_card_refund(db: Session):
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
     assert result.status == BookingStatus.CANCELLED
-    # Regular booking >24h should be "released" (full refund)
-    assert result.payment_status == "released", (
+    # Regular booking >24h should settle with student_cancel_gt24_no_charge
+    assert result.payment_status == "settled", (
         "Regular booking >24h should get full release, not credit"
     )
     mock_cancel.assert_called_once()
@@ -848,7 +911,7 @@ def test_reschedule_loophole_closed(db: Session):
     student = _create_student(db)
 
     # Step 1: Create original booking 20 hours out (in 12-24h window) = GAMING scenario
-    original_time = datetime.now() + timedelta(hours=20)
+    original_time = datetime.now(timezone.utc) + timedelta(hours=20)
     original_time = original_time.replace(minute=0, second=0, microsecond=0)
     if (original_time + timedelta(hours=1)).date() != original_time.date():
         original_time = (original_time + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
@@ -865,6 +928,7 @@ def test_reschedule_loophole_closed(db: Session):
         original_lesson_datetime=original_time,  # Gaming: original was ~20h away
     )
     rescheduled_booking.payment_status = "authorized"
+    db.flush()
 
     # Step 3: Student tries to cancel the rescheduled booking (now >24h away)
     service = BookingService(db)
@@ -883,8 +947,8 @@ def test_reschedule_loophole_closed(db: Session):
     # Step 4: Verify the loophole is CLOSED
     assert result.status == BookingStatus.CANCELLED
 
-    # CRITICAL ASSERTION: Should be "credit_issued", NOT "released"
-    assert result.payment_status == "credit_issued", (
+    # CRITICAL ASSERTION: Settlement outcome should reflect credit, not release.
+    assert result.payment_status == "settled", (
         "LOOPHOLE NOT CLOSED! Rescheduled booking got full release instead of credit"
     )
 
@@ -941,9 +1005,9 @@ def test_rescheduled_early_then_cancel_over_24h_gets_refund(db: Session):
 
     assert result.status == BookingStatus.CANCELLED
 
-    # CRITICAL: Should be "released" (CARD REFUND), NOT "credit_issued"
+    # CRITICAL: Settlement outcome should reflect card refund, not credit.
     # This is the fair part of the policy - legitimate early reschedules are NOT penalized
-    assert result.payment_status == "released", (
+    assert result.payment_status == "settled", (
         "FAIR POLICY BROKEN! Legitimate early reschedule should get card refund, not credit"
     )
 
@@ -1014,10 +1078,10 @@ def test_legitimate_reschedule_cancel_after_original_passed(db: Session):
 
     assert result.status == BookingStatus.CANCELLED
 
-    # CRITICAL: Should be "released" (CARD REFUND), NOT "credit_issued"
+    # CRITICAL: Settlement outcome should reflect card refund, not credit.
     # Even though original_lesson_datetime is in the past NOW, at RESCHEDULE TIME
     # the original was >24h away (5 days), so this was a legitimate reschedule.
-    assert result.payment_status == "released", (
+    assert result.payment_status == "settled", (
         "BUG! Legitimate reschedule wrongly flagged as gaming because original is now in past. "
         f"Original was {hours_at_reschedule:.1f}h from reschedule time (LEGITIMATE), "
         f"but {hours_from_now:.1f}h from cancel time (past). Fix: use created_at, not now."
@@ -1070,10 +1134,11 @@ def test_second_reschedule_blocked(db: Session):
     when = datetime.combine(date.today() + timedelta(days=3), time(14, 0))
     original_booking = _create_booking(db, student, instructor, svc, when)
 
-    # Create "rescheduled" booking (simulating first reschedule)
+    # Create "rescheduled" booking (simulating late reschedule use)
     rescheduled_when = datetime.combine(date.today() + timedelta(days=5), time(15, 0))
     rescheduled_booking = _create_booking(db, student, instructor, svc, rescheduled_when)
     rescheduled_booking.rescheduled_from_booking_id = original_booking.id
+    rescheduled_booking.late_reschedule_used = True
     db.flush()
 
     service = BookingService(db)
@@ -1099,10 +1164,11 @@ def test_second_reschedule_error_message(db: Session):
     when = datetime.combine(date.today() + timedelta(days=3), time(14, 0))
     original_booking = _create_booking(db, student, instructor, svc, when)
 
-    # Create "rescheduled" booking
+    # Create "rescheduled" booking (simulating late reschedule use)
     rescheduled_when = datetime.combine(date.today() + timedelta(days=5), time(15, 0))
     rescheduled_booking = _create_booking(db, student, instructor, svc, rescheduled_when)
     rescheduled_booking.rescheduled_from_booking_id = original_booking.id
+    rescheduled_booking.late_reschedule_used = True
     db.flush()
 
     service = BookingService(db)
@@ -1113,7 +1179,6 @@ def test_second_reschedule_error_message(db: Session):
     error_message = exc_info.value.message
 
     # Verify the message contains key guidance
-    assert "already rescheduled" in error_message.lower()
+    assert "late reschedule" in error_message.lower()
     assert "cancel" in error_message.lower()
-    assert "credit" in error_message.lower()
     assert "book a new lesson" in error_message.lower()

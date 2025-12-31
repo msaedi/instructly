@@ -106,6 +106,7 @@ export default function InteractiveGrid({
   const [dragValue, setDragValue] = useState<boolean | null>(null);
   const dragValueRef = useRef<boolean | null>(null);
   const pendingRef = useRef<Record<string, Set<number>>>({});
+  const [pendingByDate, setPendingByDate] = useState<Record<string, Set<number>>>({});
   const rafRef = useRef<number | null>(null);
   const lastHoverRowRef = useRef<{ date: string; row: number } | null>(null);
 
@@ -129,11 +130,13 @@ export default function InteractiveGrid({
     const desired = dragValueRef.current;
     if (desired === null) {
       pendingRef.current = {};
+      setPendingByDate({});
       return;
     }
 
     const payload = pendingRef.current;
     pendingRef.current = {};
+    setPendingByDate({});
     const dates = Object.keys(payload);
     if (!dates.length) {
       return;
@@ -189,6 +192,13 @@ export default function InteractiveGrid({
         pendingRef.current[date] = setForDate;
       }
       setForDate.add(slotIndex);
+      setPendingByDate((prev) => {
+        const next = { ...prev };
+        const updatedSet = new Set(prev[date] ?? []);
+        updatedSet.add(slotIndex);
+        next[date] = updatedSet;
+        return next;
+      });
       scheduleFlush();
     },
     [scheduleFlush, weekBits]
@@ -411,7 +421,7 @@ export default function InteractiveGrid({
           const relativeMinutes = nowMinutes - windowStartMinutes;
           const topPercent = totalMinutes > 0 ? (relativeMinutes / totalMinutes) * 100 : 0;
           const showNowLine = isToday && withinWindow && totalMinutes > 0;
-          const pendingForDate = pendingRef.current[date];
+          const pendingForDate = pendingByDate[date];
           const isLastColumn = columnIndex === displayDates.length - 1;
           return (
             <div key={date} className="relative flex flex-col">

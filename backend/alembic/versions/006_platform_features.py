@@ -561,26 +561,45 @@ def upgrade() -> None:
         sa.Column("user_id", sa.String(26), nullable=False),
         sa.Column("amount_cents", sa.Integer(), nullable=False),
         sa.Column("reason", sa.String(255), nullable=False),
+        sa.Column("source_type", sa.String(50), nullable=False, server_default="legacy"),
         sa.Column("source_booking_id", sa.String(26), nullable=True),
         sa.Column("used_booking_id", sa.String(26), nullable=True),
+        sa.Column("reserved_amount_cents", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("reserved_for_booking_id", sa.String(26), nullable=True),
+        sa.Column("reserved_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("original_expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("forfeited_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("revoked", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("revoked_reason", sa.String(500), nullable=True),
+        sa.Column("frozen_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("frozen_reason", sa.String(500), nullable=True),
+        sa.Column("status", sa.String(20), nullable=False, server_default="available"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["source_booking_id"], ["bookings.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["used_booking_id"], ["bookings.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["reserved_for_booking_id"], ["bookings.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
         comment="Credits issued from cancellations, usable on future bookings",
     )
     op.create_index("idx_platform_credits_user_id", "platform_credits", ["user_id"])
     op.create_index("idx_platform_credits_source_booking_id", "platform_credits", ["source_booking_id"])
     op.create_index("idx_platform_credits_used_booking_id", "platform_credits", ["used_booking_id"])
+    op.create_index(
+        "idx_platform_credits_reserved_booking_id",
+        "platform_credits",
+        ["reserved_for_booking_id"],
+    )
+    op.create_index("idx_platform_credits_status", "platform_credits", ["status"])
     op.create_index("idx_platform_credits_expires_at", "platform_credits", ["expires_at"])
     op.create_index(
         "idx_platform_credits_unused",
         "platform_credits",
         ["user_id", "expires_at"],
-        postgresql_where=sa.text("used_at IS NULL"),
+        postgresql_where=sa.text("status = 'available'"),
     )
 
     # Beta program tables
@@ -928,6 +947,8 @@ def downgrade() -> None:
 
     op.drop_index("idx_platform_credits_expires_at", table_name="platform_credits")
     op.drop_index("idx_platform_credits_unused", table_name="platform_credits")
+    op.drop_index("idx_platform_credits_status", table_name="platform_credits")
+    op.drop_index("idx_platform_credits_reserved_booking_id", table_name="platform_credits")
     op.drop_index("idx_platform_credits_used_booking_id", table_name="platform_credits")
     op.drop_index("idx_platform_credits_source_booking_id", table_name="platform_credits")
     op.drop_index("idx_platform_credits_user_id", table_name="platform_credits")
