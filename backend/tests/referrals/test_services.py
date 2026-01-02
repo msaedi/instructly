@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 import uuid
 
 import pytest
@@ -10,17 +10,26 @@ import ulid
 
 from app.core.config import settings
 from app.events import referral_events
+from app.models.booking import BookingStatus
+from app.models.instructor import InstructorProfile
+from app.models.payment import StripeConnectedAccount
 from app.models.referrals import (
+    InstructorReferralPayout,
     ReferralReward,
     RewardSide,
     RewardStatus,
-    WalletTransactionType,
 )
+from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.services import referral_fraud
 from app.services.referral_service import ReferralService
 from app.services.referral_unlocker import ReferralUnlocker
 from app.services.wallet_service import WalletService
+
+try:  # pragma: no cover - allow repo root or backend/ test execution
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
 
 
 @pytest.fixture
@@ -61,6 +70,51 @@ def _create_user(db, prefix: str) -> User:
     db.add(user)
     db.flush()
     return user
+
+
+def _create_instructor_profile(db, user: User) -> InstructorProfile:
+    profile = InstructorProfile(user_id=user.id)
+    db.add(profile)
+    db.flush()
+    return profile
+
+
+def _create_instructor_with_stripe(db, user: User) -> InstructorProfile:
+    profile = _create_instructor_profile(db, user)
+
+    connected = StripeConnectedAccount(
+        id=str(ulid.ULID()),
+        instructor_profile_id=profile.id,
+        stripe_account_id=f"acct_{ulid.ULID()}",
+        onboarding_completed=True,
+    )
+    db.add(connected)
+    db.flush()
+    return profile
+
+
+def _get_or_create_catalog_entry(db) -> ServiceCatalog:
+    catalog = db.query(ServiceCatalog).first()
+    if catalog:
+        return catalog
+
+    category = ServiceCategory(
+        name="Test Category",
+        slug=f"test-category-{uuid.uuid4().hex[:6]}",
+        description="Test category",
+    )
+    db.add(category)
+    db.flush()
+
+    catalog = ServiceCatalog(
+        category_id=category.id,
+        name="Test Service",
+        slug=f"test-service-{uuid.uuid4().hex[:6]}",
+        description="Test service",
+    )
+    db.add(catalog)
+    db.flush()
+    return catalog
 
 
 def test_student_flow_unlocks_and_emits_events(db, referral_service, unlocker, capture_events):
@@ -226,13 +280,43 @@ def test_refund_before_unlock_voids_reward(db, referral_service, unlocker, monke
     assert all(reward.status == RewardStatus.VOID for reward in rewards)
 
 
-def test_instructor_flow_unlock_and_redeem(db, referral_service, unlocker, wallet_service, monkeypatch):
+def test_instructor_flow_creates_payout(db, referral_service, monkeypatch):
     referrer = _create_user(db, "referrer")
     instructor = _create_user(db, "instructor")
+    signup_ts = datetime.now(timezone.utc) - timedelta(days=40)
+    _create_instructor_with_stripe(db, referrer)
+    instructor_profile = _create_instructor_profile(db, instructor)
+    catalog = _get_or_create_catalog_entry(db)
+    service = InstructorService(
+        instructor_profile_id=instructor_profile.id,
+        service_catalog_id=catalog.id,
+        hourly_rate=120.0,
+        duration_options=[60],
+        is_active=True,
+    )
+    db.add(service)
+    db.flush()
+    booking = create_booking_pg_safe(
+        db,
+        student_id=_create_user(db, "student").id,
+        instructor_id=instructor.id,
+        instructor_service_id=service.id,
+        booking_date=date.today(),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        status=BookingStatus.COMPLETED,
+        service_name="Test Service",
+        hourly_rate=120.0,
+        total_price=120.0,
+        duration_minutes=60,
+        meeting_location="Test",
+        service_area="Manhattan",
+    )
+    booking.completed_at = signup_ts
+    db.flush()
     code = referral_service.issue_code(referrer_user_id=referrer.id)
 
     referral_service.record_click(code=code.code, channel="share")
-    signup_ts = datetime.now(timezone.utc) - timedelta(days=40)
     referral_service.attribute_signup(
         referred_user_id=instructor.id,
         code=code.code,
@@ -240,44 +324,40 @@ def test_instructor_flow_unlock_and_redeem(db, referral_service, unlocker, walle
         ts=signup_ts,
     )
 
-    counts = iter([1, 2, 3])
+    monkeypatch.setattr(
+        referral_service.booking_repo,
+        "count_instructor_total_completed",
+        lambda _instructor_id: 1,
+    )
 
-    def fake_lesson_count(*, instructor_user_id: str, window_start: datetime, window_end: datetime) -> int:
-        return next(counts, 3)
+    payout_id = referral_service.on_instructor_lesson_completed(
+        instructor_user_id=instructor.id,
+        booking_id=booking.id,
+        completed_at=signup_ts,
+    )
+    assert payout_id is not None
 
-    monkeypatch.setattr(referral_service.booking_repo, "count_completed_lessons", fake_lesson_count)
-
-    for _ in range(3):
-        referral_service.on_instructor_lesson_completed(
-            instructor_user_id=instructor.id,
-            lesson_id=str(ulid.ULID()),
-            completed_at=signup_ts,
-        )
-
-    reward = (
-        db.query(ReferralReward)
-        .filter(
-            ReferralReward.referrer_user_id == referrer.id,
-            ReferralReward.referred_user_id == instructor.id,
-            ReferralReward.side == RewardSide.INSTRUCTOR,
-        )
+    payout = (
+        db.query(InstructorReferralPayout)
+        .filter(InstructorReferralPayout.referred_instructor_id == instructor.id)
         .one()
     )
-    assert reward.status == RewardStatus.PENDING
+    assert payout.referrer_user_id == referrer.id
+    assert payout.amount_cents == 7500
+    assert payout.was_founding_bonus is True
 
-    unlocker.run(limit=5)
-    db.refresh(reward)
-    assert reward.status == RewardStatus.UNLOCKED
-
-    txn = wallet_service.apply_fee_rebate_on_payout(
-        user_id=referrer.id,
-        payout_id="po_test",
-        platform_fee_cents=3000,
+    second_attempt = referral_service.on_instructor_lesson_completed(
+        instructor_user_id=instructor.id,
+        booking_id=booking.id,
+        completed_at=signup_ts,
     )
-    assert txn is not None
-    db.refresh(reward)
-    assert reward.status == RewardStatus.REDEEMED
-    assert txn.type == WalletTransactionType.FEE_REBATE
+    assert second_attempt is None
+    assert (
+        db.query(InstructorReferralPayout)
+        .filter(InstructorReferralPayout.referred_instructor_id == instructor.id)
+        .count()
+        == 1
+    )
 
 
 def test_idempotency_guarantees(db, referral_service, unlocker, wallet_service):

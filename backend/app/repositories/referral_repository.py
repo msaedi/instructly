@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import RepositoryException
 from app.models.referrals import (
+    InstructorReferralPayout,
     ReferralAttribution,
     ReferralClick,
     ReferralCode,
@@ -406,6 +407,52 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
             expire_ts=expire_ts,
             rule_version=rule_version,
         )
+
+    def create_instructor_referral_payout(
+        self,
+        *,
+        referrer_user_id: str,
+        referred_instructor_id: str,
+        triggering_booking_id: str,
+        amount_cents: int,
+        was_founding_bonus: bool,
+        idempotency_key: str,
+    ) -> Optional[InstructorReferralPayout]:
+        """
+        Create instructor referral payout record.
+
+        Returns None if a payout already exists for the idempotency key or referred instructor.
+        """
+        existing = (
+            self.db.query(InstructorReferralPayout)
+            .filter(InstructorReferralPayout.idempotency_key == idempotency_key)
+            .first()
+        )
+        if existing:
+            return None
+
+        existing_for_instructor = (
+            self.db.query(InstructorReferralPayout)
+            .filter(
+                InstructorReferralPayout.referred_instructor_id == referred_instructor_id,
+            )
+            .first()
+        )
+        if existing_for_instructor:
+            return None
+
+        payout = InstructorReferralPayout(
+            referrer_user_id=referrer_user_id,
+            referred_instructor_id=referred_instructor_id,
+            triggering_booking_id=triggering_booking_id,
+            amount_cents=amount_cents,
+            was_founding_bonus=was_founding_bonus,
+            idempotency_key=idempotency_key,
+            stripe_transfer_status="pending",
+        )
+        self.db.add(payout)
+        self.db.flush()
+        return payout
 
     def find_pending_to_unlock(
         self, now: datetime, limit: int = 200, *, lock: bool = True

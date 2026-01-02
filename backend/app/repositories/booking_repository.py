@@ -1600,6 +1600,28 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             raise RepositoryException(f"Failed to count completed lessons: {exc}")
 
+    def count_instructor_total_completed(self, instructor_user_id: str) -> int:
+        """Return the lifetime completed lesson count for an instructor."""
+
+        try:
+            result = (
+                self.db.query(func.count(Booking.id))
+                .filter(
+                    Booking.instructor_id == instructor_user_id,
+                    Booking.status == BookingStatus.COMPLETED,
+                    Booking.completed_at.isnot(None),
+                )
+                .scalar()
+            )
+            return int(result or 0)
+        except Exception as exc:
+            self.logger.error(
+                "Failed counting completed lessons for instructor %s: %s",
+                instructor_user_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to count instructor completed lessons") from exc
+
     def count_student_completed_lifetime(self, student_id: str) -> int:
         """Return the lifetime completed session count for a student."""
 

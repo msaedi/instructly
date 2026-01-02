@@ -1850,6 +1850,9 @@ def _auto_complete_booking(booking_id: str, now: datetime) -> Dict[str, Any]:
         # Mark as completed
         booking.status = BookingStatus.COMPLETED
         booking.completed_at = lesson_end
+        instructor_id = booking.instructor_id
+        completed_booking_id = booking.id
+        completed_at = booking.completed_at
 
         # Issue milestone credit
         credit_service = StudentCreditService(db1)
@@ -1878,6 +1881,23 @@ def _auto_complete_booking(booking_id: str, now: datetime) -> Dict[str, Any]:
             has_locked_funds = True
             locked_parent_id = booking.rescheduled_from_booking_id
         db1.commit()  # Commit status change immediately
+
+        try:
+            from app.services.referral_service import ReferralService
+
+            referral_service = ReferralService(db1)
+            referral_service.on_instructor_lesson_completed(
+                instructor_user_id=instructor_id,
+                booking_id=completed_booking_id,
+                completed_at=completed_at,
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to process instructor referral for auto-completed booking %s: %s",
+                completed_booking_id,
+                exc,
+                exc_info=True,
+            )
     finally:
         db1.close()
 
