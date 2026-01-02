@@ -52,6 +52,7 @@ from .payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, Strip
 from .platform_config import PlatformConfig
 from .rbac import Permission, Role, RolePermission, UserPermission, UserRole
 from .referrals import (
+    InstructorReferralPayout,
     ReferralAttribution,
     ReferralClick,
     ReferralCode,
@@ -112,6 +113,7 @@ __all__ = [
     "ReferralReward",
     "WalletTransaction",
     "ReferralLimit",
+    "InstructorReferralPayout",
     # Messaging models
     "Conversation",
     "Message",
