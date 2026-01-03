@@ -393,6 +393,10 @@ class ReferralService(BaseService):
             except (TypeError, ValueError):
                 cap = int(cap_default)
 
+            # Determine payout amount based on founding phase.
+            # Note: Near the cap boundary, concurrent payouts may both receive the founding bonus.
+            # This is acceptable; worst case is a few extra $75 bonuses instead of $50.
+            # Advisory locks here would add complexity for minimal benefit.
             founding_count = self.instructor_profile_repo.count_founding_instructors()
             is_founding_phase = founding_count < cap
 

@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import RepositoryException
@@ -441,18 +441,27 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
         if existing_for_instructor:
             return None
 
-        payout = InstructorReferralPayout(
-            referrer_user_id=referrer_user_id,
-            referred_instructor_id=referred_instructor_id,
-            triggering_booking_id=triggering_booking_id,
-            amount_cents=amount_cents,
-            was_founding_bonus=was_founding_bonus,
-            idempotency_key=idempotency_key,
-            stripe_transfer_status="pending",
-        )
-        self.db.add(payout)
-        self.db.flush()
-        return payout
+        try:
+            payout = InstructorReferralPayout(
+                referrer_user_id=referrer_user_id,
+                referred_instructor_id=referred_instructor_id,
+                triggering_booking_id=triggering_booking_id,
+                amount_cents=amount_cents,
+                was_founding_bonus=was_founding_bonus,
+                idempotency_key=idempotency_key,
+                stripe_transfer_status="pending",
+            )
+            self.db.add(payout)
+            self.db.flush()
+            return payout
+        except IntegrityError:
+            self.db.rollback()
+            logger.info(
+                "Payout already exists for referred instructor %s "
+                "(concurrent creation handled by DB constraint)",
+                referred_instructor_id,
+            )
+            return None
 
     def get_instructor_referral_payout_by_id(
         self, payout_id: str

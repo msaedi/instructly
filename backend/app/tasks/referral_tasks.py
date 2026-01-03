@@ -120,6 +120,11 @@ def process_instructor_referral_payout(self: Any, payout_id: str) -> Dict[str, A
             if transfer_id is None:
                 transfer_id = getattr(transfer, "id", None)
 
+            if not transfer_id:
+                logger.error("Stripe transfer returned no ID for payout %s", payout_id)
+                _mark_payout_failed(payout, "stripe_transfer_no_id")
+                return {"status": "error", "reason": "no_transfer_id"}
+
             payout.stripe_transfer_id = transfer_id
             payout.stripe_transfer_status = "completed"
             payout.transferred_at = datetime.now(timezone.utc)
