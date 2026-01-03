@@ -26,6 +26,8 @@ def _insert_config(
     enabled: bool = True,
     student_amount_cents: int = 2000,
     instructor_amount_cents: int = 5000,
+    instructor_founding_bonus_cents: int = 7500,
+    instructor_standard_bonus_cents: int = 5000,
     min_basket_cents: int = 8000,
     hold_days: int = 7,
     expiry_months: int = 6,
@@ -42,6 +44,8 @@ def _insert_config(
                 enabled,
                 student_amount_cents,
                 instructor_amount_cents,
+                instructor_founding_bonus_cents,
+                instructor_standard_bonus_cents,
                 min_basket_cents,
                 hold_days,
                 expiry_months,
@@ -54,6 +58,8 @@ def _insert_config(
                 :enabled,
                 :student_amount_cents,
                 :instructor_amount_cents,
+                :instructor_founding_bonus_cents,
+                :instructor_standard_bonus_cents,
                 :min_basket_cents,
                 :hold_days,
                 :expiry_months,
@@ -69,6 +75,8 @@ def _insert_config(
             "enabled": enabled,
             "student_amount_cents": student_amount_cents,
             "instructor_amount_cents": instructor_amount_cents,
+            "instructor_founding_bonus_cents": instructor_founding_bonus_cents,
+            "instructor_standard_bonus_cents": instructor_standard_bonus_cents,
             "min_basket_cents": min_basket_cents,
             "hold_days": hold_days,
             "expiry_months": expiry_months,
@@ -88,6 +96,8 @@ def test_returns_defaults_when_table_empty(db):
     assert config["enabled"] is True
     assert config["student_amount_cents"] == 2000
     assert config["instructor_amount_cents"] == 5000
+    assert config["instructor_founding_bonus_cents"] == 7500
+    assert config["instructor_standard_bonus_cents"] == 5000
     assert config["min_basket_cents"] == 8000
     assert config["hold_days"] == 7
     assert config["expiry_months"] == 6
@@ -101,6 +111,8 @@ def test_returns_database_row_when_present(db):
         enabled=False,
         student_amount_cents=2500,
         instructor_amount_cents=6000,
+        instructor_founding_bonus_cents=7700,
+        instructor_standard_bonus_cents=5200,
         min_basket_cents=9000,
         hold_days=5,
         expiry_months=12,
@@ -116,6 +128,8 @@ def test_returns_database_row_when_present(db):
     assert config["enabled"] is False
     assert config["student_amount_cents"] == 2500
     assert config["instructor_amount_cents"] == 6000
+    assert config["instructor_founding_bonus_cents"] == 7700
+    assert config["instructor_standard_bonus_cents"] == 5200
     assert config["min_basket_cents"] == 9000
     assert config["hold_days"] == 5
     assert config["expiry_months"] == 12

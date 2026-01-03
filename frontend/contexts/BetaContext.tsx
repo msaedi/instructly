@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useSyncExternalStore } from 'react';
 import type { BetaConfig } from '@/lib/beta-config';
 import { getBetaConfig } from '@/lib/beta-config';
 
@@ -9,9 +9,34 @@ interface BetaContextValue {
 }
 
 const BetaContext = createContext<BetaContextValue | undefined>(undefined);
+const bannerDismissedListeners = new Set<() => void>();
+const bannerDismissedStore = {
+  subscribe(listener: () => void) {
+    bannerDismissedListeners.add(listener);
+    return () => bannerDismissedListeners.delete(listener);
+  },
+  getSnapshot() {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem('beta_banner_dismissed') === '1';
+  },
+  getServerSnapshot() {
+    return false;
+  },
+  setDismissed() {
+    if (typeof window === 'undefined') return;
+    sessionStorage.setItem('beta_banner_dismissed', '1');
+    bannerDismissedListeners.forEach((listener) => listener());
+  },
+};
 
-export function BetaProvider({ children }: { children: React.ReactNode }) {
-  const config = useMemo(() => getBetaConfig(), []);
+export function BetaProvider({
+  children,
+  initialConfig,
+}: {
+  children: React.ReactNode;
+  initialConfig?: BetaConfig;
+}) {
+  const config = useMemo(() => initialConfig ?? getBetaConfig(), [initialConfig]);
 
   const value = useMemo(() => ({ config }), [config]);
   return <BetaContext.Provider value={value}>{children}</BetaContext.Provider>;
@@ -25,10 +50,11 @@ export function useBeta(): BetaContextValue {
 
 export function BetaBanner() {
   const { config } = useBeta();
-  const [isDismissed, setIsDismissed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return Boolean(sessionStorage.getItem('beta_banner_dismissed'));
-  });
+  const isDismissed = useSyncExternalStore(
+    bannerDismissedStore.subscribe,
+    bannerDismissedStore.getSnapshot,
+    bannerDismissedStore.getServerSnapshot
+  );
   const isVisible = config.site === 'beta' && config.showBanner && !isDismissed;
 
   if (!isVisible) return null;
@@ -43,8 +69,7 @@ export function BetaBanner() {
       <button
         className="underline"
         onClick={() => {
-          sessionStorage.setItem('beta_banner_dismissed', '1');
-          setIsDismissed(true);
+          bannerDismissedStore.setDismissed();
         }}
       >
         Dismiss

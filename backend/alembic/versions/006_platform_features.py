@@ -534,6 +534,8 @@ def upgrade() -> None:
         sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("student_amount_cents", sa.Integer(), nullable=False),
         sa.Column("instructor_amount_cents", sa.Integer(), nullable=False),
+        sa.Column("instructor_founding_bonus_cents", sa.Integer(), nullable=False),
+        sa.Column("instructor_standard_bonus_cents", sa.Integer(), nullable=False),
         sa.Column("min_basket_cents", sa.Integer(), nullable=False),
         sa.Column("hold_days", sa.Integer(), nullable=False),
         sa.Column("expiry_months", sa.Integer(), nullable=False),
@@ -542,6 +544,8 @@ def upgrade() -> None:
         sa.Column("note", sa.Text(), nullable=True),
         sa.CheckConstraint("student_amount_cents >= 0"),
         sa.CheckConstraint("instructor_amount_cents >= 0"),
+        sa.CheckConstraint("instructor_founding_bonus_cents >= 0"),
+        sa.CheckConstraint("instructor_standard_bonus_cents >= 0"),
         sa.CheckConstraint("min_basket_cents >= 6000"),
         sa.CheckConstraint("hold_days BETWEEN 1 AND 14"),
         sa.CheckConstraint("expiry_months BETWEEN 1 AND 24"),
@@ -552,6 +556,66 @@ def upgrade() -> None:
         "referral_config",
         ["effective_at"],
         unique=False,
+    )
+
+    op.create_table(
+        "instructor_referral_payouts",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column(
+            "referrer_user_id",
+            sa.String(26),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "referred_instructor_id",
+            sa.String(26),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "triggering_booking_id",
+            sa.String(26),
+            sa.ForeignKey("bookings.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("amount_cents", sa.Integer(), nullable=False),
+        sa.Column("was_founding_bonus", sa.Boolean(), nullable=False),
+        sa.Column("stripe_transfer_id", sa.String(255), nullable=True),
+        sa.Column(
+            "stripe_transfer_status",
+            sa.String(50),
+            nullable=False,
+            server_default="pending",
+        ),
+        sa.Column("idempotency_key", sa.String(255), nullable=False, unique=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column("transferred_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("failed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("failure_reason", sa.String(500), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+        comment="Cash payouts for instructor referrals via Stripe transfers",
+    )
+    op.create_index(
+        "ix_instructor_referral_payouts_referrer",
+        "instructor_referral_payouts",
+        ["referrer_user_id"],
+    )
+    op.create_index(
+        "ix_instructor_referral_payouts_referred",
+        "instructor_referral_payouts",
+        ["referred_instructor_id"],
+    )
+    op.create_index(
+        "ix_instructor_referral_payouts_unique_referred",
+        "instructor_referral_payouts",
+        ["referred_instructor_id"],
+        unique=True,
     )
 
     # Platform credits
@@ -953,6 +1017,20 @@ def downgrade() -> None:
     op.drop_index("idx_platform_credits_source_booking_id", table_name="platform_credits")
     op.drop_index("idx_platform_credits_user_id", table_name="platform_credits")
     op.drop_table("platform_credits")
+
+    op.drop_index(
+        "ix_instructor_referral_payouts_unique_referred",
+        table_name="instructor_referral_payouts",
+    )
+    op.drop_index(
+        "ix_instructor_referral_payouts_referred",
+        table_name="instructor_referral_payouts",
+    )
+    op.drop_index(
+        "ix_instructor_referral_payouts_referrer",
+        table_name="instructor_referral_payouts",
+    )
+    op.drop_table("instructor_referral_payouts")
 
     op.execute("DROP INDEX IF EXISTS ix_referral_config_effective_at_desc")
     op.execute("DROP TABLE IF EXISTS referral_config CASCADE")

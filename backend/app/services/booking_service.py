@@ -3553,6 +3553,23 @@ class BookingService(BaseService):
                 f"Failed to create completion system message for booking {booking_id}: {str(e)}"
             )
 
+        try:
+            from app.services.referral_service import ReferralService
+
+            referral_service = ReferralService(self.db)
+            referral_service.on_instructor_lesson_completed(
+                instructor_user_id=refreshed_booking.instructor_id,
+                booking_id=refreshed_booking.id,
+                completed_at=refreshed_booking.completed_at or datetime.now(timezone.utc),
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to process instructor referral payout for booking %s: %s",
+                booking_id,
+                exc,
+                exc_info=True,
+            )
+
         return refreshed_booking
 
     @BaseService.measure_operation("instructor_mark_complete")
@@ -3651,6 +3668,24 @@ class BookingService(BaseService):
         refreshed = self.repository.get_by_id(booking_id)
         if refreshed is None:
             raise NotFoundException("Booking not found after completion")
+
+        try:
+            from app.services.referral_service import ReferralService
+
+            referral_service = ReferralService(self.db)
+            referral_service.on_instructor_lesson_completed(
+                instructor_user_id=refreshed.instructor_id,
+                booking_id=refreshed.id,
+                completed_at=refreshed.completed_at or datetime.now(timezone.utc),
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to process instructor referral payout for booking %s: %s",
+                booking_id,
+                exc,
+                exc_info=True,
+            )
+
         return refreshed
 
     @BaseService.measure_operation("instructor_dispute_completion")

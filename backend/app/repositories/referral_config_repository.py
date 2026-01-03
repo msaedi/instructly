@@ -13,6 +13,8 @@ class ReferralConfigRepository:
                 enabled,
                 student_amount_cents,
                 instructor_amount_cents,
+                instructor_founding_bonus_cents,
+                instructor_standard_bonus_cents,
                 min_basket_cents,
                 hold_days,
                 expiry_months,

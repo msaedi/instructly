@@ -42,13 +42,14 @@ import { FoundingBadge } from '@/components/ui/FoundingBadge';
 type NeighborhoodSelection = { neighborhood_id: string; name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
 type PreferredPublicSpace = { address: string; label?: string };
-type DashboardPanel = 'dashboard' | 'profile' | 'bookings' | 'earnings' | 'reviews' | 'availability' | 'account';
+type DashboardPanel = 'dashboard' | 'profile' | 'bookings' | 'earnings' | 'referrals' | 'reviews' | 'availability' | 'account';
 
 const DASHBOARD_PANEL_KEYS = new Set<DashboardPanel>([
   'dashboard',
   'profile',
   'bookings',
   'earnings',
+  'referrals',
   'reviews',
   'availability',
   'account',
@@ -67,6 +68,7 @@ const MOBILE_NAV_PRIMARY: Array<{ key: DashboardPanel; label: string }> = [
 const MOBILE_NAV_SECONDARY: Array<{ key: DashboardPanel; label: string }> = [
   { key: 'profile', label: 'Profile' },
   { key: 'earnings', label: 'Earnings' },
+  { key: 'referrals', label: 'Referrals' },
   { key: 'reviews', label: 'Reviews' },
   { key: 'account', label: 'Account' },
 ];
@@ -258,6 +260,10 @@ export default function InstructorDashboardNew() {
     () => dynamic(() => import('../earnings/embedded').then((m) => m.default), { ssr: false }),
     []
   );
+  const ReferralsPanel = useMemo(
+    () => dynamic(() => import('../referrals/embedded').then((m) => m.default), { ssr: false }),
+    []
+  );
   const ReviewsPanel = useMemo(
     () => dynamic(() => import('../reviews/embedded').then((m) => m.default), { ssr: false }),
     []
@@ -279,6 +285,7 @@ export default function InstructorDashboardNew() {
       const profileAnchor = typeof document !== 'undefined' ? document.getElementById('profile-first-card') : null;
       const bookingsAnchor = typeof document !== 'undefined' ? document.getElementById('bookings-first-card') : null;
       const earningsAnchor = typeof document !== 'undefined' ? document.getElementById('earnings-first-card') : null;
+      const referralsAnchor = typeof document !== 'undefined' ? document.getElementById('referrals-first-card') : null;
       const reviewsAnchor = typeof document !== 'undefined' ? document.getElementById('reviews-first-card') : null;
       const availabilityAnchor = typeof document !== 'undefined' ? document.getElementById('availability-first-card') : null;
       const firstCard = activePanel === 'profile'
@@ -287,6 +294,8 @@ export default function InstructorDashboardNew() {
           ? (bookingsAnchor as HTMLElement | null)
           : activePanel === 'earnings'
             ? (earningsAnchor as HTMLElement | null)
+            : activePanel === 'referrals'
+              ? (referralsAnchor as HTMLElement | null)
             : activePanel === 'reviews'
               ? (reviewsAnchor as HTMLElement | null)
               : activePanel === 'availability'
@@ -349,6 +358,7 @@ export default function InstructorDashboardNew() {
       activePanel === 'profile' ||
       activePanel === 'bookings' ||
       activePanel === 'earnings' ||
+      activePanel === 'referrals' ||
       activePanel === 'reviews' ||
       activePanel === 'availability';
 
@@ -996,6 +1006,20 @@ export default function InstructorDashboardNew() {
                   <li>
                     <button
                       type="button"
+                      onClick={() => handlePanelChange('referrals')}
+                      aria-current={activePanel === 'referrals' ? 'page' : undefined}
+                      className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
+                        activePanel === 'referrals'
+                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
+                      }`}
+                    >
+                      Referrals
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
                       onClick={() => handlePanelChange('availability')}
                       aria-current={activePanel === 'availability' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
@@ -1395,6 +1419,11 @@ export default function InstructorDashboardNew() {
             {activePanel === 'earnings' && (
               <div className="min-h-[60vh] overflow-visible">
                 <EarningsPanel />
+              </div>
+            )}
+            {activePanel === 'referrals' && (
+              <div className="min-h-[60vh] overflow-visible">
+                <ReferralsPanel />
               </div>
             )}
             {activePanel === 'reviews' && (

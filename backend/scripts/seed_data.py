@@ -739,10 +739,12 @@ def seed_referral_config(engine, site_mode: str, actor: str = "seed") -> None:
                 """
                 INSERT INTO referral_config
                   (id, version, enabled, student_amount_cents, instructor_amount_cents,
+                   instructor_founding_bonus_cents, instructor_standard_bonus_cents,
                    min_basket_cents, hold_days, expiry_months, student_global_cap,
                    updated_by, note)
                 VALUES
                   (:id, 1, TRUE, 2000, 5000,
+                   7500, 5000,
                    8000, 7, 6, :cap,
                    :actor, 'initial seed')
                 """

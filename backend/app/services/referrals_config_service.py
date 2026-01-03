@@ -13,6 +13,8 @@ class ReferralsEffectiveConfig(TypedDict):
     enabled: bool
     student_amount_cents: int
     instructor_amount_cents: int
+    instructor_founding_bonus_cents: int
+    instructor_standard_bonus_cents: int
     min_basket_cents: int
     hold_days: int
     expiry_months: int
@@ -33,6 +35,8 @@ def _defaults() -> ReferralsEffectiveConfig:
             "enabled": True,
             "student_amount_cents": 2000,
             "instructor_amount_cents": 5000,
+            "instructor_founding_bonus_cents": 7500,
+            "instructor_standard_bonus_cents": 5000,
             "min_basket_cents": 8000,
             "hold_days": 7,
             "expiry_months": 6,
@@ -76,6 +80,8 @@ def get_effective_config(db: Session) -> ReferralsEffectiveConfig:
                     "enabled": bool(row["enabled"]),
                     "student_amount_cents": int(row["student_amount_cents"]),
                     "instructor_amount_cents": int(row["instructor_amount_cents"]),
+                    "instructor_founding_bonus_cents": int(row["instructor_founding_bonus_cents"]),
+                    "instructor_standard_bonus_cents": int(row["instructor_standard_bonus_cents"]),
                     "min_basket_cents": int(row["min_basket_cents"]),
                     "hold_days": int(row["hold_days"]),
                     "expiry_months": int(row["expiry_months"]),
@@ -100,4 +106,24 @@ def invalidate_cache() -> None:
         _cached_config = None
 
 
-__all__ = ["ReferralsEffectiveConfig", "get_effective_config", "invalidate_cache"]
+class ReferralsConfigService:
+    """Service wrapper for referral configuration access."""
+
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def get_referral_config(self) -> ReferralsEffectiveConfig:
+        """Get referral configuration as a dictionary."""
+        return get_effective_config(self.db)
+
+    def invalidate_cache(self) -> None:
+        """Invalidate cached referral configuration."""
+        invalidate_cache()
+
+
+__all__ = [
+    "ReferralsConfigService",
+    "ReferralsEffectiveConfig",
+    "get_effective_config",
+    "invalidate_cache",
+]

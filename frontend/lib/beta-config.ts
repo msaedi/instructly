@@ -76,7 +76,9 @@ export function getBetaConfig(hostname?: string | null): BetaConfig {
   };
 }
 
-export function getBetaConfigFromHeaders(headers: Headers): BetaConfig {
+type HeadersLike = Pick<Headers, 'get'>;
+
+export function getBetaConfigFromHeaders(headers: HeadersLike): BetaConfig {
   const host = headers.get('host');
   return getBetaConfig(host || undefined);
 }

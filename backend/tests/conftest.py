@@ -147,6 +147,7 @@ from app.models.conversation import Conversation  # noqa: F401 ensure conversati
 from app.models.event_outbox import EventOutbox, NotificationDelivery  # noqa: F401
 from app.models.instructor import InstructorProfile
 from app.models.referrals import (  # noqa: F401 ensures tables are registered
+    InstructorReferralPayout,
     ReferralAttribution,
     ReferralClick,
     ReferralCode,

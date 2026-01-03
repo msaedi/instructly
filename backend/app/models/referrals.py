@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, List, Optional
 import uuid
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Enum as SAEnum,
@@ -28,9 +29,11 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
+from app.core.ulid_helper import generate_ulid
 from app.database import Base
 
 if TYPE_CHECKING:
+    from app.models.booking import Booking
     from app.models.user import User
 
 
@@ -330,3 +333,56 @@ class ReferralLimit(Base):
         return (
             "<ReferralLimit user={user} daily_ok={daily} weekly_ok={weekly} month_cap={cap}>"
         ).format(user=self.user_id, daily=self.daily_ok, weekly=self.weekly_ok, cap=self.month_cap)
+
+
+class InstructorReferralPayout(Base):
+    """Tracks cash payouts for instructor referrals via Stripe Transfer."""
+
+    __tablename__ = "instructor_referral_payouts"
+
+    id: Mapped[str] = mapped_column(String(26), primary_key=True, default=generate_ulid)
+
+    referrer_user_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    referred_instructor_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    triggering_booking_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False
+    )
+
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    was_founding_bonus: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+    stripe_transfer_id: Mapped[Optional[str]] = mapped_column(String(255))
+    stripe_transfer_status: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="pending"
+    )
+
+    idempotency_key: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    transferred_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    failed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    failure_reason: Mapped[Optional[str]] = mapped_column(String(500))
+
+    referrer: Mapped["User"] = relationship(
+        "User", foreign_keys=[referrer_user_id], passive_deletes=True
+    )
+    referred_instructor: Mapped["User"] = relationship(
+        "User", foreign_keys=[referred_instructor_id], passive_deletes=True
+    )
+    triggering_booking: Mapped["Booking"] = relationship("Booking", passive_deletes=True)
+
+    __table_args__ = (
+        Index("ix_instructor_referral_payouts_referrer", "referrer_user_id"),
+        Index("ix_instructor_referral_payouts_referred", "referred_instructor_id"),
+        Index(
+            "ix_instructor_referral_payouts_unique_referred",
+            "referred_instructor_id",
+            unique=True,
+        ),
+    )

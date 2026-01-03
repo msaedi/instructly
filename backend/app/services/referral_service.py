@@ -11,6 +11,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 import ulid
 
+from app.constants.pricing_defaults import PRICING_DEFAULTS
 from app.core.config import resolve_referrals_step
 from app.core.exceptions import RepositoryException, ServiceException
 from app.events.referral_events import (
@@ -24,6 +25,7 @@ from app.events.referral_events import (
 from app.models.referrals import ReferralCode, ReferralReward, RewardStatus
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.factory import RepositoryFactory
+from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.repositories.referral_repository import (
     ReferralAttributionRepository,
     ReferralClickRepository,
@@ -38,6 +40,7 @@ from app.schemas.referrals import (
 )
 from app.services import referral_fraud
 from app.services.base import BaseService
+from app.services.config_service import ConfigService
 from app.services.referral_unlocker import get_last_success_timestamp
 from app.services.referrals_config_service import ReferralsEffectiveConfig, get_effective_config
 from app.tasks.celery_app import celery_app
@@ -65,6 +68,10 @@ class ReferralService(BaseService):
             RepositoryFactory.create_referral_reward_repository(db)
         )
         self.booking_repo: BookingRepository = RepositoryFactory.create_booking_repository(db)
+        self.instructor_profile_repo: InstructorProfileRepository = (
+            RepositoryFactory.create_instructor_profile_repository(db)
+        )
+        self.config_service = ConfigService(db)
         self.referral_limit_repo = RepositoryFactory.create_referral_limit_repository(db)
 
     @staticmethod
@@ -308,58 +315,136 @@ class ReferralService(BaseService):
         self,
         *,
         instructor_user_id: UserID,
-        lesson_id: UserID,
+        booking_id: UserID | None = None,
+        lesson_id: UserID | None = None,
         completed_at: datetime,
-    ) -> None:
-        """Gate instructor-side rewards on rolling lesson completions."""
+    ) -> Optional[str]:
+        """
+        Called when an instructor's student completes a lesson.
 
-        config = self._assert_enabled()
+        Triggers instructor referral payout if this was the instructor's first completed lesson
+        and they were referred by another instructor with a Stripe connected account.
+        """
+
+        config = self._get_config()
+        if not config["enabled"]:
+            logger.debug("Referral program disabled; skipping instructor referral payout")
+            return None
+
         instructor_id = self._normalize_user_id(instructor_user_id)
-        completed_ts = self._ensure_timezone(completed_at)
+        resolved_booking_id = booking_id or lesson_id
+        if resolved_booking_id is None:
+            logger.error(
+                "Instructor referral payout skipped: missing booking_id/lesson_id for %s",
+                instructor_id,
+            )
+            return None
+        if booking_id is not None and lesson_id is not None and booking_id != lesson_id:
+            logger.warning(
+                "Received both booking_id and lesson_id for instructor referral; using booking_id"
+            )
+        booking_id_str = self._normalize_user_id(resolved_booking_id)
+
+        total_completed = self.booking_repo.count_instructor_total_completed(instructor_id)
+        if total_completed != 1:
+            logger.debug(
+                "Instructor %s has %s completed lessons; skipping referral payout",
+                instructor_id,
+                total_completed,
+            )
+            return None
 
         with self.transaction():
             attribution = self.referral_attribution_repo.get_by_referred_user_id(
                 instructor_id, for_update=True
             )
             if not attribution:
-                return
+                logger.debug("Instructor %s has no referral attribution", instructor_id)
+                return None
 
             code_row = self.referral_code_repo.get_by_id(attribution.code_id, for_update=True)
             if not code_row:
-                return
-
-            inviter_id = code_row.referrer_user_id
-            window_start = completed_ts - referral_fraud.referral_window()
-            lesson_count = self.booking_repo.count_completed_lessons(
-                instructor_user_id=instructor_id,
-                window_start=window_start,
-                window_end=completed_ts,
-            )
-            if lesson_count < 3:
-                return
-
-            unlock_ts = completed_ts + timedelta(days=config["hold_days"])
-            expire_ts = self._add_months(unlock_ts, config["expiry_months"])
-            lesson_prefix = self._normalize_user_id(lesson_id).replace("-", "")[:12]
-
-            reward = self.referral_reward_repo.create_instructor_referrer_reward(
-                referrer_user_id=inviter_id,
-                referred_user_id=instructor_id,
-                amount_cents=config["instructor_amount_cents"],
-                unlock_ts=unlock_ts,
-                expire_ts=expire_ts,
-                rule_version=f"I1-{lesson_prefix}",
-            )
-
-            if reward.status == RewardStatus.PENDING:
-                emit_reward_pending(
-                    reward_id=str(reward.id),
-                    side=reward.side.value,
-                    referrer_user_id=reward.referrer_user_id,
-                    referred_user_id=reward.referred_user_id,
-                    amount_cents=reward.amount_cents,
-                    unlock_eta=unlock_ts,
+                logger.warning(
+                    "Dangling instructor attribution %s missing referral code", attribution.id
                 )
+                return None
+
+            referrer_user_id = code_row.referrer_user_id
+            referrer_profile = self.instructor_profile_repo.get_by_user_id(referrer_user_id)
+            if not referrer_profile:
+                logger.debug(
+                    "Referrer %s is not an instructor; skipping instructor referral payout",
+                    referrer_user_id,
+                )
+                return None
+
+            if not referrer_profile.stripe_connected_account:
+                logger.warning(
+                    "Referrer %s missing Stripe connected account; skipping payout",
+                    referrer_user_id,
+                )
+                return None
+
+            pricing_config, _ = self.config_service.get_pricing_config()
+            cap_default = PRICING_DEFAULTS["founding_instructor_cap"]
+            cap_raw = pricing_config.get("founding_instructor_cap", cap_default)
+            try:
+                cap = int(cap_raw)
+            except (TypeError, ValueError):
+                cap = int(cap_default)
+
+            # Determine payout amount based on founding phase.
+            # Note: Near the cap boundary, concurrent payouts may both receive the founding bonus.
+            # This is acceptable; worst case is a few extra $75 bonuses instead of $50.
+            # Advisory locks here would add complexity for minimal benefit.
+            founding_count = self.instructor_profile_repo.count_founding_instructors()
+            is_founding_phase = founding_count < cap
+
+            if is_founding_phase:
+                amount_cents = int(config.get("instructor_founding_bonus_cents", 7500))
+                was_founding_bonus = True
+            else:
+                amount_cents = int(config.get("instructor_standard_bonus_cents", 5000))
+                was_founding_bonus = False
+
+            idempotency_key = f"instructor_referral_{instructor_id}"
+
+            payout = self.referral_reward_repo.create_instructor_referral_payout(
+                referrer_user_id=referrer_user_id,
+                referred_instructor_id=instructor_id,
+                triggering_booking_id=booking_id_str,
+                amount_cents=amount_cents,
+                was_founding_bonus=was_founding_bonus,
+                idempotency_key=idempotency_key,
+            )
+            if payout is None:
+                logger.info("Instructor referral payout already exists for %s", instructor_id)
+                return None
+            payout_id = cast(str, payout.id)
+
+        logger.info(
+            "Created instructor referral payout: referrer=%s referred=%s amount=%s founding=%s",
+            referrer_user_id,
+            instructor_id,
+            amount_cents,
+            was_founding_bonus,
+        )
+
+        if payout_id:
+            try:
+                from app.tasks.referral_tasks import process_instructor_referral_payout
+
+                process_instructor_referral_payout.delay(payout_id)
+                logger.info("Queued referral payout task for payout_id=%s", payout_id)
+            except Exception as exc:
+                logger.error(
+                    "Failed to queue referral payout task for %s: %s",
+                    payout_id,
+                    exc,
+                    exc_info=True,
+                )
+
+        return payout_id
 
     # ------------------------------------------------------------------
     # Internal helpers
