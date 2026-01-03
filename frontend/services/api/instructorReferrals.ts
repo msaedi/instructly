@@ -39,6 +39,14 @@ interface FoundingStatusResponse {
   spots_remaining: number;
 }
 
+interface PopupDataResponse {
+  is_founding_phase: boolean;
+  bonus_amount_cents: number;
+  founding_spots_remaining: number;
+  referral_code: string;
+  referral_link: string;
+}
+
 export interface ReferralStats {
   referralCode: string;
   referralLink: string;
@@ -68,6 +76,14 @@ export interface FoundingStatus {
   totalFoundingSpots: number;
   spotsFilled: number;
   spotsRemaining: number;
+}
+
+export interface PopupData {
+  isFoundingPhase: boolean;
+  bonusAmountCents: number;
+  foundingSpotsRemaining: number;
+  referralCode: string;
+  referralLink: string;
 }
 
 const parseDate = (value: string | null | undefined): Date | null => {
@@ -107,6 +123,14 @@ const transformFoundingStatus = (data: FoundingStatusResponse): FoundingStatus =
   spotsRemaining: data.spots_remaining,
 });
 
+const transformPopupData = (data: PopupDataResponse): PopupData => ({
+  isFoundingPhase: data.is_founding_phase,
+  bonusAmountCents: data.bonus_amount_cents,
+  foundingSpotsRemaining: data.founding_spots_remaining,
+  referralCode: data.referral_code,
+  referralLink: data.referral_link,
+});
+
 export const instructorReferralsApi = {
   getStats: async (): Promise<ReferralStats> => {
     try {
@@ -143,6 +167,16 @@ export const instructorReferralsApi = {
       return transformFoundingStatus(data);
     } catch (error) {
       logger.error('Failed to load referral founding status', error);
+      throw error;
+    }
+  },
+
+  getPopupData: async (): Promise<PopupData> => {
+    try {
+      const data = await httpGet<PopupDataResponse>(`${BASE_PATH}/popup-data`);
+      return transformPopupData(data);
+    } catch (error) {
+      logger.error('Failed to load instructor referral popup data', error);
       throw error;
     }
   },

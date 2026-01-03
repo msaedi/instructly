@@ -4,6 +4,7 @@ import { CACHE_TIMES } from '@/lib/react-query/queryClient';
 import {
   instructorReferralsApi,
   type FoundingStatus,
+  type PopupData,
   type ReferralStats,
   type ReferredInstructor,
 } from '@/services/api/instructorReferrals';
@@ -42,6 +43,16 @@ export function useFoundingStatus(enabled: boolean = true) {
     queryFn: () => instructorReferralsApi.getFoundingStatus(),
     enabled,
     staleTime: CACHE_TIMES.SLOW,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useReferralPopupData(enabled: boolean = true) {
+  return useQuery<PopupData>({
+    queryKey: ['instructor', 'referrals', 'popup-data'],
+    queryFn: () => instructorReferralsApi.getPopupData(),
+    enabled,
+    staleTime: 1000 * 60 * 30,
     refetchOnWindowFocus: false,
   });
 }
