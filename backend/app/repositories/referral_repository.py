@@ -523,6 +523,105 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
         )
         return int(result or 0)
 
+    def count_referred_instructors_by_referrer(self, referrer_user_id: str) -> int:
+        """
+        Count instructors who were referred by this user.
+
+        Joins referral attributions with instructor profiles to count
+        only referred users who became instructors.
+        """
+        from app.models.instructor import InstructorProfile
+
+        result = (
+            self.db.query(func.count(ReferralAttribution.id))
+            .join(ReferralCode, ReferralAttribution.code_id == ReferralCode.id)
+            .join(
+                InstructorProfile,
+                ReferralAttribution.referred_user_id == InstructorProfile.user_id,
+            )
+            .filter(ReferralCode.referrer_user_id == referrer_user_id)
+            .scalar()
+        )
+        return int(result or 0)
+
+    def get_referred_instructors_with_payout_status(
+        self,
+        referrer_user_id: str,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get instructors referred by this user with payout status context.
+
+        Returns a list of dicts with:
+        - user_id, first_name, last_name
+        - referred_at (attribution timestamp)
+        - is_live, went_live_at (onboarding completion timestamp)
+        - first_lesson_completed_at (min completed booking timestamp)
+        - stripe_transfer_status, payout_amount_cents
+        """
+        from app.models.booking import Booking, BookingStatus
+        from app.models.instructor import InstructorProfile
+        from app.models.user import User
+
+        first_lesson_subq = (
+            self.db.query(
+                Booking.instructor_id.label("instructor_id"),
+                func.min(Booking.completed_at).label("first_lesson_completed_at"),
+            )
+            .filter(Booking.status == BookingStatus.COMPLETED)
+            .group_by(Booking.instructor_id)
+            .subquery()
+        )
+
+        query = (
+            self.db.query(
+                User.id.label("user_id"),
+                User.first_name,
+                User.last_name,
+                ReferralAttribution.ts.label("referred_at"),
+                InstructorProfile.is_live,
+                InstructorProfile.onboarding_completed_at.label("went_live_at"),
+                first_lesson_subq.c.first_lesson_completed_at,
+                InstructorReferralPayout.stripe_transfer_status,
+                InstructorReferralPayout.amount_cents.label("payout_amount_cents"),
+            )
+            .select_from(ReferralAttribution)
+            .join(ReferralCode, ReferralAttribution.code_id == ReferralCode.id)
+            .join(User, ReferralAttribution.referred_user_id == User.id)
+            .join(InstructorProfile, User.id == InstructorProfile.user_id)
+            .outerjoin(
+                first_lesson_subq,
+                User.id == first_lesson_subq.c.instructor_id,
+            )
+            .outerjoin(
+                InstructorReferralPayout,
+                User.id == InstructorReferralPayout.referred_instructor_id,
+            )
+            .filter(ReferralCode.referrer_user_id == referrer_user_id)
+            .order_by(ReferralAttribution.ts.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+
+        results: List[Dict[str, Any]] = []
+        for row in query.all():
+            results.append(
+                {
+                    "user_id": row.user_id,
+                    "first_name": row.first_name,
+                    "last_name": row.last_name,
+                    "referred_at": row.referred_at,
+                    "is_live": bool(row.is_live),
+                    "went_live_at": row.went_live_at,
+                    "first_lesson_completed_at": row.first_lesson_completed_at,
+                    "stripe_transfer_status": row.stripe_transfer_status,
+                    "payout_amount_cents": row.payout_amount_cents,
+                }
+            )
+
+        return results
+
     def find_pending_to_unlock(
         self, now: datetime, limit: int = 200, *, lock: bool = True
     ) -> List[ReferralReward]:

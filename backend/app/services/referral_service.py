@@ -416,7 +416,7 @@ class ReferralService(BaseService):
             if payout is None:
                 logger.info("Instructor referral payout already exists for %s", instructor_id)
                 return None
-            payout_id = payout.id
+            payout_id = cast(str, payout.id)
 
         logger.info(
             "Created instructor referral payout: referrer=%s referred=%s amount=%s founding=%s",

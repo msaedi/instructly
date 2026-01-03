@@ -106,4 +106,24 @@ def invalidate_cache() -> None:
         _cached_config = None
 
 
-__all__ = ["ReferralsEffectiveConfig", "get_effective_config", "invalidate_cache"]
+class ReferralsConfigService:
+    """Service wrapper for referral configuration access."""
+
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def get_referral_config(self) -> ReferralsEffectiveConfig:
+        """Get referral configuration as a dictionary."""
+        return get_effective_config(self.db)
+
+    def invalidate_cache(self) -> None:
+        """Invalidate cached referral configuration."""
+        invalidate_cache()
+
+
+__all__ = [
+    "ReferralsConfigService",
+    "ReferralsEffectiveConfig",
+    "get_effective_config",
+    "invalidate_cache",
+]

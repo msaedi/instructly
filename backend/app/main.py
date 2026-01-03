@@ -102,6 +102,7 @@ from .routes.v1 import (
     health as health_v1,
     instructor_bgc as instructor_bgc_v1,
     instructor_bookings as instructor_bookings_v1,
+    instructor_referrals as instructor_referrals_v1,
     instructors as instructors_v1,
     internal as internal_v1,
     messages as messages_v1,
@@ -1024,6 +1025,7 @@ api_v1.include_router(addresses_v1.router, prefix="/addresses")  # type: ignore[
 api_v1.include_router(search_v1.router, prefix="/search")  # type: ignore[attr-defined]
 api_v1.include_router(search_history_v1.router, prefix="/search-history")  # type: ignore[attr-defined]
 api_v1.include_router(referrals_v1.router, prefix="/referrals")  # type: ignore[attr-defined]
+api_v1.include_router(instructor_referrals_v1.router, prefix="/instructor-referrals")  # type: ignore[attr-defined]
 api_v1.include_router(account_v1.router, prefix="/account")  # type: ignore[attr-defined]
 api_v1.include_router(password_reset_v1.router, prefix="/password-reset")  # type: ignore[attr-defined]
 api_v1.include_router(two_factor_auth_v1.router, prefix="/2fa")  # type: ignore[attr-defined]
