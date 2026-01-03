@@ -902,6 +902,18 @@ export default function InstructorDashboardNew() {
                         </button>
                       </li>
                     ))}
+                    <li>
+                      <Link
+                        href="/instructor/referrals"
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          setShowMoreMobile(false);
+                        }}
+                        className="block w-full text-left px-3 py-2 rounded-md text-sm transition-colors text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300"
+                      >
+                        Referrals
+                      </Link>
+                    </li>
                   </ul>
                 )}
               </div>
@@ -992,6 +1004,14 @@ export default function InstructorDashboardNew() {
                     >
                       Earnings
                     </button>
+                  </li>
+                  <li>
+                    <Link
+                      href="/instructor/referrals"
+                      className="w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300"
+                    >
+                      Referrals
+                    </Link>
                   </li>
                   <li>
                     <button
