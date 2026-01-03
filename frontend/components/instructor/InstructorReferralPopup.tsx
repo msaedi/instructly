@@ -220,7 +220,11 @@ export function InstructorReferralPopup({ isLive }: InstructorReferralPopupProps
             </div>
 
             <p className="text-center text-sm text-gray-500 mt-4">
-              <Link href="/instructor/referrals" className="text-[#7E22CE] font-semibold" onClick={handleDismiss}>
+              <Link
+                href="/instructor/dashboard?panel=referrals"
+                className="text-[#7E22CE] font-semibold"
+                onClick={handleDismiss}
+              >
                 View all referrals
               </Link>
             </p>

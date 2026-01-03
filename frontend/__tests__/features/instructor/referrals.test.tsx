@@ -96,7 +96,7 @@ describe('InstructorReferralsPage', () => {
 
     render(<InstructorReferralsPage />);
 
-    expect(screen.getByText('Refer Instructors')).toBeInTheDocument();
+    expect(screen.getByText('Referrals')).toBeInTheDocument();
     expect(screen.getByText('5')).toBeInTheDocument();
     expect(screen.getByText('$225')).toBeInTheDocument();
   });
