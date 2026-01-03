@@ -10,6 +10,8 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import GlobalBackground from '../components/ui/GlobalBackground';
 import PreviewRibbon from '../components/PreviewRibbon';
 import { BetaProvider, BetaBanner } from '@/contexts/BetaContext';
+import { getBetaConfigFromHeaders } from '@/lib/beta-config';
+import { headers } from 'next/headers';
 import { BackgroundProvider } from '@/lib/config/backgroundProvider';
 import { APP_URL, APP_ENV, NODE_ENV, ENABLE_LOGGING } from '@/lib/publicEnv';
 // Analytics moved to client-only Providers to avoid SSR hydration mismatch
@@ -128,11 +130,12 @@ export const metadata: Metadata = {
  * @param {React.ReactNode} props.children - Child components to render
  * @returns {React.ReactElement} The root HTML structure
  */
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const betaConfig = getBetaConfigFromHeaders(await headers());
   // Log layout initialization in development
   logger.debug('Root layout initialized', {
     brand: BRAND.name,
@@ -160,7 +163,7 @@ export default function RootLayout({
         <BackgroundProvider>
           {/* Global fixed background with blur-up and readability overlay */}
           <GlobalBackground />
-          <BetaProvider>
+          <BetaProvider initialConfig={betaConfig}>
             {APP_ENV === 'preview' ? <PreviewRibbon /> : null}
             <BetaBanner />
             {/* Future enhancements could include:
