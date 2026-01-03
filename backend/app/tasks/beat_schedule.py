@@ -271,6 +271,23 @@ CELERYBEAT_SCHEDULE = {
         },
         # Note: Unlock pending referral rewards on a rolling cadence
     },
+    # Instructor referral payouts
+    "retry-failed-instructor-referral-payouts": {
+        "task": "app.tasks.referral_tasks.retry_failed_instructor_referral_payouts",
+        "schedule": crontab(minute=0),  # Every hour at :00
+        "options": {
+            "queue": "payments",
+            "priority": 6,
+        },
+    },
+    "check-pending-instructor-referral-payouts": {
+        "task": "app.tasks.referral_tasks.check_pending_instructor_referral_payouts",
+        "schedule": crontab(minute="*/15"),  # Every 15 minutes
+        "options": {
+            "queue": "payments",
+            "priority": 6,
+        },
+    },
     # Cleanup old data - runs daily at 3 AM
     # "cleanup-old-notifications": {
     #     "task": "app.tasks.cleanup.cleanup_old_notifications",

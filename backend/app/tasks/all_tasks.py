@@ -16,6 +16,7 @@ from app.tasks import (
     monitoring_tasks,  # noqa: F401
     notification_tasks,  # noqa: F401
     privacy_audit_task,  # noqa: F401
+    referral_tasks,  # noqa: F401
     referrals,  # noqa: F401
     retention_tasks,  # noqa: F401
 )
@@ -41,6 +42,9 @@ ALL_TASKS = [
     "app.tasks.codebase_metrics.append_history",
     # Referrals
     "app.tasks.referrals.run_unlocker",
+    "app.tasks.referral_tasks.process_instructor_referral_payout",
+    "app.tasks.referral_tasks.retry_failed_instructor_referral_payouts",
+    "app.tasks.referral_tasks.check_pending_instructor_referral_payouts",
     "retention.purge_soft_deleted",
     # Notification outbox
     "outbox.dispatch_pending",

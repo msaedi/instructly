@@ -1349,6 +1349,78 @@ class StripeService(BaseService):
             )
             raise ServiceException("Failed to create transfer") from exc
 
+    @BaseService.measure_operation("stripe_create_referral_bonus_transfer")
+    def create_referral_bonus_transfer(
+        self,
+        *,
+        payout_id: str,
+        destination_account_id: str,
+        amount_cents: int,
+        referrer_user_id: str,
+        referred_instructor_id: str,
+        was_founding_bonus: bool,
+    ) -> Dict[str, Any]:
+        """Create a Stripe Transfer for instructor referral bonuses."""
+        if amount_cents <= 0:
+            return {"skipped": True, "transfer_id": None}
+
+        idempotency_key = f"instructor_referral_bonus_{payout_id}"
+        description = (
+            "Instructor referral bonus - Founding $75"
+            if was_founding_bonus
+            else "Instructor referral bonus - Standard $50"
+        )
+
+        metadata = {
+            "type": "instructor_referral_bonus",
+            "payout_id": payout_id,
+            "referrer_user_id": referrer_user_id,
+            "referred_instructor_id": referred_instructor_id,
+            "was_founding_bonus": str(was_founding_bonus).lower(),
+            "amount_dollars": str(amount_cents / 100),
+        }
+
+        try:
+            transfer = stripe.Transfer.create(  # type: ignore[attr-defined]
+                amount=amount_cents,
+                currency="usd",
+                destination=destination_account_id,
+                description=description,
+                metadata=metadata,
+                idempotency_key=idempotency_key,
+            )
+            transfer_id = (
+                transfer.get("id") if isinstance(transfer, dict) else getattr(transfer, "id", None)
+            )
+            self.logger.info(
+                "Created referral bonus transfer",
+                extra={
+                    "payout_id": payout_id,
+                    "transfer_id": transfer_id,
+                    "amount_cents": amount_cents,
+                    "destination_account_id": destination_account_id,
+                },
+            )
+            return {
+                "transfer": transfer,
+                "transfer_id": transfer_id,
+                "amount_cents": amount_cents,
+            }
+        except stripe.StripeError as exc:  # pragma: no cover - network path
+            self.logger.error(
+                "Stripe error creating referral bonus transfer for payout %s: %s",
+                payout_id,
+                str(exc),
+            )
+            raise ServiceException("Failed to create referral bonus transfer") from exc
+        except Exception as exc:
+            self.logger.error(
+                "Unexpected error creating referral bonus transfer for payout %s: %s",
+                payout_id,
+                str(exc),
+            )
+            raise ServiceException("Failed to create referral bonus transfer") from exc
+
     @BaseService.measure_operation("stripe_create_or_retry_booking_pi")
     def create_or_retry_booking_payment_intent(
         self,

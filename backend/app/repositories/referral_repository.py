@@ -454,6 +454,75 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
         self.db.flush()
         return payout
 
+    def get_instructor_referral_payout_by_id(
+        self, payout_id: str
+    ) -> Optional[InstructorReferralPayout]:
+        """Get a payout record by ID."""
+        result = (
+            self.db.query(InstructorReferralPayout)
+            .filter(InstructorReferralPayout.id == payout_id)
+            .first()
+        )
+        return cast(Optional[InstructorReferralPayout], result)
+
+    def get_instructor_referral_payout_by_referred(
+        self, referred_instructor_id: str
+    ) -> Optional[InstructorReferralPayout]:
+        """Get payout record for a specific referred instructor."""
+        result = (
+            self.db.query(InstructorReferralPayout)
+            .filter(
+                InstructorReferralPayout.referred_instructor_id == referred_instructor_id,
+            )
+            .first()
+        )
+        return cast(Optional[InstructorReferralPayout], result)
+
+    def get_referrer_payouts(
+        self,
+        referrer_user_id: str,
+        status: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[InstructorReferralPayout]:
+        """Get payouts for a referrer, optionally filtered by status."""
+        query = self.db.query(InstructorReferralPayout).filter(
+            InstructorReferralPayout.referrer_user_id == referrer_user_id
+        )
+        if status:
+            query = query.filter(InstructorReferralPayout.stripe_transfer_status == status)
+        return cast(
+            List[InstructorReferralPayout],
+            query.order_by(InstructorReferralPayout.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all(),
+        )
+
+    def count_referrer_payouts_by_status(self, referrer_user_id: str, status: str) -> int:
+        """Count payouts for a referrer by status."""
+        result = (
+            self.db.query(func.count(InstructorReferralPayout.id))
+            .filter(
+                InstructorReferralPayout.referrer_user_id == referrer_user_id,
+                InstructorReferralPayout.stripe_transfer_status == status,
+            )
+            .scalar()
+        )
+        return int(result or 0)
+
+    def sum_referrer_completed_payouts(self, referrer_user_id: str) -> int:
+        """Sum completed payout amounts for a referrer (in cents)."""
+        result = (
+            self.db.query(func.coalesce(func.sum(InstructorReferralPayout.amount_cents), 0))
+            .filter(
+                InstructorReferralPayout.referrer_user_id == referrer_user_id,
+                InstructorReferralPayout.stripe_transfer_status == "completed",
+            )
+            .scalar()
+        )
+        return int(result or 0)
+
     def find_pending_to_unlock(
         self, now: datetime, limit: int = 200, *, lock: bool = True
     ) -> List[ReferralReward]:

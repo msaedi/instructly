@@ -416,6 +416,7 @@ class ReferralService(BaseService):
             if payout is None:
                 logger.info("Instructor referral payout already exists for %s", instructor_id)
                 return None
+            payout_id = payout.id
 
         logger.info(
             "Created instructor referral payout: referrer=%s referred=%s amount=%s founding=%s",
@@ -425,7 +426,21 @@ class ReferralService(BaseService):
             was_founding_bonus,
         )
 
-        return payout.id
+        if payout_id:
+            try:
+                from app.tasks.referral_tasks import process_instructor_referral_payout
+
+                process_instructor_referral_payout.delay(payout_id)
+                logger.info("Queued referral payout task for payout_id=%s", payout_id)
+            except Exception as exc:
+                logger.error(
+                    "Failed to queue referral payout task for %s: %s",
+                    payout_id,
+                    exc,
+                    exc_info=True,
+                )
+
+        return payout_id
 
     # ------------------------------------------------------------------
     # Internal helpers
