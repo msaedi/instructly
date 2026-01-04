@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Script from 'next/script';
 import { BRAND } from '@/app/config/brand';
 import { validateInviteCode } from '@/app/(public)/instructor/join/validateInvite';
 import { logger } from '@/lib/logger';
@@ -197,8 +198,17 @@ function JoinInner() {
 
 export default function InstructorJoinPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center p-6">Loading…</div>}>
-      <JoinInner />
-    </Suspense>
+    <>
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center p-6">Loading…</div>}>
+        <JoinInner />
+      </Suspense>
+      <Script
+        id="vtag-ai-js"
+        src="https://r2.leadsy.ai/tag.js"
+        data-pid="UyudE5UkciQokTPX"
+        data-version="062024"
+        strategy="afterInteractive"
+      />
+    </>
   );
 }

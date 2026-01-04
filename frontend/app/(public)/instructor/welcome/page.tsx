@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Script from 'next/script';
 import { Check as CheckIcon } from 'lucide-react';
 import { httpGet } from '@/lib/http';
 
@@ -167,8 +168,17 @@ function WelcomeInner() {
 
 export default function InstructorWelcomePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center p-6">Loading…</div>}>
-      <WelcomeInner />
-    </Suspense>
+    <>
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center p-6">Loading…</div>}>
+        <WelcomeInner />
+      </Suspense>
+      <Script
+        id="vtag-ai-js"
+        src="https://r2.leadsy.ai/tag.js"
+        data-pid="UyudE5UkciQokTPX"
+        data-version="062024"
+        strategy="afterInteractive"
+      />
+    </>
   );
 }

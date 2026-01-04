@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Script from 'next/script';
 import { BRAND } from '@/app/config/brand';
 import { useAllServicesWithInstructors, useServiceCategories } from '@/hooks/queries/useServices';
 import { withApiBase } from '@/lib/apiBase';
@@ -271,52 +272,53 @@ export default function InstructorApplyPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative transition-colors duration-200">
-      <div className="sm:mx-auto sm:w-full sm:max-w-3xl">
-        <div className="bg-white/95 dark:bg-gray-900/80 py-10 px-4 shadow-[0_20px_40px_rgba(126,34,206,0.12)] rounded-[28px] border border-white/60 dark:border-gray-800/60 backdrop-blur-sm sm:px-8 transition-colors duration-200">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-[#7E22CE] transition-colors">{BRAND.name}</h1>
-            <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100 mt-3">Founding Instructor Application</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
-              Share your teaching focus and we&apos;ll follow up within 24-48 hours.
-            </p>
-          </div>
-
-          {status === 'success' ? (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center text-emerald-900">
-              <p className="text-lg font-semibold">Application Received!</p>
-              <p className="mt-3 text-sm text-emerald-800">
-                Thank you for applying to be a founding instructor. We&apos;re reviewing applications and will be in touch
-                within 24-48 hours. Check your inbox (and spam folder) for an email from teach@instainstru.com
+    <>
+      <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative transition-colors duration-200">
+        <div className="sm:mx-auto sm:w-full sm:max-w-3xl">
+          <div className="bg-white/95 dark:bg-gray-900/80 py-10 px-4 shadow-[0_20px_40px_rgba(126,34,206,0.12)] rounded-[28px] border border-white/60 dark:border-gray-800/60 backdrop-blur-sm sm:px-8 transition-colors duration-200">
+            <div className="text-center mb-8">
+              <h1 className="text-4xl font-bold text-[#7E22CE] transition-colors">{BRAND.name}</h1>
+              <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100 mt-3">Founding Instructor Application</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
+                Share your teaching focus and we&apos;ll follow up within 24-48 hours.
               </p>
             </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="first-name" className="block text-sm font-medium text-gray-700">
-                    First Name <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    id="first-name"
-                    type="text"
-                    value={firstName}
-                    onChange={(event) => {
-                      setFirstName(event.target.value);
-                      clearError('firstName');
-                    }}
-                    required
-                    className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white text-gray-900"
-                    placeholder="Jane"
-                    aria-invalid={Boolean(errors.firstName)}
-                    aria-describedby={errors.firstName ? 'first-name-error' : undefined}
-                  />
-                  {errors.firstName && (
-                    <p id="first-name-error" className="mt-1 text-sm text-red-600">
-                      {errors.firstName}
-                    </p>
-                  )}
-                </div>
+
+            {status === 'success' ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center text-emerald-900">
+                <p className="text-lg font-semibold">Application Received!</p>
+                <p className="mt-3 text-sm text-emerald-800">
+                  Thank you for applying to be a founding instructor. We&apos;re reviewing applications and will be in touch
+                  within 24-48 hours. Check your inbox (and spam folder) for an email from teach@instainstru.com
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="first-name" className="block text-sm font-medium text-gray-700">
+                      First Name <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      id="first-name"
+                      type="text"
+                      value={firstName}
+                      onChange={(event) => {
+                        setFirstName(event.target.value);
+                        clearError('firstName');
+                      }}
+                      required
+                      className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-white text-gray-900"
+                      placeholder="Jane"
+                      aria-invalid={Boolean(errors.firstName)}
+                      aria-describedby={errors.firstName ? 'first-name-error' : undefined}
+                    />
+                    {errors.firstName && (
+                      <p id="first-name-error" className="mt-1 text-sm text-red-600">
+                        {errors.firstName}
+                      </p>
+                    )}
+                  </div>
 
                 <div>
                   <label htmlFor="last-name" className="block text-sm font-medium text-gray-700">
@@ -649,5 +651,13 @@ export default function InstructorApplyPage() {
         </div>
       </div>
     </div>
+    <Script
+      id="vtag-ai-js"
+      src="https://r2.leadsy.ai/tag.js"
+      data-pid="UyudE5UkciQokTPX"
+      data-version="062024"
+      strategy="afterInteractive"
+    />
+  </>
   );
 }
