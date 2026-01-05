@@ -8,7 +8,7 @@ redis==5.0.1
 hiredis==2.3.2  # C parser for improved performance
 
 # Additional Celery plugins
-celery-redbeat==2.1.1  # Redis-based beat scheduler (optional)
+celery-redbeat==2.3.3  # Redis-based beat scheduler (optional)
 flower==2.0.1  # Celery monitoring tool
 
 # Message serialization
