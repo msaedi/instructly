@@ -10,7 +10,7 @@ sse-starlette==3.1.1
 SQLAlchemy==2.0.45
 psycopg2-binary==2.9.11
 alembic==1.17.2
-pgvector==0.2.5
+pgvector==0.4.2
 
 # Validation & Serialization
 pydantic==2.12.5
