@@ -1,7 +1,7 @@
 # Celery and related dependencies for InstaInstru
 
 # Core Celery
-celery[redis]==5.3.4
+celery[redis]==5.6.2
 
 # Redis client
 redis==5.0.1
