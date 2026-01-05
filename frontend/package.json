@@ -121,7 +121,7 @@
     "@types/react-dom": "^19",
     "@typescript-eslint/parser": "^8.41.0",
     "cross-env": "^10.0.0",
-    "dependency-cruiser": "^17.0.1",
+    "dependency-cruiser": "^17.3.6",
     "eslint": "^9",
     "eslint-config-next": "^16.1.1",
     "eslint-plugin-no-only-tests": "^3.3.0",
