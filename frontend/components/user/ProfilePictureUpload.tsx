@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import ImageCropModal from '@/components/modals/ImageCropModal';
 import { toast } from 'sonner';
-import { createSignedUpload, finalizeProfilePicture, getProfilePictureUrl, proxyUploadToR2 } from '@/lib/api';
+import { createSignedUpload, finalizeProfilePicture, proxyUploadToR2 } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { APP_ENV } from '@/lib/publicEnv';
+import { useProfilePictureUrls } from '@/hooks/useProfilePictureUrls';
 
 interface Props {
   onCompleted?: () => void;
@@ -27,7 +28,6 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [existingUrl, setExistingUrl] = useState<string | null>(null);
   const [overlaySize, setOverlaySize] = useState<number>(size);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -40,26 +40,17 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
     const host = window.location.hostname;
     return host === 'beta-local.instainstru.com';
   }, []);
-  // Load existing profile picture URL on mount/when user changes
-  React.useEffect(() => {
-    let cancelled = false;
-    async function loadExisting() {
-      try {
-        if (!user?.id) return;
-        const res = await getProfilePictureUrl(String(user.id), 'display');
-        if (cancelled) return;
-        if (res?.success && res.data?.url) {
-          setExistingUrl(res.data.url);
-        } else {
-          setExistingUrl(null);
-        }
-      } catch {
-        if (!cancelled) setExistingUrl(null);
-      }
-    }
-    void loadExisting();
-    return () => { cancelled = true; };
-  }, [user?.id]);
+
+  const shouldFetchExisting = Boolean(user?.id && user?.has_profile_picture !== false);
+  const rawId = useMemo(() => {
+    if (!shouldFetchExisting || !user?.id) return null;
+    const version = user.profile_picture_version;
+    return typeof version === 'number' && Number.isFinite(version)
+      ? `${user.id}::v=${version}`
+      : String(user.id);
+  }, [shouldFetchExisting, user?.id, user?.profile_picture_version]);
+  const fetchedUrls = useProfilePictureUrls(rawId ? [rawId] : [], 'display');
+  const existingUrl = rawId && user?.id ? fetchedUrls[String(user.id)] ?? null : null;
 
   // Measure trigger circle size if custom trigger provided
   React.useEffect(() => {
@@ -142,6 +133,7 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
       try {
         await checkAuth();
         await queryClient.invalidateQueries({ queryKey: queryKeys.user });
+        await queryClient.invalidateQueries({ queryKey: ['avatar-urls'] });
       } catch {}
       if (onCompleted) onCompleted();
     } catch (err: unknown) {
