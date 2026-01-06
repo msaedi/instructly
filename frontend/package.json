@@ -21,7 +21,7 @@
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "lint:ci": "next lint --max-warnings=0",
+    "lint:ci": "eslint . --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:strict": "tsc -p tsconfig.strict.json --noEmit",
     "typecheck:strict:log": "npm run typecheck:strict 2>&1 | tee .artifacts/ts-noUncheckedIndexedAccess.log",
