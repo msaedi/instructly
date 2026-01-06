@@ -83,7 +83,6 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@radix-ui/react-visually-hidden": "^1.2.3",
     "@size-limit/preset-app": "^12.0.0",
-    "@size-limit/preset-small-lib": "^12.0.0",
     "@stripe/react-stripe-js": "^5.4.1",
     "@stripe/stripe-js": "^8.6.0",
     "@tanstack/react-query": "^5.85.9",
@@ -147,29 +146,22 @@
   },
   "size-limit": [
     {
-      "name": "framework",
-      "path": ".next/static/chunks/framework-*.js",
-      "limit": "190 kB"
+      "name": "chunks-total-js",
+      "path": ".next/static/chunks/*.js",
+      "limit": "2 MB",
+      "running": false
     },
     {
-      "name": "main-runtime",
-      "path": ".next/static/chunks/main-*.js",
-      "limit": "140 kB"
+      "name": "chunks-total-css",
+      "path": ".next/static/chunks/*.css",
+      "limit": "50 kB",
+      "running": false
     },
     {
-      "name": "polyfills",
-      "path": ".next/static/chunks/polyfills-*.js",
-      "limit": "120 kB"
-    },
-    {
-      "name": "shared-first-load",
-      "path": ".next/static/chunks/1255-*.js",
-      "limit": "60 kB"
-    },
-    {
-      "name": "shared-auth",
-      "path": ".next/static/chunks/4bd1b696-*.js",
-      "limit": "60 kB"
+      "name": "turbopack-runtime",
+      "path": ".next/static/chunks/turbopack-*.js",
+      "limit": "10 kB",
+      "running": false
     }
   ],
   "typeCoverage": {
