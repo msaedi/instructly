@@ -130,9 +130,29 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
       if (!fin.success) throw new Error(fin.message || 'Finalize failed');
 
       logger.info('Profile picture uploaded successfully');
+      const nextProfileVersion =
+        typeof user?.profile_picture_version === 'number' && Number.isFinite(user.profile_picture_version)
+          ? user.profile_picture_version + 1
+          : 1;
       try {
         await checkAuth();
         await queryClient.invalidateQueries({ queryKey: queryKeys.user });
+        queryClient.setQueryData(queryKeys.user, (current) => {
+          if (!current || typeof current !== 'object') return current;
+          const typedCurrent = current as {
+            profile_picture_version?: number;
+            has_profile_picture?: boolean;
+          };
+          const currentVersion = typeof typedCurrent.profile_picture_version === 'number'
+            && Number.isFinite(typedCurrent.profile_picture_version)
+            ? typedCurrent.profile_picture_version
+            : 0;
+          return {
+            ...typedCurrent,
+            has_profile_picture: true,
+            profile_picture_version: Math.max(currentVersion, nextProfileVersion),
+          };
+        });
         await queryClient.invalidateQueries({ queryKey: ['avatar-urls'] });
       } catch {}
       if (onCompleted) onCompleted();
