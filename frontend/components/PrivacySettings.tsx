@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { setUserPreference } from '@/lib/searchTracking';
 import { logger } from '@/lib/logger';
 

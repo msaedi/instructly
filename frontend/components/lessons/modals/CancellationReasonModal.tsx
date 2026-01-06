@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { logger } from '@/lib/logger';
 import { useRouter } from 'next/navigation';
 import { CheckCircle } from 'lucide-react';

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.concurrency import run_in_threadpool
@@ -131,7 +131,10 @@ def _resolve_founding_info(db: Session) -> tuple[int, int, bool]:
 
 async def _require_referral_code(referral_service: ReferralService, user_id: str) -> ReferralCode:
     try:
-        code = await run_in_threadpool(referral_service.ensure_code_for_user, user_id)
+        code = cast(
+            Optional[ReferralCode],
+            await run_in_threadpool(referral_service.ensure_code_for_user, user_id),
+        )
     except ServiceException as exc:
         if exc.code == "REFERRAL_CODE_ISSUANCE_TIMEOUT":
             raise HTTPException(

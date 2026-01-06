@@ -30,7 +30,7 @@ export type InstructorBookingsParams = {
   signal?: AbortSignal | undefined;
 };
 
-// Browser calls go through Next.js proxy to avoid CORS and middleware redirects
+// Browser calls go through Next.js proxy to avoid CORS and proxy redirects
 // Ensure an absolute base URL for URL construction
 function getRequestOrigin(): string {
   if (typeof window !== 'undefined') {

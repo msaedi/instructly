@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Booking } from '@/features/shared/api/types';
 import { calculateCancellationFee } from '@/hooks/useMyLessons';

@@ -1,7 +1,8 @@
 // frontend/features/shared/hooks/useAuth.tsx
 'use client';
 
-import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode, useRef } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { useRouter } from 'next/navigation';

@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { CheckCircle, Calendar, Clock, MapPin, CreditCard, Mail, ArrowRight } from 'lucide-react';
 import { BookingPayment, BookingType } from '../types';
 import { format } from 'date-fns';

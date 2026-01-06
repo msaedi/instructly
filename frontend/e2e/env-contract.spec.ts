@@ -22,7 +22,7 @@ test.describe('env-contract smoke', () => {
       return;
     }
     const ctx = await request.newContext({ baseURL: process.env.PLAYWRIGHT_API_BASE_URL! });
-    // Try multiple endpoints - prefer v1 health which goes through all middleware
+    // Try multiple endpoints - prefer v1 health which goes through all proxy logic
     const candidates = [
       '/api/v1/health',       // v1 health endpoint (preferred)
       '/openapi.json',        // FastAPI always serves this (unless disabled)

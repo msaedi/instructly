@@ -29,7 +29,7 @@ function StaffLoginInner() {
     }
     setIsSubmitting(true);
     try {
-      // Redirect to a protected path (not /staff-login) so middleware can set the cookie
+      // Redirect to a protected path (not /staff-login) so proxy can set the cookie
       const safeRedirect = redirectPath && redirectPath.startsWith('/') ? redirectPath : '/';
       const target = new URL(window.location.origin + safeRedirect);
       target.searchParams.set('token', trimmed);

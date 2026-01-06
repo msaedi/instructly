@@ -58,7 +58,7 @@ export function getBetaConfig(hostname?: string | null): BetaConfig {
   }
 
   if (PREVIEW_DOMAINS.includes(host)) {
-    // Preview environment (staff gate enforced at middleware level)
+    // Preview environment (staff gate enforced at proxy level)
     return {
       site: 'preview',
       phase: 'production',

@@ -7,7 +7,6 @@
  * - Emoji prefix based on message type
  */
 
-import React from 'react';
 import { cn } from '@/lib/utils';
 import { formatRelativeTimestamp } from './formatters';
 

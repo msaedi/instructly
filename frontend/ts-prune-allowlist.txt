@@ -1,4 +1,4 @@
-^middleware\.ts:.*$
+^proxy\.ts:.*$
 ^next\.config\.ts:.*$
 ^playwright\.config\.ts:.*$
 ^app/.*$

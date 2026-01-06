@@ -22,7 +22,7 @@ fi
 # Patterns to exclude (these are allowed to have /api/, /bookings, /instructors, and /messages strings)
 # Phase 9: Removed lib/api/bookings.ts from allowlist (file deleted)
 # Phase 10: Added messages service layer files to allowlist (use v1 endpoints)
-# Phase 11: Added middleware.ts (routing logic) and comment exclusion
+# Phase 11: Added proxy.ts (routing logic) and comment exclusion
 ALLOWED_PATTERNS=(
   "src/api/generated/"
   "src/api/orval-mutator.ts"
@@ -45,7 +45,7 @@ ALLOWED_PATTERNS=(
   "hooks/useMessageQueries.ts"
   "types/generated/"
   "example-usage.tsx"
-  "middleware.ts"
+  "proxy.ts"
 )
 
 # Check if a file should be excluded
