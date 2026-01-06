@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown } from 'lucide-react';
+import { Building2, ChevronDown } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
 
@@ -40,6 +40,9 @@ export function PreferredLocationsCard({
 
   const header = (
     <div className="flex items-center gap-3">
+      <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+        <Building2 className="w-6 h-6 text-[#7E22CE]" />
+      </div>
       <div className="flex flex-col text-left">
         <span className="text-xl sm:text-lg font-bold sm:font-semibold text-gray-900">Class Locations</span>
         <span className="text-sm text-gray-500">List studio or shared spaces where you regularly teach.</span>

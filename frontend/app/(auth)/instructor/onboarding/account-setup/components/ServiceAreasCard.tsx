@@ -65,7 +65,7 @@ export function ServiceAreasCard({
 
   const header = (
     <div className="flex items-center gap-3">
-      <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center">
+      <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
         <MapPin className="w-6 h-6 text-[#7E22CE]" />
       </div>
       <div className="flex flex-col text-left">

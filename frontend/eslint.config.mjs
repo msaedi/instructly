@@ -13,6 +13,7 @@ const eslintConfig = [
     ignores: [
       'coverage/**/*',
       '.next/**/*',
+      '.next-test/**/*',
       'out/**/*',
       'node_modules/**/*',
       'playwright-report/**/*',
