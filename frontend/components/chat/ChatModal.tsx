@@ -10,7 +10,7 @@
  * Handles proper focus management and accessibility.
  */
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Chat } from './Chat';

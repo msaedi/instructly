@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getBetaConfigFromHeaders, getBetaRedirect, isRouteAccessible } from '@/lib/beta-config';
 import { env } from '@/lib/env';
 
-// Protected preview middleware for staff-only access on Vercel
+// Protected preview proxy for staff-only access on Vercel
 // Requirements:
 // - Check cookie `staff_access_token`
 // - Else accept `?token=...` query and set cookie for 30 days
@@ -25,7 +25,7 @@ function isPublicAssetPath(pathname: string): boolean {
   );
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { nextUrl, cookies } = request;
   const pathname = nextUrl.pathname;
   const isPreviewProject = (env.get('NEXT_PUBLIC_APP_ENV') || '').toLowerCase() === 'preview';

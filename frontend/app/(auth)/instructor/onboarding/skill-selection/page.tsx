@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { BookOpen, CheckSquare, Lightbulb } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';

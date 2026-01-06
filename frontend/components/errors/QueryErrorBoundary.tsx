@@ -1,6 +1,7 @@
 'use client';
 
-import React, { Component, ReactNode, ErrorInfo } from 'react';
+import { Component } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
 import { QueryErrorResetBoundary } from '@tanstack/react-query';
 import { isAuthError, isNetworkError } from '@/lib/react-query/api';
 import { ApiError } from '@/lib/http';

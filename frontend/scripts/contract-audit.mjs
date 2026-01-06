@@ -180,7 +180,7 @@ async function main() {
     const knownWrappers = new Set(['fetch', 'axios', 'httpJson', 'cleanFetch', 'optionalAuthFetch', 'authFetch']);
 
     const IGNORED_PATTERNS = [
-      /^middleware\.ts$/,
+      /^proxy\.ts$/,
       /^lib\/.*analytics.*\.ts$/,
       /^lib\/.*betaApi.*\.ts$/,
       /^app\/api\//,
@@ -193,7 +193,7 @@ async function main() {
       const rel = relative(ROOT, sf.getFilePath());
       if (rel.includes('types/generated/') || rel.includes('__tests__/') || rel.includes('/e2e/')) return;
       if (rel.startsWith('features/shared/api/')) return; // allowed layer
-      if (shouldIgnore(rel)) return; // ignore internal routes/analytics/middleware
+      if (shouldIgnore(rel)) return; // ignore internal routes/analytics/proxy
       sf.forEachDescendant((node) => {
         // Detect calls
         if (node.getKind() === SyntaxKind.CallExpression) {

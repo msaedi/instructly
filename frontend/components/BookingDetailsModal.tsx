@@ -1,5 +1,4 @@
 // frontend/components/BookingDetailsModal.tsx
-import React from 'react';
 import { X, Calendar, Clock, MapPin, User, DollarSign, Hash } from 'lucide-react';
 import { Booking } from '@/types/booking';
 import { logger } from '@/lib/logger';

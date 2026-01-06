@@ -1,4 +1,3 @@
-import React from 'react';
 import { CheckCircle } from 'lucide-react';
 import Modal from '@/components/Modal';
 import type { Booking } from '@/features/shared/api/types';

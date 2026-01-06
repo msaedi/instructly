@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2, Shield, CreditCard } from 'lucide-react';
 import { BookingType } from '../types';
 

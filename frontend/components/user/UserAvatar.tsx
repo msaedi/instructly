@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useProfilePictureUrls } from '@/hooks/useProfilePictureUrls';
 import { getUserInitials } from '@/features/shared/hooks/useAuth.helpers';
