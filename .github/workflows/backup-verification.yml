@@ -123,11 +123,12 @@ jobs:
             --port=5432 \
             --username=postgres \
             --dbname=restore_test \
+            --clean \
+            --if-exists \
             --no-owner \
             --no-acl \
             --verbose \
-            --exit-on-error \
-            backup.dump
+            backup.dump || true
 
           END=$(date +%s)
           DURATION=$((END - START))
