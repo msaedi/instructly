@@ -953,8 +953,7 @@ def upgrade() -> None:
             ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_user;
             ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO app_user;
 
-            -- Enable pg_safeupdate to block DELETE/UPDATE without WHERE clause
-            ALTER ROLE app_user SET session_preload_libraries = 'safeupdate';
+            -- NOTE: safeupdate is already preloaded by Supabase globally
             """
         )
 
