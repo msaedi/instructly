@@ -87,7 +87,7 @@ jobs:
           pg_dump \
             --host=${{ secrets.SUPABASE_DB_HOST }} \
             --port=5432 \
-            --username=backup_user \
+            --username=${{ secrets.SUPABASE_DB_USER }} \
             --dbname=postgres \
             --schema=public \
             --schema=auth \
