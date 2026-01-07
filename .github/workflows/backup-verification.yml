@@ -13,10 +13,11 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17
+        image: ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector
         env:
-          POSTGRES_PASSWORD: testpassword
-          POSTGRES_DB: restore_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: instainstru_test
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -111,7 +112,7 @@ jobs:
       - name: Measure restore time
         id: restore
         env:
-          PGPASSWORD: testpassword
+          PGPASSWORD: postgres
         run: |
           echo "🔄 Restoring backup to test database..."
           echo "⏱️ Starting timer..."
@@ -122,7 +123,7 @@ jobs:
             --host=localhost \
             --port=5432 \
             --username=postgres \
-            --dbname=restore_test \
+            --dbname=instainstru_test \
             --clean \
             --if-exists \
             --no-owner \
@@ -141,13 +142,13 @@ jobs:
       - name: Verify critical tables exist
         id: tables
         env:
-          PGPASSWORD: testpassword
+          PGPASSWORD: postgres
         run: |
           echo "🔍 Verifying critical tables..."
 
           # Use to_regclass() for robust table existence checks
           # This won't fail if a table is renamed, just reports MISSING
-          RESULT=$(psql -h localhost -U postgres -d restore_test -t -A -c "
+          RESULT=$(psql -h localhost -U postgres -d instainstru_test -t -A -c "
             SELECT json_build_object(
               'users', CASE WHEN to_regclass('public.users') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
               'instructor_profiles', CASE WHEN to_regclass('public.instructor_profiles') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
@@ -170,11 +171,11 @@ jobs:
 
       - name: Verify row counts
         env:
-          PGPASSWORD: testpassword
+          PGPASSWORD: postgres
         run: |
           echo "📊 Checking row counts..."
 
-          psql -h localhost -U postgres -d restore_test -c "
+          psql -h localhost -U postgres -d instainstru_test -c "
             SELECT 'users' as table_name, COUNT(*) as row_count FROM users
             UNION ALL SELECT 'instructor_profiles', COUNT(*) FROM instructor_profiles
             UNION ALL SELECT 'bookings', COUNT(*) FROM bookings
@@ -184,11 +185,11 @@ jobs:
 
       - name: Verify auth schema (Supabase Auth)
         env:
-          PGPASSWORD: testpassword
+          PGPASSWORD: postgres
         run: |
           echo "🔐 Checking auth schema..."
 
-          AUTH_TABLES=$(psql -h localhost -U postgres -d restore_test -t -A -c "
+          AUTH_TABLES=$(psql -h localhost -U postgres -d instainstru_test -t -A -c "
             SELECT COUNT(*) FROM information_schema.tables
             WHERE table_schema = 'auth';
           ")
