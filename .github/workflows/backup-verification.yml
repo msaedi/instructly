@@ -153,7 +153,7 @@ jobs:
               'users', CASE WHEN to_regclass('public.users') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
               'instructor_profiles', CASE WHEN to_regclass('public.instructor_profiles') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
               'bookings', CASE WHEN to_regclass('public.bookings') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
-              'services', CASE WHEN to_regclass('public.services') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
+              'instructor_services', CASE WHEN to_regclass('public.instructor_services') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
               'messages', CASE WHEN to_regclass('public.messages') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
               'alembic_version', CASE WHEN to_regclass('public.alembic_version') IS NOT NULL THEN 'OK' ELSE 'MISSING' END
             );

@@ -40,7 +40,7 @@ def _get_public_tables(exclude: list[str]) -> list[str]:
 
 
 def _enable_rls_with_permissive_policy(table_name: str) -> None:
-    """Enable RLS and create a permissive policy on the given table."""
+    """Enable RLS and create an app role policy on the given table."""
 
     op.execute(
         f"""
@@ -64,9 +64,9 @@ def _enable_rls_with_permissive_policy(table_name: str) -> None:
         BEGIN
             IF NOT EXISTS (
                 SELECT 1 FROM pg_policies
-                WHERE schemaname = 'public' AND tablename = '{table_name}' AND policyname = 'all_access'
+                WHERE schemaname = 'public' AND tablename = '{table_name}' AND policyname = 'app_role_access'
             ) THEN
-                EXECUTE 'CREATE POLICY all_access ON public.{table_name} FOR ALL TO PUBLIC USING (true) WITH CHECK (true)';
+                EXECUTE 'CREATE POLICY app_role_access ON public.{table_name} FOR ALL USING (current_user IN (''postgres'', ''app_user'')) WITH CHECK (current_user IN (''postgres'', ''app_user''))';
             END IF;
         END$$;
         """
@@ -74,7 +74,7 @@ def _enable_rls_with_permissive_policy(table_name: str) -> None:
 
 
 def _drop_permissive_policy_and_disable_rls(table_name: str) -> None:
-    """Drop permissive policy and disable RLS on the given table (idempotent)."""
+    """Drop app role policy and disable RLS on the given table (idempotent)."""
 
     op.execute(
         f"""
@@ -82,9 +82,9 @@ def _drop_permissive_policy_and_disable_rls(table_name: str) -> None:
         BEGIN
             IF EXISTS (
                 SELECT 1 FROM pg_policies
-                WHERE schemaname = 'public' AND tablename = '{table_name}' AND policyname = 'all_access'
+                WHERE schemaname = 'public' AND tablename = '{table_name}' AND policyname = 'app_role_access'
             ) THEN
-                EXECUTE 'DROP POLICY all_access ON public.{table_name}';
+                EXECUTE 'DROP POLICY app_role_access ON public.{table_name}';
             END IF;
         END$$;
         """
@@ -1028,7 +1028,7 @@ def upgrade() -> None:
             DO $$
             BEGIN
                 IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pgaudit') THEN
-                    CREATE EXTENSION IF NOT EXISTS pgaudit;
+                    CREATE EXTENSION IF NOT EXISTS pgaudit SCHEMA extensions;
                     ALTER ROLE app_user SET pgaudit.log = 'ddl, write';
                 END IF;
             END

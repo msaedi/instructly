@@ -656,7 +656,7 @@ def upgrade() -> None:
 
               RETURN FALSE;
             END;
-            $$ LANGUAGE plpgsql;
+            $$ LANGUAGE plpgsql SET search_path = public, extensions;
             """
         )
 
@@ -696,7 +696,7 @@ def upgrade() -> None:
 
               RETURN FOUND;
             END;
-            $$ LANGUAGE plpgsql;
+            $$ LANGUAGE plpgsql SET search_path = public, extensions;
             """
         )
 
