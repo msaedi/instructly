@@ -932,6 +932,111 @@ def upgrade() -> None:
         for table_name in tables:
             _enable_rls_with_permissive_policy(table_name)
 
+        # =============================================================================
+        # DATABASE ROLES FOR PRODUCTION SAFETY
+        # =============================================================================
+
+        # 1. app_user - Application runtime (limited permissions)
+        op.execute(
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'app_user') THEN
+                    CREATE ROLE app_user WITH LOGIN PASSWORD 'PLACEHOLDER_CHANGE_ME';
+                END IF;
+            END
+            $$;
+
+            GRANT USAGE ON SCHEMA public TO app_user;
+            GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
+            GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
+            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_user;
+            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO app_user;
+
+            -- Enable pg_safeupdate to block DELETE/UPDATE without WHERE clause
+            ALTER ROLE app_user SET session_preload_libraries = 'safeupdate';
+            """
+        )
+
+        # 2. backup_user - For pg_dump backups (read-only + BYPASSRLS)
+        # CRITICAL: BYPASSRLS is required or backups will be silently incomplete when RLS is enabled
+        op.execute(
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'backup_user') THEN
+                    CREATE ROLE backup_user WITH LOGIN PASSWORD 'PLACEHOLDER_CHANGE_ME' BYPASSRLS;
+                END IF;
+            END
+            $$;
+
+            GRANT USAGE ON SCHEMA public TO backup_user;
+            GRANT SELECT ON ALL TABLES IN SCHEMA public TO backup_user;
+            GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO backup_user;
+            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO backup_user;
+
+            -- Also grant access to auth schema for complete backups
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'auth') THEN
+                    EXECUTE 'GRANT USAGE ON SCHEMA auth TO backup_user';
+                    EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA auth TO backup_user';
+                END IF;
+            END
+            $$;
+            """
+        )
+
+        # 3. readonly_user - For analytics/reporting (read-only, respects RLS)
+        op.execute(
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'readonly_user') THEN
+                    CREATE ROLE readonly_user WITH LOGIN PASSWORD 'PLACEHOLDER_CHANGE_ME';
+                END IF;
+            END
+            $$;
+
+            GRANT USAGE ON SCHEMA public TO readonly_user;
+            GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly_user;
+            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO readonly_user;
+            """
+        )
+
+        # 4. migration_user - For Alembic migrations (full DDL access)
+        op.execute(
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'migration_user') THEN
+                    CREATE ROLE migration_user WITH LOGIN PASSWORD 'PLACEHOLDER_CHANGE_ME' CREATEDB;
+                END IF;
+            END
+            $$;
+
+            GRANT ALL PRIVILEGES ON SCHEMA public TO migration_user;
+            GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO migration_user;
+            GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO migration_user;
+            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO migration_user;
+            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO migration_user;
+            """
+        )
+
+        # 5. Enable pgAudit extension for DDL/write audit logging
+        op.execute(
+            """
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pgaudit') THEN
+                    CREATE EXTENSION IF NOT EXISTS pgaudit;
+                    ALTER ROLE app_user SET pgaudit.log = 'ddl, write';
+                END IF;
+            END
+            $$;
+            """
+        )
+
 
 def downgrade() -> None:
     """Drop platform features and indexes."""

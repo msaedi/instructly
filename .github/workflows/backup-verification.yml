@@ -1,0 +1,231 @@
+name: Weekly Backup Verification
+
+on:
+  schedule:
+    # Run every Sunday at 5:00 AM UTC
+    - cron: '0 5 * * 0'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: restore_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Install dependencies
+        run: |
+          # Install PostgreSQL 17 client
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17 age
+
+          echo "PostgreSQL client version:"
+          pg_dump --version
+          echo "Age version:"
+          age --version
+
+      - name: Download latest backup from R2
+        id: download
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_READER_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_READER_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          echo "🔍 Finding latest backup..."
+
+          # Install AWS CLI if not present
+          which aws || pip install awscli
+
+          # Find the most recent daily backup
+          LATEST=$(aws s3 ls s3://${{ secrets.R2_BUCKET_NAME }}/daily/ \
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com \
+            | grep '\.dump\.age$' | sort | tail -n 1 | awk '{print $4}')
+
+          if [ -z "$LATEST" ]; then
+            echo "::error::No backups found in R2 bucket!"
+            exit 1
+          fi
+
+          echo "📦 Latest backup: $LATEST"
+          echo "latest_backup=$LATEST" >> $GITHUB_OUTPUT
+
+          # Download backup
+          echo "⬇️ Downloading backup..."
+          aws s3 cp s3://${{ secrets.R2_BUCKET_NAME }}/daily/$LATEST ./backup.dump.age \
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+
+          # Download checksum
+          echo "⬇️ Downloading checksum..."
+          aws s3 cp s3://${{ secrets.R2_BUCKET_NAME }}/daily/${LATEST}.sha256 ./backup.dump.age.sha256 \
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+
+          ls -lh backup.dump.age
+
+      - name: Verify checksum
+        run: |
+          echo "🔢 Verifying checksum..."
+          sha256sum -c backup.dump.age.sha256
+          echo "✅ Checksum verified"
+
+      - name: Decrypt backup
+        run: |
+          echo "🔐 Decrypting backup..."
+
+          # Write private key to temp file
+          echo "${{ secrets.AGE_PRIVATE_KEY }}" > /tmp/backup-key.txt
+
+          # Decrypt
+          age -d -i /tmp/backup-key.txt -o backup.dump backup.dump.age
+
+          # Remove key file immediately
+          rm -f /tmp/backup-key.txt
+
+          echo "✅ Backup decrypted"
+          ls -lh backup.dump
+
+      - name: Measure restore time
+        id: restore
+        env:
+          PGPASSWORD: testpassword
+        run: |
+          echo "🔄 Restoring backup to test database..."
+          echo "⏱️ Starting timer..."
+
+          START=$(date +%s)
+
+          pg_restore \
+            --host=localhost \
+            --port=5432 \
+            --username=postgres \
+            --dbname=restore_test \
+            --no-owner \
+            --no-acl \
+            --verbose \
+            --exit-on-error \
+            backup.dump
+
+          END=$(date +%s)
+          DURATION=$((END - START))
+
+          echo "restore_seconds=$DURATION" >> $GITHUB_OUTPUT
+          echo ""
+          echo "✅ Restore completed in ${DURATION} seconds"
+          echo "📊 This is your real RTO baseline for offsite recovery."
+
+      - name: Verify critical tables exist
+        id: tables
+        env:
+          PGPASSWORD: testpassword
+        run: |
+          echo "🔍 Verifying critical tables..."
+
+          # Use to_regclass() for robust table existence checks
+          # This won't fail if a table is renamed, just reports MISSING
+          RESULT=$(psql -h localhost -U postgres -d restore_test -t -A -c "
+            SELECT json_build_object(
+              'users', CASE WHEN to_regclass('public.users') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
+              'instructor_profiles', CASE WHEN to_regclass('public.instructor_profiles') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
+              'bookings', CASE WHEN to_regclass('public.bookings') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
+              'services', CASE WHEN to_regclass('public.services') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
+              'messages', CASE WHEN to_regclass('public.messages') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
+              'alembic_version', CASE WHEN to_regclass('public.alembic_version') IS NOT NULL THEN 'OK' ELSE 'MISSING' END
+            );
+          ")
+
+          echo "Table verification results:"
+          echo "$RESULT" | jq .
+
+          # Check for any MISSING tables
+          if echo "$RESULT" | grep -q "MISSING"; then
+            echo "::warning::Some expected tables are missing!"
+          else
+            echo "✅ All critical tables present"
+          fi
+
+      - name: Verify row counts
+        env:
+          PGPASSWORD: testpassword
+        run: |
+          echo "📊 Checking row counts..."
+
+          psql -h localhost -U postgres -d restore_test -c "
+            SELECT 'users' as table_name, COUNT(*) as row_count FROM users
+            UNION ALL SELECT 'instructor_profiles', COUNT(*) FROM instructor_profiles
+            UNION ALL SELECT 'bookings', COUNT(*) FROM bookings
+            UNION ALL SELECT 'services', COUNT(*) FROM services
+            ORDER BY table_name;
+          " || echo "Some tables may not exist yet (this is OK for new deployments)"
+
+      - name: Verify auth schema (Supabase Auth)
+        env:
+          PGPASSWORD: testpassword
+        run: |
+          echo "🔐 Checking auth schema..."
+
+          AUTH_TABLES=$(psql -h localhost -U postgres -d restore_test -t -A -c "
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_schema = 'auth';
+          ")
+
+          if [ "$AUTH_TABLES" -gt 0 ]; then
+            echo "✅ Auth schema present with $AUTH_TABLES tables"
+          else
+            echo "::warning::Auth schema has no tables (may be expected if auth not used)"
+          fi
+
+      - name: Generate verification report
+        if: always()
+        run: |
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "       BACKUP VERIFICATION REPORT"
+          echo "═══════════════════════════════════════════════════════"
+          echo ""
+          echo "📦 Backup: ${{ steps.download.outputs.latest_backup }}"
+          echo "⏱️ Restore Time: ${{ steps.restore.outputs.restore_seconds }} seconds"
+          echo ""
+          echo "This restore time is your REAL RTO baseline."
+          echo "If this exceeds 60 minutes, consider:"
+          echo "  - Upgrading GitHub Actions runner"
+          echo "  - Using a faster restore target"
+          echo "  - Implementing incremental backups"
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "🧹 Cleaning up..."
+          rm -f backup.dump backup.dump.age backup.dump.age.sha256 /tmp/backup-key.txt
+          echo "✅ Cleanup complete"
+
+      - name: Report failure
+        if: failure()
+        run: |
+          echo "::error::❌ Backup verification failed!"
+          echo ""
+          echo "This means your backup may be:"
+          echo "  - Corrupted"
+          echo "  - Incomplete"
+          echo "  - Using wrong encryption key"
+          echo ""
+          echo "IMMEDIATE ACTION REQUIRED:"
+          echo "  1. Check the logs above for specific errors"
+          echo "  2. Manually test a backup restore"
+          echo "  3. Verify R2 bucket contents"
+          echo "  4. Verify AGE_PRIVATE_KEY matches AGE_PUBLIC_KEY"

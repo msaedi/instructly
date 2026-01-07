@@ -1,0 +1,192 @@
+name: Database Backup to Cloudflare R2
+
+on:
+  schedule:
+    # Run daily at 3:00 AM UTC (10:00 PM EST)
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      backup_type:
+        description: 'Backup type (daily/weekly/monthly/manual)'
+        required: true
+        default: 'manual'
+        type: choice
+        options:
+          - daily
+          - weekly
+          - monthly
+          - manual
+
+env:
+  POSTGRES_VERSION: '17'
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Install dependencies
+        run: |
+          # Install PostgreSQL 17 client (must match server version)
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-${{ env.POSTGRES_VERSION }}
+
+          # Install age for encryption
+          sudo apt-get install -y age
+
+          # Verify versions
+          echo "PostgreSQL client version:"
+          pg_dump --version
+          echo "Age version:"
+          age --version
+
+      - name: Generate timestamp and backup filename
+        id: meta
+        run: |
+          TIMESTAMP=$(date -u +'%Y-%m-%d-%H%M%S')
+          DATE=$(date -u +'%Y-%m-%d')
+          WEEKDAY=$(date -u +'%u')
+          DAY_OF_MONTH=$(date -u +'%d')
+
+          # Determine backup type and path
+          if [ "${{ github.event.inputs.backup_type }}" != "" ]; then
+            TYPE="${{ github.event.inputs.backup_type }}"
+          elif [ "$DAY_OF_MONTH" == "01" ]; then
+            TYPE="monthly"
+          elif [ "$WEEKDAY" == "7" ]; then
+            TYPE="weekly"
+          else
+            TYPE="daily"
+          fi
+
+          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "type=$TYPE" >> $GITHUB_OUTPUT
+          echo "filename=backup_${TIMESTAMP}.dump" >> $GITHUB_OUTPUT
+          echo "encrypted_filename=backup_${TIMESTAMP}.dump.age" >> $GITHUB_OUTPUT
+          echo "r2_path=${TYPE}/backup_${TIMESTAMP}.dump.age" >> $GITHUB_OUTPUT
+
+          echo "📅 Backup type: $TYPE"
+          echo "📁 R2 path: ${TYPE}/backup_${TIMESTAMP}.dump.age"
+
+      - name: Create database backup
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_BACKUP_PASSWORD }}
+        run: |
+          echo "🔄 Starting database dump..."
+
+          # Dump public and auth schemas with sequences
+          # --schema=public: All application tables
+          # --schema=auth: Supabase Auth users (for complete recovery)
+          # --format=custom: For pg_restore compatibility
+          # --compress=6: Good compression ratio
+          # --no-owner --no-acl: Clean restores to different environments
+          pg_dump \
+            --host=${{ secrets.SUPABASE_DB_HOST }} \
+            --port=5432 \
+            --username=backup_user \
+            --dbname=postgres \
+            --schema=public \
+            --schema=auth \
+            --format=custom \
+            --compress=6 \
+            --no-owner \
+            --no-acl \
+            --verbose \
+            --file=${{ steps.meta.outputs.filename }}
+
+          echo "✅ Backup created: ${{ steps.meta.outputs.filename }}"
+          ls -lh ${{ steps.meta.outputs.filename }}
+
+      - name: Encrypt backup
+        run: |
+          echo "🔐 Encrypting backup with age..."
+
+          # Encrypt with age using the public key
+          # This ensures only the private key holder can decrypt
+          age -r "${{ secrets.AGE_PUBLIC_KEY }}" \
+            -o ${{ steps.meta.outputs.encrypted_filename }} \
+            ${{ steps.meta.outputs.filename }}
+
+          echo "✅ Encrypted backup created: ${{ steps.meta.outputs.encrypted_filename }}"
+          ls -lh ${{ steps.meta.outputs.encrypted_filename }}
+
+          # CRITICAL: Remove unencrypted backup immediately
+          echo "🗑️ Removing unencrypted backup..."
+          rm -f ${{ steps.meta.outputs.filename }}
+
+      - name: Generate checksum
+        run: |
+          echo "🔢 Generating SHA256 checksum..."
+          sha256sum ${{ steps.meta.outputs.encrypted_filename }} > ${{ steps.meta.outputs.encrypted_filename }}.sha256
+          echo "Checksum:"
+          cat ${{ steps.meta.outputs.encrypted_filename }}.sha256
+
+      - name: Upload backup to Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_WRITER_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_WRITER_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          echo "☁️ Uploading to R2..."
+
+          # Install AWS CLI if not present
+          which aws || pip install awscli
+
+          # Upload encrypted backup file
+          aws s3 cp ${{ steps.meta.outputs.encrypted_filename }} \
+            s3://${{ secrets.R2_BUCKET_NAME }}/${{ steps.meta.outputs.r2_path }} \
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+
+          # Upload checksum
+          aws s3 cp ${{ steps.meta.outputs.encrypted_filename }}.sha256 \
+            s3://${{ secrets.R2_BUCKET_NAME }}/${{ steps.meta.outputs.r2_path }}.sha256 \
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+
+          echo "✅ Encrypted backup uploaded to R2: ${{ steps.meta.outputs.r2_path }}"
+
+      - name: Verify upload
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_WRITER_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_WRITER_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          echo "🔍 Verifying upload..."
+          aws s3 ls s3://${{ secrets.R2_BUCKET_NAME }}/${{ steps.meta.outputs.r2_path }} \
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          echo "✅ Upload verified"
+
+      - name: Cleanup local files
+        if: always()
+        run: |
+          echo "🧹 Cleaning up local files..."
+          rm -f ${{ steps.meta.outputs.filename }} \
+                ${{ steps.meta.outputs.encrypted_filename }} \
+                ${{ steps.meta.outputs.encrypted_filename }}.sha256
+          echo "✅ Cleanup complete"
+
+      - name: Report success
+        if: success()
+        run: |
+          echo "🎉 Database backup completed successfully!"
+          echo ""
+          echo "📊 Summary:"
+          echo "  - Type: ${{ steps.meta.outputs.type }}"
+          echo "  - Timestamp: ${{ steps.meta.outputs.timestamp }}"
+          echo "  - R2 Path: ${{ steps.meta.outputs.r2_path }}"
+
+      - name: Report failure
+        if: failure()
+        run: |
+          echo "::error::❌ Database backup failed! Check the logs above."
+          echo ""
+          echo "Common issues:"
+          echo "  - SUPABASE_DB_HOST incorrect or unreachable"
+          echo "  - SUPABASE_BACKUP_PASSWORD incorrect"
+          echo "  - backup_user role doesn't exist or lacks permissions"
+          echo "  - R2 credentials invalid"
+          echo ""
+          echo "Check GitHub Secrets configuration."
