@@ -267,6 +267,23 @@ class Settings(BaseSettings):
     admin_name: str = Field(default="Instainstru Admin", alias="ADMIN_NAME")
     admin_password: str | None = Field(default=None, alias="ADMIN_PASSWORD")
 
+    # Push notification settings
+    vapid_public_key: str = Field(
+        default="",
+        alias="VAPID_PUBLIC_KEY",
+        description="Base64-encoded VAPID public key",
+    )
+    vapid_private_key: str = Field(
+        default="",
+        alias="VAPID_PRIVATE_KEY",
+        description="Base64-encoded VAPID private key (keep secret)",
+    )
+    vapid_claims_email: str = Field(
+        default="mailto:support@instainstru.com",
+        alias="VAPID_CLAIMS_EMAIL",
+        description="Contact email for VAPID claims",
+    )
+
     # Frontend URL - will use production URL if not set
     frontend_url: str = "https://beta.instainstru.com"
     invite_claim_base_url: str = Field(

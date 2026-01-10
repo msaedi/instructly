@@ -38,6 +38,7 @@ requests==2.32.4
 # Email
 resend==2.19.0
 Jinja2==3.1.6
+pywebpush>=2.0.0
 
 # Search & NLP
 symspellpy==6.9.0

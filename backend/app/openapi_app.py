@@ -39,6 +39,7 @@ from app.routes.v1 import (
     privacy as privacy_v1,
     prometheus as prometheus_v1,
     public as public_v1,
+    push as push_v1,
     ready as ready_v1,
     redis_monitor as redis_monitor_v1,
     referrals as referrals_v1,
@@ -118,6 +119,7 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(users_v1.router, prefix="/users")  # type: ignore[attr-defined]
     api_v1.include_router(privacy_v1.router, prefix="/privacy")  # type: ignore[attr-defined]
     api_v1.include_router(public_v1.router, prefix="/public")  # type: ignore[attr-defined]
+    api_v1.include_router(push_v1.router, prefix="/push")  # type: ignore[attr-defined]
     api_v1.include_router(pricing_v1.router, prefix="/pricing")  # type: ignore[attr-defined]
     api_v1.include_router(config_v1.router, prefix="/config")  # type: ignore[attr-defined]
     api_v1.include_router(student_badges_v1.router, prefix="/students/badges")  # type: ignore[attr-defined]
