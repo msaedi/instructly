@@ -15,6 +15,7 @@ import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { useUser } from '@/hooks/queries/useUser';
 import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
 import { useTfaStatus, useInvalidateTfaStatus } from '@/hooks/queries/useTfaStatus';
+import { usePushNotifications } from '@/features/shared/hooks/usePushNotifications';
 
 const RewardsPanel = dynamic(() => import('@/features/referrals/RewardsPanel'), { ssr: false });
 
@@ -42,10 +43,56 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const { data: addressData, isLoading: addressLoading } = useUserAddresses(embedded);
   const invalidateTfaStatus = useInvalidateTfaStatus();
   const invalidateAddresses = useInvalidateUserAddresses();
+  const {
+    isSupported: pushSupported,
+    permission: pushPermission,
+    isSubscribed: pushEnabled,
+    isLoading: pushLoading,
+    error: pushError,
+    subscribe: enablePush,
+    unsubscribe: disablePush,
+  } = usePushNotifications();
 
   // Derived state from hooks
   const tfaEnabled = tfaStatus?.enabled ?? null;
   const accountLoading = userLoading || addressLoading;
+  const pushDisabled = !pushSupported || pushLoading || pushPermission === 'denied';
+  const pushToggleTitle = !pushSupported
+    ? 'Push notifications are not supported in this browser.'
+    : pushPermission === 'denied'
+      ? 'Enable notifications in your browser settings to turn this on.'
+      : undefined;
+
+  const handlePushToggle = async (enabled: boolean) => {
+    if (enabled) {
+      await enablePush();
+    } else {
+      await disablePush();
+    }
+  };
+
+  const renderPushToggle = () => (
+    <input
+      type="checkbox"
+      checked={pushEnabled}
+      onChange={(event) => void handlePushToggle(event.target.checked)}
+      disabled={pushDisabled}
+      title={pushToggleTitle}
+      aria-label="Push notifications"
+      className={pushDisabled ? 'cursor-not-allowed' : undefined}
+    />
+  );
+
+  const renderPushStatus = () => (
+    <div className="mt-2 space-y-1 text-xs">
+      {!pushSupported && <p className="text-gray-500">Push notifications are not supported in this browser.</p>}
+      {pushPermission === 'denied' && (
+        <p className="text-amber-600">Enable notifications in your browser settings to receive push alerts.</p>
+      )}
+      {pushLoading && <p className="text-gray-500">Updating push notifications…</p>}
+      {pushError && <p className="text-red-600">{pushError}</p>}
+    </div>
+  );
 
   // Sync hook data to local editable state (once on initial load)
   useEffect(() => {
@@ -554,7 +601,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                               <input type="checkbox" defaultChecked />
                             </td>
                             <td>
-                              <input type="checkbox" disabled />
+                              {renderPushToggle()}
                             </td>
                           </tr>
                           <tr className="text-gray-800">
@@ -566,12 +613,13 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                               <input type="checkbox" defaultChecked />
                             </td>
                             <td>
-                              <input type="checkbox" defaultChecked />
+                              {renderPushToggle()}
                             </td>
                           </tr>
                         </tbody>
                       </table>
                     </div>
+                    {renderPushStatus()}
                   </div>
                 </div>
               )}
@@ -601,7 +649,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                           <input type="checkbox" defaultChecked />
                         </td>
                         <td>
-                          <input type="checkbox" disabled />
+                          {renderPushToggle()}
                         </td>
                       </tr>
                       <tr className="text-gray-800">
@@ -613,12 +661,13 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                           <input type="checkbox" defaultChecked />
                         </td>
                         <td>
-                          <input type="checkbox" defaultChecked />
+                          {renderPushToggle()}
                         </td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
+                {renderPushStatus()}
               </div>
             </>
           )}
