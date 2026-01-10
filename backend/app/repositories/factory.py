@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from .instructor_profile_repository import InstructorProfileRepository
     from .message_repository import MessageRepository
     from .notification_delivery_repository import NotificationDeliveryRepository
+    from .notification_repository import NotificationRepository
     from .payment_repository import PaymentRepository
     from .platform_config_repository import PlatformConfigRepository
     from .rbac_repository import RBACRepository
@@ -132,6 +133,13 @@ class RepositoryFactory:
         from .notification_delivery_repository import NotificationDeliveryRepository
 
         return NotificationDeliveryRepository(db)
+
+    @staticmethod
+    def create_notification_repository(db: Session) -> "NotificationRepository":
+        """Create repository for notification preferences and inbox."""
+        from .notification_repository import NotificationRepository
+
+        return NotificationRepository(db)
 
     @staticmethod
     def get_booking_repository(db: Session) -> "BookingRepository":
