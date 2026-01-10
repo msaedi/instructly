@@ -2527,6 +2527,86 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/notifications": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_notifications_api_v1_notifications_get"];
+ put?: never;
+ post?: never;
+ delete: operations["delete_all_notifications_api_v1_notifications_delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/notifications/read-all": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["mark_all_notifications_read_api_v1_notifications_read_all_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/notifications/unread-count": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_unread_count_api_v1_notifications_unread_count_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/notifications/{notification_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete: operations["delete_notification_api_v1_notifications__notification_id__delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/notifications/{notification_id}/read": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["mark_notification_read_api_v1_notifications__notification_id__read_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/ops/cache": {
  parameters: {
  query?: never;
@@ -3161,6 +3241,70 @@ export type paths = {
  get?: never;
  put?: never;
  post: operations["create_guest_session_api_v1_public_session_guest_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/push/subscribe": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["subscribe_to_push_api_v1_push_subscribe_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/push/subscriptions": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_subscriptions_api_v1_push_subscriptions_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/push/unsubscribe": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete: operations["unsubscribe_from_push_api_v1_push_unsubscribe_delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/push/vapid-public-key": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_vapid_public_key_api_v1_push_vapid_public_key_get"];
+ put?: never;
+ post?: never;
  delete?: never;
  options?: never;
  head?: never;
@@ -5724,6 +5868,30 @@ export type components = {
  payment_status: string;
  success: boolean;
  };
+ NotificationListResponse: {
+ notifications: components["schemas"]["NotificationResponse"][];
+ total: number;
+ unread_count: number;
+ };
+ NotificationResponse: {
+ body: string | null;
+ category: string;
+ created_at: string;
+ data: {
+ [key: string]: unknown;
+ } | null;
+ id: string;
+ read_at: string | null;
+ title: string;
+ type: string;
+ };
+ NotificationStatusResponse: {
+ message?: string | null;
+ success: boolean;
+ };
+ NotificationUnreadCountResponse: {
+ unread_count: number;
+ };
  OnboardingResponse: {
  account_id: string;
  already_onboarded: boolean;
@@ -6060,6 +6228,25 @@ export type components = {
  PublicTimeSlot: {
  end_time: string;
  start_time: string;
+ };
+ PushStatusResponse: {
+ message: string;
+ success: boolean;
+ };
+ PushSubscribeRequest: {
+ auth: string;
+ endpoint: string;
+ p256dh: string;
+ user_agent?: string | null;
+ };
+ PushSubscriptionResponse: {
+ created_at: string;
+ endpoint: string;
+ id: string;
+ user_agent: string | null;
+ };
+ PushUnsubscribeRequest: {
+ endpoint: string;
  };
  RateLimitResetResponse: {
  limits_reset: number;
@@ -6815,6 +7002,9 @@ export type components = {
  };
  total_operations: number;
  valid_operations: number;
+ };
+ VapidPublicKeyResponse: {
+ public_key: string;
  };
  WebhookAckResponse: {
  ok: boolean;
@@ -12595,6 +12785,152 @@ export interface operations {
  };
  };
  };
+ list_notifications_api_v1_notifications_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ offset?: number;
+ unread_only?: boolean;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NotificationListResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ delete_all_notifications_api_v1_notifications_delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NotificationStatusResponse"];
+ };
+ };
+ };
+ };
+ mark_all_notifications_read_api_v1_notifications_read_all_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NotificationStatusResponse"];
+ };
+ };
+ };
+ };
+ get_unread_count_api_v1_notifications_unread_count_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NotificationUnreadCountResponse"];
+ };
+ };
+ };
+ };
+ delete_notification_api_v1_notifications__notification_id__delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ notification_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NotificationStatusResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ mark_notification_read_api_v1_notifications__notification_id__read_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ notification_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NotificationStatusResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  get_cache_metrics_api_v1_ops_cache_get: {
  parameters: {
  query?: never;
@@ -13597,6 +13933,106 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["GuestSessionResponse"];
+ };
+ };
+ };
+ };
+ subscribe_to_push_api_v1_push_subscribe_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["PushSubscribeRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PushStatusResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_subscriptions_api_v1_push_subscriptions_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PushSubscriptionResponse"][];
+ };
+ };
+ };
+ };
+ unsubscribe_from_push_api_v1_push_unsubscribe_delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["PushUnsubscribeRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PushStatusResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_vapid_public_key_api_v1_push_vapid_public_key_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["VapidPublicKeyResponse"];
  };
  };
  };

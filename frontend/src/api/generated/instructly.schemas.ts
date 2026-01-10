@@ -4178,6 +4178,55 @@ export interface NoShowReportResponse {
   success: boolean;
 }
 
+/**
+ * Paginated notification response.
+ */
+export interface NotificationListResponse {
+  notifications: NotificationResponse[];
+  total: number;
+  unread_count: number;
+}
+
+export type NotificationResponseBody = string | null;
+
+export type NotificationResponseDataAnyOf = { [key: string]: unknown };
+
+export type NotificationResponseData = NotificationResponseDataAnyOf | null;
+
+export type NotificationResponseReadAt = string | null;
+
+/**
+ * Notification inbox entry.
+ */
+export interface NotificationResponse {
+  body: NotificationResponseBody;
+  category: string;
+  created_at: string;
+  data: NotificationResponseData;
+  id: string;
+  read_at: NotificationResponseReadAt;
+  title: string;
+  type: string;
+}
+
+export type NotificationStatusResponseMessage = string | null;
+
+/**
+ * Simple status response for notification actions.
+ */
+export interface NotificationStatusResponse {
+  message?: NotificationStatusResponseMessage;
+  success: boolean;
+}
+
+/**
+ * Unread notification count response.
+ */
+export interface NotificationUnreadCountResponse {
+  /** @minimum 0 */
+  unread_count: number;
+}
+
 export interface OnboardingResponse {
   /** Stripe connected account ID */
   account_id: string;
@@ -5095,6 +5144,53 @@ export interface PublicTimeSlot {
   end_time: string;
   /** Start time in HH:MM format */
   start_time: string;
+}
+
+/**
+ * Response after subscribe/unsubscribe.
+ */
+export interface PushStatusResponse {
+  message: string;
+  success: boolean;
+}
+
+/**
+ * Browser/device info
+ */
+export type PushSubscribeRequestUserAgent = string | null;
+
+/**
+ * Request to subscribe to push notifications.
+ */
+export interface PushSubscribeRequest {
+  /** Auth secret */
+  auth: string;
+  /** Push service endpoint URL */
+  endpoint: string;
+  /** Public encryption key */
+  p256dh: string;
+  /** Browser/device info */
+  user_agent?: PushSubscribeRequestUserAgent;
+}
+
+export type PushSubscriptionResponseUserAgent = string | null;
+
+/**
+ * Push subscription details.
+ */
+export interface PushSubscriptionResponse {
+  created_at: string;
+  endpoint: string;
+  id: string;
+  user_agent: PushSubscriptionResponseUserAgent;
+}
+
+/**
+ * Request to unsubscribe from push notifications.
+ */
+export interface PushUnsubscribeRequest {
+  /** Push service endpoint URL to remove */
+  endpoint: string;
 }
 
 /**
@@ -7018,6 +7114,13 @@ export interface ValidationSummary {
 }
 
 /**
+ * VAPID public key response.
+ */
+export interface VapidPublicKeyResponse {
+  public_key: string;
+}
+
+/**
  * Standard acknowledgement payload returned by webhook endpoints.
  */
 export interface WebhookAckResponse {
@@ -7692,6 +7795,19 @@ export type GetSlowQueriesApiV1MonitoringSlowQueriesGetParams = {
 
 export type GetSlowRequestsApiV1MonitoringSlowRequestsGetParams = {
   limit?: number;
+};
+
+export type ListNotificationsApiV1NotificationsGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+  /**
+   * @minimum 0
+   */
+  offset?: number;
+  unread_only?: boolean;
 };
 
 export type ResetRateLimitsApiV1OpsRateLimitsResetPostParams = {

@@ -108,6 +108,7 @@ from .routes.v1 import (
     messages as messages_v1,
     metrics as metrics_v1,
     monitoring as monitoring_v1,
+    notifications as notifications_v1,
     password_reset as password_reset_v1,
     payments as payments_v1,
     pricing as pricing_v1,
@@ -1038,6 +1039,7 @@ api_v1.include_router(users_v1.router, prefix="/users")  # type: ignore[attr-def
 api_v1.include_router(privacy_v1.router, prefix="/privacy")  # type: ignore[attr-defined]
 api_v1.include_router(public_v1.router, prefix="/public")  # type: ignore[attr-defined]
 api_v1.include_router(push_v1.router, prefix="/push")  # type: ignore[attr-defined]
+api_v1.include_router(notifications_v1.router, prefix="/notifications")  # type: ignore[attr-defined]
 api_v1.include_router(pricing_v1.router, prefix="/pricing")  # type: ignore[attr-defined]
 api_v1.include_router(config_v1.router, prefix="/config")  # type: ignore[attr-defined]
 api_v1.include_router(student_badges_v1.router, prefix="/students/badges")  # type: ignore[attr-defined]

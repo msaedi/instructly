@@ -17,7 +17,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import Modal from '@/components/Modal';
-import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Bell, Menu, X, ChevronDown } from 'lucide-react';
+import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Menu, X, ChevronDown } from 'lucide-react';
 import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
 import { getCurrentWeekRange } from '@/types/common';
 import { useInstructorBookings } from '@/hooks/queries/useInstructorBookings';
@@ -27,6 +27,7 @@ import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
 import { InstructorProfile } from '@/types/instructor';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { normalizeInstructorServices } from '@/lib/instructorServices';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { httpPut } from '@/features/shared/api/http';
@@ -803,35 +804,17 @@ export default function InstructorDashboardNew() {
                 )}
               </ul>
             </DashboardPopover>
-            <DashboardPopover
-              icon={Bell}
-              label="Notifications"
+            <NotificationBell
               isOpen={showNotifications}
-              onToggle={() => {
-                setShowNotifications((v) => !v);
-                setShowMessages(false);
+              onOpenChange={(open) => {
+                setShowNotifications(open);
+                if (open) {
+                  setShowMessages(false);
+                }
                 setIsMobileMenuOpen(false);
               }}
               containerRef={notifRef}
-              badgeCount={upcomingBookingsCount}
-            >
-              <ul className="max-h-80 overflow-auto p-2 space-y-2">
-                <li className="text-sm text-gray-600 px-2 py-2">
-                  No alerts right now. We’ll nudge you when there’s something to review.
-                </li>
-                <li>
-                  <button
-                    className="w-full text-left text-sm text-gray-700 px-2 py-2 hover:bg-gray-50 rounded"
-                    onClick={() => {
-                      setShowNotifications(false);
-                      router.push('/instructor/settings');
-                    }}
-                  >
-                    Notification settings
-                  </button>
-                </li>
-              </ul>
-            </DashboardPopover>
+            />
             <UserProfileDropdown hideDashboardItem />
             <button
               type="button"

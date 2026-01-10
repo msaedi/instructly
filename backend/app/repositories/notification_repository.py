@@ -131,19 +131,32 @@ class NotificationRepository(BaseRepository[Notification]):
         )
         self.db.add(notification)
         self.db.flush()
+        self.db.refresh(notification)
         return notification
 
     def get_user_notifications(
-        self, user_id: str, limit: int = 20, offset: int = 0
+        self,
+        user_id: str,
+        limit: int = 20,
+        offset: int = 0,
+        unread_only: bool = False,
     ) -> List[Notification]:
+        query = self.db.query(Notification).filter(Notification.user_id == user_id)
+        if unread_only:
+            query = query.filter(Notification.read_at.is_(None))
         query = (
-            self.db.query(Notification)
-            .filter(Notification.user_id == user_id)
-            .order_by(Notification.created_at.desc(), Notification.id.desc())
+            query.order_by(Notification.created_at.desc(), Notification.id.desc())
             .offset(offset)
             .limit(limit)
         )
         return cast(List[Notification], query.all())
+
+    def get_user_notification_count(self, user_id: str, unread_only: bool = False) -> int:
+        query = self.db.query(func.count(Notification.id)).filter(Notification.user_id == user_id)
+        if unread_only:
+            query = query.filter(Notification.read_at.is_(None))
+        count = query.scalar()
+        return int(count or 0)
 
     def get_unread_count(self, user_id: str) -> int:
         count = (
@@ -158,7 +171,20 @@ class NotificationRepository(BaseRepository[Notification]):
         updated = (
             self.db.query(Notification)
             .filter(Notification.id == notification_id, Notification.read_at.is_(None))
-            .update({"read_at": now}, synchronize_session=False)
+            .update({"read_at": now}, synchronize_session="fetch")
+        )
+        return bool(updated)
+
+    def mark_as_read_for_user(self, user_id: str, notification_id: str) -> bool:
+        now = datetime.now(timezone.utc)
+        updated = (
+            self.db.query(Notification)
+            .filter(
+                Notification.id == notification_id,
+                Notification.user_id == user_id,
+                Notification.read_at.is_(None),
+            )
+            .update({"read_at": now}, synchronize_session="fetch")
         )
         return bool(updated)
 
@@ -167,9 +193,28 @@ class NotificationRepository(BaseRepository[Notification]):
         updated = (
             self.db.query(Notification)
             .filter(Notification.user_id == user_id, Notification.read_at.is_(None))
-            .update({"read_at": now}, synchronize_session=False)
+            .update({"read_at": now}, synchronize_session="fetch")
         )
         return int(updated or 0)
+
+    def delete_notification(self, user_id: str, notification_id: str) -> bool:
+        deleted = (
+            self.db.query(Notification)
+            .filter(
+                Notification.user_id == user_id,
+                Notification.id == notification_id,
+            )
+            .delete(synchronize_session=False)
+        )
+        return bool(deleted)
+
+    def delete_all_for_user(self, user_id: str) -> int:
+        deleted = (
+            self.db.query(Notification)
+            .filter(Notification.user_id == user_id)
+            .delete(synchronize_session=False)
+        )
+        return int(deleted or 0)
 
     # Push Subscriptions
     def create_subscription(

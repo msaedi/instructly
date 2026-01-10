@@ -15,6 +15,7 @@ Changes from original:
 - Uses dependency injection for TemplateService (no singleton)
 """
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 import logging
@@ -27,9 +28,13 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..core.exceptions import ServiceException
 from ..models.booking import Booking
+from ..models.notification import Notification
 from ..models.user import User
+from ..repositories.notification_repository import NotificationRepository
 from ..services.base import BaseService
 from ..services.email import EmailService
+from ..services.messaging import publish_to_user
+from ..services.push_notification_service import PushNotificationService
 from ..services.template_registry import TemplateRegistry
 from ..services.template_service import TemplateService
 from ..services.timezone_service import TimezoneService
@@ -99,6 +104,8 @@ class NotificationService(BaseService):
         cache: Any | None = None,
         template_service: Optional[TemplateService] = None,
         email_service: Optional[EmailService] = None,
+        notification_repository: Optional[NotificationRepository] = None,
+        push_service: Optional[PushNotificationService] = None,
     ) -> None:
         """
         Initialize the notification service.
@@ -138,6 +145,11 @@ class NotificationService(BaseService):
         else:
             self.template_service = template_service
             self._owns_template_service = False
+
+        self.notification_repository = notification_repository or NotificationRepository(db)
+        self.push_notification_service = push_service or PushNotificationService(
+            db, self.notification_repository
+        )
 
         self.frontend_url = settings.frontend_url
 
@@ -998,3 +1010,142 @@ class NotificationService(BaseService):
         except Exception as exc:
             self.logger.error("Failed to send badge digest email: %s", exc)
             return False
+
+    def _should_send_push(self, user_id: str, category: str) -> bool:
+        preference = self.notification_repository.get_preference(user_id, category, "push")
+        if preference is None:
+            self.notification_repository.create_default_preferences(user_id)
+            preference = self.notification_repository.get_preference(user_id, category, "push")
+        return bool(preference.enabled) if preference else False
+
+    def _serialize_notification(self, notification: Notification) -> Dict[str, Any]:
+        created_at = (
+            notification.created_at.isoformat() if notification.created_at is not None else None
+        )
+        return {
+            "id": notification.id,
+            "title": notification.title,
+            "body": notification.body,
+            "category": notification.category,
+            "type": notification.type,
+            "data": notification.data,
+            "read_at": notification.read_at.isoformat() if notification.read_at else None,
+            "created_at": created_at,
+        }
+
+    @BaseService.measure_operation("create_in_app_notification")
+    async def create_notification(
+        self,
+        user_id: str,
+        category: str,
+        notification_type: str,
+        title: str,
+        body: str | None,
+        data: Dict[str, Any] | None = None,
+        send_push: bool = True,
+    ) -> Notification:
+        """
+        Create an in-app notification, optionally send push, and broadcast SSE update.
+        """
+
+        def _create_notification_sync() -> tuple[Notification, bool]:
+            push_enabled_local = False
+            with self.transaction():
+                notification_local = self.notification_repository.create_notification(
+                    user_id=user_id,
+                    category=category,
+                    type=notification_type,
+                    title=title,
+                    body=body,
+                    data=data,
+                )
+                if send_push:
+                    push_enabled_local = self._should_send_push(user_id, category)
+            return notification_local, push_enabled_local
+
+        notification, push_enabled = await asyncio.to_thread(_create_notification_sync)
+
+        if send_push and push_enabled:
+            push_url = None
+            if data and isinstance(data, dict):
+                url_value = data.get("url")
+                if isinstance(url_value, str):
+                    push_url = url_value
+            push_body = body or title
+            try:
+                self.push_notification_service.send_push_notification(
+                    user_id=user_id,
+                    title=title,
+                    body=push_body,
+                    url=push_url,
+                    data=data,
+                )
+            except Exception as exc:
+                self.logger.error("Push notification send failed: %s", exc)
+
+        unread_count = await asyncio.to_thread(
+            self.notification_repository.get_unread_count, user_id
+        )
+        await publish_to_user(
+            user_id,
+            {
+                "type": "notification_update",
+                "payload": {
+                    "unread_count": unread_count,
+                    "latest": self._serialize_notification(notification),
+                },
+            },
+        )
+        return notification
+
+    @BaseService.measure_operation("get_notifications")
+    def get_notifications(
+        self,
+        user_id: str,
+        limit: int = 20,
+        offset: int = 0,
+        unread_only: bool = False,
+    ) -> List[Notification]:
+        """Get paginated notifications for a user."""
+        return self.notification_repository.get_user_notifications(
+            user_id=user_id,
+            limit=limit,
+            offset=offset,
+            unread_only=unread_only,
+        )
+
+    @BaseService.measure_operation("get_notification_count")
+    def get_notification_count(self, user_id: str, unread_only: bool = False) -> int:
+        """Get notification count for a user."""
+        return self.notification_repository.get_user_notification_count(
+            user_id=user_id, unread_only=unread_only
+        )
+
+    @BaseService.measure_operation("mark_notification_read")
+    def mark_as_read(self, user_id: str, notification_id: str) -> bool:
+        """Mark a single notification as read."""
+        with self.transaction():
+            return self.notification_repository.mark_as_read_for_user(user_id, notification_id)
+
+    @BaseService.measure_operation("mark_all_notifications_read")
+    def mark_all_as_read(self, user_id: str) -> int:
+        """Mark all notifications as read for a user."""
+        with self.transaction():
+            return self.notification_repository.mark_all_as_read(user_id)
+
+    @BaseService.measure_operation("get_notification_unread_count")
+    def get_unread_count(self, user_id: str) -> int:
+        """Get unread notification count for a user."""
+        return self.notification_repository.get_unread_count(user_id)
+
+    @BaseService.measure_operation("delete_notification")
+    def delete_notification(self, user_id: str, notification_id: str) -> bool:
+        """Delete a notification."""
+        with self.transaction():
+            return self.notification_repository.delete_notification(user_id, notification_id)
+
+    @BaseService.measure_operation("delete_all_notifications")
+    def delete_all_notifications(self, user_id: str) -> int:
+        """Delete all notifications for a user."""
+        with self.transaction():
+            return self.notification_repository.delete_all_for_user(user_id)

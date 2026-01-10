@@ -297,6 +297,11 @@ def format_redis_event(event: Dict[str, Any], user_id: str) -> Dict[str, str]:
             "event": "message_deleted",
             "data": json.dumps(payload),
         }
+    elif event_type == "notification_update":
+        return {
+            "event": "notification_update",
+            "data": json.dumps(payload),
+        }
 
     else:
         # Unknown event type - pass through without id

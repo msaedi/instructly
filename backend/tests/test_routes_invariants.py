@@ -220,6 +220,11 @@ class TestRoutingInvariants:
             # Phase 2: /stream (per-user SSE) defined before /{message_id}
             ("/api/v1/messages/stream", "/api/v1/messages/{message_id}"),
             ("/api/v1/messages/{message_id}", "/api/v1/messages/stream"),
+            # Notifications v1: static routes defined before dynamic {notification_id}
+            ("/api/v1/notifications/unread-count", "/api/v1/notifications/{notification_id}"),
+            ("/api/v1/notifications/{notification_id}", "/api/v1/notifications/unread-count"),
+            ("/api/v1/notifications/read-all", "/api/v1/notifications/{notification_id}"),
+            ("/api/v1/notifications/{notification_id}", "/api/v1/notifications/read-all"),
             # Reviews v1: Static routes defined before dynamic {booking_id}
             ("/api/v1/reviews/booking/existing", "/api/v1/reviews/booking/{booking_id}"),
             ("/api/v1/reviews/booking/{booking_id}", "/api/v1/reviews/booking/existing"),

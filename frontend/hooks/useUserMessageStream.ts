@@ -16,9 +16,13 @@ import { logger } from '@/lib/logger';
 import type {
   SSEEvent,
   ConversationHandlers,
+  SSEMessageEvent,
+  SSETypingEvent,
   SSEReadReceiptEvent,
+  SSEReactionEvent,
   SSEMessageEditedEvent,
   SSEMessageDeletedEvent,
+  SSENotificationUpdateEvent,
 } from '@/types/messaging';
 
 const SSE_ENDPOINT = '/api/v1/messages/stream';
@@ -49,6 +53,7 @@ export function useUserMessageStream() {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isConnectingRef = useRef(false);
   const authRejectedRef = useRef(false);
+  const connectionErrorLoggedRef = useRef(false);
 
   // Deduplication: Track recently processed message IDs to prevent duplicates
   // during reconnect race conditions (catch-up + Redis subscription overlap)
@@ -88,12 +93,19 @@ export function useUserMessageStream() {
 
   // Route event to appropriate handler
   const routeEvent = useCallback((event: SSEEvent) => {
+    const conversationId = 'conversation_id' in event ? event.conversation_id : undefined;
     logger.debug('[MSG-DEBUG] SSE: routeEvent() called', {
       eventType: event.type,
-      conversationId: event.conversation_id,
+      conversationId,
       allSubscribers: Array.from(handlersRef.current.keys()),
       timestamp: debugTimestamp(),
     });
+
+    if (event.type === 'notification_update') {
+      const globalHandlers = handlersRef.current.get('__global__');
+      globalHandlers?.onNotificationUpdate?.(event);
+      return;
+    }
 
     // Deduplicate new_message events to prevent duplicates during reconnect
     // (catch-up query + Redis subscription can both deliver the same message)
@@ -140,11 +152,11 @@ export function useUserMessageStream() {
     // Frontend now subscribes using conversation_id, so direct lookup is sufficient.
     // No fallback needed because both Chat.tsx and instructor messages page
     // now fetch conversation_id before subscribing.
-    const handlers = handlersRef.current.get(event.conversation_id);
+    const handlers = conversationId ? handlersRef.current.get(conversationId) : undefined;
 
     if (!handlers) {
       logger.debug('[MSG-DEBUG] SSE: No handler found for conversation', {
-        conversationId: event.conversation_id,
+        conversationId,
         availableSubscribers: Array.from(handlersRef.current.keys()),
         timestamp: debugTimestamp(),
       });
@@ -318,6 +330,7 @@ export function useUserMessageStream() {
         logger.info('[SSE] Connected to user inbox stream');
         setIsConnected(true);
         setConnectionError(null);
+        connectionErrorLoggedRef.current = false;
         resetHeartbeat();
       });
 
@@ -341,7 +354,7 @@ export function useUserMessageStream() {
             timestamp: debugTimestamp()
           });
           const parsed = JSON.parse(rawData);
-          const data: SSEEvent = { ...parsed, type: 'new_message' };
+          const data: SSEMessageEvent = { ...parsed, type: 'new_message' };
           logger.debug('[MSG-DEBUG] SSE: new_message parsed', {
             type: data.type,
             conversationId: data.conversation_id,
@@ -358,7 +371,7 @@ export function useUserMessageStream() {
       eventSource.addEventListener('typing_status', (event) => {
         try {
           const parsed = JSON.parse((event as MessageEvent).data);
-          const data: SSEEvent = { ...parsed, type: 'typing_status' };
+          const data: SSETypingEvent = { ...parsed, type: 'typing_status' };
           logger.debug('[MSG-DEBUG] SSE: typing_status event', {
             conversationId: data.conversation_id,
             userId: (data as { user_id?: string }).user_id,
@@ -373,7 +386,7 @@ export function useUserMessageStream() {
       eventSource.addEventListener('read_receipt', (event) => {
         try {
           const parsed = JSON.parse((event as MessageEvent).data);
-          const data: SSEEvent = { ...parsed, type: 'read_receipt' };
+          const data: SSEReadReceiptEvent = { ...parsed, type: 'read_receipt' };
           logger.debug('[MSG-DEBUG] SSE: read_receipt event', {
             conversationId: data.conversation_id,
             messageIds: (data as { message_ids?: string[] }).message_ids,
@@ -388,7 +401,7 @@ export function useUserMessageStream() {
       eventSource.addEventListener('reaction_update', (event) => {
         try {
           const parsed = JSON.parse((event as MessageEvent).data);
-          const data: SSEEvent = { ...parsed, type: 'reaction_update' };
+          const data: SSEReactionEvent = { ...parsed, type: 'reaction_update' };
           logger.debug('[MSG-DEBUG] SSE: reaction_update event', {
             conversationId: data.conversation_id,
             messageId: (data as { message_id?: string }).message_id,
@@ -406,7 +419,7 @@ export function useUserMessageStream() {
         resetHeartbeat();
         try {
           const parsed = JSON.parse((event as MessageEvent).data);
-          const data: SSEEvent = { ...parsed, type: 'message_edited' };
+          const data: SSEMessageEditedEvent = { ...parsed, type: 'message_edited' };
           const editData = data as SSEMessageEditedEvent;
           logger.debug('[MSG-DEBUG] SSE: message_edited event', {
             conversationId: data.conversation_id,
@@ -437,13 +450,46 @@ export function useUserMessageStream() {
         }
       });
 
+      eventSource.addEventListener('notification_update', (event) => {
+        resetHeartbeat();
+        try {
+          const parsed = JSON.parse((event as MessageEvent).data);
+          const data: SSENotificationUpdateEvent = { ...parsed, type: 'notification_update' };
+          logger.debug('[MSG-DEBUG] SSE: notification_update event', {
+            unreadCount: data.unread_count,
+            timestamp: debugTimestamp(),
+          });
+          routeEvent(data);
+        } catch (err) {
+          logger.error('[MSG-DEBUG] SSE: Failed to parse notification_update', { err, timestamp: debugTimestamp() });
+        }
+      });
+
       eventSource.onerror = (err) => {
-        logger.error('[MSG-DEBUG] SSE: Connection ERROR', {
-          readyState: eventSource.readyState,
-          readyStateText: ['CONNECTING', 'OPEN', 'CLOSED'][eventSource.readyState] || 'UNKNOWN',
-          error: err,
-          timestamp: debugTimestamp()
-        });
+        const readyState = eventSource.readyState;
+        const readyStateText = ['CONNECTING', 'OPEN', 'CLOSED'][readyState] || 'UNKNOWN';
+
+        if (!isAuthenticated || authRejectedRef.current) {
+          logger.debug('[MSG-DEBUG] SSE: Connection error suppressed (not authenticated)', {
+            readyState,
+            readyStateText,
+            timestamp: debugTimestamp(),
+          });
+        } else if (!connectionErrorLoggedRef.current) {
+          logger.warn('[SSE] Connection error, will retry', {
+            readyState,
+            readyStateText,
+            error: err,
+            timestamp: debugTimestamp(),
+          });
+          connectionErrorLoggedRef.current = true;
+        } else {
+          logger.debug('[MSG-DEBUG] SSE: Connection error (suppressed)', {
+            readyState,
+            readyStateText,
+            timestamp: debugTimestamp(),
+          });
+        }
         setIsConnected(false);
         setConnectionError('Connection lost');
         eventSource.close();
