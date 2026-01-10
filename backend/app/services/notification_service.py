@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional, ParamSpec, Sequence, TypeVar
+from typing import Any, Callable, Coroutine, Dict, List, Optional, ParamSpec, Sequence, TypeVar
 
 from jinja2.exceptions import TemplateNotFound
 from sqlalchemy.orm import Session
@@ -38,6 +38,7 @@ from ..services.push_notification_service import PushNotificationService
 from ..services.template_registry import TemplateRegistry
 from ..services.template_service import TemplateService
 from ..services.timezone_service import TimezoneService
+from .notification_templates import NotificationTemplate, render_notification
 
 logger = logging.getLogger(__name__)
 
@@ -1032,6 +1033,61 @@ class NotificationService(BaseService):
             "read_at": notification.read_at.isoformat() if notification.read_at else None,
             "created_at": created_at,
         }
+
+    def _run_async_task(
+        self, coro_func: Callable[[], Coroutine[Any, Any, None]], error_context: str
+    ) -> None:
+        async def _with_error_handling() -> None:
+            try:
+                await coro_func()
+            except Exception as exc:  # pragma: no cover - best effort logging
+                self.logger.warning("Failed %s: %s", error_context, exc)
+
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(_with_error_handling())
+        except RuntimeError:
+            try:
+                asyncio.run(_with_error_handling())
+            except Exception as exc:  # pragma: no cover - best effort logging
+                self.logger.warning("Failed %s: %s", error_context, exc)
+
+    @BaseService.measure_operation("notify_user")
+    async def notify_user(
+        self,
+        user_id: str,
+        template: NotificationTemplate,
+        send_push: bool = True,
+        **template_kwargs: Any,
+    ) -> Notification:
+        rendered = render_notification(template, **template_kwargs)
+        return await self.create_notification(
+            user_id=user_id,
+            category=rendered["category"],
+            notification_type=rendered["type"],
+            title=rendered["title"],
+            body=rendered["body"],
+            data=rendered["data"],
+            send_push=send_push,
+        )
+
+    @BaseService.measure_operation("notify_user_best_effort")
+    def notify_user_best_effort(
+        self,
+        user_id: str,
+        template: NotificationTemplate,
+        send_push: bool = True,
+        **template_kwargs: Any,
+    ) -> None:
+        async def _notify() -> None:
+            await self.notify_user(
+                user_id=user_id,
+                template=template,
+                send_push=send_push,
+                **template_kwargs,
+            )
+
+        self._run_async_task(_notify, f"sending notification {template.type} to {user_id}")
 
     @BaseService.measure_operation("create_in_app_notification")
     async def create_notification(

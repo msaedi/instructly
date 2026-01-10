@@ -24,6 +24,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.params import Path
 from sqlalchemy.orm import Session
 
+from ...api.dependencies import get_notification_service
 from ...api.dependencies.auth import get_current_active_user, get_current_student
 from ...core.exceptions import DomainException, RepositoryException, raise_503_if_pool_exhaustion
 from ...database import get_db
@@ -42,6 +43,7 @@ from ...schemas.review import (
     ReviewSubmitResponse,
     SearchRatingResponse,
 )
+from ...services.notification_service import NotificationService
 from ...services.review_service import ReviewService
 
 logger = logging.getLogger(__name__)
@@ -52,8 +54,11 @@ router = APIRouter(tags=["reviews-v1"])
 ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
 
 
-def get_review_service(db: Session = Depends(get_db)) -> ReviewService:
-    return ReviewService(db)
+def get_review_service(
+    db: Session = Depends(get_db),
+    notification_service: NotificationService = Depends(get_notification_service),
+) -> ReviewService:
+    return ReviewService(db, notification_service=notification_service)
 
 
 def _display_name(user: Optional[User]) -> Optional[str]:

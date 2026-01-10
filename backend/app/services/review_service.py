@@ -29,6 +29,8 @@ from ..repositories.review_repository import (
     ReviewTipRepository,
 )
 from ..services.config_service import ConfigService
+from ..services.notification_service import NotificationService
+from ..services.notification_templates import INSTRUCTOR_NEW_REVIEW, STUDENT_REVIEW_RESPONSE
 from ..services.pricing_service import PricingService
 from ..services.stripe_service import StripeService
 from .badge_award_service import BadgeAwardService
@@ -87,6 +89,7 @@ class ReviewService(BaseService):
         db: Session,
         cache: Optional[CacheInvalidationProtocol] = None,
         config: RatingsConfig = DEFAULT_RATINGS_CONFIG,
+        notification_service: Optional[NotificationService] = None,
     ) -> None:
         super().__init__(db, cache)
         self.repository: ReviewRepository = ReviewRepository(db)
@@ -97,6 +100,7 @@ class ReviewService(BaseService):
             InstructorProfileRepository(db)
         )
         self.config = config
+        self.notification_service = notification_service
 
     def _resolve_instructor_user_id(self, instructor_id: str) -> str:
         """
@@ -260,6 +264,19 @@ class ReviewService(BaseService):
             review_id=review.id,
             created_at_utc=review.created_at,
         )
+
+        if self.notification_service:
+            try:
+                student_name = self.get_reviewer_display_name(student_id) or "Someone"
+                self.notification_service.notify_user_best_effort(
+                    user_id=review.instructor_id,
+                    template=INSTRUCTOR_NEW_REVIEW,
+                    student_name=student_name,
+                    rating=review.rating,
+                    review_id=review.id,
+                )
+            except Exception as exc:
+                self.logger.warning("Failed to send review notification for %s: %s", review.id, exc)
 
         return review
 
@@ -581,6 +598,20 @@ class ReviewService(BaseService):
 
         # Invalidate search cache (fire-and-forget via asyncio.create_task)
         invalidate_on_review_change(instructor_id, review_id)
+
+        if self.notification_service:
+            try:
+                instructor_name = self.get_reviewer_display_name(instructor_id) or "Someone"
+                self.notification_service.notify_user_best_effort(
+                    user_id=review.student_id,
+                    template=STUDENT_REVIEW_RESPONSE,
+                    instructor_name=instructor_name,
+                    review_id=review.id,
+                )
+            except Exception as exc:
+                self.logger.warning(
+                    "Failed to send review response notification for %s: %s", review.id, exc
+                )
 
         return response
 

@@ -927,6 +927,25 @@ def upgrade() -> None:
         ["type", "status"],
     )
 
+    op.add_column(
+        "bookings",
+        sa.Column(
+            "reminder_24h_sent",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
+    )
+    op.add_column(
+        "bookings",
+        sa.Column(
+            "reminder_1h_sent",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
+    )
+
     # Performance indexes (from 005_performance_indexes)
     op.create_index(
         "idx_bookings_date_status",
@@ -1149,6 +1168,9 @@ def downgrade() -> None:
         tables = _get_public_tables(exclude_tables)
         for table_name in tables:
             _drop_permissive_policy_and_disable_rls(table_name)
+
+    op.drop_column("bookings", "reminder_1h_sent")
+    op.drop_column("bookings", "reminder_24h_sent")
 
     op.drop_index("ix_search_clicks_instructor_id", table_name="search_clicks")
     op.drop_index("ix_message_reactions_message_id", table_name="message_reactions")

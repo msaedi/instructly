@@ -25,6 +25,14 @@ CELERYBEAT_SCHEDULE = {
             "priority": 6,
         },
     },
+    "send-booking-reminders": {
+        "task": "app.tasks.notification_tasks.send_booking_reminders",
+        "schedule": crontab(minute="*/15"),
+        "options": {
+            "queue": "notifications",
+            "priority": 7,
+        },
+    },
     # Analytics calculation - runs at 2:30 AM and 2:30 PM (consistent across envs)
     "calculate-service-analytics": {
         "task": "app.tasks.analytics.calculate_analytics",

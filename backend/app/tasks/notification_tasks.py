@@ -9,20 +9,31 @@ Implements a two-step workflow:
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import contextmanager
+from datetime import date, datetime, time, timedelta, timezone
 from time import monotonic
 from typing import Any, Iterator, Optional, cast
 
 from celery.app.task import Task  # noqa: F401 - used for type hints
 from celery.utils.log import get_task_logger
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import SessionLocal
+from app.models.booking import Booking, BookingStatus
 from app.monitoring.prometheus_metrics import PrometheusMetrics
 from app.repositories.event_outbox_repository import EventOutboxRepository
 from app.services.notification_provider import (
     NotificationProvider,
     NotificationProviderTemporaryError,
+)
+from app.services.notification_service import NotificationService
+from app.services.notification_templates import (
+    INSTRUCTOR_REMINDER_1H,
+    INSTRUCTOR_REMINDER_24H,
+    STUDENT_REMINDER_1H,
+    STUDENT_REMINDER_24H,
+    NotificationTemplate,
 )
 from app.tasks.celery_app import typed_task
 
@@ -171,3 +182,163 @@ def deliver_event(self: "Task[Any, Any]", event_id: str) -> Optional[str]:
             raise self.retry(countdown=backoff, exc=exc)
     finally:
         session.close()
+
+
+def _format_display_name(user: Any) -> str:
+    first = (getattr(user, "first_name", "") or "").strip() if user else ""
+    last = (getattr(user, "last_name", "") or "").strip() if user else ""
+    if first and last:
+        return f"{first} {last[0]}."
+    return first or "Someone"
+
+
+def _format_booking_date(booking: Booking) -> str:
+    booking_date = getattr(booking, "booking_date", None)
+    if isinstance(booking_date, date):
+        return booking_date.strftime("%B %d").replace(" 0", " ")
+    return str(booking_date or "")
+
+
+def _format_booking_time(booking: Booking) -> str:
+    start_time = getattr(booking, "start_time", None)
+    if isinstance(start_time, time):
+        return start_time.strftime("%I:%M %p").lstrip("0")
+    if start_time:
+        return str(start_time)
+    return ""
+
+
+def _resolve_service_name(booking: Booking) -> str:
+    name = getattr(booking, "service_name", None)
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    service = getattr(booking, "instructor_service", None)
+    service_name = getattr(service, "name", None)
+    if isinstance(service_name, str) and service_name.strip():
+        return service_name.strip()
+    return "Lesson"
+
+
+def _send_reminder_notifications(
+    service: NotificationService,
+    booking: Booking,
+    instructor_template: NotificationTemplate,
+    student_template: NotificationTemplate,
+) -> None:
+    student_name = _format_display_name(getattr(booking, "student", None))
+    instructor_name = _format_display_name(getattr(booking, "instructor", None))
+    service_name = _resolve_service_name(booking)
+    date_str = _format_booking_date(booking)
+    time_str = _format_booking_time(booking)
+
+    async def _notify() -> None:
+        await service.notify_user(
+            user_id=booking.instructor_id,
+            template=instructor_template,
+            student_name=student_name,
+            service_name=service_name,
+            date=date_str,
+            time=time_str,
+            booking_id=booking.id,
+        )
+        await service.notify_user(
+            user_id=booking.student_id,
+            template=student_template,
+            instructor_name=instructor_name,
+            service_name=service_name,
+            date=date_str,
+            time=time_str,
+            booking_id=booking.id,
+        )
+
+    asyncio.run(_notify())
+
+
+@typed_task(name="app.tasks.notification_tasks.send_booking_reminders", queue="notifications")
+def send_booking_reminders() -> dict[str, int]:
+    """
+    Send reminder notifications for upcoming bookings.
+    Runs every 15 minutes via Celery Beat.
+    """
+    now = datetime.now(timezone.utc)
+
+    reminder_24h_start = now + timedelta(hours=24) - timedelta(minutes=15)
+    reminder_24h_end = now + timedelta(hours=24)
+    reminder_1h_start = now + timedelta(hours=1) - timedelta(minutes=15)
+    reminder_1h_end = now + timedelta(hours=1)
+
+    reminders_24h = 0
+    reminders_1h = 0
+
+    with _session_scope() as session:
+        service = NotificationService(session)
+        bookings_24h = (
+            session.query(Booking)
+            .options(
+                joinedload(Booking.student),
+                joinedload(Booking.instructor),
+                joinedload(Booking.instructor_service),
+            )
+            .filter(
+                Booking.status == BookingStatus.CONFIRMED,
+                Booking.booking_start_utc >= reminder_24h_start,
+                Booking.booking_start_utc < reminder_24h_end,
+                Booking.reminder_24h_sent.is_(False),
+            )
+            .all()
+        )
+
+        for booking in bookings_24h:
+            try:
+                _send_reminder_notifications(
+                    service,
+                    booking,
+                    INSTRUCTOR_REMINDER_24H,
+                    STUDENT_REMINDER_24H,
+                )
+                reminders_24h += 2
+            except Exception as exc:
+                logger.warning(
+                    "Failed 24h reminder notifications for booking %s: %s",
+                    booking.id,
+                    exc,
+                )
+            booking.reminder_24h_sent = True
+
+        bookings_1h = (
+            session.query(Booking)
+            .options(
+                joinedload(Booking.student),
+                joinedload(Booking.instructor),
+                joinedload(Booking.instructor_service),
+            )
+            .filter(
+                Booking.status == BookingStatus.CONFIRMED,
+                Booking.booking_start_utc >= reminder_1h_start,
+                Booking.booking_start_utc < reminder_1h_end,
+                Booking.reminder_1h_sent.is_(False),
+            )
+            .all()
+        )
+
+        for booking in bookings_1h:
+            try:
+                _send_reminder_notifications(
+                    service,
+                    booking,
+                    INSTRUCTOR_REMINDER_1H,
+                    STUDENT_REMINDER_1H,
+                )
+                reminders_1h += 2
+            except Exception as exc:
+                logger.warning(
+                    "Failed 1h reminder notifications for booking %s: %s",
+                    booking.id,
+                    exc,
+                )
+            booking.reminder_1h_sent = True
+
+    return {
+        "reminders_24h_sent": reminders_24h,
+        "reminders_1h_sent": reminders_1h,
+    }
