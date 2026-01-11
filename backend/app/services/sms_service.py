@@ -25,6 +25,7 @@ class SMSService:
     def __init__(self, cache_service: Optional["CacheService"] = None) -> None:
         self.cache_service = cache_service
         self.daily_limit = settings.sms_daily_limit_per_user
+        self.messaging_service_sid = settings.twilio_messaging_service_sid
 
         auth_token = (
             settings.twilio_auth_token.get_secret_value() if settings.twilio_auth_token else ""
@@ -33,7 +34,7 @@ class SMSService:
             settings.sms_enabled
             and settings.twilio_account_sid
             and auth_token
-            and settings.twilio_phone_number
+            and (settings.twilio_phone_number or self.messaging_service_sid)
         )
 
         if self.enabled:
@@ -110,20 +111,30 @@ class SMSService:
         return result
 
     def _send_sms_sync(self, to_number: str, message: str) -> Optional[dict[str, Any]]:
-        if not self.client or not self.from_number:
+        if not self.client:
             return None
 
         try:
-            twilio_message = self.client.messages.create(
-                body=message,
-                from_=self.from_number,
-                to=to_number,
-            )
+            payload: dict[str, Any] = {
+                "body": message,
+                "to": to_number,
+            }
+            if self.messaging_service_sid:
+                payload["messaging_service_sid"] = self.messaging_service_sid
+            elif self.from_number:
+                payload["from_"] = self.from_number
+            else:
+                logger.error("SMS send failed: no messaging service SID or from number set")
+                return None
+
+            twilio_message = self.client.messages.create(**payload)
             logger.info("SMS sent to %s, SID: %s", to_number, twilio_message.sid)
             return {
                 "sid": twilio_message.sid,
                 "status": getattr(twilio_message, "status", None),
                 "to": to_number,
+                "from": self.from_number,
+                "messaging_service_sid": self.messaging_service_sid,
             }
         except TwilioRestException as exc:
             logger.error("Twilio error sending SMS to %s: %s", to_number, exc)

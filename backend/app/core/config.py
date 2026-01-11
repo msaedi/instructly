@@ -300,6 +300,11 @@ class Settings(BaseSettings):
         alias="TWILIO_PHONE_NUMBER",
         description="Twilio sending phone number in E.164 format",
     )
+    twilio_messaging_service_sid: str | None = Field(
+        default=None,
+        alias="TWILIO_MESSAGING_SERVICE_SID",
+        description="Twilio Messaging Service SID (optional)",
+    )
     sms_enabled: bool = Field(
         default=False,
         alias="SMS_ENABLED",

@@ -30,7 +30,7 @@ export function useCurrentLessons(_enabled: boolean = true) {
   // Use v1 service with upcoming_only filter to get full booking objects
   const result = useBookingsList({
     upcoming_only: true,
-    per_page: 20,
+    per_page: 100,
   });
 
   // Map v1 response shape to legacy shape for backward compatibility
@@ -40,7 +40,7 @@ export function useCurrentLessons(_enabled: boolean = true) {
       items: result.data.items as Booking[],
       total: result.data.total,
       page: result.data.page ?? 1,
-      per_page: result.data.per_page ?? 20,
+      per_page: result.data.per_page ?? 100,
       has_next: result.data.has_next,
       has_prev: result.data.has_prev,
     } as BookingListResponse : undefined,

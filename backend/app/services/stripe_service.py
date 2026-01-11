@@ -527,7 +527,10 @@ class StripeService(BaseService):
                     code="invalid_booking_state",
                 )
 
+            was_confirmed = fresh_booking.status == BookingStatus.CONFIRMED.value
             fresh_booking.status = BookingStatus.CONFIRMED.value
+            if fresh_booking.confirmed_at is None:
+                fresh_booking.confirmed_at = datetime.now(timezone.utc)
             # Set payment_status to reflect authorization state
             if payment_result["status"] == "requires_capture":
                 fresh_booking.payment_status = PaymentStatus.AUTHORIZED.value
@@ -554,6 +557,12 @@ class StripeService(BaseService):
                 )
             except Exception:
                 pass
+
+            if not was_confirmed:
+                try:
+                    booking_service.send_booking_notifications_after_confirmation(booking.id)
+                except Exception:
+                    pass
 
         client_secret = (
             payment_result.get("client_secret")

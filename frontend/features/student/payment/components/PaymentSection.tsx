@@ -16,6 +16,7 @@ import { useCreateBooking } from '@/features/student/booking/hooks/useCreateBook
 import { getPaymentStatusFromResponse, isCheckoutSuccess } from '@/features/shared/types/paymentStatus';
 import { paymentService, type CreateCheckoutRequest } from '@/services/api/payments';
 import { queryKeys } from '@/lib/react-query/queryClient';
+import { queryKeys as apiQueryKeys } from '@/src/api/queryKeys';
 import { fetchBookingDetails, cancelBookingImperative } from '@/src/api/services/bookings';
 import type { BookingResponse } from '@/src/api/generated/instructly.schemas';
 import { ApiProblemError } from '@/lib/api/fetch';
@@ -442,6 +443,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       queryClient.invalidateQueries({ queryKey: ['bookings', 'upcoming'] }),
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() }),
       queryClient.invalidateQueries({ queryKey: ['bookings'] }),
+      queryClient.invalidateQueries({ queryKey: apiQueryKeys.bookings.student() }),
+      queryClient.invalidateQueries({ queryKey: apiQueryKeys.bookings.student({ status: 'history' }) }),
     ];
     await Promise.allSettled(invalidations);
   }, [queryClient]);

@@ -211,7 +211,7 @@ describe('useMyLessons hooks', () => {
 
       expect(mockUseBookingsList).toHaveBeenCalledWith({
         upcoming_only: true,
-        per_page: 20,
+        per_page: 100,
       });
     });
   });

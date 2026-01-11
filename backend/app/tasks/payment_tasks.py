@@ -354,6 +354,7 @@ def _process_authorization_for_booking(
 
     # ========== PHASE 3: Write results (quick transaction) ==========
     db3: Session = SessionLocal()
+    send_confirmation_notifications = False
     try:
         booking = db3.query(Booking).filter(Booking.id == booking_id).first()
         if not booking:
@@ -372,6 +373,7 @@ def _process_authorization_for_booking(
                 if booking.status == BookingStatus.PENDING:
                     booking.status = BookingStatus.CONFIRMED
                     booking.confirmed_at = attempted_at
+                    send_confirmation_notifications = True
                 payment_repo.create_payment_event(
                     booking_id=booking_id,
                     event_type="auth_succeeded_credits_only",
@@ -392,6 +394,7 @@ def _process_authorization_for_booking(
                 if booking.status == BookingStatus.PENDING:
                     booking.status = BookingStatus.CONFIRMED
                     booking.confirmed_at = attempted_at
+                    send_confirmation_notifications = True
 
                 # Record metrics
                 if stripe_result.get("applied_credit_cents"):
@@ -437,6 +440,18 @@ def _process_authorization_for_booking(
             )
 
         db3.commit()  # Commit and release lock immediately
+
+        if send_confirmation_notifications:
+            try:
+                from app.services.booking_service import BookingService
+
+                BookingService(db3).send_booking_notifications_after_confirmation(booking_id)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to send booking confirmation notifications for %s: %s",
+                    booking_id,
+                    exc,
+                )
     finally:
         db3.close()
 

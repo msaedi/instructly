@@ -4941,6 +4941,24 @@ class BookingService(BaseService):
         except Exception as exc:
             logger.error("Failed to send booking notifications for %s: %s", booking.id, exc)
 
+    @BaseService.measure_operation("send_booking_confirmation_notifications")
+    def send_booking_notifications_after_confirmation(self, booking_id: str) -> None:
+        """Send in-app/push/SMS/email notifications after a booking is confirmed."""
+        if not self.notification_service:
+            return
+
+        booking = self.repository.get_booking_with_details(booking_id)
+        if not booking:
+            return
+
+        is_reschedule = bool(getattr(booking, "rescheduled_from_booking_id", None))
+        self._send_booking_notifications(booking, is_reschedule)
+
+        try:
+            self.notification_service.send_booking_confirmation(booking)
+        except Exception as exc:
+            logger.error("Failed to send booking confirmation emails for %s: %s", booking.id, exc)
+
     def _send_cancellation_notifications(self, booking: Booking, cancelled_by_role: str) -> None:
         if not self.notification_service:
             return
@@ -4996,18 +5014,19 @@ class BookingService(BaseService):
             is_reschedule: Whether this is a rescheduled booking
             old_booking: The original booking if this is a reschedule
         """
-        # Publish async notification event
-        try:
-            self.event_publisher.publish(
-                BookingCreated(
-                    booking_id=booking.id,
-                    student_id=booking.student_id,
-                    instructor_id=booking.instructor_id,
-                    created_at=booking.created_at or datetime.now(timezone.utc),
+        # Publish async notification event only for confirmed bookings
+        if booking.status == BookingStatus.CONFIRMED:
+            try:
+                self.event_publisher.publish(
+                    BookingCreated(
+                        booking_id=booking.id,
+                        student_id=booking.student_id,
+                        instructor_id=booking.instructor_id,
+                        created_at=booking.created_at or datetime.now(timezone.utc),
+                    )
                 )
-            )
-        except Exception as e:
-            logger.error(f"Failed to enqueue booking confirmation event: {str(e)}")
+            except Exception as e:
+                logger.error(f"Failed to enqueue booking confirmation event: {str(e)}")
 
         # Create system message in conversation
         try:
