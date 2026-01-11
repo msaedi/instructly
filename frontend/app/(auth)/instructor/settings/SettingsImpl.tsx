@@ -17,6 +17,7 @@ import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/us
 import { useTfaStatus, useInvalidateTfaStatus } from '@/hooks/queries/useTfaStatus';
 import { usePushNotifications } from '@/features/shared/hooks/usePushNotifications';
 import { useNotificationPreferences } from '@/features/shared/hooks/useNotificationPreferences';
+import { usePhoneVerification } from '@/features/shared/hooks/usePhoneVerification';
 
 const RewardsPanel = dynamic(() => import('@/features/referrals/RewardsPanel'), { ssr: false });
 
@@ -25,6 +26,7 @@ const PREFERENCE_DEFAULTS = {
   messages: { email: false, push: true, sms: false },
   promotional: { email: false, push: false, sms: false },
 } as const;
+const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
 
 type PreferenceCategory = keyof typeof PREFERENCE_DEFAULTS;
 type PreferenceChannel = keyof (typeof PREFERENCE_DEFAULTS)['lesson_updates'];
@@ -46,6 +48,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [zip, setZip] = useState('');
   const [savingAccount, setSavingAccount] = useState(false);
   const [formInitialized, setFormInitialized] = useState(false);
+  const [smsPhone, setSmsPhone] = useState('');
+  const [smsCode, setSmsCode] = useState('');
 
   // React Query hooks for data fetching (replaces useEffect fetches)
   const { data: tfaStatus } = useTfaStatus(embedded && openSecurity);
@@ -68,6 +72,14 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     isUpdating: preferencesUpdating,
     updatePreference,
   } = useNotificationPreferences();
+  const {
+    phoneNumber,
+    isVerified: phoneVerified,
+    isLoading: phoneLoading,
+    updatePhone,
+    sendVerification,
+    confirmVerification,
+  } = usePhoneVerification();
 
   // Derived state from hooks
   const tfaEnabled = tfaStatus?.enabled ?? null;
@@ -88,12 +100,67 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       : !pushEnabled
         ? 'Enable push notifications on this device to manage push preferences.'
         : undefined;
+  const smsPreferenceDisabled = preferencesDisabled || phoneLoading || !phoneNumber || !phoneVerified;
+  const smsPreferenceTitle = !phoneNumber
+    ? 'Add a phone number to enable SMS notifications.'
+    : !phoneVerified
+      ? 'Verify your phone number to enable SMS notifications.'
+      : undefined;
 
   const handlePushToggle = async (enabled: boolean) => {
     if (enabled) {
       await enablePush();
     } else {
       await disablePush();
+    }
+  };
+
+  useEffect(() => {
+    if (phoneLoading) return;
+    setSmsPhone(phoneNumber || '');
+  }, [phoneNumber, phoneLoading]);
+
+  const handleUpdatePhone = async () => {
+    const trimmed = smsPhone.trim();
+    if (!trimmed) {
+      toast.error('Please enter a phone number.');
+      return;
+    }
+    if (!E164_PATTERN.test(trimmed)) {
+      toast.error('Phone number must be in E.164 format (+1234567890).');
+      return;
+    }
+    try {
+      await updatePhone.mutateAsync(trimmed);
+      setMobile(trimmed);
+      setSmsCode('');
+      toast.success('Phone number saved. Verify it to enable SMS.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update phone number.');
+    }
+  };
+
+  const handleSendVerification = async () => {
+    try {
+      await sendVerification.mutateAsync();
+      toast.success('Verification code sent.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to send verification code.');
+    }
+  };
+
+  const handleConfirmVerification = async () => {
+    const trimmed = smsCode.trim();
+    if (!trimmed) {
+      toast.error('Enter the verification code.');
+      return;
+    }
+    try {
+      await confirmVerification.mutateAsync(trimmed);
+      setSmsCode('');
+      toast.success('Phone number verified.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Verification failed.');
     }
   };
 
@@ -148,9 +215,66 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     const pushPreferenceOptions = pushPreferenceTitle
       ? { disabled: pushPreferenceDisabled, title: pushPreferenceTitle }
       : { disabled: pushPreferenceDisabled };
+    const smsPreferenceOptions = smsPreferenceTitle
+      ? { disabled: smsPreferenceDisabled, title: smsPreferenceTitle }
+      : { disabled: smsPreferenceDisabled };
 
     return (
       <div className="space-y-4">
+      <div className="rounded-lg border border-gray-200 p-3 space-y-3">
+        <div>
+          <p className="text-sm font-medium text-gray-900">Phone number (for SMS)</p>
+          <p className="text-xs text-gray-500">Add and verify a phone number to receive SMS alerts.</p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="tel"
+            value={smsPhone}
+            onChange={(event) => setSmsPhone(event.target.value)}
+            placeholder="+1 555 123 4567"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
+          />
+          <button
+            type="button"
+            onClick={handleUpdatePhone}
+            disabled={updatePhone.isPending}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {updatePhone.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+        {phoneVerified && (
+          <p className="text-xs text-green-600">Phone verified</p>
+        )}
+        {!phoneVerified && phoneNumber && (
+          <div className="flex flex-col sm:flex-row gap-2 items-center">
+            <input
+              type="text"
+              value={smsCode}
+              onChange={(event) => setSmsCode(event.target.value)}
+              placeholder="Enter 6-digit code"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
+              maxLength={6}
+            />
+            <button
+              type="button"
+              onClick={handleConfirmVerification}
+              disabled={confirmVerification.isPending}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {confirmVerification.isPending ? 'Verifying…' : 'Verify'}
+            </button>
+            <button
+              type="button"
+              onClick={handleSendVerification}
+              disabled={sendVerification.isPending}
+              className="inline-flex items-center justify-center gap-2 text-sm text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {sendVerification.isPending ? 'Sending…' : 'Resend'}
+            </button>
+          </div>
+        )}
+      </div>
       <div className="rounded-lg border border-gray-200 p-3">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -180,7 +304,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 {renderPreferenceToggle('lesson_updates', 'email')}
               </td>
               <td className="pr-6">
-                {renderPreferenceToggle('lesson_updates', 'sms')}
+                {renderPreferenceToggle('lesson_updates', 'sms', smsPreferenceOptions)}
               </td>
               <td>
                 {renderPreferenceToggle('lesson_updates', 'push', pushPreferenceOptions)}
@@ -192,7 +316,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 {renderPreferenceToggle('promotional', 'email')}
               </td>
               <td className="pr-6">
-                {renderPreferenceToggle('promotional', 'sms')}
+                {renderPreferenceToggle('promotional', 'sms', smsPreferenceOptions)}
               </td>
               <td>
                 {renderPreferenceToggle('promotional', 'push', pushPreferenceOptions)}
@@ -204,7 +328,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 {renderPreferenceToggle('messages', 'email')}
               </td>
               <td className="pr-6">
-                {renderPreferenceToggle('messages', 'sms')}
+                {renderPreferenceToggle('messages', 'sms', smsPreferenceOptions)}
               </td>
               <td>
                 {renderPreferenceToggle('messages', 'push', {

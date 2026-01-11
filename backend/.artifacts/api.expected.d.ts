@@ -111,6 +111,54 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/account/phone": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_phone_number_api_v1_account_phone_get"];
+ put: operations["update_phone_number_api_v1_account_phone_put"];
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/account/phone/verify": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["send_phone_verification_api_v1_account_phone_verify_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/account/phone/verify/confirm": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["confirm_phone_verification_api_v1_account_phone_verify_confirm_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/account/reactivate": {
  parameters: {
  query?: never;
@@ -4579,6 +4627,7 @@ export type components = {
  last_name: string;
  permissions?: string[];
  phone?: string | null;
+ phone_verified: boolean | null;
  profile_picture_version: number | null;
  roles?: string[];
  timezone?: string | null;
@@ -4598,6 +4647,7 @@ export type components = {
  last_name: string;
  permissions?: string[];
  phone?: string | null;
+ phone_verified: boolean | null;
  profile_picture_version: number | null;
  roles?: string[];
  timezone?: string | null;
@@ -6087,6 +6137,20 @@ export type components = {
  severity: string;
  type: string;
  };
+ PhoneUpdateRequest: {
+ phone_number: string;
+ };
+ PhoneUpdateResponse: {
+ phone_number?: string | null;
+ verified: boolean;
+ };
+ PhoneVerifyConfirmRequest: {
+ code: string;
+ };
+ PhoneVerifyResponse: {
+ sent: boolean;
+ verified: boolean;
+ };
  PipelineStage: {
  details?: {
  [key: string]: unknown;
@@ -7303,6 +7367,106 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AccountStatusChangeResponse"];
+ };
+ };
+ };
+ };
+ get_phone_number_api_v1_account_phone_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PhoneUpdateResponse"];
+ };
+ };
+ };
+ };
+ update_phone_number_api_v1_account_phone_put: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["PhoneUpdateRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PhoneUpdateResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ send_phone_verification_api_v1_account_phone_verify_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PhoneVerifyResponse"];
+ };
+ };
+ };
+ };
+ confirm_phone_verification_api_v1_account_phone_verify_confirm_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["PhoneVerifyConfirmRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PhoneVerifyResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
  };
  };
  };

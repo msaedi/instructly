@@ -946,6 +946,16 @@ def upgrade() -> None:
         ),
     )
 
+    op.add_column(
+        "users",
+        sa.Column(
+            "phone_verified",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
+    )
+
     # Performance indexes (from 005_performance_indexes)
     op.create_index(
         "idx_bookings_date_status",
@@ -1171,6 +1181,7 @@ def downgrade() -> None:
 
     op.drop_column("bookings", "reminder_1h_sent")
     op.drop_column("bookings", "reminder_24h_sent")
+    op.drop_column("users", "phone_verified")
 
     op.drop_index("ix_search_clicks_instructor_id", table_name="search_clicks")
     op.drop_index("ix_message_reactions_message_id", table_name="message_reactions")

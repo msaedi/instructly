@@ -737,6 +737,7 @@ async def read_users_me(
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,
         "phone": getattr(current_user, "phone", None),
+        "phone_verified": getattr(current_user, "phone_verified", False),
         "zip_code": getattr(current_user, "zip_code", None),
         "is_active": getattr(current_user, "is_active", True),
         "timezone": getattr(current_user, "timezone", None),
@@ -801,7 +802,10 @@ async def update_current_user(
             if user_update.last_name is not None:
                 upd_data["last_name"] = user_update.last_name
             if user_update.phone is not None:
+                old_phone = getattr(u, "phone", None)
                 upd_data["phone"] = user_update.phone
+                if user_update.phone != old_phone:
+                    upd_data["phone_verified"] = False
 
             # Handle zip code change with automatic timezone update
             if user_update.zip_code is not None:
@@ -842,6 +846,7 @@ async def update_current_user(
             "first_name": updated_user.first_name,
             "last_name": updated_user.last_name,
             "phone": getattr(updated_user, "phone", None),
+            "phone_verified": getattr(updated_user, "phone_verified", False),
             "zip_code": getattr(updated_user, "zip_code", None),
             "is_active": getattr(updated_user, "is_active", True),
             "timezone": getattr(updated_user, "timezone", None),

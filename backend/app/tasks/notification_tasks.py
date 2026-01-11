@@ -35,6 +35,7 @@ from app.services.notification_templates import (
     STUDENT_REMINDER_24H,
     NotificationTemplate,
 )
+from app.services.sms_templates import REMINDER_1H, REMINDER_24H, SMSTemplate
 from app.tasks.celery_app import typed_task
 
 logger = get_task_logger(__name__)
@@ -224,6 +225,7 @@ def _send_reminder_notifications(
     booking: Booking,
     instructor_template: NotificationTemplate,
     student_template: NotificationTemplate,
+    sms_template: SMSTemplate,
 ) -> None:
     student_name = _format_display_name(getattr(booking, "student", None))
     instructor_name = _format_display_name(getattr(booking, "instructor", None))
@@ -241,6 +243,9 @@ def _send_reminder_notifications(
             time=time_str,
             booking_id=booking.id,
             send_email=False,
+            send_sms=True,
+            sms_template=sms_template,
+            other_party_name=student_name,
         )
         await service.notify_user(
             user_id=booking.student_id,
@@ -251,6 +256,9 @@ def _send_reminder_notifications(
             time=time_str,
             booking_id=booking.id,
             send_email=False,
+            send_sms=True,
+            sms_template=sms_template,
+            other_party_name=instructor_name,
         )
 
     asyncio.run(_notify())
@@ -297,6 +305,7 @@ def send_booking_reminders() -> dict[str, int]:
                     booking,
                     INSTRUCTOR_REMINDER_24H,
                     STUDENT_REMINDER_24H,
+                    REMINDER_24H,
                 )
                 reminders_24h += 2
             except Exception as exc:
@@ -330,6 +339,7 @@ def send_booking_reminders() -> dict[str, int]:
                     booking,
                     INSTRUCTOR_REMINDER_1H,
                     STUDENT_REMINDER_1H,
+                    REMINDER_1H,
                 )
                 reminders_1h += 2
             except Exception as exc:

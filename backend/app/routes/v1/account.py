@@ -14,21 +14,41 @@ Endpoints:
 
 import asyncio
 import logging
+import re
+import secrets
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 from ...api.dependencies.auth import get_current_active_user
-from ...api.dependencies.services import get_account_lifecycle_service
+from ...api.dependencies.database import get_db
+from ...api.dependencies.services import (
+    get_account_lifecycle_service,
+    get_cache_service_dep,
+    get_sms_service,
+)
 from ...core.exceptions import BusinessRuleException, ValidationException
 from ...models.user import User
+from ...repositories import RepositoryFactory
 from ...schemas.account_lifecycle import AccountStatusChangeResponse, AccountStatusResponse
+from ...schemas.phone import (
+    PhoneUpdateRequest,
+    PhoneUpdateResponse,
+    PhoneVerifyConfirmRequest,
+    PhoneVerifyResponse,
+)
 from ...services.account_lifecycle_service import AccountLifecycleService
+from ...services.cache_service import CacheService
+from ...services.sms_service import SMSService
 
 logger = logging.getLogger(__name__)
 
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["account-v1"])
+
+E164_PATTERN = re.compile(r"^\+[1-9]\d{7,14}$")
+PHONE_VERIFY_TTL_SECONDS = 300
 
 
 @router.post("/suspend", response_model=AccountStatusChangeResponse)
@@ -156,6 +176,122 @@ async def check_account_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to check account status",
         )
+
+
+@router.get("/phone", response_model=PhoneUpdateResponse)
+async def get_phone_number(
+    current_user: User = Depends(get_current_active_user),
+) -> PhoneUpdateResponse:
+    """Get the current user's phone number and verification status."""
+    return PhoneUpdateResponse(
+        phone_number=getattr(current_user, "phone", None),
+        verified=bool(getattr(current_user, "phone_verified", False)),
+    )
+
+
+@router.put("/phone", response_model=PhoneUpdateResponse)
+async def update_phone_number(
+    request: PhoneUpdateRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+    cache_service: CacheService = Depends(get_cache_service_dep),
+) -> PhoneUpdateResponse:
+    """Update the current user's phone number and reset verification."""
+    phone_number = request.phone_number.strip()
+    if not E164_PATTERN.match(phone_number):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phone number must be in E.164 format (+1234567890)",
+        )
+
+    def _update_phone() -> PhoneUpdateResponse:
+        user_repo = RepositoryFactory.create_user_repository(db)
+        user = user_repo.get_by_id(current_user.id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        if getattr(user, "phone", None) != phone_number:
+            updated = user_repo.update_profile(
+                user.id,
+                phone=phone_number,
+                phone_verified=False,
+            )
+        else:
+            updated = user
+
+        if not updated:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update phone number",
+            )
+
+        return PhoneUpdateResponse(
+            phone_number=getattr(updated, "phone", None),
+            verified=bool(getattr(updated, "phone_verified", False)),
+        )
+
+    response = await asyncio.to_thread(_update_phone)
+    await cache_service.delete(f"phone_verify:{current_user.id}")
+    return response
+
+
+@router.post("/phone/verify", response_model=PhoneVerifyResponse)
+async def send_phone_verification(
+    current_user: User = Depends(get_current_active_user),
+    sms_service: SMSService = Depends(get_sms_service),
+    cache_service: CacheService = Depends(get_cache_service_dep),
+) -> PhoneVerifyResponse:
+    """Send a verification code to the user's phone number."""
+    phone_number = getattr(current_user, "phone", None)
+    if not phone_number:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No phone number set")
+    if not E164_PATTERN.match(phone_number):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phone number must be in E.164 format (+1234567890)",
+        )
+    if not sms_service.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SMS service is not configured",
+        )
+
+    code = str(secrets.randbelow(900000) + 100000)
+    await cache_service.set(
+        f"phone_verify:{current_user.id}",
+        code,
+        ttl=PHONE_VERIFY_TTL_SECONDS,
+    )
+    await sms_service.send_sms(phone_number, f"InstaInstru: Your verification code is {code}")
+
+    return PhoneVerifyResponse(sent=True)
+
+
+@router.post("/phone/verify/confirm", response_model=PhoneVerifyResponse)
+async def confirm_phone_verification(
+    request: PhoneVerifyConfirmRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+    cache_service: CacheService = Depends(get_cache_service_dep),
+) -> PhoneVerifyResponse:
+    """Confirm phone verification with a code."""
+    if not getattr(current_user, "phone", None):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No phone number set")
+    cached = await cache_service.get(f"phone_verify:{current_user.id}")
+    if not cached or str(cached) != request.code.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification code",
+        )
+
+    def _mark_verified() -> None:
+        user_repo = RepositoryFactory.create_user_repository(db)
+        user_repo.update_profile(current_user.id, phone_verified=True)
+
+    await asyncio.to_thread(_mark_verified)
+    await cache_service.delete(f"phone_verify:{current_user.id}")
+
+    return PhoneVerifyResponse(verified=True)
 
 
 __all__ = ["router"]

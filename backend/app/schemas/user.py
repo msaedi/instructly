@@ -90,6 +90,7 @@ class UserResponse(StandardizedModel):  # Changed from UserBase
     first_name: str
     last_name: str
     phone: Optional[str] = None
+    phone_verified: Optional[bool] = False
     zip_code: str
     is_active: Optional[bool] = True
     timezone: str = "America/New_York"

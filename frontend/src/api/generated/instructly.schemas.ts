@@ -951,6 +951,8 @@ export type AuthUserResponseHasProfilePicture = boolean | null;
 
 export type AuthUserResponsePhone = string | null;
 
+export type AuthUserResponsePhoneVerified = boolean | null;
+
 export type AuthUserResponseProfilePictureVersion = number | null;
 
 export type AuthUserResponseTimezone = string | null;
@@ -971,6 +973,7 @@ export interface AuthUserResponse {
   last_name: string;
   permissions?: string[];
   phone?: AuthUserResponsePhone;
+  phone_verified?: AuthUserResponsePhoneVerified;
   profile_picture_version?: AuthUserResponseProfilePictureVersion;
   roles?: string[];
   timezone?: AuthUserResponseTimezone;
@@ -993,6 +996,8 @@ export type AuthUserWithPermissionsResponseFoundingInstructorGranted = boolean |
 export type AuthUserWithPermissionsResponseHasProfilePicture = boolean | null;
 
 export type AuthUserWithPermissionsResponsePhone = string | null;
+
+export type AuthUserWithPermissionsResponsePhoneVerified = boolean | null;
 
 export type AuthUserWithPermissionsResponseProfilePictureVersion = number | null;
 
@@ -1018,6 +1023,7 @@ export interface AuthUserWithPermissionsResponse {
   last_name: string;
   permissions?: string[];
   phone?: AuthUserWithPermissionsResponsePhone;
+  phone_verified?: AuthUserWithPermissionsResponsePhoneVerified;
   profile_picture_version?: AuthUserWithPermissionsResponseProfilePictureVersion;
   roles?: string[];
   timezone?: AuthUserWithPermissionsResponseTimezone;
@@ -4666,6 +4672,31 @@ export interface PerformanceRecommendation {
   severity: string;
   /** Recommendation type (database/cache/memory/requests) */
   type: string;
+}
+
+export interface PhoneUpdateRequest {
+  /** Phone number in E.164 format */
+  phone_number: string;
+}
+
+export type PhoneUpdateResponsePhoneNumber = string | null;
+
+export interface PhoneUpdateResponse {
+  phone_number?: PhoneUpdateResponsePhoneNumber;
+  verified?: boolean;
+}
+
+export interface PhoneVerifyConfirmRequest {
+  /**
+   * @minLength 6
+   * @maxLength 6
+   */
+  code: string;
+}
+
+export interface PhoneVerifyResponse {
+  sent?: boolean;
+  verified?: boolean;
 }
 
 export type PipelineStageDetailsAnyOf = { [key: string]: unknown };

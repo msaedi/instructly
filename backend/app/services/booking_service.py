@@ -62,6 +62,12 @@ from .notification_templates import (
     STUDENT_BOOKING_CONFIRMED,
 )
 from .pricing_service import PricingService
+from .sms_templates import (
+    BOOKING_CANCELLED_INSTRUCTOR,
+    BOOKING_CANCELLED_STUDENT,
+    BOOKING_CONFIRMED_INSTRUCTOR,
+    BOOKING_CONFIRMED_STUDENT,
+)
 from .stripe_service import StripeService
 from .student_credit_service import StudentCreditService
 from .system_message_service import SystemMessageService
@@ -4917,6 +4923,8 @@ class BookingService(BaseService):
                 time=time_str,
                 booking_id=booking.id,
                 send_email=False,
+                send_sms=True,
+                sms_template=BOOKING_CONFIRMED_INSTRUCTOR,
             )
             self.notification_service.notify_user_best_effort(
                 user_id=booking.student_id,
@@ -4924,8 +4932,11 @@ class BookingService(BaseService):
                 instructor_name=instructor_name,
                 service_name=service_name,
                 date=date_str,
+                time=time_str,
                 booking_id=booking.id,
                 send_email=False,
+                send_sms=True,
+                sms_template=BOOKING_CONFIRMED_STUDENT,
             )
         except Exception as exc:
             logger.error("Failed to send booking notifications for %s: %s", booking.id, exc)
@@ -4953,6 +4964,8 @@ class BookingService(BaseService):
                     date=date_str,
                     booking_id=booking.id,
                     send_email=False,
+                    send_sms=True,
+                    sms_template=BOOKING_CANCELLED_INSTRUCTOR,
                 )
             elif cancelled_by_role == "instructor":
                 instructor_name = self._format_user_display_name(
@@ -4966,6 +4979,8 @@ class BookingService(BaseService):
                     date=date_str,
                     booking_id=booking.id,
                     send_email=False,
+                    send_sms=True,
+                    sms_template=BOOKING_CANCELLED_STUDENT,
                 )
         except Exception as exc:
             logger.error("Failed to send cancellation notifications for %s: %s", booking.id, exc)

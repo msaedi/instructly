@@ -33,10 +33,13 @@ from ..models.user import User
 from ..repositories.notification_repository import NotificationRepository
 from ..repositories.user_repository import UserRepository
 from ..services.base import BaseService
+from ..services.cache_service import CacheService
 from ..services.email import EmailService
 from ..services.messaging import publish_to_user
 from ..services.notification_preference_service import NotificationPreferenceService
 from ..services.push_notification_service import PushNotificationService
+from ..services.sms_service import SMSService
+from ..services.sms_templates import SMSTemplate, render_sms
 from ..services.template_registry import TemplateRegistry
 from ..services.template_service import TemplateService
 from ..services.timezone_service import TimezoneService
@@ -110,6 +113,7 @@ class NotificationService(BaseService):
         notification_repository: Optional[NotificationRepository] = None,
         push_service: Optional[PushNotificationService] = None,
         preference_service: Optional[NotificationPreferenceService] = None,
+        sms_service: Optional[SMSService] = None,
     ) -> None:
         """
         Initialize the notification service.
@@ -151,12 +155,15 @@ class NotificationService(BaseService):
             self._owns_template_service = False
 
         self.notification_repository = notification_repository or NotificationRepository(db)
+        self.user_repository = UserRepository(db)
         self.push_notification_service = push_service or PushNotificationService(
             db, self.notification_repository
         )
         self.preference_service = preference_service or NotificationPreferenceService(
             db, self.notification_repository
         )
+        sms_cache = cache if isinstance(cache, CacheService) else None
+        self.sms_service = sms_service or SMSService(sms_cache)
 
         self.frontend_url = settings.frontend_url
 
@@ -1154,6 +1161,28 @@ class NotificationService(BaseService):
 
         return enabled
 
+    def _should_send_sms(self, user_id: str, category: str, context: str) -> bool:
+        try:
+            enabled = self.preference_service.is_enabled(user_id, category, "sms")
+        except Exception as exc:
+            self.logger.warning(
+                "SMS preference lookup failed; skipping (user_id=%s context=%s): %s",
+                user_id,
+                context,
+                exc,
+            )
+            return False
+
+        if not enabled:
+            self.logger.info(
+                "SMS skipped due to preferences (user_id=%s category=%s context=%s)",
+                user_id,
+                category,
+                context,
+            )
+
+        return enabled
+
     def _send_notification_email(
         self, user_id: str, template: NotificationTemplate, **template_kwargs: Any
     ) -> bool:
@@ -1236,6 +1265,8 @@ class NotificationService(BaseService):
         template: NotificationTemplate,
         send_push: bool = True,
         send_email: bool = True,
+        send_sms: bool = False,
+        sms_template: SMSTemplate | None = None,
         **template_kwargs: Any,
     ) -> Notification:
         rendered = render_notification(template, **template_kwargs)
@@ -1261,6 +1292,38 @@ class NotificationService(BaseService):
                     self._send_notification_email, user_id, template, **template_kwargs
                 )
 
+        if send_sms and sms_template is not None and self.sms_service:
+            should_send_sms = await asyncio.to_thread(
+                self._should_send_sms,
+                user_id,
+                sms_template.category,
+                f"notify_user:{template.type}:sms",
+            )
+            if should_send_sms:
+                try:
+                    message = render_sms(sms_template, **template_kwargs)
+                except Exception as exc:
+                    self.logger.warning(
+                        "Failed to render SMS template for %s (%s): %s",
+                        template.type,
+                        user_id,
+                        exc,
+                    )
+                else:
+                    try:
+                        await self.sms_service.send_to_user(
+                            user_id=user_id,
+                            message=message,
+                            user_repository=self.user_repository,
+                        )
+                    except Exception as exc:
+                        self.logger.warning(
+                            "Failed to send SMS for %s (%s): %s",
+                            template.type,
+                            user_id,
+                            exc,
+                        )
+
         return notification
 
     @BaseService.measure_operation("notify_user_best_effort")
@@ -1270,6 +1333,8 @@ class NotificationService(BaseService):
         template: NotificationTemplate,
         send_push: bool = True,
         send_email: bool = True,
+        send_sms: bool = False,
+        sms_template: SMSTemplate | None = None,
         **template_kwargs: Any,
     ) -> None:
         async def _notify() -> None:
@@ -1278,6 +1343,8 @@ class NotificationService(BaseService):
                 template=template,
                 send_push=send_push,
                 send_email=send_email,
+                send_sms=send_sms,
+                sms_template=sms_template,
                 **template_kwargs,
             )
 
