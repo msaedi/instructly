@@ -11773,6 +11773,10 @@ export type components = {
             promotional: {
                 [key: string]: boolean;
             };
+            /** Reviews */
+            reviews: {
+                [key: string]: boolean;
+            };
             /** System Updates */
             system_updates: {
                 [key: string]: boolean;

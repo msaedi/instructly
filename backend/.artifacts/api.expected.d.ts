@@ -6226,6 +6226,9 @@ export type components = {
  promotional: {
  [key: string]: boolean;
  };
+ reviews: {
+ [key: string]: boolean;
+ };
  system_updates: {
  [key: string]: boolean;
  };

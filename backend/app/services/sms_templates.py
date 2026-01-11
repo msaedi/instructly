@@ -41,9 +41,16 @@ REMINDER_1H = SMSTemplate(
     template="InstaInstru: {service_name} starts in 1 hour with {other_party_name}!",
 )
 
-NEW_REVIEW = SMSTemplate(
-    category="lesson_updates",
-    template="InstaInstru: You received a new {rating}-star review from {student_name}!",
+REVIEW_NEW_REVIEW = SMSTemplate(
+    category="reviews",
+    template=(
+        "InstaInstru: New review! {student_name} left a {rating}-star review for " "{service_name}."
+    ),
+)
+
+REVIEW_RESPONSE = SMSTemplate(
+    category="reviews",
+    template="InstaInstru: {instructor_name} responded to your review. {response_preview}",
 )
 
 BOOKING_NEW_MESSAGE = SMSTemplate(
@@ -67,6 +74,22 @@ SECURITY_PASSWORD_CHANGED = SMSTemplate(
     ),
 )
 
+SECURITY_2FA_CHANGED = SMSTemplate(
+    category="system_updates",
+    template=(
+        "InstaInstru: Two-factor authentication was {status}. If this wasn't you, secure "
+        "your account at {security_url}."
+    ),
+)
+
+PAYMENT_FAILED = SMSTemplate(
+    category="lesson_updates",
+    template=(
+        "InstaInstru: Payment failed for {service_name} with {instructor_name} on {date}. "
+        "Update your card: {payment_url}"
+    ),
+)
+
 
 def render_sms(template: SMSTemplate, **kwargs: str) -> str:
     """Render SMS template with provided values."""
@@ -84,9 +107,12 @@ __all__ = [
     "BOOKING_CANCELLED_STUDENT",
     "REMINDER_24H",
     "REMINDER_1H",
-    "NEW_REVIEW",
+    "REVIEW_NEW_REVIEW",
+    "REVIEW_RESPONSE",
     "BOOKING_NEW_MESSAGE",
     "SECURITY_NEW_DEVICE_LOGIN",
     "SECURITY_PASSWORD_CHANGED",
+    "SECURITY_2FA_CHANGED",
+    "PAYMENT_FAILED",
     "render_sms",
 ]

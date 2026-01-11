@@ -41,6 +41,8 @@ from ..services.push_notification_service import PushNotificationService
 from ..services.sms_service import SMSService
 from ..services.sms_templates import (
     BOOKING_NEW_MESSAGE,
+    PAYMENT_FAILED,
+    SECURITY_2FA_CHANGED,
     SECURITY_NEW_DEVICE_LOGIN,
     SECURITY_PASSWORD_CHANGED,
     SMSTemplate,
@@ -654,6 +656,91 @@ class NotificationService(BaseService):
             )
             return False
 
+    @BaseService.measure_operation("send_payment_failed_notification")
+    def send_payment_failed_notification(self, booking: Booking) -> bool:
+        """
+        Always-on payment failure notice to the student (email + optional SMS).
+        """
+        student_id = getattr(booking, "student_id", None)
+        if not student_id:
+            return False
+
+        student = self.user_repository.get_by_id(student_id)
+        if not student or not getattr(student, "email", None):
+            self.logger.warning(
+                "Payment failed notification skipped: student not found (%s)", student_id
+            )
+            return False
+
+        instructor_name = "your instructor"
+        instructor_id = getattr(booking, "instructor_id", None)
+        if instructor_id:
+            instructor = self.user_repository.get_by_id(instructor_id)
+            if instructor:
+                instructor_name = instructor.first_name or instructor.email or instructor_name
+
+        local_dt = self._get_booking_local_datetime(booking)
+        formatted_date = local_dt.strftime("%A, %B %d, %Y")
+        formatted_time = local_dt.strftime("%-I:%M %p")
+        payment_url = f"{self.frontend_url}/student/payments"
+
+        context = {
+            "user_name": student.first_name or student.email,
+            "service_name": booking.service_name or "your lesson",
+            "instructor_name": instructor_name,
+            "formatted_date": formatted_date,
+            "formatted_time": formatted_time,
+            "payment_url": payment_url,
+        }
+
+        email_sent = False
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.PAYMENT_FAILED,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=student.email,
+                subject="Payment failed for your upcoming lesson",
+                html_content=html_content,
+                template=TemplateRegistry.PAYMENT_FAILED,
+            )
+            email_sent = True
+            self.logger.info("Payment failed email sent to %s", student.email)
+        except Exception as exc:
+            self.logger.error("Failed to send payment failed email to %s: %s", student.email, exc)
+
+        sms_sent = False
+        if self.sms_service and getattr(student, "phone_verified", False):
+            try:
+                sms_message = render_sms(
+                    PAYMENT_FAILED,
+                    service_name=booking.service_name or "your lesson",
+                    instructor_name=instructor_name,
+                    date=formatted_date,
+                    payment_url=payment_url,
+                )
+            except Exception as exc:
+                self.logger.warning(
+                    "Failed to render payment failed SMS for %s: %s", student_id, exc
+                )
+            else:
+
+                async def _send_sms() -> None:
+                    await self.sms_service.send_to_user(
+                        user_id=student_id,
+                        message=sms_message,
+                        user_repository=self.user_repository,
+                    )
+
+                self._run_async_task(
+                    _send_sms,
+                    f"sending payment failed SMS to {student_id}",
+                )
+                sms_sent = True
+
+        return email_sent or sms_sent
+
     @BaseService.measure_operation("send_final_payment_warning")
     def send_final_payment_warning(self, booking: Booking, hours_until_lesson: float) -> bool:
         """
@@ -1191,7 +1278,7 @@ class NotificationService(BaseService):
             return False
 
         if self.sms_service:
-            security_url = f"{settings.frontend_url}/forgot-password"
+            security_url = f"{self.frontend_url}/forgot-password"
             try:
                 sms_message = render_sms(
                     SECURITY_NEW_DEVICE_LOGIN,
@@ -1273,6 +1360,70 @@ class NotificationService(BaseService):
                 self._run_async_task(
                     _send_sms,
                     f"sending password change SMS to {user_id}",
+                )
+
+        return True
+
+    @BaseService.measure_operation("send_two_factor_changed_notification")
+    def send_two_factor_changed_notification(
+        self,
+        user_id: str,
+        enabled: bool,
+        changed_at: datetime,
+    ) -> bool:
+        """
+        Send 2FA enabled/disabled confirmation (always-on email + optional SMS).
+        """
+        user = self.user_repository.get_by_id(user_id)
+        if not user or not getattr(user, "email", None):
+            self.logger.warning("2FA change notification skipped: user not found (%s)", user_id)
+            return False
+
+        status_text = "enabled" if enabled else "disabled"
+        context = {
+            "user_name": user.first_name or user.email,
+            "status_text": status_text,
+            "changed_at": changed_at,
+        }
+
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.SECURITY_2FA_CHANGED,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject=f"Two-factor authentication {status_text}",
+                html_content=html_content,
+                template=TemplateRegistry.SECURITY_2FA_CHANGED,
+            )
+            self.logger.info("2FA change email sent to %s", user.email)
+        except Exception as exc:
+            self.logger.error("Failed to send 2FA change email to %s: %s", user.email, exc)
+            return False
+
+        if self.sms_service and getattr(user, "phone_verified", False):
+            security_url = f"{settings.frontend_url}/forgot-password"
+            try:
+                sms_message = render_sms(
+                    SECURITY_2FA_CHANGED,
+                    status=status_text,
+                    security_url=security_url,
+                )
+            except Exception as exc:
+                self.logger.warning("Failed to render 2FA change SMS for %s: %s", user_id, exc)
+            else:
+
+                async def _send_sms() -> None:
+                    await self.sms_service.send_to_user(
+                        user_id=user_id,
+                        message=sms_message,
+                        user_repository=self.user_repository,
+                    )
+
+                self._run_async_task(
+                    _send_sms,
+                    f"sending 2FA change SMS to {user_id}",
                 )
 
         return True

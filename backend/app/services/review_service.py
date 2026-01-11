@@ -32,6 +32,7 @@ from ..services.config_service import ConfigService
 from ..services.notification_service import NotificationService
 from ..services.notification_templates import INSTRUCTOR_NEW_REVIEW, STUDENT_REVIEW_RESPONSE
 from ..services.pricing_service import PricingService
+from ..services.sms_templates import REVIEW_NEW_REVIEW, REVIEW_RESPONSE
 from ..services.stripe_service import StripeService
 from .badge_award_service import BadgeAwardService
 from .base import BaseService, CacheInvalidationProtocol
@@ -268,11 +269,20 @@ class ReviewService(BaseService):
         if self.notification_service:
             try:
                 student_name = self.get_reviewer_display_name(student_id) or "Someone"
+                review_snippet = ""
+                if review_text:
+                    trimmed = review_text.strip()
+                    if trimmed:
+                        review_snippet = trimmed[:97] + "..." if len(trimmed) > 100 else trimmed
                 self.notification_service.notify_user_best_effort(
                     user_id=review.instructor_id,
                     template=INSTRUCTOR_NEW_REVIEW,
+                    send_sms=True,
+                    sms_template=REVIEW_NEW_REVIEW,
                     student_name=student_name,
                     rating=review.rating,
+                    service_name=booking.service_name,
+                    review_snippet=review_snippet,
                     review_id=review.id,
                 )
             except Exception as exc:
@@ -602,10 +612,17 @@ class ReviewService(BaseService):
         if self.notification_service:
             try:
                 instructor_name = self.get_reviewer_display_name(instructor_id) or "Someone"
+                response_preview = response_text.strip()
+                if len(response_preview) > 120:
+                    response_preview = f"{response_preview[:117]}..."
                 self.notification_service.notify_user_best_effort(
                     user_id=review.student_id,
                     template=STUDENT_REVIEW_RESPONSE,
+                    send_sms=True,
+                    sms_template=REVIEW_RESPONSE,
                     instructor_name=instructor_name,
+                    response_text=response_text.strip(),
+                    response_preview=response_preview,
                     review_id=review.id,
                 )
             except Exception as exc:

@@ -361,6 +361,20 @@ def _process_authorization_for_booking(
             return {"success": False, "error": "Booking not found in Phase 3"}
 
         payment_repo = RepositoryFactory.get_payment_repository(db3)
+        previous_capture_retry_count = int(getattr(booking, "capture_retry_count", 0) or 0)
+
+        def _notify_payment_failed_once() -> None:
+            if previous_capture_retry_count > 0:
+                return
+            try:
+                notification_service = NotificationService(db3)
+                notification_service.send_payment_failed_notification(booking)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to send payment failed notification for booking %s: %s",
+                    booking_id,
+                    exc,
+                )
 
         attempted_at = datetime.now(timezone.utc)
 
@@ -1674,6 +1688,20 @@ def _process_capture_for_booking(
             return {"success": False, "error": "Booking not found in Phase 3"}
 
         payment_repo = RepositoryFactory.get_payment_repository(db3)
+        previous_capture_retry_count = int(getattr(booking, "capture_retry_count", 0) or 0)
+
+        def _notify_payment_failed_once() -> None:
+            if previous_capture_retry_count > 0:
+                return
+            try:
+                notification_service = NotificationService(db3)
+                notification_service.send_payment_failed_notification(booking)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to send payment failed notification for booking %s: %s",
+                    booking_id,
+                    exc,
+                )
 
         def _resolve_payout_cents() -> Optional[int]:
             try:
@@ -1764,6 +1792,7 @@ def _process_capture_for_booking(
             booking.capture_failed_at = datetime.now(timezone.utc)
             booking.capture_retry_count = int(getattr(booking, "capture_retry_count", 0) or 0) + 1
             booking.capture_error = stripe_result.get("error")
+            _notify_payment_failed_once()
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="capture_failed_expired",
@@ -1779,6 +1808,7 @@ def _process_capture_for_booking(
             booking.capture_failed_at = datetime.now(timezone.utc)
             booking.capture_retry_count = int(getattr(booking, "capture_retry_count", 0) or 0) + 1
             booking.capture_error = stripe_result.get("error")
+            _notify_payment_failed_once()
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="capture_failed_card",
@@ -1795,6 +1825,7 @@ def _process_capture_for_booking(
             booking.capture_failed_at = datetime.now(timezone.utc)
             booking.capture_retry_count = int(getattr(booking, "capture_retry_count", 0) or 0) + 1
             booking.capture_error = stripe_result.get("error")
+            _notify_payment_failed_once()
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="capture_failed",

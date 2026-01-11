@@ -24,6 +24,7 @@ const RewardsPanel = dynamic(() => import('@/features/referrals/RewardsPanel'), 
 const PREFERENCE_DEFAULTS = {
   lesson_updates: { email: true, push: true, sms: false },
   messages: { email: false, push: true, sms: false },
+  reviews: { email: true, push: true, sms: false },
   promotional: { email: false, push: false, sms: false },
 } as const;
 const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
@@ -336,7 +337,10 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             </thead>
             <tbody className="align-top">
               <tr className="text-gray-800">
-                <td className="py-2 pr-6">Lesson updates</td>
+                <td className="py-2 pr-6">
+                  <div className="font-medium text-gray-900">Lesson updates</div>
+                  <div className="text-xs text-gray-500">Bookings, cancellations, reminders</div>
+                </td>
                 <td className="pr-6">
                   {renderPreferenceToggle('lesson_updates', 'email')}
                 </td>
@@ -348,7 +352,25 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 </td>
               </tr>
               <tr className="text-gray-800">
-                <td className="py-2 pr-6">Promotional emails and notifications</td>
+                <td className="py-2 pr-6">
+                  <div className="font-medium text-gray-900">Reviews</div>
+                  <div className="text-xs text-gray-500">New reviews, review responses</div>
+                </td>
+                <td className="pr-6">
+                  {renderPreferenceToggle('reviews', 'email')}
+                </td>
+                <td className="pr-6">
+                  {renderPreferenceToggle('reviews', 'sms', smsPreferenceOptions)}
+                </td>
+                <td>
+                  {renderPreferenceToggle('reviews', 'push', pushPreferenceOptions)}
+                </td>
+              </tr>
+              <tr className="text-gray-800">
+                <td className="py-2 pr-6">
+                  <div className="font-medium text-gray-900">Promotional emails and notifications</div>
+                  <div className="text-xs text-gray-500">New features, tips, special offers</div>
+                </td>
                 <td className="pr-6">
                   {renderPreferenceToggle('promotional', 'email')}
                 </td>
@@ -360,7 +382,10 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 </td>
               </tr>
               <tr className="text-gray-800">
-                <td className="py-2 pr-6">Messages</td>
+                <td className="py-2 pr-6">
+                  <div className="font-medium text-gray-900">Messages</div>
+                  <div className="text-xs text-gray-500">New chats and replies from students</div>
+                </td>
                 <td className="pr-6">
                   {renderPreferenceToggle('messages', 'email')}
                 </td>

@@ -9,6 +9,7 @@ export type NotificationPreferenceChannels = {
 export interface PreferencesByCategory {
   lesson_updates: NotificationPreferenceChannels;
   messages: NotificationPreferenceChannels;
+  reviews: NotificationPreferenceChannels;
   learning_tips: NotificationPreferenceChannels;
   system_updates: NotificationPreferenceChannels;
   promotional: NotificationPreferenceChannels;

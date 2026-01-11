@@ -59,11 +59,13 @@ INSTRUCTOR_REMINDER_1H = NotificationTemplate(
 )
 
 INSTRUCTOR_NEW_REVIEW = NotificationTemplate(
-    category="lesson_updates",
+    category="reviews",
     type="new_review",
     title="New Review!",
-    body_template="{student_name} left a {rating}-star review",
+    body_template="{student_name} left you a {rating}-star review for {service_name}",
     url_template="/instructor/dashboard?panel=reviews",
+    email_template=TemplateRegistry.REVIEW_NEW_REVIEW,
+    email_subject_template="You received a new review!",
 )
 
 INSTRUCTOR_PAYOUT = NotificationTemplate(
@@ -116,11 +118,13 @@ STUDENT_REMINDER_1H = NotificationTemplate(
 )
 
 STUDENT_REVIEW_RESPONSE = NotificationTemplate(
-    category="lesson_updates",
+    category="reviews",
     type="review_response",
     title="Review Response",
     body_template="{instructor_name} responded to your review",
     url_template="/student/bookings",
+    email_template=TemplateRegistry.REVIEW_RESPONSE,
+    email_subject_template="{instructor_name} responded to your review",
 )
 
 

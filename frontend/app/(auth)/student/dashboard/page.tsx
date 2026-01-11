@@ -45,6 +45,7 @@ import { getActivityBackground } from '@/lib/services/assetService';
 const STUDENT_PREFERENCE_DEFAULTS = {
   lesson_updates: { email: true, sms: false, push: true },
   messages: { email: false, sms: false, push: true },
+  reviews: { email: true, sms: false, push: true },
   learning_tips: { email: true, sms: false, push: true },
   system_updates: { email: true, sms: false, push: false },
   promotional: { email: false, sms: false, push: false },
@@ -53,6 +54,7 @@ const STUDENT_PREFERENCE_DEFAULTS = {
 const STUDENT_RECOMMENDED_PREFERENCES = {
   lesson_updates: { email: true, sms: true, push: false },
   messages: { email: true, sms: true, push: true },
+  reviews: { email: true, sms: false, push: true },
   learning_tips: { email: true, sms: false, push: true },
   system_updates: { email: true, sms: false, push: false },
   promotional: { email: false, sms: false, push: false },
@@ -1192,6 +1194,36 @@ function NotificationsTab() {
                 onChange={() => handleToggle('messages', 'push')}
                 disabled
                 title="Push notifications for messages are required."
+              />
+            </div>
+          </div>
+
+          {/* Reviews & Feedback */}
+          <div className="grid grid-cols-4 gap-4 items-start py-2">
+            <div>
+              <div className="font-medium text-gray-900">Reviews & Feedback</div>
+              <div className="text-xs text-gray-500">Review requests, instructor responses</div>
+            </div>
+            <div className="flex justify-center">
+              <ToggleSwitch
+                checked={getPreferenceValue('reviews', 'email')}
+                onChange={() => handleToggle('reviews', 'email')}
+                disabled={preferencesDisabled}
+              />
+            </div>
+            <div className="flex justify-center">
+              <ToggleSwitch
+                checked={getPreferenceValue('reviews', 'sms')}
+                onChange={() => handleToggle('reviews', 'sms')}
+                disabled={preferencesDisabled || smsToggleDisabled}
+                {...(smsToggleTitle ? { title: smsToggleTitle } : {})}
+              />
+            </div>
+            <div className="flex justify-center">
+              <ToggleSwitch
+                checked={getPreferenceValue('reviews', 'push')}
+                onChange={() => handleToggle('reviews', 'push')}
+                disabled={preferencesDisabled}
               />
             </div>
           </div>

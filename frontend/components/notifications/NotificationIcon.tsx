@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, Calendar, Gift, MessageSquare } from 'lucide-react';
+import { Bell, Calendar, Gift, MessageSquare, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const CATEGORY_STYLES: Record<string, { icon: typeof Bell; className: string }> = {
@@ -11,6 +11,10 @@ const CATEGORY_STYLES: Record<string, { icon: typeof Bell; className: string }> 
   messages: {
     icon: MessageSquare,
     className: 'bg-blue-50 text-blue-600',
+  },
+  reviews: {
+    icon: Star,
+    className: 'bg-emerald-50 text-emerald-600',
   },
   promotional: {
     icon: Gift,

@@ -15,6 +15,7 @@ class TemplateRegistry(str, Enum):
     AUTH_WELCOME = "email/auth/welcome.html"
     SECURITY_NEW_DEVICE_LOGIN = "email/security/new_device_login.html"
     SECURITY_PASSWORD_CHANGED = "email/security/password_changed.html"
+    SECURITY_2FA_CHANGED = "email/security/2fa_changed.html"
 
     # Referrals
     REFERRALS_INVITE = "email/referrals/invite.html"
@@ -38,6 +39,9 @@ class TemplateRegistry(str, Enum):
     BOOKING_REMINDER_INSTRUCTOR = "email/booking/reminder_instructor.html"
     BOOKING_REMINDER_STUDENT = "email/booking/reminder_student.html"
     PAYOUT_SENT = "email/payout/payout_sent.html"
+    PAYMENT_FAILED = "email/payment/payment_failed.html"
+    REVIEW_NEW_REVIEW = "email/reviews/new_review.html"
+    REVIEW_RESPONSE = "email/reviews/review_response.html"
 
     # Background checks
     BGC_REVIEW_STATUS = "email/bgc/review_status.jinja"
@@ -51,6 +55,7 @@ _TEMPLATE_DEFAULT_SENDERS: Final[dict[TemplateRegistry, str]] = {
     TemplateRegistry.AUTH_WELCOME: "account",
     TemplateRegistry.SECURITY_NEW_DEVICE_LOGIN: "account",
     TemplateRegistry.SECURITY_PASSWORD_CHANGED: "account",
+    TemplateRegistry.SECURITY_2FA_CHANGED: "account",
     TemplateRegistry.BETA_INVITE: "account",
     TemplateRegistry.REFERRALS_INVITE: "referrals",
     TemplateRegistry.REFERRALS_INVITE_STANDALONE: "referrals",
@@ -64,6 +69,9 @@ _TEMPLATE_DEFAULT_SENDERS: Final[dict[TemplateRegistry, str]] = {
     TemplateRegistry.BOOKING_REMINDER_INSTRUCTOR: "bookings",
     TemplateRegistry.BOOKING_REMINDER_STUDENT: "bookings",
     TemplateRegistry.PAYOUT_SENT: "bookings",
+    TemplateRegistry.PAYMENT_FAILED: "bookings",
+    TemplateRegistry.REVIEW_NEW_REVIEW: "bookings",
+    TemplateRegistry.REVIEW_RESPONSE: "bookings",
     TemplateRegistry.BGC_REVIEW_STATUS: "trust",
     TemplateRegistry.BGC_FINAL_ADVERSE: "trust",
     TemplateRegistry.BGC_EXPIRY_RECHECK: "trust",

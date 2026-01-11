@@ -1,0 +1,25 @@
+<!-- backend/app/templates/email/payment/payment_failed.html -->
+{% extends "email/base.html" %}
+
+{% block title %}Payment Failed{% endblock %}
+{% block preheader %}Your payment for {{ service_name }} could not be processed.{% endblock %}
+{% block header %}
+<div style="background: #F9F5FF; padding: 22px 30px 18px; text-align: center; border-radius: 12px 12px 0 0;">
+  <h1 style="color: #7E22CE; margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.5px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">{{ brand_name }}</h1>
+</div>
+{% endblock %}
+
+{% block content %}
+  <h2 style="color:#111827; margin:0 0 16px; font-size:20px;">Payment failed for your upcoming lesson</h2>
+  <p style="margin:0 0 16px;">Hi {{ user_name or 'there' }},</p>
+  <p style="margin:0 0 16px;">Your payment for <strong>{{ service_name }}</strong> with <strong>{{ instructor_name }}</strong> on <strong>{{ formatted_date }}</strong> at <strong>{{ formatted_time }}</strong> could not be processed.</p>
+  <div style="background-color:#FFFFFF; border:1px solid #E5E7EB; border-radius:8px; padding:16px; margin:16px 0;">
+    <p style="margin:0; color:#374151; font-size:14px;">Please update your payment method to avoid cancellation.</p>
+  </div>
+  <div style="text-align:center; margin:24px 0;">
+    <a href="{{ base_url }}/student/payments" style="background:#7E22CE; color:white; padding:12px 28px; border-radius:24px; text-decoration:none; display:inline-block; font-weight:600; font-size:15px; box-shadow: 0 4px 6px rgba(126, 34, 206, 0.25);">
+      Update payment method
+    </a>
+  </div>
+  <p style="margin:16px 0 0; color:#6B7280; font-size:14px;">If you need help, contact {{ support_email }}.</p>
+{% endblock %}

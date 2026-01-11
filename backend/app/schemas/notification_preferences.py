@@ -27,6 +27,7 @@ class PreferencesByCategory(StrictModel):
 
     lesson_updates: Dict[str, bool]
     messages: Dict[str, bool]
+    reviews: Dict[str, bool]
     learning_tips: Dict[str, bool]
     system_updates: Dict[str, bool]
     promotional: Dict[str, bool]

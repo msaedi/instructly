@@ -16,7 +16,7 @@ def test_get_user_preferences_creates_defaults(db, test_student):
 
     preferences = service.get_user_preferences(test_student.id)
 
-    assert len(preferences) == 15
+    assert len(preferences) == 18
     pref_map = _preference_map(preferences)
 
     for category, channels in DEFAULT_PREFERENCES.items():
@@ -35,6 +35,9 @@ def test_get_preferences_by_category(db, test_student):
     assert prefs_by_category["lesson_updates"]["push"] is True
     assert prefs_by_category["lesson_updates"]["sms"] is False
     assert prefs_by_category["messages"]["push"] is True
+    assert prefs_by_category["reviews"]["email"] is True
+    assert prefs_by_category["reviews"]["push"] is True
+    assert prefs_by_category["reviews"]["sms"] is False
     assert prefs_by_category["learning_tips"]["email"] is True
     assert prefs_by_category["learning_tips"]["push"] is True
     assert prefs_by_category["learning_tips"]["sms"] is False

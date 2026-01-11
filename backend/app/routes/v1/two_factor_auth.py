@@ -6,7 +6,7 @@ This module provides endpoints for managing two-factor authentication,
 including setup, verification, and disabling 2FA.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 
@@ -19,6 +19,7 @@ from app.core.config import settings
 from app.database import get_db
 from app.middleware.rate_limiter import RateLimitKeyType, rate_limit
 from app.services.auth_service import AuthService
+from app.services.notification_service import NotificationService
 from app.services.search_history_service import SearchHistoryService
 from app.services.two_factor_auth_service import TwoFactorAuthService
 from app.utils.cookies import (
@@ -84,6 +85,15 @@ def setup_verify(
             secure=settings.environment == "production",
             samesite="lax",
         )
+        try:
+            notification_service = NotificationService(tfa_service.db)
+            notification_service.send_two_factor_changed_notification(
+                user_id=user.id,
+                enabled=True,
+                changed_at=datetime.now(timezone.utc),
+            )
+        except Exception as exc:
+            logger.warning("Failed to send 2FA enabled notification for %s: %s", user.id, exc)
         return TFASetupVerifyResponse(enabled=True, backup_codes=backup_codes)
     except ValueError:
         # Return a user-friendly message without exposing internals
@@ -112,6 +122,15 @@ def disable(
             secure=settings.environment == "production",
             samesite="lax",
         )
+        try:
+            notification_service = NotificationService(tfa_service.db)
+            notification_service.send_two_factor_changed_notification(
+                user_id=user.id,
+                enabled=False,
+                changed_at=datetime.now(timezone.utc),
+            )
+        except Exception as exc:
+            logger.warning("Failed to send 2FA disabled notification for %s: %s", user.id, exc)
         return TFADisableResponse(message="Two-factor authentication disabled")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

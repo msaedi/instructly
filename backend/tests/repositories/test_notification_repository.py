@@ -18,12 +18,13 @@ def test_create_default_preferences(db, test_student):
     prefs = repo.create_default_preferences(test_student.id)
     db.commit()
 
-    assert len(prefs) == 15
+    assert len(prefs) == 18
     pref_map = _preference_map(prefs)
 
     expected = {
         "lesson_updates": {"email": True, "push": True, "sms": False},
         "messages": {"email": False, "push": True, "sms": False},
+        "reviews": {"email": True, "push": True, "sms": False},
         "learning_tips": {"email": True, "push": True, "sms": False},
         "system_updates": {"email": True, "push": False, "sms": False},
         "promotional": {"email": False, "push": False, "sms": False},
@@ -42,7 +43,7 @@ def test_get_user_preferences(db, test_student):
     db.commit()
 
     prefs = repo.get_user_preferences(test_student.id)
-    assert len(prefs) == 15
+    assert len(prefs) == 18
     assert all(pref.user_id == test_student.id for pref in prefs)
 
 

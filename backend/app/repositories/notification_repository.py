@@ -22,6 +22,7 @@ from .base_repository import BaseRepository
 DEFAULT_PREFERENCES: Dict[str, Dict[str, bool]] = {
     "lesson_updates": {"email": True, "push": True, "sms": False},
     "messages": {"email": False, "push": True, "sms": False},
+    "reviews": {"email": True, "push": True, "sms": False},
     "learning_tips": {"email": True, "push": True, "sms": False},
     "system_updates": {"email": True, "push": False, "sms": False},
     "promotional": {"email": False, "push": False, "sms": False},

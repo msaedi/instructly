@@ -4859,6 +4859,8 @@ export type PreferencesByCategoryMessages = { [key: string]: boolean };
 
 export type PreferencesByCategoryPromotional = { [key: string]: boolean };
 
+export type PreferencesByCategoryReviews = { [key: string]: boolean };
+
 export type PreferencesByCategorySystemUpdates = { [key: string]: boolean };
 
 /**
@@ -4869,6 +4871,7 @@ export interface PreferencesByCategory {
   lesson_updates: PreferencesByCategoryLessonUpdates;
   messages: PreferencesByCategoryMessages;
   promotional: PreferencesByCategoryPromotional;
+  reviews: PreferencesByCategoryReviews;
   system_updates: PreferencesByCategorySystemUpdates;
 }
 
