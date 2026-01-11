@@ -39,7 +39,13 @@ from ..services.messaging import publish_to_user
 from ..services.notification_preference_service import NotificationPreferenceService
 from ..services.push_notification_service import PushNotificationService
 from ..services.sms_service import SMSService
-from ..services.sms_templates import BOOKING_NEW_MESSAGE, SMSTemplate, render_sms
+from ..services.sms_templates import (
+    BOOKING_NEW_MESSAGE,
+    SECURITY_NEW_DEVICE_LOGIN,
+    SECURITY_PASSWORD_CHANGED,
+    SMSTemplate,
+    render_sms,
+)
 from ..services.template_registry import TemplateRegistry
 from ..services.template_service import TemplateService
 from ..services.timezone_service import TimezoneService
@@ -1098,6 +1104,178 @@ class NotificationService(BaseService):
         except Exception as e:
             self.logger.error(f"Error sending message notification: {str(e)}")
             return False
+
+    @BaseService.measure_operation("send_payout_notification")
+    def send_payout_notification(
+        self,
+        instructor_id: str,
+        amount_cents: int,
+        payout_date: datetime,
+    ) -> bool:
+        """
+        Send a payout confirmation email to an instructor (always-on).
+        """
+        user = self.user_repository.get_by_id(instructor_id)
+        if not user or not getattr(user, "email", None):
+            self.logger.warning("Payout notification skipped: user not found (%s)", instructor_id)
+            return False
+
+        amount_usd = amount_cents / 100.0
+        amount_display = f"${amount_usd:,.2f}"
+
+        context = {
+            "user_name": user.first_name or user.email,
+            "amount": amount_display,
+            "amount_cents": amount_cents,
+            "payout_date": payout_date,
+        }
+
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.PAYOUT_SENT,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject="Your InstaInstru payout is on the way!",
+                html_content=html_content,
+                template=TemplateRegistry.PAYOUT_SENT,
+            )
+            self.logger.info(
+                "Payout notification sent to %s (amount_cents=%s)",
+                user.email,
+                amount_cents,
+            )
+            return True
+        except Exception as exc:
+            self.logger.error("Failed to send payout notification to %s: %s", user.email, exc)
+            return False
+
+    @BaseService.measure_operation("send_new_device_login_notification")
+    def send_new_device_login_notification(
+        self,
+        user_id: str,
+        ip_address: str | None,
+        user_agent: str | None,
+        login_time: datetime,
+    ) -> bool:
+        """
+        Send new-device login alert (always-on email + optional SMS).
+        """
+        user = self.user_repository.get_by_id(user_id)
+        if not user or not getattr(user, "email", None):
+            self.logger.warning("New device login skipped: user not found (%s)", user_id)
+            return False
+
+        context = {
+            "user_name": user.first_name or user.email,
+            "login_time": login_time,
+            "ip_address": ip_address or "Unknown",
+            "user_agent": user_agent or "Unknown",
+        }
+
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.SECURITY_NEW_DEVICE_LOGIN,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject="New login to your InstaInstru account",
+                html_content=html_content,
+                template=TemplateRegistry.SECURITY_NEW_DEVICE_LOGIN,
+            )
+            self.logger.info("New device login email sent to %s", user.email)
+        except Exception as exc:
+            self.logger.error("Failed to send new device login email to %s: %s", user.email, exc)
+            return False
+
+        if self.sms_service:
+            security_url = f"{settings.frontend_url}/forgot-password"
+            try:
+                sms_message = render_sms(
+                    SECURITY_NEW_DEVICE_LOGIN,
+                    security_url=security_url,
+                )
+            except Exception as exc:
+                self.logger.warning("Failed to render new device SMS for %s: %s", user_id, exc)
+            else:
+
+                async def _send_sms() -> None:
+                    await self.sms_service.send_to_user(
+                        user_id=user_id,
+                        message=sms_message,
+                        user_repository=self.user_repository,
+                    )
+
+                self._run_async_task(
+                    _send_sms,
+                    f"sending new device SMS to {user_id}",
+                )
+
+        return True
+
+    @BaseService.measure_operation("send_password_changed_notification")
+    def send_password_changed_notification(
+        self,
+        user_id: str,
+        changed_at: datetime,
+    ) -> bool:
+        """
+        Send password-changed confirmation (always-on email + optional SMS).
+        """
+        user = self.user_repository.get_by_id(user_id)
+        if not user or not getattr(user, "email", None):
+            self.logger.warning(
+                "Password change notification skipped: user not found (%s)", user_id
+            )
+            return False
+
+        context = {
+            "user_name": user.first_name or user.email,
+            "changed_at": changed_at,
+        }
+
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.SECURITY_PASSWORD_CHANGED,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject="Your InstaInstru password was changed",
+                html_content=html_content,
+                template=TemplateRegistry.SECURITY_PASSWORD_CHANGED,
+            )
+            self.logger.info("Password change email sent to %s", user.email)
+        except Exception as exc:
+            self.logger.error("Failed to send password change email to %s: %s", user.email, exc)
+            return False
+
+        if self.sms_service:
+            reset_url = f"{settings.frontend_url}/forgot-password"
+            try:
+                sms_message = render_sms(
+                    SECURITY_PASSWORD_CHANGED,
+                    reset_url=reset_url,
+                )
+            except Exception as exc:
+                self.logger.warning("Failed to render password change SMS for %s: %s", user_id, exc)
+            else:
+
+                async def _send_sms() -> None:
+                    await self.sms_service.send_to_user(
+                        user_id=user_id,
+                        message=sms_message,
+                        user_repository=self.user_repository,
+                    )
+
+                self._run_async_task(
+                    _send_sms,
+                    f"sending password change SMS to {user_id}",
+                )
+
+        return True
 
     @BaseService.measure_operation("send_badge_awarded_email")
     def send_badge_awarded_email(self, user: User, badge_name: str) -> bool:

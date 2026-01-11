@@ -4137,6 +4137,27 @@ class StripeService(BaseService):
                                 status=status,
                                 arrival_date=arrival_date,
                             )
+                            try:
+                                profile = self.instructor_repository.get_by_id_join_user(
+                                    acct.instructor_profile_id
+                                )
+                                if profile and profile.user_id and amount is not None:
+                                    from app.services.notification_service import (
+                                        NotificationService,
+                                    )
+
+                                    notification_service = NotificationService(self.db)
+                                    notification_service.send_payout_notification(
+                                        instructor_id=profile.user_id,
+                                        amount_cents=int(amount),
+                                        payout_date=arrival_date or datetime.now(timezone.utc),
+                                    )
+                            except Exception as exc:
+                                self.logger.warning(
+                                    "Failed to send payout notification for account %s: %s",
+                                    account_id,
+                                    exc,
+                                )
                 except Exception as e:
                     self.logger.warning(f"Failed to persist payout.paid analytics: {e}")
                 return True

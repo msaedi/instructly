@@ -189,6 +189,7 @@ class TemplateService(BaseService):
             "brand_name": BRAND_NAME,
             "current_year": datetime.now(timezone.utc).year,
             "frontend_url": settings.frontend_url,
+            "base_url": settings.frontend_url,
             "support_email": settings.from_email,
         }
 

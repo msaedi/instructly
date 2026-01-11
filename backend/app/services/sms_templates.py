@@ -51,6 +51,22 @@ BOOKING_NEW_MESSAGE = SMSTemplate(
     template="InstaInstru: New message from {sender_name} about {service_name}. {message_preview}",
 )
 
+SECURITY_NEW_DEVICE_LOGIN = SMSTemplate(
+    category="system_updates",
+    template=(
+        "InstaInstru: New login detected. If this wasn't you, secure your account at "
+        "{security_url}."
+    ),
+)
+
+SECURITY_PASSWORD_CHANGED = SMSTemplate(
+    category="system_updates",
+    template=(
+        "InstaInstru: Your password was just changed. If this wasn't you, reset it at "
+        "{reset_url}."
+    ),
+)
+
 
 def render_sms(template: SMSTemplate, **kwargs: str) -> str:
     """Render SMS template with provided values."""
@@ -70,5 +86,7 @@ __all__ = [
     "REMINDER_1H",
     "NEW_REVIEW",
     "BOOKING_NEW_MESSAGE",
+    "SECURITY_NEW_DEVICE_LOGIN",
+    "SECURITY_PASSWORD_CHANGED",
     "render_sms",
 ]
