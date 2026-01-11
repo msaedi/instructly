@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from .template_registry import TemplateRegistry
+
 
 @dataclass(frozen=True)
 class NotificationTemplate:
@@ -11,6 +13,8 @@ class NotificationTemplate:
     title: str
     body_template: str
     url_template: Optional[str] = None
+    email_template: TemplateRegistry | None = None
+    email_subject_template: Optional[str] = None
 
 
 # Instructor templates
@@ -20,6 +24,8 @@ INSTRUCTOR_BOOKING_CONFIRMED = NotificationTemplate(
     title="New Booking!",
     body_template="{student_name} booked {service_name} for {date} at {time}",
     url_template="/instructor/dashboard?panel=bookings",
+    email_template=TemplateRegistry.BOOKING_CONFIRMATION_INSTRUCTOR,
+    email_subject_template="New booking: {service_name} with {student_name}",
 )
 
 INSTRUCTOR_BOOKING_CANCELLED = NotificationTemplate(
@@ -28,6 +34,8 @@ INSTRUCTOR_BOOKING_CANCELLED = NotificationTemplate(
     title="Booking Cancelled",
     body_template="{student_name} cancelled their {service_name} for {date}",
     url_template="/instructor/dashboard?panel=bookings",
+    email_template=TemplateRegistry.BOOKING_CANCELLATION_INSTRUCTOR,
+    email_subject_template="Booking cancelled: {service_name}",
 )
 
 INSTRUCTOR_REMINDER_24H = NotificationTemplate(
@@ -36,6 +44,8 @@ INSTRUCTOR_REMINDER_24H = NotificationTemplate(
     title="Lesson Tomorrow",
     body_template="Reminder: {service_name} with {student_name} tomorrow at {time}",
     url_template="/instructor/dashboard?panel=bookings",
+    email_template=TemplateRegistry.BOOKING_REMINDER_INSTRUCTOR,
+    email_subject_template="Reminder: {service_name} tomorrow",
 )
 
 INSTRUCTOR_REMINDER_1H = NotificationTemplate(
@@ -44,6 +54,8 @@ INSTRUCTOR_REMINDER_1H = NotificationTemplate(
     title="Lesson in 1 Hour",
     body_template="Reminder: {service_name} with {student_name} in 1 hour",
     url_template="/instructor/dashboard?panel=bookings",
+    email_template=TemplateRegistry.BOOKING_REMINDER_INSTRUCTOR,
+    email_subject_template="Reminder: {service_name} in 1 hour",
 )
 
 INSTRUCTOR_NEW_REVIEW = NotificationTemplate(
@@ -69,6 +81,8 @@ STUDENT_BOOKING_CONFIRMED = NotificationTemplate(
     title="Booking Confirmed!",
     body_template="Your {service_name} with {instructor_name} is confirmed for {date}",
     url_template="/student/bookings",
+    email_template=TemplateRegistry.BOOKING_CONFIRMATION_STUDENT,
+    email_subject_template="Booking confirmed: {service_name} with {instructor_name}",
 )
 
 STUDENT_BOOKING_CANCELLED = NotificationTemplate(
@@ -77,6 +91,8 @@ STUDENT_BOOKING_CANCELLED = NotificationTemplate(
     title="Lesson Cancelled",
     body_template="{instructor_name} cancelled your {service_name} for {date}",
     url_template="/student/bookings",
+    email_template=TemplateRegistry.BOOKING_CANCELLATION_STUDENT,
+    email_subject_template="Lesson cancelled: {service_name}",
 )
 
 STUDENT_REMINDER_24H = NotificationTemplate(
@@ -85,6 +101,8 @@ STUDENT_REMINDER_24H = NotificationTemplate(
     title="Lesson Tomorrow",
     body_template="Reminder: {service_name} with {instructor_name} tomorrow at {time}",
     url_template="/student/bookings",
+    email_template=TemplateRegistry.BOOKING_REMINDER_STUDENT,
+    email_subject_template="Reminder: {service_name} tomorrow",
 )
 
 STUDENT_REMINDER_1H = NotificationTemplate(
@@ -93,6 +111,8 @@ STUDENT_REMINDER_1H = NotificationTemplate(
     title="Lesson in 1 Hour",
     body_template="Reminder: {service_name} with {instructor_name} in 1 hour",
     url_template="/student/bookings",
+    email_template=TemplateRegistry.BOOKING_REMINDER_STUDENT,
+    email_subject_template="Reminder: {service_name} in 1 hour",
 )
 
 STUDENT_REVIEW_RESPONSE = NotificationTemplate(

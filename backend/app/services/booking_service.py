@@ -4916,6 +4916,7 @@ class BookingService(BaseService):
                 date=date_str,
                 time=time_str,
                 booking_id=booking.id,
+                send_email=False,
             )
             self.notification_service.notify_user_best_effort(
                 user_id=booking.student_id,
@@ -4924,6 +4925,7 @@ class BookingService(BaseService):
                 service_name=service_name,
                 date=date_str,
                 booking_id=booking.id,
+                send_email=False,
             )
         except Exception as exc:
             logger.error("Failed to send booking notifications for %s: %s", booking.id, exc)
@@ -4950,6 +4952,7 @@ class BookingService(BaseService):
                     service_name=service_name,
                     date=date_str,
                     booking_id=booking.id,
+                    send_email=False,
                 )
             elif cancelled_by_role == "instructor":
                 instructor_name = self._format_user_display_name(
@@ -4962,6 +4965,7 @@ class BookingService(BaseService):
                     service_name=service_name,
                     date=date_str,
                     booking_id=booking.id,
+                    send_email=False,
                 )
         except Exception as exc:
             logger.error("Failed to send cancellation notifications for %s: %s", booking.id, exc)

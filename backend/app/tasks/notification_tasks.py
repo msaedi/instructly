@@ -240,6 +240,7 @@ def _send_reminder_notifications(
             date=date_str,
             time=time_str,
             booking_id=booking.id,
+            send_email=False,
         )
         await service.notify_user(
             user_id=booking.student_id,
@@ -249,6 +250,7 @@ def _send_reminder_notifications(
             date=date_str,
             time=time_str,
             booking_id=booking.id,
+            send_email=False,
         )
 
     asyncio.run(_notify())

@@ -31,6 +31,7 @@ from ..models.booking import Booking
 from ..models.notification import Notification
 from ..models.user import User
 from ..repositories.notification_repository import NotificationRepository
+from ..repositories.user_repository import UserRepository
 from ..services.base import BaseService
 from ..services.email import EmailService
 from ..services.messaging import publish_to_user
@@ -497,6 +498,12 @@ class NotificationService(BaseService):
     @retry(max_attempts=3, backoff_seconds=1.0)
     def _send_student_booking_confirmation(self, booking: Booking) -> bool:
         """Send booking confirmation email to student using template."""
+        student_id = getattr(booking, "student_id", None)
+        if student_id and not self._should_send_email(
+            student_id, "lesson_updates", "booking_confirmation_student"
+        ):
+            return True
+
         subject = f"Booking Confirmed: {booking.service_name} with {booking.instructor.first_name}"
 
         # Format booking time in lesson timezone
@@ -537,6 +544,25 @@ class NotificationService(BaseService):
         Uses a dedicated template if present; otherwise falls back to a simple rendered string.
         """
         try:
+            student_id = getattr(booking, "student_id", None)
+            instructor_id = getattr(booking, "instructor_id", None)
+
+            send_student = True
+            send_instructor = True
+
+            if student_id and not self._should_send_email(
+                student_id, "lesson_updates", "booking_cancelled_payment_failed_student"
+            ):
+                send_student = False
+
+            if instructor_id and not self._should_send_email(
+                instructor_id, "lesson_updates", "booking_cancelled_payment_failed_instructor"
+            ):
+                send_instructor = False
+
+            if not send_student and not send_instructor:
+                return True
+
             subject = "Booking Cancelled: Payment Authorization Failed"
 
             context = {
@@ -583,14 +609,22 @@ class NotificationService(BaseService):
                 html_instructor = self.template_service.render_string(fallback_instructor, context)
 
             # Send emails
-            if getattr(booking, "student", None) and getattr(booking.student, "email", None):
+            if (
+                send_student
+                and getattr(booking, "student", None)
+                and getattr(booking.student, "email", None)
+            ):
                 self.email_service.send_email(
                     to_email=booking.student.email,
                     subject=subject,
                     html_content=html_student,
                 )
 
-            if getattr(booking, "instructor", None) and getattr(booking.instructor, "email", None):
+            if (
+                send_instructor
+                and getattr(booking, "instructor", None)
+                and getattr(booking.instructor, "email", None)
+            ):
                 self.email_service.send_email(
                     to_email=booking.instructor.email,
                     subject=subject,
@@ -616,6 +650,12 @@ class NotificationService(BaseService):
         otherwise falls back to a simple rendered string to avoid hard failures in test/dev.
         """
         try:
+            student_id = getattr(booking, "student_id", None)
+            if student_id and not self._should_send_email(
+                student_id, "lesson_updates", "final_payment_warning"
+            ):
+                return True
+
             subject = "Action required: Update your payment method for your upcoming lesson"
 
             # Try a dedicated template first
@@ -661,6 +701,12 @@ class NotificationService(BaseService):
     @retry(max_attempts=3, backoff_seconds=1.0)
     def _send_instructor_booking_notification(self, booking: Booking) -> bool:
         """Send new booking notification to instructor using template."""
+        instructor_id = getattr(booking, "instructor_id", None)
+        if instructor_id and not self._should_send_email(
+            instructor_id, "lesson_updates", "booking_confirmation_instructor"
+        ):
+            return True
+
         subject = f"New Booking: {booking.service_name} with {booking.student.first_name}"
 
         # Format booking time in lesson timezone
@@ -699,6 +745,12 @@ class NotificationService(BaseService):
         self, booking: Booking, reason: Optional[str], cancelled_by: str
     ) -> bool:
         """Send cancellation notification to student when instructor cancels."""
+        student_id = getattr(booking, "student_id", None)
+        if student_id and not self._should_send_email(
+            student_id, "lesson_updates", "booking_cancellation_student"
+        ):
+            return True
+
         subject = f"Booking Cancelled: {booking.service_name}"
 
         local_dt = self._get_booking_local_datetime(booking)
@@ -736,6 +788,12 @@ class NotificationService(BaseService):
         self, booking: Booking, reason: Optional[str], cancelled_by: str
     ) -> bool:
         """Send cancellation notification to instructor when student cancels."""
+        instructor_id = getattr(booking, "instructor_id", None)
+        if instructor_id and not self._should_send_email(
+            instructor_id, "lesson_updates", "booking_cancellation_instructor"
+        ):
+            return True
+
         subject = f"Booking Cancelled: {booking.service_name}"
 
         local_dt = self._get_booking_local_datetime(booking)
@@ -769,6 +827,12 @@ class NotificationService(BaseService):
     @retry(max_attempts=3, backoff_seconds=1.0)
     def _send_student_cancellation_confirmation(self, booking: Booking) -> bool:
         """Send cancellation confirmation to student after they cancel."""
+        student_id = getattr(booking, "student_id", None)
+        if student_id and not self._should_send_email(
+            student_id, "lesson_updates", "booking_cancellation_confirmation_student"
+        ):
+            return True
+
         subject = f"Cancellation Confirmed: {booking.service_name}"
 
         # Format booking time for the confirmation
@@ -801,6 +865,12 @@ class NotificationService(BaseService):
     @retry(max_attempts=3, backoff_seconds=1.0)
     def _send_instructor_cancellation_confirmation(self, booking: Booking) -> bool:
         """Send cancellation confirmation to instructor after they cancel."""
+        instructor_id = getattr(booking, "instructor_id", None)
+        if instructor_id and not self._should_send_email(
+            instructor_id, "lesson_updates", "booking_cancellation_confirmation_instructor"
+        ):
+            return True
+
         subject = f"Cancellation Confirmed: {booking.service_name}"
 
         # Format booking time for the confirmation
@@ -833,6 +903,12 @@ class NotificationService(BaseService):
     @retry(max_attempts=3, backoff_seconds=1.0)
     def _send_student_reminder(self, booking: Booking) -> bool:
         """Send 24-hour reminder to student."""
+        student_id = getattr(booking, "student_id", None)
+        if student_id and not self._should_send_email(
+            student_id, "lesson_updates", "booking_reminder_student"
+        ):
+            return True
+
         subject = f"Reminder: {booking.service_name} Tomorrow"
 
         local_dt = self._get_booking_local_datetime(booking)
@@ -863,6 +939,12 @@ class NotificationService(BaseService):
     @retry(max_attempts=3, backoff_seconds=1.0)
     def _send_instructor_reminder(self, booking: Booking) -> bool:
         """Send 24-hour reminder to instructor."""
+        instructor_id = getattr(booking, "instructor_id", None)
+        if instructor_id and not self._should_send_email(
+            instructor_id, "lesson_updates", "booking_reminder_instructor"
+        ):
+            return True
+
         subject = f"Reminder: {booking.service_name} Tomorrow"
 
         local_dt = self._get_booking_local_datetime(booking)
@@ -907,6 +989,9 @@ class NotificationService(BaseService):
             bool: True if email sent successfully, False otherwise
         """
         try:
+            if not self._should_send_email(recipient_id, "messages", "booking_new_message"):
+                return True
+
             # Get recipient and sender users using repository pattern
             from ..repositories.user_repository import UserRepository
 
@@ -968,6 +1053,12 @@ class NotificationService(BaseService):
     @BaseService.measure_operation("send_badge_awarded_email")
     def send_badge_awarded_email(self, user: User, badge_name: str) -> bool:
         try:
+            user_id = getattr(user, "id", None)
+            if not user_id:
+                return False
+            if not self._should_send_email(user_id, "promotional", "badge_awarded"):
+                return False
+
             subject = f"You earned the {badge_name} badge!"
             html_content = (
                 f"<p>Congratulations {user.first_name or user.email},</p>"
@@ -988,6 +1079,12 @@ class NotificationService(BaseService):
     @BaseService.measure_operation("send_badge_digest_email")
     def send_badge_digest_email(self, user: User, items: Sequence[Dict[str, Any]]) -> bool:
         try:
+            user_id = getattr(user, "id", None)
+            if not user_id:
+                return False
+            if not self._should_send_email(user_id, "promotional", "badge_digest"):
+                return False
+
             subject = "You're close to unlocking new badges"
             if not items:
                 return False
@@ -1035,6 +1132,85 @@ class NotificationService(BaseService):
             "created_at": created_at,
         }
 
+    def _should_send_email(self, user_id: str, category: str, context: str) -> bool:
+        try:
+            enabled = self.preference_service.is_enabled(user_id, category, "email")
+        except Exception as exc:
+            self.logger.warning(
+                "Email preference lookup failed; sending anyway (user_id=%s context=%s): %s",
+                user_id,
+                context,
+                exc,
+            )
+            return True
+
+        if not enabled:
+            self.logger.info(
+                "Email skipped due to preferences (user_id=%s category=%s context=%s)",
+                user_id,
+                category,
+                context,
+            )
+
+        return enabled
+
+    def _send_notification_email(
+        self, user_id: str, template: NotificationTemplate, **template_kwargs: Any
+    ) -> bool:
+        if template.email_template is None:
+            return False
+
+        user_repo = UserRepository(self.db)
+        user = user_repo.get_by_id(user_id)
+        if not user or not getattr(user, "email", None):
+            return False
+
+        subject = template.title
+        if template.email_subject_template:
+            try:
+                subject = template.email_subject_template.format(**template_kwargs)
+            except Exception as exc:
+                self.logger.warning(
+                    "Failed to format email subject for %s (%s): %s",
+                    template.type,
+                    user_id,
+                    exc,
+                )
+
+        context: Dict[str, Any] = {
+            "user_name": user.first_name or user.email,
+            "subject": subject,
+            **template_kwargs,
+        }
+
+        try:
+            html_content = self.template_service.render_template(template.email_template, context)
+        except Exception as exc:
+            self.logger.warning(
+                "Failed to render email template for %s (%s): %s",
+                template.type,
+                user_id,
+                exc,
+            )
+            return False
+
+        try:
+            self.email_service.send_email(
+                to_email=user.email,
+                subject=subject,
+                html_content=html_content,
+                template=template.email_template,
+            )
+            return True
+        except Exception as exc:
+            self.logger.warning(
+                "Failed to send notification email for %s (%s): %s",
+                template.type,
+                user_id,
+                exc,
+            )
+            return False
+
     def _run_async_task(
         self, coro_func: Callable[[], Coroutine[Any, Any, None]], error_context: str
     ) -> None:
@@ -1059,10 +1235,11 @@ class NotificationService(BaseService):
         user_id: str,
         template: NotificationTemplate,
         send_push: bool = True,
+        send_email: bool = True,
         **template_kwargs: Any,
     ) -> Notification:
         rendered = render_notification(template, **template_kwargs)
-        return await self.create_notification(
+        notification = await self.create_notification(
             user_id=user_id,
             category=rendered["category"],
             notification_type=rendered["type"],
@@ -1072,12 +1249,27 @@ class NotificationService(BaseService):
             send_push=send_push,
         )
 
+        if send_email and template.email_template is not None:
+            should_send = await asyncio.to_thread(
+                self._should_send_email,
+                user_id,
+                template.category,
+                f"notify_user:{template.type}",
+            )
+            if should_send:
+                await asyncio.to_thread(
+                    self._send_notification_email, user_id, template, **template_kwargs
+                )
+
+        return notification
+
     @BaseService.measure_operation("notify_user_best_effort")
     def notify_user_best_effort(
         self,
         user_id: str,
         template: NotificationTemplate,
         send_push: bool = True,
+        send_email: bool = True,
         **template_kwargs: Any,
     ) -> None:
         async def _notify() -> None:
@@ -1085,6 +1277,7 @@ class NotificationService(BaseService):
                 user_id=user_id,
                 template=template,
                 send_push=send_push,
+                send_email=send_email,
                 **template_kwargs,
             )
 
