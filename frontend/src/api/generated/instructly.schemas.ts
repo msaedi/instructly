@@ -4851,19 +4851,25 @@ export interface PreferenceUpdate {
   enabled: boolean;
 }
 
+export type PreferencesByCategoryLearningTips = { [key: string]: boolean };
+
 export type PreferencesByCategoryLessonUpdates = { [key: string]: boolean };
 
 export type PreferencesByCategoryMessages = { [key: string]: boolean };
 
 export type PreferencesByCategoryPromotional = { [key: string]: boolean };
 
+export type PreferencesByCategorySystemUpdates = { [key: string]: boolean };
+
 /**
  * Preferences grouped by category for frontend consumption.
  */
 export interface PreferencesByCategory {
+  learning_tips: PreferencesByCategoryLearningTips;
   lesson_updates: PreferencesByCategoryLessonUpdates;
   messages: PreferencesByCategoryMessages;
   promotional: PreferencesByCategoryPromotional;
+  system_updates: PreferencesByCategorySystemUpdates;
 }
 
 export type PreferredPublicSpaceInLabel = string | null;

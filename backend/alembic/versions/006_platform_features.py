@@ -817,7 +817,7 @@ def upgrade() -> None:
             name="uq_notification_preferences_user_category_channel",
         ),
         sa.CheckConstraint(
-            "category IN ('lesson_updates', 'messages', 'promotional')",
+            "category IN ('lesson_updates', 'messages', 'learning_tips', 'system_updates', 'promotional')",
             name="ck_notification_preferences_category",
         ),
         sa.CheckConstraint(
@@ -844,7 +844,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.PrimaryKeyConstraint("id"),
         sa.CheckConstraint(
-            "category IN ('lesson_updates', 'messages', 'promotional')",
+            "category IN ('lesson_updates', 'messages', 'learning_tips', 'system_updates', 'promotional')",
             name="ck_notifications_category",
         ),
     )

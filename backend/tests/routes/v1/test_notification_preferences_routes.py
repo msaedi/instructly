@@ -13,6 +13,12 @@ def test_get_notification_preferences(client, auth_headers_instructor):
     assert payload["lesson_updates"]["push"] is True
     assert payload["lesson_updates"]["sms"] is False
     assert payload["messages"]["push"] is True
+    assert payload["learning_tips"]["email"] is True
+    assert payload["learning_tips"]["push"] is True
+    assert payload["learning_tips"]["sms"] is False
+    assert payload["system_updates"]["email"] is True
+    assert payload["system_updates"]["push"] is False
+    assert payload["system_updates"]["sms"] is False
     assert payload["promotional"]["email"] is False
 
 

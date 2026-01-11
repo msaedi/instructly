@@ -6214,6 +6214,9 @@ export type components = {
  enabled: boolean;
  };
  PreferencesByCategory: {
+ learning_tips: {
+ [key: string]: boolean;
+ };
  lesson_updates: {
  [key: string]: boolean;
  };
@@ -6221,6 +6224,9 @@ export type components = {
  [key: string]: boolean;
  };
  promotional: {
+ [key: string]: boolean;
+ };
+ system_updates: {
  [key: string]: boolean;
  };
  };

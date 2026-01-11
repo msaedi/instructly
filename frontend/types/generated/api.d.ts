@@ -11757,6 +11757,10 @@ export type components = {
          * @description Preferences grouped by category for frontend consumption.
          */
         PreferencesByCategory: {
+            /** Learning Tips */
+            learning_tips: {
+                [key: string]: boolean;
+            };
             /** Lesson Updates */
             lesson_updates: {
                 [key: string]: boolean;
@@ -11767,6 +11771,10 @@ export type components = {
             };
             /** Promotional */
             promotional: {
+                [key: string]: boolean;
+            };
+            /** System Updates */
+            system_updates: {
                 [key: string]: boolean;
             };
         };

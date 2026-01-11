@@ -24,7 +24,13 @@ import ulid
 
 from ..database import Base
 
-NOTIFICATION_CATEGORIES = ("lesson_updates", "messages", "promotional")
+NOTIFICATION_CATEGORIES = (
+    "lesson_updates",
+    "messages",
+    "learning_tips",
+    "system_updates",
+    "promotional",
+)
 NOTIFICATION_CHANNELS = ("email", "push", "sms")
 LOCKED_NOTIFICATION_PREFERENCES = {("messages", "push")}
 
@@ -63,7 +69,7 @@ class NotificationPreference(Base):
             name="uq_notification_preferences_user_category_channel",
         ),
         CheckConstraint(
-            "category IN ('lesson_updates', 'messages', 'promotional')",
+            "category IN ('lesson_updates', 'messages', 'learning_tips', 'system_updates', 'promotional')",
             name="ck_notification_preferences_category",
         ),
         CheckConstraint(
@@ -92,7 +98,7 @@ class Notification(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "category IN ('lesson_updates', 'messages', 'promotional')",
+            "category IN ('lesson_updates', 'messages', 'learning_tips', 'system_updates', 'promotional')",
             name="ck_notifications_category",
         ),
         Index("ix_notifications_user_read_at", "user_id", "read_at"),

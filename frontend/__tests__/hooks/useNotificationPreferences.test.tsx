@@ -34,6 +34,8 @@ describe('useNotificationPreferences', () => {
     mockedApi.getPreferences.mockResolvedValue({
       lesson_updates: { email: true, push: true, sms: false },
       messages: { email: false, push: true, sms: false },
+      learning_tips: { email: true, push: true, sms: false },
+      system_updates: { email: true, push: false, sms: false },
       promotional: { email: false, push: false, sms: false },
     });
   });
@@ -50,6 +52,8 @@ describe('useNotificationPreferences', () => {
     const initialPreferences = {
       lesson_updates: { email: true, push: true, sms: false },
       messages: { email: false, push: true, sms: false },
+      learning_tips: { email: true, push: true, sms: false },
+      system_updates: { email: true, push: false, sms: false },
       promotional: { email: false, push: false, sms: false },
     };
     const updatedPreferences = {
