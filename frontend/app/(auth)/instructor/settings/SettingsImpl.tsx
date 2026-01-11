@@ -50,6 +50,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [formInitialized, setFormInitialized] = useState(false);
   const [smsPhone, setSmsPhone] = useState('');
   const [smsCode, setSmsCode] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   // React Query hooks for data fetching (replaces useEffect fetches)
   const { data: tfaStatus } = useTfaStatus(embedded && openSecurity);
@@ -120,6 +121,14 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     setSmsPhone(phoneNumber || '');
   }, [phoneNumber, phoneLoading]);
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => {
+      setResendCooldown((value) => Math.max(0, value - 1));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
   const handleUpdatePhone = async () => {
     const trimmed = smsPhone.trim();
     if (!trimmed) {
@@ -130,19 +139,39 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       toast.error('Phone number must be in E.164 format (+1234567890).');
       return;
     }
+    const previousPhone = phoneNumber;
+    const wasVerified = phoneVerified;
     try {
-      await updatePhone.mutateAsync(trimmed);
+      const updated = await updatePhone.mutateAsync(trimmed);
       setMobile(trimmed);
       setSmsCode('');
-      toast.success('Phone number saved. Verify it to enable SMS.');
+      const shouldSendVerification =
+        !updated.verified && (trimmed !== previousPhone || !wasVerified);
+      if (shouldSendVerification) {
+        try {
+          await sendVerification.mutateAsync();
+          setResendCooldown(60);
+          toast.success('Phone number saved. Verification code sent.');
+        } catch (error) {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : 'Phone saved, but failed to send verification code.'
+          );
+        }
+      } else {
+        toast.success('Phone number saved.');
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to update phone number.');
     }
   };
 
   const handleSendVerification = async () => {
+    if (resendCooldown > 0 || sendVerification.isPending) return;
     try {
       await sendVerification.mutateAsync();
+      setResendCooldown(60);
       toast.success('Verification code sent.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to send verification code.');
@@ -221,125 +250,133 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
 
     return (
       <div className="space-y-4">
-      <div className="rounded-lg border border-gray-200 p-3 space-y-3">
-        <div>
-          <p className="text-sm font-medium text-gray-900">Phone number (for SMS)</p>
-          <p className="text-xs text-gray-500">Add and verify a phone number to receive SMS alerts.</p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="tel"
-            value={smsPhone}
-            onChange={(event) => setSmsPhone(event.target.value)}
-            placeholder="+1 555 123 4567"
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
-          />
-          <button
-            type="button"
-            onClick={handleUpdatePhone}
-            disabled={updatePhone.isPending}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {updatePhone.isPending ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-        {phoneVerified && (
-          <p className="text-xs text-green-600">Phone verified</p>
-        )}
-        {!phoneVerified && phoneNumber && (
-          <div className="flex flex-col sm:flex-row gap-2 items-center">
+        <div className="rounded-lg border border-gray-200 p-3 space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-900">Phone number (for SMS)</label>
+            <p className="text-xs text-gray-500">Add and verify a phone number to receive SMS alerts.</p>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <input
-              type="text"
-              value={smsCode}
-              onChange={(event) => setSmsCode(event.target.value)}
-              placeholder="Enter 6-digit code"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
-              maxLength={6}
+              type="tel"
+              value={smsPhone}
+              onChange={(event) => setSmsPhone(event.target.value)}
+              placeholder="+1 (555) 123-4567"
+              className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
             />
             <button
               type="button"
-              onClick={handleConfirmVerification}
-              disabled={confirmVerification.isPending}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={handleUpdatePhone}
+              disabled={updatePhone.isPending}
+              className="min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {confirmVerification.isPending ? 'Verifying…' : 'Verify'}
-            </button>
-            <button
-              type="button"
-              onClick={handleSendVerification}
-              disabled={sendVerification.isPending}
-              className="inline-flex items-center justify-center gap-2 text-sm text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {sendVerification.isPending ? 'Sending…' : 'Resend'}
+              {updatePhone.isPending ? 'Saving…' : 'Save'}
             </button>
           </div>
-        )}
-      </div>
-      <div className="rounded-lg border border-gray-200 p-3">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-gray-900">Push notifications on this device</p>
-            <p className="text-xs text-gray-500">
-              Enable push notifications in this browser to receive alerts.
-            </p>
-          </div>
-          {renderPushToggle()}
+          {phoneVerified && (
+            <p className="text-xs font-medium text-green-600">Phone verified</p>
+          )}
+          {!phoneVerified && phoneNumber && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <input
+                type="text"
+                value={smsCode}
+                onChange={(event) => setSmsCode(event.target.value.replace(/\D/g, ''))}
+                placeholder="Enter 6-digit code"
+                className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
+                maxLength={6}
+              />
+              <button
+                type="button"
+                onClick={handleConfirmVerification}
+                disabled={confirmVerification.isPending}
+                className="min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b1fb8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {confirmVerification.isPending ? 'Verifying…' : 'Verify'}
+              </button>
+              <button
+                type="button"
+                onClick={handleSendVerification}
+                disabled={sendVerification.isPending || resendCooldown > 0}
+                className={`min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                  resendCooldown > 0 || sendVerification.isPending
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-[#7E22CE] text-white hover:bg-[#6b1fb8]'
+                }`}
+              >
+                {resendCooldown > 0
+                  ? `Resend (${resendCooldown}s)`
+                  : sendVerification.isPending
+                    ? 'Sending…'
+                    : 'Resend'}
+              </button>
+            </div>
+          )}
         </div>
-        {renderPushStatus()}
-      </div>
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="text-left text-gray-500">
-              <th className="font-medium pr-6">Form of Communication</th>
-              <th className="font-medium pr-6">Email</th>
-              <th className="font-medium pr-6">SMS</th>
-              <th className="font-medium">Push Notification</th>
-            </tr>
-          </thead>
-          <tbody className="align-top">
-            <tr className="text-gray-800">
-              <td className="py-2 pr-6">Lesson updates</td>
-              <td className="pr-6">
-                {renderPreferenceToggle('lesson_updates', 'email')}
-              </td>
-              <td className="pr-6">
-                {renderPreferenceToggle('lesson_updates', 'sms', smsPreferenceOptions)}
-              </td>
-              <td>
-                {renderPreferenceToggle('lesson_updates', 'push', pushPreferenceOptions)}
-              </td>
-            </tr>
-            <tr className="text-gray-800">
-              <td className="py-2 pr-6">Promotional emails and notifications</td>
-              <td className="pr-6">
-                {renderPreferenceToggle('promotional', 'email')}
-              </td>
-              <td className="pr-6">
-                {renderPreferenceToggle('promotional', 'sms', smsPreferenceOptions)}
-              </td>
-              <td>
-                {renderPreferenceToggle('promotional', 'push', pushPreferenceOptions)}
-              </td>
-            </tr>
-            <tr className="text-gray-800">
-              <td className="py-2 pr-6">Messages</td>
-              <td className="pr-6">
-                {renderPreferenceToggle('messages', 'email')}
-              </td>
-              <td className="pr-6">
-                {renderPreferenceToggle('messages', 'sms', smsPreferenceOptions)}
-              </td>
-              <td>
-                {renderPreferenceToggle('messages', 'push', {
-                  disabled: true,
-                  title: 'Push notifications for messages are required.',
-                })}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+        <div className="rounded-lg border border-gray-200 p-3">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-900">Push notifications on this device</p>
+              <p className="text-xs text-gray-500">
+                Enable push notifications in this browser to receive alerts.
+              </p>
+            </div>
+            {renderPushToggle()}
+          </div>
+          {renderPushStatus()}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500">
+                <th className="font-medium pr-6">Form of Communication</th>
+                <th className="font-medium pr-6">Email</th>
+                <th className="font-medium pr-6">SMS</th>
+                <th className="font-medium">Push Notification</th>
+              </tr>
+            </thead>
+            <tbody className="align-top">
+              <tr className="text-gray-800">
+                <td className="py-2 pr-6">Lesson updates</td>
+                <td className="pr-6">
+                  {renderPreferenceToggle('lesson_updates', 'email')}
+                </td>
+                <td className="pr-6">
+                  {renderPreferenceToggle('lesson_updates', 'sms', smsPreferenceOptions)}
+                </td>
+                <td>
+                  {renderPreferenceToggle('lesson_updates', 'push', pushPreferenceOptions)}
+                </td>
+              </tr>
+              <tr className="text-gray-800">
+                <td className="py-2 pr-6">Promotional emails and notifications</td>
+                <td className="pr-6">
+                  {renderPreferenceToggle('promotional', 'email')}
+                </td>
+                <td className="pr-6">
+                  {renderPreferenceToggle('promotional', 'sms', smsPreferenceOptions)}
+                </td>
+                <td>
+                  {renderPreferenceToggle('promotional', 'push', pushPreferenceOptions)}
+                </td>
+              </tr>
+              <tr className="text-gray-800">
+                <td className="py-2 pr-6">Messages</td>
+                <td className="pr-6">
+                  {renderPreferenceToggle('messages', 'email')}
+                </td>
+                <td className="pr-6">
+                  {renderPreferenceToggle('messages', 'sms', smsPreferenceOptions)}
+                </td>
+                <td>
+                  {renderPreferenceToggle('messages', 'push', {
+                    disabled: true,
+                    title: 'Push notifications for messages are required.',
+                  })}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
     </div>
     );
   };
