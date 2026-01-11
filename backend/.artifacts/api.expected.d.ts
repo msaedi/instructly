@@ -2527,6 +2527,38 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/notification-preferences": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_preferences_api_v1_notification_preferences_get"];
+ put: operations["update_preferences_bulk_api_v1_notification_preferences_put"];
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/notification-preferences/{category}/{channel}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put: operations["update_preference_api_v1_notification_preferences__category___channel__put"];
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/notifications": {
  parameters: {
  query?: never;
@@ -5025,10 +5057,6 @@ export type components = {
  remaining_ms: number;
  skipped_operations?: string[];
  };
- BulkUpdateRequest: {
- operations: components["schemas"]["SlotOperation"][];
- validate_only: boolean;
- };
  BulkUpdateResponse: {
  failed: number;
  results: components["schemas"]["OperationResult"][];
@@ -6109,6 +6137,29 @@ export type components = {
  unique_users: number;
  };
  PopularSearchesResponse: components["schemas"]["PopularSearch"][];
+ PreferenceResponse: {
+ category: string;
+ channel: string;
+ enabled: boolean;
+ id: string;
+ locked: boolean;
+ };
+ PreferenceUpdate: {
+ category: string;
+ channel: string;
+ enabled: boolean;
+ };
+ PreferencesByCategory: {
+ lesson_updates: {
+ [key: string]: boolean;
+ };
+ messages: {
+ [key: string]: boolean;
+ };
+ promotional: {
+ [key: string]: boolean;
+ };
+ };
  PreferredPublicSpaceIn: {
  address: string;
  label?: string | null;
@@ -6908,6 +6959,9 @@ export type components = {
  id: string;
  state: "active" | "archived" | "trashed";
  };
+ UpdatePreferenceRequest: {
+ enabled: boolean;
+ };
  UserBasicPrivacy: {
  first_name: string;
  id: string;
@@ -7060,10 +7114,17 @@ export type components = {
  message: string;
  success: boolean;
  };
+ app__schemas__availability_window__BulkUpdateRequest: {
+ operations: components["schemas"]["SlotOperation"][];
+ validate_only: boolean;
+ };
  app__schemas__base_responses__DeleteResponse: {
  deleted_at?: string;
  message: string;
  success: boolean;
+ };
+ app__schemas__notification_preferences__BulkUpdateRequest: {
+ updates: components["schemas"]["PreferenceUpdate"][];
  };
  app__schemas__payment_schemas__DeleteResponse: {
  success: boolean;
@@ -11087,7 +11148,7 @@ export interface operations {
  };
  requestBody: {
  content: {
- "application/json": components["schemas"]["BulkUpdateRequest"];
+ "application/json": components["schemas"]["app__schemas__availability_window__BulkUpdateRequest"];
  };
  };
  responses: {
@@ -12774,6 +12835,90 @@ export interface operations {
  [name: string]: unknown;
  };
  content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_preferences_api_v1_notification_preferences_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PreferencesByCategory"];
+ };
+ };
+ };
+ };
+ update_preferences_bulk_api_v1_notification_preferences_put: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["app__schemas__notification_preferences__BulkUpdateRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PreferenceResponse"][];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ update_preference_api_v1_notification_preferences__category___channel__put: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ category: string;
+ channel: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["UpdatePreferenceRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PreferenceResponse"];
+ };
  };
  422: {
  headers: {

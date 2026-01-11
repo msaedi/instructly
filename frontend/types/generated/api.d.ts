@@ -3509,6 +3509,50 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notification-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Preferences
+         * @description Get all notification preferences for current user, grouped by category.
+         */
+        get: operations["get_preferences_api_v1_notification_preferences_get"];
+        /**
+         * Update Preferences Bulk
+         * @description Update multiple notification preferences at once.
+         */
+        put: operations["update_preferences_bulk_api_v1_notification_preferences_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notification-preferences/{category}/{channel}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Preference
+         * @description Update a single notification preference.
+         */
+        put: operations["update_preference_api_v1_notification_preferences__category___channel__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications": {
         parameters: {
             query?: never;
@@ -6666,10 +6710,6 @@ export type components = {
         /**
          * AlertAcknowledgeResponse
          * @description Alert acknowledgement response.
-         * @example {
-         *       "alert_type": "high_memory_usage",
-         *       "status": "acknowledged"
-         *     }
          */
         AlertAcknowledgeResponse: {
             /**
@@ -6739,12 +6779,6 @@ export type components = {
         /**
          * AlertInfo
          * @description Alert information.
-         * @example {
-         *       "message": "Memory usage is above 80%",
-         *       "severity": "warning",
-         *       "timestamp": "2025-01-20T10:30:00Z",
-         *       "type": "high_memory_usage"
-         *     }
          */
         AlertInfo: {
             /**
@@ -7059,28 +7093,6 @@ export type components = {
         /**
          * AvailabilityCacheMetricsResponse
          * @description Availability-specific cache metrics response.
-         * @example {
-         *       "availability_cache_metrics": {
-         *         "cache_efficiency": "excellent",
-         *         "hit_rate": "87.5%",
-         *         "hits": 1750,
-         *         "invalidations": 50,
-         *         "misses": 250,
-         *         "total_requests": 2000
-         *       },
-         *       "cache_tiers_info": {
-         *         "cold": "24 hours (historical data)",
-         *         "hot": "5 minutes (current/future availability)",
-         *         "warm": "1 hour (past availability)"
-         *       },
-         *       "recommendations": [
-         *         "Availability caching performance is optimal"
-         *       ],
-         *       "top_cached_keys_sample": [
-         *         "avail:instructor:123:2025-01-20",
-         *         "availability:window:456"
-         *       ]
-         *     }
          */
         AvailabilityCacheMetricsResponse: {
             /**
@@ -8236,20 +8248,6 @@ export type components = {
              */
             skipped_operations?: string[];
         };
-        /**
-         * BulkUpdateRequest
-         * @description Request schema for bulk availability update.
-         */
-        BulkUpdateRequest: {
-            /** Operations */
-            operations: components["schemas"]["SlotOperation"][];
-            /**
-             * Validate Only
-             * @description If true, only validate without making changes
-             * @default false
-             */
-            validate_only: boolean;
-        };
         /** BulkUpdateResponse */
         BulkUpdateResponse: {
             /** Failed */
@@ -8264,15 +8262,6 @@ export type components = {
         /**
          * CacheHealthStatus
          * @description Cache health and performance status.
-         * @example {
-         *       "errors": 0,
-         *       "hit_rate": "85.5%",
-         *       "recommendations": [
-         *         "Cache performance is optimal"
-         *       ],
-         *       "status": "healthy",
-         *       "total_requests": 10000
-         *     }
          */
         CacheHealthStatus: {
             /**
@@ -8304,24 +8293,6 @@ export type components = {
         /**
          * CacheMetricsResponse
          * @description Detailed cache metrics response.
-         * @example {
-         *       "availability_metrics": {
-         *         "availability_hit_rate": "87.5%",
-         *         "availability_invalidations": 50,
-         *         "availability_total_requests": 2000
-         *       },
-         *       "errors": 0,
-         *       "hit_rate": "85.0%",
-         *       "hits": 8500,
-         *       "misses": 1500,
-         *       "performance_insights": [
-         *         "Cache performance looks good"
-         *       ],
-         *       "redis_info": {
-         *         "keyspace_hits": 50000,
-         *         "used_memory_human": "12.5M"
-         *       }
-         *     }
          */
         CacheMetricsResponse: {
             /**
@@ -8799,11 +8770,6 @@ export type components = {
         /**
          * ConversionBehavior
          * @description Conversion behavior metrics.
-         * @example {
-         *       "avg_days_to_conversion": 2.3,
-         *       "avg_searches_before_conversion": 3.5,
-         *       "most_common_first_search": "yoga classes"
-         *     }
          */
         ConversionBehavior: {
             /**
@@ -8825,28 +8791,6 @@ export type components = {
         /**
          * ConversionMetricsResponse
          * @description Guest-to-user conversion metrics response.
-         * @example {
-         *       "conversion_behavior": {
-         *         "avg_days_to_conversion": 0,
-         *         "avg_searches_before_conversion": 0,
-         *         "most_common_first_search": ""
-         *       },
-         *       "guest_engagement": {
-         *         "avg_searches_per_session": 2.5,
-         *         "engaged_sessions": 400,
-         *         "engagement_rate": 50
-         *       },
-         *       "guest_sessions": {
-         *         "conversion_rate": 6.25,
-         *         "converted": 50,
-         *         "total": 800
-         *       },
-         *       "period": {
-         *         "days": 31,
-         *         "end": "2025-01-31",
-         *         "start": "2025-01-01"
-         *       }
-         *     }
          */
         ConversionMetricsResponse: {
             /** @description Conversion behavior patterns */
@@ -9007,12 +8951,6 @@ export type components = {
         /**
          * DailySearchTrend
          * @description Daily search trend data.
-         * @example {
-         *       "date": "2025-01-20",
-         *       "total_searches": 1234,
-         *       "unique_guests": 200,
-         *       "unique_users": 150
-         *     }
          */
         DailySearchTrend: {
             /**
@@ -9135,11 +9073,6 @@ export type components = {
         /**
          * DateRange
          * @description Date range for analytics.
-         * @example {
-         *       "days": 31,
-         *       "end": "2025-01-31",
-         *       "start": "2025-01-01"
-         *     }
          */
         DateRange: {
             /**
@@ -9291,12 +9224,6 @@ export type components = {
         /**
          * ExportAnalyticsResponse
          * @description Analytics export response.
-         * @example {
-         *       "format": "csv",
-         *       "message": "Export analytics endpoint",
-         *       "status": "Not implemented",
-         *       "user": "admin@instainstru.com"
-         *     }
          */
         ExportAnalyticsResponse: {
             /**
@@ -9328,25 +9255,6 @@ export type components = {
         /**
          * ExtendedCacheStats
          * @description Extended cache statistics.
-         * @example {
-         *       "basic_stats": {
-         *         "errors": 0,
-         *         "hit_rate": "85.0%",
-         *         "hits": 8500,
-         *         "misses": 1500
-         *       },
-         *       "key_patterns": {
-         *         "avail:*": 450,
-         *         "booking:*": 150,
-         *         "instructor:*": 200
-         *       },
-         *       "redis_info": {
-         *         "evicted_keys": 0,
-         *         "keyspace_hits": 50000,
-         *         "keyspace_misses": 5000,
-         *         "used_memory_human": "12.5M"
-         *       }
-         *     }
          */
         ExtendedCacheStats: {
             /**
@@ -9374,11 +9282,6 @@ export type components = {
         /**
          * FavoriteResponse
          * @description Response for favorite add/remove operations.
-         * @example {
-         *       "favorite_id": "01K2K8CVN3A55280PFKJD9YHKV",
-         *       "message": "Instructor added to favorites",
-         *       "success": true
-         *     }
          */
         FavoriteResponse: {
             /**
@@ -9410,9 +9313,6 @@ export type components = {
         /**
          * FavoriteStatusResponse
          * @description Response for single favorite status check.
-         * @example {
-         *       "is_favorited": true
-         *     }
          */
         FavoriteStatusResponse: {
             /**
@@ -9424,21 +9324,6 @@ export type components = {
         /**
          * FavoritedInstructor
          * @description Instructor with favorite metadata.
-         * @example {
-         *       "email": "john.doe@example.com",
-         *       "favorited_at": "2024-08-13T10:30:00Z",
-         *       "first_name": "John",
-         *       "id": "01K2K8CVN3A55280PFKJD9YHKV",
-         *       "is_active": true,
-         *       "last_name": "Doe",
-         *       "profile": {
-         *         "bio": "Experienced piano teacher",
-         *         "hourly_rate": 75,
-         *         "rating": 4.8,
-         *         "total_reviews": 25,
-         *         "years_experience": 10
-         *       }
-         *     }
          */
         FavoritedInstructor: {
             /**
@@ -9478,26 +9363,6 @@ export type components = {
         /**
          * FavoritesList
          * @description List of favorited instructors.
-         * @example {
-         *       "favorites": [
-         *         {
-         *           "email": "john.doe@example.com",
-         *           "favorited_at": "2024-08-13T10:30:00Z",
-         *           "first_name": "John",
-         *           "id": "01K2K8CVN3A55280PFKJD9YHKV",
-         *           "is_active": true,
-         *           "last_name": "Doe",
-         *           "profile": {
-         *             "bio": "Experienced piano teacher",
-         *             "hourly_rate": 75,
-         *             "rating": 4.8,
-         *             "total_reviews": 25,
-         *             "years_experience": 10
-         *           }
-         *         }
-         *       ],
-         *       "total": 1
-         *     }
          */
         FavoritesList: {
             /**
@@ -9560,11 +9425,6 @@ export type components = {
         /**
          * GuestConversionMetrics
          * @description Guest session conversion metrics.
-         * @example {
-         *       "conversion_rate": 6.25,
-         *       "converted": 50,
-         *       "total": 800
-         *     }
          */
         GuestConversionMetrics: {
             /**
@@ -9586,11 +9446,6 @@ export type components = {
         /**
          * GuestEngagement
          * @description Guest engagement metrics.
-         * @example {
-         *       "avg_searches_per_session": 2.5,
-         *       "engaged_sessions": 400,
-         *       "engagement_rate": 50
-         *     }
          */
         GuestEngagement: {
             /**
@@ -9649,17 +9504,6 @@ export type components = {
         /**
          * HealthCheckResponse
          * @description Standard health check response.
-         * @example {
-         *       "checks": {
-         *         "database": true,
-         *         "redis": true,
-         *         "services": true
-         *       },
-         *       "service": "iNSTAiNSTRU API",
-         *       "status": "healthy",
-         *       "timestamp": "2025-01-20T10:30:00Z",
-         *       "version": "1.0.0"
-         *     }
          */
         HealthCheckResponse: {
             /**
@@ -10039,16 +9883,6 @@ export type components = {
         /**
          * InstructorServiceCreate
          * @description Create instructor service from catalog.
-         * @example {
-         *       "catalog_service_id": 1,
-         *       "custom_description": "Specializing in jazz piano for intermediate students",
-         *       "duration_options": [
-         *         30,
-         *         45,
-         *         60
-         *       ],
-         *       "hourly_rate": 75
-         *     }
          */
         InstructorServiceCreate: {
             /**
@@ -10518,11 +10352,6 @@ export type components = {
         /**
          * MemoryMetrics
          * @description System memory metrics.
-         * @example {
-         *       "percent": 25,
-         *       "total_mb": 8192,
-         *       "used_mb": 2048.5
-         *     }
          */
         MemoryMetrics: {
             /**
@@ -10642,42 +10471,6 @@ export type components = {
         /**
          * MonitoringDashboardResponse
          * @description Comprehensive monitoring dashboard response.
-         * @example {
-         *       "alerts": [],
-         *       "cache": {
-         *         "errors": 0,
-         *         "hit_rate": "85.5%",
-         *         "recommendations": [
-         *           "Cache performance is optimal"
-         *         ],
-         *         "status": "healthy",
-         *         "total_requests": 10000
-         *       },
-         *       "database": {
-         *         "average_pool_usage_percent": 25,
-         *         "pool": {
-         *           "checked_in": 15,
-         *           "checked_out": 5,
-         *           "overflow": 0,
-         *           "pool_size": 20,
-         *           "usage_percent": 25
-         *         },
-         *         "slow_queries_count": 5
-         *       },
-         *       "memory": {
-         *         "percent": 25,
-         *         "total_mb": 8192,
-         *         "used_mb": 2048.5
-         *       },
-         *       "recommendations": [],
-         *       "requests": {
-         *         "active_count": 5,
-         *         "average_response_time_ms": 45.2,
-         *         "total_count": 10000
-         *       },
-         *       "status": "ok",
-         *       "timestamp": "2025-01-20T10:30:00Z"
-         *     }
          */
         MonitoringDashboardResponse: {
             /**
@@ -10936,17 +10729,6 @@ export type components = {
         /**
          * NextAvailableSlotResponse
          * @description Response for next available slot endpoint.
-         * @example {
-         *       "date": "2025-07-15",
-         *       "duration_minutes": 60,
-         *       "end_time": "10:00:00",
-         *       "found": true,
-         *       "start_time": "09:00:00"
-         *     }
-         * @example {
-         *       "found": false,
-         *       "message": "No available slots found in the next 30 days"
-         *     }
          */
         NextAvailableSlotResponse: {
             /**
@@ -11165,19 +10947,7 @@ export type components = {
              */
             action: "approve" | "reject";
         };
-        /**
-         * PaginatedResponse[BookingResponse]
-         * @example {
-         *       "has_next": true,
-         *       "has_prev": false,
-         *       "items": [
-         *         "..."
-         *       ],
-         *       "page": 1,
-         *       "per_page": 20,
-         *       "total": 100
-         *     }
-         */
+        /** PaginatedResponse[BookingResponse] */
         PaginatedResponse_BookingResponse_: {
             /**
              * Has Next
@@ -11212,19 +10982,7 @@ export type components = {
              */
             total: number;
         };
-        /**
-         * PaginatedResponse[InstructorProfileResponse]
-         * @example {
-         *       "has_next": true,
-         *       "has_prev": false,
-         *       "items": [
-         *         "..."
-         *       ],
-         *       "page": 1,
-         *       "per_page": 20,
-         *       "total": 100
-         *     }
-         */
+        /** PaginatedResponse[InstructorProfileResponse] */
         PaginatedResponse_InstructorProfileResponse_: {
             /**
              * Has Next
@@ -11259,19 +11017,7 @@ export type components = {
              */
             total: number;
         };
-        /**
-         * PaginatedResponse[UpcomingBookingResponse]
-         * @example {
-         *       "has_next": true,
-         *       "has_prev": false,
-         *       "items": [
-         *         "..."
-         *       ],
-         *       "page": 1,
-         *       "per_page": 20,
-         *       "total": 100
-         *     }
-         */
+        /** PaginatedResponse[UpcomingBookingResponse] */
         PaginatedResponse_UpcomingBookingResponse_: {
             /**
              * Has Next
@@ -11412,12 +11158,6 @@ export type components = {
         /**
          * PaymentHealthCheckTriggerResponse
          * @description Response for manually triggered payment health check.
-         * @example {
-         *       "message": "Health check task has been queued",
-         *       "status": "triggered",
-         *       "task_id": "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6",
-         *       "timestamp": "2025-01-20T10:30:00.234567"
-         *     }
          */
         PaymentHealthCheckTriggerResponse: {
             /**
@@ -11444,34 +11184,6 @@ export type components = {
         /**
          * PaymentHealthResponse
          * @description Payment system health monitoring response.
-         * @example {
-         *       "alerts": [],
-         *       "metrics": {
-         *         "authorized": 25,
-         *         "locked": 3,
-         *         "manual_review": 1,
-         *         "payment_method_required": 5,
-         *         "scheduled": 12,
-         *         "settled": 150
-         *       },
-         *       "minutes_since_last_auth": 45,
-         *       "overdue_authorizations": 0,
-         *       "payment_stats": {
-         *         "authorized": 25,
-         *         "locked": 3,
-         *         "manual_review": 1,
-         *         "payment_method_required": 5,
-         *         "scheduled": 12,
-         *         "settled": 150
-         *       },
-         *       "recent_events": {
-         *         "auth_failed": 2,
-         *         "auth_succeeded": 15,
-         *         "payment_captured": 8
-         *       },
-         *       "status": "healthy",
-         *       "timestamp": "2025-01-20T10:30:00.234567"
-         *     }
          */
         PaymentHealthResponse: {
             /**
@@ -11665,11 +11377,6 @@ export type components = {
         /**
          * PerformanceMetrics
          * @description Search performance metrics.
-         * @example {
-         *       "avg_results_per_search": 15.7,
-         *       "most_effective_type": "natural_language",
-         *       "zero_result_rate": 5.2
-         *     }
          */
         PerformanceMetrics: {
             /**
@@ -11691,49 +11398,6 @@ export type components = {
         /**
          * PerformanceMetricsResponse
          * @description Comprehensive performance metrics response.
-         * @example {
-         *       "availability_service": {
-         *         "cache_operations": 800,
-         *         "db_operations": 200,
-         *         "operations": {
-         *           "get_availability": 1000
-         *         },
-         *         "total_operations": 1000
-         *       },
-         *       "booking_service": {
-         *         "cache_operations": 10,
-         *         "db_operations": 40,
-         *         "operations": {
-         *           "create_booking": 50
-         *         },
-         *         "total_operations": 50
-         *       },
-         *       "cache": {
-         *         "hit_rate": "85.0%",
-         *         "hits": 8500,
-         *         "misses": 1500
-         *       },
-         *       "conflict_checker": {
-         *         "cache_operations": 150,
-         *         "db_operations": 50,
-         *         "operations": {
-         *           "check_conflicts": 200
-         *         },
-         *         "total_operations": 200
-         *       },
-         *       "database": {
-         *         "active_connections": 5,
-         *         "pool_status": {
-         *           "pool_size": 20,
-         *           "usage_percent": 25
-         *         }
-         *       },
-         *       "system": {
-         *         "cpu_percent": 25.5,
-         *         "disk_usage": 60,
-         *         "memory_percent": 45.2
-         *       }
-         *     }
          */
         PerformanceMetricsResponse: {
             /** @description Availability service metrics */
@@ -11767,12 +11431,6 @@ export type components = {
         /**
          * PerformanceRecommendation
          * @description Performance optimization recommendation.
-         * @example {
-         *       "action": "Consider optimizing queries or increasing pool size",
-         *       "message": "High database pool usage",
-         *       "severity": "warning",
-         *       "type": "database"
-         *     }
          */
         PerformanceRecommendation: {
             /**
@@ -11928,12 +11586,6 @@ export type components = {
         /**
          * PopularSearch
          * @description Popular search query data.
-         * @example {
-         *       "average_results": 15.7,
-         *       "query": "yoga instructor",
-         *       "search_count": 523,
-         *       "unique_users": 201
-         *     }
          */
         PopularSearch: {
             /**
@@ -11960,16 +11612,54 @@ export type components = {
         /**
          * PopularSearchesResponse
          * @description Popular searches response.
-         * @example [
-         *       {
-         *         "average_results": 15.7,
-         *         "query": "yoga instructor",
-         *         "search_count": 523,
-         *         "unique_users": 201
-         *       }
-         *     ]
          */
         PopularSearchesResponse: components["schemas"]["PopularSearch"][];
+        /**
+         * PreferenceResponse
+         * @description Single preference response.
+         */
+        PreferenceResponse: {
+            /** Category */
+            category: string;
+            /** Channel */
+            channel: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            /** Locked */
+            locked: boolean;
+        };
+        /**
+         * PreferenceUpdate
+         * @description Single preference update for bulk requests.
+         */
+        PreferenceUpdate: {
+            /** Category */
+            category: string;
+            /** Channel */
+            channel: string;
+            /** Enabled */
+            enabled: boolean;
+        };
+        /**
+         * PreferencesByCategory
+         * @description Preferences grouped by category for frontend consumption.
+         */
+        PreferencesByCategory: {
+            /** Lesson Updates */
+            lesson_updates: {
+                [key: string]: boolean;
+            };
+            /** Messages */
+            messages: {
+                [key: string]: boolean;
+            };
+            /** Promotional */
+            promotional: {
+                [key: string]: boolean;
+            };
+        };
         /**
          * PreferredPublicSpaceIn
          * @description Preferred public space input payload.
@@ -12168,11 +11858,6 @@ export type components = {
         /**
          * ProblematicQuery
          * @description Problematic search query with low results.
-         * @example {
-         *       "avg_results": 0.5,
-         *       "count": 25,
-         *       "query": "advanced quantum physics tutor"
-         *     }
          */
         ProblematicQuery: {
             /**
@@ -12217,20 +11902,6 @@ export type components = {
         /**
          * PublicDayAvailability
          * @description Availability for a single day.
-         * @example {
-         *       "available_slots": [
-         *         {
-         *           "end_time": "10:00",
-         *           "start_time": "09:00"
-         *         },
-         *         {
-         *           "end_time": "11:30",
-         *           "start_time": "10:30"
-         *         }
-         *       ],
-         *       "date": "2025-07-15",
-         *       "is_blackout": false
-         *     }
          */
         PublicDayAvailability: {
             /**
@@ -12262,30 +11933,6 @@ export type components = {
          *     - "minimal": Only has_availability and earliest_available_date
          *     - "summary": Includes availability_summary but not specific slots
          *     - "full": Complete availability_by_date with all time slots
-         * @example {
-         *       "availability_by_date": {
-         *         "2025-07-15": {
-         *           "available_slots": [
-         *             {
-         *               "end_time": "10:00",
-         *               "start_time": "09:00"
-         *             },
-         *             {
-         *               "end_time": "15:00",
-         *               "start_time": "14:00"
-         *             }
-         *           ],
-         *           "date": "2025-07-15",
-         *           "is_blackout": false
-         *         }
-         *       },
-         *       "earliest_available_date": "2025-07-15",
-         *       "instructor_first_name": "Sarah",
-         *       "instructor_id": 123,
-         *       "instructor_last_initial": "C",
-         *       "timezone": "America/New_York",
-         *       "total_available_slots": 2
-         *     }
          */
         PublicInstructorAvailability: {
             /**
@@ -12354,10 +12001,6 @@ export type components = {
          *
          *     Note: No slot IDs exposed - frontend should use instructor_id + date + times
          *     for booking requests.
-         * @example {
-         *       "end_time": "10:00",
-         *       "start_time": "09:00"
-         *     }
          */
         PublicTimeSlot: {
             /**
@@ -12438,12 +12081,6 @@ export type components = {
         /**
          * RateLimitResetResponse
          * @description Rate limit reset response.
-         * @example {
-         *       "limits_reset": 5,
-         *       "message": "Reset 5 rate limits matching pattern 'email_*'",
-         *       "pattern": "email_*",
-         *       "status": "success"
-         *     }
          */
         RateLimitResetResponse: {
             /**
@@ -12470,21 +12107,6 @@ export type components = {
         /**
          * RateLimitStats
          * @description Rate limit statistics.
-         * @example {
-         *       "breakdown_by_type": {
-         *         "email": 15,
-         *         "global": 7,
-         *         "ip": 20
-         *       },
-         *       "top_limited_clients": [
-         *         {
-         *           "count": 50,
-         *           "endpoint": "/api/v1/search",
-         *           "key": "ip_192.168.1.100"
-         *         }
-         *       ],
-         *       "total_keys": 42
-         *     }
          */
         RateLimitStats: {
             /**
@@ -12510,11 +12132,6 @@ export type components = {
         /**
          * RateLimitTestResponse
          * @description Rate limit test endpoint response.
-         * @example {
-         *       "message": "Rate limit test successful",
-         *       "note": "This endpoint is rate limited to 3 requests per minute",
-         *       "timestamp": "2025-01-20T10:30:00.234567"
-         *     }
          */
         RateLimitTestResponse: {
             /**
@@ -12824,11 +12441,6 @@ export type components = {
         /**
          * RequestMetrics
          * @description Request processing metrics.
-         * @example {
-         *       "active_count": 5,
-         *       "average_response_time_ms": 45.2,
-         *       "total_count": 10000
-         *     }
          */
         RequestMetrics: {
             /**
@@ -12868,12 +12480,6 @@ export type components = {
         /**
          * ResultDistribution
          * @description Search result distribution.
-         * @example {
-         *       "1_5_results": 2000,
-         *       "6_10_results": 3000,
-         *       "over_10_results": 4500,
-         *       "zero_results": 500
-         *     }
          */
         ResultDistribution: {
             /**
@@ -13069,59 +12675,6 @@ export type components = {
         /**
          * SearchAnalyticsSummaryResponse
          * @description Comprehensive search analytics summary.
-         * @example {
-         *       "conversions": {
-         *         "conversion_behavior": {
-         *           "avg_days_to_conversion": 0,
-         *           "avg_searches_before_conversion": 0,
-         *           "most_common_first_search": ""
-         *         },
-         *         "guest_sessions": {
-         *           "conversion_rate": 6.25,
-         *           "converted": 50,
-         *           "total": 800
-         *         }
-         *       },
-         *       "date_range": {
-         *         "days": 31,
-         *         "end": "2025-01-31",
-         *         "start": "2025-01-01"
-         *       },
-         *       "performance": {
-         *         "avg_results_per_search": 15.7,
-         *         "most_effective_type": "natural_language",
-         *         "zero_result_rate": 5.2
-         *       },
-         *       "search_types": {
-         *         "category": {
-         *           "count": 3000,
-         *           "percentage": 30
-         *         },
-         *         "natural_language": {
-         *           "count": 5000,
-         *           "percentage": 50
-         *         },
-         *         "quick": {
-         *           "count": 2000,
-         *           "percentage": 20
-         *         }
-         *       },
-         *       "totals": {
-         *         "deleted_searches": 100,
-         *         "deletion_rate": 1,
-         *         "total_searches": 10000,
-         *         "total_users": 1300,
-         *         "unique_guests": 800,
-         *         "unique_users": 500
-         *       },
-         *       "users": {
-         *         "authenticated": 500,
-         *         "converted_guests": 50,
-         *         "guest_percentage": 61.54,
-         *         "guests": 800,
-         *         "user_percentage": 38.46
-         *       }
-         *     }
          */
         SearchAnalyticsSummaryResponse: {
             /**
@@ -13343,12 +12896,6 @@ export type components = {
         /**
          * SearchEffectiveness
          * @description Search effectiveness metrics.
-         * @example {
-         *       "avg_results_per_search": 15.7,
-         *       "median_results": 12,
-         *       "searches_with_results": 9500,
-         *       "zero_result_rate": 5
-         *     }
          */
         SearchEffectiveness: {
             /**
@@ -13600,27 +13147,6 @@ export type components = {
         /**
          * SearchPerformanceResponse
          * @description Search performance metrics response.
-         * @example {
-         *       "effectiveness": {
-         *         "avg_results_per_search": 15.7,
-         *         "median_results": 12,
-         *         "searches_with_results": 9500,
-         *         "zero_result_rate": 5
-         *       },
-         *       "problematic_queries": [
-         *         {
-         *           "avg_results": 0.5,
-         *           "count": 25,
-         *           "query": "advanced quantum physics tutor"
-         *         }
-         *       ],
-         *       "result_distribution": {
-         *         "1_5_results": 2000,
-         *         "6_10_results": 3000,
-         *         "over_10_results": 4500,
-         *         "zero_results": 500
-         *       }
-         *     }
          */
         SearchPerformanceResponse: {
             /** @description Search effectiveness metrics */
@@ -13645,15 +13171,6 @@ export type components = {
         /**
          * SearchReferrer
          * @description Search referrer page data.
-         * @example {
-         *       "page": "/instructors/123",
-         *       "search_count": 250,
-         *       "search_types": [
-         *         "related",
-         *         "category"
-         *       ],
-         *       "unique_sessions": 180
-         *     }
          */
         SearchReferrer: {
             /**
@@ -13680,30 +13197,11 @@ export type components = {
         /**
          * SearchReferrersResponse
          * @description Search referrers response.
-         * @example [
-         *       {
-         *         "page": "/instructors/123",
-         *         "search_count": 250,
-         *         "search_types": [
-         *           "related",
-         *           "category"
-         *         ],
-         *         "unique_sessions": 180
-         *       }
-         *     ]
          */
         SearchReferrersResponse: components["schemas"]["SearchReferrer"][];
         /**
          * SearchTotals
          * @description Search totals and deletion metrics.
-         * @example {
-         *       "deleted_searches": 100,
-         *       "deletion_rate": 1,
-         *       "total_searches": 10000,
-         *       "total_users": 1300,
-         *       "unique_guests": 800,
-         *       "unique_users": 500
-         *     }
          */
         SearchTotals: {
             /**
@@ -13740,23 +13238,11 @@ export type components = {
         /**
          * SearchTrendsResponse
          * @description Search trends over time response.
-         * @example [
-         *       {
-         *         "date": "2025-01-20",
-         *         "total_searches": 1234,
-         *         "unique_guests": 200,
-         *         "unique_users": 150
-         *       }
-         *     ]
          */
         SearchTrendsResponse: components["schemas"]["DailySearchTrend"][];
         /**
          * SearchTypeMetrics
          * @description Metrics for a search type.
-         * @example {
-         *       "count": 2500,
-         *       "percentage": 25
-         *     }
          */
         SearchTypeMetrics: {
             /**
@@ -13941,16 +13427,6 @@ export type components = {
         /**
          * ServiceMetrics
          * @description Service-level performance metrics.
-         * @example {
-         *       "cache_operations": 800,
-         *       "db_operations": 450,
-         *       "operations": {
-         *         "check_conflicts": 200,
-         *         "create_booking": 50,
-         *         "get_availability": 1000
-         *       },
-         *       "total_operations": 1250
-         *     }
          */
         ServiceMetrics: {
             /**
@@ -14141,17 +13617,6 @@ export type components = {
         /**
          * SlowQueriesResponse
          * @description Slow queries response.
-         * @example {
-         *       "slow_queries": [
-         *         {
-         *           "duration_ms": 523.4,
-         *           "endpoint": "/api/v1/bookings",
-         *           "query": "SELECT * FROM bookings WHERE ...",
-         *           "timestamp": "2025-01-20T10:30:00Z"
-         *         }
-         *       ],
-         *       "total_count": 42
-         *     }
          */
         SlowQueriesResponse: {
             /**
@@ -14168,12 +13633,6 @@ export type components = {
         /**
          * SlowQueryInfo
          * @description Slow query information.
-         * @example {
-         *       "duration_ms": 523.4,
-         *       "endpoint": "/api/v1/bookings",
-         *       "query": "SELECT * FROM bookings WHERE ...",
-         *       "timestamp": "2025-01-20T10:30:00Z"
-         *     }
          */
         SlowQueryInfo: {
             /**
@@ -14201,13 +13660,6 @@ export type components = {
         /**
          * SlowRequestInfo
          * @description Slow request information.
-         * @example {
-         *       "duration_ms": 1234.5,
-         *       "method": "GET",
-         *       "path": "/api/v1/instructors/search",
-         *       "status_code": 200,
-         *       "timestamp": "2025-01-20T10:30:00Z"
-         *     }
          */
         SlowRequestInfo: {
             /**
@@ -14240,18 +13692,6 @@ export type components = {
         /**
          * SlowRequestsResponse
          * @description Slow requests response.
-         * @example {
-         *       "slow_requests": [
-         *         {
-         *           "duration_ms": 1234.5,
-         *           "method": "GET",
-         *           "path": "/api/v1/instructors/search",
-         *           "status_code": 200,
-         *           "timestamp": "2025-01-20T10:30:00Z"
-         *         }
-         *       ],
-         *       "total_count": 15
-         *     }
          */
         SlowRequestsResponse: {
             /**
@@ -14358,16 +13798,6 @@ export type components = {
         /**
          * SuccessResponse
          * @description Standard success response for operations.
-         * @example {
-         *       "data": {
-         *         "updated_fields": [
-         *           "name",
-         *           "email"
-         *         ]
-         *       },
-         *       "message": "Operation completed successfully",
-         *       "success": true
-         *     }
          */
         SuccessResponse: {
             /**
@@ -14759,6 +14189,14 @@ export type components = {
             state: "active" | "archived" | "trashed";
         };
         /**
+         * UpdatePreferenceRequest
+         * @description Request to update a single preference.
+         */
+        UpdatePreferenceRequest: {
+            /** Enabled */
+            enabled: boolean;
+        };
+        /**
          * UserBasicPrivacy
          * @description Basic user information with privacy protection.
          *
@@ -14777,13 +14215,6 @@ export type components = {
         /**
          * UserBreakdown
          * @description User type breakdown.
-         * @example {
-         *       "authenticated": 500,
-         *       "converted_guests": 50,
-         *       "guest_percentage": 61.54,
-         *       "guests": 800,
-         *       "user_percentage": 38.46
-         *     }
          */
         UserBreakdown: {
             /**
@@ -15184,13 +14615,22 @@ export type components = {
             success: boolean;
         };
         /**
+         * BulkUpdateRequest
+         * @description Request schema for bulk availability update.
+         */
+        app__schemas__availability_window__BulkUpdateRequest: {
+            /** Operations */
+            operations: components["schemas"]["SlotOperation"][];
+            /**
+             * Validate Only
+             * @description If true, only validate without making changes
+             * @default false
+             */
+            validate_only: boolean;
+        };
+        /**
          * DeleteResponse
          * @description Standard response for delete operations.
-         * @example {
-         *       "deleted_at": "2025-01-20T10:30:00Z",
-         *       "message": "Resource deleted successfully",
-         *       "success": true
-         *     }
          */
         app__schemas__base_responses__DeleteResponse: {
             /**
@@ -15210,6 +14650,14 @@ export type components = {
              * @default true
              */
             success: boolean;
+        };
+        /**
+         * BulkUpdateRequest
+         * @description Bulk preference update request.
+         */
+        app__schemas__notification_preferences__BulkUpdateRequest: {
+            /** Updates */
+            updates: components["schemas"]["PreferenceUpdate"][];
         };
         /** DeleteResponse */
         app__schemas__payment_schemas__DeleteResponse: {
@@ -19553,7 +19001,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BulkUpdateRequest"];
+                "application/json": components["schemas"]["app__schemas__availability_window__BulkUpdateRequest"];
             };
         };
         responses: {
@@ -21420,6 +20868,95 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_preferences_api_v1_notification_preferences_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesByCategory"];
+                };
+            };
+        };
+    };
+    update_preferences_bulk_api_v1_notification_preferences_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["app__schemas__notification_preferences__BulkUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenceResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_preference_api_v1_notification_preferences__category___channel__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category: string;
+                channel: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePreferenceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenceResponse"];
+                };
             };
             /** @description Validation Error */
             422: {

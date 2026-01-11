@@ -16,8 +16,18 @@ import { useUser } from '@/hooks/queries/useUser';
 import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
 import { useTfaStatus, useInvalidateTfaStatus } from '@/hooks/queries/useTfaStatus';
 import { usePushNotifications } from '@/features/shared/hooks/usePushNotifications';
+import { useNotificationPreferences } from '@/features/shared/hooks/useNotificationPreferences';
 
 const RewardsPanel = dynamic(() => import('@/features/referrals/RewardsPanel'), { ssr: false });
+
+const PREFERENCE_DEFAULTS = {
+  lesson_updates: { email: true, push: true, sms: false },
+  messages: { email: false, push: true, sms: false },
+  promotional: { email: false, push: false, sms: false },
+} as const;
+
+type PreferenceCategory = keyof typeof PREFERENCE_DEFAULTS;
+type PreferenceChannel = keyof (typeof PREFERENCE_DEFAULTS)['lesson_updates'];
 
 export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [openAccount, setOpenAccount] = useState(false);
@@ -52,16 +62,32 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     subscribe: enablePush,
     unsubscribe: disablePush,
   } = usePushNotifications();
+  const {
+    preferences,
+    isLoading: preferencesLoading,
+    isUpdating: preferencesUpdating,
+    updatePreference,
+  } = useNotificationPreferences();
 
   // Derived state from hooks
   const tfaEnabled = tfaStatus?.enabled ?? null;
   const accountLoading = userLoading || addressLoading;
   const pushDisabled = !pushSupported || pushLoading || pushPermission === 'denied';
+  const preferencesDisabled = preferencesLoading || preferencesUpdating;
+  const pushPreferenceDisabled =
+    preferencesDisabled || !pushSupported || pushPermission === 'denied' || !pushEnabled;
   const pushToggleTitle = !pushSupported
     ? 'Push notifications are not supported in this browser.'
     : pushPermission === 'denied'
       ? 'Enable notifications in your browser settings to turn this on.'
       : undefined;
+  const pushPreferenceTitle = !pushSupported
+    ? 'Push notifications are not supported in this browser.'
+    : pushPermission === 'denied'
+      ? 'Enable notifications in your browser settings to manage push preferences.'
+      : !pushEnabled
+        ? 'Enable push notifications on this device to manage push preferences.'
+        : undefined;
 
   const handlePushToggle = async (enabled: boolean) => {
     if (enabled) {
@@ -93,6 +119,106 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       {pushError && <p className="text-red-600">{pushError}</p>}
     </div>
   );
+
+  const getPreferenceValue = (category: PreferenceCategory, channel: PreferenceChannel) => {
+    const fallback = PREFERENCE_DEFAULTS[category][channel];
+    return preferences?.[category]?.[channel] ?? fallback;
+  };
+
+  const renderPreferenceToggle = (
+    category: PreferenceCategory,
+    channel: PreferenceChannel,
+    options?: { disabled?: boolean; title?: string }
+  ) => {
+    const isDisabled = options?.disabled ?? preferencesDisabled;
+    return (
+      <input
+        type="checkbox"
+        checked={getPreferenceValue(category, channel)}
+        onChange={(event) => updatePreference(category, channel, event.target.checked)}
+        disabled={isDisabled}
+        title={options?.title}
+        aria-label={`${category} ${channel} notifications`}
+        className={isDisabled ? 'cursor-not-allowed' : undefined}
+      />
+    );
+  };
+
+  const renderNotificationPreferences = () => {
+    const pushPreferenceOptions = pushPreferenceTitle
+      ? { disabled: pushPreferenceDisabled, title: pushPreferenceTitle }
+      : { disabled: pushPreferenceDisabled };
+
+    return (
+      <div className="space-y-4">
+      <div className="rounded-lg border border-gray-200 p-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-gray-900">Push notifications on this device</p>
+            <p className="text-xs text-gray-500">
+              Enable push notifications in this browser to receive alerts.
+            </p>
+          </div>
+          {renderPushToggle()}
+        </div>
+        {renderPushStatus()}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="text-left text-gray-500">
+              <th className="font-medium pr-6">Form of Communication</th>
+              <th className="font-medium pr-6">Email</th>
+              <th className="font-medium pr-6">SMS</th>
+              <th className="font-medium">Push Notification</th>
+            </tr>
+          </thead>
+          <tbody className="align-top">
+            <tr className="text-gray-800">
+              <td className="py-2 pr-6">Lesson updates</td>
+              <td className="pr-6">
+                {renderPreferenceToggle('lesson_updates', 'email')}
+              </td>
+              <td className="pr-6">
+                {renderPreferenceToggle('lesson_updates', 'sms')}
+              </td>
+              <td>
+                {renderPreferenceToggle('lesson_updates', 'push', pushPreferenceOptions)}
+              </td>
+            </tr>
+            <tr className="text-gray-800">
+              <td className="py-2 pr-6">Promotional emails and notifications</td>
+              <td className="pr-6">
+                {renderPreferenceToggle('promotional', 'email')}
+              </td>
+              <td className="pr-6">
+                {renderPreferenceToggle('promotional', 'sms')}
+              </td>
+              <td>
+                {renderPreferenceToggle('promotional', 'push', pushPreferenceOptions)}
+              </td>
+            </tr>
+            <tr className="text-gray-800">
+              <td className="py-2 pr-6">Messages</td>
+              <td className="pr-6">
+                {renderPreferenceToggle('messages', 'email')}
+              </td>
+              <td className="pr-6">
+                {renderPreferenceToggle('messages', 'sms')}
+              </td>
+              <td>
+                {renderPreferenceToggle('messages', 'push', {
+                  disabled: true,
+                  title: 'Push notifications for messages are required.',
+                })}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    );
+  };
 
   // Sync hook data to local editable state (once on initial load)
   useEffect(() => {
@@ -581,45 +707,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 <div className="mt-4">
                   <div className="py-1">
                     <h3 className="text-sm font-medium text-gray-900 mb-2">Notifications</h3>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-gray-500">
-                            <th className="font-medium pr-6">Form of Communication</th>
-                            <th className="font-medium pr-6">Email</th>
-                            <th className="font-medium pr-6">SMS</th>
-                            <th className="font-medium">Push Notification</th>
-                          </tr>
-                        </thead>
-                        <tbody className="align-top">
-                          <tr className="text-gray-800">
-                            <td className="py-2 pr-6">Lesson updates</td>
-                            <td className="pr-6">
-                              <input type="checkbox" disabled className="cursor-not-allowed" />
-                            </td>
-                            <td className="pr-6">
-                              <input type="checkbox" defaultChecked />
-                            </td>
-                            <td>
-                              {renderPushToggle()}
-                            </td>
-                          </tr>
-                          <tr className="text-gray-800">
-                            <td className="py-2 pr-6">Promotional emails and notifications</td>
-                            <td className="pr-6">
-                              <input type="checkbox" />
-                            </td>
-                            <td className="pr-6">
-                              <input type="checkbox" defaultChecked />
-                            </td>
-                            <td>
-                              {renderPushToggle()}
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    {renderPushStatus()}
+                    {renderNotificationPreferences()}
                   </div>
                 </div>
               )}
@@ -629,45 +717,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
               <h2 className="text-lg font-semibold text-gray-800 mb-4">Preferences</h2>
               <div>
                 <h3 className="text-sm font-medium text-gray-900 mb-2">Notifications</h3>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-gray-500">
-                        <th className="font-medium pr-6">Form of Communication</th>
-                        <th className="font-medium pr-6">Email</th>
-                        <th className="font-medium pr-6">SMS</th>
-                        <th className="font-medium">Push Notification</th>
-                      </tr>
-                    </thead>
-                    <tbody className="align-top">
-                      <tr className="text-gray-800">
-                        <td className="py-2 pr-6">Lesson updates</td>
-                        <td className="pr-6">
-                          <input type="checkbox" disabled className="cursor-not-allowed" />
-                        </td>
-                        <td className="pr-6">
-                          <input type="checkbox" defaultChecked />
-                        </td>
-                        <td>
-                          {renderPushToggle()}
-                        </td>
-                      </tr>
-                      <tr className="text-gray-800">
-                        <td className="py-2 pr-6">Promotional emails and notifications</td>
-                        <td className="pr-6">
-                          <input type="checkbox" />
-                        </td>
-                        <td className="pr-6">
-                          <input type="checkbox" defaultChecked />
-                        </td>
-                        <td>
-                          {renderPushToggle()}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                {renderPushStatus()}
+                {renderNotificationPreferences()}
               </div>
             </>
           )}

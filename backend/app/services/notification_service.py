@@ -34,6 +34,7 @@ from ..repositories.notification_repository import NotificationRepository
 from ..services.base import BaseService
 from ..services.email import EmailService
 from ..services.messaging import publish_to_user
+from ..services.notification_preference_service import NotificationPreferenceService
 from ..services.push_notification_service import PushNotificationService
 from ..services.template_registry import TemplateRegistry
 from ..services.template_service import TemplateService
@@ -107,6 +108,7 @@ class NotificationService(BaseService):
         email_service: Optional[EmailService] = None,
         notification_repository: Optional[NotificationRepository] = None,
         push_service: Optional[PushNotificationService] = None,
+        preference_service: Optional[NotificationPreferenceService] = None,
     ) -> None:
         """
         Initialize the notification service.
@@ -149,6 +151,9 @@ class NotificationService(BaseService):
 
         self.notification_repository = notification_repository or NotificationRepository(db)
         self.push_notification_service = push_service or PushNotificationService(
+            db, self.notification_repository
+        )
+        self.preference_service = preference_service or NotificationPreferenceService(
             db, self.notification_repository
         )
 
@@ -1013,11 +1018,7 @@ class NotificationService(BaseService):
             return False
 
     def _should_send_push(self, user_id: str, category: str) -> bool:
-        preference = self.notification_repository.get_preference(user_id, category, "push")
-        if preference is None:
-            self.notification_repository.create_default_preferences(user_id)
-            preference = self.notification_repository.get_preference(user_id, category, "push")
-        return bool(preference.enabled) if preference else False
+        return self.preference_service.is_enabled(user_id, category, "push")
 
     def _serialize_notification(self, notification: Notification) -> Dict[str, Any]:
         created_at = (

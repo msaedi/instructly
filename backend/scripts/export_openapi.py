@@ -23,7 +23,7 @@ from app.openapi_app import openapi_app as app
 
 def strip_docs(obj):
     """Strip non-contract fields to reduce size."""
-    STRIP = {"description", "summary", "examples", "example", "externalDocs"}
+    STRIP = {"examples", "example", "externalDocs"}
     if isinstance(obj, dict):
         return {k: strip_docs(v) for k, v in obj.items() if k not in STRIP}
     if isinstance(obj, list):

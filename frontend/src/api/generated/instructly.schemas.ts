@@ -2094,15 +2094,6 @@ export interface BudgetInfo {
   skipped_operations?: string[];
 }
 
-/**
- * Request schema for bulk availability update.
- */
-export interface BulkUpdateRequest {
-  operations: SlotOperation[];
-  /** If true, only validate without making changes */
-  validate_only?: boolean;
-}
-
 export interface BulkUpdateResponse {
   failed: number;
   results: OperationResult[];
@@ -4809,6 +4800,41 @@ export interface PopularSearch {
  */
 export type PopularSearchesResponse = PopularSearch[];
 
+/**
+ * Single preference response.
+ */
+export interface PreferenceResponse {
+  category: string;
+  channel: string;
+  enabled: boolean;
+  id: string;
+  locked: boolean;
+}
+
+/**
+ * Single preference update for bulk requests.
+ */
+export interface PreferenceUpdate {
+  category: string;
+  channel: string;
+  enabled: boolean;
+}
+
+export type PreferencesByCategoryLessonUpdates = { [key: string]: boolean };
+
+export type PreferencesByCategoryMessages = { [key: string]: boolean };
+
+export type PreferencesByCategoryPromotional = { [key: string]: boolean };
+
+/**
+ * Preferences grouped by category for frontend consumption.
+ */
+export interface PreferencesByCategory {
+  lesson_updates: PreferencesByCategoryLessonUpdates;
+  messages: PreferencesByCategoryMessages;
+  promotional: PreferencesByCategoryPromotional;
+}
+
 export type PreferredPublicSpaceInLabel = string | null;
 
 /**
@@ -6918,6 +6944,13 @@ export interface UpdateConversationStateResponse {
 }
 
 /**
+ * Request to update a single preference.
+ */
+export interface UpdatePreferenceRequest {
+  enabled: boolean;
+}
+
+/**
  * Basic user information with privacy protection.
 
 Shows only last initial instead of full last name for privacy.
@@ -7244,6 +7277,15 @@ export interface AppSchemasAddressResponsesDeleteResponse {
 }
 
 /**
+ * Request schema for bulk availability update.
+ */
+export interface AppSchemasAvailabilityWindowBulkUpdateRequest {
+  operations: SlotOperation[];
+  /** If true, only validate without making changes */
+  validate_only?: boolean;
+}
+
+/**
  * Standard response for delete operations.
  */
 export interface AppSchemasBaseResponsesDeleteResponse {
@@ -7253,6 +7295,13 @@ export interface AppSchemasBaseResponsesDeleteResponse {
   message: string;
   /** Deletion success status */
   success?: boolean;
+}
+
+/**
+ * Bulk preference update request.
+ */
+export interface AppSchemasNotificationPreferencesBulkUpdateRequest {
+  updates: PreferenceUpdate[];
 }
 
 export interface AppSchemasPaymentSchemasDeleteResponse {
