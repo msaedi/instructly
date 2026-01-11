@@ -39,7 +39,7 @@ from ..services.messaging import publish_to_user
 from ..services.notification_preference_service import NotificationPreferenceService
 from ..services.push_notification_service import PushNotificationService
 from ..services.sms_service import SMSService
-from ..services.sms_templates import SMSTemplate, render_sms
+from ..services.sms_templates import BOOKING_NEW_MESSAGE, SMSTemplate, render_sms
 from ..services.template_registry import TemplateRegistry
 from ..services.template_service import TemplateService
 from ..services.timezone_service import TimezoneService
@@ -984,7 +984,7 @@ class NotificationService(BaseService):
         self, recipient_id: str, booking: Booking, sender_id: str, message_content: str
     ) -> bool:
         """
-        Send email notification for a new chat message.
+        Send email and SMS notifications for a new chat message.
 
         Args:
             recipient_id: ID of the user to notify
@@ -993,11 +993,14 @@ class NotificationService(BaseService):
             message_content: Content of the message
 
         Returns:
-            bool: True if email sent successfully, False otherwise
+            bool: True if email was sent or skipped, False if email failed
         """
         try:
-            if not self._should_send_email(recipient_id, "messages", "booking_new_message"):
-                return True
+            should_send_email = self._should_send_email(
+                recipient_id,
+                "messages",
+                "booking_new_message",
+            )
 
             # Get recipient and sender users using repository pattern
             from ..repositories.user_repository import UserRepository
@@ -1017,41 +1020,80 @@ class NotificationService(BaseService):
             # Create subject line
             subject = f"New message from your {sender_role} - {booking.service_name}"
 
-            # Prepare template context
-            local_dt = self._get_booking_local_datetime(booking)
-            context = {
-                "recipient_name": recipient.first_name,
-                "sender_name": sender.first_name,
-                "sender_role": sender_role,
-                "booking_date": local_dt.strftime("%B %d, %Y"),
-                "booking_time": local_dt.strftime("%-I:%M %p"),
-                "service_name": booking.service_name,
-                "message_preview": message_content[:200] + "..."
-                if len(message_content) > 200
-                else message_content,
-                "booking_id": booking.id,
-                "settings": settings,  # Include settings for frontend URL
-            }
-
-            # Render template using the template service
-            html_content = self.template_service.render_template(
-                TemplateRegistry.BOOKING_NEW_MESSAGE, context
-            )
-
             # Send email
-            _response = self.email_service.send_email(
-                to_email=recipient.email,
-                subject=subject,
-                html_content=html_content,
-                template=TemplateRegistry.BOOKING_NEW_MESSAGE,
-            )
+            email_sent = True
+            if should_send_email:
+                # Prepare template context
+                local_dt = self._get_booking_local_datetime(booking)
+                context = {
+                    "recipient_name": recipient.first_name,
+                    "sender_name": sender.first_name,
+                    "sender_role": sender_role,
+                    "booking_date": local_dt.strftime("%B %d, %Y"),
+                    "booking_time": local_dt.strftime("%-I:%M %p"),
+                    "service_name": booking.service_name,
+                    "message_preview": message_content[:200] + "..."
+                    if len(message_content) > 200
+                    else message_content,
+                    "booking_id": booking.id,
+                    "settings": settings,  # Include settings for frontend URL
+                }
 
-            if _response:
-                self.logger.info(f"Message notification sent to {recipient.email}")
-                return True
-            else:
-                self.logger.warning(f"Failed to send message notification to {recipient.email}")
-                return False
+                # Render template using the template service
+                html_content = self.template_service.render_template(
+                    TemplateRegistry.BOOKING_NEW_MESSAGE, context
+                )
+                _response = self.email_service.send_email(
+                    to_email=recipient.email,
+                    subject=subject,
+                    html_content=html_content,
+                    template=TemplateRegistry.BOOKING_NEW_MESSAGE,
+                )
+
+                if _response:
+                    self.logger.info(f"Message notification sent to {recipient.email}")
+                    email_sent = True
+                else:
+                    self.logger.warning(f"Failed to send message notification to {recipient.email}")
+                    email_sent = False
+
+            if self.sms_service and self._should_send_sms(
+                recipient_id, "messages", "booking_new_message"
+            ):
+                sender_name = sender.first_name or sender.email
+                service_name = getattr(booking, "service_name", None) or "lesson"
+                sms_preview = message_content.strip()
+                if len(sms_preview) > 120:
+                    sms_preview = f"{sms_preview[:117]}..."
+
+                try:
+                    sms_message = render_sms(
+                        BOOKING_NEW_MESSAGE,
+                        sender_name=sender_name,
+                        service_name=service_name,
+                        message_preview=sms_preview,
+                    )
+                except Exception as exc:
+                    self.logger.warning(
+                        "Failed to render message SMS for %s: %s",
+                        recipient_id,
+                        exc,
+                    )
+                else:
+
+                    async def _send_sms() -> None:
+                        await self.sms_service.send_to_user(
+                            user_id=recipient_id,
+                            message=sms_message,
+                            user_repository=self.user_repository,
+                        )
+
+                    self._run_async_task(
+                        _send_sms,
+                        f"sending message SMS to {recipient_id}",
+                    )
+
+            return email_sent
 
         except Exception as e:
             self.logger.error(f"Error sending message notification: {str(e)}")

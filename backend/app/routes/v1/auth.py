@@ -796,7 +796,7 @@ async def update_current_user(
             user_repo = RepositoryFactory.create_user_repository(db)
 
             # Prepare update data
-            upd_data = {}
+            upd_data: dict[str, Any] = {}
             if user_update.first_name is not None:
                 upd_data["first_name"] = user_update.first_name
             if user_update.last_name is not None:

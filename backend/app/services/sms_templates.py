@@ -46,6 +46,11 @@ NEW_REVIEW = SMSTemplate(
     template="InstaInstru: You received a new {rating}-star review from {student_name}!",
 )
 
+BOOKING_NEW_MESSAGE = SMSTemplate(
+    category="messages",
+    template="InstaInstru: New message from {sender_name} about {service_name}. {message_preview}",
+)
+
 
 def render_sms(template: SMSTemplate, **kwargs: str) -> str:
     """Render SMS template with provided values."""
@@ -64,5 +69,6 @@ __all__ = [
     "REMINDER_24H",
     "REMINDER_1H",
     "NEW_REVIEW",
+    "BOOKING_NEW_MESSAGE",
     "render_sms",
 ]
