@@ -49,6 +49,8 @@ router = APIRouter(tags=["account-v1"])
 
 E164_PATTERN = re.compile(r"^\+[1-9]\d{7,14}$")
 PHONE_VERIFY_TTL_SECONDS = 300
+PHONE_VERIFY_RATE_LIMIT = 3
+PHONE_VERIFY_WINDOW_SECONDS = 600
 
 
 @router.post("/suspend", response_model=AccountStatusChangeResponse)
@@ -254,6 +256,47 @@ async def send_phone_verification(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="SMS service is not configured",
+        )
+
+    rate_key = f"phone_verify_rate:{current_user.id}"
+    redis_client = None
+    try:
+        redis_client = await cache_service.get_redis_client()
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.warning("Failed to access Redis for phone verification rate limit: %s", exc)
+
+    if redis_client is not None:
+        try:
+            attempts = await redis_client.incr(rate_key)
+            if attempts == 1:
+                await redis_client.expire(rate_key, PHONE_VERIFY_WINDOW_SECONDS)
+            if attempts > PHONE_VERIFY_RATE_LIMIT:
+                await redis_client.decr(rate_key)
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Too many verification requests. Try again later.",
+                )
+        except HTTPException:
+            raise
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            logger.warning("Redis phone verification rate limit failed: %s", exc)
+    else:
+        cached_attempts = await cache_service.get(rate_key)
+        try:
+            attempts = int(cached_attempts) if cached_attempts is not None else 0
+        except (TypeError, ValueError):
+            attempts = 0
+
+        if attempts >= PHONE_VERIFY_RATE_LIMIT:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many verification requests. Try again later.",
+            )
+
+        await cache_service.set(
+            rate_key,
+            attempts + 1,
+            ttl=PHONE_VERIFY_WINDOW_SECONDS,
         )
 
     code = str(secrets.randbelow(900000) + 100000)

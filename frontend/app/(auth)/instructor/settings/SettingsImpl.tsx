@@ -25,6 +25,8 @@ const PREFERENCE_DEFAULTS = {
   lesson_updates: { email: true, push: true, sms: false },
   messages: { email: false, push: true, sms: false },
   reviews: { email: true, push: true, sms: false },
+  learning_tips: { email: true, push: true, sms: false },
+  system_updates: { email: true, push: false, sms: false },
   promotional: { email: false, push: false, sms: false },
 } as const;
 const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
@@ -404,6 +406,40 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
             </div>
             <div className="flex justify-center">
               {renderPreferenceToggle('reviews', 'push', pushPreferenceOptions)}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-4 items-start py-2">
+            <div>
+              <div className="font-medium text-gray-900">Tips &amp; Updates</div>
+              <div className="text-xs text-gray-500">Platform tips and learning resources</div>
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('learning_tips', 'email')}
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('learning_tips', 'sms', smsPreferenceOptions)}
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('learning_tips', 'push', pushPreferenceOptions)}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-4 items-start py-2">
+            <div>
+              <div className="font-medium text-gray-900">System Updates</div>
+              <div className="text-xs text-gray-500">
+                Important platform notices and policy changes
+              </div>
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('system_updates', 'email')}
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('system_updates', 'sms', smsPreferenceOptions)}
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('system_updates', 'push', pushPreferenceOptions)}
             </div>
           </div>
 

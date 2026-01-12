@@ -33,7 +33,7 @@ from ..models.user import User
 from ..repositories.notification_repository import NotificationRepository
 from ..repositories.user_repository import UserRepository
 from ..services.base import BaseService
-from ..services.cache_service import CacheService
+from ..services.cache_service import CacheService, CacheServiceSyncAdapter
 from ..services.email import EmailService
 from ..services.messaging import publish_to_user
 from ..services.notification_preference_service import NotificationPreferenceService
@@ -142,12 +142,30 @@ class NotificationService(BaseService):
         else:
             self._owns_db = False
 
-        super().__init__(db, cache)
+        cache_service: CacheService | None = None
+        cache_adapter = None
+
+        if isinstance(cache, CacheService):
+            cache_service = cache
+            cache_adapter = CacheServiceSyncAdapter(cache_service)
+        elif isinstance(cache, CacheServiceSyncAdapter):
+            cache_adapter = cache
+            cache_service = getattr(cache, "_cache_service", None)
+
+        if cache_adapter is None and cache_service is None:
+            try:
+                cache_service = CacheService()
+                cache_adapter = CacheServiceSyncAdapter(cache_service)
+            except Exception:
+                cache_service = None
+                cache_adapter = None
+
+        super().__init__(db, cache_adapter)
 
         # Use dependency injection for EmailService
         if email_service is None:
             # Create our own instance if not provided
-            self.email_service = EmailService(db, cache)
+            self.email_service = EmailService(db, cache_adapter)
             self._owns_email_service = True
         else:
             self.email_service = email_service
@@ -156,7 +174,7 @@ class NotificationService(BaseService):
         # Use dependency injection for TemplateService
         if template_service is None:
             # Create our own instance if not provided
-            self.template_service = TemplateService(db, cache)
+            self.template_service = TemplateService(db, cache_adapter)
             self._owns_template_service = True
         else:
             self.template_service = template_service
@@ -168,10 +186,14 @@ class NotificationService(BaseService):
             db, self.notification_repository
         )
         self.preference_service = preference_service or NotificationPreferenceService(
-            db, self.notification_repository
+            db, self.notification_repository, cache_adapter
         )
-        sms_cache = cache if isinstance(cache, CacheService) else None
-        self.sms_service = sms_service or SMSService(sms_cache)
+        if sms_service is None:
+            self.sms_service = SMSService(cache_service)
+        else:
+            if cache_service is not None and getattr(sms_service, "cache_service", None) is None:
+                sms_service.cache_service = cache_service
+            self.sms_service = sms_service
 
         self.frontend_url = settings.frontend_url
 
@@ -1109,6 +1131,30 @@ class NotificationService(BaseService):
 
             # Determine if sender is instructor or student
             sender_role = "instructor" if sender_id == booking.instructor_id else "student"
+            sender_name = sender.first_name or sender.email or "Someone"
+
+            message_preview = message_content.strip()
+            if len(message_preview) > 200:
+                message_preview = f"{message_preview[:197]}..."
+
+            async def _send_in_app_and_push() -> None:
+                await self.create_notification(
+                    user_id=recipient_id,
+                    category="messages",
+                    notification_type="booking_new_message",
+                    title=f"New message from {sender_name}",
+                    body=message_preview,
+                    data={
+                        "booking_id": booking.id,
+                        "sender_id": sender_id,
+                    },
+                    send_push=True,
+                )
+
+            self._run_async_task(
+                _send_in_app_and_push,
+                f"sending message notification to {recipient_id}",
+            )
 
             # Create subject line
             subject = f"New message from your {sender_role} - {booking.service_name}"
@@ -1125,9 +1171,7 @@ class NotificationService(BaseService):
                     "booking_date": local_dt.strftime("%B %d, %Y"),
                     "booking_time": local_dt.strftime("%-I:%M %p"),
                     "service_name": booking.service_name,
-                    "message_preview": message_content[:200] + "..."
-                    if len(message_content) > 200
-                    else message_content,
+                    "message_preview": message_preview,
                     "booking_id": booking.id,
                     "settings": settings,  # Include settings for frontend URL
                 }
@@ -1153,9 +1197,8 @@ class NotificationService(BaseService):
             if self.sms_service and self._should_send_sms(
                 recipient_id, "messages", "booking_new_message"
             ):
-                sender_name = sender.first_name or sender.email
                 service_name = getattr(booking, "service_name", None) or "lesson"
-                sms_preview = message_content.strip()
+                sms_preview = message_preview
                 if len(sms_preview) > 120:
                     sms_preview = f"{sms_preview[:117]}..."
 

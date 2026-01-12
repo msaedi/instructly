@@ -83,8 +83,6 @@ class SMSService:
         if not self.enabled:
             logger.debug("SMS disabled, skipping send to user %s", user_id)
             return None
-        if not await self._check_rate_limit(user_id):
-            return None
 
         repo = user_repository
         if repo is None:
@@ -105,9 +103,10 @@ class SMSService:
             logger.debug("User %s has no phone number for SMS", user_id)
             return None
 
+        if not await self._check_and_increment_rate_limit(user_id):
+            return None
+
         result = await self.send_sms(phone, message)
-        if result:
-            await self._increment_rate_limit(user_id)
         return result
 
     def _send_sms_sync(self, to_number: str, message: str) -> Optional[dict[str, Any]]:
@@ -143,11 +142,35 @@ class SMSService:
             logger.error("Unexpected error sending SMS to %s: %s", to_number, exc)
             return None
 
-    async def _check_rate_limit(self, user_id: str) -> bool:
+    async def _check_and_increment_rate_limit(self, user_id: str) -> bool:
         if not self.cache_service:
             return True
 
         key = f"sms_count:{user_id}:{self._current_date_key()}"
+        redis_client = None
+        try:
+            redis_client = await self.cache_service.get_redis_client()
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            logger.warning("Failed to access Redis for SMS rate limiting: %s", exc)
+
+        if redis_client is not None:
+            try:
+                count = await redis_client.incr(key)
+                if count == 1:
+                    await redis_client.expire(key, 86400)
+                if count > self.daily_limit:
+                    await redis_client.decr(key)
+                    logger.warning(
+                        "User %s exceeded daily SMS limit (%s)",
+                        user_id,
+                        self.daily_limit,
+                    )
+                    return False
+                return True
+            except Exception as exc:  # pragma: no cover - defensive fallback
+                logger.warning("Redis SMS rate limit increment failed: %s", exc)
+                return True
+
         value = await self.cache_service.get(key)
         try:
             count = int(value) if value is not None else 0
@@ -157,19 +180,9 @@ class SMSService:
         if count >= self.daily_limit:
             logger.warning("User %s exceeded daily SMS limit (%s)", user_id, self.daily_limit)
             return False
-        return True
 
-    async def _increment_rate_limit(self, user_id: str) -> None:
-        if not self.cache_service:
-            return
-
-        key = f"sms_count:{user_id}:{self._current_date_key()}"
-        value = await self.cache_service.get(key)
-        try:
-            count = int(value) if value is not None else 0
-        except (TypeError, ValueError):
-            count = 0
         await self.cache_service.set(key, count + 1, ttl=86400)
+        return True
 
     @staticmethod
     def _current_date_key() -> str:

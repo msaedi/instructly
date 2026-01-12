@@ -355,6 +355,7 @@ def _process_authorization_for_booking(
     # ========== PHASE 3: Write results (quick transaction) ==========
     db3: Session = SessionLocal()
     send_confirmation_notifications = False
+    send_payment_failed_notification = False
     try:
         booking = db3.query(Booking).filter(Booking.id == booking_id).first()
         if not booking:
@@ -452,6 +453,7 @@ def _process_authorization_for_booking(
             logger.error(
                 f"Failed to authorize payment for booking {booking_id}: {stripe_result.get('error')}"
             )
+            send_payment_failed_notification = True
 
         db3.commit()  # Commit and release lock immediately
 
@@ -466,6 +468,8 @@ def _process_authorization_for_booking(
                     booking_id,
                     exc,
                 )
+        if send_payment_failed_notification:
+            _notify_payment_failed_once()
     finally:
         db3.close()
 

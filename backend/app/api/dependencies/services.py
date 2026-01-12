@@ -89,6 +89,7 @@ def get_sms_service(
 
 def get_notification_service(
     db: Session = Depends(get_db),
+    cache: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
     email_service: EmailService = Depends(get_email_service),
     sms_service: SMSService = Depends(get_sms_service),
 ) -> NotificationService:
@@ -105,9 +106,9 @@ def get_notification_service(
     # Create template service internally
     from ...services.template_service import TemplateService
 
-    template_service = TemplateService(db, None)
+    template_service = TemplateService(db, cache)
 
-    return NotificationService(db, None, template_service, email_service, sms_service=sms_service)
+    return NotificationService(db, cache, template_service, email_service, sms_service=sms_service)
 
 
 def get_booking_service(

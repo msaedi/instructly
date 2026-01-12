@@ -158,7 +158,7 @@ class BookingService(BaseService):
         elif isinstance(cache_impl, CacheService):
             cache_adapter = CacheServiceSyncAdapter(cache_impl)
         super().__init__(db, cache=cache_adapter)
-        self.notification_service = notification_service or NotificationService(db)
+        self.notification_service = notification_service or NotificationService(db, cache_adapter)
         self.event_publisher = event_publisher or EventPublisher(JobRepository(db))
         self.system_message_service = system_message_service or SystemMessageService(db)
         # Pass cache_service to BookingRepository for caching support

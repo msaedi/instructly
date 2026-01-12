@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ...api.dependencies.auth import get_current_active_user
+from ...api.dependencies.services import get_cache_service_sync_dep
 from ...database import get_db
 from ...models.user import User
 from ...schemas.notification_preferences import (
@@ -15,22 +16,26 @@ from ...schemas.notification_preferences import (
     PreferencesByCategory,
     UpdatePreferenceRequest,
 )
+from ...services.cache_service import CacheServiceSyncAdapter
 from ...services.notification_preference_service import NotificationPreferenceService
 
 router = APIRouter(tags=["notification-preferences-v1"])
 
 
-def _get_preference_service(db: Session) -> NotificationPreferenceService:
-    return NotificationPreferenceService(db)
+def _get_preference_service(
+    db: Session, cache: CacheServiceSyncAdapter
+) -> NotificationPreferenceService:
+    return NotificationPreferenceService(db, cache=cache)
 
 
 @router.get("", response_model=PreferencesByCategory)
 def get_preferences(
     db: Session = Depends(get_db),
+    cache: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
     current_user: User = Depends(get_current_active_user),
 ) -> PreferencesByCategory:
     """Get all notification preferences for current user, grouped by category."""
-    service = _get_preference_service(db)
+    service = _get_preference_service(db, cache)
     preferences = service.get_preferences_by_category(current_user.id)
     return PreferencesByCategory.model_validate(preferences)
 
@@ -39,10 +44,11 @@ def get_preferences(
 def update_preferences_bulk(
     request: BulkUpdateRequest,
     db: Session = Depends(get_db),
+    cache: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
     current_user: User = Depends(get_current_active_user),
 ) -> list[PreferenceResponse]:
     """Update multiple notification preferences at once."""
-    service = _get_preference_service(db)
+    service = _get_preference_service(db, cache)
     updates = [item.model_dump() for item in request.updates]
     preferences = service.update_preferences_bulk(current_user.id, updates)
     return [PreferenceResponse.model_validate(pref) for pref in preferences]
@@ -54,10 +60,11 @@ def update_preference(
     channel: str,
     request: UpdatePreferenceRequest,
     db: Session = Depends(get_db),
+    cache: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
     current_user: User = Depends(get_current_active_user),
 ) -> PreferenceResponse:
     """Update a single notification preference."""
-    service = _get_preference_service(db)
+    service = _get_preference_service(db, cache)
     try:
         preference = service.update_preference(
             user_id=current_user.id,
