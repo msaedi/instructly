@@ -55,7 +55,19 @@ from .base import BaseService
 from .cache_service import CacheService, CacheServiceSyncAdapter
 from .config_service import ConfigService
 from .notification_service import NotificationService
+from .notification_templates import (
+    INSTRUCTOR_BOOKING_CANCELLED,
+    INSTRUCTOR_BOOKING_CONFIRMED,
+    STUDENT_BOOKING_CANCELLED,
+    STUDENT_BOOKING_CONFIRMED,
+)
 from .pricing_service import PricingService
+from .sms_templates import (
+    BOOKING_CANCELLED_INSTRUCTOR,
+    BOOKING_CANCELLED_STUDENT,
+    BOOKING_CONFIRMED_INSTRUCTOR,
+    BOOKING_CONFIRMED_STUDENT,
+)
 from .stripe_service import StripeService
 from .student_credit_service import StudentCreditService
 from .system_message_service import SystemMessageService
@@ -146,7 +158,7 @@ class BookingService(BaseService):
         elif isinstance(cache_impl, CacheService):
             cache_adapter = CacheServiceSyncAdapter(cache_impl)
         super().__init__(db, cache=cache_adapter)
-        self.notification_service = notification_service or NotificationService(db)
+        self.notification_service = notification_service or NotificationService(db, cache_adapter)
         self.event_publisher = event_publisher or EventPublisher(JobRepository(db))
         self.system_message_service = system_message_service or SystemMessageService(db)
         # Pass cache_service to BookingRepository for caching support
@@ -3241,6 +3253,8 @@ class BookingService(BaseService):
                 f"Failed to create cancellation system message for booking {booking.id}: {str(e)}"
             )
 
+        self._send_cancellation_notifications(booking, cancelled_by_role)
+
         # Invalidate caches
         self._invalidate_booking_caches(booking)
 
@@ -4853,6 +4867,142 @@ class BookingService(BaseService):
             return ", ".join(sorted_boroughs)
         return f"{sorted_boroughs[0]} + {len(sorted_boroughs) - 1} more"
 
+    @staticmethod
+    def _format_user_display_name(user: Optional[User]) -> str:
+        if not user:
+            return "Someone"
+        first = (getattr(user, "first_name", "") or "").strip()
+        last = (getattr(user, "last_name", "") or "").strip()
+        if first and last:
+            return f"{first} {last[0]}."
+        return first or "Someone"
+
+    @staticmethod
+    def _format_booking_date(booking: Booking) -> str:
+        booking_date = getattr(booking, "booking_date", None)
+        if isinstance(booking_date, date):
+            return booking_date.strftime("%B %d").replace(" 0", " ")
+        return str(booking_date or "")
+
+    @staticmethod
+    def _format_booking_time(booking: Booking) -> str:
+        start_time = getattr(booking, "start_time", None)
+        if isinstance(start_time, time):
+            return start_time.strftime("%I:%M %p").lstrip("0")
+        if start_time:
+            return str(start_time)
+        return ""
+
+    @staticmethod
+    def _resolve_service_name(booking: Booking) -> str:
+        name = getattr(booking, "service_name", None)
+        if isinstance(name, str) and name.strip():
+            return name.strip()
+        service = getattr(booking, "instructor_service", None)
+        service_name = getattr(service, "name", None)
+        if isinstance(service_name, str) and service_name.strip():
+            return service_name.strip()
+        return "Lesson"
+
+    def _send_booking_notifications(self, booking: Booking, is_reschedule: bool) -> None:
+        if is_reschedule or not self.notification_service:
+            return
+        try:
+            student_name = self._format_user_display_name(getattr(booking, "student", None))
+            instructor_name = self._format_user_display_name(getattr(booking, "instructor", None))
+            service_name = self._resolve_service_name(booking)
+            date_str = self._format_booking_date(booking)
+            time_str = self._format_booking_time(booking)
+
+            self.notification_service.notify_user_best_effort(
+                user_id=booking.instructor_id,
+                template=INSTRUCTOR_BOOKING_CONFIRMED,
+                student_name=student_name,
+                service_name=service_name,
+                date=date_str,
+                time=time_str,
+                booking_id=booking.id,
+                send_email=False,
+                send_sms=True,
+                sms_template=BOOKING_CONFIRMED_INSTRUCTOR,
+            )
+            self.notification_service.notify_user_best_effort(
+                user_id=booking.student_id,
+                template=STUDENT_BOOKING_CONFIRMED,
+                instructor_name=instructor_name,
+                service_name=service_name,
+                date=date_str,
+                time=time_str,
+                booking_id=booking.id,
+                send_email=False,
+                send_sms=True,
+                sms_template=BOOKING_CONFIRMED_STUDENT,
+            )
+        except Exception as exc:
+            logger.error("Failed to send booking notifications for %s: %s", booking.id, exc)
+
+    @BaseService.measure_operation("send_booking_confirmation_notifications")
+    def send_booking_notifications_after_confirmation(self, booking_id: str) -> None:
+        """Send in-app/push/SMS/email notifications after a booking is confirmed."""
+        if not self.notification_service:
+            return
+
+        booking = self.repository.get_booking_with_details(booking_id)
+        if not booking:
+            return
+
+        is_reschedule = bool(getattr(booking, "rescheduled_from_booking_id", None))
+        self._send_booking_notifications(booking, is_reschedule)
+
+        try:
+            self.notification_service.send_booking_confirmation(booking)
+        except Exception as exc:
+            logger.error("Failed to send booking confirmation emails for %s: %s", booking.id, exc)
+
+    def _send_cancellation_notifications(self, booking: Booking, cancelled_by_role: str) -> None:
+        if not self.notification_service:
+            return
+        try:
+            details = booking
+            if not getattr(details, "student", None) or not getattr(details, "instructor", None):
+                detailed_booking = self.repository.get_booking_with_details(booking.id)
+                if detailed_booking is not None:
+                    details = detailed_booking
+
+            service_name = self._resolve_service_name(details)
+            date_str = self._format_booking_date(details)
+
+            if cancelled_by_role == "student":
+                student_name = self._format_user_display_name(getattr(details, "student", None))
+                self.notification_service.notify_user_best_effort(
+                    user_id=details.instructor_id,
+                    template=INSTRUCTOR_BOOKING_CANCELLED,
+                    student_name=student_name,
+                    service_name=service_name,
+                    date=date_str,
+                    booking_id=booking.id,
+                    send_email=False,
+                    send_sms=True,
+                    sms_template=BOOKING_CANCELLED_INSTRUCTOR,
+                )
+            elif cancelled_by_role == "instructor":
+                instructor_name = self._format_user_display_name(
+                    getattr(details, "instructor", None)
+                )
+                self.notification_service.notify_user_best_effort(
+                    user_id=details.student_id,
+                    template=STUDENT_BOOKING_CANCELLED,
+                    instructor_name=instructor_name,
+                    service_name=service_name,
+                    date=date_str,
+                    booking_id=booking.id,
+                    send_email=False,
+                    send_sms=True,
+                    sms_template=BOOKING_CANCELLED_STUDENT,
+                )
+        except Exception as exc:
+            logger.error("Failed to send cancellation notifications for %s: %s", booking.id, exc)
+
     def _handle_post_booking_tasks(
         self, booking: Booking, is_reschedule: bool = False, old_booking: Optional[Booking] = None
     ) -> None:
@@ -4864,18 +5014,19 @@ class BookingService(BaseService):
             is_reschedule: Whether this is a rescheduled booking
             old_booking: The original booking if this is a reschedule
         """
-        # Publish async notification event
-        try:
-            self.event_publisher.publish(
-                BookingCreated(
-                    booking_id=booking.id,
-                    student_id=booking.student_id,
-                    instructor_id=booking.instructor_id,
-                    created_at=booking.created_at or datetime.now(timezone.utc),
+        # Publish async notification event only for confirmed bookings
+        if booking.status == BookingStatus.CONFIRMED:
+            try:
+                self.event_publisher.publish(
+                    BookingCreated(
+                        booking_id=booking.id,
+                        student_id=booking.student_id,
+                        instructor_id=booking.instructor_id,
+                        created_at=booking.created_at or datetime.now(timezone.utc),
+                    )
                 )
-            )
-        except Exception as e:
-            logger.error(f"Failed to enqueue booking confirmation event: {str(e)}")
+            except Exception as e:
+                logger.error(f"Failed to enqueue booking confirmation event: {str(e)}")
 
         # Create system message in conversation
         try:
@@ -4906,6 +5057,8 @@ class BookingService(BaseService):
                 )
         except Exception as e:
             logger.error(f"Failed to create system message for booking {booking.id}: {str(e)}")
+
+        self._send_booking_notifications(booking, is_reschedule)
 
         # Invalidate relevant caches
         self._invalidate_booking_caches(booking)

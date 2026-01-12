@@ -9,10 +9,11 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback, type KeyboardEvent, Fragment } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { format, isToday, isYesterday } from 'date-fns';
-import { ArrowLeft, Bell, MessageSquare, ChevronDown, Undo2 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, ChevronDown, Undo2 } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import {
   useAddReaction,
   useRemoveReaction,
@@ -70,7 +71,6 @@ function getFiltersForDisplay(
 }
 
 export default function MessagesPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { user: currentUser, isLoading: isLoadingUser } = useAuthStatus();
 
@@ -766,28 +766,16 @@ export default function MessagesPage() {
               )}
             </div>
             {/* Notifications dropdown */}
-            <div className="relative" ref={notifRef}>
-              <button
-                type="button"
-                onClick={() => { setShowNotifications((v) => !v); setShowMessages(false); }}
-                className="group inline-flex items-center justify-center w-10 h-10 rounded-full text-[#7E22CE] transition-colors"
-                title="Notifications"
-              >
-                <Bell className="w-6 h-6 transition-colors group-hover:fill-current" style={{ fill: showNotifications ? 'currentColor' : undefined }} />
-              </button>
-              {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                  <ul className="max-h-80 overflow-auto p-2 space-y-2">
-                    <li className="text-sm text-gray-600 px-2 py-2">No alerts right now.</li>
-                    <li>
-                      <button type="button" className="w-full text-left text-sm text-gray-700 px-2 py-2 hover:bg-gray-50 rounded" onClick={() => { setShowNotifications(false); router.push('/instructor/settings'); }}>
-                        Notification settings
-                      </button>
-                    </li>
-                  </ul>
-                </div>
-              )}
-            </div>
+            <NotificationBell
+              isOpen={showNotifications}
+              onOpenChange={(open) => {
+                setShowNotifications(open);
+                if (open) {
+                  setShowMessages(false);
+                }
+              }}
+              containerRef={notifRef}
+            />
             <UserProfileDropdown />
           </div>
         </div>

@@ -25,6 +25,8 @@ import { StudentBadgesSection } from '@/features/student/badges/StudentBadgesSec
 import RewardsPanel from '@/features/referrals/RewardsPanel';
 import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
 import { useTfaStatus, useInvalidateTfaStatus } from '@/hooks/queries/useTfaStatus';
+import { useNotificationPreferences } from '@/features/shared/hooks/useNotificationPreferences';
+import { usePhoneVerification } from '@/features/shared/hooks/usePhoneVerification';
 // Use dashboard-specific saved address shape (differs from common Address)
 type SavedAddress = {
   id: string;
@@ -39,6 +41,44 @@ type SavedAddress = {
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import BillingTab from '@/components/student/BillingTab';
 import { getActivityBackground } from '@/lib/services/assetService';
+
+const STUDENT_PREFERENCE_DEFAULTS = {
+  lesson_updates: { email: true, sms: false, push: true },
+  messages: { email: false, sms: false, push: true },
+  reviews: { email: true, sms: false, push: true },
+  learning_tips: { email: true, sms: false, push: true },
+  system_updates: { email: true, sms: false, push: false },
+  promotional: { email: false, sms: false, push: false },
+} as const;
+
+const STUDENT_RECOMMENDED_PREFERENCES = {
+  lesson_updates: { email: true, sms: true, push: false },
+  messages: { email: true, sms: true, push: true },
+  reviews: { email: true, sms: false, push: true },
+  learning_tips: { email: true, sms: false, push: true },
+  system_updates: { email: true, sms: false, push: false },
+  promotional: { email: false, sms: false, push: false },
+} as const;
+
+const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
+
+type PreferenceCategory = keyof typeof STUDENT_PREFERENCE_DEFAULTS;
+type PreferenceChannel = keyof (typeof STUDENT_PREFERENCE_DEFAULTS)['lesson_updates'];
+
+const CATEGORY_LABELS: Record<PreferenceCategory, string> = {
+  lesson_updates: 'Lesson Updates',
+  messages: 'Messages',
+  reviews: 'Reviews',
+  learning_tips: 'Learning Tips & Achievements',
+  system_updates: 'System & Policy Updates',
+  promotional: 'Promotional Offers',
+};
+
+const CHANNEL_LABELS: Record<PreferenceChannel, string> = {
+  email: 'Email',
+  sms: 'SMS',
+  push: 'Push',
+};
 
 /**
  * StudentDashboard Component
@@ -724,54 +764,155 @@ function StudentDashboardContent() {
 }
 
 function NotificationsTab() {
-  const [preferences, setPreferences] = useState({
-    lessonUpdates: { email: true, sms: true, push: false },
-    instructorMessages: { email: true, sms: true, push: true },
-    learningTips: { email: true, sms: false, push: true },
-    systemUpdates: { email: true, sms: false, push: false },
-    promotionalOffers: { email: false, sms: false, push: false },
-  });
-
+  const {
+    preferences,
+    isLoading: preferencesLoading,
+    isUpdating: preferencesUpdating,
+    updatePreference,
+  } = useNotificationPreferences();
+  const {
+    phoneNumber,
+    isVerified: phoneVerified,
+    isLoading: phoneLoading,
+    updatePhone,
+    sendVerification,
+    confirmVerification,
+  } = usePhoneVerification();
+  const [smsPhone, setSmsPhone] = useState('');
+  const [smsCode, setSmsCode] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [reminderTiming, setReminderTiming] = useState('1440'); // 24 hours in minutes
   const [quietHoursStart, setQuietHoursStart] = useState('22:00');
   const [quietHoursEnd, setQuietHoursEnd] = useState('08:00');
   const [saving, setSaving] = useState(false);
   const [usingRecommended, setUsingRecommended] = useState(false);
 
-  const handleToggle = (category: string, channel: 'email' | 'sms' | 'push') => {
-    setPreferences(prev => ({
-      ...prev,
-      [category]: {
-        ...prev[category as keyof typeof prev],
-        [channel]: !prev[category as keyof typeof prev][channel]
-      }
-    }));
-    setUsingRecommended(false); // User manually changed settings
+  const preferencesDisabled = preferencesLoading || preferencesUpdating;
+  const smsToggleDisabled = phoneLoading || !phoneNumber || !phoneVerified;
+  const smsToggleTitle = !phoneNumber
+    ? 'Add a phone number to enable SMS notifications.'
+    : !phoneVerified
+      ? 'Verify your phone number to enable SMS notifications.'
+      : undefined;
+
+  const getPreferenceValue = (category: PreferenceCategory, channel: PreferenceChannel) => {
+    const fallback = STUDENT_PREFERENCE_DEFAULTS[category][channel];
+    return preferences?.[category]?.[channel] ?? fallback;
   };
+
+  const handleToggle = (category: PreferenceCategory, channel: PreferenceChannel) => {
+    const current = getPreferenceValue(category, channel);
+    const disabled =
+      preferencesDisabled ||
+      (channel === 'sms' && smsToggleDisabled) ||
+      (category === 'messages' && channel === 'push');
+    if (disabled) {
+      return;
+    }
+    updatePreference(category, channel, !current);
+    setUsingRecommended(false);
+  };
+
+  const getToggleAriaLabel = (category: PreferenceCategory, channel: PreferenceChannel) =>
+    `${CATEGORY_LABELS[category]} ${CHANNEL_LABELS[channel]} notifications`;
 
   const applyRecommendedSettings = () => {
     if (usingRecommended) {
-      // Toggle off - just change the state, keep current settings
       setUsingRecommended(false);
-    } else {
-      // Toggle on - apply recommended settings
-      setPreferences({
-        lessonUpdates: { email: true, sms: true, push: false },
-        instructorMessages: { email: true, sms: true, push: true },
-        learningTips: { email: true, sms: false, push: true },
-        systemUpdates: { email: true, sms: false, push: false },
-        promotionalOffers: { email: false, sms: false, push: false },
-      });
-      setReminderTiming('1440'); // 24 hours
-      setQuietHoursStart('22:00');
-      setQuietHoursEnd('08:00');
-      setUsingRecommended(true);
-      toast.success('Recommended settings applied', {
-        style: {
-          background: '#6b21a8',
-          color: 'white',
-        },
-      });
+      return;
+    }
+    Object.entries(STUDENT_RECOMMENDED_PREFERENCES).forEach(([category, channels]) => {
+      (Object.entries(channels) as [PreferenceChannel, boolean][]).forEach(
+        ([channel, enabled]) => {
+          updatePreference(category as PreferenceCategory, channel, enabled);
+        }
+      );
+    });
+    setReminderTiming('1440'); // 24 hours
+    setQuietHoursStart('22:00');
+    setQuietHoursEnd('08:00');
+    setUsingRecommended(true);
+    toast.success('Recommended settings applied', {
+      style: {
+        background: '#6b21a8',
+        color: 'white',
+      },
+    });
+  };
+
+  useEffect(() => {
+    if (phoneLoading) return;
+    setSmsPhone(phoneNumber || '');
+  }, [phoneNumber, phoneLoading]);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => {
+      setResendCooldown((value) => Math.max(0, value - 1));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  const handleUpdatePhone = async () => {
+    const trimmed = smsPhone.trim();
+    if (!trimmed) {
+      toast.error('Please enter a phone number.');
+      return;
+    }
+    if (!E164_PATTERN.test(trimmed)) {
+      toast.error('Phone number must be in E.164 format (+1234567890).');
+      return;
+    }
+    const previousPhone = phoneNumber;
+    const wasVerified = phoneVerified;
+    try {
+      const updated = await updatePhone.mutateAsync(trimmed);
+      setSmsCode('');
+      const shouldSendVerification =
+        !updated.verified && (trimmed !== previousPhone || !wasVerified);
+      if (shouldSendVerification) {
+        try {
+          await sendVerification.mutateAsync();
+          setResendCooldown(60);
+          toast.success('Phone number saved. Verification code sent.');
+        } catch (error) {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : 'Phone saved, but failed to send verification code.'
+          );
+        }
+      } else {
+        toast.success('Phone number saved.');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update phone number.');
+    }
+  };
+
+  const handleSendVerification = async () => {
+    if (resendCooldown > 0 || sendVerification.isPending) return;
+    try {
+      await sendVerification.mutateAsync();
+      setResendCooldown(60);
+      toast.success('Verification code sent.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to send verification code.');
+    }
+  };
+
+  const handleConfirmVerification = async () => {
+    const trimmed = smsCode.trim();
+    if (!trimmed) {
+      toast.error('Enter the verification code.');
+      return;
+    }
+    try {
+      await confirmVerification.mutateAsync(trimmed);
+      setSmsCode('');
+      toast.success('Phone number verified.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Verification failed.');
     }
   };
 
@@ -791,15 +932,34 @@ function NotificationsTab() {
   };
 
   // Toggle Switch Component
-  const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
+  const ToggleSwitch = ({
+    checked,
+    onChange,
+    disabled = false,
+    title,
+    ariaLabel,
+  }: {
+    checked: boolean;
+    onChange: () => void;
+    disabled?: boolean;
+    title?: string;
+    ariaLabel?: string;
+  }) => (
     <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-disabled={disabled}
+      aria-label={ariaLabel}
       onClick={onChange}
+      disabled={disabled}
+      title={title}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-        checked ? 'bg-purple-600' : 'bg-gray-300'
-      }`}
+        checked ? 'bg-purple-600' : 'bg-gray-200'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
           checked ? 'translate-x-6' : 'translate-x-1'
         }`}
       />
@@ -923,7 +1083,72 @@ function NotificationsTab() {
         <ToggleSwitch
           checked={usingRecommended}
           onChange={applyRecommendedSettings}
+          disabled={preferencesDisabled}
+          ariaLabel="Use recommended settings"
         />
+      </div>
+
+      <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+        <div>
+          <p className="text-sm font-medium text-gray-900">Phone number (for SMS)</p>
+          <p className="text-xs text-gray-500">Add and verify a phone number to receive SMS alerts.</p>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <input
+            type="tel"
+            value={smsPhone}
+            onChange={(event) => setSmsPhone(event.target.value)}
+            placeholder="+1 (555) 123-4567"
+            className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
+          />
+          <button
+            type="button"
+            onClick={handleUpdatePhone}
+            disabled={updatePhone.isPending}
+            className="min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b21a8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {updatePhone.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+        {phoneVerified && (
+          <p className="text-xs font-medium text-green-600">Phone verified</p>
+        )}
+        {!phoneVerified && phoneNumber && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <input
+              type="text"
+              value={smsCode}
+              onChange={(event) => setSmsCode(event.target.value.replace(/\D/g, ''))}
+              placeholder="Enter 6-digit code"
+              className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/40"
+              maxLength={6}
+            />
+            <button
+              type="button"
+              onClick={handleConfirmVerification}
+              disabled={confirmVerification.isPending}
+              className="min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md bg-[#7E22CE] text-white px-4 py-2 text-sm font-semibold transition hover:bg-[#6b21a8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7E22CE] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {confirmVerification.isPending ? 'Verifying…' : 'Verify'}
+            </button>
+            <button
+              type="button"
+              onClick={handleSendVerification}
+              disabled={sendVerification.isPending || resendCooldown > 0}
+              className={`min-w-[100px] inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                resendCooldown > 0 || sendVerification.isPending
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-[#7E22CE] text-white hover:bg-[#6b21a8]'
+              }`}
+            >
+              {resendCooldown > 0
+                ? `Resend (${resendCooldown}s)`
+                : sendVerification.isPending
+                  ? 'Sending…'
+                  : 'Resend'}
+            </button>
+          </div>
+        )}
       </div>
 
       <div>
@@ -945,20 +1170,27 @@ function NotificationsTab() {
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.lessonUpdates.email}
-                onChange={() => handleToggle('lessonUpdates', 'email')}
+                checked={getPreferenceValue('lesson_updates', 'email')}
+                onChange={() => handleToggle('lesson_updates', 'email')}
+                disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('lesson_updates', 'email')}
               />
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.lessonUpdates.sms}
-                onChange={() => handleToggle('lessonUpdates', 'sms')}
+                checked={getPreferenceValue('lesson_updates', 'sms')}
+                onChange={() => handleToggle('lesson_updates', 'sms')}
+                disabled={preferencesDisabled || smsToggleDisabled}
+                {...(smsToggleTitle ? { title: smsToggleTitle } : {})}
+                ariaLabel={getToggleAriaLabel('lesson_updates', 'sms')}
               />
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.lessonUpdates.push}
-                onChange={() => handleToggle('lessonUpdates', 'push')}
+                checked={getPreferenceValue('lesson_updates', 'push')}
+                onChange={() => handleToggle('lesson_updates', 'push')}
+                disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('lesson_updates', 'push')}
               />
             </div>
           </div>
@@ -971,20 +1203,61 @@ function NotificationsTab() {
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.instructorMessages.email}
-                onChange={() => handleToggle('instructorMessages', 'email')}
+                checked={getPreferenceValue('messages', 'email')}
+                onChange={() => handleToggle('messages', 'email')}
+                disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('messages', 'email')}
               />
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.instructorMessages.sms}
-                onChange={() => handleToggle('instructorMessages', 'sms')}
+                checked={getPreferenceValue('messages', 'sms')}
+                onChange={() => handleToggle('messages', 'sms')}
+                disabled={preferencesDisabled || smsToggleDisabled}
+                {...(smsToggleTitle ? { title: smsToggleTitle } : {})}
+                ariaLabel={getToggleAriaLabel('messages', 'sms')}
               />
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.instructorMessages.push}
-                onChange={() => handleToggle('instructorMessages', 'push')}
+                checked={getPreferenceValue('messages', 'push')}
+                onChange={() => handleToggle('messages', 'push')}
+                disabled
+                title="Push notifications for messages are required."
+                ariaLabel={getToggleAriaLabel('messages', 'push')}
+              />
+            </div>
+          </div>
+
+          {/* Reviews & Feedback */}
+          <div className="grid grid-cols-4 gap-4 items-start py-2">
+            <div>
+              <div className="font-medium text-gray-900">Reviews & Feedback</div>
+              <div className="text-xs text-gray-500">Review requests, instructor responses</div>
+            </div>
+            <div className="flex justify-center">
+              <ToggleSwitch
+                checked={getPreferenceValue('reviews', 'email')}
+                onChange={() => handleToggle('reviews', 'email')}
+                disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('reviews', 'email')}
+              />
+            </div>
+            <div className="flex justify-center">
+              <ToggleSwitch
+                checked={getPreferenceValue('reviews', 'sms')}
+                onChange={() => handleToggle('reviews', 'sms')}
+                disabled={preferencesDisabled || smsToggleDisabled}
+                {...(smsToggleTitle ? { title: smsToggleTitle } : {})}
+                ariaLabel={getToggleAriaLabel('reviews', 'sms')}
+              />
+            </div>
+            <div className="flex justify-center">
+              <ToggleSwitch
+                checked={getPreferenceValue('reviews', 'push')}
+                onChange={() => handleToggle('reviews', 'push')}
+                disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('reviews', 'push')}
               />
             </div>
           </div>
@@ -997,20 +1270,27 @@ function NotificationsTab() {
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.learningTips.email}
-                onChange={() => handleToggle('learningTips', 'email')}
+                checked={getPreferenceValue('learning_tips', 'email')}
+                onChange={() => handleToggle('learning_tips', 'email')}
+                disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('learning_tips', 'email')}
               />
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.learningTips.sms}
-                onChange={() => handleToggle('learningTips', 'sms')}
+                checked={getPreferenceValue('learning_tips', 'sms')}
+                onChange={() => handleToggle('learning_tips', 'sms')}
+                disabled={preferencesDisabled || smsToggleDisabled}
+                {...(smsToggleTitle ? { title: smsToggleTitle } : {})}
+                ariaLabel={getToggleAriaLabel('learning_tips', 'sms')}
               />
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.learningTips.push}
-                onChange={() => handleToggle('learningTips', 'push')}
+                checked={getPreferenceValue('learning_tips', 'push')}
+                onChange={() => handleToggle('learning_tips', 'push')}
+                disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('learning_tips', 'push')}
               />
             </div>
           </div>
@@ -1023,20 +1303,27 @@ function NotificationsTab() {
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.systemUpdates.email}
-                onChange={() => handleToggle('systemUpdates', 'email')}
+                checked={getPreferenceValue('system_updates', 'email')}
+                onChange={() => handleToggle('system_updates', 'email')}
+                disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('system_updates', 'email')}
               />
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.systemUpdates.sms}
-                onChange={() => handleToggle('systemUpdates', 'sms')}
+                checked={getPreferenceValue('system_updates', 'sms')}
+                onChange={() => handleToggle('system_updates', 'sms')}
+                disabled={preferencesDisabled || smsToggleDisabled}
+                {...(smsToggleTitle ? { title: smsToggleTitle } : {})}
+                ariaLabel={getToggleAriaLabel('system_updates', 'sms')}
               />
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.systemUpdates.push}
-                onChange={() => handleToggle('systemUpdates', 'push')}
+                checked={getPreferenceValue('system_updates', 'push')}
+                onChange={() => handleToggle('system_updates', 'push')}
+                disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('system_updates', 'push')}
               />
             </div>
           </div>
@@ -1049,24 +1336,34 @@ function NotificationsTab() {
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.promotionalOffers.email}
-                onChange={() => handleToggle('promotionalOffers', 'email')}
+                checked={getPreferenceValue('promotional', 'email')}
+                onChange={() => handleToggle('promotional', 'email')}
+                disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('promotional', 'email')}
               />
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.promotionalOffers.sms}
-                onChange={() => handleToggle('promotionalOffers', 'sms')}
+                checked={getPreferenceValue('promotional', 'sms')}
+                onChange={() => handleToggle('promotional', 'sms')}
+                disabled={preferencesDisabled || smsToggleDisabled}
+                {...(smsToggleTitle ? { title: smsToggleTitle } : {})}
+                ariaLabel={getToggleAriaLabel('promotional', 'sms')}
               />
             </div>
             <div className="flex justify-center">
               <ToggleSwitch
-                checked={preferences.promotionalOffers.push}
-                onChange={() => handleToggle('promotionalOffers', 'push')}
+                checked={getPreferenceValue('promotional', 'push')}
+                onChange={() => handleToggle('promotional', 'push')}
+                disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('promotional', 'push')}
               />
             </div>
           </div>
         </div>
+        {phoneNumber && !phoneVerified && (
+          <p className="mt-3 text-xs text-amber-600">Verify your phone number to enable SMS notifications.</p>
+        )}
       </div>
 
       <div className="border-t border-gray-200 pt-6">

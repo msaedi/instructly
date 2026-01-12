@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useMemo, useSyncExternalStore } from 'react';
 import Link from 'next/link';
-import { useCurrentLessons, useCompletedLessons } from '@/hooks/useMyLessons';
+import { useCurrentLessonsInfinite, useCompletedLessonsInfinite } from '@/hooks/useMyLessons';
 import { LessonCard } from '@/components/lessons/LessonCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -43,19 +43,25 @@ function MyLessonsContent() {
     return 'upcoming';
   });
 
+  type LessonItem = Omit<Booking, 'updated_at'> & { updated_at?: string };
+
   const {
     data: upcomingLessons,
     isLoading: isLoadingUpcoming,
+    isFetchingNextPage: isFetchingUpcoming = false,
+    fetchNextPage: fetchUpcomingNextPage = async () => {},
+    hasNextPage: hasMoreUpcoming = false,
     error: errorUpcoming,
-  } = useCurrentLessons();
+  } = useCurrentLessonsInfinite();
 
   const {
     data: historyLessons,
     isLoading: isLoadingHistory,
+    isFetchingNextPage: isFetchingHistory = false,
+    fetchNextPage: fetchHistoryNextPage = async () => {},
+    hasNextPage: hasMoreHistory = false,
     error: errorHistory,
-  } = useCompletedLessons();
-
-  type LessonItem = Omit<Booking, 'updated_at'> & { updated_at?: string };
+  } = useCompletedLessonsInfinite();
 
   const combinedLessons = useMemo(() => {
     const items = [
@@ -67,7 +73,7 @@ function MyLessonsContent() {
       deduped.set(String(lesson.id), lesson as LessonItem);
     });
     return Array.from(deduped.values());
-  }, [upcomingLessons?.items, historyLessons?.items]);
+  }, [historyLessons?.items, upcomingLessons?.items]);
 
   const { upcomingList, historyList } = useMemo(() => {
     if (!hasMounted) {
@@ -117,11 +123,17 @@ function MyLessonsContent() {
     });
 
     return { upcomingList: upcoming, historyList: history };
-  }, [combinedLessons, hasMounted, upcomingLessons?.items, historyLessons?.items]);
+  }, [combinedLessons, hasMounted, historyLessons?.items, upcomingLessons?.items]);
 
-  const isLoading = activeTab === 'upcoming' ? isLoadingUpcoming : isLoadingHistory;
+  const isLoading = activeTab === 'upcoming'
+    ? isLoadingUpcoming && (upcomingLessons?.items?.length ?? 0) === 0
+    : isLoadingHistory && (historyLessons?.items?.length ?? 0) === 0;
   const error = activeTab === 'upcoming' ? errorUpcoming : errorHistory;
   const lessons = activeTab === 'upcoming' ? upcomingList : historyList;
+  const hasMore = activeTab === 'upcoming' ? hasMoreUpcoming : hasMoreHistory;
+  const isFetchingMore = activeTab === 'upcoming'
+    ? isFetchingUpcoming
+    : isFetchingHistory;
 
   // Derive instructor IDs for batch ratings lookup
   const uniqueInstructorIds = useMemo(() => {
@@ -340,6 +352,25 @@ function MyLessonsContent() {
           </div>
         )}
       </div>
+
+      {lessons && lessons.length > 0 && hasMore && !error && (
+        <div className="flex justify-center pt-6">
+          <Button
+            onClick={() => {
+              if (activeTab === 'upcoming') {
+                void fetchUpcomingNextPage();
+              } else {
+                void fetchHistoryNextPage();
+              }
+            }}
+            variant="ghost"
+            className="w-full max-w-sm rounded-lg py-3 text-purple-600 hover:bg-purple-50"
+            disabled={isFetchingMore}
+          >
+            {isFetchingMore ? 'Loading...' : 'Load More Lessons'}
+          </Button>
+        </div>
+      )}
 
       {/* Chat Modal */}
       {selectedBooking && user && selectedBooking.instructor && (

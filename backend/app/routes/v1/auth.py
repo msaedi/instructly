@@ -15,7 +15,8 @@ Endpoints:
 """
 
 import asyncio
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
+import hashlib
 import logging
 from typing import Any, Optional, cast
 
@@ -24,7 +25,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from ...api.dependencies.auth import get_current_active_user
-from ...api.dependencies.services import get_auth_service
+from ...api.dependencies.services import get_auth_service, get_cache_service_dep
 from ...auth import (
     DUMMY_HASH_FOR_TIMING_ATTACK,
     create_access_token,
@@ -59,6 +60,7 @@ from ...schemas.user import (
 )
 from ...services.auth_service import AuthService
 from ...services.beta_service import BetaService
+from ...services.cache_service import CacheService
 from ...services.permission_service import PermissionService
 from ...services.search_history_service import SearchHistoryService
 from ...utils.cookies import (
@@ -70,6 +72,10 @@ from ...utils.invite_cookie import invite_cookie_name
 from ...utils.strict import model_filter
 
 logger = logging.getLogger(__name__)
+
+# New device tracking config
+KNOWN_DEVICE_TTL_SECONDS = 60 * 60 * 24 * 90  # 90 days
+KNOWN_DEVICE_MAX = 10
 
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["auth-v1"])
@@ -83,6 +89,84 @@ async def _extract_captcha_token(request: Request) -> Optional[str]:
         return cast(Optional[str], raw_value)
     except Exception:
         return None
+
+
+def _device_fingerprint(ip_address: str, user_agent: str) -> str:
+    raw = f"{ip_address}:{user_agent}".encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()[:16]
+
+
+def _send_new_device_login_notification_sync(
+    *, user_id: str, ip_address: str, user_agent: str, login_time: datetime
+) -> None:
+    from app.services.notification_service import NotificationService
+
+    service = NotificationService()
+    try:
+        service.send_new_device_login_notification(
+            user_id=user_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            login_time=login_time,
+        )
+    finally:
+        if getattr(service, "_owns_db", False) and hasattr(service, "db"):
+            service.db.close()
+
+
+async def _maybe_send_new_device_login_notification(
+    *,
+    user_id: Optional[str],
+    request: Request,
+    cache_service: CacheService,
+) -> None:
+    if not user_id:
+        return
+
+    ip_address = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("user-agent", "") or "unknown"
+    fingerprint = _device_fingerprint(ip_address, user_agent)
+    cache_key = f"known_devices:{user_id}"
+
+    known_devices_raw = await cache_service.get(cache_key)
+    known_devices: list[str] = (
+        [str(item) for item in known_devices_raw] if isinstance(known_devices_raw, list) else []
+    )
+
+    if fingerprint in known_devices:
+        return
+
+    login_time = datetime.now(timezone.utc)
+    try:
+        await asyncio.to_thread(
+            _send_new_device_login_notification_sync,
+            user_id=user_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            login_time=login_time,
+        )
+        logger.info("New device login notification queued for user %s", user_id)
+    except Exception as exc:
+        logger.warning("Failed to send new device login notification: %s", exc)
+
+    known_devices.append(fingerprint)
+    if len(known_devices) > KNOWN_DEVICE_MAX:
+        known_devices = known_devices[-KNOWN_DEVICE_MAX:]
+    await cache_service.set(cache_key, known_devices, ttl=KNOWN_DEVICE_TTL_SECONDS)
+
+
+def _send_password_changed_notification_sync(*, user_id: str, changed_at: datetime) -> None:
+    from app.services.notification_service import NotificationService
+
+    service = NotificationService()
+    try:
+        service.send_password_changed_notification(
+            user_id=user_id,
+            changed_at=changed_at,
+        )
+    finally:
+        if getattr(service, "_owns_db", False) and hasattr(service, "db"):
+            service.db.close()
 
 
 def _should_trust_device(request: Request) -> bool:
@@ -269,6 +353,7 @@ async def login(
     response: Response,  # Add this to set cookies
     form_data: OAuth2PasswordRequestForm = Depends(),
     auth_service: AuthService = Depends(get_auth_service),
+    cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> LoginResponse:
     """
     Login with username (email) and password.
@@ -342,6 +427,7 @@ async def login(
 
     # Step 2: Extract data needed BEFORE releasing DB
     if user_data:
+        user_id = user_data["id"]
         user_email = user_data["email"]
         hashed_password = user_data["hashed_password"]
         account_status = user_data.get("account_status")
@@ -351,6 +437,7 @@ async def login(
         # Beta claims pre-fetched in fetch_user_for_auth (no extra DB query needed)
         beta_claims = user_data.get("_beta_claims")
     else:
+        user_id = None
         user_email = None
         hashed_password = DUMMY_HASH_FOR_TIMING_ATTACK
         account_status = None
@@ -438,6 +525,13 @@ async def login(
     if site_mode != "local":
         expire_parent_domain_cookie(response, base_cookie_name, ".instainstru.com")
 
+    if hasattr(cache_service, "get") and hasattr(cache_service, "set"):
+        await _maybe_send_new_device_login_notification(
+            user_id=user_id,
+            request=request,
+            cache_service=cache_service,
+        )
+
     return LoginResponse(access_token=access_token, token_type="bearer", requires_2fa=False)
 
 
@@ -482,6 +576,15 @@ async def change_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update password"
         )
 
+    try:
+        await asyncio.to_thread(
+            _send_password_changed_notification_sync,
+            user_id=user.id,
+            changed_at=datetime.now(timezone.utc),
+        )
+    except Exception as exc:
+        logger.warning("Failed to send password change notification: %s", exc)
+
     return PasswordChangeResponse(message="Password changed successfully")
 
 
@@ -497,6 +600,7 @@ async def login_with_session(
     login_data: UserLogin,
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
+    cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> LoginResponse:
     """
     Login with email and password, optionally converting guest searches.
@@ -670,6 +774,13 @@ async def login_with_session(
             logger.error(f"Failed to convert guest searches during login: {str(e)}")
             # Don't fail login if conversion fails
 
+    if hasattr(cache_service, "get") and hasattr(cache_service, "set"):
+        await _maybe_send_new_device_login_notification(
+            user_id=user_id,
+            request=request,
+            cache_service=cache_service,
+        )
+
     response_payload = {"access_token": access_token, "token_type": "bearer", "requires_2fa": False}
     return LoginResponse(**model_filter(LoginResponse, response_payload))
 
@@ -737,6 +848,7 @@ async def read_users_me(
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,
         "phone": getattr(current_user, "phone", None),
+        "phone_verified": getattr(current_user, "phone_verified", False),
         "zip_code": getattr(current_user, "zip_code", None),
         "is_active": getattr(current_user, "is_active", True),
         "timezone": getattr(current_user, "timezone", None),
@@ -795,13 +907,16 @@ async def update_current_user(
             user_repo = RepositoryFactory.create_user_repository(db)
 
             # Prepare update data
-            upd_data = {}
+            upd_data: dict[str, Any] = {}
             if user_update.first_name is not None:
                 upd_data["first_name"] = user_update.first_name
             if user_update.last_name is not None:
                 upd_data["last_name"] = user_update.last_name
             if user_update.phone is not None:
+                old_phone = getattr(u, "phone", None)
                 upd_data["phone"] = user_update.phone
+                if user_update.phone != old_phone:
+                    upd_data["phone_verified"] = False
 
             # Handle zip code change with automatic timezone update
             if user_update.zip_code is not None:
@@ -842,6 +957,7 @@ async def update_current_user(
             "first_name": updated_user.first_name,
             "last_name": updated_user.last_name,
             "phone": getattr(updated_user, "phone", None),
+            "phone_verified": getattr(updated_user, "phone_verified", False),
             "zip_code": getattr(updated_user, "zip_code", None),
             "is_active": getattr(updated_user, "is_active", True),
             "timezone": getattr(updated_user, "timezone", None),

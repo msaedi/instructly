@@ -47,6 +47,7 @@ from .nl_search import (
     SearchClick,
     SearchQuery,
 )
+from .notification import Notification, NotificationPreference, PushSubscription
 from .password_reset import PasswordResetToken
 from .payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
 from .platform_config import PlatformConfig
@@ -101,6 +102,10 @@ __all__ = [
     "EventOutbox",
     "EventOutboxStatus",
     "NotificationDelivery",
+    # Notifications
+    "NotificationPreference",
+    "Notification",
+    "PushSubscription",
     # Payment models
     "PaymentIntent",
     "PaymentMethod",

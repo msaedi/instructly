@@ -136,6 +136,8 @@ class Booking(Base):
     meeting_location = Column(Text, nullable=True)
     student_note = Column(Text, nullable=True)
     instructor_note = Column(Text, nullable=True)
+    reminder_24h_sent = Column(Boolean, nullable=False, default=False)
+    reminder_1h_sent = Column(Boolean, nullable=False, default=False)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

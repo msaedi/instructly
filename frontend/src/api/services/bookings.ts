@@ -55,7 +55,7 @@ export function useUpcomingBookings(
     { limit },
     {
       query: {
-        queryKey: queryKeys.bookings.student({ status: 'upcoming' }),
+        queryKey: queryKeys.bookings.student({ status: 'upcoming', limit }),
         staleTime: 1000 * 60 * 5, // 5 minutes
         // Only include enabled when explicitly set (exactOptionalPropertyTypes compliance)
         ...(options?.enabled !== undefined && { enabled: options.enabled }),
@@ -85,14 +85,35 @@ export function useUpcomingBookings(
  */
 export function useBookingsList(params?: GetBookingsApiV1BookingsGetParams) {
   // Build query params that satisfy exactOptionalPropertyTypes
-  const queryParams =
-    params?.status !== undefined && params.status !== null
-      ? { status: params.status.toString() }
-      : undefined;
+  const queryParams: {
+    status?: string;
+    page?: number;
+    per_page?: number;
+    upcoming_only?: boolean;
+    exclude_future_confirmed?: boolean;
+  } = {};
+
+  if (params?.status !== undefined && params.status !== null) {
+    queryParams.status = params.status.toString();
+  }
+  if (params?.page !== undefined) {
+    queryParams.page = params.page;
+  }
+  if (params?.per_page !== undefined) {
+    queryParams.per_page = params.per_page;
+  }
+  if (params?.upcoming_only !== undefined && params.upcoming_only !== null) {
+    queryParams.upcoming_only = params.upcoming_only;
+  }
+  if (params?.exclude_future_confirmed !== undefined && params.exclude_future_confirmed !== null) {
+    queryParams.exclude_future_confirmed = params.exclude_future_confirmed;
+  }
 
   return useGetBookingsApiV1BookingsGet(params, {
     query: {
-      queryKey: queryKeys.bookings.student(queryParams),
+      queryKey: queryKeys.bookings.student(
+        Object.keys(queryParams).length ? queryParams : undefined
+      ),
       staleTime: 1000 * 60 * 5, // 5 minutes
     },
   });
@@ -264,7 +285,12 @@ export function useBookingsHistory(page: number = 1, perPage: number = 50) {
     },
     {
       query: {
-        queryKey: queryKeys.bookings.student({ status: 'history' }),
+        queryKey: queryKeys.bookings.student({
+          status: 'history',
+          exclude_future_confirmed: true,
+          page,
+          per_page: perPage,
+        }),
         staleTime: 1000 * 60 * 15, // 15 minutes for history
       },
     }
@@ -297,7 +323,12 @@ export function useCancelledBookings(page: number = 1, perPage: number = 20) {
     },
     {
       query: {
-        queryKey: queryKeys.bookings.student({ status: 'CANCELLED' }),
+        queryKey: queryKeys.bookings.student({
+          status: 'CANCELLED',
+          upcoming_only: false,
+          page,
+          per_page: perPage,
+        }),
         staleTime: 1000 * 60 * 15, // 15 minutes for cancelled
       },
     }

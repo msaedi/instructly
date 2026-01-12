@@ -111,6 +111,54 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/account/phone": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_phone_number_api_v1_account_phone_get"];
+ put: operations["update_phone_number_api_v1_account_phone_put"];
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/account/phone/verify": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["send_phone_verification_api_v1_account_phone_verify_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/account/phone/verify/confirm": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["confirm_phone_verification_api_v1_account_phone_verify_confirm_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/account/reactivate": {
  parameters: {
  query?: never;
@@ -2527,6 +2575,118 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/notification-preferences": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_preferences_api_v1_notification_preferences_get"];
+ put: operations["update_preferences_bulk_api_v1_notification_preferences_put"];
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/notification-preferences/{category}/{channel}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put: operations["update_preference_api_v1_notification_preferences__category___channel__put"];
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/notifications": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_notifications_api_v1_notifications_get"];
+ put?: never;
+ post?: never;
+ delete: operations["delete_all_notifications_api_v1_notifications_delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/notifications/read-all": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["mark_all_notifications_read_api_v1_notifications_read_all_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/notifications/unread-count": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_unread_count_api_v1_notifications_unread_count_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/notifications/{notification_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete: operations["delete_notification_api_v1_notifications__notification_id__delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/notifications/{notification_id}/read": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["mark_notification_read_api_v1_notifications__notification_id__read_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/ops/cache": {
  parameters: {
  query?: never;
@@ -3161,6 +3321,70 @@ export type paths = {
  get?: never;
  put?: never;
  post: operations["create_guest_session_api_v1_public_session_guest_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/push/subscribe": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["subscribe_to_push_api_v1_push_subscribe_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/push/subscriptions": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_subscriptions_api_v1_push_subscriptions_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/push/unsubscribe": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete: operations["unsubscribe_from_push_api_v1_push_unsubscribe_delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/push/vapid-public-key": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_vapid_public_key_api_v1_push_vapid_public_key_get"];
+ put?: never;
+ post?: never;
  delete?: never;
  options?: never;
  head?: never;
@@ -4403,6 +4627,7 @@ export type components = {
  last_name: string;
  permissions?: string[];
  phone?: string | null;
+ phone_verified: boolean | null;
  profile_picture_version: number | null;
  roles?: string[];
  timezone?: string | null;
@@ -4422,6 +4647,7 @@ export type components = {
  last_name: string;
  permissions?: string[];
  phone?: string | null;
+ phone_verified: boolean | null;
  profile_picture_version: number | null;
  roles?: string[];
  timezone?: string | null;
@@ -4880,10 +5106,6 @@ export type components = {
  over_budget: boolean;
  remaining_ms: number;
  skipped_operations?: string[];
- };
- BulkUpdateRequest: {
- operations: components["schemas"]["SlotOperation"][];
- validate_only: boolean;
  };
  BulkUpdateResponse: {
  failed: number;
@@ -5724,6 +5946,30 @@ export type components = {
  payment_status: string;
  success: boolean;
  };
+ NotificationListResponse: {
+ notifications: components["schemas"]["NotificationResponse"][];
+ total: number;
+ unread_count: number;
+ };
+ NotificationResponse: {
+ body: string | null;
+ category: string;
+ created_at: string;
+ data: {
+ [key: string]: unknown;
+ } | null;
+ id: string;
+ read_at: string | null;
+ title: string;
+ type: string;
+ };
+ NotificationStatusResponse: {
+ message?: string | null;
+ success: boolean;
+ };
+ NotificationUnreadCountResponse: {
+ unread_count: number;
+ };
  OnboardingResponse: {
  account_id: string;
  already_onboarded: boolean;
@@ -5891,6 +6137,20 @@ export type components = {
  severity: string;
  type: string;
  };
+ PhoneUpdateRequest: {
+ phone_number: string;
+ };
+ PhoneUpdateResponse: {
+ phone_number?: string | null;
+ verified: boolean;
+ };
+ PhoneVerifyConfirmRequest: {
+ code: string;
+ };
+ PhoneVerifyResponse: {
+ sent: boolean;
+ verified: boolean;
+ };
  PipelineStage: {
  details?: {
  [key: string]: unknown;
@@ -5941,6 +6201,38 @@ export type components = {
  unique_users: number;
  };
  PopularSearchesResponse: components["schemas"]["PopularSearch"][];
+ PreferenceResponse: {
+ category: string;
+ channel: string;
+ enabled: boolean;
+ id: string;
+ locked: boolean;
+ };
+ PreferenceUpdate: {
+ category: string;
+ channel: string;
+ enabled: boolean;
+ };
+ PreferencesByCategory: {
+ learning_tips: {
+ [key: string]: boolean;
+ };
+ lesson_updates: {
+ [key: string]: boolean;
+ };
+ messages: {
+ [key: string]: boolean;
+ };
+ promotional: {
+ [key: string]: boolean;
+ };
+ reviews: {
+ [key: string]: boolean;
+ };
+ system_updates: {
+ [key: string]: boolean;
+ };
+ };
  PreferredPublicSpaceIn: {
  address: string;
  label?: string | null;
@@ -6060,6 +6352,25 @@ export type components = {
  PublicTimeSlot: {
  end_time: string;
  start_time: string;
+ };
+ PushStatusResponse: {
+ message: string;
+ success: boolean;
+ };
+ PushSubscribeRequest: {
+ auth: string;
+ endpoint: string;
+ p256dh: string;
+ user_agent?: string | null;
+ };
+ PushSubscriptionResponse: {
+ created_at: string;
+ endpoint: string;
+ id: string;
+ user_agent: string | null;
+ };
+ PushUnsubscribeRequest: {
+ endpoint: string;
  };
  RateLimitResetResponse: {
  limits_reset: number;
@@ -6721,6 +7032,9 @@ export type components = {
  id: string;
  state: "active" | "archived" | "trashed";
  };
+ UpdatePreferenceRequest: {
+ enabled: boolean;
+ };
  UserBasicPrivacy: {
  first_name: string;
  id: string;
@@ -6816,6 +7130,9 @@ export type components = {
  total_operations: number;
  valid_operations: number;
  };
+ VapidPublicKeyResponse: {
+ public_key: string;
+ };
  WebhookAckResponse: {
  ok: boolean;
  };
@@ -6870,10 +7187,17 @@ export type components = {
  message: string;
  success: boolean;
  };
+ app__schemas__availability_window__BulkUpdateRequest: {
+ operations: components["schemas"]["SlotOperation"][];
+ validate_only: boolean;
+ };
  app__schemas__base_responses__DeleteResponse: {
  deleted_at?: string;
  message: string;
  success: boolean;
+ };
+ app__schemas__notification_preferences__BulkUpdateRequest: {
+ updates: components["schemas"]["PreferenceUpdate"][];
  };
  app__schemas__payment_schemas__DeleteResponse: {
  success: boolean;
@@ -7052,6 +7376,106 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AccountStatusChangeResponse"];
+ };
+ };
+ };
+ };
+ get_phone_number_api_v1_account_phone_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PhoneUpdateResponse"];
+ };
+ };
+ };
+ };
+ update_phone_number_api_v1_account_phone_put: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["PhoneUpdateRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PhoneUpdateResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ send_phone_verification_api_v1_account_phone_verify_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PhoneVerifyResponse"];
+ };
+ };
+ };
+ };
+ confirm_phone_verification_api_v1_account_phone_verify_confirm_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["PhoneVerifyConfirmRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PhoneVerifyResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
  };
  };
  };
@@ -10897,7 +11321,7 @@ export interface operations {
  };
  requestBody: {
  content: {
- "application/json": components["schemas"]["BulkUpdateRequest"];
+ "application/json": components["schemas"]["app__schemas__availability_window__BulkUpdateRequest"];
  };
  };
  responses: {
@@ -12595,6 +13019,236 @@ export interface operations {
  };
  };
  };
+ get_preferences_api_v1_notification_preferences_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PreferencesByCategory"];
+ };
+ };
+ };
+ };
+ update_preferences_bulk_api_v1_notification_preferences_put: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["app__schemas__notification_preferences__BulkUpdateRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PreferenceResponse"][];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ update_preference_api_v1_notification_preferences__category___channel__put: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ category: string;
+ channel: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["UpdatePreferenceRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PreferenceResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_notifications_api_v1_notifications_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ offset?: number;
+ unread_only?: boolean;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NotificationListResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ delete_all_notifications_api_v1_notifications_delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NotificationStatusResponse"];
+ };
+ };
+ };
+ };
+ mark_all_notifications_read_api_v1_notifications_read_all_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NotificationStatusResponse"];
+ };
+ };
+ };
+ };
+ get_unread_count_api_v1_notifications_unread_count_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NotificationUnreadCountResponse"];
+ };
+ };
+ };
+ };
+ delete_notification_api_v1_notifications__notification_id__delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ notification_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NotificationStatusResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ mark_notification_read_api_v1_notifications__notification_id__read_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ notification_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NotificationStatusResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  get_cache_metrics_api_v1_ops_cache_get: {
  parameters: {
  query?: never;
@@ -13597,6 +14251,106 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["GuestSessionResponse"];
+ };
+ };
+ };
+ };
+ subscribe_to_push_api_v1_push_subscribe_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["PushSubscribeRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PushStatusResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_subscriptions_api_v1_push_subscriptions_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PushSubscriptionResponse"][];
+ };
+ };
+ };
+ };
+ unsubscribe_from_push_api_v1_push_unsubscribe_delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["PushUnsubscribeRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PushStatusResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_vapid_public_key_api_v1_push_vapid_public_key_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["VapidPublicKeyResponse"];
  };
  };
  };

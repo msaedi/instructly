@@ -21,7 +21,15 @@ import type {
   UseQueryResult,
 } from '@tanstack/react-query';
 
-import type { AccountStatusChangeResponse, AccountStatusResponse } from '../instructly.schemas';
+import type {
+  AccountStatusChangeResponse,
+  AccountStatusResponse,
+  HTTPValidationError,
+  PhoneUpdateRequest,
+  PhoneUpdateResponse,
+  PhoneVerifyConfirmRequest,
+  PhoneVerifyResponse,
+} from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
@@ -105,6 +113,366 @@ export const useDeactivateAccountApiV1AccountDeactivatePost = <
   TContext
 > => {
   const mutationOptions = getDeactivateAccountApiV1AccountDeactivatePostMutationOptions(options);
+
+  return useMutation(mutationOptions, queryClient);
+};
+/**
+ * Get the current user's phone number and verification status.
+ * @summary Get Phone Number
+ */
+export const getPhoneNumberApiV1AccountPhoneGet = (signal?: AbortSignal) => {
+  return customFetch<PhoneUpdateResponse>({ url: `/api/v1/account/phone`, method: 'GET', signal });
+};
+
+export const getGetPhoneNumberApiV1AccountPhoneGetQueryKey = () => {
+  return [`/api/v1/account/phone`] as const;
+};
+
+export const getGetPhoneNumberApiV1AccountPhoneGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>, TError, TData>
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPhoneNumberApiV1AccountPhoneGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>> = ({
+    signal,
+  }) => getPhoneNumberApiV1AccountPhoneGet(signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetPhoneNumberApiV1AccountPhoneGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>
+>;
+export type GetPhoneNumberApiV1AccountPhoneGetQueryError = ErrorType<unknown>;
+
+export function useGetPhoneNumberApiV1AccountPhoneGet<
+  TData = Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>,
+          TError,
+          Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPhoneNumberApiV1AccountPhoneGet<
+  TData = Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>,
+          TError,
+          Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPhoneNumberApiV1AccountPhoneGet<
+  TData = Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Phone Number
+ */
+
+export function useGetPhoneNumberApiV1AccountPhoneGet<
+  TData = Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getPhoneNumberApiV1AccountPhoneGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetPhoneNumberApiV1AccountPhoneGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
+
+/**
+ * Update the current user's phone number and reset verification.
+ * @summary Update Phone Number
+ */
+export const updatePhoneNumberApiV1AccountPhonePut = (phoneUpdateRequest: PhoneUpdateRequest) => {
+  return customFetch<PhoneUpdateResponse>({
+    url: `/api/v1/account/phone`,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    data: phoneUpdateRequest,
+  });
+};
+
+export const getUpdatePhoneNumberApiV1AccountPhonePutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePhoneNumberApiV1AccountPhonePut>>,
+    TError,
+    { data: PhoneUpdateRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePhoneNumberApiV1AccountPhonePut>>,
+  TError,
+  { data: PhoneUpdateRequest },
+  TContext
+> => {
+  const mutationKey = ['updatePhoneNumberApiV1AccountPhonePut'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePhoneNumberApiV1AccountPhonePut>>,
+    { data: PhoneUpdateRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updatePhoneNumberApiV1AccountPhonePut(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePhoneNumberApiV1AccountPhonePutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePhoneNumberApiV1AccountPhonePut>>
+>;
+export type UpdatePhoneNumberApiV1AccountPhonePutMutationBody = PhoneUpdateRequest;
+export type UpdatePhoneNumberApiV1AccountPhonePutMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Update Phone Number
+ */
+export const useUpdatePhoneNumberApiV1AccountPhonePut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updatePhoneNumberApiV1AccountPhonePut>>,
+      TError,
+      { data: PhoneUpdateRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updatePhoneNumberApiV1AccountPhonePut>>,
+  TError,
+  { data: PhoneUpdateRequest },
+  TContext
+> => {
+  const mutationOptions = getUpdatePhoneNumberApiV1AccountPhonePutMutationOptions(options);
+
+  return useMutation(mutationOptions, queryClient);
+};
+/**
+ * Send a verification code to the user's phone number.
+ * @summary Send Phone Verification
+ */
+export const sendPhoneVerificationApiV1AccountPhoneVerifyPost = (signal?: AbortSignal) => {
+  return customFetch<PhoneVerifyResponse>({
+    url: `/api/v1/account/phone/verify`,
+    method: 'POST',
+    signal,
+  });
+};
+
+export const getSendPhoneVerificationApiV1AccountPhoneVerifyPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendPhoneVerificationApiV1AccountPhoneVerifyPost>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendPhoneVerificationApiV1AccountPhoneVerifyPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['sendPhoneVerificationApiV1AccountPhoneVerifyPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendPhoneVerificationApiV1AccountPhoneVerifyPost>>,
+    void
+  > = () => {
+    return sendPhoneVerificationApiV1AccountPhoneVerifyPost();
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendPhoneVerificationApiV1AccountPhoneVerifyPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendPhoneVerificationApiV1AccountPhoneVerifyPost>>
+>;
+
+export type SendPhoneVerificationApiV1AccountPhoneVerifyPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send Phone Verification
+ */
+export const useSendPhoneVerificationApiV1AccountPhoneVerifyPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof sendPhoneVerificationApiV1AccountPhoneVerifyPost>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof sendPhoneVerificationApiV1AccountPhoneVerifyPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions =
+    getSendPhoneVerificationApiV1AccountPhoneVerifyPostMutationOptions(options);
+
+  return useMutation(mutationOptions, queryClient);
+};
+/**
+ * Confirm phone verification with a code.
+ * @summary Confirm Phone Verification
+ */
+export const confirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPost = (
+  phoneVerifyConfirmRequest: PhoneVerifyConfirmRequest,
+  signal?: AbortSignal
+) => {
+  return customFetch<PhoneVerifyResponse>({
+    url: `/api/v1/account/phone/verify/confirm`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: phoneVerifyConfirmRequest,
+    signal,
+  });
+};
+
+export const getConfirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPost>>,
+    TError,
+    { data: PhoneVerifyConfirmRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof confirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPost>>,
+  TError,
+  { data: PhoneVerifyConfirmRequest },
+  TContext
+> => {
+  const mutationKey = ['confirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof confirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPost>>,
+    { data: PhoneVerifyConfirmRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return confirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPost(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConfirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPost>>
+>;
+export type ConfirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPostMutationBody =
+  PhoneVerifyConfirmRequest;
+export type ConfirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Confirm Phone Verification
+ */
+export const useConfirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof confirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPost>>,
+      TError,
+      { data: PhoneVerifyConfirmRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof confirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPost>>,
+  TError,
+  { data: PhoneVerifyConfirmRequest },
+  TContext
+> => {
+  const mutationOptions =
+    getConfirmPhoneVerificationApiV1AccountPhoneVerifyConfirmPostMutationOptions(options);
 
   return useMutation(mutationOptions, queryClient);
 };

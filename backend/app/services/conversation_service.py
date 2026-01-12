@@ -25,6 +25,7 @@ from ..repositories.conversation_state_repository import ConversationStateReposi
 from ..repositories.factory import RepositoryFactory
 from ..repositories.message_repository import MessageRepository
 from .base import BaseService
+from .notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,7 @@ class ConversationService(BaseService):
         conversation_repository: Optional[ConversationRepository] = None,
         message_repository: Optional[MessageRepository] = None,
         booking_repository: Optional[BookingRepository] = None,
+        notification_service: Optional[NotificationService] = None,
     ):
         """
         Initialize conversation service.
@@ -124,6 +126,7 @@ class ConversationService(BaseService):
             db
         )
         self.conversation_state_repository = ConversationStateRepository(db)
+        self.notification_service = notification_service
         self.logger = logging.getLogger(__name__)
 
     @BaseService.measure_operation("get_or_create_conversation")
@@ -835,6 +838,13 @@ class ConversationService(BaseService):
                 conversation_id=conversation_id,
             )
 
+        self._send_message_notifications(
+            conversation=conversation,
+            message=message,
+            sender_id=sender_id,
+            content=content,
+        )
+
         self.logger.info(
             f"Message sent in conversation {conversation_id}",
             extra={
@@ -850,3 +860,52 @@ class ConversationService(BaseService):
             conversation_id=conversation_id,
             participant_ids=participant_ids,
         )
+
+    def _send_message_notifications(
+        self,
+        conversation: Conversation,
+        message: Message,
+        sender_id: str,
+        content: str,
+    ) -> None:
+        if self.notification_service is None:
+            self.notification_service = NotificationService(self.db)
+
+        recipient_id = (
+            conversation.instructor_id
+            if sender_id == conversation.student_id
+            else conversation.student_id
+        )
+
+        booking_id = getattr(message, "booking_id", None)
+        if not booking_id:
+            self.logger.info(
+                "Skipping message notification: no booking context",
+                extra={"message_id": message.id, "conversation_id": conversation.id},
+            )
+            return
+
+        booking = self.booking_repository.get_by_id(str(booking_id))
+        if not booking:
+            self.logger.warning(
+                "Skipping message notification: booking not found",
+                extra={"message_id": message.id, "booking_id": booking_id},
+            )
+            return
+
+        try:
+            self.notification_service.send_message_notification(
+                recipient_id=recipient_id,
+                booking=booking,
+                sender_id=sender_id,
+                message_content=content,
+            )
+        except Exception as exc:
+            self.logger.warning(
+                "Failed to send message notification",
+                extra={
+                    "message_id": message.id,
+                    "recipient_id": recipient_id,
+                    "error": str(exc),
+                },
+            )

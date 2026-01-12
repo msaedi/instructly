@@ -49,6 +49,7 @@ ALL_TASKS = [
     # Notification outbox
     "outbox.dispatch_pending",
     "outbox.deliver_event",
+    "app.tasks.notification_tasks.send_booking_reminders",
     # Health check (defined in celery_app.py)
     "app.tasks.health_check",
 ]

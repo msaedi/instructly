@@ -154,7 +154,7 @@ describe('useMyLessons hooks', () => {
         ],
         total: 1,
         page: 1,
-        per_page: 50,
+        per_page: 10,
         has_next: false,
         has_prev: false,
       })
@@ -211,7 +211,8 @@ describe('useMyLessons hooks', () => {
 
       expect(mockUseBookingsList).toHaveBeenCalledWith({
         upcoming_only: true,
-        per_page: 20,
+        page: 1,
+        per_page: 10,
       });
     });
   });
@@ -230,7 +231,7 @@ describe('useMyLessons hooks', () => {
     it('uses correct page number', () => {
       renderHook(() => useCompletedLessons(2), { wrapper });
 
-      expect(mockUseBookingsHistory).toHaveBeenCalledWith(2, 50);
+      expect(mockUseBookingsHistory).toHaveBeenCalledWith(2, 10);
     });
   });
 

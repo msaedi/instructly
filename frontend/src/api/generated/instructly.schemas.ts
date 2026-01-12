@@ -951,6 +951,8 @@ export type AuthUserResponseHasProfilePicture = boolean | null;
 
 export type AuthUserResponsePhone = string | null;
 
+export type AuthUserResponsePhoneVerified = boolean | null;
+
 export type AuthUserResponseProfilePictureVersion = number | null;
 
 export type AuthUserResponseTimezone = string | null;
@@ -971,6 +973,7 @@ export interface AuthUserResponse {
   last_name: string;
   permissions?: string[];
   phone?: AuthUserResponsePhone;
+  phone_verified?: AuthUserResponsePhoneVerified;
   profile_picture_version?: AuthUserResponseProfilePictureVersion;
   roles?: string[];
   timezone?: AuthUserResponseTimezone;
@@ -993,6 +996,8 @@ export type AuthUserWithPermissionsResponseFoundingInstructorGranted = boolean |
 export type AuthUserWithPermissionsResponseHasProfilePicture = boolean | null;
 
 export type AuthUserWithPermissionsResponsePhone = string | null;
+
+export type AuthUserWithPermissionsResponsePhoneVerified = boolean | null;
 
 export type AuthUserWithPermissionsResponseProfilePictureVersion = number | null;
 
@@ -1018,6 +1023,7 @@ export interface AuthUserWithPermissionsResponse {
   last_name: string;
   permissions?: string[];
   phone?: AuthUserWithPermissionsResponsePhone;
+  phone_verified?: AuthUserWithPermissionsResponsePhoneVerified;
   profile_picture_version?: AuthUserWithPermissionsResponseProfilePictureVersion;
   roles?: string[];
   timezone?: AuthUserWithPermissionsResponseTimezone;
@@ -2092,15 +2098,6 @@ export interface BudgetInfo {
   remaining_ms: number;
   /** Skipped operations due to budget */
   skipped_operations?: string[];
-}
-
-/**
- * Request schema for bulk availability update.
- */
-export interface BulkUpdateRequest {
-  operations: SlotOperation[];
-  /** If true, only validate without making changes */
-  validate_only?: boolean;
 }
 
 export interface BulkUpdateResponse {
@@ -4178,6 +4175,55 @@ export interface NoShowReportResponse {
   success: boolean;
 }
 
+/**
+ * Paginated notification response.
+ */
+export interface NotificationListResponse {
+  notifications: NotificationResponse[];
+  total: number;
+  unread_count: number;
+}
+
+export type NotificationResponseBody = string | null;
+
+export type NotificationResponseDataAnyOf = { [key: string]: unknown };
+
+export type NotificationResponseData = NotificationResponseDataAnyOf | null;
+
+export type NotificationResponseReadAt = string | null;
+
+/**
+ * Notification inbox entry.
+ */
+export interface NotificationResponse {
+  body: NotificationResponseBody;
+  category: string;
+  created_at: string;
+  data: NotificationResponseData;
+  id: string;
+  read_at: NotificationResponseReadAt;
+  title: string;
+  type: string;
+}
+
+export type NotificationStatusResponseMessage = string | null;
+
+/**
+ * Simple status response for notification actions.
+ */
+export interface NotificationStatusResponse {
+  message?: NotificationStatusResponseMessage;
+  success: boolean;
+}
+
+/**
+ * Unread notification count response.
+ */
+export interface NotificationUnreadCountResponse {
+  /** @minimum 0 */
+  unread_count: number;
+}
+
 export interface OnboardingResponse {
   /** Stripe connected account ID */
   account_id: string;
@@ -4628,6 +4674,31 @@ export interface PerformanceRecommendation {
   type: string;
 }
 
+export interface PhoneUpdateRequest {
+  /** Phone number in E.164 format */
+  phone_number: string;
+}
+
+export type PhoneUpdateResponsePhoneNumber = string | null;
+
+export interface PhoneUpdateResponse {
+  phone_number?: PhoneUpdateResponsePhoneNumber;
+  verified?: boolean;
+}
+
+export interface PhoneVerifyConfirmRequest {
+  /**
+   * @minLength 6
+   * @maxLength 6
+   */
+  code: string;
+}
+
+export interface PhoneVerifyResponse {
+  sent?: boolean;
+  verified?: boolean;
+}
+
 export type PipelineStageDetailsAnyOf = { [key: string]: unknown };
 
 /**
@@ -4759,6 +4830,50 @@ export interface PopularSearch {
  * Popular searches response.
  */
 export type PopularSearchesResponse = PopularSearch[];
+
+/**
+ * Single preference response.
+ */
+export interface PreferenceResponse {
+  category: string;
+  channel: string;
+  enabled: boolean;
+  id: string;
+  locked: boolean;
+}
+
+/**
+ * Single preference update for bulk requests.
+ */
+export interface PreferenceUpdate {
+  category: string;
+  channel: string;
+  enabled: boolean;
+}
+
+export type PreferencesByCategoryLearningTips = { [key: string]: boolean };
+
+export type PreferencesByCategoryLessonUpdates = { [key: string]: boolean };
+
+export type PreferencesByCategoryMessages = { [key: string]: boolean };
+
+export type PreferencesByCategoryPromotional = { [key: string]: boolean };
+
+export type PreferencesByCategoryReviews = { [key: string]: boolean };
+
+export type PreferencesByCategorySystemUpdates = { [key: string]: boolean };
+
+/**
+ * Preferences grouped by category for frontend consumption.
+ */
+export interface PreferencesByCategory {
+  learning_tips: PreferencesByCategoryLearningTips;
+  lesson_updates: PreferencesByCategoryLessonUpdates;
+  messages: PreferencesByCategoryMessages;
+  promotional: PreferencesByCategoryPromotional;
+  reviews: PreferencesByCategoryReviews;
+  system_updates: PreferencesByCategorySystemUpdates;
+}
 
 export type PreferredPublicSpaceInLabel = string | null;
 
@@ -5095,6 +5210,62 @@ export interface PublicTimeSlot {
   end_time: string;
   /** Start time in HH:MM format */
   start_time: string;
+}
+
+/**
+ * Response after subscribe/unsubscribe.
+ */
+export interface PushStatusResponse {
+  message: string;
+  success: boolean;
+}
+
+/**
+ * Browser/device info
+ */
+export type PushSubscribeRequestUserAgent = string | null;
+
+/**
+ * Request to subscribe to push notifications.
+ */
+export interface PushSubscribeRequest {
+  /**
+   * Auth secret
+   * @maxLength 512
+   */
+  auth: string;
+  /**
+   * Push service endpoint URL
+   * @maxLength 2048
+   */
+  endpoint: string;
+  /**
+   * Public encryption key
+   * @maxLength 512
+   */
+  p256dh: string;
+  /** Browser/device info */
+  user_agent?: PushSubscribeRequestUserAgent;
+}
+
+export type PushSubscriptionResponseUserAgent = string | null;
+
+/**
+ * Push subscription details.
+ */
+export interface PushSubscriptionResponse {
+  created_at: string;
+  endpoint: string;
+  id: string;
+  user_agent: PushSubscriptionResponseUserAgent;
+}
+
+/**
+ * Request to unsubscribe from push notifications.
+ */
+export interface PushUnsubscribeRequest {
+  /** Push service endpoint URL to remove */
+  endpoint: string;
 }
 
 /**
@@ -6822,6 +6993,13 @@ export interface UpdateConversationStateResponse {
 }
 
 /**
+ * Request to update a single preference.
+ */
+export interface UpdatePreferenceRequest {
+  enabled: boolean;
+}
+
+/**
  * Basic user information with privacy protection.
 
 Shows only last initial instead of full last name for privacy.
@@ -7018,6 +7196,13 @@ export interface ValidationSummary {
 }
 
 /**
+ * VAPID public key response.
+ */
+export interface VapidPublicKeyResponse {
+  public_key: string;
+}
+
+/**
  * Standard acknowledgement payload returned by webhook endpoints.
  */
 export interface WebhookAckResponse {
@@ -7141,6 +7326,15 @@ export interface AppSchemasAddressResponsesDeleteResponse {
 }
 
 /**
+ * Request schema for bulk availability update.
+ */
+export interface AppSchemasAvailabilityWindowBulkUpdateRequest {
+  operations: SlotOperation[];
+  /** If true, only validate without making changes */
+  validate_only?: boolean;
+}
+
+/**
  * Standard response for delete operations.
  */
 export interface AppSchemasBaseResponsesDeleteResponse {
@@ -7150,6 +7344,13 @@ export interface AppSchemasBaseResponsesDeleteResponse {
   message: string;
   /** Deletion success status */
   success?: boolean;
+}
+
+/**
+ * Bulk preference update request.
+ */
+export interface AppSchemasNotificationPreferencesBulkUpdateRequest {
+  updates: PreferenceUpdate[];
 }
 
 export interface AppSchemasPaymentSchemasDeleteResponse {
@@ -7692,6 +7893,19 @@ export type GetSlowQueriesApiV1MonitoringSlowQueriesGetParams = {
 
 export type GetSlowRequestsApiV1MonitoringSlowRequestsGetParams = {
   limit?: number;
+};
+
+export type ListNotificationsApiV1NotificationsGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+  /**
+   * @minimum 0
+   */
+  offset?: number;
+  unread_only?: boolean;
 };
 
 export type ResetRateLimitsApiV1OpsRateLimitsResetPostParams = {

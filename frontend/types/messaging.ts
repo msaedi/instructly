@@ -12,7 +12,24 @@ export type SSEEventType =
   | 'read_receipt'
   | 'reaction_update'
   | 'message_edited'
-  | 'message_deleted';
+  | 'message_deleted'
+  | 'notification_update';
+
+export interface SSENotificationPreview {
+  id: string;
+  title: string;
+  body: string | null;
+  category: string;
+  type: string;
+  data?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface SSENotificationUpdateEvent {
+  type: 'notification_update';
+  unread_count: number;
+  latest?: SSENotificationPreview;
+}
 
 export interface SSEMessageEvent {
   type: 'new_message';
@@ -79,7 +96,8 @@ export type SSEEvent =
   | SSEReadReceiptEvent
   | SSEReactionEvent
   | SSEMessageEditedEvent
-  | SSEMessageDeletedEvent;
+  | SSEMessageDeletedEvent
+  | SSENotificationUpdateEvent;
 
 export interface ConversationHandlers {
   onMessage?: (message: SSEMessageEvent['message'], isMine: boolean) => void;
@@ -88,4 +106,5 @@ export interface ConversationHandlers {
   onReaction?: (messageId: string, emoji: string, action: 'added' | 'removed', userId: string) => void;
   onMessageEdited?: (messageId: string, newContent: string, editorId: string) => void;
   onMessageDeleted?: (messageId: string, deletedBy: string) => void;
+  onNotificationUpdate?: (event: SSENotificationUpdateEvent) => void;
 }

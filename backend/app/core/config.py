@@ -267,6 +267,56 @@ class Settings(BaseSettings):
     admin_name: str = Field(default="Instainstru Admin", alias="ADMIN_NAME")
     admin_password: str | None = Field(default=None, alias="ADMIN_PASSWORD")
 
+    # Push notification settings
+    vapid_public_key: str = Field(
+        default="",
+        alias="VAPID_PUBLIC_KEY",
+        description="Base64-encoded VAPID public key",
+    )
+    vapid_private_key: str = Field(
+        default="",
+        alias="VAPID_PRIVATE_KEY",
+        description="Base64-encoded VAPID private key (keep secret)",
+    )
+    vapid_claims_email: str = Field(
+        default="mailto:support@instainstru.com",
+        alias="VAPID_CLAIMS_EMAIL",
+        description="Contact email for VAPID claims",
+    )
+
+    # Twilio SMS settings
+    twilio_account_sid: str | None = Field(
+        default=None,
+        alias="TWILIO_ACCOUNT_SID",
+        description="Twilio account SID",
+    )
+    twilio_auth_token: SecretStr | None = Field(
+        default=None,
+        alias="TWILIO_AUTH_TOKEN",
+        description="Twilio auth token (keep secret)",
+    )
+    twilio_phone_number: str | None = Field(
+        default=None,
+        alias="TWILIO_PHONE_NUMBER",
+        description="Twilio sending phone number in E.164 format",
+    )
+    twilio_messaging_service_sid: str | None = Field(
+        default=None,
+        alias="TWILIO_MESSAGING_SERVICE_SID",
+        description="Twilio Messaging Service SID (optional)",
+    )
+    sms_enabled: bool = Field(
+        default=False,
+        alias="SMS_ENABLED",
+        description="Enable SMS sending",
+    )
+    sms_daily_limit_per_user: int = Field(
+        default=10,
+        alias="SMS_DAILY_LIMIT_PER_USER",
+        description="Daily SMS limit per user",
+        ge=1,
+    )
+
     # Frontend URL - will use production URL if not set
     frontend_url: str = "https://beta.instainstru.com"
     invite_claim_base_url: str = Field(

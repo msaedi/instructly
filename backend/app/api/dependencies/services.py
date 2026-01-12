@@ -34,6 +34,7 @@ from ...services.presentation_service import PresentationService
 from ...services.pricing_service import PricingService
 from ...services.referral_checkout_service import ReferralCheckoutService
 from ...services.referral_service import ReferralService
+from ...services.sms_service import SMSService
 
 # SlotManager removed - bitmap-only storage now
 from ...services.two_factor_auth_service import TwoFactorAuthService
@@ -79,8 +80,18 @@ def get_email_service(
     return EmailService(db, cache)
 
 
+def get_sms_service(
+    cache: CacheService = Depends(get_cache_service_dep),
+) -> SMSService:
+    """Get SMSService instance with proper dependencies."""
+    return SMSService(cache)
+
+
 def get_notification_service(
-    db: Session = Depends(get_db), email_service: EmailService = Depends(get_email_service)
+    db: Session = Depends(get_db),
+    cache: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
+    email_service: EmailService = Depends(get_email_service),
+    sms_service: SMSService = Depends(get_sms_service),
 ) -> NotificationService:
     """
     Get notification service instance.
@@ -95,9 +106,9 @@ def get_notification_service(
     # Create template service internally
     from ...services.template_service import TemplateService
 
-    template_service = TemplateService(db, None)
+    template_service = TemplateService(db, cache)
 
-    return NotificationService(db, None, template_service, email_service)
+    return NotificationService(db, cache, template_service, email_service, sms_service=sms_service)
 
 
 def get_booking_service(

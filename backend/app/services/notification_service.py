@@ -15,11 +15,12 @@ Changes from original:
 - Uses dependency injection for TemplateService (no singleton)
 """
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional, ParamSpec, Sequence, TypeVar
+from typing import Any, Callable, Coroutine, Dict, List, Optional, ParamSpec, Sequence, TypeVar
 
 from jinja2.exceptions import TemplateNotFound
 from sqlalchemy.orm import Session
@@ -27,12 +28,30 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..core.exceptions import ServiceException
 from ..models.booking import Booking
+from ..models.notification import Notification
 from ..models.user import User
+from ..repositories.notification_repository import NotificationRepository
+from ..repositories.user_repository import UserRepository
 from ..services.base import BaseService
+from ..services.cache_service import CacheService, CacheServiceSyncAdapter
 from ..services.email import EmailService
+from ..services.messaging import publish_to_user
+from ..services.notification_preference_service import NotificationPreferenceService
+from ..services.push_notification_service import PushNotificationService
+from ..services.sms_service import SMSService
+from ..services.sms_templates import (
+    BOOKING_NEW_MESSAGE,
+    PAYMENT_FAILED,
+    SECURITY_2FA_CHANGED,
+    SECURITY_NEW_DEVICE_LOGIN,
+    SECURITY_PASSWORD_CHANGED,
+    SMSTemplate,
+    render_sms,
+)
 from ..services.template_registry import TemplateRegistry
 from ..services.template_service import TemplateService
 from ..services.timezone_service import TimezoneService
+from .notification_templates import NotificationTemplate, render_notification
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +118,10 @@ class NotificationService(BaseService):
         cache: Any | None = None,
         template_service: Optional[TemplateService] = None,
         email_service: Optional[EmailService] = None,
+        notification_repository: Optional[NotificationRepository] = None,
+        push_service: Optional[PushNotificationService] = None,
+        preference_service: Optional[NotificationPreferenceService] = None,
+        sms_service: Optional[SMSService] = None,
     ) -> None:
         """
         Initialize the notification service.
@@ -109,37 +132,117 @@ class NotificationService(BaseService):
             template_service: Optional TemplateService instance (will create if not provided)
             email_service: Optional EmailService instance (will create if not provided)
         """
-        # Initialize BaseService with a dummy session if none provided
-        # This maintains compatibility with the original interface
+        db = self._resolve_db(db)
+        cache_service, cache_adapter = self._resolve_cache(cache)
+        super().__init__(db, cache_adapter)
+
+        self._init_email_service(db, cache_adapter, email_service)
+        self._init_template_service(db, cache_adapter, template_service)
+        self._init_repositories(db, notification_repository)
+        self._init_push_service(db, push_service)
+        self._init_preference_service(db, preference_service, cache_adapter)
+        self._init_sms_service(sms_service, cache_service)
+
+        self.frontend_url = settings.frontend_url
+
+    def _resolve_db(self, db: Optional[Session]) -> Session:
         if db is None:
             from app.database import SessionLocal
 
-            db = SessionLocal()
             self._owns_db = True
-        else:
-            self._owns_db = False
+            return SessionLocal()
 
-        super().__init__(db, cache)
+        self._owns_db = False
+        return db
 
-        # Use dependency injection for EmailService
+    def _resolve_cache(
+        self, cache: Any | None
+    ) -> tuple[CacheService | None, CacheServiceSyncAdapter | None]:
+        cache_service: CacheService | None = None
+        cache_adapter: CacheServiceSyncAdapter | None = None
+
+        if isinstance(cache, CacheService):
+            cache_service = cache
+            cache_adapter = CacheServiceSyncAdapter(cache_service)
+        elif isinstance(cache, CacheServiceSyncAdapter):
+            cache_adapter = cache
+            cache_service = getattr(cache, "_cache_service", None)
+
+        if cache_adapter is None and cache_service is None:
+            try:
+                cache_service = CacheService()
+                cache_adapter = CacheServiceSyncAdapter(cache_service)
+            except Exception:
+                cache_service = None
+                cache_adapter = None
+
+        return cache_service, cache_adapter
+
+    def _init_email_service(
+        self,
+        db: Session,
+        cache_adapter: CacheServiceSyncAdapter | None,
+        email_service: Optional[EmailService],
+    ) -> None:
         if email_service is None:
-            # Create our own instance if not provided
-            self.email_service = EmailService(db, cache)
+            self.email_service = EmailService(db, cache_adapter)
             self._owns_email_service = True
-        else:
-            self.email_service = email_service
-            self._owns_email_service = False
+            return
 
-        # Use dependency injection for TemplateService
+        self.email_service = email_service
+        self._owns_email_service = False
+
+    def _init_template_service(
+        self,
+        db: Session,
+        cache_adapter: CacheServiceSyncAdapter | None,
+        template_service: Optional[TemplateService],
+    ) -> None:
         if template_service is None:
-            # Create our own instance if not provided
-            self.template_service = TemplateService(db, cache)
+            self.template_service = TemplateService(db, cache_adapter)
             self._owns_template_service = True
-        else:
-            self.template_service = template_service
-            self._owns_template_service = False
+            return
 
-        self.frontend_url = settings.frontend_url
+        self.template_service = template_service
+        self._owns_template_service = False
+
+    def _init_repositories(
+        self,
+        db: Session,
+        notification_repository: Optional[NotificationRepository],
+    ) -> None:
+        self.notification_repository = notification_repository or NotificationRepository(db)
+        self.user_repository = UserRepository(db)
+
+    def _init_push_service(
+        self, db: Session, push_service: Optional[PushNotificationService]
+    ) -> None:
+        self.push_notification_service = push_service or PushNotificationService(
+            db, self.notification_repository
+        )
+
+    def _init_preference_service(
+        self,
+        db: Session,
+        preference_service: Optional[NotificationPreferenceService],
+        cache_adapter: CacheServiceSyncAdapter | None,
+    ) -> None:
+        self.preference_service = preference_service or NotificationPreferenceService(
+            db, self.notification_repository, cache_adapter
+        )
+
+    def _init_sms_service(
+        self,
+        sms_service: Optional[SMSService],
+        cache_service: CacheService | None,
+    ) -> None:
+        if sms_service is None:
+            self.sms_service = SMSService(cache_service)
+            return
+
+        if cache_service is not None and getattr(sms_service, "cache_service", None) is None:
+            sms_service.cache_service = cache_service
+        self.sms_service = sms_service
 
     def __del__(self) -> None:
         """Clean up the database session if we created it."""
@@ -479,6 +582,12 @@ class NotificationService(BaseService):
     @retry(max_attempts=3, backoff_seconds=1.0)
     def _send_student_booking_confirmation(self, booking: Booking) -> bool:
         """Send booking confirmation email to student using template."""
+        student_id = getattr(booking, "student_id", None)
+        if student_id and not self._should_send_email(
+            student_id, "lesson_updates", "booking_confirmation_student"
+        ):
+            return True
+
         subject = f"Booking Confirmed: {booking.service_name} with {booking.instructor.first_name}"
 
         # Format booking time in lesson timezone
@@ -519,6 +628,25 @@ class NotificationService(BaseService):
         Uses a dedicated template if present; otherwise falls back to a simple rendered string.
         """
         try:
+            student_id = getattr(booking, "student_id", None)
+            instructor_id = getattr(booking, "instructor_id", None)
+
+            send_student = True
+            send_instructor = True
+
+            if student_id and not self._should_send_email(
+                student_id, "lesson_updates", "booking_cancelled_payment_failed_student"
+            ):
+                send_student = False
+
+            if instructor_id and not self._should_send_email(
+                instructor_id, "lesson_updates", "booking_cancelled_payment_failed_instructor"
+            ):
+                send_instructor = False
+
+            if not send_student and not send_instructor:
+                return True
+
             subject = "Booking Cancelled: Payment Authorization Failed"
 
             context = {
@@ -565,14 +693,22 @@ class NotificationService(BaseService):
                 html_instructor = self.template_service.render_string(fallback_instructor, context)
 
             # Send emails
-            if getattr(booking, "student", None) and getattr(booking.student, "email", None):
+            if (
+                send_student
+                and getattr(booking, "student", None)
+                and getattr(booking.student, "email", None)
+            ):
                 self.email_service.send_email(
                     to_email=booking.student.email,
                     subject=subject,
                     html_content=html_student,
                 )
 
-            if getattr(booking, "instructor", None) and getattr(booking.instructor, "email", None):
+            if (
+                send_instructor
+                and getattr(booking, "instructor", None)
+                and getattr(booking.instructor, "email", None)
+            ):
                 self.email_service.send_email(
                     to_email=booking.instructor.email,
                     subject=subject,
@@ -589,6 +725,91 @@ class NotificationService(BaseService):
             )
             return False
 
+    @BaseService.measure_operation("send_payment_failed_notification")
+    def send_payment_failed_notification(self, booking: Booking) -> bool:
+        """
+        Always-on payment failure notice to the student (email + optional SMS).
+        """
+        student_id = getattr(booking, "student_id", None)
+        if not student_id:
+            return False
+
+        student = self.user_repository.get_by_id(student_id)
+        if not student or not getattr(student, "email", None):
+            self.logger.warning(
+                "Payment failed notification skipped: student not found (%s)", student_id
+            )
+            return False
+
+        instructor_name = "your instructor"
+        instructor_id = getattr(booking, "instructor_id", None)
+        if instructor_id:
+            instructor = self.user_repository.get_by_id(instructor_id)
+            if instructor:
+                instructor_name = instructor.first_name or instructor.email or instructor_name
+
+        local_dt = self._get_booking_local_datetime(booking)
+        formatted_date = local_dt.strftime("%A, %B %d, %Y")
+        formatted_time = local_dt.strftime("%-I:%M %p")
+        payment_url = f"{self.frontend_url}/student/payments"
+
+        context = {
+            "user_name": student.first_name or student.email,
+            "service_name": booking.service_name or "your lesson",
+            "instructor_name": instructor_name,
+            "formatted_date": formatted_date,
+            "formatted_time": formatted_time,
+            "payment_url": payment_url,
+        }
+
+        email_sent = False
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.PAYMENT_FAILED,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=student.email,
+                subject="Payment failed for your upcoming lesson",
+                html_content=html_content,
+                template=TemplateRegistry.PAYMENT_FAILED,
+            )
+            email_sent = True
+            self.logger.info("Payment failed email sent to %s", student.email)
+        except Exception as exc:
+            self.logger.error("Failed to send payment failed email to %s: %s", student.email, exc)
+
+        sms_sent = False
+        if self.sms_service and getattr(student, "phone_verified", False):
+            try:
+                sms_message = render_sms(
+                    PAYMENT_FAILED,
+                    service_name=booking.service_name or "your lesson",
+                    instructor_name=instructor_name,
+                    date=formatted_date,
+                    payment_url=payment_url,
+                )
+            except Exception as exc:
+                self.logger.warning(
+                    "Failed to render payment failed SMS for %s: %s", student_id, exc
+                )
+            else:
+
+                async def _send_sms() -> None:
+                    await self.sms_service.send_to_user(
+                        user_id=student_id,
+                        message=sms_message,
+                        user_repository=self.user_repository,
+                    )
+
+                self._run_async_task(
+                    _send_sms,
+                    f"sending payment failed SMS to {student_id}",
+                )
+                sms_sent = True
+
+        return email_sent or sms_sent
+
     @BaseService.measure_operation("send_final_payment_warning")
     def send_final_payment_warning(self, booking: Booking, hours_until_lesson: float) -> bool:
         """
@@ -598,6 +819,12 @@ class NotificationService(BaseService):
         otherwise falls back to a simple rendered string to avoid hard failures in test/dev.
         """
         try:
+            student_id = getattr(booking, "student_id", None)
+            if student_id and not self._should_send_email(
+                student_id, "lesson_updates", "final_payment_warning"
+            ):
+                return True
+
             subject = "Action required: Update your payment method for your upcoming lesson"
 
             # Try a dedicated template first
@@ -643,6 +870,12 @@ class NotificationService(BaseService):
     @retry(max_attempts=3, backoff_seconds=1.0)
     def _send_instructor_booking_notification(self, booking: Booking) -> bool:
         """Send new booking notification to instructor using template."""
+        instructor_id = getattr(booking, "instructor_id", None)
+        if instructor_id and not self._should_send_email(
+            instructor_id, "lesson_updates", "booking_confirmation_instructor"
+        ):
+            return True
+
         subject = f"New Booking: {booking.service_name} with {booking.student.first_name}"
 
         # Format booking time in lesson timezone
@@ -681,6 +914,12 @@ class NotificationService(BaseService):
         self, booking: Booking, reason: Optional[str], cancelled_by: str
     ) -> bool:
         """Send cancellation notification to student when instructor cancels."""
+        student_id = getattr(booking, "student_id", None)
+        if student_id and not self._should_send_email(
+            student_id, "lesson_updates", "booking_cancellation_student"
+        ):
+            return True
+
         subject = f"Booking Cancelled: {booking.service_name}"
 
         local_dt = self._get_booking_local_datetime(booking)
@@ -718,6 +957,12 @@ class NotificationService(BaseService):
         self, booking: Booking, reason: Optional[str], cancelled_by: str
     ) -> bool:
         """Send cancellation notification to instructor when student cancels."""
+        instructor_id = getattr(booking, "instructor_id", None)
+        if instructor_id and not self._should_send_email(
+            instructor_id, "lesson_updates", "booking_cancellation_instructor"
+        ):
+            return True
+
         subject = f"Booking Cancelled: {booking.service_name}"
 
         local_dt = self._get_booking_local_datetime(booking)
@@ -751,6 +996,12 @@ class NotificationService(BaseService):
     @retry(max_attempts=3, backoff_seconds=1.0)
     def _send_student_cancellation_confirmation(self, booking: Booking) -> bool:
         """Send cancellation confirmation to student after they cancel."""
+        student_id = getattr(booking, "student_id", None)
+        if student_id and not self._should_send_email(
+            student_id, "lesson_updates", "booking_cancellation_confirmation_student"
+        ):
+            return True
+
         subject = f"Cancellation Confirmed: {booking.service_name}"
 
         # Format booking time for the confirmation
@@ -783,6 +1034,12 @@ class NotificationService(BaseService):
     @retry(max_attempts=3, backoff_seconds=1.0)
     def _send_instructor_cancellation_confirmation(self, booking: Booking) -> bool:
         """Send cancellation confirmation to instructor after they cancel."""
+        instructor_id = getattr(booking, "instructor_id", None)
+        if instructor_id and not self._should_send_email(
+            instructor_id, "lesson_updates", "booking_cancellation_confirmation_instructor"
+        ):
+            return True
+
         subject = f"Cancellation Confirmed: {booking.service_name}"
 
         # Format booking time for the confirmation
@@ -815,6 +1072,12 @@ class NotificationService(BaseService):
     @retry(max_attempts=3, backoff_seconds=1.0)
     def _send_student_reminder(self, booking: Booking) -> bool:
         """Send 24-hour reminder to student."""
+        student_id = getattr(booking, "student_id", None)
+        if student_id and not self._should_send_email(
+            student_id, "lesson_updates", "booking_reminder_student"
+        ):
+            return True
+
         subject = f"Reminder: {booking.service_name} Tomorrow"
 
         local_dt = self._get_booking_local_datetime(booking)
@@ -845,6 +1108,12 @@ class NotificationService(BaseService):
     @retry(max_attempts=3, backoff_seconds=1.0)
     def _send_instructor_reminder(self, booking: Booking) -> bool:
         """Send 24-hour reminder to instructor."""
+        instructor_id = getattr(booking, "instructor_id", None)
+        if instructor_id and not self._should_send_email(
+            instructor_id, "lesson_updates", "booking_reminder_instructor"
+        ):
+            return True
+
         subject = f"Reminder: {booking.service_name} Tomorrow"
 
         local_dt = self._get_booking_local_datetime(booking)
@@ -877,7 +1146,7 @@ class NotificationService(BaseService):
         self, recipient_id: str, booking: Booking, sender_id: str, message_content: str
     ) -> bool:
         """
-        Send email notification for a new chat message.
+        Send email and SMS notifications for a new chat message.
 
         Args:
             recipient_id: ID of the user to notify
@@ -886,9 +1155,15 @@ class NotificationService(BaseService):
             message_content: Content of the message
 
         Returns:
-            bool: True if email sent successfully, False otherwise
+            bool: True if email was sent or skipped, False if email failed
         """
         try:
+            should_send_email = self._should_send_email(
+                recipient_id,
+                "messages",
+                "booking_new_message",
+            )
+
             # Get recipient and sender users using repository pattern
             from ..repositories.user_repository import UserRepository
 
@@ -903,53 +1178,355 @@ class NotificationService(BaseService):
 
             # Determine if sender is instructor or student
             sender_role = "instructor" if sender_id == booking.instructor_id else "student"
+            sender_name = sender.first_name or sender.email or "Someone"
+
+            message_preview = message_content.strip()
+            if len(message_preview) > 200:
+                message_preview = f"{message_preview[:197]}..."
+
+            async def _send_in_app_and_push() -> None:
+                await self.create_notification(
+                    user_id=recipient_id,
+                    category="messages",
+                    notification_type="booking_new_message",
+                    title=f"New message from {sender_name}",
+                    body=message_preview,
+                    data={
+                        "booking_id": booking.id,
+                        "sender_id": sender_id,
+                    },
+                    send_push=True,
+                )
+
+            self._run_async_task(
+                _send_in_app_and_push,
+                f"sending message notification to {recipient_id}",
+            )
 
             # Create subject line
             subject = f"New message from your {sender_role} - {booking.service_name}"
 
-            # Prepare template context
-            local_dt = self._get_booking_local_datetime(booking)
-            context = {
-                "recipient_name": recipient.first_name,
-                "sender_name": sender.first_name,
-                "sender_role": sender_role,
-                "booking_date": local_dt.strftime("%B %d, %Y"),
-                "booking_time": local_dt.strftime("%-I:%M %p"),
-                "service_name": booking.service_name,
-                "message_preview": message_content[:200] + "..."
-                if len(message_content) > 200
-                else message_content,
-                "booking_id": booking.id,
-                "settings": settings,  # Include settings for frontend URL
-            }
-
-            # Render template using the template service
-            html_content = self.template_service.render_template(
-                TemplateRegistry.BOOKING_NEW_MESSAGE, context
-            )
-
             # Send email
-            _response = self.email_service.send_email(
-                to_email=recipient.email,
-                subject=subject,
-                html_content=html_content,
-                template=TemplateRegistry.BOOKING_NEW_MESSAGE,
-            )
+            email_sent = True
+            if should_send_email:
+                # Prepare template context
+                local_dt = self._get_booking_local_datetime(booking)
+                context = {
+                    "recipient_name": recipient.first_name,
+                    "sender_name": sender.first_name,
+                    "sender_role": sender_role,
+                    "booking_date": local_dt.strftime("%B %d, %Y"),
+                    "booking_time": local_dt.strftime("%-I:%M %p"),
+                    "service_name": booking.service_name,
+                    "message_preview": message_preview,
+                    "booking_id": booking.id,
+                    "settings": settings,  # Include settings for frontend URL
+                }
 
-            if _response:
-                self.logger.info(f"Message notification sent to {recipient.email}")
-                return True
-            else:
-                self.logger.warning(f"Failed to send message notification to {recipient.email}")
-                return False
+                # Render template using the template service
+                html_content = self.template_service.render_template(
+                    TemplateRegistry.BOOKING_NEW_MESSAGE, context
+                )
+                _response = self.email_service.send_email(
+                    to_email=recipient.email,
+                    subject=subject,
+                    html_content=html_content,
+                    template=TemplateRegistry.BOOKING_NEW_MESSAGE,
+                )
+
+                if _response:
+                    self.logger.info(f"Message notification sent to {recipient.email}")
+                    email_sent = True
+                else:
+                    self.logger.warning(f"Failed to send message notification to {recipient.email}")
+                    email_sent = False
+
+            if self.sms_service and self._should_send_sms(
+                recipient_id, "messages", "booking_new_message"
+            ):
+                service_name = getattr(booking, "service_name", None) or "lesson"
+                sms_preview = message_preview
+                if len(sms_preview) > 120:
+                    sms_preview = f"{sms_preview[:117]}..."
+
+                try:
+                    sms_message = render_sms(
+                        BOOKING_NEW_MESSAGE,
+                        sender_name=sender_name,
+                        service_name=service_name,
+                        message_preview=sms_preview,
+                    )
+                except Exception as exc:
+                    self.logger.warning(
+                        "Failed to render message SMS for %s: %s",
+                        recipient_id,
+                        exc,
+                    )
+                else:
+
+                    async def _send_sms() -> None:
+                        await self.sms_service.send_to_user(
+                            user_id=recipient_id,
+                            message=sms_message,
+                            user_repository=self.user_repository,
+                        )
+
+                    self._run_async_task(
+                        _send_sms,
+                        f"sending message SMS to {recipient_id}",
+                    )
+
+            return email_sent
 
         except Exception as e:
             self.logger.error(f"Error sending message notification: {str(e)}")
             return False
 
+    @BaseService.measure_operation("send_payout_notification")
+    def send_payout_notification(
+        self,
+        instructor_id: str,
+        amount_cents: int,
+        payout_date: datetime,
+    ) -> bool:
+        """
+        Send a payout confirmation email to an instructor (always-on).
+        """
+        user = self.user_repository.get_by_id(instructor_id)
+        if not user or not getattr(user, "email", None):
+            self.logger.warning("Payout notification skipped: user not found (%s)", instructor_id)
+            return False
+
+        amount_usd = amount_cents / 100.0
+        amount_display = f"${amount_usd:,.2f}"
+
+        context = {
+            "user_name": user.first_name or user.email,
+            "amount": amount_display,
+            "amount_cents": amount_cents,
+            "payout_date": payout_date,
+        }
+
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.PAYOUT_SENT,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject="Your InstaInstru payout is on the way!",
+                html_content=html_content,
+                template=TemplateRegistry.PAYOUT_SENT,
+            )
+            self.logger.info(
+                "Payout notification sent to %s (amount_cents=%s)",
+                user.email,
+                amount_cents,
+            )
+            return True
+        except Exception as exc:
+            self.logger.error("Failed to send payout notification to %s: %s", user.email, exc)
+            return False
+
+    @BaseService.measure_operation("send_new_device_login_notification")
+    def send_new_device_login_notification(
+        self,
+        user_id: str,
+        ip_address: str | None,
+        user_agent: str | None,
+        login_time: datetime,
+    ) -> bool:
+        """
+        Send new-device login alert (always-on email + optional SMS).
+        """
+        user = self.user_repository.get_by_id(user_id)
+        if not user or not getattr(user, "email", None):
+            self.logger.warning("New device login skipped: user not found (%s)", user_id)
+            return False
+
+        context = {
+            "user_name": user.first_name or user.email,
+            "login_time": login_time,
+            "ip_address": ip_address or "Unknown",
+            "user_agent": user_agent or "Unknown",
+        }
+
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.SECURITY_NEW_DEVICE_LOGIN,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject="New login to your InstaInstru account",
+                html_content=html_content,
+                template=TemplateRegistry.SECURITY_NEW_DEVICE_LOGIN,
+            )
+            self.logger.info("New device login email sent to %s", user.email)
+        except Exception as exc:
+            self.logger.error("Failed to send new device login email to %s: %s", user.email, exc)
+            return False
+
+        if self.sms_service:
+            security_url = f"{self.frontend_url}/forgot-password"
+            try:
+                sms_message = render_sms(
+                    SECURITY_NEW_DEVICE_LOGIN,
+                    security_url=security_url,
+                )
+            except Exception as exc:
+                self.logger.warning("Failed to render new device SMS for %s: %s", user_id, exc)
+            else:
+
+                async def _send_sms() -> None:
+                    await self.sms_service.send_to_user(
+                        user_id=user_id,
+                        message=sms_message,
+                        user_repository=self.user_repository,
+                    )
+
+                self._run_async_task(
+                    _send_sms,
+                    f"sending new device SMS to {user_id}",
+                )
+
+        return True
+
+    @BaseService.measure_operation("send_password_changed_notification")
+    def send_password_changed_notification(
+        self,
+        user_id: str,
+        changed_at: datetime,
+    ) -> bool:
+        """
+        Send password-changed confirmation (always-on email + optional SMS).
+        """
+        user = self.user_repository.get_by_id(user_id)
+        if not user or not getattr(user, "email", None):
+            self.logger.warning(
+                "Password change notification skipped: user not found (%s)", user_id
+            )
+            return False
+
+        context = {
+            "user_name": user.first_name or user.email,
+            "changed_at": changed_at,
+        }
+
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.SECURITY_PASSWORD_CHANGED,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject="Your InstaInstru password was changed",
+                html_content=html_content,
+                template=TemplateRegistry.SECURITY_PASSWORD_CHANGED,
+            )
+            self.logger.info("Password change email sent to %s", user.email)
+        except Exception as exc:
+            self.logger.error("Failed to send password change email to %s: %s", user.email, exc)
+            return False
+
+        if self.sms_service:
+            reset_url = f"{settings.frontend_url}/forgot-password"
+            try:
+                sms_message = render_sms(
+                    SECURITY_PASSWORD_CHANGED,
+                    reset_url=reset_url,
+                )
+            except Exception as exc:
+                self.logger.warning("Failed to render password change SMS for %s: %s", user_id, exc)
+            else:
+
+                async def _send_sms() -> None:
+                    await self.sms_service.send_to_user(
+                        user_id=user_id,
+                        message=sms_message,
+                        user_repository=self.user_repository,
+                    )
+
+                self._run_async_task(
+                    _send_sms,
+                    f"sending password change SMS to {user_id}",
+                )
+
+        return True
+
+    @BaseService.measure_operation("send_two_factor_changed_notification")
+    def send_two_factor_changed_notification(
+        self,
+        user_id: str,
+        enabled: bool,
+        changed_at: datetime,
+    ) -> bool:
+        """
+        Send 2FA enabled/disabled confirmation (always-on email + optional SMS).
+        """
+        user = self.user_repository.get_by_id(user_id)
+        if not user or not getattr(user, "email", None):
+            self.logger.warning("2FA change notification skipped: user not found (%s)", user_id)
+            return False
+
+        status_text = "enabled" if enabled else "disabled"
+        context = {
+            "user_name": user.first_name or user.email,
+            "status_text": status_text,
+            "changed_at": changed_at,
+        }
+
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.SECURITY_2FA_CHANGED,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject=f"Two-factor authentication {status_text}",
+                html_content=html_content,
+                template=TemplateRegistry.SECURITY_2FA_CHANGED,
+            )
+            self.logger.info("2FA change email sent to %s", user.email)
+        except Exception as exc:
+            self.logger.error("Failed to send 2FA change email to %s: %s", user.email, exc)
+            return False
+
+        if self.sms_service and getattr(user, "phone_verified", False):
+            security_url = f"{settings.frontend_url}/forgot-password"
+            try:
+                sms_message = render_sms(
+                    SECURITY_2FA_CHANGED,
+                    status=status_text,
+                    security_url=security_url,
+                )
+            except Exception as exc:
+                self.logger.warning("Failed to render 2FA change SMS for %s: %s", user_id, exc)
+            else:
+
+                async def _send_sms() -> None:
+                    await self.sms_service.send_to_user(
+                        user_id=user_id,
+                        message=sms_message,
+                        user_repository=self.user_repository,
+                    )
+
+                self._run_async_task(
+                    _send_sms,
+                    f"sending 2FA change SMS to {user_id}",
+                )
+
+        return True
+
     @BaseService.measure_operation("send_badge_awarded_email")
     def send_badge_awarded_email(self, user: User, badge_name: str) -> bool:
         try:
+            user_id = getattr(user, "id", None)
+            if not user_id:
+                return False
+            if not self._should_send_email(user_id, "promotional", "badge_awarded"):
+                return False
+
             subject = f"You earned the {badge_name} badge!"
             html_content = (
                 f"<p>Congratulations {user.first_name or user.email},</p>"
@@ -970,6 +1547,12 @@ class NotificationService(BaseService):
     @BaseService.measure_operation("send_badge_digest_email")
     def send_badge_digest_email(self, user: User, items: Sequence[Dict[str, Any]]) -> bool:
         try:
+            user_id = getattr(user, "id", None)
+            if not user_id:
+                return False
+            if not self._should_send_email(user_id, "promotional", "badge_digest"):
+                return False
+
             subject = "You're close to unlocking new badges"
             if not items:
                 return False
@@ -998,3 +1581,350 @@ class NotificationService(BaseService):
         except Exception as exc:
             self.logger.error("Failed to send badge digest email: %s", exc)
             return False
+
+    def _should_send_push(self, user_id: str, category: str) -> bool:
+        return self.preference_service.is_enabled(user_id, category, "push")
+
+    def _serialize_notification(self, notification: Notification) -> Dict[str, Any]:
+        created_at = (
+            notification.created_at.isoformat() if notification.created_at is not None else None
+        )
+        return {
+            "id": notification.id,
+            "title": notification.title,
+            "body": notification.body,
+            "category": notification.category,
+            "type": notification.type,
+            "data": notification.data,
+            "read_at": notification.read_at.isoformat() if notification.read_at else None,
+            "created_at": created_at,
+        }
+
+    def _should_send_email(self, user_id: str, category: str, context: str) -> bool:
+        try:
+            enabled = self.preference_service.is_enabled(user_id, category, "email")
+        except Exception as exc:
+            self.logger.warning(
+                "Email preference lookup failed; sending anyway (user_id=%s context=%s): %s",
+                user_id,
+                context,
+                exc,
+            )
+            return True
+
+        if not enabled:
+            self.logger.info(
+                "Email skipped due to preferences (user_id=%s category=%s context=%s)",
+                user_id,
+                category,
+                context,
+            )
+
+        return enabled
+
+    def _should_send_sms(self, user_id: str, category: str, context: str) -> bool:
+        try:
+            enabled = self.preference_service.is_enabled(user_id, category, "sms")
+        except Exception as exc:
+            self.logger.warning(
+                "SMS preference lookup failed; skipping (user_id=%s context=%s): %s",
+                user_id,
+                context,
+                exc,
+            )
+            return False
+
+        if not enabled:
+            self.logger.info(
+                "SMS skipped due to preferences (user_id=%s category=%s context=%s)",
+                user_id,
+                category,
+                context,
+            )
+
+        return enabled
+
+    def _send_notification_email(
+        self, user_id: str, template: NotificationTemplate, **template_kwargs: Any
+    ) -> bool:
+        if template.email_template is None:
+            return False
+
+        user_repo = UserRepository(self.db)
+        user = user_repo.get_by_id(user_id)
+        if not user or not getattr(user, "email", None):
+            return False
+
+        subject = template.title
+        if template.email_subject_template:
+            try:
+                subject = template.email_subject_template.format(**template_kwargs)
+            except Exception as exc:
+                self.logger.warning(
+                    "Failed to format email subject for %s (%s): %s",
+                    template.type,
+                    user_id,
+                    exc,
+                )
+
+        context: Dict[str, Any] = {
+            "user_name": user.first_name or user.email,
+            "subject": subject,
+            **template_kwargs,
+        }
+
+        try:
+            html_content = self.template_service.render_template(template.email_template, context)
+        except Exception as exc:
+            self.logger.warning(
+                "Failed to render email template for %s (%s): %s",
+                template.type,
+                user_id,
+                exc,
+            )
+            return False
+
+        try:
+            self.email_service.send_email(
+                to_email=user.email,
+                subject=subject,
+                html_content=html_content,
+                template=template.email_template,
+            )
+            return True
+        except Exception as exc:
+            self.logger.warning(
+                "Failed to send notification email for %s (%s): %s",
+                template.type,
+                user_id,
+                exc,
+            )
+            return False
+
+    def _run_async_task(
+        self, coro_func: Callable[[], Coroutine[Any, Any, None]], error_context: str
+    ) -> None:
+        async def _with_error_handling() -> None:
+            try:
+                await coro_func()
+            except Exception as exc:  # pragma: no cover - best effort logging
+                self.logger.warning("Failed %s: %s", error_context, exc)
+
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(_with_error_handling())
+        except RuntimeError:
+            # Avoid cross-thread Session use; run in-thread when no loop is active.
+            try:
+                asyncio.run(_with_error_handling())
+            except Exception as exc:  # pragma: no cover - best effort logging
+                self.logger.warning("Failed %s: %s", error_context, exc)
+
+    @BaseService.measure_operation("notify_user")
+    async def notify_user(
+        self,
+        user_id: str,
+        template: NotificationTemplate,
+        send_push: bool = True,
+        send_email: bool = True,
+        send_sms: bool = False,
+        sms_template: SMSTemplate | None = None,
+        **template_kwargs: Any,
+    ) -> Notification:
+        rendered = render_notification(template, **template_kwargs)
+        notification = await self.create_notification(
+            user_id=user_id,
+            category=rendered["category"],
+            notification_type=rendered["type"],
+            title=rendered["title"],
+            body=rendered["body"],
+            data=rendered["data"],
+            send_push=send_push,
+        )
+
+        if send_email and template.email_template is not None:
+            should_send = await asyncio.to_thread(
+                self._should_send_email,
+                user_id,
+                template.category,
+                f"notify_user:{template.type}",
+            )
+            if should_send:
+                await asyncio.to_thread(
+                    self._send_notification_email, user_id, template, **template_kwargs
+                )
+
+        if send_sms and sms_template is not None and self.sms_service:
+            should_send_sms = await asyncio.to_thread(
+                self._should_send_sms,
+                user_id,
+                sms_template.category,
+                f"notify_user:{template.type}:sms",
+            )
+            if should_send_sms:
+                try:
+                    message = render_sms(sms_template, **template_kwargs)
+                except Exception as exc:
+                    self.logger.warning(
+                        "Failed to render SMS template for %s (%s): %s",
+                        template.type,
+                        user_id,
+                        exc,
+                    )
+                else:
+                    try:
+                        await self.sms_service.send_to_user(
+                            user_id=user_id,
+                            message=message,
+                            user_repository=self.user_repository,
+                        )
+                    except Exception as exc:
+                        self.logger.warning(
+                            "Failed to send SMS for %s (%s): %s",
+                            template.type,
+                            user_id,
+                            exc,
+                        )
+
+        return notification
+
+    @BaseService.measure_operation("notify_user_best_effort")
+    def notify_user_best_effort(
+        self,
+        user_id: str,
+        template: NotificationTemplate,
+        send_push: bool = True,
+        send_email: bool = True,
+        send_sms: bool = False,
+        sms_template: SMSTemplate | None = None,
+        **template_kwargs: Any,
+    ) -> None:
+        async def _notify() -> None:
+            await self.notify_user(
+                user_id=user_id,
+                template=template,
+                send_push=send_push,
+                send_email=send_email,
+                send_sms=send_sms,
+                sms_template=sms_template,
+                **template_kwargs,
+            )
+
+        self._run_async_task(_notify, f"sending notification {template.type} to {user_id}")
+
+    @BaseService.measure_operation("create_in_app_notification")
+    async def create_notification(
+        self,
+        user_id: str,
+        category: str,
+        notification_type: str,
+        title: str,
+        body: str | None,
+        data: Dict[str, Any] | None = None,
+        send_push: bool = True,
+    ) -> Notification:
+        """
+        Create an in-app notification, optionally send push, and broadcast SSE update.
+        """
+
+        def _create_notification_sync() -> tuple[Notification, bool]:
+            push_enabled_local = False
+            with self.transaction():
+                notification_local = self.notification_repository.create_notification(
+                    user_id=user_id,
+                    category=category,
+                    type=notification_type,
+                    title=title,
+                    body=body,
+                    data=data,
+                )
+                if send_push:
+                    push_enabled_local = self._should_send_push(user_id, category)
+            return notification_local, push_enabled_local
+
+        notification, push_enabled = await asyncio.to_thread(_create_notification_sync)
+
+        if send_push and push_enabled:
+            push_url = None
+            if data and isinstance(data, dict):
+                url_value = data.get("url")
+                if isinstance(url_value, str):
+                    push_url = url_value
+            push_body = body or title
+            try:
+                self.push_notification_service.send_push_notification(
+                    user_id=user_id,
+                    title=title,
+                    body=push_body,
+                    url=push_url,
+                    data=data,
+                )
+            except Exception as exc:
+                self.logger.error("Push notification send failed: %s", exc)
+
+        unread_count = await asyncio.to_thread(
+            self.notification_repository.get_unread_count, user_id
+        )
+        await publish_to_user(
+            user_id,
+            {
+                "type": "notification_update",
+                "payload": {
+                    "unread_count": unread_count,
+                    "latest": self._serialize_notification(notification),
+                },
+            },
+        )
+        return notification
+
+    @BaseService.measure_operation("get_notifications")
+    def get_notifications(
+        self,
+        user_id: str,
+        limit: int = 20,
+        offset: int = 0,
+        unread_only: bool = False,
+    ) -> List[Notification]:
+        """Get paginated notifications for a user."""
+        return self.notification_repository.get_user_notifications(
+            user_id=user_id,
+            limit=limit,
+            offset=offset,
+            unread_only=unread_only,
+        )
+
+    @BaseService.measure_operation("get_notification_count")
+    def get_notification_count(self, user_id: str, unread_only: bool = False) -> int:
+        """Get notification count for a user."""
+        return self.notification_repository.get_user_notification_count(
+            user_id=user_id, unread_only=unread_only
+        )
+
+    @BaseService.measure_operation("mark_notification_read")
+    def mark_as_read(self, user_id: str, notification_id: str) -> bool:
+        """Mark a single notification as read."""
+        with self.transaction():
+            return self.notification_repository.mark_as_read_for_user(user_id, notification_id)
+
+    @BaseService.measure_operation("mark_all_notifications_read")
+    def mark_all_as_read(self, user_id: str) -> int:
+        """Mark all notifications as read for a user."""
+        with self.transaction():
+            return self.notification_repository.mark_all_as_read(user_id)
+
+    @BaseService.measure_operation("get_notification_unread_count")
+    def get_unread_count(self, user_id: str) -> int:
+        """Get unread notification count for a user."""
+        return self.notification_repository.get_unread_count(user_id)
+
+    @BaseService.measure_operation("delete_notification")
+    def delete_notification(self, user_id: str, notification_id: str) -> bool:
+        """Delete a notification."""
+        with self.transaction():
+            return self.notification_repository.delete_notification(user_id, notification_id)
+
+    @BaseService.measure_operation("delete_all_notifications")
+    def delete_all_notifications(self, user_id: str) -> int:
+        """Delete all notifications for a user."""
+        with self.transaction():
+            return self.notification_repository.delete_all_for_user(user_id)

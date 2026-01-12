@@ -22,6 +22,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AppSchemasAvailabilityWindowBulkUpdateRequest,
   ApplyToDateRangeRequest,
   ApplyToDateRangeResponse,
   AvailabilityWindowResponse,
@@ -29,7 +30,6 @@ import type {
   BlackoutDateCreate,
   BlackoutDateResponse,
   BookedSlotsResponse,
-  BulkUpdateRequest,
   BulkUpdateResponse,
   CopyWeekRequest,
   CopyWeekResponse,
@@ -642,13 +642,13 @@ export const useDeleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlack
  * @summary Bulk Update Availability
  */
 export const bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch = (
-  bulkUpdateRequest: BulkUpdateRequest
+  appSchemasAvailabilityWindowBulkUpdateRequest: AppSchemasAvailabilityWindowBulkUpdateRequest
 ) => {
   return customFetch<BulkUpdateResponse>({
     url: `/api/v1/instructors/availability/bulk-update`,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    data: bulkUpdateRequest,
+    data: appSchemasAvailabilityWindowBulkUpdateRequest,
   });
 };
 
@@ -659,13 +659,13 @@ export const getBulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatc
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch>>,
     TError,
-    { data: BulkUpdateRequest },
+    { data: AppSchemasAvailabilityWindowBulkUpdateRequest },
     TContext
   >;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch>>,
   TError,
-  { data: BulkUpdateRequest },
+  { data: AppSchemasAvailabilityWindowBulkUpdateRequest },
   TContext
 > => {
   const mutationKey = ['bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch'];
@@ -677,7 +677,7 @@ export const getBulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatc
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch>>,
-    { data: BulkUpdateRequest }
+    { data: AppSchemasAvailabilityWindowBulkUpdateRequest }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -692,7 +692,7 @@ export type BulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatchMut
     Awaited<ReturnType<typeof bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch>>
   >;
 export type BulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatchMutationBody =
-  BulkUpdateRequest;
+  AppSchemasAvailabilityWindowBulkUpdateRequest;
 export type BulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatchMutationError =
   ErrorType<void | HTTPValidationError>;
 
@@ -707,7 +707,7 @@ export const useBulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatc
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch>>,
       TError,
-      { data: BulkUpdateRequest },
+      { data: AppSchemasAvailabilityWindowBulkUpdateRequest },
       TContext
     >;
   },
@@ -715,7 +715,7 @@ export const useBulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatc
 ): UseMutationResult<
   Awaited<ReturnType<typeof bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch>>,
   TError,
-  { data: BulkUpdateRequest },
+  { data: AppSchemasAvailabilityWindowBulkUpdateRequest },
   TContext
 > => {
   const mutationOptions =

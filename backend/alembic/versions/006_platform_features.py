@@ -792,6 +792,116 @@ def upgrade() -> None:
         ["event_type", "delivered_at"],
     )
 
+    # Notification preferences + inbox + push subscriptions
+    op.create_table(
+        "notification_preferences",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("category", sa.String(50), nullable=False),
+        sa.Column("channel", sa.String(20), nullable=False),
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default="true"),
+        sa.Column("locked", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "user_id",
+            "category",
+            "channel",
+            name="uq_notification_preferences_user_category_channel",
+        ),
+        sa.CheckConstraint(
+            "category IN ('lesson_updates', 'messages', 'reviews', 'learning_tips', 'system_updates', 'promotional')",
+            name="ck_notification_preferences_category",
+        ),
+        sa.CheckConstraint(
+            "channel IN ('email', 'push', 'sms')",
+            name="ck_notification_preferences_channel",
+        ),
+    )
+    op.create_index(
+        "ix_notification_preferences_user_id",
+        "notification_preferences",
+        ["user_id"],
+    )
+
+    op.create_table(
+        "notifications",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("category", sa.String(50), nullable=False),
+        sa.Column("type", sa.String(100), nullable=False),
+        sa.Column("title", sa.String(255), nullable=False),
+        sa.Column("body", sa.Text(), nullable=True),
+        sa.Column("data", json_type, nullable=True),
+        sa.Column("read_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint(
+            "category IN ('lesson_updates', 'messages', 'reviews', 'learning_tips', 'system_updates', 'promotional')",
+            name="ck_notifications_category",
+        ),
+    )
+    op.create_index(
+        "ix_notifications_user_read_at",
+        "notifications",
+        ["user_id", "read_at"],
+    )
+    op.create_index(
+        "ix_notifications_user_created_at",
+        "notifications",
+        ["user_id", "created_at"],
+        postgresql_using="btree",
+        postgresql_ops={"created_at": "DESC"},
+    )
+    op.create_index(
+        "ix_notifications_user_category",
+        "notifications",
+        ["user_id", "category"],
+    )
+    op.create_index(
+        "ix_notifications_deleted_at",
+        "notifications",
+        ["deleted_at"],
+    )
+    op.create_index(
+        "ix_notifications_type",
+        "notifications",
+        ["type"],
+    )
+
+    op.create_table(
+        "push_subscriptions",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("endpoint", sa.Text(), nullable=False),
+        sa.Column("p256dh_key", sa.String(255), nullable=False),
+        sa.Column("auth_key", sa.String(255), nullable=False),
+        sa.Column("user_agent", sa.String(500), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("user_id", "endpoint", name="uq_push_subscriptions_user_endpoint"),
+    )
+    op.create_index(
+        "ix_push_subscriptions_user_id",
+        "push_subscriptions",
+        ["user_id"],
+    )
+
     # Background jobs
     payload_type = json_type
     op.create_table(
@@ -831,6 +941,35 @@ def upgrade() -> None:
         "ix_background_jobs_type_status",
         "background_jobs",
         ["type", "status"],
+    )
+
+    op.add_column(
+        "bookings",
+        sa.Column(
+            "reminder_24h_sent",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
+    )
+    op.add_column(
+        "bookings",
+        sa.Column(
+            "reminder_1h_sent",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
+    )
+
+    op.add_column(
+        "users",
+        sa.Column(
+            "phone_verified",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
     )
 
     # Performance indexes (from 005_performance_indexes)
@@ -1056,6 +1195,10 @@ def downgrade() -> None:
         for table_name in tables:
             _drop_permissive_policy_and_disable_rls(table_name)
 
+    op.drop_column("bookings", "reminder_1h_sent")
+    op.drop_column("bookings", "reminder_24h_sent")
+    op.drop_column("users", "phone_verified")
+
     op.drop_index("ix_search_clicks_instructor_id", table_name="search_clicks")
     op.drop_index("ix_message_reactions_message_id", table_name="message_reactions")
     op.drop_index("ix_reviews_student_id", table_name="reviews")
@@ -1091,6 +1234,19 @@ def downgrade() -> None:
     op.drop_index("ix_background_jobs_type_status", table_name="background_jobs")
     op.drop_index("ix_background_jobs_status_available", table_name="background_jobs")
     op.drop_table("background_jobs")
+
+    op.drop_index("ix_push_subscriptions_user_id", table_name="push_subscriptions")
+    op.drop_table("push_subscriptions")
+
+    op.drop_index("ix_notifications_user_created_at", table_name="notifications")
+    op.drop_index("ix_notifications_type", table_name="notifications")
+    op.drop_index("ix_notifications_deleted_at", table_name="notifications")
+    op.drop_index("ix_notifications_user_category", table_name="notifications")
+    op.drop_index("ix_notifications_user_read_at", table_name="notifications")
+    op.drop_table("notifications")
+
+    op.drop_index("ix_notification_preferences_user_id", table_name="notification_preferences")
+    op.drop_table("notification_preferences")
 
     op.drop_index("ix_notification_delivery_event_type_delivered_at", table_name="notification_delivery")
     op.drop_table("notification_delivery")
