@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import type {
   BookingListResponse,
@@ -15,6 +15,7 @@ import {
   useRescheduleBooking,
   useCompleteBooking,
   useMarkBookingNoShow,
+  fetchBookingsList,
 } from '@/src/api/services/bookings';
 
 /**
@@ -24,13 +25,16 @@ import {
  *
  * ✅ MIGRATED TO V1 - Uses /api/v1/bookings endpoint with upcoming_only filter
  *
+ * @param pageOrEnabled - Page number (1-based) or legacy enabled flag (ignored)
  * @param _enabled - Legacy parameter kept for backward compatibility but not used (v1 hooks don't support enabled)
  */
-export function useCurrentLessons(_enabled: boolean = true) {
+export function useCurrentLessons(pageOrEnabled: number | boolean = 1, _enabled: boolean = true) {
+  const page = typeof pageOrEnabled === 'number' ? pageOrEnabled : 1;
   // Use v1 service with upcoming_only filter to get full booking objects
   const result = useBookingsList({
     upcoming_only: true,
-    per_page: 100,
+    page,
+    per_page: 10,
   });
 
   // Map v1 response shape to legacy shape for backward compatibility
@@ -39,11 +43,48 @@ export function useCurrentLessons(_enabled: boolean = true) {
     data: result.data ? {
       items: result.data.items as Booking[],
       total: result.data.total,
-      page: result.data.page ?? 1,
-      per_page: result.data.per_page ?? 100,
+      page: result.data.page ?? page,
+      per_page: result.data.per_page ?? 10,
       has_next: result.data.has_next,
       has_prev: result.data.has_prev,
     } as BookingListResponse : undefined,
+  };
+}
+
+/**
+ * Hook to fetch current/upcoming lessons with infinite pagination.
+ *
+ * Uses /api/v1/bookings endpoint with upcoming_only filter.
+ */
+export function useCurrentLessonsInfinite() {
+  const query = useInfiniteQuery({
+    queryKey: queryKeys.bookings.upcoming(10),
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      fetchBookingsList({
+        upcoming_only: true,
+        page: pageParam,
+        per_page: 10,
+      }),
+    getNextPageParam: (lastPage) =>
+      lastPage.has_next ? (lastPage.page ?? 1) + 1 : undefined,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const data = query.data
+    ? ({
+      items: query.data.pages.flatMap((page) => page.items ?? []) as Booking[],
+      total: query.data.pages[0]?.total ?? 0,
+      page: query.data.pages.at(-1)?.page ?? 1,
+      per_page: query.data.pages[0]?.per_page ?? 10,
+      has_next: query.hasNextPage ?? false,
+      has_prev: query.data.pages[0]?.has_prev ?? false,
+    } as BookingListResponse)
+    : undefined;
+
+  return {
+    ...query,
+    data,
   };
 }
 
@@ -58,7 +99,7 @@ export function useCurrentLessons(_enabled: boolean = true) {
  * @param _enabled - Legacy parameter kept for backward compatibility but not used
  */
 export function useCompletedLessons(page: number = 1, _enabled: boolean = true) {
-  const result = useBookingsHistory(page, 50);
+  const result = useBookingsHistory(page, 10);
 
   // Map v1 response shape to legacy shape for backward compatibility
   return {
@@ -66,11 +107,48 @@ export function useCompletedLessons(page: number = 1, _enabled: boolean = true) 
     data: result.data ? {
       items: result.data.items as Booking[],
       total: result.data.total,
-      page: result.data.page ?? 1,
-      per_page: result.data.per_page ?? 50,
+      page: result.data.page ?? page,
+      per_page: result.data.per_page ?? 10,
       has_next: result.data.has_next,
       has_prev: result.data.has_prev,
     } as BookingListResponse : undefined,
+  };
+}
+
+/**
+ * Hook to fetch lesson history with infinite pagination.
+ *
+ * Uses /api/v1/bookings endpoint with exclude_future_confirmed filter.
+ */
+export function useCompletedLessonsInfinite() {
+  const query = useInfiniteQuery({
+    queryKey: queryKeys.bookings.history(),
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      fetchBookingsList({
+        exclude_future_confirmed: true,
+        page: pageParam,
+        per_page: 10,
+      }),
+    getNextPageParam: (lastPage) =>
+      lastPage.has_next ? (lastPage.page ?? 1) + 1 : undefined,
+    staleTime: 1000 * 60 * 15,
+  });
+
+  const data = query.data
+    ? ({
+      items: query.data.pages.flatMap((page) => page.items ?? []) as Booking[],
+      total: query.data.pages[0]?.total ?? 0,
+      page: query.data.pages.at(-1)?.page ?? 1,
+      per_page: query.data.pages[0]?.per_page ?? 10,
+      has_next: query.hasNextPage ?? false,
+      has_prev: query.data.pages[0]?.has_prev ?? false,
+    } as BookingListResponse)
+    : undefined;
+
+  return {
+    ...query,
+    data,
   };
 }
 

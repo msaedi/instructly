@@ -43,8 +43,8 @@ jest.mock('@/features/shared/hooks/useAuth', () => {
 
 // Mock the lesson hooks
 jest.mock('@/hooks/useMyLessons', () => ({
-  useCurrentLessons: jest.fn(),
-  useCompletedLessons: jest.fn(),
+  useCurrentLessonsInfinite: jest.fn(),
+  useCompletedLessonsInfinite: jest.fn(),
   formatLessonStatus: jest.fn((status) => status),
 }));
 
@@ -120,7 +120,7 @@ describe('MyLessonsPage', () => {
     ],
     total: 2,
     page: 1,
-    per_page: 50,
+    per_page: 10,
     has_next: false,
     has_prev: false,
   };
@@ -174,7 +174,7 @@ describe('MyLessonsPage', () => {
     ],
     total: 2,
     page: 1,
-    per_page: 50,
+    per_page: 10,
     has_next: false,
     has_prev: false,
   };
@@ -202,14 +202,14 @@ describe('MyLessonsPage', () => {
   });
 
   it('renders the page with title and tabs', () => {
-    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
-    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
-    useCurrentLessons.mockReturnValue({
+    const useCurrentLessonsInfinite = myLessonsModule.useCurrentLessonsInfinite as jest.Mock;
+    const useCompletedLessonsInfinite = myLessonsModule.useCompletedLessonsInfinite as jest.Mock;
+    useCurrentLessonsInfinite.mockReturnValue({
       data: mockUpcomingLessons,
       isLoading: false,
       error: null,
     });
-    useCompletedLessons.mockReturnValue({
+    useCompletedLessonsInfinite.mockReturnValue({
       data: mockHistoryLessons,
       isLoading: false,
       error: null,
@@ -225,14 +225,14 @@ describe('MyLessonsPage', () => {
   });
 
   it('shows upcoming lessons by default', () => {
-    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
-    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
-    useCurrentLessons.mockReturnValue({
+    const useCurrentLessonsInfinite = myLessonsModule.useCurrentLessonsInfinite as jest.Mock;
+    const useCompletedLessonsInfinite = myLessonsModule.useCompletedLessonsInfinite as jest.Mock;
+    useCurrentLessonsInfinite.mockReturnValue({
       data: mockUpcomingLessons,
       isLoading: false,
       error: null,
     });
-    useCompletedLessons.mockReturnValue({
+    useCompletedLessonsInfinite.mockReturnValue({
       data: mockHistoryLessons,
       isLoading: false,
       error: null,
@@ -247,14 +247,14 @@ describe('MyLessonsPage', () => {
   });
 
   it('switches to history tab when clicked', async () => {
-    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
-    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
-    useCurrentLessons.mockReturnValue({
+    const useCurrentLessonsInfinite = myLessonsModule.useCurrentLessonsInfinite as jest.Mock;
+    const useCompletedLessonsInfinite = myLessonsModule.useCompletedLessonsInfinite as jest.Mock;
+    useCurrentLessonsInfinite.mockReturnValue({
       data: mockUpcomingLessons,
       isLoading: false,
       error: null,
     });
-    useCompletedLessons.mockReturnValue({
+    useCompletedLessonsInfinite.mockReturnValue({
       data: mockHistoryLessons,
       isLoading: false,
       error: null,
@@ -271,14 +271,14 @@ describe('MyLessonsPage', () => {
   });
 
   it('navigates to lesson details when card is clicked', () => {
-    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
-    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
-    useCurrentLessons.mockReturnValue({
+    const useCurrentLessonsInfinite = myLessonsModule.useCurrentLessonsInfinite as jest.Mock;
+    const useCompletedLessonsInfinite = myLessonsModule.useCompletedLessonsInfinite as jest.Mock;
+    useCurrentLessonsInfinite.mockReturnValue({
       data: mockUpcomingLessons,
       isLoading: false,
       error: null,
     });
-    useCompletedLessons.mockReturnValue({
+    useCompletedLessonsInfinite.mockReturnValue({
       data: mockHistoryLessons,
       isLoading: false,
       error: null,
@@ -294,14 +294,14 @@ describe('MyLessonsPage', () => {
   });
 
   it('shows loading state', () => {
-    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
-    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
-    useCurrentLessons.mockReturnValue({
+    const useCurrentLessonsInfinite = myLessonsModule.useCurrentLessonsInfinite as jest.Mock;
+    const useCompletedLessonsInfinite = myLessonsModule.useCompletedLessonsInfinite as jest.Mock;
+    useCurrentLessonsInfinite.mockReturnValue({
       data: null,
       isLoading: true,
       error: null,
     });
-    useCompletedLessons.mockReturnValue({
+    useCompletedLessonsInfinite.mockReturnValue({
       data: null,
       isLoading: false,
       error: null,
@@ -315,14 +315,14 @@ describe('MyLessonsPage', () => {
   });
 
   it('shows error state with retry button', () => {
-    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
-    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
-    useCurrentLessons.mockReturnValue({
+    const useCurrentLessonsInfinite = myLessonsModule.useCurrentLessonsInfinite as jest.Mock;
+    const useCompletedLessonsInfinite = myLessonsModule.useCompletedLessonsInfinite as jest.Mock;
+    useCurrentLessonsInfinite.mockReturnValue({
       data: null,
       isLoading: false,
       error: new Error('Network error'),
     });
-    useCompletedLessons.mockReturnValue({
+    useCompletedLessonsInfinite.mockReturnValue({
       data: null,
       isLoading: false,
       error: null,
@@ -338,15 +338,15 @@ describe('MyLessonsPage', () => {
   });
 
   it('shows empty state for upcoming lessons', () => {
-    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
-    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
-    useCurrentLessons.mockReturnValue({
-      data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
+    const useCurrentLessonsInfinite = myLessonsModule.useCurrentLessonsInfinite as jest.Mock;
+    const useCompletedLessonsInfinite = myLessonsModule.useCompletedLessonsInfinite as jest.Mock;
+    useCurrentLessonsInfinite.mockReturnValue({
+      data: { items: [], total: 0, page: 1, per_page: 10, has_next: false, has_prev: false },
       isLoading: false,
       error: null,
     });
-    useCompletedLessons.mockReturnValue({
-      data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
+    useCompletedLessonsInfinite.mockReturnValue({
+      data: { items: [], total: 0, page: 1, per_page: 10, has_next: false, has_prev: false },
       isLoading: false,
       error: null,
     });
@@ -358,15 +358,15 @@ describe('MyLessonsPage', () => {
   });
 
   it('shows empty state for history', async () => {
-    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
-    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
-    useCurrentLessons.mockReturnValue({
-      data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
+    const useCurrentLessonsInfinite = myLessonsModule.useCurrentLessonsInfinite as jest.Mock;
+    const useCompletedLessonsInfinite = myLessonsModule.useCompletedLessonsInfinite as jest.Mock;
+    useCurrentLessonsInfinite.mockReturnValue({
+      data: { items: [], total: 0, page: 1, per_page: 10, has_next: false, has_prev: false },
       isLoading: false,
       error: null,
     });
-    useCompletedLessons.mockReturnValue({
-      data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
+    useCompletedLessonsInfinite.mockReturnValue({
+      data: { items: [], total: 0, page: 1, per_page: 10, has_next: false, has_prev: false },
       isLoading: false,
       error: null,
     });
@@ -407,14 +407,14 @@ describe('MyLessonsPage', () => {
       redirectToLogin: mockRedirectToLogin,
     });
 
-    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
-    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
-    useCurrentLessons.mockReturnValue({
+    const useCurrentLessonsInfinite = myLessonsModule.useCurrentLessonsInfinite as jest.Mock;
+    const useCompletedLessonsInfinite = myLessonsModule.useCompletedLessonsInfinite as jest.Mock;
+    useCurrentLessonsInfinite.mockReturnValue({
       data: null,
       isLoading: false,
       error: { status: 401, message: 'Unauthorized' },
     });
-    useCompletedLessons.mockReturnValue({
+    useCompletedLessonsInfinite.mockReturnValue({
       data: null,
       isLoading: false,
       error: null,
@@ -441,15 +441,15 @@ describe('MyLessonsPage', () => {
   });
 
   it('shows correct empty state message for upcoming lessons', () => {
-    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
-    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
-    useCurrentLessons.mockReturnValue({
-      data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
+    const useCurrentLessonsInfinite = myLessonsModule.useCurrentLessonsInfinite as jest.Mock;
+    const useCompletedLessonsInfinite = myLessonsModule.useCompletedLessonsInfinite as jest.Mock;
+    useCurrentLessonsInfinite.mockReturnValue({
+      data: { items: [], total: 0, page: 1, per_page: 10, has_next: false, has_prev: false },
       isLoading: false,
       error: null,
     });
-    useCompletedLessons.mockReturnValue({
-      data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
+    useCompletedLessonsInfinite.mockReturnValue({
+      data: { items: [], total: 0, page: 1, per_page: 10, has_next: false, has_prev: false },
       isLoading: false,
       error: null,
     });
@@ -462,14 +462,14 @@ describe('MyLessonsPage', () => {
   });
 
   it('maintains tab state when switching between tabs', async () => {
-    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
-    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
-    useCurrentLessons.mockReturnValue({
+    const useCurrentLessonsInfinite = myLessonsModule.useCurrentLessonsInfinite as jest.Mock;
+    const useCompletedLessonsInfinite = myLessonsModule.useCompletedLessonsInfinite as jest.Mock;
+    useCurrentLessonsInfinite.mockReturnValue({
       data: mockUpcomingLessons,
       isLoading: false,
       error: null,
     });
-    useCompletedLessons.mockReturnValue({
+    useCompletedLessonsInfinite.mockReturnValue({
       data: mockHistoryLessons,
       isLoading: false,
       error: null,

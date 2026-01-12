@@ -47,7 +47,14 @@ export const queryKeys = {
    */
   bookings: {
     /** List student bookings */
-    student: (filters?: { status?: string }) =>
+    student: (filters?: {
+      status?: string;
+      page?: number;
+      per_page?: number;
+      upcoming_only?: boolean;
+      exclude_future_confirmed?: boolean;
+      limit?: number;
+    }) =>
       ['bookings', CACHE_VERSION, 'student', filters ?? {}] as const,
 
     /** List instructor bookings */
