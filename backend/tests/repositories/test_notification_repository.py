@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from app.core.exceptions import RepositoryException
-from app.models.notification import LOCKED_NOTIFICATION_PREFERENCES
+from app.models.notification import LOCKED_NOTIFICATION_PREFERENCES, Notification
 from app.repositories.notification_repository import NotificationRepository
 
 
@@ -224,6 +224,25 @@ def test_mark_all_as_read(db, test_student, test_instructor):
     assert updated == 2
     assert repo.get_unread_count(test_student.id) == 0
     assert repo.get_unread_count(test_instructor.id) == 1
+
+
+def test_delete_notification_prevents_idor(db, test_student, test_instructor):
+    repo = NotificationRepository(db)
+    notification = repo.create_notification(
+        user_id=test_student.id,
+        category="lesson_updates",
+        type="booking_confirmed",
+        title="Test Notification",
+    )
+    db.commit()
+
+    deleted = repo.delete_notification(test_instructor.id, notification.id)
+    db.commit()
+
+    assert deleted is False
+    fetched = db.get(Notification, notification.id)
+    assert fetched is not None
+    assert fetched.deleted_at is None
 
 
 def test_create_subscription(db, test_student):

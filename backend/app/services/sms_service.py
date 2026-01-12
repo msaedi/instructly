@@ -79,7 +79,13 @@ class SMSService:
             return None, SMSStatus.ERROR
 
         if len(message) > 1600:
+            original_length = len(message)
             message = message[:1597] + "..."
+            logger.warning(
+                "SMS message truncated from %s to 1600 chars for recipient %s",
+                original_length,
+                to_number[-4:],
+            )
 
         segments = self._count_sms_segments(message)
         if segments > 1:

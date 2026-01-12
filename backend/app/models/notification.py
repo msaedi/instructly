@@ -93,6 +93,7 @@ class Notification(Base):
     body = Column(Text, nullable=True)
     data = Column(JSON, nullable=True)
     read_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     user = relationship("User", foreign_keys=[user_id])
@@ -105,6 +106,7 @@ class Notification(Base):
         Index("ix_notifications_user_read_at", "user_id", "read_at"),
         Index("ix_notifications_user_category", "user_id", "category"),
         Index("ix_notifications_type", "type"),
+        Index("ix_notifications_deleted_at", "deleted_at"),
         Index(
             "ix_notifications_user_created_at",
             "user_id",

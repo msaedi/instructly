@@ -1147,7 +1147,9 @@ def test_instructor(db: Session, test_password: str) -> User:
 
     # Assign instructor role
     permission_service = PermissionService(db)
-    permission_service.assign_role(instructor.id, RoleName.INSTRUCTOR)
+    assigned = permission_service.assign_role(instructor.id, RoleName.INSTRUCTOR)
+    if not assigned:
+        db.commit()
     db.refresh(instructor)
 
     # Create instructor profile

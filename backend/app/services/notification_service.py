@@ -1714,6 +1714,7 @@ class NotificationService(BaseService):
             loop = asyncio.get_running_loop()
             loop.create_task(_with_error_handling())
         except RuntimeError:
+            # Avoid cross-thread Session use; run in-thread when no loop is active.
             try:
                 asyncio.run(_with_error_handling())
             except Exception as exc:  # pragma: no cover - best effort logging

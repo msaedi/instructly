@@ -841,6 +841,7 @@ def upgrade() -> None:
         sa.Column("body", sa.Text(), nullable=True),
         sa.Column("data", json_type, nullable=True),
         sa.Column("read_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.PrimaryKeyConstraint("id"),
         sa.CheckConstraint(
@@ -864,6 +865,11 @@ def upgrade() -> None:
         "ix_notifications_user_category",
         "notifications",
         ["user_id", "category"],
+    )
+    op.create_index(
+        "ix_notifications_deleted_at",
+        "notifications",
+        ["deleted_at"],
     )
     op.create_index(
         "ix_notifications_type",
@@ -1234,6 +1240,7 @@ def downgrade() -> None:
 
     op.drop_index("ix_notifications_user_created_at", table_name="notifications")
     op.drop_index("ix_notifications_type", table_name="notifications")
+    op.drop_index("ix_notifications_deleted_at", table_name="notifications")
     op.drop_index("ix_notifications_user_category", table_name="notifications")
     op.drop_index("ix_notifications_user_read_at", table_name="notifications")
     op.drop_table("notifications")

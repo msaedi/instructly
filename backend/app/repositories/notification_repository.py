@@ -144,7 +144,10 @@ class NotificationRepository(BaseRepository[Notification]):
         offset: int = 0,
         unread_only: bool = False,
     ) -> List[Notification]:
-        query = self.db.query(Notification).filter(Notification.user_id == user_id)
+        query = self.db.query(Notification).filter(
+            Notification.user_id == user_id,
+            Notification.deleted_at.is_(None),
+        )
         if unread_only:
             query = query.filter(Notification.read_at.is_(None))
         query = (
@@ -155,7 +158,10 @@ class NotificationRepository(BaseRepository[Notification]):
         return cast(List[Notification], query.all())
 
     def get_user_notification_count(self, user_id: str, unread_only: bool = False) -> int:
-        query = self.db.query(func.count(Notification.id)).filter(Notification.user_id == user_id)
+        query = self.db.query(func.count(Notification.id)).filter(
+            Notification.user_id == user_id,
+            Notification.deleted_at.is_(None),
+        )
         if unread_only:
             query = query.filter(Notification.read_at.is_(None))
         count = query.scalar()
@@ -164,7 +170,11 @@ class NotificationRepository(BaseRepository[Notification]):
     def get_unread_count(self, user_id: str) -> int:
         count = (
             self.db.query(func.count(Notification.id))
-            .filter(Notification.user_id == user_id, Notification.read_at.is_(None))
+            .filter(
+                Notification.user_id == user_id,
+                Notification.read_at.is_(None),
+                Notification.deleted_at.is_(None),
+            )
             .scalar()
         )
         return int(count or 0)
@@ -173,7 +183,11 @@ class NotificationRepository(BaseRepository[Notification]):
         now = datetime.now(timezone.utc)
         updated = (
             self.db.query(Notification)
-            .filter(Notification.id == notification_id, Notification.read_at.is_(None))
+            .filter(
+                Notification.id == notification_id,
+                Notification.read_at.is_(None),
+                Notification.deleted_at.is_(None),
+            )
             .update({"read_at": now}, synchronize_session="fetch")
         )
         return bool(updated)
@@ -186,6 +200,7 @@ class NotificationRepository(BaseRepository[Notification]):
                 Notification.id == notification_id,
                 Notification.user_id == user_id,
                 Notification.read_at.is_(None),
+                Notification.deleted_at.is_(None),
             )
             .update({"read_at": now}, synchronize_session="fetch")
         )
@@ -195,27 +210,41 @@ class NotificationRepository(BaseRepository[Notification]):
         now = datetime.now(timezone.utc)
         updated = (
             self.db.query(Notification)
-            .filter(Notification.user_id == user_id, Notification.read_at.is_(None))
+            .filter(
+                Notification.user_id == user_id,
+                Notification.read_at.is_(None),
+                Notification.deleted_at.is_(None),
+            )
             .update({"read_at": now}, synchronize_session="fetch")
         )
         return int(updated or 0)
 
     def delete_notification(self, user_id: str, notification_id: str) -> bool:
-        deleted = (
+        notification = (
             self.db.query(Notification)
             .filter(
                 Notification.user_id == user_id,
                 Notification.id == notification_id,
+                Notification.deleted_at.is_(None),
             )
-            .delete(synchronize_session=False)
+            .first()
         )
-        return bool(deleted)
+        if not notification:
+            return False
+
+        notification.deleted_at = datetime.now(timezone.utc)
+        self.db.flush()
+        return True
 
     def delete_all_for_user(self, user_id: str) -> int:
+        now = datetime.now(timezone.utc)
         deleted = (
             self.db.query(Notification)
-            .filter(Notification.user_id == user_id)
-            .delete(synchronize_session=False)
+            .filter(
+                Notification.user_id == user_id,
+                Notification.deleted_at.is_(None),
+            )
+            .update({"deleted_at": now}, synchronize_session="fetch")
         )
         return int(deleted or 0)
 
