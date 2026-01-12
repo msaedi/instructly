@@ -195,14 +195,11 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   };
 
   const renderPushToggle = () => (
-    <input
-      type="checkbox"
+    <ToggleSwitch
       checked={pushEnabled}
-      onChange={(event) => void handlePushToggle(event.target.checked)}
+      onChange={() => void handlePushToggle(!pushEnabled)}
       disabled={pushDisabled}
-      title={pushToggleTitle}
-      aria-label="Push notifications"
-      className={pushDisabled ? 'cursor-not-allowed' : undefined}
+      {...(pushToggleTitle ? { title: pushToggleTitle } : {})}
     />
   );
 
@@ -222,21 +219,47 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     return preferences?.[category]?.[channel] ?? fallback;
   };
 
+  const ToggleSwitch = ({
+    checked,
+    onChange,
+    disabled = false,
+    title,
+  }: {
+    checked: boolean;
+    onChange: () => void;
+    disabled?: boolean;
+    title?: string;
+  }) => (
+    <button
+      type="button"
+      onClick={onChange}
+      disabled={disabled}
+      title={title}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+        checked ? 'bg-purple-600' : 'bg-gray-200'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+    >
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+          checked ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </button>
+  );
+
   const renderPreferenceToggle = (
     category: PreferenceCategory,
     channel: PreferenceChannel,
     options?: { disabled?: boolean; title?: string }
   ) => {
     const isDisabled = options?.disabled ?? preferencesDisabled;
+    const title = options?.title;
     return (
-      <input
-        type="checkbox"
+      <ToggleSwitch
         checked={getPreferenceValue(category, channel)}
-        onChange={(event) => updatePreference(category, channel, event.target.checked)}
+        onChange={() => updatePreference(category, channel, !getPreferenceValue(category, channel))}
         disabled={isDisabled}
-        title={options?.title}
-        aria-label={`${category} ${channel} notifications`}
-        className={isDisabled ? 'cursor-not-allowed' : undefined}
+        {...(title ? { title } : {})}
       />
     );
   };
@@ -325,82 +348,80 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
           </div>
           {renderPushStatus()}
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-500">
-                <th className="font-medium pr-6">Form of Communication</th>
-                <th className="font-medium pr-6">Email</th>
-                <th className="font-medium pr-6">SMS</th>
-                <th className="font-medium">Push Notification</th>
-              </tr>
-            </thead>
-            <tbody className="align-top">
-              <tr className="text-gray-800">
-                <td className="py-2 pr-6">
-                  <div className="font-medium text-gray-900">Lesson updates</div>
-                  <div className="text-xs text-gray-500">Bookings, cancellations, reminders</div>
-                </td>
-                <td className="pr-6">
-                  {renderPreferenceToggle('lesson_updates', 'email')}
-                </td>
-                <td className="pr-6">
-                  {renderPreferenceToggle('lesson_updates', 'sms', smsPreferenceOptions)}
-                </td>
-                <td>
-                  {renderPreferenceToggle('lesson_updates', 'push', pushPreferenceOptions)}
-                </td>
-              </tr>
-              <tr className="text-gray-800">
-                <td className="py-2 pr-6">
-                  <div className="font-medium text-gray-900">Reviews</div>
-                  <div className="text-xs text-gray-500">New reviews, review responses</div>
-                </td>
-                <td className="pr-6">
-                  {renderPreferenceToggle('reviews', 'email')}
-                </td>
-                <td className="pr-6">
-                  {renderPreferenceToggle('reviews', 'sms', smsPreferenceOptions)}
-                </td>
-                <td>
-                  {renderPreferenceToggle('reviews', 'push', pushPreferenceOptions)}
-                </td>
-              </tr>
-              <tr className="text-gray-800">
-                <td className="py-2 pr-6">
-                  <div className="font-medium text-gray-900">Promotional emails and notifications</div>
-                  <div className="text-xs text-gray-500">New features, tips, special offers</div>
-                </td>
-                <td className="pr-6">
-                  {renderPreferenceToggle('promotional', 'email')}
-                </td>
-                <td className="pr-6">
-                  {renderPreferenceToggle('promotional', 'sms', smsPreferenceOptions)}
-                </td>
-                <td>
-                  {renderPreferenceToggle('promotional', 'push', pushPreferenceOptions)}
-                </td>
-              </tr>
-              <tr className="text-gray-800">
-                <td className="py-2 pr-6">
-                  <div className="font-medium text-gray-900">Messages</div>
-                  <div className="text-xs text-gray-500">New chats and replies from students</div>
-                </td>
-                <td className="pr-6">
-                  {renderPreferenceToggle('messages', 'email')}
-                </td>
-                <td className="pr-6">
-                  {renderPreferenceToggle('messages', 'sms', smsPreferenceOptions)}
-                </td>
-                <td>
-                  {renderPreferenceToggle('messages', 'push', {
-                    disabled: true,
-                    title: 'Push notifications for messages are required.',
-                  })}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="space-y-4">
+          <div className="grid grid-cols-4 gap-4 pb-3 border-b border-gray-200">
+            <div className="text-sm font-medium text-gray-700">Notification Type</div>
+            <div className="text-sm font-medium text-gray-700 text-center">Email</div>
+            <div className="text-sm font-medium text-gray-700 text-center">SMS</div>
+            <div className="text-sm font-medium text-gray-700 text-center">Push</div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-4 items-start py-2">
+            <div>
+              <div className="font-medium text-gray-900">Lesson Updates</div>
+              <div className="text-xs text-gray-500">Booking confirmations, reminders, cancellations</div>
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('lesson_updates', 'email')}
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('lesson_updates', 'sms', smsPreferenceOptions)}
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('lesson_updates', 'push', pushPreferenceOptions)}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-4 items-start py-2">
+            <div>
+              <div className="font-medium text-gray-900">Messages</div>
+              <div className="text-xs text-gray-500">Direct messages from students</div>
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('messages', 'email')}
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('messages', 'sms', smsPreferenceOptions)}
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('messages', 'push', {
+                disabled: true,
+                title: 'Push notifications for messages are required.',
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-4 items-start py-2">
+            <div>
+              <div className="font-medium text-gray-900">Reviews</div>
+              <div className="text-xs text-gray-500">New reviews, review responses</div>
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('reviews', 'email')}
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('reviews', 'sms', smsPreferenceOptions)}
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('reviews', 'push', pushPreferenceOptions)}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-4 items-start py-2">
+            <div>
+              <div className="font-medium text-gray-900">Promotional</div>
+              <div className="text-xs text-gray-500">Discounts, special offers, new features</div>
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('promotional', 'email')}
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('promotional', 'sms', smsPreferenceOptions)}
+            </div>
+            <div className="flex justify-center">
+              {renderPreferenceToggle('promotional', 'push', pushPreferenceOptions)}
+            </div>
+          </div>
         </div>
     </div>
     );
