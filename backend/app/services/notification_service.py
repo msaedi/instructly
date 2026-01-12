@@ -132,18 +132,34 @@ class NotificationService(BaseService):
             template_service: Optional TemplateService instance (will create if not provided)
             email_service: Optional EmailService instance (will create if not provided)
         """
-        # Initialize BaseService with a dummy session if none provided
-        # This maintains compatibility with the original interface
+        db = self._resolve_db(db)
+        cache_service, cache_adapter = self._resolve_cache(cache)
+        super().__init__(db, cache_adapter)
+
+        self._init_email_service(db, cache_adapter, email_service)
+        self._init_template_service(db, cache_adapter, template_service)
+        self._init_repositories(db, notification_repository)
+        self._init_push_service(db, push_service)
+        self._init_preference_service(db, preference_service, cache_adapter)
+        self._init_sms_service(sms_service, cache_service)
+
+        self.frontend_url = settings.frontend_url
+
+    def _resolve_db(self, db: Optional[Session]) -> Session:
         if db is None:
             from app.database import SessionLocal
 
-            db = SessionLocal()
             self._owns_db = True
-        else:
-            self._owns_db = False
+            return SessionLocal()
 
+        self._owns_db = False
+        return db
+
+    def _resolve_cache(
+        self, cache: Any | None
+    ) -> tuple[CacheService | None, CacheServiceSyncAdapter | None]:
         cache_service: CacheService | None = None
-        cache_adapter = None
+        cache_adapter: CacheServiceSyncAdapter | None = None
 
         if isinstance(cache, CacheService):
             cache_service = cache
@@ -160,42 +176,73 @@ class NotificationService(BaseService):
                 cache_service = None
                 cache_adapter = None
 
-        super().__init__(db, cache_adapter)
+        return cache_service, cache_adapter
 
-        # Use dependency injection for EmailService
+    def _init_email_service(
+        self,
+        db: Session,
+        cache_adapter: CacheServiceSyncAdapter | None,
+        email_service: Optional[EmailService],
+    ) -> None:
         if email_service is None:
-            # Create our own instance if not provided
             self.email_service = EmailService(db, cache_adapter)
             self._owns_email_service = True
-        else:
-            self.email_service = email_service
-            self._owns_email_service = False
+            return
 
-        # Use dependency injection for TemplateService
+        self.email_service = email_service
+        self._owns_email_service = False
+
+    def _init_template_service(
+        self,
+        db: Session,
+        cache_adapter: CacheServiceSyncAdapter | None,
+        template_service: Optional[TemplateService],
+    ) -> None:
         if template_service is None:
-            # Create our own instance if not provided
             self.template_service = TemplateService(db, cache_adapter)
             self._owns_template_service = True
-        else:
-            self.template_service = template_service
-            self._owns_template_service = False
+            return
 
+        self.template_service = template_service
+        self._owns_template_service = False
+
+    def _init_repositories(
+        self,
+        db: Session,
+        notification_repository: Optional[NotificationRepository],
+    ) -> None:
         self.notification_repository = notification_repository or NotificationRepository(db)
         self.user_repository = UserRepository(db)
+
+    def _init_push_service(
+        self, db: Session, push_service: Optional[PushNotificationService]
+    ) -> None:
         self.push_notification_service = push_service or PushNotificationService(
             db, self.notification_repository
         )
+
+    def _init_preference_service(
+        self,
+        db: Session,
+        preference_service: Optional[NotificationPreferenceService],
+        cache_adapter: CacheServiceSyncAdapter | None,
+    ) -> None:
         self.preference_service = preference_service or NotificationPreferenceService(
             db, self.notification_repository, cache_adapter
         )
+
+    def _init_sms_service(
+        self,
+        sms_service: Optional[SMSService],
+        cache_service: CacheService | None,
+    ) -> None:
         if sms_service is None:
             self.sms_service = SMSService(cache_service)
-        else:
-            if cache_service is not None and getattr(sms_service, "cache_service", None) is None:
-                sms_service.cache_service = cache_service
-            self.sms_service = sms_service
+            return
 
-        self.frontend_url = settings.frontend_url
+        if cache_service is not None and getattr(sms_service, "cache_service", None) is None:
+            sms_service.cache_service = cache_service
+        self.sms_service = sms_service
 
     def __del__(self) -> None:
         """Clean up the database session if we created it."""

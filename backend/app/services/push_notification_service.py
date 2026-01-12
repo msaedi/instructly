@@ -34,6 +34,16 @@ class PushNotificationService(BaseService):
         super().__init__(db)
         self.notification_repository = notification_repository or NotificationRepository(db)
         self._last_send_expired = False
+        self._frontend_base = settings.frontend_url.rstrip("/")
+
+    def _resolve_asset_url(self, path: str) -> str:
+        if path.startswith("http://") or path.startswith("https://"):
+            return path
+        if not self._frontend_base:
+            return path
+        if not path.startswith("/"):
+            path = f"/{path}"
+        return f"{self._frontend_base}{path}"
 
     @BaseService.measure_operation("subscribe")
     def subscribe(
@@ -212,8 +222,8 @@ class PushNotificationService(BaseService):
         payload: Dict[str, Any] = {
             "title": title,
             "body": body,
-            "icon": icon or DEFAULT_ICON,
-            "badge": badge or DEFAULT_BADGE,
+            "icon": self._resolve_asset_url(icon or DEFAULT_ICON),
+            "badge": self._resolve_asset_url(badge or DEFAULT_BADGE),
             "tag": tag,
             "data": payload_data or None,
         }
