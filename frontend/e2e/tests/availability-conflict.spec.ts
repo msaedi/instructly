@@ -35,7 +35,7 @@ const formatISODate = (date: Date) => {
 const createWeekContext = (): WeekContext => {
   const now = new Date();
   const base = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const offset = (8 - base.getUTCDay()) % 7;
+  const offset = ((8 - base.getUTCDay()) % 7) || 7;
   base.setUTCDate(base.getUTCDate() + offset);
   base.setUTCHours(0, 0, 0, 0);
   const next = new Date(base);
