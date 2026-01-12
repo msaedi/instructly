@@ -865,6 +865,11 @@ def upgrade() -> None:
         "notifications",
         ["user_id", "category"],
     )
+    op.create_index(
+        "ix_notifications_type",
+        "notifications",
+        ["type"],
+    )
 
     op.create_table(
         "push_subscriptions",
@@ -1228,6 +1233,7 @@ def downgrade() -> None:
     op.drop_table("push_subscriptions")
 
     op.drop_index("ix_notifications_user_created_at", table_name="notifications")
+    op.drop_index("ix_notifications_type", table_name="notifications")
     op.drop_index("ix_notifications_user_category", table_name="notifications")
     op.drop_index("ix_notifications_user_read_at", table_name="notifications")
     op.drop_table("notifications")

@@ -104,6 +104,7 @@ class Notification(Base):
         ),
         Index("ix_notifications_user_read_at", "user_id", "read_at"),
         Index("ix_notifications_user_category", "user_id", "category"),
+        Index("ix_notifications_type", "type"),
         Index(
             "ix_notifications_user_created_at",
             "user_id",
