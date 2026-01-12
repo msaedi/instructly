@@ -5229,11 +5229,20 @@ export type PushSubscribeRequestUserAgent = string | null;
  * Request to subscribe to push notifications.
  */
 export interface PushSubscribeRequest {
-  /** Auth secret */
+  /**
+   * Auth secret
+   * @maxLength 512
+   */
   auth: string;
-  /** Push service endpoint URL */
+  /**
+   * Push service endpoint URL
+   * @maxLength 2048
+   */
   endpoint: string;
-  /** Public encryption key */
+  /**
+   * Public encryption key
+   * @maxLength 512
+   */
   p256dh: string;
   /** Browser/device info */
   user_agent?: PushSubscribeRequestUserAgent;

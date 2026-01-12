@@ -33,8 +33,10 @@ export function NotificationItem({ notification, onRead, onDelete }: Notificatio
 
   return (
     <div
-      role="button"
+      role="menuitem"
       tabIndex={0}
+      data-notification-item="true"
+      aria-label={`${notification.title}${isUnread ? ' (unread)' : ''}`}
       onClick={handleClick}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {

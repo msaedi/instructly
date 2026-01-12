@@ -51,6 +51,8 @@ E164_PATTERN = re.compile(r"^\+[1-9]\d{7,14}$")
 PHONE_VERIFY_TTL_SECONDS = 300
 PHONE_VERIFY_RATE_LIMIT = 3
 PHONE_VERIFY_WINDOW_SECONDS = 600
+PHONE_CONFIRM_MAX_ATTEMPTS = 5
+PHONE_CONFIRM_WINDOW_SECONDS = 300
 
 
 @router.post("/suspend", response_model=AccountStatusChangeResponse)
@@ -328,8 +330,62 @@ async def confirm_phone_verification(
     """Confirm phone verification with a code."""
     if not getattr(current_user, "phone", None):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No phone number set")
-    cached = await cache_service.get(f"phone_verify:{current_user.id}")
-    if not cached or str(cached) != request.code.strip():
+    code_key = f"phone_verify:{current_user.id}"
+    attempts_key = f"phone_confirm_attempts:{current_user.id}"
+    redis_client = None
+    try:
+        redis_client = await cache_service.get_redis_client()
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.warning("Failed to access Redis for phone verification attempts: %s", exc)
+
+    attempts = 0
+    if redis_client is not None:
+        try:
+            raw_attempts = await redis_client.get(attempts_key)
+            attempts = int(raw_attempts) if raw_attempts is not None else 0
+        except (TypeError, ValueError):
+            attempts = 0
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            logger.warning("Redis phone verification attempt lookup failed: %s", exc)
+    else:
+        cached_attempts = await cache_service.get(attempts_key)
+        try:
+            attempts = int(cached_attempts) if cached_attempts is not None else 0
+        except (TypeError, ValueError):
+            attempts = 0
+
+    if attempts >= PHONE_CONFIRM_MAX_ATTEMPTS:
+        await cache_service.delete(code_key)
+        if redis_client is not None:
+            await redis_client.delete(attempts_key)
+        else:
+            await cache_service.delete(attempts_key)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many verification attempts. Please request a new code.",
+        )
+
+    cached = await cache_service.get(code_key)
+    cached_code = None
+    if cached is not None:
+        cached_code = (
+            cached.decode("utf-8", errors="ignore") if isinstance(cached, bytes) else str(cached)
+        )
+    submitted_code = request.code.strip()
+    if not cached_code or not secrets.compare_digest(cached_code, submitted_code):
+        if redis_client is not None:
+            try:
+                next_attempts = await redis_client.incr(attempts_key)
+                if next_attempts == 1:
+                    await redis_client.expire(attempts_key, PHONE_CONFIRM_WINDOW_SECONDS)
+            except Exception as exc:  # pragma: no cover - defensive fallback
+                logger.warning("Redis phone verification attempt increment failed: %s", exc)
+        else:
+            await cache_service.set(
+                attempts_key,
+                attempts + 1,
+                ttl=PHONE_CONFIRM_WINDOW_SECONDS,
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired verification code",
@@ -340,7 +396,11 @@ async def confirm_phone_verification(
         user_repo.update_profile(current_user.id, phone_verified=True)
 
     await asyncio.to_thread(_mark_verified)
-    await cache_service.delete(f"phone_verify:{current_user.id}")
+    await cache_service.delete(code_key)
+    if redis_client is not None:
+        await redis_client.delete(attempts_key)
+    else:
+        await cache_service.delete(attempts_key)
 
     return PhoneVerifyResponse(verified=True)
 

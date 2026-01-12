@@ -6,6 +6,7 @@ import asyncio
 from datetime import datetime, timezone
 from enum import StrEnum
 import logging
+import math
 from typing import TYPE_CHECKING, Any, Optional
 
 from twilio.base.exceptions import TwilioRestException
@@ -79,6 +80,15 @@ class SMSService:
 
         if len(message) > 1600:
             message = message[:1597] + "..."
+
+        segments = self._count_sms_segments(message)
+        if segments > 1:
+            logger.info(
+                "SMS to %s: %s chars, %s segments",
+                to_number[-4:],
+                len(message),
+                segments,
+            )
 
         result = await asyncio.to_thread(self._send_sms_sync, to_number, message)
         if result is None:
@@ -162,6 +172,7 @@ class SMSService:
 
     async def _check_and_increment_rate_limit(self, user_id: str) -> bool:
         if not self.cache_service:
+            logger.warning("SMS rate limiting disabled - no cache service")
             return True
 
         key = f"sms_count:{user_id}:{self._current_date_key()}"
@@ -169,39 +180,43 @@ class SMSService:
         try:
             redis_client = await self.cache_service.get_redis_client()
         except Exception as exc:  # pragma: no cover - defensive fallback
-            logger.warning("Failed to access Redis for SMS rate limiting: %s", exc)
-
-        if redis_client is not None:
-            try:
-                count = await redis_client.incr(key)
-                if count == 1:
-                    await redis_client.expire(key, 86400)
-                if count > self.daily_limit:
-                    await redis_client.decr(key)
-                    logger.warning(
-                        "User %s exceeded daily SMS limit (%s)",
-                        user_id,
-                        self.daily_limit,
-                    )
-                    return False
-                return True
-            except Exception as exc:  # pragma: no cover - defensive fallback
-                logger.warning("Redis SMS rate limit increment failed: %s", exc)
-                return True
-
-        value = await self.cache_service.get(key)
-        try:
-            count = int(value) if value is not None else 0
-        except (TypeError, ValueError):
-            count = 0
-
-        if count >= self.daily_limit:
-            logger.warning("User %s exceeded daily SMS limit (%s)", user_id, self.daily_limit)
+            logger.error("Failed to access Redis for SMS rate limiting: %s", exc)
             return False
 
-        await self.cache_service.set(key, count + 1, ttl=86400)
-        return True
+        if redis_client is None:
+            logger.error("Redis unavailable for SMS rate limiting - denying request")
+            return False
+
+        try:
+            count = await redis_client.incr(key)
+            if count == 1:
+                await redis_client.expire(key, 86400)
+            if count > self.daily_limit:
+                await redis_client.decr(key)
+                logger.warning(
+                    "User %s exceeded daily SMS limit (%s)",
+                    user_id,
+                    self.daily_limit,
+                )
+                return False
+            return True
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            logger.error("SMS rate limit check failed: %s - denying request", exc)
+            return False
 
     @staticmethod
     def _current_date_key() -> str:
         return datetime.now(timezone.utc).date().isoformat()
+
+    @staticmethod
+    def _count_sms_segments(message: str) -> int:
+        if not message:
+            return 1
+        is_ascii = all(ord(ch) < 128 for ch in message)
+        if is_ascii:
+            if len(message) <= 160:
+                return 1
+            return math.ceil(len(message) / 153)
+        if len(message) <= 70:
+            return 1
+        return math.ceil(len(message) / 67)

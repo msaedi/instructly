@@ -96,7 +96,49 @@ export function useNotifications(params?: NotificationQueryParams) {
 
   const markAsRead = useMutation({
     mutationFn: (notificationId: string) => notificationApi.markAsRead(notificationId),
-    onSuccess: () => {
+    onMutate: async (notificationId: string) => {
+      await queryClient.cancelQueries({ queryKey: listQueryKey });
+      await queryClient.cancelQueries({ queryKey: unreadQueryKey });
+
+      const previousList = queryClient.getQueryData<NotificationListData>(listQueryKey);
+      const previousUnread = queryClient.getQueryData<{ unread_count: number }>(unreadQueryKey);
+
+      if (previousList) {
+        let didUpdate = false;
+        const nextNotifications = previousList.notifications.map((item) => {
+          if (item.id !== notificationId || item.read_at) {
+            return item;
+          }
+          didUpdate = true;
+          return { ...item, read_at: new Date().toISOString() };
+        });
+
+        if (didUpdate) {
+          queryClient.setQueryData<NotificationListData>(listQueryKey, {
+            ...previousList,
+            notifications: nextNotifications,
+            unread_count: Math.max(0, previousList.unread_count - 1),
+          });
+        }
+      }
+
+      if (previousUnread) {
+        queryClient.setQueryData(unreadQueryKey, {
+          unread_count: Math.max(0, previousUnread.unread_count - 1),
+        });
+      }
+
+      return { previousList, previousUnread };
+    },
+    onError: (_error, _notificationId, context) => {
+      if (context?.previousList) {
+        queryClient.setQueryData(listQueryKey, context.previousList);
+      }
+      if (context?.previousUnread) {
+        queryClient.setQueryData(unreadQueryKey, context.previousUnread);
+      }
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: listQueryKey });
       void queryClient.invalidateQueries({ queryKey: unreadQueryKey });
     },

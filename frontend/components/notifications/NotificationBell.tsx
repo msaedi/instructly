@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent,
   type MutableRefObject,
   type RefObject,
 } from 'react';
@@ -52,6 +53,8 @@ export function NotificationBell({
   );
 
   const localRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const rootRef = (containerRef ?? localRef) as RefObject<HTMLDivElement>;
 
   useEffect(() => {
@@ -68,6 +71,39 @@ export function NotificationBell({
 
   const badgeLabel = unreadCount > 9 ? '9+' : String(unreadCount);
   const errorMessage = error instanceof Error ? error.message : null;
+
+  const handleMenuKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setOpen(false);
+        buttonRef.current?.focus();
+        return;
+      }
+
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+        return;
+      }
+
+      const items = menuRef.current?.querySelectorAll<HTMLElement>(
+        '[data-notification-item="true"]'
+      );
+      if (!items || items.length === 0) {
+        return;
+      }
+
+      event.preventDefault();
+      const activeElement = document.activeElement as HTMLElement | null;
+      const currentIndex = activeElement ? Array.from(items).indexOf(activeElement) : -1;
+      const nextIndex =
+        event.key === 'ArrowDown'
+          ? (currentIndex + 1 + items.length) % items.length
+          : (currentIndex - 1 + items.length) % items.length;
+
+      items[nextIndex]?.focus();
+    },
+    [setOpen]
+  );
 
   const listContent = useMemo(() => {
     if (isLoading) {
@@ -93,6 +129,7 @@ export function NotificationBell({
     <div ref={rootRef} className={cn('relative', className)}>
       <button
         type="button"
+        ref={buttonRef}
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-haspopup="menu"
@@ -112,7 +149,14 @@ export function NotificationBell({
       </button>
 
       {open && (
-        <div role="menu" className="absolute right-0 mt-2 w-80 rounded-lg border border-gray-200 bg-white shadow-lg z-50">
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-live="polite"
+          aria-label="Notifications"
+          onKeyDown={handleMenuKeyDown}
+          className="absolute right-0 mt-2 w-80 rounded-lg border border-gray-200 bg-white shadow-lg z-50"
+        >
           <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2">
             <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
             {unreadCount > 0 && (
