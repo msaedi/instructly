@@ -40,7 +40,7 @@ from ...schemas.phone import (
 )
 from ...services.account_lifecycle_service import AccountLifecycleService
 from ...services.cache_service import CacheService
-from ...services.sms_service import SMSService
+from ...services.sms_service import SMSService, SMSStatus
 
 logger = logging.getLogger(__name__)
 
@@ -305,7 +305,15 @@ async def send_phone_verification(
         code,
         ttl=PHONE_VERIFY_TTL_SECONDS,
     )
-    await sms_service.send_sms(phone_number, f"InstaInstru: Your verification code is {code}")
+    _result, sms_status = await sms_service.send_sms_with_status(
+        phone_number,
+        f"InstaInstru: Your verification code is {code}",
+    )
+    if sms_status != SMSStatus.SUCCESS:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to send verification code. Please try again.",
+        )
 
     return PhoneVerifyResponse(sent=True)
 

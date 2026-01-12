@@ -62,6 +62,24 @@ const STUDENT_RECOMMENDED_PREFERENCES = {
 
 const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
 
+type PreferenceCategory = keyof typeof STUDENT_PREFERENCE_DEFAULTS;
+type PreferenceChannel = keyof (typeof STUDENT_PREFERENCE_DEFAULTS)['lesson_updates'];
+
+const CATEGORY_LABELS: Record<PreferenceCategory, string> = {
+  lesson_updates: 'Lesson Updates',
+  messages: 'Messages',
+  reviews: 'Reviews',
+  learning_tips: 'Learning Tips & Achievements',
+  system_updates: 'System & Policy Updates',
+  promotional: 'Promotional Offers',
+};
+
+const CHANNEL_LABELS: Record<PreferenceChannel, string> = {
+  email: 'Email',
+  sms: 'SMS',
+  push: 'Push',
+};
+
 /**
  * StudentDashboard Component
  *
@@ -777,9 +795,6 @@ function NotificationsTab() {
       ? 'Verify your phone number to enable SMS notifications.'
       : undefined;
 
-  type PreferenceCategory = keyof typeof STUDENT_PREFERENCE_DEFAULTS;
-  type PreferenceChannel = keyof (typeof STUDENT_PREFERENCE_DEFAULTS)['lesson_updates'];
-
   const getPreferenceValue = (category: PreferenceCategory, channel: PreferenceChannel) => {
     const fallback = STUDENT_PREFERENCE_DEFAULTS[category][channel];
     return preferences?.[category]?.[channel] ?? fallback;
@@ -797,6 +812,9 @@ function NotificationsTab() {
     updatePreference(category, channel, !current);
     setUsingRecommended(false);
   };
+
+  const getToggleAriaLabel = (category: PreferenceCategory, channel: PreferenceChannel) =>
+    `${CATEGORY_LABELS[category]} ${CHANNEL_LABELS[channel]} notifications`;
 
   const applyRecommendedSettings = () => {
     if (usingRecommended) {
@@ -919,14 +937,20 @@ function NotificationsTab() {
     onChange,
     disabled = false,
     title,
+    ariaLabel,
   }: {
     checked: boolean;
     onChange: () => void;
     disabled?: boolean;
     title?: string;
+    ariaLabel?: string;
   }) => (
     <button
       type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-disabled={disabled}
+      aria-label={ariaLabel}
       onClick={onChange}
       disabled={disabled}
       title={title}
@@ -1060,6 +1084,7 @@ function NotificationsTab() {
           checked={usingRecommended}
           onChange={applyRecommendedSettings}
           disabled={preferencesDisabled}
+          ariaLabel="Use recommended settings"
         />
       </div>
 
@@ -1148,6 +1173,7 @@ function NotificationsTab() {
                 checked={getPreferenceValue('lesson_updates', 'email')}
                 onChange={() => handleToggle('lesson_updates', 'email')}
                 disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('lesson_updates', 'email')}
               />
             </div>
             <div className="flex justify-center">
@@ -1156,6 +1182,7 @@ function NotificationsTab() {
                 onChange={() => handleToggle('lesson_updates', 'sms')}
                 disabled={preferencesDisabled || smsToggleDisabled}
                 {...(smsToggleTitle ? { title: smsToggleTitle } : {})}
+                ariaLabel={getToggleAriaLabel('lesson_updates', 'sms')}
               />
             </div>
             <div className="flex justify-center">
@@ -1163,6 +1190,7 @@ function NotificationsTab() {
                 checked={getPreferenceValue('lesson_updates', 'push')}
                 onChange={() => handleToggle('lesson_updates', 'push')}
                 disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('lesson_updates', 'push')}
               />
             </div>
           </div>
@@ -1178,6 +1206,7 @@ function NotificationsTab() {
                 checked={getPreferenceValue('messages', 'email')}
                 onChange={() => handleToggle('messages', 'email')}
                 disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('messages', 'email')}
               />
             </div>
             <div className="flex justify-center">
@@ -1186,6 +1215,7 @@ function NotificationsTab() {
                 onChange={() => handleToggle('messages', 'sms')}
                 disabled={preferencesDisabled || smsToggleDisabled}
                 {...(smsToggleTitle ? { title: smsToggleTitle } : {})}
+                ariaLabel={getToggleAriaLabel('messages', 'sms')}
               />
             </div>
             <div className="flex justify-center">
@@ -1194,6 +1224,7 @@ function NotificationsTab() {
                 onChange={() => handleToggle('messages', 'push')}
                 disabled
                 title="Push notifications for messages are required."
+                ariaLabel={getToggleAriaLabel('messages', 'push')}
               />
             </div>
           </div>
@@ -1209,6 +1240,7 @@ function NotificationsTab() {
                 checked={getPreferenceValue('reviews', 'email')}
                 onChange={() => handleToggle('reviews', 'email')}
                 disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('reviews', 'email')}
               />
             </div>
             <div className="flex justify-center">
@@ -1217,6 +1249,7 @@ function NotificationsTab() {
                 onChange={() => handleToggle('reviews', 'sms')}
                 disabled={preferencesDisabled || smsToggleDisabled}
                 {...(smsToggleTitle ? { title: smsToggleTitle } : {})}
+                ariaLabel={getToggleAriaLabel('reviews', 'sms')}
               />
             </div>
             <div className="flex justify-center">
@@ -1224,6 +1257,7 @@ function NotificationsTab() {
                 checked={getPreferenceValue('reviews', 'push')}
                 onChange={() => handleToggle('reviews', 'push')}
                 disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('reviews', 'push')}
               />
             </div>
           </div>
@@ -1239,6 +1273,7 @@ function NotificationsTab() {
                 checked={getPreferenceValue('learning_tips', 'email')}
                 onChange={() => handleToggle('learning_tips', 'email')}
                 disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('learning_tips', 'email')}
               />
             </div>
             <div className="flex justify-center">
@@ -1247,6 +1282,7 @@ function NotificationsTab() {
                 onChange={() => handleToggle('learning_tips', 'sms')}
                 disabled={preferencesDisabled || smsToggleDisabled}
                 {...(smsToggleTitle ? { title: smsToggleTitle } : {})}
+                ariaLabel={getToggleAriaLabel('learning_tips', 'sms')}
               />
             </div>
             <div className="flex justify-center">
@@ -1254,6 +1290,7 @@ function NotificationsTab() {
                 checked={getPreferenceValue('learning_tips', 'push')}
                 onChange={() => handleToggle('learning_tips', 'push')}
                 disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('learning_tips', 'push')}
               />
             </div>
           </div>
@@ -1269,6 +1306,7 @@ function NotificationsTab() {
                 checked={getPreferenceValue('system_updates', 'email')}
                 onChange={() => handleToggle('system_updates', 'email')}
                 disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('system_updates', 'email')}
               />
             </div>
             <div className="flex justify-center">
@@ -1277,6 +1315,7 @@ function NotificationsTab() {
                 onChange={() => handleToggle('system_updates', 'sms')}
                 disabled={preferencesDisabled || smsToggleDisabled}
                 {...(smsToggleTitle ? { title: smsToggleTitle } : {})}
+                ariaLabel={getToggleAriaLabel('system_updates', 'sms')}
               />
             </div>
             <div className="flex justify-center">
@@ -1284,6 +1323,7 @@ function NotificationsTab() {
                 checked={getPreferenceValue('system_updates', 'push')}
                 onChange={() => handleToggle('system_updates', 'push')}
                 disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('system_updates', 'push')}
               />
             </div>
           </div>
@@ -1299,6 +1339,7 @@ function NotificationsTab() {
                 checked={getPreferenceValue('promotional', 'email')}
                 onChange={() => handleToggle('promotional', 'email')}
                 disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('promotional', 'email')}
               />
             </div>
             <div className="flex justify-center">
@@ -1307,6 +1348,7 @@ function NotificationsTab() {
                 onChange={() => handleToggle('promotional', 'sms')}
                 disabled={preferencesDisabled || smsToggleDisabled}
                 {...(smsToggleTitle ? { title: smsToggleTitle } : {})}
+                ariaLabel={getToggleAriaLabel('promotional', 'sms')}
               />
             </div>
             <div className="flex justify-center">
@@ -1314,6 +1356,7 @@ function NotificationsTab() {
                 checked={getPreferenceValue('promotional', 'push')}
                 onChange={() => handleToggle('promotional', 'push')}
                 disabled={preferencesDisabled}
+                ariaLabel={getToggleAriaLabel('promotional', 'push')}
               />
             </div>
           </div>

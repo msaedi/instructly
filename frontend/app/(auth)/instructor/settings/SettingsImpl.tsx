@@ -34,6 +34,21 @@ const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
 type PreferenceCategory = keyof typeof PREFERENCE_DEFAULTS;
 type PreferenceChannel = keyof (typeof PREFERENCE_DEFAULTS)['lesson_updates'];
 
+const CATEGORY_LABELS: Record<PreferenceCategory, string> = {
+  lesson_updates: 'Lesson Updates',
+  messages: 'Messages',
+  reviews: 'Reviews',
+  learning_tips: 'Tips & Updates',
+  system_updates: 'System Updates',
+  promotional: 'Promotional',
+};
+
+const CHANNEL_LABELS: Record<PreferenceChannel, string> = {
+  email: 'Email',
+  sms: 'SMS',
+  push: 'Push',
+};
+
 export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [openAccount, setOpenAccount] = useState(false);
   const [openRefer, setOpenRefer] = useState(false);
@@ -201,6 +216,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       checked={pushEnabled}
       onChange={() => void handlePushToggle(!pushEnabled)}
       disabled={pushDisabled}
+      ariaLabel="Push notifications on this device"
       {...(pushToggleTitle ? { title: pushToggleTitle } : {})}
     />
   );
@@ -226,14 +242,20 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     onChange,
     disabled = false,
     title,
+    ariaLabel,
   }: {
     checked: boolean;
     onChange: () => void;
     disabled?: boolean;
     title?: string;
+    ariaLabel?: string;
   }) => (
     <button
       type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-disabled={disabled}
+      aria-label={ariaLabel}
       onClick={onChange}
       disabled={disabled}
       title={title}
@@ -256,11 +278,13 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   ) => {
     const isDisabled = options?.disabled ?? preferencesDisabled;
     const title = options?.title;
+    const ariaLabel = `${CATEGORY_LABELS[category]} ${CHANNEL_LABELS[channel]} notifications`;
     return (
       <ToggleSwitch
         checked={getPreferenceValue(category, channel)}
         onChange={() => updatePreference(category, channel, !getPreferenceValue(category, channel))}
         disabled={isDisabled}
+        ariaLabel={ariaLabel}
         {...(title ? { title } : {})}
       />
     );

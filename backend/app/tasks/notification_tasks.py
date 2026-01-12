@@ -226,7 +226,7 @@ def _send_reminder_notifications(
     instructor_template: NotificationTemplate,
     student_template: NotificationTemplate,
     sms_template: SMSTemplate,
-) -> None:
+) -> bool:
     student_name = _format_display_name(getattr(booking, "student", None))
     instructor_name = _format_display_name(getattr(booking, "instructor", None))
     service_name = _resolve_service_name(booking)
@@ -261,7 +261,16 @@ def _send_reminder_notifications(
             other_party_name=instructor_name,
         )
 
-    asyncio.run(_notify())
+    try:
+        asyncio.run(_notify())
+    except Exception as exc:
+        logger.warning(
+            "Failed reminder notifications for booking %s: %s",
+            booking.id,
+            exc,
+        )
+        return False
+    return True
 
 
 @typed_task(name="app.tasks.notification_tasks.send_booking_reminders", queue="notifications")
@@ -299,22 +308,16 @@ def send_booking_reminders() -> dict[str, int]:
         )
 
         for booking in bookings_24h:
-            try:
-                _send_reminder_notifications(
-                    service,
-                    booking,
-                    INSTRUCTOR_REMINDER_24H,
-                    STUDENT_REMINDER_24H,
-                    REMINDER_24H,
-                )
+            success = _send_reminder_notifications(
+                service,
+                booking,
+                INSTRUCTOR_REMINDER_24H,
+                STUDENT_REMINDER_24H,
+                REMINDER_24H,
+            )
+            if success:
                 reminders_24h += 2
-            except Exception as exc:
-                logger.warning(
-                    "Failed 24h reminder notifications for booking %s: %s",
-                    booking.id,
-                    exc,
-                )
-            booking.reminder_24h_sent = True
+                booking.reminder_24h_sent = True
 
         bookings_1h = (
             session.query(Booking)
@@ -333,22 +336,16 @@ def send_booking_reminders() -> dict[str, int]:
         )
 
         for booking in bookings_1h:
-            try:
-                _send_reminder_notifications(
-                    service,
-                    booking,
-                    INSTRUCTOR_REMINDER_1H,
-                    STUDENT_REMINDER_1H,
-                    REMINDER_1H,
-                )
+            success = _send_reminder_notifications(
+                service,
+                booking,
+                INSTRUCTOR_REMINDER_1H,
+                STUDENT_REMINDER_1H,
+                REMINDER_1H,
+            )
+            if success:
                 reminders_1h += 2
-            except Exception as exc:
-                logger.warning(
-                    "Failed 1h reminder notifications for booking %s: %s",
-                    booking.id,
-                    exc,
-                )
-            booking.reminder_1h_sent = True
+                booking.reminder_1h_sent = True
 
     return {
         "reminders_24h_sent": reminders_24h,

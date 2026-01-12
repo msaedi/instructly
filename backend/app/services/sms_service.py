@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+from enum import StrEnum
 import logging
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -17,6 +18,12 @@ if TYPE_CHECKING:
     from app.services.cache_service import CacheService
 
 logger = logging.getLogger(__name__)
+
+
+class SMSStatus(StrEnum):
+    SUCCESS = "success"
+    DISABLED = "disabled"
+    ERROR = "error"
 
 
 class SMSService:
@@ -48,7 +55,9 @@ class SMSService:
             self.from_number = None
             logger.info("SMS service disabled - Twilio credentials not configured")
 
-    async def send_sms(self, to_number: str, message: str) -> Optional[dict[str, Any]]:
+    async def send_sms_with_status(
+        self, to_number: str, message: str
+    ) -> tuple[Optional[dict[str, Any]], SMSStatus]:
         """
         Send an SMS message.
 
@@ -58,20 +67,29 @@ class SMSService:
         """
         if not self.enabled:
             logger.debug("SMS disabled, would send to %s", to_number)
-            return None
+            return None, SMSStatus.DISABLED
 
         if not to_number:
             logger.warning("Cannot send SMS: no phone number provided")
-            return None
+            return None, SMSStatus.ERROR
 
         if not to_number.startswith("+"):
             logger.warning("Invalid phone number format: %s", to_number)
-            return None
+            return None, SMSStatus.ERROR
 
         if len(message) > 1600:
             message = message[:1597] + "..."
 
-        return await asyncio.to_thread(self._send_sms_sync, to_number, message)
+        result = await asyncio.to_thread(self._send_sms_sync, to_number, message)
+        if result is None:
+            return None, SMSStatus.ERROR
+        return result, SMSStatus.SUCCESS
+
+    async def send_sms(self, to_number: str, message: str) -> Optional[dict[str, Any]]:
+        result, status = await self.send_sms_with_status(to_number, message)
+        if status is SMSStatus.SUCCESS:
+            return result
+        return None
 
     async def send_to_user(
         self,
