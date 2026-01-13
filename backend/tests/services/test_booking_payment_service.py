@@ -118,13 +118,16 @@ async def test_confirm_booking_payment_boundary_within_24h(db, auth_headers_stud
 @pytest.mark.anyio
 async def test_confirm_booking_payment_boundary_beyond_24h(db, auth_headers_student, test_instructor):
     """Booking at now + 24h01m => scheduled."""
+    from datetime import timezone as tz_module
+
     instructor = test_instructor
     assert instructor is not None
     profile = db.query(InstructorProfile).filter_by(user_id=instructor.id).first()
     assert profile is not None
     service = db.query(Service).filter_by(instructor_profile_id=profile.id, is_active=True).first()
     assert service is not None
-    FIXED_NOW = datetime(2025, 1, 1, 12, 0, 0).replace(microsecond=0)
+    # FIXED_NOW must be timezone-aware to avoid local timezone conversion issues
+    FIXED_NOW = datetime(2025, 1, 1, 12, 0, 0, tzinfo=tz_module.utc)
 
     start_dt = FIXED_NOW + timedelta(hours=24, minutes=1)
     student: User | None = db.query(User).filter_by(email="test.student@example.com").first()
@@ -163,7 +166,10 @@ async def test_confirm_booking_payment_boundary_beyond_24h(db, auth_headers_stud
     class FixedDT(RealDT):
         @classmethod
         def now(cls, tz=None):
-            return FIXED_NOW if tz is None else FIXED_NOW.astimezone(tz)
+            # Always return timezone-aware FIXED_NOW
+            if tz is None:
+                return FIXED_NOW.replace(tzinfo=None)
+            return FIXED_NOW
 
     mod.datetime = FixedDT
     student: User | None = db.query(User).filter_by(email="test.student@example.com").first()
