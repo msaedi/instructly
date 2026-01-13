@@ -139,7 +139,7 @@
     "tailwindcss": "4.1.18",
     "ts-morph": "^27.0.2",
     "ts-prune": "^0.10.3",
-    "tsd": "^0.31.2",
+    "tsd": "^0.33.0",
     "type-coverage": "^2.29.7",
     "typescript": "^5",
     "zod": "^4.3.5"
