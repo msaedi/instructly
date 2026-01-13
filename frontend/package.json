@@ -132,7 +132,7 @@
     "jsdom": "^27.4.0",
     "knip": "^5.64.1",
     "openapi-typescript": "7.10.1",
-    "orval": "^7.16.1",
+    "orval": "^7.18.0",
     "postcss": "^8.5.6",
     "prettier": "^3.7.4",
     "size-limit": "^12.0.0",
