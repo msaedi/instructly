@@ -16,7 +16,7 @@ msgpack==1.1.2  # Alternative to JSON for better performance
 
 # Monitoring and metrics
 celery-prometheus-exporter==2.0.0  # Prometheus metrics
-celery-progress==0.3  # Progress tracking for long-running tasks
+celery-progress==0.5  # Progress tracking for long-running tasks
 
 # Task result storage alternatives (optional)
 # celery[mongodb]==5.3.4  # If using MongoDB as result backend
