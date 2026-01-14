@@ -14353,6 +14353,12 @@ export interface operations {
  "application/json": components["schemas"]["VapidPublicKeyResponse"];
  };
  };
+ 503: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
  };
  };
  resolve_referral_slug_api_v1_r__slug__get: {

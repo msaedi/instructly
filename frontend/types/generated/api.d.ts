@@ -22519,7 +22519,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description VAPID public key for push notifications */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22527,6 +22527,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["VapidPublicKeyResponse"];
                 };
+            };
+            /** @description Push notifications not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
