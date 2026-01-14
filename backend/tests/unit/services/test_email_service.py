@@ -11,10 +11,12 @@ from unittest.mock import patch
 
 import pytest
 
-from app.core.config import settings
 from app.core.exceptions import ServiceException
+import app.services.email as email_module
 from app.services.email import EmailService
 from app.services.template_registry import TemplateRegistry
+
+settings = email_module.settings
 
 
 class TestEmailService:
@@ -58,7 +60,7 @@ class TestEmailService:
 
     def test_email_service_initialization(self, db, mock_cache):
         """Test EmailService initialization with dependencies."""
-        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+        with patch("app.services.email.settings.resend_api_key", "test-api-key"):
             service = EmailService(db, mock_cache)
 
             assert service.db == db
@@ -73,7 +75,7 @@ class TestEmailService:
         monkeypatch.setenv("SITE_MODE", "prod")
         monkeypatch.delenv("CI", raising=False)
         monkeypatch.setattr(settings, "is_testing", False, raising=False)
-        with patch("app.core.config.settings.resend_api_key", None):
+        with patch("app.services.email.settings.resend_api_key", None):
             with pytest.raises(ServiceException, match="Resend API key not configured"):
                 EmailService(db, mock_cache)
 
@@ -83,7 +85,7 @@ class TestEmailService:
         # Mock Resend response
         mock_resend_send.return_value = {"id": "test-email-id", "status": "sent"}
 
-        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+        with patch("app.services.email.settings.resend_api_key", "test-api-key"):
             service = EmailService(db, mock_cache)
 
             result = service.send_email(
@@ -100,7 +102,7 @@ class TestEmailService:
         # Mock Resend failure
         mock_resend_send.side_effect = Exception("API Error")
 
-        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+        with patch("app.services.email.settings.resend_api_key", "test-api-key"):
             service = EmailService(db, mock_cache)
 
             with pytest.raises(ServiceException, match="Email sending failed"):
@@ -128,7 +130,7 @@ class TestEmailService:
             },
         )
 
-        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+        with patch("app.services.email.settings.resend_api_key", "test-api-key"):
             service = EmailService(db, mock_cache)
             service.send_email(
                 to_email="test@example.com",
@@ -165,7 +167,7 @@ class TestEmailService:
             },
         )
 
-        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+        with patch("app.services.email.settings.resend_api_key", "test-api-key"):
             service = EmailService(db, mock_cache)
             service.send_email(
                 to_email="test@example.com",
@@ -199,7 +201,7 @@ class TestEmailService:
             },
         )
 
-        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+        with patch("app.services.email.settings.resend_api_key", "test-api-key"):
             service = EmailService(db, mock_cache)
             service.send_email(
                 to_email="student@example.com",
@@ -233,7 +235,7 @@ class TestEmailService:
             },
         )
 
-        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+        with patch("app.services.email.settings.resend_api_key", "test-api-key"):
             service = EmailService(db, mock_cache)
             service.send_email(
                 to_email="user@example.com",
@@ -252,7 +254,7 @@ class TestEmailService:
         """Test password reset email sending."""
         mock_resend_send.return_value = {"id": "test-email-id", "status": "sent"}
 
-        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+        with patch("app.services.email.settings.resend_api_key", "test-api-key"):
             service = EmailService(db, mock_cache)
 
             result = service.send_password_reset_email(
@@ -271,7 +273,7 @@ class TestEmailService:
 
     def test_validate_email_config_success(self, db, mock_cache):
         """Test email configuration validation success."""
-        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+        with patch("app.services.email.settings.resend_api_key", "test-api-key"):
             service = EmailService(db, mock_cache)
 
             result = service.validate_email_config()
@@ -279,17 +281,17 @@ class TestEmailService:
 
     def test_validate_email_config_no_api_key(self, db, mock_cache):
         """Test email configuration validation with missing API key."""
-        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+        with patch("app.services.email.settings.resend_api_key", "test-api-key"):
             service = EmailService(db, mock_cache)
 
         # Remove API key after initialization
-        with patch("app.core.config.settings.resend_api_key", None):
+        with patch("app.services.email.settings.resend_api_key", None):
             with pytest.raises(ServiceException, match="Resend API key not configured"):
                 service.validate_email_config()
 
     def test_get_send_stats(self, db, mock_cache):
         """Test getting email send statistics."""
-        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+        with patch("app.services.email.settings.resend_api_key", "test-api-key"):
             service = EmailService(db, mock_cache)
 
             # Simulate some metrics
@@ -306,7 +308,7 @@ class TestEmailService:
 
     def test_metrics_decorator_applied(self, db, mock_cache):
         """Test that measure_operation decorator is applied to methods."""
-        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+        with patch("app.services.email.settings.resend_api_key", "test-api-key"):
             service = EmailService(db, mock_cache)
 
             # Check that methods have the decorator marker
@@ -320,7 +322,7 @@ class TestEmailService:
         """Test sending email with custom from address."""
         mock_resend_send.return_value = {"id": "test-email-id", "status": "sent"}
 
-        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+        with patch("app.services.email.settings.resend_api_key", "test-api-key"):
             service = EmailService(db, mock_cache)
 
             service.send_email(
