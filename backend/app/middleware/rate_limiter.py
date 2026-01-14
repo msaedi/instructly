@@ -333,6 +333,11 @@ def rate_limit(
                     break
             if not request:
                 request = kwargs.get("request")
+            if request is not None and not isinstance(request, Request):
+                request = next(
+                    (value for value in kwargs.values() if isinstance(value, Request)),
+                    None,
+                )
 
             if not request:
                 # Can't rate limit without request, just call function
