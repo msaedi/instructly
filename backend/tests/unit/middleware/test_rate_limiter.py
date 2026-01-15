@@ -13,9 +13,10 @@ Tests cover:
 """
 
 import time
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.testclient import TestClient
 import pytest
 import pytest_asyncio
@@ -27,6 +28,7 @@ from app.middleware.rate_limiter import (
     RateLimiter,
     RateLimitKeyType,
     RateLimitMiddleware,
+    _get_identifier,
     rate_limit,
     rate_limit_auth,
     rate_limit_password_reset,
@@ -171,6 +173,21 @@ class TestRateLimiter:
         # Verify the rejected request was removed
         mock_redis.zrem.assert_awaited_once()
 
+    async def test_check_rate_limit_exceeded_without_oldest_timestamp(self, rate_limiter, mock_redis):
+        """Fallback retry_after when no oldest timestamp exists."""
+        pipe = MagicMock()
+        pipe.execute = AsyncMock(return_value=[None, 5, None, None])
+        mock_redis.pipeline.return_value = pipe
+        mock_redis.zrange = AsyncMock(return_value=[])
+
+        allowed, requests, retry_after = await rate_limiter.check_rate_limit(
+            identifier="user123", limit=5, window_seconds=60
+        )
+
+        assert allowed is False
+        assert requests == 5
+        assert retry_after == 60
+
     async def test_reset_limit(self, rate_limiter, mock_cache):
         """Test resetting rate limits."""
         mock_cache.delete.return_value = True
@@ -179,6 +196,18 @@ class TestRateLimiter:
 
         assert result is True
         mock_cache.delete.assert_awaited_once_with("rate_limit:test_window:user123")
+
+    async def test_reset_limit_without_cache(self, rate_limiter):
+        """Reset should fail gracefully if cache unavailable."""
+        rate_limiter.cache.get_redis_client.return_value = None
+        result = await rate_limiter.reset_limit("user123", "test_window")
+        assert result is False
+
+    async def test_reset_limit_handles_error(self, rate_limiter, mock_cache):
+        """Reset should return False on delete errors."""
+        mock_cache.delete.side_effect = RuntimeError("boom")
+        result = await rate_limiter.reset_limit("user123", "test_window")
+        assert result is False
 
     async def test_get_remaining_requests(self, rate_limiter, mock_redis):
         """Test getting remaining requests."""
@@ -191,6 +220,14 @@ class TestRateLimiter:
 
         assert remaining == 2
 
+    async def test_get_remaining_requests_error_returns_limit(self, rate_limiter, mock_redis):
+        """Error path should return limit as remaining."""
+        mock_redis.zremrangebyscore.side_effect = RuntimeError("boom")
+        remaining = await rate_limiter.get_remaining_requests(
+            identifier="user123", limit=5, window_seconds=60
+        )
+        assert remaining == 5
+
     async def test_cache_key_generation(self, rate_limiter):
         """Test cache key generation with long identifiers."""
         # Short identifier
@@ -202,6 +239,11 @@ class TestRateLimiter:
         key = rate_limiter._get_cache_key(long_id, "test")
         assert key.startswith("rate_limit:test:")
         assert len(key.split(":")[-1]) == 16  # MD5 hash truncated
+
+    async def test_window_start_calculation(self, rate_limiter, monkeypatch):
+        """Window start uses current epoch minus window seconds."""
+        monkeypatch.setattr(time, "time", lambda: 1000)
+        assert rate_limiter._get_window_start(60) == 940
 
     async def test_error_handling(self, rate_limiter, mock_redis):
         """Test error handling when Redis operations fail."""
@@ -305,6 +347,11 @@ class TestRateLimitDecorator:
         async def password_reset_endpoint(request: Request):
             return {"message": "password reset"}
 
+        @app.get("/response-endpoint")
+        @rate_limit("5/minute")
+        async def response_endpoint(request: Request):
+            return Response(content="ok")
+
         return app
 
     @pytest.fixture
@@ -366,6 +413,146 @@ class TestRateLimitDecorator:
 
         response = client.post("/password-reset-endpoint")
         assert response.status_code in [200, 429]
+
+    @pytest.mark.asyncio
+    async def test_decorator_bypass_header_skips_rate_limit(self, monkeypatch):
+        """Bypass header should short-circuit rate limiting."""
+        monkeypatch.setattr(settings, "rate_limit_bypass_token", "bypass-token")
+
+        @rate_limit("5/minute")
+        async def endpoint(request: Request):
+            return Response(content="ok")
+
+        with patch(
+            "app.middleware.rate_limiter.RateLimiter.check_rate_limit", new_callable=AsyncMock
+        ) as mock_check:
+            request = Request(
+                {
+                    "type": "http",
+                    "headers": [(b"x-rate-limit-bypass", b"bypass-token")],
+                    "client": ("1.2.3.4", 1234),
+                    "path": "/bypass",
+                }
+            )
+            response = await endpoint(request)
+            assert response.status_code == 200
+            mock_check.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_decorator_sets_headers_on_response(self):
+        """Response objects should receive rate limit headers."""
+        @rate_limit("5/minute")
+        async def endpoint(request: Request):
+            return Response(content="ok")
+
+        with patch("app.middleware.rate_limiter.RateLimiter") as mock_limiter_class:
+            mock_limiter = mock_limiter_class.return_value
+            mock_limiter.check_rate_limit = AsyncMock(return_value=(True, 1, 0))
+            mock_limiter.get_remaining_requests = AsyncMock(return_value=2)
+
+            request = Request(
+                {
+                    "type": "http",
+                    "headers": [],
+                    "client": ("1.2.3.4", 1234),
+                    "path": "/response-endpoint",
+                }
+            )
+            response = await endpoint(request)
+            assert response.headers["X-RateLimit-Limit"] == "5"
+            assert response.headers["X-RateLimit-Remaining"] == "2"
+
+    @pytest.mark.asyncio
+    async def test_decorator_invalid_rate_string_raises(self):
+        """Invalid rate string should raise a ValueError."""
+        @rate_limit("5perminute")
+        async def endpoint(request: Request):
+            return {"message": "ok"}
+
+        request = Request(
+            {"type": "http", "headers": [], "client": ("1.2.3.4", 1234), "path": "/invalid"}
+        )
+        with pytest.raises(ValueError):
+            await endpoint(request)
+
+    @pytest.mark.asyncio
+    async def test_decorator_unknown_time_unit_raises(self):
+        """Unknown time unit should raise a ValueError."""
+        @rate_limit("5/week")
+        async def endpoint(request: Request):
+            return {"message": "ok"}
+
+        request = Request(
+            {"type": "http", "headers": [], "client": ("1.2.3.4", 1234), "path": "/invalid"}
+        )
+        with pytest.raises(ValueError):
+            await endpoint(request)
+
+    def test_decorator_signature_preserved_when_signature_fails(self, monkeypatch):
+        """Signature preservation should be resilient to inspect failures."""
+        def endpoint(request: Request):
+            return {"message": "ok"}
+
+        monkeypatch.setattr(
+            "app.middleware.rate_limiter.inspect.signature",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+        )
+        wrapped = rate_limit("5/minute")(endpoint)
+        assert wrapped is not None
+
+
+def _make_request(path: str = "/test", headers: list[tuple[bytes, bytes]] | None = None):
+    return Request(
+        {
+            "type": "http",
+            "headers": headers or [],
+            "client": ("10.0.0.1", 1234),
+            "path": path,
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_identifier_variants():
+    request = _make_request(headers=[(b"x-forwarded-for", b"1.1.1.1, 2.2.2.2")])
+    identifier = await _get_identifier(request, RateLimitKeyType.IP, None, (), {})
+    assert identifier == "1.1.1.1"
+
+    user = SimpleNamespace(id="user123", email="USER@EXAMPLE.COM")
+    identifier = await _get_identifier(request, RateLimitKeyType.USER, None, (), {"current_user": user})
+    assert identifier == "user_user123"
+
+    payload = SimpleNamespace(email="TeSt@Example.com")
+    identifier = await _get_identifier(
+        request,
+        RateLimitKeyType.EMAIL,
+        "email",
+        (),
+        {"payload": payload},
+    )
+    assert identifier == "email_test@example.com"
+
+    identifier = await _get_identifier(
+        request,
+        RateLimitKeyType.EMAIL,
+        "email",
+        (payload,),
+        {},
+    )
+    assert identifier == "email_test@example.com"
+
+    identifier = await _get_identifier(request, RateLimitKeyType.ENDPOINT, None, (), {})
+    assert identifier == "endpoint_/test"
+
+    identifier = await _get_identifier(
+        request, RateLimitKeyType.COMPOSITE, None, (), {"current_user": user}
+    )
+    assert "10.0.0.1" in identifier
+    assert "/test" in identifier
+    assert "uuser123" in identifier
+
+    identifier = await _get_identifier("not-a-request", RateLimitKeyType.IP, None, (), {})
+    assert identifier is None
 
 
 class TestRateLimitAdmin:

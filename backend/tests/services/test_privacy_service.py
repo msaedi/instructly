@@ -8,7 +8,10 @@ from unittest.mock import patch
 
 import pytest
 
+from app.core.config import settings
 from app.models import Booking, InstructorProfile, SearchEvent, SearchHistory, User
+from app.models.address import InstructorServiceArea
+from app.models.region_boundary import RegionBoundary
 from app.services.privacy_service import PrivacyService
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
@@ -300,3 +303,68 @@ class TestPrivacyService:
         # The actual measurement testing would require more complex setup
         result = privacy_service.export_user_data(sample_user_for_privacy.id)
         assert result is not None  # Operation completed successfully
+
+    def test_export_instructor_service_area_summary(
+        self, privacy_service, sample_instructor_for_privacy, db
+    ):
+        """Ensure service area summaries use region metadata and borough rollups."""
+        user_id = sample_instructor_for_privacy.id
+
+        region_specs = [
+            ("Bronx", "BX-01", "Bronx Park"),
+            ("Manhattan", "MN-01", "Lower Manhattan"),
+            ("Queens", "QN-01", "Long Island City"),
+        ]
+        regions = []
+        for borough, code, name in region_specs:
+            region = RegionBoundary(
+                region_type="nyc",
+                region_code=None,
+                region_name=None,
+                parent_region=None,
+                region_metadata={"nta_code": code, "nta_name": name, "borough": borough},
+            )
+            db.add(region)
+            db.flush()
+            regions.append(region)
+            db.add(
+                InstructorServiceArea(
+                    instructor_id=user_id,
+                    neighborhood_id=region.id,
+                    is_active=True,
+                )
+            )
+        db.commit()
+
+        result = privacy_service.export_user_data(user_id)
+        profile = result["instructor_profile"]
+        assert profile is not None
+        assert len(profile["service_area_neighborhoods"]) == 3
+        assert profile["service_area_summary"] == "Bronx + 2 more"
+        assert profile["service_area_boroughs"] == ["Bronx", "Manhattan", "Queens"]
+
+    def test_delete_user_data_blocks_account_deletion_with_future_booking(
+        self, privacy_service, sample_user_for_privacy, sample_booking, db
+    ):
+        """Account deletion should be blocked when future bookings exist."""
+        sample_booking.booking_date = datetime.now(timezone.utc).date() + timedelta(days=2)
+        db.commit()
+
+        with pytest.raises(ValueError, match="active bookings"):
+            privacy_service.delete_user_data(sample_user_for_privacy.id, delete_account=True)
+
+    def test_get_privacy_statistics_includes_retention(self, privacy_service, sample_user_for_privacy, db, monkeypatch):
+        """Retention stats should include eligible deletion counts."""
+        monkeypatch.setattr(settings, "search_event_retention_days", 1)
+        old_event = SearchEvent(
+            user_id=sample_user_for_privacy.id,
+            search_query="old query",
+            results_count=0,
+            search_context={},
+            searched_at=datetime.now(timezone.utc) - timedelta(days=10),
+        )
+        db.add(old_event)
+        db.commit()
+
+        stats = privacy_service.get_privacy_statistics()
+        assert stats["search_events_eligible_for_deletion"] >= 1

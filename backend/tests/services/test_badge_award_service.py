@@ -1,4 +1,5 @@
 from datetime import datetime, time, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -962,3 +963,822 @@ def test_explorer_progress_hidden_until_threshold(db, core_badges_seeded):
     badges = badge_service_api.get_student_badges(student.id)
     explorer = next(entry for entry in badges if entry["slug"] == "explorer")
     assert explorer["progress"] is not None
+
+
+def test_badge_award_service_init_handles_missing_services(db, monkeypatch):
+    import app.services.badge_award_service as badge_module
+
+    class BoomCache:
+        def __init__(self, *_args, **_kwargs) -> None:
+            raise RuntimeError("cache down")
+
+    class BoomNotification:
+        def __init__(self, *_args, **_kwargs) -> None:
+            raise RuntimeError("notify down")
+
+    monkeypatch.setattr(badge_module, "CacheService", BoomCache)
+    monkeypatch.setattr(badge_module, "NotificationService", BoomNotification)
+
+    service = badge_module.BadgeAwardService(db)
+    assert service.cache_service is None
+    assert service.notification_service is None
+
+
+def test_badge_award_service_maybe_notify_throttled(db, core_badges_seeded, monkeypatch):
+    import app.services.badge_award_service as badge_module
+
+    student = _create_user(db, "badge_notify_throttle@example.com")
+    definition = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "welcome_aboard").first()
+    badge_service = BadgeAwardService(db)
+
+    class DummyNotification:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def send_badge_awarded_email(self, _user: User, _name: str) -> bool:
+            self.calls += 1
+            return True
+
+    dummy = DummyNotification()
+    badge_service.notification_service = dummy
+
+    monkeypatch.setattr(
+        badge_module, "can_send_now", lambda _user, _now, _cache: (False, "rate", "key")
+    )
+    record_calls: list[str] = []
+    monkeypatch.setattr(
+        badge_module, "record_send", lambda key, _cache: record_calls.append(key)
+    )
+
+    badge_service._maybe_notify_badge_awarded(
+        student_id=student.id,
+        badge_definition=definition,
+        now_utc=datetime.now(timezone.utc),
+    )
+
+    assert dummy.calls == 0
+    assert record_calls == []
+
+
+def test_badge_award_service_maybe_notify_records_send(db, core_badges_seeded, monkeypatch):
+    import app.services.badge_award_service as badge_module
+
+    student = _create_user(db, "badge_notify_send@example.com")
+    definition = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "welcome_aboard").first()
+    badge_service = BadgeAwardService(db)
+
+    class DummyNotification:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def send_badge_awarded_email(self, _user: User, _name: str) -> bool:
+            self.calls += 1
+            return True
+
+    dummy = DummyNotification()
+    badge_service.notification_service = dummy
+
+    monkeypatch.setattr(
+        badge_module, "can_send_now", lambda _user, _now, _cache: (True, None, "badge-key")
+    )
+    record_calls: list[str] = []
+    monkeypatch.setattr(
+        badge_module, "record_send", lambda key, _cache: record_calls.append(key)
+    )
+
+    badge_service._maybe_notify_badge_awarded(
+        student_id=student.id,
+        badge_definition=definition,
+        now_utc=datetime.now(timezone.utc),
+    )
+
+    assert dummy.calls == 1
+    assert record_calls == ["badge-key"]
+
+
+def test_current_streak_length_handles_missing_and_invalid_timezone(db, core_badges_seeded):
+    badge_service = BadgeAwardService(db)
+    definition = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "consistent_learner").first()
+
+    assert badge_service._current_streak_length("missing-student", definition, goal=3) == 0
+
+    student = _create_user(db, "streak_bad_tz@example.com")
+    student.timezone = "Invalid/Zone"
+    db.flush()
+    assert badge_service._current_streak_length(student.id, definition, goal=3) == 0
+
+
+def test_is_momentum_criteria_currently_met_true_and_false(db, core_badges_seeded):
+    student = _create_user(db, "momentum_currently@example.com")
+    instructor_a = _create_user(db, "momentum_currently_a@example.com")
+    instructor_b = _create_user(db, "momentum_currently_b@example.com")
+    service_a, _ = _create_instructor_service(db, instructor_a, category_slug="music")
+    service_b, _ = _create_instructor_service(db, instructor_b, category_slug="dance")
+
+    badge_service = BadgeAwardService(db)
+    definition = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "momentum_starter").first()
+
+    base = datetime(2024, 8, 1, 12, 0, tzinfo=timezone.utc)
+    _create_booking(db, student, instructor_a, service_a, base - timedelta(days=1), base)
+    _create_booking(
+        db,
+        student,
+        instructor_b,
+        service_b,
+        base + timedelta(days=1),
+        base + timedelta(days=2),
+    )
+
+    assert badge_service._is_momentum_criteria_currently_met(definition, student.id) is False
+
+    _create_booking(
+        db,
+        student,
+        instructor_b,
+        service_b,
+        base + timedelta(days=3),
+        base + timedelta(days=4),
+    )
+
+    assert badge_service._is_momentum_criteria_currently_met(definition, student.id) is True
+
+
+def test_is_top_student_eligible_now_rejects_zero_goal(db):
+    definition = BadgeDefinition(
+        id=generate_ulid(),
+        slug="top_student_zero_goal",
+        name="Top Student Zero Goal",
+        criteria_type="quality",
+        criteria_config={
+            "min_total_lessons": 0,
+            "min_reviews": 0,
+            "min_avg_rating": 0.0,
+            "max_cancel_noshow_rate_pct_60d": 100.0,
+            "distinct_instructors_min": 0,
+            "or_single_instructor_min_lessons": 0,
+        },
+        is_active=True,
+    )
+    db.add(definition)
+    db.flush()
+
+    badge_service = BadgeAwardService(db)
+    student = _create_user(db, "top_student_zero_goal@example.com")
+    db.flush()
+
+    assert (
+        badge_service._is_top_student_eligible_now(
+            student_id=student.id,
+            now_utc=datetime.now(timezone.utc),
+            definition=definition,
+        )
+        is False
+    )
+
+
+def test_is_explorer_eligible_now_blocks_without_rebook(db, core_badges_seeded):
+    badge_service = BadgeAwardService(db)
+    student = _create_user(db, "explorer_rebook_block@example.com")
+    instructor = _create_user(db, "explorer_rebook_instr@example.com")
+    service, _ = _create_instructor_service(db, instructor, category_slug="music")
+
+    booked = datetime(2024, 9, 1, 12, 0, tzinfo=timezone.utc)
+    completed = booked + timedelta(hours=1)
+    _create_booking(db, student, instructor, service, booked, completed)
+
+    definition = BadgeDefinition(
+        id=generate_ulid(),
+        slug="explorer_rebook_gate",
+        name="Explorer Rebook Gate",
+        criteria_type="exploration",
+        criteria_config={
+            "show_after_total_lessons": 1,
+            "distinct_categories": 1,
+            "min_overall_avg_rating": 0.0,
+        },
+        is_active=True,
+    )
+    db.add(definition)
+    db.flush()
+
+    assert badge_service._is_explorer_eligible_now(student.id, definition) is False
+
+
+def test_is_explorer_eligible_now_blocks_on_min_avg(db, core_badges_seeded):
+    badge_service = BadgeAwardService(db)
+    student = _create_user(db, "explorer_min_avg@example.com")
+    instructor = _create_user(db, "explorer_min_avg_instr@example.com")
+    service, _ = _create_instructor_service(db, instructor, category_slug="music")
+
+    base = datetime(2024, 10, 1, 12, 0, tzinfo=timezone.utc)
+    _create_booking(db, student, instructor, service, base - timedelta(days=1), base)
+    _create_booking(db, student, instructor, service, base + timedelta(days=1), base + timedelta(days=2))
+
+    definition = BadgeDefinition(
+        id=generate_ulid(),
+        slug="explorer_min_avg_gate",
+        name="Explorer Min Avg Gate",
+        criteria_type="exploration",
+        criteria_config={
+            "show_after_total_lessons": 1,
+            "distinct_categories": 1,
+            "min_overall_avg_rating": 4.5,
+        },
+        is_active=True,
+    )
+    db.add(definition)
+    db.flush()
+
+    assert badge_service._is_explorer_eligible_now(student.id, definition) is False
+
+
+def test_backfill_user_badges_awards_summary(db, core_badges_seeded):
+    student = _create_user(db, "backfill_student@example.com")
+    student.timezone = "America/New_York"
+
+    instructor_music = _create_user(db, "backfill_instr_music@example.com")
+    instructor_dance = _create_user(db, "backfill_instr_dance@example.com")
+    instructor_art = _create_user(db, "backfill_instr_art@example.com")
+
+    service_music, music_slug = _create_instructor_service(db, instructor_music, category_slug="music")
+    service_dance, dance_slug = _create_instructor_service(db, instructor_dance, category_slug="dance")
+    service_art, art_slug = _create_instructor_service(db, instructor_art, category_slug="art")
+
+    services = [
+        (service_music, instructor_music, music_slug),
+        (service_music, instructor_music, music_slug),
+        (service_dance, instructor_dance, dance_slug),
+        (service_dance, instructor_dance, dance_slug),
+        (service_art, instructor_art, art_slug),
+        (service_art, instructor_art, art_slug),
+        (service_music, instructor_music, music_slug),
+        (service_dance, instructor_dance, dance_slug),
+        (service_art, instructor_art, art_slug),
+        (service_music, instructor_music, music_slug),
+    ]
+
+    base = datetime(2024, 11, 1, 12, 0, tzinfo=timezone.utc)
+    offsets = [0, 1, 2, 7, 8, 9, 14, 15, 16, 17]
+    completed_bookings: list[Booking] = []
+    for idx, (service, instructor, _slug) in enumerate(services):
+        completed_at = base + timedelta(days=offsets[idx])
+        booked_at = completed_at - timedelta(days=1)
+        booking = _create_booking(db, student, instructor, service, booked_at, completed_at)
+        completed_bookings.append(booking)
+
+    # Create high-rated reviews for quality badge window.
+    for booking in completed_bookings[-3:]:
+        instructor = db.query(User).filter(User.id == booking.instructor_id).first()
+        _create_review(
+            db,
+            booking=booking,
+            student=student,
+            instructor=instructor,
+            rating=5,
+            created_at=(booking.completed_at or base) + timedelta(hours=1),
+        )
+
+    badge_service = BadgeAwardService(db)
+    now_utc = base + timedelta(days=20)
+    summary = badge_service.backfill_user_badges(
+        student_id=student.id,
+        now_utc=now_utc,
+        send_notifications=False,
+        dry_run=False,
+    )
+
+    assert summary["milestones"] >= 1
+    assert summary["streak"] >= 1
+    assert summary["explorer"] >= 1
+    assert summary["quality_pending"] >= 1
+
+
+def test_badge_award_service_init_with_injected_services(db):
+    cache = object()
+    notifier = object()
+    service = BadgeAwardService(db, cache_service=cache, notification_service=notifier)
+    assert service.cache_service is cache
+    assert service.notification_service is notifier
+
+
+def test_check_and_award_skips_inactive_and_zero_goal(db, core_badges_seeded):
+    student = _create_user(db, "skip_goal_student@example.com")
+    instructor = _create_user(db, "skip_goal_instructor@example.com")
+    instructor_service, category_slug = _create_instructor_service(db, instructor)
+
+    inactive = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "welcome_aboard").first()
+    inactive.is_active = False
+    zero_goal = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "foundation_builder").first()
+    zero_goal.criteria_config = {"goal": 0}
+    db.flush()
+
+    badge_service = BadgeAwardService(db)
+    repo = BadgeRepository(db)
+    booked = datetime(2024, 12, 1, 10, 0, tzinfo=timezone.utc)
+    completed = booked + timedelta(hours=1)
+    booking = _create_booking(db, student, instructor, instructor_service, booked, completed)
+
+    badge_service.check_and_award_on_lesson_completed(
+        student_id=student.id,
+        lesson_id=booking.id,
+        instructor_id=instructor.id,
+        category_slug=category_slug,
+        booked_at_utc=booked,
+        completed_at_utc=completed,
+    )
+
+    progress_slugs = {row["slug"] for row in repo.list_student_badge_progress(student.id)}
+    assert "welcome_aboard" not in progress_slugs
+    assert "foundation_builder" not in progress_slugs
+
+
+def test_check_and_award_skips_momentum_progress_when_none(db, core_badges_seeded, monkeypatch):
+    student = _create_user(db, "skip_momentum_student@example.com")
+    instructor = _create_user(db, "skip_momentum_instructor@example.com")
+    instructor_service, category_slug = _create_instructor_service(db, instructor)
+
+    badge_service = BadgeAwardService(db)
+    repo = BadgeRepository(db)
+    monkeypatch.setattr(badge_service, "_build_momentum_progress_snapshot", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(badge_service, "_is_momentum_criteria_met_on_completion", lambda *_args, **_kwargs: False)
+
+    booked = datetime(2024, 12, 2, 10, 0, tzinfo=timezone.utc)
+    completed = booked + timedelta(hours=1)
+    booking = _create_booking(db, student, instructor, instructor_service, booked, completed)
+
+    badge_service.check_and_award_on_lesson_completed(
+        student_id=student.id,
+        lesson_id=booking.id,
+        instructor_id=instructor.id,
+        category_slug=category_slug,
+        booked_at_utc=booked,
+        completed_at_utc=completed,
+    )
+
+    progress_slugs = {row["slug"] for row in repo.list_student_badge_progress(student.id)}
+    assert "momentum_starter" not in progress_slugs
+
+
+def test_check_and_award_skips_consistent_and_explorer(db, core_badges_seeded):
+    student = _create_user(db, "skip_consistent_student@example.com")
+    instructor = _create_user(db, "skip_consistent_instructor@example.com")
+    instructor_service, category_slug = _create_instructor_service(db, instructor)
+
+    consistent = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "consistent_learner").first()
+    explorer = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "explorer").first()
+    consistent.is_active = False
+    explorer.is_active = False
+    db.flush()
+
+    badge_service = BadgeAwardService(db)
+    repo = BadgeRepository(db)
+    booked = datetime(2024, 12, 3, 10, 0, tzinfo=timezone.utc)
+    completed = booked + timedelta(hours=1)
+    booking = _create_booking(db, student, instructor, instructor_service, booked, completed)
+
+    badge_service.check_and_award_on_lesson_completed(
+        student_id=student.id,
+        lesson_id=booking.id,
+        instructor_id=instructor.id,
+        category_slug=category_slug,
+        booked_at_utc=booked,
+        completed_at_utc=completed,
+    )
+
+    progress_slugs = {row["slug"] for row in repo.list_student_badge_progress(student.id)}
+    assert "consistent_learner" not in progress_slugs
+    assert "explorer" not in progress_slugs
+
+
+def test_award_according_to_hold_no_award_id(db, core_badges_seeded, monkeypatch):
+    badge_service = BadgeAwardService(db)
+    definition = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "welcome_aboard").first()
+    monkeypatch.setattr(
+        badge_service.repository, "insert_award_pending_or_confirmed", lambda *_args, **_kwargs: None
+    )
+    badge_service._award_according_to_hold(
+        "student-id", definition, {"current": 1, "goal": 1}, datetime.now(timezone.utc)
+    )
+
+
+def test_get_latest_completed_lesson_time_none(db, monkeypatch):
+    badge_service = BadgeAwardService(db)
+    monkeypatch.setattr(badge_service.repository, "get_latest_completed_lesson", lambda *_args, **_kwargs: None)
+    result = badge_service._get_latest_completed_lesson_time(
+        "student-id", datetime.now(timezone.utc), "lesson-id"
+    )
+    assert result is None
+
+
+def test_build_momentum_progress_snapshot_missing_first_completed(db, monkeypatch):
+    badge_service = BadgeAwardService(db)
+    definition = BadgeDefinition(
+        id=generate_ulid(),
+        slug="momentum_missing_completed",
+        name="Momentum Missing",
+        criteria_type="velocity",
+        criteria_config={"goal": 2},
+        is_active=True,
+    )
+    monkeypatch.setattr(
+        badge_service.repository,
+        "get_latest_completed_lesson",
+        lambda *_args, **_kwargs: {"completed_at": None, "instructor_id": "instr"},
+    )
+    booked = datetime(2024, 12, 4, 10, 0, tzinfo=timezone.utc)
+    completed = booked + timedelta(hours=1)
+    snapshot = badge_service._build_momentum_progress_snapshot(
+        definition,
+        "student-id",
+        "instr",
+        "lesson-id",
+        booked,
+        completed,
+    )
+    assert snapshot.get("first_completed_at") is None
+
+
+def test_build_momentum_progress_snapshot_zero_windows(db, monkeypatch):
+    badge_service = BadgeAwardService(db)
+    definition = BadgeDefinition(
+        id=generate_ulid(),
+        slug="momentum_zero_windows",
+        name="Momentum Zero",
+        criteria_type="velocity",
+        criteria_config={"goal": 2, "window_days_to_book": 0, "window_days_to_complete": 0},
+        is_active=True,
+    )
+    first_completed = datetime(2024, 12, 5, 10, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(
+        badge_service.repository,
+        "get_latest_completed_lesson",
+        lambda *_args, **_kwargs: {"completed_at": first_completed, "instructor_id": "instr"},
+    )
+    booked = first_completed + timedelta(days=1)
+    completed = booked + timedelta(hours=1)
+    snapshot = badge_service._build_momentum_progress_snapshot(
+        definition,
+        "student-id",
+        "instr",
+        "lesson-id",
+        booked,
+        completed,
+    )
+    assert snapshot["booked_within_window"] is True
+    assert snapshot["completed_within_window"] is True
+    assert snapshot["eligible_pair"] is True
+
+
+def test_build_momentum_progress_snapshot_out_of_order_times(db, monkeypatch):
+    badge_service = BadgeAwardService(db)
+    definition = BadgeDefinition(
+        id=generate_ulid(),
+        slug="momentum_out_of_order",
+        name="Momentum Out",
+        criteria_type="velocity",
+        criteria_config={"goal": 2, "window_days_to_book": 3, "window_days_to_complete": 3},
+        is_active=True,
+    )
+    first_completed = datetime(2024, 12, 6, 10, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(
+        badge_service.repository,
+        "get_latest_completed_lesson",
+        lambda *_args, **_kwargs: {"completed_at": first_completed, "instructor_id": "instr"},
+    )
+    booked = first_completed - timedelta(days=1)
+    completed = booked - timedelta(hours=1)
+    snapshot = badge_service._build_momentum_progress_snapshot(
+        definition,
+        "student-id",
+        "instr",
+        "lesson-id",
+        booked,
+        completed,
+    )
+    assert snapshot["booked_within_window"] is False
+    assert snapshot["completed_within_window"] is False
+
+
+def test_is_student_currently_eligible_branches(db, monkeypatch):
+    badge_service = BadgeAwardService(db)
+    now = datetime(2024, 12, 7, 10, 0, tzinfo=timezone.utc)
+
+    milestone_def = BadgeDefinition(
+        id=generate_ulid(),
+        slug="milestone_zero",
+        name="Milestone Zero",
+        criteria_type="milestone",
+        criteria_config={"counts": "completed_lessons", "goal": 0},
+        is_active=True,
+    )
+    assert badge_service._is_student_currently_eligible("student-id", milestone_def, now) is False
+
+    velocity_def = BadgeDefinition(
+        id=generate_ulid(),
+        slug="velocity",
+        name="Velocity",
+        criteria_type="velocity",
+        criteria_config={},
+        is_active=True,
+    )
+    monkeypatch.setattr(badge_service, "_is_momentum_criteria_currently_met", lambda *_a, **_k: True)
+    assert badge_service._is_student_currently_eligible("student-id", velocity_def, now) is True
+
+    exploration_def = BadgeDefinition(
+        id=generate_ulid(),
+        slug="explore",
+        name="Explore",
+        criteria_type="exploration",
+        criteria_config={},
+        is_active=True,
+    )
+    monkeypatch.setattr(badge_service, "_is_explorer_eligible_now", lambda *_a, **_k: True)
+    assert badge_service._is_student_currently_eligible("student-id", exploration_def, now) is True
+
+    streak_def = BadgeDefinition(
+        id=generate_ulid(),
+        slug="streak",
+        name="Streak",
+        criteria_type="streak",
+        criteria_config={"goal": 2},
+        is_active=True,
+    )
+    monkeypatch.setattr(badge_service, "_current_streak_length", lambda *_a, **_k: 2)
+    assert badge_service._is_student_currently_eligible("student-id", streak_def, now) is True
+
+    other_def = BadgeDefinition(
+        id=generate_ulid(),
+        slug="other",
+        name="Other",
+        criteria_type="other",
+        criteria_config={},
+        is_active=True,
+    )
+    assert badge_service._is_student_currently_eligible("student-id", other_def, now) is True
+
+
+def test_is_momentum_criteria_met_on_completion_branches(db, monkeypatch):
+    badge_service = BadgeAwardService(db)
+    definition = BadgeDefinition(
+        id=generate_ulid(),
+        slug="momentum_branch",
+        name="Momentum Branch",
+        criteria_type="velocity",
+        criteria_config={},
+        is_active=True,
+    )
+    now = datetime(2024, 12, 8, 10, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(badge_service.repository, "get_latest_completed_lesson", lambda *_a, **_k: None)
+    assert (
+        badge_service._is_momentum_criteria_met_on_completion(
+            definition, "student-id", "instr", "lesson", now, now
+        )
+        is False
+    )
+
+    monkeypatch.setattr(
+        badge_service.repository,
+        "get_latest_completed_lesson",
+        lambda *_a, **_k: {"completed_at": None, "instructor_id": "instr"},
+    )
+    assert (
+        badge_service._is_momentum_criteria_met_on_completion(
+            definition, "student-id", "instr", "lesson", now, now
+        )
+        is False
+    )
+
+    monkeypatch.setattr(
+        badge_service.repository,
+        "get_latest_completed_lesson",
+        lambda *_a, **_k: {"completed_at": now, "instructor_id": "instr"},
+    )
+    definition.criteria_config = {"same_instructor_required": True}
+    assert (
+        badge_service._is_momentum_criteria_met_on_completion(
+            definition, "student-id", "other", "lesson", now, now + timedelta(hours=1)
+        )
+        is False
+    )
+
+    definition.criteria_config = {}
+    assert (
+        badge_service._is_momentum_criteria_met_on_completion(
+            definition, "student-id", "instr", "lesson", now - timedelta(days=1), now
+        )
+        is False
+    )
+
+    definition.criteria_config = {"window_days_to_book": 1}
+    assert (
+        badge_service._is_momentum_criteria_met_on_completion(
+            definition, "student-id", "instr", "lesson", now + timedelta(days=2), now + timedelta(days=2, hours=1)
+        )
+        is False
+    )
+
+    definition.criteria_config = {"window_days_to_complete": 1}
+    assert (
+        badge_service._is_momentum_criteria_met_on_completion(
+            definition, "student-id", "instr", "lesson", now + timedelta(days=1), now + timedelta(days=3)
+        )
+        is False
+    )
+
+
+def test_evaluate_consistent_learner_early_returns(db, monkeypatch):
+    badge_service = BadgeAwardService(db)
+    definition = BadgeDefinition(
+        id=generate_ulid(),
+        slug="consistent_test",
+        name="Consistent",
+        criteria_type="streak",
+        criteria_config={"goal": 3},
+        is_active=True,
+    )
+    badge_service._evaluate_consistent_learner(
+        definition, student_id="missing-student", completed_at_utc=datetime.now(timezone.utc)
+    )
+
+    student = _create_user(db, "consistent_timezone@example.com")
+    student.timezone = "America/New_York"
+    db.flush()
+
+    monkeypatch.setattr("app.services.badge_award_service.get_user_timezone", lambda _u: None)
+    badge_service._evaluate_consistent_learner(
+        definition, student_id=student.id, completed_at_utc=datetime.now(timezone.utc)
+    )
+
+
+def test_evaluate_consistent_learner_no_completion_times(db, core_badges_seeded, monkeypatch):
+    badge_service = BadgeAwardService(db)
+    definition = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "consistent_learner").first()
+    student = _create_user(db, "consistent_empty@example.com")
+    student.timezone = "America/New_York"
+    db.flush()
+
+    monkeypatch.setattr("app.services.badge_award_service.get_user_timezone", lambda _u: timezone.utc)
+    monkeypatch.setattr(badge_service.repository, "list_completed_lesson_times", lambda *_a, **_k: [])
+    badge_service._evaluate_consistent_learner(
+        definition, student_id=student.id, completed_at_utc=datetime.now(timezone.utc)
+    )
+
+
+def test_current_streak_length_no_completions(db, monkeypatch):
+    badge_service = BadgeAwardService(db)
+    definition = BadgeDefinition(
+        id=generate_ulid(),
+        slug="streak_empty",
+        name="Streak Empty",
+        criteria_type="streak",
+        criteria_config={"goal": 3},
+        is_active=True,
+    )
+    student = _create_user(db, "streak_empty@example.com")
+    student.timezone = "America/New_York"
+    db.flush()
+
+    monkeypatch.setattr("app.services.badge_award_service.get_user_timezone", lambda _u: timezone.utc)
+    monkeypatch.setattr(badge_service.repository, "list_completed_lesson_times", lambda *_a, **_k: [])
+    assert badge_service._current_streak_length(student.id, definition, goal=3) == 0
+
+
+def test_maybe_notify_badge_awarded_missing_notification(db, core_badges_seeded):
+    badge_service = BadgeAwardService(db)
+    badge_service.notification_service = None
+    definition = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "welcome_aboard").first()
+    badge_service._maybe_notify_badge_awarded(
+        student_id="student-id",
+        badge_definition=definition,
+        now_utc=datetime.now(timezone.utc),
+    )
+
+
+def test_maybe_notify_badge_awarded_missing_email(db, core_badges_seeded):
+    badge_service = BadgeAwardService(db)
+
+    class DummyNotification:
+        def send_badge_awarded_email(self, _user: User, _name: str) -> bool:
+            return True
+
+    badge_service.user_repository.get_by_id = lambda *_args, **_kwargs: SimpleNamespace(email=None)
+
+    badge_service.notification_service = DummyNotification()
+    definition = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "welcome_aboard").first()
+    badge_service._maybe_notify_badge_awarded(
+        student_id="student-id",
+        badge_definition=definition,
+        now_utc=datetime.now(timezone.utc),
+    )
+
+
+def test_is_momentum_criteria_currently_met_branches(db, monkeypatch):
+    badge_service = BadgeAwardService(db)
+    definition = BadgeDefinition(
+        id=generate_ulid(),
+        slug="momentum_loop",
+        name="Momentum Loop",
+        criteria_type="velocity",
+        criteria_config={},
+        is_active=True,
+    )
+    base = datetime(2024, 12, 9, 10, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(
+        badge_service.repository,
+        "list_completed_lessons",
+        lambda *_a, **_k: [{"completed_at": base, "booked_at": base, "instructor_id": "i1"}],
+    )
+    assert badge_service._is_momentum_criteria_currently_met(definition, "student-id") is False
+
+    definition.criteria_config = {"same_instructor_required": True}
+    monkeypatch.setattr(
+        badge_service.repository,
+        "list_completed_lessons",
+        lambda *_a, **_k: [
+            {"completed_at": base, "booked_at": base, "instructor_id": "i1"},
+            {"completed_at": base + timedelta(days=1), "booked_at": base + timedelta(days=1), "instructor_id": "i2"},
+        ],
+    )
+    assert badge_service._is_momentum_criteria_currently_met(definition, "student-id") is False
+
+    definition.criteria_config = {}
+    monkeypatch.setattr(
+        badge_service.repository,
+        "list_completed_lessons",
+        lambda *_a, **_k: [
+            {"completed_at": base, "booked_at": base, "instructor_id": "i1"},
+            {"completed_at": base + timedelta(days=1), "booked_at": base - timedelta(days=1), "instructor_id": "i1"},
+        ],
+    )
+    assert badge_service._is_momentum_criteria_currently_met(definition, "student-id") is False
+
+    definition.criteria_config = {"window_days_to_book": 1}
+    monkeypatch.setattr(
+        badge_service.repository,
+        "list_completed_lessons",
+        lambda *_a, **_k: [
+            {"completed_at": base, "booked_at": base, "instructor_id": "i1"},
+            {"completed_at": base + timedelta(days=3), "booked_at": base + timedelta(days=3), "instructor_id": "i1"},
+        ],
+    )
+    assert badge_service._is_momentum_criteria_currently_met(definition, "student-id") is False
+
+    definition.criteria_config = {"window_days_to_complete": 1}
+    monkeypatch.setattr(
+        badge_service.repository,
+        "list_completed_lessons",
+        lambda *_a, **_k: [
+            {"completed_at": base, "booked_at": base, "instructor_id": "i1"},
+            {
+                "completed_at": base + timedelta(days=3),
+                "booked_at": base + timedelta(days=1),
+                "instructor_id": "i1",
+            },
+        ],
+    )
+    assert badge_service._is_momentum_criteria_currently_met(definition, "student-id") is False
+
+
+def test_is_top_student_eligible_now_min_lessons(db, monkeypatch):
+    badge_service = BadgeAwardService(db)
+    definition = BadgeDefinition(
+        id=generate_ulid(),
+        slug="top_min_lessons",
+        name="Top Min Lessons",
+        criteria_type="quality",
+        criteria_config={"min_total_lessons": 2, "min_reviews": 0, "min_avg_rating": 0.0},
+        is_active=True,
+    )
+    monkeypatch.setattr(badge_service.repository, "count_completed_lessons", lambda *_a, **_k: 0)
+    assert (
+        badge_service._is_top_student_eligible_now(
+            "student-id", datetime.now(timezone.utc), definition
+        )
+        is False
+    )
+
+
+def test_is_explorer_eligible_now_branches(db, monkeypatch):
+    badge_service = BadgeAwardService(db)
+    definition = BadgeDefinition(
+        id=generate_ulid(),
+        slug="explorer_eligible",
+        name="Explorer Eligible",
+        criteria_type="exploration",
+        criteria_config={"show_after_total_lessons": 2, "distinct_categories": 2, "min_overall_avg_rating": 4.0},
+        is_active=True,
+    )
+
+    monkeypatch.setattr(badge_service.repository, "count_completed_lessons", lambda *_a, **_k: 1)
+    assert badge_service._is_explorer_eligible_now("student-id", definition) is False
+
+    monkeypatch.setattr(badge_service.repository, "count_completed_lessons", lambda *_a, **_k: 3)
+    monkeypatch.setattr(badge_service.repository, "count_distinct_completed_categories", lambda *_a, **_k: 1)
+    monkeypatch.setattr(badge_service.repository, "has_rebook_in_any_category", lambda *_a, **_k: True)
+    monkeypatch.setattr(badge_service.repository, "get_overall_student_avg_rating", lambda *_a, **_k: 5.0)
+    assert badge_service._is_explorer_eligible_now("student-id", definition) is False
+
+    monkeypatch.setattr(badge_service.repository, "count_distinct_completed_categories", lambda *_a, **_k: 2)
+    assert badge_service._is_explorer_eligible_now("student-id", definition) is True
