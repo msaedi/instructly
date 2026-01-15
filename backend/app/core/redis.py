@@ -10,6 +10,7 @@ caching operations.
 """
 
 import asyncio
+import contextlib
 import logging
 from typing import Optional
 
@@ -67,5 +68,7 @@ async def close_async_redis_client() -> None:
 
     if _async_redis_client is not None:
         await _async_redis_client.aclose()
+        with contextlib.suppress(BaseException):
+            await _async_redis_client.connection_pool.disconnect()
         _async_redis_client = None
         logger.info("[REDIS-PUBSUB] Async Redis client closed")

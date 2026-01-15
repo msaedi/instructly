@@ -70,6 +70,36 @@ class TestResponseCache:
         assert result == cached_response
 
     @pytest.mark.asyncio
+    async def test_cache_get_handles_exception(
+        self, search_cache: SearchCacheService, mock_cache_service: Mock
+    ) -> None:
+        """Cache read errors should return None."""
+        mock_cache_service.get.side_effect = Exception("boom")
+
+        result = await search_cache.get_cached_response("piano lessons")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_cache_response_returns_false_without_cache(self) -> None:
+        """Cache write should return False when cache is unavailable."""
+        cache = SearchCacheService(cache_service=None)
+
+        result = await cache.cache_response("piano", {"results": []})
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_cache_response_skips_relative_dates(
+        self, search_cache: SearchCacheService, mock_cache_service: Mock
+    ) -> None:
+        """Relative date queries should not be cached."""
+        result = await search_cache.cache_response("piano tomorrow", {"results": []})
+
+        assert result is False
+        mock_cache_service.set.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_caches_response_with_ttl(
         self, search_cache: SearchCacheService, mock_cache_service: Mock
     ) -> None:
@@ -143,6 +173,53 @@ class TestResponseCache:
         assert new_version == 5
         redis_client.incr.assert_awaited_once_with(VERSION_KEY)
 
+    @pytest.mark.asyncio
+    async def test_invalidation_without_cache_increments_local_version(self) -> None:
+        cache = SearchCacheService(cache_service=None)
+
+        first = await cache.invalidate_response_cache()
+        second = await cache.invalidate_response_cache()
+
+        assert second == first + 1
+
+    @pytest.mark.asyncio
+    async def test_invalidation_without_redis_uses_cache_set(
+        self, search_cache: SearchCacheService, mock_cache_service: Mock
+    ) -> None:
+        mock_cache_service.get_redis_client.return_value = None
+        mock_cache_service.get.return_value = "3"
+
+        new_version = await search_cache.invalidate_response_cache()
+
+        assert new_version == 4
+        mock_cache_service.set.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_invalidation_handles_exception(
+        self, search_cache: SearchCacheService, mock_cache_service: Mock
+    ) -> None:
+        mock_cache_service.get_redis_client.side_effect = Exception("boom")
+
+        new_version = await search_cache.invalidate_response_cache()
+
+        assert new_version == 1
+
+    @pytest.mark.asyncio
+    async def test_get_cache_version_handles_exception(
+        self, search_cache: SearchCacheService, mock_cache_service: Mock
+    ) -> None:
+        mock_cache_service.get.side_effect = Exception("boom")
+
+        version = await search_cache._get_cache_version()
+
+        assert version == 1
+
+    @pytest.mark.asyncio
+    async def test_get_cache_version_without_cache(self) -> None:
+        cache = SearchCacheService(cache_service=None)
+
+        assert await cache._get_cache_version() == 1
+
 
 class TestParsedQueryCache:
     """Tests for parsed query caching."""
@@ -178,6 +255,59 @@ class TestParsedQueryCache:
         assert result is not None
         assert result.service_query == "piano"
         assert result.max_price == 50
+
+    @pytest.mark.asyncio
+    async def test_parsed_cache_handles_exception(
+        self, search_cache: SearchCacheService, mock_cache_service: Mock
+    ) -> None:
+        mock_cache_service.get.side_effect = Exception("boom")
+
+        result = await search_cache.get_cached_parsed_query("piano")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_cache_parsed_query_returns_false_without_cache(self) -> None:
+        cache = SearchCacheService(cache_service=None)
+        parsed = ParsedQuery(
+            original_query="test",
+            service_query="test",
+            parsing_mode="regex",
+        )
+
+        result = await cache.cache_parsed_query("test", parsed)
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_cache_parsed_query_skips_relative_dates(
+        self, search_cache: SearchCacheService, mock_cache_service: Mock
+    ) -> None:
+        parsed = ParsedQuery(
+            original_query="piano tomorrow",
+            service_query="piano",
+            parsing_mode="regex",
+        )
+
+        result = await search_cache.cache_parsed_query("piano tomorrow", parsed)
+
+        assert result is False
+        mock_cache_service.set.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_cache_parsed_query_handles_exception(
+        self, search_cache: SearchCacheService, mock_cache_service: Mock
+    ) -> None:
+        parsed = ParsedQuery(
+            original_query="test",
+            service_query="test",
+            parsing_mode="regex",
+        )
+        mock_cache_service.set.side_effect = Exception("boom")
+
+        result = await search_cache.cache_parsed_query("test", parsed)
+
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_parsed_cache_ttl(
@@ -272,6 +402,31 @@ class TestLocationCache:
         assert result.borough == "Brooklyn"
 
     @pytest.mark.asyncio
+    async def test_get_cached_location_with_dict(
+        self, search_cache: SearchCacheService, mock_cache_service: Mock
+    ) -> None:
+        mock_cache_service.get.return_value = {
+            "lng": -73.98,
+            "lat": 40.75,
+            "borough": "Manhattan",
+        }
+
+        result = await search_cache.get_cached_location("Manhattan")
+
+        assert result is not None
+        assert result.borough == "Manhattan"
+
+    @pytest.mark.asyncio
+    async def test_get_cached_location_handles_exception(
+        self, search_cache: SearchCacheService, mock_cache_service: Mock
+    ) -> None:
+        mock_cache_service.get.side_effect = Exception("boom")
+
+        result = await search_cache.get_cached_location("Manhattan")
+
+        assert result is None
+
+    @pytest.mark.asyncio
     async def test_location_cache_ttl(
         self, search_cache: SearchCacheService, mock_cache_service: Mock
     ) -> None:
@@ -282,6 +437,25 @@ class TestLocationCache:
 
         call_args = mock_cache_service.set.call_args
         assert call_args.kwargs["ttl"] == LOCATION_CACHE_TTL
+
+    @pytest.mark.asyncio
+    async def test_cache_location_returns_false_without_cache(self) -> None:
+        cache = SearchCacheService(cache_service=None)
+        result = await cache.cache_location("Brooklyn", CachedLocation(lng=1, lat=2))
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_cache_location_handles_exception(
+        self, search_cache: SearchCacheService, mock_cache_service: Mock
+    ) -> None:
+        mock_cache_service.set.side_effect = Exception("boom")
+
+        result = await search_cache.cache_location(
+            "Brooklyn", CachedLocation(lng=-73.95, lat=40.68)
+        )
+
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_location_key_normalized(self, search_cache: SearchCacheService) -> None:
@@ -345,6 +519,20 @@ class TestCacheStats:
         stats = await cache.get_cache_stats()
 
         assert stats["available"] is False
+
+    @pytest.mark.asyncio
+    async def test_handles_stats_exception(
+        self, search_cache: SearchCacheService, monkeypatch
+    ) -> None:
+        async def boom() -> int:
+            raise Exception("boom")
+
+        monkeypatch.setattr(search_cache, "_get_cache_version", boom)
+
+        stats = await search_cache.get_cache_stats()
+
+        assert stats["available"] is False
+        assert "error" in stats
 
 
 class TestGracefulDegradation:
@@ -419,3 +607,11 @@ class TestResponseSerialization:
 
         assert deserialized["results"][0]["scores"]["quality"] == 0.9
         assert deserialized["metadata"]["total"] == 10
+
+    @pytest.mark.asyncio
+    async def test_deserialize_unknown_type_returns_empty(
+        self, search_cache: SearchCacheService
+    ) -> None:
+        result = search_cache._deserialize_response(["unexpected"])
+
+        assert result == {}

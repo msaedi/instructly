@@ -12,10 +12,19 @@ from app.database import SessionLocal
 from app.services.cache_service import get_cache_service
 
 
+async def _close_cache(cache) -> None:
+    redis_client = await cache.get_redis_client()
+    if redis_client is None:
+        return
+    await redis_client.close()
+    await redis_client.connection_pool.disconnect()
+
+
 @pytest.mark.asyncio
 async def test_cache_connection():
     """Test that we can connect to cache."""
     db = SessionLocal()
+    cache = None
     try:
         cache = get_cache_service(db)
         assert cache is not None
@@ -30,6 +39,8 @@ async def test_cache_connection():
         else:
             print("⚠️  Using InMemoryCache (DragonflyDB not available)")
     finally:
+        if cache is not None:
+            await _close_cache(cache)
         db.close()
 
 
@@ -37,6 +48,7 @@ async def test_cache_connection():
 async def test_cache_operations():
     """Test basic cache operations."""
     db = SessionLocal()
+    cache = None
     try:
         cache = get_cache_service(db)
 
@@ -67,6 +79,8 @@ async def test_cache_operations():
         # Cleanup
         await cache.delete("booking:1")
     finally:
+        if cache is not None:
+            await _close_cache(cache)
         db.close()
 
 
@@ -74,6 +88,7 @@ async def test_cache_operations():
 async def test_cache_performance():
     """Test cache performance."""
     db = SessionLocal()
+    cache = None
     try:
         cache = get_cache_service(db)
 
@@ -96,6 +111,8 @@ async def test_cache_performance():
         # Cleanup
         await cache.delete_pattern("perf_test:*")
     finally:
+        if cache is not None:
+            await _close_cache(cache)
         db.close()
 
 
@@ -103,6 +120,7 @@ async def test_cache_performance():
 async def test_cache_invalidation():
     """Test cache invalidation for availability."""
     db = SessionLocal()
+    cache = None
     try:
         cache = get_cache_service(db)
 
@@ -117,6 +135,8 @@ async def test_cache_invalidation():
         # Should have cleared pattern
         assert await cache.get("avail:week:123:2025-06-16") is None
     finally:
+        if cache is not None:
+            await _close_cache(cache)
         db.close()
 
 

@@ -8,17 +8,21 @@ Tests:
 - Heartbeat injection
 """
 
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import json
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
 from app.repositories.message_repository import MessageRepository
 from app.services.messaging.sse_stream import (
+    create_sse_stream,
+    ensure_db_health,
     fetch_messages_after,
     format_message_from_db,
     format_redis_event,
+    publish_to_user,
 )
 
 
@@ -154,6 +158,26 @@ class TestFormatRedisEvent:
 
         assert "id" not in result
         assert result["event"] == "custom_event"
+
+    def test_message_deleted_event(self) -> None:
+        event = {
+            "type": "message_deleted",
+            "payload": {"message_id": "01MSG"},
+        }
+
+        result = format_redis_event(event, "01USER")
+
+        assert result["event"] == "message_deleted"
+
+    def test_notification_update_event(self) -> None:
+        event = {
+            "type": "notification_update",
+            "payload": {"count": 1},
+        }
+
+        result = format_redis_event(event, "01USER")
+
+        assert result["event"] == "notification_update"
 
 
 class TestFormatMessageFromDb:
@@ -331,3 +355,128 @@ async def test_fetch_messages_after_returns_newer_messages(db, test_booking, tes
     returned_ids = [str(m.id) for m in results]
     assert returned_ids == [str(msg2.id), str(msg3.id)]
     assert all(m.booking_id == test_booking.id for m in results)
+
+
+class TestSseStreamFailures:
+    @pytest.mark.asyncio
+    async def test_ensure_db_health_raises_http_exception(self) -> None:
+        class BadDb:
+            def execute(self, _stmt):
+                raise RuntimeError("db down")
+
+        with pytest.raises(Exception) as exc:
+            await ensure_db_health(BadDb())
+
+        assert "Service temporarily unavailable" in str(exc.value)
+
+    @pytest.mark.asyncio
+    async def test_stream_handles_invalid_json(self, monkeypatch) -> None:
+        class FakeEvent:
+            def __init__(self, message: str) -> None:
+                self.message = message
+
+        class FakeSubscriber:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                if hasattr(self, "_done"):
+                    raise StopAsyncIteration
+                self._done = True
+                return FakeEvent("not-json")
+
+        @asynccontextmanager
+        async def fake_subscribe(channel: str):
+            yield FakeSubscriber()
+
+        mock_broadcast = MagicMock()
+        mock_broadcast.subscribe = fake_subscribe
+        monkeypatch.setattr("app.services.messaging.sse_stream.get_broadcast", lambda: mock_broadcast)
+
+        events = []
+        async for event in create_sse_stream("01USER", missed_messages=None):
+            events.append(event)
+
+        assert events[0]["event"] == "connected"
+
+    @pytest.mark.asyncio
+    async def test_stream_handles_reader_error(self, monkeypatch) -> None:
+        class ErrorSubscriber:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                raise ValueError("boom")
+
+        @asynccontextmanager
+        async def fake_subscribe(channel: str):
+            yield ErrorSubscriber()
+
+        mock_broadcast = MagicMock()
+        mock_broadcast.subscribe = fake_subscribe
+        monkeypatch.setattr("app.services.messaging.sse_stream.get_broadcast", lambda: mock_broadcast)
+
+        events = []
+        async for event in create_sse_stream("01USER", missed_messages=None):
+            events.append(event)
+
+        assert events[0]["event"] == "connected"
+
+    @pytest.mark.asyncio
+    async def test_stream_generator_cleanup_runtime_error(self, monkeypatch) -> None:
+        def _raise_generator() -> None:
+            raise RuntimeError("generator is closing")
+
+        monkeypatch.setattr("app.services.messaging.sse_stream.get_broadcast", _raise_generator)
+
+        events = []
+        async for event in create_sse_stream("01USER", missed_messages=None):
+            events.append(event)
+
+        assert events[0]["event"] == "connected"
+
+    @pytest.mark.asyncio
+    async def test_stream_unexpected_error_is_raised(self, monkeypatch) -> None:
+        def _raise_error() -> None:
+            raise ValueError("unexpected")
+
+        monkeypatch.setattr("app.services.messaging.sse_stream.get_broadcast", _raise_error)
+
+        with pytest.raises(ValueError):
+            async for _event in create_sse_stream("01USER", missed_messages=None):
+                pass
+
+
+class TestPublishToUser:
+    @pytest.mark.asyncio
+    async def test_publish_to_user_success(self, monkeypatch) -> None:
+        mock_broadcast = MagicMock()
+        mock_broadcast.publish = AsyncMock()
+
+        monkeypatch.setattr("app.services.messaging.sse_stream.get_broadcast", lambda: mock_broadcast)
+
+        await publish_to_user("01USER", {"type": "ping"})
+
+        mock_broadcast.publish.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_publish_to_user_handles_error(self, monkeypatch) -> None:
+        mock_broadcast = MagicMock()
+        mock_broadcast.publish = AsyncMock(side_effect=Exception("boom"))
+
+        monkeypatch.setattr("app.services.messaging.sse_stream.get_broadcast", lambda: mock_broadcast)
+
+        await publish_to_user("01USER", {"type": "ping"})
+
+
+class TestFetchMessagesAfter:
+    @pytest.mark.asyncio
+    async def test_returns_empty_when_no_conversations(self, db, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "app.repositories.conversation_repository.ConversationRepository.find_for_user",
+            lambda _self, _user_id, _limit, _offset: [],
+        )
+
+        result = await fetch_messages_after(db, "01USER", "01MSG")
+
+        assert result == []

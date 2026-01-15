@@ -57,7 +57,17 @@ async def clear_rate_limits():
     except Exception:
         # In CI or local environments without Redis, keep tests resilient.
         pass
-    yield
+    try:
+        yield
+    finally:
+        try:
+            await redis.close()
+        except Exception:
+            pass
+        try:
+            await redis.connection_pool.disconnect()
+        except Exception:
+            pass
 
 
 @pytest.mark.usefixtures("enable_rate_limiting", "clear_rate_limits")

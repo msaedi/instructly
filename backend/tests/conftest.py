@@ -21,6 +21,7 @@ except ModuleNotFoundError:
     if str(_REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(_REPO_ROOT))
 
+import asyncio
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 import importlib
@@ -88,6 +89,28 @@ def anyio_backend():
     """Force anyio-based tests to run under asyncio backend."""
     return "asyncio"
 
+
+@pytest.fixture
+def event_loop():
+    """Create an event loop for async tests and close Redis clients before teardown."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        yield loop
+    finally:
+        try:
+            from app.core.cache_redis import close_async_cache_redis_client
+
+            loop.run_until_complete(close_async_cache_redis_client())
+        except Exception:
+            pass
+        try:
+            from app.core.redis import close_async_redis_client
+
+            loop.run_until_complete(close_async_redis_client())
+        except Exception:
+            pass
+        loop.close()
 
 @pytest.fixture
 def isolate_settings_env(monkeypatch):

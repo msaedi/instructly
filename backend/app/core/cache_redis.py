@@ -103,5 +103,7 @@ async def close_async_cache_redis_client() -> None:
 
     try:
         await client.aclose()
+        with contextlib.suppress(BaseException):
+            await client.connection_pool.disconnect()
     finally:
         logger.info("[REDIS-CACHE] Async Redis client closed")

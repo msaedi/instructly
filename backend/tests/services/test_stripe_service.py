@@ -5,7 +5,7 @@ Comprehensive test suite for Stripe marketplace payment processing,
 including customer management, connected accounts, and payment processing.
 """
 
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 import logging
 from types import SimpleNamespace
@@ -18,7 +18,7 @@ import ulid
 
 from app.core.config import settings
 from app.core.exceptions import ServiceException
-from app.models.booking import Booking, BookingStatus
+from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
@@ -3330,6 +3330,88 @@ class TestStripeService:
         _, message_kwargs = booking_service.system_message_service.create_booking_created_message.call_args
         assert message_kwargs["service_name"] == test_booking.instructor_service.name
 
+    def test_create_booking_checkout_sets_scheduled_payment_status(
+        self, stripe_service: StripeService, test_booking: Booking, test_user: User
+    ) -> None:
+        test_user._cached_is_student = True
+        test_booking.status = BookingStatus.PENDING
+        booking_service = _booking_service_stub()
+
+        payment_result = {
+            "success": True,
+            "payment_intent_id": "pi_scheduled",
+            "status": "scheduled",
+            "amount": 5000,
+            "application_fee": 500,
+            "client_secret": None,
+        }
+
+        payload = CreateCheckoutRequest(
+            booking_id=test_booking.id,
+            payment_method_id="pm_scheduled",
+            save_payment_method=False,
+        )
+
+        with (
+            patch.object(stripe_service, "process_booking_payment", return_value=payment_result),
+            patch.object(
+                stripe_service.booking_repository,
+                "get_by_id_for_update",
+                return_value=test_booking,
+            ),
+        ):
+            response = stripe_service.create_booking_checkout(
+                current_user=test_user,
+                payload=payload,
+                booking_service=booking_service,
+            )
+
+        assert response.status == "scheduled"
+        assert test_booking.payment_status == PaymentStatus.SCHEDULED.value
+
+    def test_create_booking_checkout_invalid_state_after_payment_refund(
+        self, stripe_service: StripeService, test_booking: Booking, test_user: User
+    ) -> None:
+        test_user._cached_is_student = True
+        test_booking.status = BookingStatus.PENDING
+        booking_service = _booking_service_stub()
+
+        payment_result = {
+            "success": True,
+            "payment_intent_id": "pi_capture",
+            "status": "requires_capture",
+            "amount": 5000,
+            "application_fee": 500,
+            "client_secret": None,
+        }
+
+        payload = CreateCheckoutRequest(
+            booking_id=test_booking.id,
+            payment_method_id="pm_capture",
+            save_payment_method=False,
+        )
+
+        invalid_booking = MagicMock(spec=Booking)
+        invalid_booking.status = BookingStatus.COMPLETED.value
+
+        with (
+            patch.object(stripe_service, "process_booking_payment", return_value=payment_result),
+            patch.object(
+                stripe_service.booking_repository,
+                "get_by_id_for_update",
+                return_value=invalid_booking,
+            ),
+            patch.object(stripe_service, "_void_or_refund_payment") as mock_void,
+        ):
+            with pytest.raises(ServiceException, match="unexpected state"):
+                stripe_service.create_booking_checkout(
+                    current_user=test_user,
+                    payload=payload,
+                    booking_service=booking_service,
+                )
+
+        mock_void.assert_called_once_with("pi_capture")
+
     def test_create_booking_checkout_suppresses_notification_errors(
         self, stripe_service: StripeService, test_booking: Booking, test_user: User
     ) -> None:
@@ -3401,6 +3483,50 @@ class TestStripeService:
         assert test_booking.status == BookingStatus.PENDING
         booking_service.repository.flush.assert_not_called()
         booking_service.system_message_service.create_booking_created_message.assert_not_called()
+
+    def test_create_booking_checkout_notification_error_suppressed(
+        self, stripe_service: StripeService, test_booking: Booking, test_user: User
+    ) -> None:
+        test_user._cached_is_student = True
+        test_booking.status = BookingStatus.PENDING.value
+        booking_service = _booking_service_stub()
+        booking_service.send_booking_notifications_after_confirmation.side_effect = Exception(
+            "notify failed"
+        )
+
+        payment_result = {
+            "success": True,
+            "payment_intent_id": "pi_capture",
+            "status": "requires_capture",
+            "amount": 5000,
+            "application_fee": 500,
+            "client_secret": None,
+        }
+
+        payload = CreateCheckoutRequest(
+            booking_id=test_booking.id,
+            payment_method_id="pm_capture",
+            save_payment_method=False,
+        )
+
+        with (
+            patch.object(stripe_service, "process_booking_payment", return_value=payment_result),
+            patch.object(
+                stripe_service.booking_repository,
+                "get_by_id_for_update",
+                return_value=test_booking,
+            ),
+        ):
+            response = stripe_service.create_booking_checkout(
+                current_user=test_user,
+                payload=payload,
+                booking_service=booking_service,
+            )
+
+        assert response.success is True
+        booking_service.send_booking_notifications_after_confirmation.assert_called_once_with(
+            test_booking.id
+        )
 
     # ========== Payment Method Management Tests ==========
 
@@ -4115,3 +4241,79 @@ class TestStripeService:
         )
 
         assert result[0]["platform_fee_cents"] == 800
+
+    def test_earnings_export_missing_profile_raises(
+        self, stripe_service: StripeService, test_user: User
+    ) -> None:
+        with patch.object(
+            stripe_service.instructor_repository, "get_by_user_id", return_value=None
+        ):
+            with pytest.raises(ServiceException, match="Instructor profile not found"):
+                stripe_service._build_earnings_export_rows(
+                    instructor_id=test_user.id,
+                    start_date=None,
+                    end_date=None,
+                )
+
+    def test_generate_earnings_csv_formats_rows(
+        self, stripe_service: StripeService, test_user: User
+    ) -> None:
+        rows = [
+            {
+                "lesson_date": date.today(),
+                "student_name": "Student A",
+                "service_name": "Lesson",
+                "duration_minutes": 60,
+                "lesson_price_cents": 10000,
+                "platform_fee_cents": 1500,
+                "net_earnings_cents": 8500,
+                "status": "Paid",
+                "payment_id": "pay_123",
+            }
+        ]
+
+        with patch.object(
+            stripe_service, "_build_earnings_export_rows", return_value=rows
+        ):
+            csv_data = stripe_service.generate_earnings_csv(instructor_id=test_user.id)
+
+        assert "Lesson Price" in csv_data
+        assert "Student A" in csv_data
+        assert "pay_123" in csv_data
+
+    def test_generate_earnings_pdf_outputs_bytes(
+        self, stripe_service: StripeService, test_user: User
+    ) -> None:
+        rows = [
+            {
+                "lesson_date": date.today(),
+                "student_name": "Student A",
+                "service_name": "Lesson",
+                "duration_minutes": 60,
+                "lesson_price_cents": 10000,
+                "platform_fee_cents": 1500,
+                "net_earnings_cents": 8500,
+                "status": "Paid",
+                "payment_id": "pay_123",
+            }
+        ]
+
+        with patch.object(
+            stripe_service, "_build_earnings_export_rows", return_value=rows
+        ):
+            pdf_bytes = stripe_service.generate_earnings_pdf(
+                instructor_id=test_user.id,
+                start_date=date.today(),
+                end_date=date.today(),
+            )
+
+        assert pdf_bytes.startswith(b"%PDF-")
+        assert b"Earnings Report" in pdf_bytes
+
+    def test_generate_earnings_pdf_no_rows(self, stripe_service: StripeService, test_user: User) -> None:
+        with patch.object(
+            stripe_service, "_build_earnings_export_rows", return_value=[]
+        ):
+            pdf_bytes = stripe_service.generate_earnings_pdf(instructor_id=test_user.id)
+
+        assert b"No earnings found" in pdf_bytes

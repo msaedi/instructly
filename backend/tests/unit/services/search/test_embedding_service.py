@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from app.services.cache_service import CacheService
-from app.services.search.circuit_breaker import EMBEDDING_CIRCUIT
+from app.services.search.circuit_breaker import EMBEDDING_CIRCUIT, CircuitOpenError
 from app.services.search.config import get_search_config
 from app.services.search.embedding_provider import (
     MockEmbeddingProvider,
@@ -227,6 +227,108 @@ class TestEmbeddingService:
 
         assert provider.calls == 1
         assert results == [None, None]
+
+    @pytest.mark.asyncio
+    async def test_embed_query_handles_missing_loop(
+        self, embedding_service: EmbeddingService, monkeypatch
+    ) -> None:
+        """Missing running loop should fall back gracefully."""
+
+        def _raise_runtime() -> None:
+            raise RuntimeError("no loop")
+
+        monkeypatch.setattr(asyncio, "get_running_loop", _raise_runtime)
+
+        result = await embedding_service.embed_query("piano lessons")
+
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_embed_query_waiter_returns_cached_value(self, monkeypatch) -> None:
+        """Waiter path should return cached embedding when available."""
+        redis_client = AsyncMock()
+        redis_client.set.return_value = None
+        redis_client.exists.return_value = 1
+        redis_client.eval.return_value = 0
+
+        cache = CacheService(db=None, redis_client=redis_client)  # type: ignore[arg-type]
+        cache.get = AsyncMock(side_effect=[None, [0.2] * 1536])
+        cache.set = AsyncMock(return_value=True)
+        cache.get_redis_client = AsyncMock(return_value=redis_client)
+
+        service = EmbeddingService(cache_service=cache, provider=MockEmbeddingProvider(dimensions=1536))
+        result = await service.embed_query("piano lessons")
+
+        assert result == [0.2] * 1536
+
+    @pytest.mark.asyncio
+    async def test_embed_query_lock_error_waits_for_cache(self, monkeypatch) -> None:
+        """Lock acquisition errors should fall back to cached value."""
+        redis_client = AsyncMock()
+        redis_client.set.side_effect = Exception("lock error")
+        redis_client.exists.return_value = 0
+        redis_client.eval.return_value = 0
+
+        cache = CacheService(db=None, redis_client=redis_client)  # type: ignore[arg-type]
+        cache.get = AsyncMock(side_effect=[None, None, None, [0.1] * 1536])
+        cache.set = AsyncMock(return_value=True)
+        cache.get_redis_client = AsyncMock(return_value=redis_client)
+
+        monkeypatch.setattr(
+            "app.services.search.embedding_service._SINGLEFLIGHT_POLL_TIMEOUT_S", 0.05
+        )
+        monkeypatch.setattr(
+            "app.services.search.embedding_service._SINGLEFLIGHT_POLL_INTERVAL_S", 0.01
+        )
+
+        service = EmbeddingService(cache_service=cache, provider=MockEmbeddingProvider(dimensions=1536))
+        result = await service.embed_query("piano lessons")
+
+        assert result == [0.1] * 1536
+
+    @pytest.mark.asyncio
+    async def test_embed_query_handles_cache_set_error_in_leader(self, monkeypatch) -> None:
+        """Cache set errors in leader path should not fail embedding."""
+        redis_client = AsyncMock()
+        redis_client.set.return_value = True
+        redis_client.eval.return_value = 0
+
+        cache = CacheService(db=None, redis_client=redis_client)  # type: ignore[arg-type]
+        cache.get = AsyncMock(return_value=None)
+        cache.set = AsyncMock(side_effect=Exception("cache down"))
+        cache.get_redis_client = AsyncMock(return_value=redis_client)
+
+        service = EmbeddingService(cache_service=cache, provider=MockEmbeddingProvider(dimensions=1536))
+        result = await service.embed_query("piano lessons")
+
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_embed_query_handles_circuit_open_error(
+        self, embedding_service: EmbeddingService, monkeypatch
+    ) -> None:
+        """CircuitOpenError during call should return None."""
+        monkeypatch.setattr(
+            EMBEDDING_CIRCUIT,
+            "call",
+            AsyncMock(side_effect=CircuitOpenError("open")),
+        )
+
+        result = await embedding_service.embed_query("piano lessons")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_embed_query_handles_cache_set_error(
+        self, embedding_service: EmbeddingService
+    ) -> None:
+        """Cache set errors should not break embedding."""
+        embedding_service.cache.get.return_value = None
+        embedding_service.cache.set.side_effect = Exception("cache error")
+
+        result = await embedding_service.embed_query("piano lessons")
+
+        assert result is not None
 
     @pytest.mark.asyncio
     async def test_embed_query_cross_worker_singleflight(
@@ -522,6 +624,94 @@ class TestBatchEmbedding:
 
         assert result is not None
         assert len(result) == 1536
+
+    @pytest.mark.asyncio
+    async def test_embed_service_error_returns_none(
+        self, embedding_service: EmbeddingService, monkeypatch
+    ) -> None:
+        """Embed service should return None on error."""
+        service = Mock()
+        service.id = "svc_error"
+        service.name = "Broken"
+        service.description = "Broken"
+        service.category = None
+        type(service).audience = property(lambda self: None)
+        type(service).skill_levels = property(lambda self: None)
+
+        monkeypatch.setattr(
+            EMBEDDING_CIRCUIT,
+            "call",
+            AsyncMock(side_effect=Exception("boom")),
+        )
+
+        result = await embedding_service.embed_service(service)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_embed_services_batch_fallbacks(
+        self, embedding_service: EmbeddingService, monkeypatch
+    ) -> None:
+        """Batch failures should fall back to per-service embedding."""
+        services = []
+        for i in range(2):
+            svc = Mock()
+            svc.id = f"svc_fallback_{i}"
+            svc.name = f"Service {i}"
+            svc.description = f"Description {i}"
+            svc.category = None
+            type(svc).audience = property(lambda self: None)
+            type(svc).skill_levels = property(lambda self: None)
+            services.append(svc)
+
+        monkeypatch.setattr(
+            EMBEDDING_CIRCUIT,
+            "call",
+            AsyncMock(side_effect=Exception("batch failed")),
+        )
+        monkeypatch.setattr(
+            embedding_service,
+            "embed_service",
+            AsyncMock(return_value=[0.3] * 1536),
+        )
+
+        results = await embedding_service.embed_services_batch(services, batch_size=2)
+
+        assert results == {svc.id: [0.3] * 1536 for svc in services}
+
+
+class TestEmbeddingRepositoryIntegration:
+    @pytest.mark.asyncio
+    async def test_get_services_needing_embedding_uses_repository(self, db) -> None:
+        service = EmbeddingService()
+
+        class DummyRepo:
+            def __init__(self, _db):
+                self.db = _db
+
+            def get_services_needing_embedding(self, _model, _limit):
+                return ["svc1"]
+
+        with patch(
+            "app.services.search.embedding_service.ServiceCatalogRepository", DummyRepo
+        ):
+            assert service.get_services_needing_embedding(db, limit=1) == ["svc1"]
+
+    @pytest.mark.asyncio
+    async def test_update_service_embedding_uses_repository(self, db) -> None:
+        service = EmbeddingService()
+
+        class DummyRepo:
+            def __init__(self, _db):
+                self.db = _db
+
+            def update_service_embedding(self, *_args, **_kwargs):
+                return True
+
+        with patch(
+            "app.services.search.embedding_service.ServiceCatalogRepository", DummyRepo
+        ):
+            assert service.update_service_embedding(db, "svc1", [0.1], "hash")
 
 
 class TestCacheKeyGeneration:
