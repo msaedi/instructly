@@ -159,3 +159,44 @@ def test_create_instructor_service_from_catalog(db, test_instructor):
         duration_options=[60, 90],
     )
     assert created["catalog_service_id"] == catalog.id
+
+
+def test_get_top_services_per_category_cache(db, mock_cache_service):
+    service = InstructorService(db, cache_service=mock_cache_service)
+    mock_cache_service.get.return_value = None
+
+    categories = service.category_repository.get_all()
+    if not categories:
+        pytest.skip("No service categories available")
+
+    top_services = service.catalog_repository.get_active_services_with_categories(
+        category_id=categories[0].id, limit=1
+    )
+    if not top_services:
+        pytest.skip("No active services available")
+
+    analytics = service.analytics_repository.get_or_create(top_services[0].id)
+    analytics.active_instructors = 1
+    db.commit()
+
+    result = service.get_top_services_per_category(limit=1)
+    assert "categories" in result
+    assert mock_cache_service.set.called
+
+    mock_cache_service.get.return_value = {"cached": True}
+    assert service.get_top_services_per_category(limit=1) == {"cached": True}
+
+
+def test_get_instructor_profile_and_user(db, test_instructor):
+    service = InstructorService(db)
+
+    profile_data = service.get_instructor_profile(test_instructor.id)
+    assert profile_data["user"]["id"] == test_instructor.id
+
+    user = service.get_instructor_user(test_instructor.id)
+    assert user.id == test_instructor.id
+
+    profile = service.profile_repository.get_by_user_id(test_instructor.id)
+    assert profile is not None
+    resolved = service.get_instructor_user(profile.id)
+    assert resolved.id == test_instructor.id

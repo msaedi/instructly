@@ -71,14 +71,20 @@ def _create_booking(
     payment_intent_id: str | None = None,
 ) -> Booking:
     end_dt = start_dt + timedelta(hours=1)
+    safe_start_dt = start_dt
+    safe_end_dt = end_dt
+    if safe_end_dt.date() != safe_start_dt.date():
+        # Avoid invalid local ranges during fixture insert; preserve UTC times after insert.
+        safe_start_dt = safe_start_dt.replace(hour=20, minute=0, second=0, microsecond=0)
+        safe_end_dt = safe_start_dt + timedelta(hours=1)
     booking = create_booking_pg_safe(
         db,
         student_id=student.id,
         instructor_id=instructor.id,
         instructor_service_id=instructor.instructor_profile.instructor_services[0].id,
-        booking_date=start_dt.date(),
-        start_time=start_dt.time(),
-        end_time=end_dt.time(),
+        booking_date=safe_start_dt.date(),
+        start_time=safe_start_dt.time(),
+        end_time=safe_end_dt.time(),
         instructor_timezone="UTC",
         student_timezone="UTC",
         service_name="Payment Tasks",
