@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta, timezone
 
 import pytest
-from sqlalchemy.exc import IntegrityError, InvalidRequestError
+from sqlalchemy.exc import IntegrityError
 
 from app.core.enums import RoleName
 from app.core.exceptions import RepositoryException
@@ -1202,15 +1202,8 @@ def test_booking_repository_additional_branches(
         col.name: getattr(test_booking, col.name)
         for col in test_booking.__table__.columns
     }
-    # Avoid identity map warning when intentionally inserting a duplicate PK.
-    try:
-        db.expunge(test_booking)
-    except InvalidRequestError:
-        pass
-    try:
-        db.expunge(locked)
-    except InvalidRequestError:
-        pass
+    # Avoid identity map warnings when intentionally inserting a duplicate PK.
+    db.expunge_all()
     with pytest.raises(IntegrityError):
         repo.create(**duplicate_data)
     db.rollback()

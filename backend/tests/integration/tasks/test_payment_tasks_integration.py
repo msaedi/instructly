@@ -646,7 +646,7 @@ def test_process_capture_locked_funds_skips_and_settles_child(
         db,
         student=test_student,
         instructor=test_instructor_with_availability,
-        start_dt=now + timedelta(hours=6),
+        start_dt=now + timedelta(hours=7),
         payment_status=PaymentStatus.AUTHORIZED.value,
         payment_intent_id="pi_locked_child",
     )
