@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from fastapi import HTTPException
 import pytest
 
 import app.routes.v1.redis_monitor as redis_routes
@@ -136,6 +137,58 @@ async def test_redis_connection_audit(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_redis_client_unavailable(monkeypatch) -> None:
+    async def _none():
+        return None
+
+    monkeypatch.setattr(redis_routes, "get_async_cache_redis_client", _none)
+
+    with pytest.raises(RuntimeError, match="Redis unavailable"):
+        await redis_routes.get_redis_client()
+
+
+@pytest.mark.asyncio
+async def test_redis_stats_error(monkeypatch) -> None:
+    async def _boom():
+        raise RuntimeError("down")
+
+    monkeypatch.setattr(redis_routes, "get_redis_client", _boom)
+
+    with pytest.raises(HTTPException) as exc:
+        await redis_routes.redis_stats(current_user=SimpleNamespace())
+    assert exc.value.status_code == 500
+
+
+@pytest.mark.asyncio
+async def test_celery_queue_status_error(monkeypatch) -> None:
+    async def _client():
+        return _DummyRedis()
+
+    async def _boom(_client):
+        raise RuntimeError("queue fail")
+
+    monkeypatch.setattr(redis_routes, "get_redis_client", _client)
+    monkeypatch.setattr(redis_routes, "_get_celery_queue_lengths", _boom)
+
+    with pytest.raises(HTTPException) as exc:
+        await redis_routes.celery_queue_status(current_user=SimpleNamespace())
+    assert exc.value.status_code == 500
+
+
+@pytest.mark.asyncio
+async def test_redis_connection_audit_handles_error(monkeypatch) -> None:
+    async def _boom():
+        raise RuntimeError("down")
+
+    monkeypatch.setattr(redis_routes.settings, "redis_url", "")
+    monkeypatch.setattr(redis_routes, "get_redis_client", _boom)
+
+    with pytest.raises(HTTPException) as exc:
+        await redis_routes.redis_connection_audit(current_user=SimpleNamespace())
+    assert exc.value.status_code == 500
+
+
+@pytest.mark.asyncio
 async def test_flush_celery_queues(monkeypatch) -> None:
     class _FlushRedis(_DummyRedis):
         async def delete(self, queue: str) -> int:
@@ -143,9 +196,26 @@ async def test_flush_celery_queues(monkeypatch) -> None:
                 raise RuntimeError("delete fail")
             return 1
 
+        async def llen(self, queue: str) -> int:
+            if queue == "email":
+                return 2
+            return await super().llen(queue)
+
     async def _client():
         return _FlushRedis()
 
     monkeypatch.setattr(redis_routes, "get_redis_client", _client)
     response = await redis_routes.flush_celery_queues(current_user=SimpleNamespace())
     assert "celery" in response.queues_flushed
+
+
+@pytest.mark.asyncio
+async def test_flush_celery_queues_error(monkeypatch) -> None:
+    async def _boom():
+        raise RuntimeError("down")
+
+    monkeypatch.setattr(redis_routes, "get_redis_client", _boom)
+
+    with pytest.raises(HTTPException) as exc:
+        await redis_routes.flush_celery_queues(current_user=SimpleNamespace())
+    assert exc.value.status_code == 500
