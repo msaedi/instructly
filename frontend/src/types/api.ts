@@ -1,7 +1,36 @@
-// Generated TypeScript types for InstaInstru API
-// DO NOT EDIT - This file is auto-generated from Pydantic schemas
+/**
+ * TypeScript types for InstaInstru API
+ *
+ * MIGRATION NOTE: Types ending in *Request/*Response should come from
+ * the generated shim at @/features/shared/api/types. This file contains:
+ * - Enums and non-API types
+ * - Utility types (renamed to avoid *Request/*Response pattern)
+ * - Re-exports from the shim for backward compatibility
+ */
 
 import type { ServiceAreaNeighborhood } from '@/types/instructor';
+
+// Re-export generated types from shim for backward compatibility
+export type {
+  AvailabilityWindowResponse,
+  BlackoutDateResponse,
+  CopyWeekRequest,
+  ApplyToDateRangeRequest,
+  BulkUpdateRequest,
+  BulkUpdateResponse,
+  WeekValidationResponse,
+  ValidateWeekRequest,
+  AvailabilityCheckRequest,
+  AvailabilityCheckResponse,
+  BookingStatsResponse,
+  PasswordResetRequest,
+  PasswordResetResponse,
+  ServiceResponse,
+  AuthUserResponse,
+} from '@/features/shared/api/types';
+
+// Import Gen namespace for type aliases
+import type { Gen } from '@/features/shared/api/types';
 
 // Enums
 export enum UserRole {
@@ -52,25 +81,9 @@ export interface AvailabilityWindowUpdate {
   end_time?: string | null;
 }
 
-export interface AvailabilityWindowResponse {
-  id: string;
-  instructor_id: string;
-  specific_date: string;
-  start_time: string;
-  end_time: string;
-}
-
 export interface BlackoutDateCreate {
   date: string;
   reason?: string | null;
-}
-
-export interface BlackoutDateResponse {
-  id: string;
-  instructor_id: string;
-  date: string;
-  reason?: string | null;
-  created_at: string;
 }
 
 export interface TimeRange {
@@ -89,17 +102,6 @@ export interface WeekSpecificScheduleCreate {
   week_start?: string | null;
 }
 
-export interface CopyWeekRequest {
-  from_week_start: string;
-  to_week_start: string;
-}
-
-export interface ApplyToDateRangeRequest {
-  from_week_start: string;
-  start_date: string;
-  end_date: string;
-}
-
 export interface SlotOperation {
   action: string;
   date?: string | null;
@@ -108,24 +110,12 @@ export interface SlotOperation {
   slot_id?: string | null;
 }
 
-export interface BulkUpdateRequest {
-  operations: SlotOperation[];
-  validate_only?: boolean;
-}
-
 export interface OperationResult {
   operation_index: number;
   action: string;
   status: string;
   reason?: string | null;
   slot_id?: string | null;
-}
-
-export interface BulkUpdateResponse {
-  successful: number;
-  failed: number;
-  skipped: number;
-  results: OperationResult[];
 }
 
 export interface ValidationSlotDetail {
@@ -146,19 +136,6 @@ export interface ValidationSummary {
   operations_by_type: Record<string, number>;
   has_conflicts: boolean;
   estimated_changes: Record<string, number>;
-}
-
-export interface WeekValidationResponse {
-  valid: boolean;
-  summary: ValidationSummary;
-  details: ValidationSlotDetail[];
-  warnings?: string[];
-}
-
-export interface ValidateWeekRequest {
-  current_week: Record<string, TimeSlot[]>;
-  saved_week: Record<string, TimeSlot[]>;
-  week_start: string;
 }
 
 // From base.py
@@ -228,40 +205,18 @@ export interface ServiceInfo {
   description: string | null;
 }
 
-export interface BookingListResponse {
-  bookings: BookingResponse[];
+// Renamed from BookingListResponse (not in generated API)
+export interface BookingListData {
+  bookings: BookingResponseType[];
   total: number;
   page: number;
   per_page: number;
 }
+/** @deprecated Use BookingListData instead */
+export type BookingListResult = BookingListData;
 
-export interface AvailabilityCheckRequest {
-  instructor_id: string;
-  service_id: string;
-  booking_date: string;
-  start_time: string;
-  end_time: string;
-}
-
-export interface AvailabilityCheckResponse {
-  available: boolean;
-  reason?: string | null;
-  min_advance_hours?: number | null;
-  conflicts_with?: Array<Record<string, unknown>> | null;
-}
-
-export interface BookingStatsResponse {
-  total_bookings: number;
-  upcoming_bookings: number;
-  completed_bookings: number;
-  cancelled_bookings: number;
-  total_earnings: number;
-  this_month_earnings: number;
-  average_rating?: number | null;
-}
-
-
-export interface FindBookingOpportunitiesRequest {
+// Renamed from FindBookingOpportunitiesRequest (not in generated API)
+export interface BookingOpportunitiesParams {
   instructor_id: string;
   service_id: string;
   date_range_start: string;
@@ -276,7 +231,8 @@ export interface BookingOpportunity {
   available?: boolean;
 }
 
-export interface FindBookingOpportunitiesResponse {
+// Renamed from FindBookingOpportunitiesResponse (not in generated API)
+export interface BookingOpportunitiesResult {
   opportunities: BookingOpportunity[];
   total_found: number;
   search_parameters: Record<string, unknown>;
@@ -313,17 +269,9 @@ export interface InstructorProfileUpdate {
 }
 
 // From password_reset.py
-export interface PasswordResetRequest {
-  email: string;
-}
-
 export interface PasswordResetConfirm {
   token: string;
   new_password: string;
-}
-
-export interface PasswordResetResponse {
-  message: string;
 }
 
 export interface PasswordResetToken {
@@ -394,7 +342,8 @@ export interface UserLogin {
   password: string;
 }
 
-export interface UserResponse {
+// Renamed from UserResponse (not matching generated AuthUserResponse shape)
+export interface UserData {
   id: string;
   email: string;
   full_name?: string | null;
@@ -407,19 +356,21 @@ export interface Token {
   token_type: string;
 }
 
-// Utility Types
+// Utility Types (renamed to avoid *Request/*Response pattern)
 
-export type ApiResponse<T> =
+/** Result wrapper for API calls */
+export type ApiResult<T> =
   | {
       data: T;
       error?: never;
     }
   | {
       data?: never;
-      error: ErrorResponse;
+      error: ApiError;
     };
 
-export interface PaginatedResponse<T> {
+/** Paginated data wrapper */
+export interface PaginatedData<T> {
   items: T[];
   total: number;
   page: number;
@@ -427,7 +378,8 @@ export interface PaginatedResponse<T> {
   total_pages: number;
 }
 
-export interface ErrorResponse {
+/** API error structure */
+export interface ApiError {
   detail: string;
   code?: string;
   field?: string;
@@ -473,18 +425,8 @@ export interface ServiceCreate {
   duration_options?: number[] | null;
 }
 
-export interface ServiceResponse {
-  id: string;
-  skill: string;
-  hourly_rate: Money;
-  description?: string | null;
-  duration_options: number[];
-  duration: number;
-}
-
-// Replace ad-hoc definition with type alias to generated type
-import type { Gen } from '@/features/shared/api/types';
-export type BookingResponse = Gen.components['schemas']['BookingResponse'];
+// Type alias to generated type - use Booking from shim instead
+export type BookingResponseType = Gen.components['schemas']['BookingResponse'];
 
 export interface InstructorProfileCreate {
   bio: string;
@@ -497,8 +439,8 @@ export interface InstructorProfileCreate {
   service_area_neighborhoods?: ServiceAreaNeighborhood[];
 }
 
-// Replace ad-hoc definition with type alias to generated type
-export type InstructorProfileResponse = Gen.components['schemas']['InstructorProfileResponse'];
+// Type alias to generated type - use InstructorProfile from shim instead
+export type InstructorProfileResponseType = Gen.components['schemas']['InstructorProfileResponse'];
 
 // Date/Time Helpers
 

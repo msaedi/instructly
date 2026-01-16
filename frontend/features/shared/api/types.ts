@@ -73,3 +73,28 @@ export type ReferralClaimResponse = components['schemas']['ReferralClaimResponse
 export type ReferralResolveResponse = components['schemas']['ReferralResolveResponse'];
 export type ReferralCheckoutApplyResponse = components['schemas']['CheckoutApplyResponse'];
 export type ReferralErrorResponse = components['schemas']['ReferralErrorResponse'];
+
+// Availability types (from src/types/api.ts migration)
+export type AvailabilityWindowResponse = components['schemas']['AvailabilityWindowResponse'];
+export type BlackoutDateResponse = components['schemas']['BlackoutDateResponse'];
+export type CopyWeekRequest = components['schemas']['CopyWeekRequest'];
+export type ApplyToDateRangeRequest = components['schemas']['ApplyToDateRangeRequest'];
+export type ApplyToDateRangeResponse = components['schemas']['ApplyToDateRangeResponse'];
+export type BulkUpdateRequest =
+  components['schemas']['app__schemas__availability_window__BulkUpdateRequest'];
+export type BulkUpdateResponse = components['schemas']['BulkUpdateResponse'];
+export type WeekValidationResponse = components['schemas']['WeekValidationResponse'];
+export type ValidateWeekRequest = components['schemas']['ValidateWeekRequest'];
+
+// Booking stats
+export type BookingStatsResponse = components['schemas']['BookingStatsResponse'];
+
+// Password reset
+export type PasswordResetRequest = components['schemas']['PasswordResetRequest'];
+export type PasswordResetResponse = components['schemas']['PasswordResetResponse'];
+
+// Service types
+export type ServiceResponse = components['schemas']['ServiceResponse'];
+
+// Auth types
+export type AuthUserResponse = components['schemas']['AuthUserResponse'];

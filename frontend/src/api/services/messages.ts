@@ -12,8 +12,9 @@ import { queryKeys } from '@/src/api/queryKeys';
 import { withApiBase } from '@/lib/apiBase';
 import type { ConversationMessagesResponse } from '@/types/conversation';
 
-type EditMessageRequest = { content: string };
-type ReactionRequest = { emoji: string };
+// Renamed to avoid *Request pattern (not from generated API)
+type EditMessagePayload = { content: string };
+type ReactionPayload = { emoji: string };
 
 /**
  * Get message configuration (edit window, etc.).
@@ -269,7 +270,7 @@ export function useDeleteMessage() {
  */
 export function useEditMessage() {
   return useMutation({
-    mutationFn: async ({ messageId, data }: { messageId: string; data: EditMessageRequest }) => {
+    mutationFn: async ({ messageId, data }: { messageId: string; data: EditMessagePayload }) => {
       const res = await fetch(withApiBase(`/api/v1/messages/${messageId}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -308,7 +309,7 @@ export function useEditMessage() {
  */
 export function useAddReaction() {
   return useMutation({
-    mutationFn: async ({ messageId, data }: { messageId: string; data: ReactionRequest }) => {
+    mutationFn: async ({ messageId, data }: { messageId: string; data: ReactionPayload }) => {
       const res = await fetch(withApiBase(`/api/v1/messages/${messageId}/reactions`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -347,7 +348,7 @@ export function useAddReaction() {
  */
 export function useRemoveReaction() {
   return useMutation({
-    mutationFn: async ({ messageId, data }: { messageId: string; data: ReactionRequest }) => {
+    mutationFn: async ({ messageId, data }: { messageId: string; data: ReactionPayload }) => {
       const res = await fetch(withApiBase(`/api/v1/messages/${messageId}/reactions`), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -467,4 +468,4 @@ export async function deleteMessageImperative(messageId: string) {
 /**
  * Type exports for convenience
  */
-export type { EditMessageRequest, ReactionRequest };
+export type { EditMessagePayload, ReactionPayload };

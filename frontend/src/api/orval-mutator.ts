@@ -137,7 +137,7 @@ export async function customFetch<
     }
 
     // Throw with consistent error structure
-    interface ErrorWithResponse extends Error {
+    interface FetchErrorWithContext extends Error {
       response: Response;
       status: number;
       data: unknown;
@@ -147,7 +147,7 @@ export async function customFetch<
       typeof errorData === 'object' && errorData && 'detail' in errorData
         ? String((errorData as { detail: unknown }).detail)
         : `HTTP ${response.status}: ${response.statusText}`
-    ) as ErrorWithResponse;
+    ) as FetchErrorWithContext;
     error.response = response;
     error.status = response.status;
     error.data = errorData;

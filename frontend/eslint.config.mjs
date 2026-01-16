@@ -175,11 +175,7 @@ const eslintConfig = [
   {
     files: ['src/**/*.{ts,tsx}'],
     ignores: [
-      'src/api/generated/**/*',
-      // TODO: Phase 2 - migrate these files to use shim types, then remove ignores
-      'src/types/api.ts',
-      'src/api/services/messages.ts',
-      'src/api/orval-mutator.ts',
+      'src/api/generated/**/*', // Orval-generated files are allowed
     ],
     rules: {
       'no-restricted-syntax': [
