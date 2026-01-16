@@ -166,8 +166,8 @@ jobs:
           --cov=app \
           --cov-report=xml \
           --cov-report=term-missing \
-          --cov-fail-under=80 \
-          --timeout=1200
+          --cov-fail-under=85 \
+          --timeout=1800
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5

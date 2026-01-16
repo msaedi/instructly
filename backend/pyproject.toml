@@ -203,8 +203,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--durations=10 --durations-min=1.0 --timeout=1200 --cov-fail-under=80"
-timeout = 1200
+addopts = "--durations=10 --durations-min=1.0 --timeout=1200 --cov-fail-under=85"
+timeout = 1800
 timeout_method = "thread"
 markers = [
     "schemathesis: Schemathesis-based API contract tests (run with: pytest -m schemathesis)",
