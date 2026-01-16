@@ -152,9 +152,9 @@ def test_create_guest_session_sets_cookie_and_idempotent(client, monkeypatch):
     assert "secure" in set_cookie
     assert "domain=.instainstru.com" in set_cookie
 
-    response = client.post(
-        "/api/v1/public/session/guest", cookies={"guest_id": "guest-123"}
-    )
+    client.cookies.set("guest_id", "guest-123")
+    response = client.post("/api/v1/public/session/guest")
+    client.cookies.clear()
     assert response.status_code == 204
 
 

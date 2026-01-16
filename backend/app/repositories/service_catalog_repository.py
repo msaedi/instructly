@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, TypedDict, TypeVar, cast
 
-from sqlalchemy import distinct, or_, text
+from sqlalchemy import distinct, or_, select, text
 from sqlalchemy.orm import Query, Session, joinedload
 from sqlalchemy.sql import func
 
@@ -707,7 +707,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
             List of service catalog IDs
         """
         # Subquery for existing analytics
-        existing = self.db.query(ServiceAnalytics.service_catalog_id).subquery()
+        existing = select(ServiceAnalytics.service_catalog_id)
 
         # Find active services without analytics
         missing_rows = cast(

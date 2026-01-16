@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -204,3 +205,141 @@ def test_resolve_invite_claim_origin_override_takes_precedence(monkeypatch):
     monkeypatch.setenv("INVITE_CLAIM_BASE_URL", "https://should-not-use.com")
     result = module._resolve_invite_claim_origin("https://override.example.com")
     assert result == "https://override.example.com"
+
+
+def test_build_welcome_url_includes_email(monkeypatch):
+    from app.services import beta_service as module
+
+    monkeypatch.setenv("SITE_MODE", "preview")
+    url = module.build_welcome_url("CODE999", "user@example.com", "https://preview.example.com")
+    assert "invite_code=CODE999" in url
+    assert "email=user%40example.com" in url
+
+
+def test_send_invite_email_renders_and_sends(monkeypatch):
+    from app.services import beta_service as module
+
+    invite = SimpleNamespace(code="CODE123")
+    render_calls: list[tuple] = []
+    sent_calls: list[dict] = []
+
+    class FakeTemplateService:
+        def __init__(self, db, cache):
+            pass
+
+        def render_template(self, template, context):
+            render_calls.append((template, context))
+            return "<html>invite</html>"
+
+    class FakeEmailService:
+        def __init__(self, db, cache):
+            pass
+
+        def send_email(self, **kwargs):
+            sent_calls.append(kwargs)
+
+    svc = module.BetaService(db=None)
+    svc.bulk_generate = lambda *args, **kwargs: [invite]
+
+    monkeypatch.setattr(module, "TemplateService", FakeTemplateService)
+    monkeypatch.setattr(module, "EmailService", FakeEmailService)
+
+    created, join_url, welcome_url = svc.send_invite_email(
+        to_email="user@example.com",
+        role="instructor_beta",
+        expires_in_days=7,
+        source="unit",
+        base_url="https://preview.example.com",
+    )
+
+    assert created.code == "CODE123"
+    assert "CODE123" in join_url
+    assert "CODE123" in welcome_url
+    assert render_calls
+    assert sent_calls[0]["to_email"] == "user@example.com"
+
+
+def test_send_invite_batch_collects_failures(monkeypatch):
+    from app.services import beta_service as module
+
+    svc = module.BetaService(db=None)
+
+    def fake_send_invite_email(to_email, **kwargs):
+        if to_email == "bad@example.com":
+            raise RuntimeError("boom")
+        invite = SimpleNamespace(code="CODE1")
+        return invite, "join", "welcome"
+
+    monkeypatch.setattr(svc, "send_invite_email", fake_send_invite_email)
+
+    sent, failed = svc.send_invite_batch(
+        emails=["ok@example.com", "bad@example.com"],
+        role="instructor_beta",
+        expires_in_days=7,
+        source=None,
+        base_url=None,
+    )
+
+    assert len(sent) == 1
+    assert failed == [("bad@example.com", "boom")]
+
+
+def test_try_grant_founding_status_missing_profile(monkeypatch):
+    from app.services import beta_service as module
+
+    class FakeProfileRepo:
+        def get_by_id(self, profile_id, load_relationships=False):
+            return None
+
+    monkeypatch.setattr(module, "InstructorProfileRepository", lambda db: FakeProfileRepo())
+
+    svc = module.BetaService(db=None)
+    ok, msg = svc.try_grant_founding_status("profile1")
+    assert ok is False
+    assert "not found" in msg.lower()
+
+
+def test_try_grant_founding_status_granted(monkeypatch):
+    from app.services import beta_service as module
+
+    class FakeProfileRepo:
+        def get_by_id(self, profile_id, load_relationships=False):
+            return SimpleNamespace(id=profile_id)
+
+        def try_claim_founding_status(self, profile_id, cap):
+            return True, 3
+
+    class FakeConfigService:
+        def get_pricing_config(self):
+            return {"founding_instructor_cap": 5}, None
+
+    monkeypatch.setattr(module, "InstructorProfileRepository", lambda db: FakeProfileRepo())
+    monkeypatch.setattr(module, "ConfigService", lambda db: FakeConfigService())
+
+    svc = module.BetaService(db=None)
+    ok, msg = svc.try_grant_founding_status("profile2")
+    assert ok is True
+    assert "Granted founding status" in msg
+
+
+def test_try_grant_founding_status_cap_reached(monkeypatch):
+    from app.services import beta_service as module
+
+    class FakeProfileRepo:
+        def get_by_id(self, profile_id, load_relationships=False):
+            return SimpleNamespace(id=profile_id)
+
+        def try_claim_founding_status(self, profile_id, cap):
+            return False, 100
+
+    class FakeConfigService:
+        def get_pricing_config(self):
+            return {"founding_instructor_cap": "invalid"}, None
+
+    monkeypatch.setattr(module, "InstructorProfileRepository", lambda db: FakeProfileRepo())
+    monkeypatch.setattr(module, "ConfigService", lambda db: FakeConfigService())
+
+    svc = module.BetaService(db=None)
+    ok, msg = svc.try_grant_founding_status("profile3")
+    assert ok is False
+    assert "cap reached" in msg.lower()

@@ -268,7 +268,7 @@ def test_handle_webhook_invitation_event(monkeypatch):
     client, _job_repo = _client_with_overrides(monkeypatch, _Workflow())
     payload = {"type": "invitation.created", "data": {"object": {"id": "inv_1"}}}
     body = json.dumps(payload).encode()
-    response = client.post("/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body))
     assert response.status_code == 200
     assert response.json()["ok"] is True
 
@@ -292,7 +292,7 @@ def test_handle_webhook_invitation_event_candidate_path(monkeypatch):
     client, _job_repo = _client_with_overrides(monkeypatch, _Workflow())
     payload = {"type": "invitation.completed", "data": {"object": {"candidate_id": "cand_1"}}}
     body = json.dumps(payload).encode()
-    response = client.post("/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body, delivery_id="delivery-11"))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body, delivery_id="delivery-11"))
     assert response.status_code == 200
 
 
@@ -323,7 +323,7 @@ def test_handle_webhook_report_updated_queues_on_repo_error(monkeypatch):
         },
     }
     body = json.dumps(payload).encode()
-    response = client.post("/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body))
     assert response.status_code == 200
     assert any(call["type"] == "webhook.report_eta" for call in job_repo.calls)
 
@@ -356,7 +356,7 @@ def test_handle_webhook_report_updated_success(monkeypatch):
         },
     }
     body = json.dumps(payload).encode()
-    response = client.post("/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body, delivery_id="delivery-12"))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body, delivery_id="delivery-12"))
     assert response.status_code == 200
 
 
@@ -384,7 +384,7 @@ def test_handle_webhook_report_updated_short_circuits(monkeypatch):
         },
     }
     body = json.dumps(payload).encode()
-    response = client.post("/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body, delivery_id="delivery-13"))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body, delivery_id="delivery-13"))
     assert response.status_code == 200
 
 
@@ -410,7 +410,7 @@ def test_handle_webhook_report_completed_success(monkeypatch):
     }
     body = json.dumps(payload).encode()
     response = client.post(
-        "/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body, delivery_id="delivery-3")
+        "/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body, delivery_id="delivery-3")
     )
     assert response.status_code == 200
     assert response.json()["ok"] is True
@@ -438,7 +438,7 @@ def test_handle_webhook_report_completed_follow_up(monkeypatch):
     }
     body = json.dumps(payload).encode()
     response = client.post(
-        "/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body, delivery_id="delivery-4")
+        "/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body, delivery_id="delivery-4")
     )
     assert response.status_code == 200
     assert response.json()["ok"] is True
@@ -466,7 +466,7 @@ def test_handle_webhook_report_completed_queues_on_repo_error(monkeypatch):
     }
     body = json.dumps(payload).encode()
     response = client.post(
-        "/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body, delivery_id="delivery-5")
+        "/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body, delivery_id="delivery-5")
     )
     assert response.status_code == 200
     assert any(call["type"] == "webhook.report_completed" for call in job_repo.calls)
@@ -496,7 +496,7 @@ def test_handle_webhook_report_canceled_success_and_queue(monkeypatch):
     }
     body = json.dumps(payload).encode()
     response = client.post(
-        "/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body, delivery_id="delivery-6")
+        "/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body, delivery_id="delivery-6")
     )
     assert response.status_code == 200
     assert response.json()["ok"] is True
@@ -510,7 +510,7 @@ def test_handle_webhook_report_canceled_success_and_queue(monkeypatch):
 
     client, job_repo = _client_with_overrides(monkeypatch, _WorkflowQueued())
     response = client.post(
-        "/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body, delivery_id="delivery-7")
+        "/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body, delivery_id="delivery-7")
     )
     assert response.status_code == 200
     assert any(call["type"] == "webhook.report_canceled" for call in job_repo.calls)
@@ -534,7 +534,7 @@ def test_handle_webhook_report_suspended_paths(monkeypatch):
     }
     body = json.dumps(payload).encode()
     response = client.post(
-        "/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body, delivery_id="delivery-8")
+        "/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body, delivery_id="delivery-8")
     )
     assert response.status_code == 200
 
@@ -547,7 +547,7 @@ def test_handle_webhook_report_suspended_paths(monkeypatch):
 
     client, _job_repo = _client_with_overrides(monkeypatch, _WorkflowRepoError())
     response = client.post(
-        "/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body, delivery_id="delivery-9")
+        "/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body, delivery_id="delivery-9")
     )
     assert response.status_code == 200
 
@@ -577,7 +577,7 @@ def test_handle_webhook_report_status_updates(monkeypatch):
     }
     body = json.dumps(payload).encode()
     response = client.post(
-        "/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body, delivery_id="delivery-10")
+        "/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body, delivery_id="delivery-10")
     )
     assert response.status_code == 200
 
@@ -589,7 +589,7 @@ def test_handle_webhook_invalid_json(monkeypatch):
 
     client, _job_repo = _client_with_overrides(monkeypatch, _Workflow())
     body = b"{bad json"
-    response = client.post("/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body))
     assert response.status_code == 400
 
 
@@ -611,13 +611,13 @@ def test_handle_webhook_empty_type_and_duplicate(monkeypatch):
     client, _job_repo = _client_with_overrides(monkeypatch, _Workflow())
     payload = {"type": "", "data": {"object": []}}
     body = json.dumps(payload).encode()
-    response = client.post("/api/v1/webhooks/checkr", data=body, headers=_auth_headers(body, delivery_id="delivery-14"))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body, delivery_id="delivery-14"))
     assert response.status_code == 200
 
     payload = {"type": "report.created", "data": {"object": {"id": "rep_dup"}}}
     body = json.dumps(payload).encode()
     headers = _auth_headers(body, delivery_id="delivery-15")
-    response = client.post("/api/v1/webhooks/checkr", data=body, headers=headers)
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=headers)
     assert response.status_code == 200
-    response = client.post("/api/v1/webhooks/checkr", data=body, headers=headers)
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=headers)
     assert response.status_code == 200
