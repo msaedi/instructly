@@ -363,8 +363,8 @@ def get_invite_batch_progress(
     total = int(meta.get("total", 0))
     sent = int(meta.get("sent", 0))
     failed = int(meta.get("failed", 0))
-    sent_items = meta.get("sent") or None
-    failed_items = meta.get("failed") or None
+    sent_items = meta.get("sent_items") if isinstance(meta.get("sent_items"), list) else None
+    failed_items = meta.get("failed_items") if isinstance(meta.get("failed_items"), list) else None
     return InviteBatchProgressResponse(
         task_id=task_id,
         state=state,
