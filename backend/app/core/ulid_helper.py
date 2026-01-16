@@ -24,10 +24,14 @@ def get_timestamp_from_ulid(ulid_str: str) -> Optional[datetime]:
     parsed = parse_ulid(ulid_str)
     if parsed:
         try:
-            timestamp_obj = parsed.timestamp()
+            timestamp_attr = getattr(parsed, "timestamp", None)
+            if callable(timestamp_attr):
+                timestamp_obj = timestamp_attr()
+            else:
+                timestamp_obj = timestamp_attr
             if hasattr(timestamp_obj, "datetime"):
                 return cast(datetime, timestamp_obj.datetime)
-        except AttributeError:
+        except (AttributeError, TypeError):
             pass
         if hasattr(parsed, "datetime"):
             return cast(datetime, parsed.datetime)
