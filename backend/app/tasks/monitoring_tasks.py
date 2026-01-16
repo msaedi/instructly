@@ -15,9 +15,11 @@ from sqlalchemy.orm import Session, sessionmaker
 import ulid
 
 from app.core.config import settings
+from app.core.enums import RoleName
 from app.database import SessionLocal
 from app.models import User
 from app.models.monitoring import AlertHistory
+from app.models.rbac import Role
 from app.services.email import EmailService
 from app.services.email_config import EmailConfigService
 from app.tasks.celery_app import celery_app
@@ -157,7 +159,12 @@ def send_alert_email(self: MonitoringTask, alert_id: str) -> None:
             return
 
         # Get admin users
-        admin_users = self.db.query(User).filter_by(role="admin", is_active=True).all()
+        admin_users = (
+            self.db.query(User)
+            .join(User.roles)
+            .filter(Role.name == RoleName.ADMIN, User.is_active.is_(True))
+            .all()
+        )
 
         if not admin_users:
             # Fallback to configured admin email

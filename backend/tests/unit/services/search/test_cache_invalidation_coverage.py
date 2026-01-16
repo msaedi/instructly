@@ -41,21 +41,27 @@ def test_fire_and_forget_no_event_loop(monkeypatch) -> None:
 async def test_fire_and_forget_runs_task(monkeypatch) -> None:
     monkeypatch.setattr(settings, "is_testing", False, raising=False)
     created: dict[str, object] = {}
-    loop = asyncio.get_running_loop()
-    original_create_task = loop.create_task
 
-    def _create_task(coro: asyncio.Future) -> asyncio.Task:
+    class _DummyTask:
+        def add_done_callback(self, _cb) -> None:
+            return None
+
+    def _create_task(coro: asyncio.Future) -> _DummyTask:
         created["coro"] = coro
-        return original_create_task(coro)
+        return _DummyTask()
 
-    monkeypatch.setattr(loop, "create_task", _create_task)
+    monkeypatch.setattr(
+        cache_module.asyncio,
+        "get_running_loop",
+        lambda: SimpleNamespace(create_task=_create_task),
+    )
 
     async def _mark() -> None:
         return None
 
     cache_module._fire_and_forget(lambda: _mark(), context="async-loop")
-    await asyncio.sleep(0)
     assert "coro" in created
+    created["coro"].close()
 
 
 @pytest.mark.asyncio
