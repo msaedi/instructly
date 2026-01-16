@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+import app.core.config as app_config
 from app.core.config import settings
 from app.services.search import cache_invalidation as cache_module
 from app.services.search.search_cache import SearchCacheService
@@ -29,7 +30,7 @@ def test_init_and_set_search_cache() -> None:
 
 
 def test_fire_and_forget_no_event_loop(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "is_testing", False, raising=False)
+    monkeypatch.setattr(app_config, "settings", SimpleNamespace(is_testing=False))
 
     async def _noop() -> None:
         return None
@@ -39,7 +40,7 @@ def test_fire_and_forget_no_event_loop(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_fire_and_forget_runs_task(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "is_testing", False, raising=False)
+    monkeypatch.setattr(app_config, "settings", SimpleNamespace(is_testing=False))
     created: dict[str, object] = {}
 
     class _DummyTask:

@@ -14,6 +14,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.booking_lock import (
+    _get_sync_redis,
     _lock_key,
     _namespaced_key,
     acquire_booking_lock,
@@ -103,6 +104,16 @@ class TestLockRelease:
         mock_release.assert_awaited_once_with("booking:ABC123:mutex")
 
     @pytest.mark.asyncio
+    async def test_release_lock_logs_error_on_exception(self):
+        with patch(
+            "app.core.booking_lock._release_async_lock",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("boom"),
+        ) as mock_release:
+            await release_booking_lock("ABC123")
+        mock_release.assert_awaited_once_with("booking:ABC123:mutex")
+
+    @pytest.mark.asyncio
     async def test_lock_released_on_exception(self):
         with patch(
             "app.core.booking_lock._acquire_async_lock", new_callable=AsyncMock
@@ -132,6 +143,20 @@ class TestLockRelease:
             release_booking_lock_sync("ABC123")
         mock_redis.delete.assert_called_once_with(_namespaced_key("booking:ABC123:mutex"))
 
+    def test_release_lock_sync_records_not_found(self):
+        mock_redis = MagicMock()
+        mock_redis.delete.return_value = 0
+        with patch("app.core.booking_lock._get_sync_redis", return_value=mock_redis):
+            release_booking_lock_sync("ABC123")
+        mock_redis.delete.assert_called_once_with(_namespaced_key("booking:ABC123:mutex"))
+
+    def test_release_lock_sync_handles_delete_error(self):
+        mock_redis = MagicMock()
+        mock_redis.delete.side_effect = RuntimeError("boom")
+        with patch("app.core.booking_lock._get_sync_redis", return_value=mock_redis):
+            release_booking_lock_sync("ABC123")
+        mock_redis.delete.assert_called_once_with(_namespaced_key("booking:ABC123:mutex"))
+
 
 class TestGracefulDegradation:
     @pytest.mark.asyncio
@@ -142,10 +167,50 @@ class TestGracefulDegradation:
             result = await acquire_booking_lock("ABC123")
         assert result is True
 
+    @pytest.mark.asyncio
+    async def test_async_acquire_error_returns_true(self):
+        with patch(
+            "app.core.booking_lock._acquire_async_lock",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("boom"),
+        ):
+            result = await acquire_booking_lock("ABC123")
+        assert result is True
+
     def test_sync_redis_unavailable_returns_true(self):
         with patch("app.core.booking_lock._get_sync_redis", return_value=None):
             result = acquire_booking_lock_sync("ABC123")
         assert result is True
+
+    def test_sync_redis_set_failure_returns_true(self):
+        mock_redis = MagicMock()
+        mock_redis.set.side_effect = RuntimeError("boom")
+        with patch("app.core.booking_lock._get_sync_redis", return_value=mock_redis):
+            result = acquire_booking_lock_sync("ABC123")
+        assert result is True
+
+
+class TestSyncRedisInit:
+    def test_get_sync_redis_returns_cached(self, monkeypatch):
+        mock_redis = MagicMock()
+        monkeypatch.setattr("app.core.booking_lock._SYNC_REDIS", mock_redis)
+        assert _get_sync_redis() is mock_redis
+
+    def test_get_sync_redis_initializes_client(self, monkeypatch):
+        mock_redis = MagicMock()
+        monkeypatch.setattr("app.core.booking_lock._SYNC_REDIS", None)
+        monkeypatch.setattr("app.core.booking_lock.Redis.from_url", lambda *args, **kwargs: mock_redis)
+
+        client = _get_sync_redis()
+        assert client is mock_redis
+        mock_redis.ping.assert_called_once()
+
+    def test_get_sync_redis_handles_ping_failure(self, monkeypatch):
+        mock_redis = MagicMock()
+        mock_redis.ping.side_effect = RuntimeError("down")
+        monkeypatch.setattr("app.core.booking_lock._SYNC_REDIS", None)
+        monkeypatch.setattr("app.core.booking_lock.Redis.from_url", lambda *args, **kwargs: mock_redis)
+        assert _get_sync_redis() is None
 
 
 class TestContextManagers:
