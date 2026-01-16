@@ -74,3 +74,4 @@ matplotlib==3.10.8
 networkx==3.6.1
 hiredis==3.3.0
 numpy==2.4.0
+pytest-timeout==2.3.1
