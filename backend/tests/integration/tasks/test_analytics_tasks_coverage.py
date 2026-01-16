@@ -9,7 +9,8 @@ import app.tasks.analytics as analytics
 
 
 def _set_task_request(task, retries: int = 0) -> None:
-    task.request = SimpleNamespace(id="task-123", retries=retries)
+    task.request.id = "task-123"
+    task.request.retries = retries
 
 
 def _patch_get_db(monkeypatch, db) -> None:
@@ -49,8 +50,9 @@ def test_calculate_analytics_retries_on_error(db, monkeypatch) -> None:
         with pytest.raises(RuntimeError, match="retry"):
             analytics.calculate_analytics.run(days_back=1)
 
-    assert mock_retry.call_args.kwargs["countdown"] == 120
-    assert mock_retry.call_args.kwargs["max_retries"] == 3
+    retry_kwargs = [call.kwargs for call in mock_retry.call_args_list]
+    assert any(kwargs.get("countdown") == 120 for kwargs in retry_kwargs)
+    assert any(kwargs.get("max_retries") == 3 for kwargs in retry_kwargs)
 
 
 def test_generate_daily_report_success(db, monkeypatch) -> None:
@@ -81,7 +83,8 @@ def test_generate_daily_report_retries_on_error(db, monkeypatch) -> None:
         with pytest.raises(RuntimeError, match="retry"):
             analytics.generate_daily_report.run()
 
-    assert mock_retry.call_args.kwargs["countdown"] == 300
+    retry_kwargs = [call.kwargs for call in mock_retry.call_args_list]
+    assert any(kwargs.get("countdown") == 300 for kwargs in retry_kwargs)
 
 
 def test_update_service_metrics_success(db, monkeypatch) -> None:

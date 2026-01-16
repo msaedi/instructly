@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -169,10 +170,14 @@ def test_get_codebase_metrics_history_read_error(
     history_file.write_text(json.dumps([{"timestamp": "2025-01-02T00:00:00"}]))
     monkeypatch.setattr(codebase_routes, "_get_project_root", lambda: tmp_path)
 
-    def _boom(*_args, **_kwargs):
-        raise OSError("boom")
+    real_open = builtins.open
 
-    monkeypatch.setattr(codebase_routes, "open", _boom)
+    def _boom(path, mode="r", *args, **kwargs):
+        if "metrics_history.json" in str(path) and "r" in mode:
+            raise OSError("boom")
+        return real_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", _boom)
 
     response = client.get("/api/v1/analytics/codebase/history", headers=auth_headers_admin)
     assert response.status_code == 500
@@ -200,14 +205,14 @@ def test_append_codebase_metrics_history_read_failure(
     monkeypatch.setattr(codebase_routes, "_get_project_root", lambda: tmp_path)
     monkeypatch.setattr(codebase_routes, "_run_codebase_metrics_script", lambda _root: _sample_metrics())
 
-    real_open = open
+    real_open = builtins.open
 
     def _open(path, mode="r", *args, **kwargs):
-        if "r" in mode:
+        if "metrics_history.json" in str(path) and "r" in mode:
             raise OSError("boom")
         return real_open(path, mode, *args, **kwargs)
 
-    monkeypatch.setattr(codebase_routes, "open", _open)
+    monkeypatch.setattr(builtins, "open", _open)
 
     response = client.post("/api/v1/analytics/codebase/history/append", headers=auth_headers_admin)
     assert response.status_code == 200
@@ -219,10 +224,14 @@ def test_append_codebase_metrics_history_write_error(
     monkeypatch.setattr(codebase_routes, "_get_project_root", lambda: tmp_path)
     monkeypatch.setattr(codebase_routes, "_run_codebase_metrics_script", lambda _root: _sample_metrics())
 
-    def _boom(*_args, **_kwargs):
-        raise OSError("boom")
+    real_open = builtins.open
 
-    monkeypatch.setattr(codebase_routes, "open", _boom)
+    def _boom(path, mode="r", *args, **kwargs):
+        if "metrics_history.json" in str(path) and "w" in mode:
+            raise OSError("boom")
+        return real_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", _boom)
 
     response = client.post("/api/v1/analytics/codebase/history/append", headers=auth_headers_admin)
     assert response.status_code == 500

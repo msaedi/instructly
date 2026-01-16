@@ -250,7 +250,6 @@ def test_should_create_github_issue(db) -> None:
     for idx in range(3):
         db.add(
             AlertHistory(
-                id=f"01KMONWARN000000000000000{idx}",
                 alert_type="slow_query",
                 severity="warning",
                 title="Warn",
@@ -266,7 +265,6 @@ def test_should_create_github_issue(db) -> None:
 
 def test_cleanup_old_alerts(db, monkeypatch) -> None:
     old_alert = AlertHistory(
-        id="01KMONOLD0000000000000000",
         alert_type="slow_query",
         severity="warning",
         title="Old",
