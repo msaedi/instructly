@@ -51,3 +51,87 @@ def test_metrics_method_not_allowed() -> None:
     error = excinfo.value
     assert getattr(error, "status_code", None) == 405
     assert getattr(error, "headers", {}).get("Allow") == "GET"
+
+
+def test_metrics_auth_failure_increments(monkeypatch) -> None:
+    calls = {"count": 0}
+
+    class DummyCounter:
+        def labels(self, **_kwargs):
+            return self
+
+        def inc(self):
+            calls["count"] += 1
+
+    monkeypatch.setattr(main, "METRICS_AUTH_FAILURE_TOTAL", DummyCounter())
+    main._metrics_auth_failure("unauthorized")
+
+    assert calls["count"] == 1
+
+
+def test_check_metrics_basic_auth_disabled(monkeypatch) -> None:
+    dummy_settings = type(
+        "Settings",
+        (),
+        {
+            "metrics_basic_auth_enabled": False,
+            "metrics_basic_auth_user": None,
+            "metrics_basic_auth_pass": None,
+        },
+    )()
+    monkeypatch.setattr("app.core.config.settings", dummy_settings)
+
+    request = _make_request()
+    main._check_metrics_basic_auth(request)
+
+
+def test_check_metrics_basic_auth_invalid(monkeypatch) -> None:
+    class DummySecret:
+        def __init__(self, value):
+            self._value = value
+
+        def get_secret_value(self):
+            return self._value
+
+    dummy_settings = type(
+        "Settings",
+        (),
+        {
+            "metrics_basic_auth_enabled": True,
+            "metrics_basic_auth_user": DummySecret("user"),
+            "metrics_basic_auth_pass": DummySecret("pass"),
+        },
+    )()
+    monkeypatch.setattr("app.core.config.settings", dummy_settings)
+
+    request = _make_request()
+    with pytest.raises(Exception) as excinfo:
+        main._check_metrics_basic_auth(request)
+
+    assert getattr(excinfo.value, "status_code", None) == 401
+
+
+def test_check_metrics_basic_auth_success(monkeypatch) -> None:
+    class DummySecret:
+        def __init__(self, value):
+            self._value = value
+
+        def get_secret_value(self):
+            return self._value
+
+    dummy_settings = type(
+        "Settings",
+        (),
+        {
+            "metrics_basic_auth_enabled": True,
+            "metrics_basic_auth_user": DummySecret("user"),
+            "metrics_basic_auth_pass": DummySecret("pass"),
+        },
+    )()
+    monkeypatch.setattr("app.core.config.settings", dummy_settings)
+
+    import base64
+
+    token = base64.b64encode(b"user:pass").decode()
+    request = _make_request({"authorization": f"Basic {token}"})
+    main._check_metrics_basic_auth(request)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 
@@ -185,3 +186,151 @@ async def test_run_privacy_audit_returns_report(monkeypatch) -> None:
     )
     assert got_result is result
     assert report == "report"
+
+
+@pytest.mark.asyncio
+async def test_authenticate_user_caches_token(monkeypatch) -> None:
+    auditor = PrivacyAuditor(base_url="http://example")
+    calls = {"count": 0}
+
+    class DummyResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"access_token": "token"}
+
+    async def _post(*_args, **_kwargs):
+        calls["count"] += 1
+        return DummyResponse()
+
+    monkeypatch.setattr(auditor.client, "post", _post)
+
+    token = await auditor._authenticate_user("john.smith@example.com")
+    token_again = await auditor._authenticate_user("john.smith@example.com")
+
+    await auditor.close()
+
+    assert token == "token"
+    assert token_again == "token"
+    assert calls["count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_authenticate_user_handles_exception(monkeypatch) -> None:
+    auditor = PrivacyAuditor(base_url="http://example")
+
+    async def _post(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(auditor.client, "post", _post)
+
+    token = await auditor._authenticate_user("john.smith@example.com")
+    await auditor.close()
+
+    assert token is None
+
+
+@pytest.mark.asyncio
+async def test_test_endpoint_returns_empty_when_auth_missing(monkeypatch) -> None:
+    auditor = PrivacyAuditor(base_url="http://example")
+
+    async def _auth(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(auditor, "_authenticate_user", _auth)
+
+    endpoint = EndpointTest(
+        path="/api/v1/bookings",
+        method="GET",
+        category=EndpointCategory.STUDENT,
+        auth_required=True,
+    )
+
+    violations = await auditor._test_endpoint(endpoint, as_user="john.smith@example.com")
+    await auditor.close()
+
+    assert violations == []
+
+
+@pytest.mark.asyncio
+async def test_test_endpoint_student_rules_violation(monkeypatch) -> None:
+    auditor = PrivacyAuditor(base_url="http://example")
+
+    async def _auth(*_args, **_kwargs):
+        return "token"
+
+    class DummyResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"instructor_name": "John Doe"}
+
+    async def _get(*_args, **_kwargs):
+        return DummyResponse()
+
+    monkeypatch.setattr(auditor, "_authenticate_user", _auth)
+    monkeypatch.setattr(auditor.client, "get", _get)
+
+    endpoint = EndpointTest(
+        path="/api/v1/bookings",
+        method="GET",
+        category=EndpointCategory.STUDENT,
+        auth_required=True,
+    )
+
+    violations = await auditor._test_endpoint(endpoint, as_user="john.smith@example.com")
+    await auditor.close()
+
+    assert len(violations) == 1
+    assert violations[0].violation_type == "incorrect_format"
+
+
+@pytest.mark.asyncio
+async def test_test_endpoint_handles_non_json(monkeypatch) -> None:
+    auditor = PrivacyAuditor(base_url="http://example")
+
+    class DummyResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            raise json.JSONDecodeError("nope", "doc", 1)
+
+    async def _get(*_args, **_kwargs):
+        return DummyResponse()
+
+    monkeypatch.setattr(auditor.client, "get", _get)
+
+    endpoint = EndpointTest(path="/api/v1/public", method="GET", category=EndpointCategory.PUBLIC)
+    violations = await auditor._test_endpoint(endpoint)
+    await auditor.close()
+
+    assert violations == []
+
+
+def test_generate_report_includes_violations() -> None:
+    violation = Violation(
+        endpoint="/api/v1/demo",
+        method="GET",
+        violation_type="forbidden_field",
+        message="field exposed",
+        severity=ViolationSeverity.HIGH,
+        field_path="user.email",
+        example_value="user@example.com",
+    )
+    result = AuditResult(
+        summary={"total_endpoints": 1, "passed": 0, "failed": 1},
+        violations=[violation],
+        endpoints_tested=[],
+        execution_time=1.0,
+        coverage={"total": "1/1"},
+    )
+    auditor = PrivacyAuditor(base_url="http://example")
+    try:
+        report = auditor.generate_report(result, format="markdown")
+        assert "Violations Found" in report
+        assert "Example" in report
+    finally:
+        asyncio.run(auditor.client.aclose())

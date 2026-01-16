@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import errors
 
@@ -137,3 +138,64 @@ def test_generic_exception_handler(monkeypatch) -> None:
 
     assert response.status_code == 500
     assert response.json()["code"] == "internal_server_error"
+
+
+def test_problem_includes_request_id_and_errors() -> None:
+    payload = errors._problem(
+        status=400,
+        detail="bad",
+        request_id="req-1",
+        errors={"field": "bad"},
+    )
+
+    assert payload["request_id"] == "req-1"
+    assert payload["errors"] == {"field": "bad"}
+
+
+def test_starlette_http_exception_handler_includes_extras(monkeypatch) -> None:
+    app = _make_app(monkeypatch, strict=True)
+
+    @app.get("/star")
+    def _raise_starlette() -> None:
+        raise StarletteHTTPException(
+            status_code=400,
+            detail={
+                "message": "bad",
+                "title": "Bad",
+                "error": "short",
+                "current_version": "2.0",
+                "checkr_error": {"x": 1},
+                "provider_error": {"y": 2},
+                "debug": {"z": 3},
+            },
+        )
+
+    client = TestClient(app)
+    response = client.get("/star")
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["title"] == "Bad"
+    assert payload["error"] == "short"
+    assert payload["current_version"] == "2.0"
+    assert payload["provider_error"] == {"y": 2}
+    assert payload["debug"] == {"z": 3}
+
+
+def test_pydantic_validation_handler_non_strict(monkeypatch) -> None:
+    app = _make_app(monkeypatch, strict=False)
+
+    class Payload(BaseModel):
+        value: int
+
+    @app.get("/pydantic")
+    def _raise_validation() -> dict[str, Any]:
+        Payload.model_validate({"value": "bad"})
+        return {"ok": True}
+
+    client = TestClient(app)
+    response = client.get("/pydantic")
+
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json()["code"] == "validation_error"
