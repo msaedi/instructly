@@ -322,12 +322,15 @@ def test_capture_completed_lessons_captures_and_auto_completes(
     db: Session, test_student: User, test_instructor_with_availability: User
 ) -> None:
     now = datetime.now(timezone.utc)
+    base_dt = (now - timedelta(days=2)).replace(
+        hour=9, minute=0, second=0, microsecond=0
+    )
 
     completed_booking = _create_booking(
         db,
         student=test_student,
         instructor=test_instructor_with_availability,
-        start_dt=now - timedelta(hours=30),
+        start_dt=base_dt,
         payment_status=PaymentStatus.AUTHORIZED.value,
         payment_intent_id="pi_completed_capture",
     )
@@ -339,7 +342,7 @@ def test_capture_completed_lessons_captures_and_auto_completes(
         db,
         student=test_student,
         instructor=test_instructor_with_availability,
-        start_dt=now - timedelta(hours=30),
+        start_dt=base_dt + timedelta(hours=2),
         payment_status=PaymentStatus.AUTHORIZED.value,
         payment_intent_id="pi_auto_capture",
     )

@@ -292,11 +292,12 @@ class TestSearchEventRepositoryCoverage:
     def test_search_distributions_and_interactions(self, db, test_student):
         repo = SearchEventRepository(db)
         now = datetime.now(timezone.utc)
+        query = f"dist-{uuid4().hex}"
 
         event = _create_event(
             db,
             user_id=test_student.id,
-            search_query="dist",
+            search_query=query,
             search_type="natural_language",
             results_count=2,
             searched_at=now,
@@ -315,8 +316,8 @@ class TestSearchEventRepositoryCoverage:
         count_with_interactions = repo.count_searches_with_interactions(now - timedelta(days=1))
         assert count_with_interactions >= 1
 
-        results_all_time = repo.get_popular_searches_with_avg_results(limit=10, hours=None)
-        assert any(item["query"] == "dist" for item in results_all_time)
+        results_all_time = repo.get_popular_searches_with_avg_results(limit=1000, hours=None)
+        assert any(item["query"] == query for item in results_all_time)
 
         no_limit = repo.get_searches_by_user(test_student.id)
         assert no_limit
