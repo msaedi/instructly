@@ -30,7 +30,7 @@ def test_init_and_set_search_cache() -> None:
 
 
 def test_fire_and_forget_no_event_loop(monkeypatch) -> None:
-    monkeypatch.setattr(app_config.settings, "is_testing", False, raising=False)
+    monkeypatch.setattr(app_config, "settings", SimpleNamespace(is_testing=False), raising=False)
 
     async def _noop() -> None:
         return None
@@ -40,7 +40,7 @@ def test_fire_and_forget_no_event_loop(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_fire_and_forget_runs_task(monkeypatch) -> None:
-    monkeypatch.setattr(app_config.settings, "is_testing", False, raising=False)
+    monkeypatch.setattr(app_config, "settings", SimpleNamespace(is_testing=False), raising=False)
     created: dict[str, object] = {}
 
     class _DummyTask:

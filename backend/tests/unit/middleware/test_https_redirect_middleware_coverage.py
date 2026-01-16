@@ -14,7 +14,7 @@ def test_https_redirect_excluded_path() -> None:
     def _health():
         return {"ok": True}
 
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://testserver")
     response = client.get("/health", headers={"X-Forwarded-Proto": "http"})
     assert response.status_code == 200
 
