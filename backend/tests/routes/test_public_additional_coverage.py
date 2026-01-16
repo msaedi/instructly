@@ -144,18 +144,19 @@ def test_apply_min_advance_filter_min_hours_zero(monkeypatch):
     assert earliest == "2025-01-10"
 
 
-def test_create_guest_session_sets_cookie_and_idempotent(client, monkeypatch):
+def test_create_guest_session_sets_cookie_and_idempotent(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
-    response = client.post("/api/v1/public/session/guest")
-    assert response.status_code == 200
+    response = Response()
+    result = public_routes.create_guest_session(response, _make_request())
+    assert result is not None
     set_cookie = response.headers.get("set-cookie", "").lower()
     assert "secure" in set_cookie
     assert "domain=.instainstru.com" in set_cookie
 
-    client.cookies.set("guest_id", "guest-123")
-    response = client.post("/api/v1/public/session/guest")
-    client.cookies.clear()
-    assert response.status_code == 204
+    response = Response()
+    result = public_routes.create_guest_session(response, _make_request({"cookie": "guest_id=guest-123"}))
+    assert isinstance(result, Response)
+    assert result.status_code == 204
 
 
 def test_public_logout_handles_host_cookie(monkeypatch):

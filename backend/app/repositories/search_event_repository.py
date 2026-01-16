@@ -8,7 +8,7 @@ Handles data access for individual search events used in analytics.
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence, TypedDict, cast
 
-from sqlalchemy import desc, func
+from sqlalchemy import desc, func, select
 from sqlalchemy.engine import Row
 from sqlalchemy.orm import Session
 
@@ -376,14 +376,15 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
 
         # Subquery to get search event IDs with interactions
         interaction_subquery = (
-            self.db.query(SearchInteraction.search_event_id)
-            .filter(SearchInteraction.search_event_id.isnot(None))
+            select(SearchInteraction.search_event_id)
+            .where(SearchInteraction.search_event_id.isnot(None))
             .subquery()
         )
+        interaction_ids = select(interaction_subquery.c.search_event_id)
 
         return int(
             self.db.query(func.count(SearchEvent.id))
-            .filter(SearchEvent.searched_at >= since, SearchEvent.id.in_(interaction_subquery))
+            .filter(SearchEvent.searched_at >= since, SearchEvent.id.in_(interaction_ids))
             .scalar()
             or 0
         )

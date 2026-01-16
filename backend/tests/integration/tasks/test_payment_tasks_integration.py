@@ -633,12 +633,12 @@ def test_process_capture_locked_funds_skips_and_settles_child(
     db: Session, test_student: User, test_instructor_with_availability: User
 ) -> None:
     """Locked funds capture path resolves and settles the child booking."""
-    now = datetime.now(timezone.utc)
+    base_dt = datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc)
     locked_booking = _create_booking(
         db,
         student=test_student,
         instructor=test_instructor_with_availability,
-        start_dt=now + timedelta(hours=6),
+        start_dt=base_dt,
         payment_status=PaymentStatus.SETTLED.value,
         payment_intent_id="pi_locked_parent",
     )
@@ -646,7 +646,7 @@ def test_process_capture_locked_funds_skips_and_settles_child(
         db,
         student=test_student,
         instructor=test_instructor_with_availability,
-        start_dt=now + timedelta(hours=7),
+        start_dt=base_dt + timedelta(hours=1),
         payment_status=PaymentStatus.AUTHORIZED.value,
         payment_intent_id="pi_locked_child",
     )

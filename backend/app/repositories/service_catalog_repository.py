@@ -707,7 +707,8 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
             List of service catalog IDs
         """
         # Subquery for existing analytics
-        existing = select(ServiceAnalytics.service_catalog_id)
+        existing = select(ServiceAnalytics.service_catalog_id).subquery()
+        existing_ids = select(existing.c.service_catalog_id)
 
         # Find active services without analytics
         missing_rows = cast(
@@ -715,7 +716,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
             (
                 _apply_active_catalog_predicate(
                     self.db.query(ServiceCatalog.id).filter(
-                        ServiceCatalog.is_active == True, ~ServiceCatalog.id.in_(existing)
+                        ServiceCatalog.is_active == True, ~ServiceCatalog.id.in_(existing_ids)
                     )
                 ).all()
             ),
