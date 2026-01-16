@@ -9,10 +9,17 @@
       "files": ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
       "rules": {
         "no-restricted-imports": [
-          "warn",
+          "error",
           {
             "patterns": ["@/types/generated/api*"],
             "message": "Import from @/features/shared/api/types instead of generated types directly"
+          }
+        ],
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "TSInterfaceDeclaration[id.name=/.*Response$|.*Request$/]",
+            "message": "Use types from @/features/shared/api/types instead of defining API types locally"
           }
         ]
       }
