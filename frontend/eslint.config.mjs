@@ -171,6 +171,30 @@ const eslintConfig = [
       ],
     },
   },
+  // Block ad-hoc *Request/*Response type definitions in src/ (use shim layer instead)
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      'src/api/generated/**/*',
+      // TODO: Phase 2 - migrate these files to use shim types, then remove ignores
+      'src/types/api.ts',
+      'src/api/services/messages.ts',
+      'src/api/orval-mutator.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'TSInterfaceDeclaration[id.name=/.*Response$|.*Request$/]',
+          message: 'Use types from @/features/shared/api/types instead of defining API types locally.',
+        },
+        {
+          selector: 'TSTypeAliasDeclaration[id.name=/.*Response$|.*Request$/]',
+          message: 'Use types from @/features/shared/api/types instead of defining API types locally.',
+        },
+      ],
+    },
+  },
   // Allow generated types only in the API shim/client layer
   {
     files: ['features/shared/api/**/*'],

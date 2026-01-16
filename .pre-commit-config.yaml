@@ -145,6 +145,13 @@ repos:
         pass_filenames: false
         description: Fail if focused tests are committed in backend
 
+      - id: frontend-no-focused-tests
+        name: Frontend block focused tests
+        entry: frontend/scripts/precommit_block_only_tests.sh
+        language: script
+        pass_filenames: false
+        description: Fail if .only() tests are committed in frontend (conditional .skip() allowed)
+
       - id: check-async-blocking
         name: Check for sync blocking calls in async functions
         entry: python backend/scripts/check_async_blocking.py
