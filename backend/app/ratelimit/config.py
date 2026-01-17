@@ -36,7 +36,7 @@ BUCKETS: Dict[str, Dict[str, Any]] = {
     # Messaging uses the "write" bucket; relax to 30/min with a burst of 5 to prevent 429s during normal chat use
     "write": dict(rate_per_min=30, burst=10, window_s=60),
     # Conversation-scoped messaging limit (per user+conversation)
-    "conv_msg": dict(rate_per_min=10, burst=0, window_s=60),
+    "conv_msg": dict(rate_per_min=60, burst=10, window_s=60),
     "financial": dict(rate_per_min=5, burst=0, window_s=60),
 }
 

@@ -696,6 +696,7 @@ export default function MessagesPage() {
   }, [selectedChat, messageText, pendingAttachments, composeRecipient, conversations, getPrimaryBookingId, sendMessage, clearDraft]);
 
   const handleKeyPress = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.repeat) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (selectedChat === COMPOSE_THREAD_ID && !composeRecipient) return;

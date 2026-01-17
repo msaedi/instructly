@@ -8,10 +8,15 @@ import type { ConversationMessage, ConversationMessagesResponse } from '@/types/
 // Mock the API services
 const mockUseConversationMessages = jest.fn();
 const mockMarkMessagesAsReadImperative = jest.fn();
+const mockSendConversationMessage = jest.fn();
 
 jest.mock('@/src/api/services/messages', () => ({
   useConversationMessages: (...args: unknown[]) => mockUseConversationMessages(...args),
   markMessagesAsReadImperative: (...args: unknown[]) => mockMarkMessagesAsReadImperative(...args),
+}));
+
+jest.mock('@/src/api/services/conversations', () => ({
+  sendMessage: (...args: unknown[]) => mockSendConversationMessage(...args),
 }));
 
 jest.mock('@/lib/logger', () => ({
@@ -119,6 +124,7 @@ describe('useMessageThread', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     setConversationsMock = jest.fn();
+    mockSendConversationMessage.mockReset();
 
     mockUseConversationMessages.mockImplementation(
       (
@@ -401,6 +407,47 @@ describe('useMessageThread', () => {
           (call) => call[0] === 'conv1' && call[3] === true
         )
       ).toBe(true);
+    });
+  });
+
+  describe('send message guards', () => {
+    it('prevents duplicate sends while in-flight', async () => {
+      let resolveSend: (value: { id: string }) => void = () => {};
+      mockSendConversationMessage.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveSend = resolve;
+          })
+      );
+
+      const onSuccess = jest.fn();
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        const p1 = result.current.handleSendMessage({
+          selectedChat: 'conv1',
+          messageText: 'Hello',
+          pendingAttachments: [],
+          composeRecipient: null,
+          conversations: [mockConversation],
+          getPrimaryBookingId: () => 'booking1',
+          onSuccess,
+        });
+        const p2 = result.current.handleSendMessage({
+          selectedChat: 'conv1',
+          messageText: 'Hello',
+          pendingAttachments: [],
+          composeRecipient: null,
+          conversations: [mockConversation],
+          getPrimaryBookingId: () => 'booking1',
+          onSuccess,
+        });
+        resolveSend({ id: 'msg-server' });
+        await Promise.all([p1, p2]);
+      });
+
+      expect(mockSendConversationMessage).toHaveBeenCalledTimes(1);
+      expect(onSuccess).toHaveBeenCalledTimes(1);
     });
   });
 });

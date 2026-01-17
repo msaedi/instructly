@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Chat } from '../Chat';
 import type { ConversationMessage } from '@/types/conversation';
@@ -185,5 +185,79 @@ describe('Chat mark-as-read behavior', () => {
     );
 
     await waitFor(() => expect(markMessagesAsReadMutate).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe('Chat send guards', () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    queryClient = new QueryClient();
+
+    mockUseSendConversationTyping.mockReturnValue({ mutate: jest.fn() });
+    mockUseMarkMessagesAsRead.mockImplementation(() => ({ mutate: jest.fn() }));
+    mockUseEditMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseDeleteMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseAddReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseRemoveReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseMessageStream.mockReturnValue({
+      isConnected: true,
+      connectionError: null,
+      subscribe: jest.fn(() => jest.fn()),
+    });
+
+    mockUseConversationMessages.mockImplementation(() => defaultHistoryResponse());
+  });
+
+  it('does not send when mutation is pending', async () => {
+    const mutateAsync = jest.fn();
+    mockUseSendConversationMessage.mockReturnValue({ mutateAsync, isPending: true });
+
+    const { getByPlaceholderText } = render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    const input = getByPlaceholderText('Type a message...') as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: 'Hello' } });
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: false, repeat: false });
+
+    await waitFor(() => expect(mutateAsync).not.toHaveBeenCalled());
+  });
+
+  it('ignores key repeat events', async () => {
+    const mutateAsync = jest.fn().mockResolvedValue({ id: 'msg-1' });
+    mockUseSendConversationMessage.mockReturnValue({ mutateAsync, isPending: false });
+
+    const { getByPlaceholderText } = render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    const input = getByPlaceholderText('Type a message...') as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: 'Hello' } });
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: false, repeat: true });
+
+    await waitFor(() => expect(mutateAsync).not.toHaveBeenCalled());
+  });
+
+  it('sends on single Enter press', async () => {
+    const mutateAsync = jest.fn().mockResolvedValue({ id: 'msg-1' });
+    mockUseSendConversationMessage.mockReturnValue({ mutateAsync, isPending: false });
+
+    const { getByPlaceholderText } = render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    const input = getByPlaceholderText('Type a message...') as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: 'Hello' } });
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: false, repeat: false });
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
   });
 });
