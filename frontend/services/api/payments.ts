@@ -2,114 +2,32 @@ import { logger } from '@/lib/logger';
 import { withApiBase } from '@/lib/apiBase';
 import { httpGet, httpPost } from '@/lib/http';
 import type { CheckoutResponse } from '@/types/api/checkout';
+import type {
+  PaymentMethod,
+  SavePaymentMethodRequest,
+  CreateCheckoutRequest,
+  Transaction,
+  OnboardingResponse,
+  OnboardingStatusResponse,
+  EarningsResponse,
+  InstructorInvoice,
+  PayoutSummary,
+  PayoutHistoryResponse,
+} from '@/features/shared/api/types';
 
-export interface PaymentMethod {
-  id: string;
-  last4: string;
-  brand: string;
-  is_default: boolean;
-  created_at: string;
-}
-
-export interface SavePaymentMethodRequest {
-  payment_method_id: string;
-  set_as_default?: boolean;
-}
-
-export interface CreateCheckoutRequest {
-  booking_id: string;
-  payment_method_id?: string;
-  save_payment_method?: boolean;
-  requested_credit_cents?: number;
-}
-
-export interface Transaction {
-  id: string;
-  booking_id: string;
-  service_name: string;
-  instructor_name: string;
-  booking_date: string;
-  start_time: string;
-  end_time: string;
-  duration_minutes: number;
-  hourly_rate: number;
-  lesson_amount: number;
-  service_fee: number;
-  credit_applied: number;
-  tip_amount: number;
-  tip_paid: number;
-  tip_status?: string | null;
-  total_paid: number;
-  status: string;
-  created_at: string;
-}
-
-export interface OnboardingResponse {
-  account_id: string;
-  onboarding_url: string;
-  already_onboarded: boolean;
-}
-
-export interface OnboardingStatusResponse {
-  has_account: boolean;
-  onboarding_completed: boolean;
-  charges_enabled: boolean;
-  payouts_enabled: boolean;
-  details_submitted: boolean;
-  requirements: string[];
-}
-
-export interface EarningsResponse {
-  total_earned: number;
-  total_fees: number;
-  booking_count: number;
-  average_earning: number;
-  hours_invoiced?: number;
-  service_count?: number;
-  period_start?: string;
-  period_end?: string;
-  invoices?: InstructorInvoice[];
-  // Instructor-centric aggregate fields
-  total_lesson_value?: number;
-  total_platform_fees?: number;
-  total_tips?: number;
-}
-
-export interface InstructorInvoice {
-  booking_id: string;
-  lesson_date: string;
-  start_time?: string | null;
-  service_name?: string | null;
-  student_name?: string | null;
-  duration_minutes?: number | null;
-  total_paid_cents: number;
-  tip_cents: number;
-  instructor_share_cents: number;
-  status: string;
-  created_at: string;
-  // Instructor-centric clarity fields
-  lesson_price_cents: number;
-  platform_fee_cents: number;
-  platform_fee_rate: number;
-  student_fee_cents: number;
-}
-
-export interface PayoutSummary {
-  id: string;
-  amount_cents: number;
-  status: string;
-  arrival_date?: string | null;
-  failure_code?: string | null;
-  failure_message?: string | null;
-  created_at: string;
-}
-
-export interface PayoutHistoryResponse {
-  payouts: PayoutSummary[];
-  total_paid_cents: number;
-  total_pending_cents: number;
-  payout_count: number;
-}
+// Re-export types for backwards compatibility
+export type {
+  PaymentMethod,
+  SavePaymentMethodRequest,
+  CreateCheckoutRequest,
+  Transaction,
+  OnboardingResponse,
+  OnboardingStatusResponse,
+  EarningsResponse,
+  InstructorInvoice,
+  PayoutSummary,
+  PayoutHistoryResponse,
+};
 
 class PaymentService {
   private basePath = `/api/v1/payments`;

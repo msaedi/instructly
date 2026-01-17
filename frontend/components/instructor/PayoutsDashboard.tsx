@@ -114,7 +114,7 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId: _inst
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Total Earnings</p>
                   <p className="text-3xl font-bold text-gray-900">
-                    {formatCurrency(earnings.total_earned)}
+                    {formatCurrency(earnings.total_earned ?? 0)}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     This month ({formatDate(earnings.period_start || '2025-08-01')} - {formatDate(earnings.period_end || '2025-08-31')})
@@ -135,7 +135,7 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId: _inst
                     {earnings.booking_count}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    Avg. {formatCurrency(earnings.average_earning)} per session
+                    Avg. {formatCurrency(earnings.average_earning ?? 0)} per session
                   </p>
                 </div>
                 <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
@@ -150,7 +150,7 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId: _inst
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Platform Fees</p>
                   <p className="text-3xl font-bold text-gray-900">
-                    {formatCurrency(earnings.total_fees)}
+                    {formatCurrency(earnings.total_fees ?? 0)}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     {platformFeeLabel ? `${platformFeeLabel} service fee` : 'Platform fees withheld'}

@@ -2,8 +2,33 @@
 
 import type { ServiceAreaNeighborhood } from '@/types/instructor';
 
-// Booking status enum
-export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+// Import types from generated OpenAPI shim
+// Note: Some types kept local because they differ from generated (use frontend-specific structures)
+import type {
+  BookingStatus as GeneratedBookingStatus,
+  BookingListResponse as GeneratedBookingListResponse,
+  AvailabilityCheckRequest as GeneratedAvailabilityCheckRequest,
+  AvailabilityCheckResponse as GeneratedAvailabilityCheckResponse,
+  BookingCreateResponse as GeneratedBookingCreateResponse,
+  BookingStatsResponse as GeneratedBookingStatsResponse,
+  BookingPreview as GeneratedBookingPreview,
+  TimeSlot as GeneratedTimeSlot,
+  BookingCreate as GeneratedBookingCreate,
+} from '@/features/shared/api/types';
+
+// Re-export generated types for backwards compatibility
+export type BookingStatus = GeneratedBookingStatus;
+export type BookingListResponse = GeneratedBookingListResponse;
+export type AvailabilityCheckRequest = GeneratedAvailabilityCheckRequest;
+export type AvailabilityCheckResponse = GeneratedAvailabilityCheckResponse;
+export type BookingCreateResponse = GeneratedBookingCreateResponse;
+export type BookingStatsResponse = GeneratedBookingStatsResponse;
+export type BookingPreviewResponse = GeneratedBookingPreview;
+export type TimeSlot = GeneratedTimeSlot;
+export type BookingCreate = GeneratedBookingCreate;
+// BookedSlotsResponse kept local - uses typed BookedSlotPreview with frontend LocationType
+
+// Frontend-only types (not in generated OpenAPI)
 export type LocationType = 'student_home' | 'instructor_location' | 'neutral' | 'in_person' | 'remote';
 
 // Privacy-protected instructor info for student-facing views
@@ -140,16 +165,7 @@ export interface BlackoutDate {
   created_at: string;
 }
 
-// API Response wrappers
-export interface BookingListResponse {
-  items: Booking[]; // Standardized PaginatedResponse format
-  total: number;
-  page: number;
-  per_page: number;
-  has_next: boolean;
-  has_prev: boolean;
-}
-
+// Frontend-only aggregate response (not in generated OpenAPI)
 export interface AvailabilityResponse {
   instructor_id: string;
   start_date: string;
@@ -158,54 +174,7 @@ export interface AvailabilityResponse {
   blackout_dates: BlackoutDate[];
 }
 
-// NEW: Time-based booking creation
-export interface BookingCreate {
-  instructor_id: string;
-  service_id: string;
-  booking_date: string; // ISO date: "2025-07-15"
-  start_time: string; // 24hr format: "09:00"
-  end_time: string; // 24hr format: "10:00"
-  timezone?: string; // Optional IANA timezone
-  student_note?: string;
-  meeting_location?: string;
-  location_type?: LocationType;
-}
-
-// Form/UI specific types
-export interface TimeSlot {
-  id: string;
-  date: string;
-  start_time: string;
-  end_time: string;
-}
-
-// Booking creation response
-export interface BookingCreateResponse {
-  booking: Booking;
-  message: string;
-}
-
-// NEW: Time-based availability check
-export interface AvailabilityCheckRequest {
-  instructor_id: string;
-  service_id: string;
-  booking_date: string; // ISO date
-  start_time: string; // 24hr format
-  end_time: string; // 24hr format
-}
-
-export interface AvailabilityCheckResponse {
-  available: boolean;
-  reason?: string;
-  time_info?: {
-    date: string;
-    start_time: string;
-    end_time: string;
-    instructor_id: string;
-  };
-  min_advance_hours?: number;
-}
-
+// Frontend-only preview type (uses local LocationType not in generated OpenAPI)
 export interface BookedSlotPreview {
   booking_id: string;
   date: string;
@@ -300,32 +269,18 @@ export interface BookingFilters {
 
 /**
  * Request payload for cancelling a booking
+ * (Frontend-only - generated OpenAPI only has AdminCancelBookingRequest)
  */
 export interface CancelBookingRequest {
   /** Reason for cancellation */
   cancellation_reason: string;
 }
 
-/**
- * Response for booking statistics
- */
-export interface BookingStatsResponse {
-  /** Total number of bookings */
-  total_bookings: number;
-  /** Number of completed bookings */
-  completed_bookings: number;
-  /** Number of cancelled bookings */
-  cancelled_bookings?: number;
-  /** Number of no-show bookings */
-  no_show_bookings?: number;
-  /** Total revenue earned */
-  total_revenue?: number;
-  /** Average booking value */
-  average_booking_value?: number;
-}
+// BookingStatsResponse - now imported from shim (see top of file)
 
 /**
  * Response for availability slot queries
+ * (Frontend-only type - not in generated OpenAPI)
  */
 export interface AvailabilitySlotResponse {
   /** Slot ID */

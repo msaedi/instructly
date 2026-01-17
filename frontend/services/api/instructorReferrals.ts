@@ -1,51 +1,17 @@
 import { httpGet } from '@/lib/http';
 import { logger } from '@/lib/logger';
+import type {
+  ReferralStatsResponse,
+  ReferredInstructorInfo,
+  ReferredInstructorsResponse,
+  FoundingStatusResponse,
+  PopupDataResponse,
+} from '@/features/shared/api/types';
 
 const BASE_PATH = '/api/v1/instructor-referrals';
 
-interface ReferralStatsResponse {
-  referral_code: string;
-  referral_link: string;
-  total_referred: number;
-  pending_payouts: number;
-  completed_payouts: number;
-  total_earned_cents: number;
-  is_founding_phase: boolean;
-  founding_spots_remaining: number;
-  current_bonus_cents: number;
-}
-
-interface ReferredInstructorResponse {
-  id: string;
-  first_name: string;
-  last_initial: string;
-  referred_at: string;
-  is_live: boolean;
-  went_live_at: string | null;
-  first_lesson_completed_at: string | null;
-  payout_status: 'pending_live' | 'pending_lesson' | 'pending_transfer' | 'paid' | 'failed';
-  payout_amount_cents: number | null;
-}
-
-interface ReferredInstructorsResponse {
-  instructors: ReferredInstructorResponse[];
-  total_count: number;
-}
-
-interface FoundingStatusResponse {
-  is_founding_phase: boolean;
-  total_founding_spots: number;
-  spots_filled: number;
-  spots_remaining: number;
-}
-
-interface PopupDataResponse {
-  is_founding_phase: boolean;
-  bonus_amount_cents: number;
-  founding_spots_remaining: number;
-  referral_code: string;
-  referral_link: string;
-}
+// Alias for backwards compat - generated uses ReferredInstructorInfo
+type ReferredInstructorResponse = ReferredInstructorInfo;
 
 export interface ReferralStats {
   referralCode: string;
@@ -112,8 +78,8 @@ const transformReferredInstructor = (data: ReferredInstructorResponse): Referred
   isLive: data.is_live,
   wentLiveAt: parseDate(data.went_live_at),
   firstLessonCompletedAt: parseDate(data.first_lesson_completed_at),
-  payoutStatus: data.payout_status,
-  payoutAmountCents: data.payout_amount_cents,
+  payoutStatus: data.payout_status as ReferredInstructor['payoutStatus'],
+  payoutAmountCents: data.payout_amount_cents ?? null,
 });
 
 const transformFoundingStatus = (data: FoundingStatusResponse): FoundingStatus => ({

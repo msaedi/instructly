@@ -372,11 +372,16 @@ export type CopyWeekResponse = components['schemas']['CopyWeekResponse'];
 
 // Payment types
 export type PaymentMethodResponse = components['schemas']['PaymentMethodResponse'];
+export type PaymentMethod = components['schemas']['PaymentMethodResponse']; // Alias for backwards compat
 export type SavePaymentMethodRequest = components['schemas']['SavePaymentMethodRequest'];
+export type CreateCheckoutRequest = components['schemas']['CreateCheckoutRequest'];
 export type EarningsResponse = components['schemas']['EarningsResponse'];
+export type InstructorInvoice = components['schemas']['InstructorInvoiceSummary']; // Generated uses Summary suffix
+export type InstructorInvoiceSummary = components['schemas']['InstructorInvoiceSummary'];
 export type PayoutSummary = components['schemas']['PayoutSummary'];
 export type PayoutHistoryResponse = components['schemas']['PayoutHistoryResponse'];
 export type OnboardingResponse = components['schemas']['OnboardingResponse'];
+export type Transaction = components['schemas']['TransactionHistoryItem']; // Alias for backwards compat
 export type TransactionHistoryItem = components['schemas']['TransactionHistoryItem'];
 
 // Instructor referral types
@@ -385,3 +390,19 @@ export type ReferredInstructorInfo = components['schemas']['ReferredInstructorIn
 export type ReferredInstructorsResponse = components['schemas']['ReferredInstructorsResponse'];
 export type FoundingStatusResponse = components['schemas']['FoundingStatusResponse'];
 export type PopupDataResponse = components['schemas']['PopupDataResponse'];
+
+// Additional booking types
+export type BookingCreateResponse = components['schemas']['BookingCreateResponse'];
+export type BookedSlotsResponse = components['schemas']['BookedSlotsResponse'];
+
+// Admin booking types
+export type AdminBookingListResponse = components['schemas']['AdminBookingListResponse'];
+export type AdminBookingStatsResponse = components['schemas']['AdminBookingStatsResponse'];
+
+// Admin audit types
+export type AuditLogListResponse = components['schemas']['AuditLogListResponse'];
+export type AdminAuditEntry = components['schemas']['AdminAuditEntry'];
+
+// Paginated instructor list
+export type InstructorListResponse = components['schemas']['PaginatedResponse_InstructorProfileResponse_'];
+export type PaginatedInstructorProfileResponse = components['schemas']['PaginatedResponse_InstructorProfileResponse_'];
