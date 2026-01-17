@@ -938,6 +938,9 @@ def cleanup_test_database() -> None:
         cleanup_db.query(NotificationDelivery).delete()
         cleanup_db.query(EventOutbox).delete()
         cleanup_db.query(AuditLog).delete()
+        # Beta tables (BetaAccess has FK to BetaInvite.code, so delete Access first)
+        cleanup_db.query(BetaAccess).delete()
+        cleanup_db.query(BetaInvite).delete()
 
         cleanup_db.query(ServiceCatalog).filter(
             (ServiceCatalog.name.like("Test%"))
