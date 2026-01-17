@@ -27302,5 +27302,107 @@
         }
       }
     }
+  },
+  {
+    "timestamp": "2026-01-17T20:30:03.256523+00:00",
+    "total_lines": 440134,
+    "total_files": 2000,
+    "backend_lines": 284587,
+    "frontend_lines": 155547,
+    "git_commits": 1444,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 215,
+          "lines": 31247
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6038
+        },
+        "Tasks/Celery": {
+          "files": 41,
+          "lines": 11308
+        },
+        "Core/Config": {
+          "files": 32,
+          "lines": 6326
+        },
+        "Repositories": {
+          "files": 106,
+          "lines": 28937
+        },
+        "Models": {
+          "files": 44,
+          "lines": 6259
+        },
+        "Schemas": {
+          "files": 67,
+          "lines": 7235
+        },
+        "Routes/APIs": {
+          "files": 165,
+          "lines": 38106
+        },
+        "Services": {
+          "files": 270,
+          "lines": 93342
+        },
+        "Unit Tests": {
+          "files": 176,
+          "lines": 32957
+        },
+        "Integration Tests": {
+          "files": 220,
+          "lines": 47228
+        },
+        "Route Tests": {
+          "files": 84,
+          "lines": 19757
+        }
+      },
+      "frontend": {
+        "Public": {
+          "files": 3,
+          "lines": 828
+        },
+        "Types": {
+          "files": 18,
+          "lines": 2690
+        },
+        "Pages": {
+          "files": 134,
+          "lines": 33507
+        },
+        "Utils": {
+          "files": 19,
+          "lines": 1516
+        },
+        "Unit Tests": {
+          "files": 98,
+          "lines": 16164
+        },
+        "Hooks": {
+          "files": 94,
+          "lines": 13778
+        },
+        "API/Lib": {
+          "files": 60,
+          "lines": 8034
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 7470
+        },
+        "Features": {
+          "files": 118,
+          "lines": 21111
+        },
+        "Components": {
+          "files": 194,
+          "lines": 37809
+        }
+      }
+    }
   }
 ]

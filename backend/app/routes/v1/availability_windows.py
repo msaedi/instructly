@@ -243,7 +243,7 @@ def save_week_availability(
             monday = payload.week_start
         else:
             for item in payload.schedule:
-                raw_date = item.get("date")
+                raw_date = item.date
                 if raw_date is None:
                     continue
                 try:
@@ -280,19 +280,19 @@ def save_week_availability(
 
             windows_by_day: Dict[date, List[tuple[str, str]]] = {}
             for item in payload.schedule:
-                raw_date = item.get("date")
+                raw_date = item.date
                 if isinstance(raw_date, date):
                     slot_date = raw_date
                 else:
                     slot_date = date.fromisoformat(str(raw_date))
 
-                raw_start = item.get("start_time")
+                raw_start = item.start_time
                 if isinstance(raw_start, time):
                     start_str = raw_start.strftime("%H:%M:%S")
                 else:
                     start_str = string_to_time(str(raw_start)).strftime("%H:%M:%S")
 
-                raw_end = item.get("end_time")
+                raw_end = item.end_time
                 if isinstance(raw_end, time):
                     end_str = raw_end.strftime("%H:%M:%S")
                 else:

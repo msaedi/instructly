@@ -233,29 +233,7 @@ export interface InstructorSearchResult {
   relevance_score?: number;
 }
 
-/**
- * Instructor list response from API
- *
- * Paginated response when fetching multiple instructors
- *
- * @interface InstructorListResponse
- */
-export interface InstructorListResponse {
-  /** Array of instructor results */
-  instructors: InstructorSearchResult[];
-
-  /** Total number of results */
-  total: number;
-
-  /** Current page number */
-  page: number;
-
-  /** Results per page */
-  per_page: number;
-
-  /** Total number of pages */
-  total_pages: number;
-}
+// InstructorListResponse removed - use generated type from @/features/shared/api/types
 
 /**
  * Request parameters for searching instructors
@@ -365,18 +343,7 @@ export interface FavoritedInstructor {
   profile_picture_version?: number;
 }
 
-/**
- * Favorites list API response
- *
- * @interface FavoritesListResponse
- */
-export interface FavoritesListResponse {
-  /** List of favorited instructors */
-  favorites: FavoritedInstructor[];
-
-  /** Total number of favorites */
-  total: number;
-}
+// FavoritesListResponse removed - use generated type from @/features/shared/api/types
 
 /**
  * Type guard to check if a user has an instructor profile

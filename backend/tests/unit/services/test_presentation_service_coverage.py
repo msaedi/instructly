@@ -54,11 +54,11 @@ def test_format_booked_slot_for_display(db) -> None:
         slot_date=date(2025, 1, 1),
     )
 
-    assert result["booking_id"] == "booking-1"
-    assert result["student_first_name"] == "John"
-    assert result["student_last_initial"] == "S."
-    assert result["service_area_short"] == "UWS"
-    assert result["location_type"] == "neutral"
+    assert result.booking_id == "booking-1"
+    assert result.student_first_name == "John"
+    assert result.student_last_initial == "S."
+    assert result.service_area_short == "UWS"
+    assert result.location_type == "neutral"
 
 
 def test_format_booked_slots_from_service_data(db, monkeypatch) -> None:
@@ -79,7 +79,7 @@ def test_format_booked_slots_from_service_data(db, monkeypatch) -> None:
     results = service.format_booked_slots_from_service_data(slots)
 
     assert len(results) == 1
-    assert results[0]["booking_id"] == "booking-1"
+    assert results[0].booking_id == "booking-1"
 
 
 def test_format_duration_for_display(db) -> None:

@@ -128,12 +128,10 @@ export const redisApi = {
    */
   async getCeleryQueues(token: string): Promise<CeleryQueues> {
     const response = await fetchWithAuth<RedisCeleryQueuesResponse>('/api/v1/redis/celery-queues', token);
-    const queues = response.queues as Record<string, number>;
-    const total_pending = Object.values(queues).reduce(
-      (sum, value) => sum + (typeof value === 'number' ? value : 0),
-      0
-    );
-    return { queues, total_pending };
+    return {
+      queues: response.queues.queues ?? {},
+      total_pending: response.queues.total_pending,
+    };
   },
 
   /**

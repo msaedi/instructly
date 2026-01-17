@@ -103,7 +103,20 @@ class TestServicesRoutesAdditionalCoverage:
 
     def test_search_services_response(self, test_client, mock_instructor_service):
         mock_instructor_service.get_instructors_filtered.return_value = {
-            "instructors": [{"id": "i1"}],
+            "instructors": [
+                {
+                    "id": "01K2MAY484FQGFEQVN3VKGYZ58",
+                    "user_id": "01K2MAY484FQGFEQVN3VKGYZ59",
+                    "first_name": "John",
+                    "last_initial": "D",
+                    "bio": "Piano teacher",
+                    "years_experience": 5,
+                    "average_rating": 4.5,
+                    "review_count": 10,
+                    "is_live": True,
+                    "services": [],
+                }
+            ],
             "metadata": {"total_matches": 1, "active_instructors": 1},
         }
 

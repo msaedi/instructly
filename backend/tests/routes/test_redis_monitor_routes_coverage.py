@@ -105,10 +105,10 @@ async def test_redis_stats_and_celery_queue_status(monkeypatch) -> None:
     monkeypatch.setattr(redis_routes, "_get_celery_queue_lengths", _queues)
 
     stats = await redis_routes.redis_stats(current_user=SimpleNamespace())
-    assert stats.stats["stats"]["instantaneous_ops_per_sec"] == 2
+    assert stats.stats.stats.instantaneous_ops_per_sec == 2
 
     queues = await redis_routes.celery_queue_status(current_user=SimpleNamespace())
-    assert queues.queues["total_pending"] == 2
+    assert queues.queues.total_pending == 2
 
 
 @pytest.mark.asyncio
@@ -132,8 +132,8 @@ async def test_redis_connection_audit(monkeypatch) -> None:
     monkeypatch.setattr(redis_routes, "get_redis_client", _client)
 
     response = await redis_routes.redis_connection_audit(current_user=SimpleNamespace())
-    assert response.connections[0]["upstash_detected"] is False
-    assert "redis://localhost:6379/0" in response.connections[0]["api_cache"]
+    assert response.connections[0].upstash_detected is False
+    assert "redis://localhost:6379/0" in response.connections[0].api_cache
 
 
 @pytest.mark.asyncio

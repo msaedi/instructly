@@ -51,6 +51,7 @@ from ..repositories.availability_day_repository import AvailabilityDayRepository
 from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import (
     BlackoutDateCreate,
+    ScheduleItem,
     SpecificDateAvailabilityCreate,
     WeekSpecificScheduleCreate,
 )
@@ -2073,7 +2074,7 @@ class AvailabilityService(BaseService):
             return week_data.week_start
         elif week_data.schedule:
             # Get Monday from the first date in schedule
-            first_date = min(date.fromisoformat(slot["date"]) for slot in week_data.schedule)
+            first_date = min(date.fromisoformat(slot.date) for slot in week_data.schedule)
             return first_date - timedelta(days=first_date.weekday())
         else:
             # Fallback to current week in instructor's timezone
@@ -2081,7 +2082,7 @@ class AvailabilityService(BaseService):
             return instructor_today - timedelta(days=instructor_today.weekday())
 
     def _group_schedule_by_date(
-        self, schedule: list[dict[str, str]], instructor_id: str
+        self, schedule: list[ScheduleItem], instructor_id: str
     ) -> dict[date, list[ProcessedSlot]]:
         """Group schedule entries by date, normalizing overnight spans."""
 
@@ -2089,9 +2090,9 @@ class AvailabilityService(BaseService):
         instructor_today = get_user_today_by_id(instructor_id, self.db)
 
         for slot in schedule:
-            slot_date = date.fromisoformat(slot["date"])
-            start_time_obj = string_to_time(slot["start_time"])
-            end_time_obj = string_to_time(slot["end_time"])
+            slot_date = date.fromisoformat(slot.date)
+            start_time_obj = string_to_time(slot.start_time)
+            end_time_obj = string_to_time(slot.end_time)
 
             if not ALLOW_PAST and slot_date < instructor_today:
                 logger.warning(

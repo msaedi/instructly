@@ -243,9 +243,7 @@ export type AdminAwardSchemaConfirmedAt = string | null;
 
 export type AdminAwardSchemaHoldUntil = string | null;
 
-export type AdminAwardSchemaProgressSnapshotAnyOf = { [key: string]: unknown };
-
-export type AdminAwardSchemaProgressSnapshot = AdminAwardSchemaProgressSnapshotAnyOf | null;
+export type AdminAwardSchemaProgressSnapshot = BadgeProgressView | null;
 
 export type AdminAwardSchemaRevokedAt = string | null;
 
@@ -910,10 +908,15 @@ export interface AlertAcknowledgeResponse {
   status: string;
 }
 
-export type AlertDetailDetailsAnyOf = { [key: string]: unknown };
+export type AlertDetailDetailsAnyOf =
+  | ExtremelySlowQueryDetails
+  | ExtremelySlowRequestDetails
+  | HighDbPoolUsageDetails
+  | HighMemoryUsageDetails
+  | LowCacheHitRateDetails;
 
 /**
- * Additional alert details
+ * Type-specific alert details
  */
 export type AlertDetailDetails = AlertDetailDetailsAnyOf | null;
 
@@ -923,7 +926,7 @@ export type AlertDetailDetails = AlertDetailDetailsAnyOf | null;
 export interface AlertDetail {
   /** When the alert was created (ISO format) */
   created_at: string;
-  /** Additional alert details */
+  /** Type-specific alert details */
   details?: AlertDetailDetails;
   /** Whether email notification was sent */
   email_sent: boolean;
@@ -1163,9 +1166,22 @@ export interface AutocompleteResponse {
 }
 
 /**
- * Availability cache metrics
+ * Detailed availability cache metrics.
  */
-export type AvailabilityCacheMetricsResponseAvailabilityCacheMetrics = { [key: string]: unknown };
+export interface AvailabilityCacheMetrics {
+  /** Cache efficiency rating */
+  cache_efficiency?: string;
+  /** Cache hit rate percentage */
+  hit_rate?: string;
+  /** Cache hits */
+  hits?: number;
+  /** Cache invalidations */
+  invalidations?: number;
+  /** Cache misses */
+  misses?: number;
+  /** Total cache requests */
+  total_requests?: number;
+}
 
 /**
  * Cache tier configuration
@@ -1177,7 +1193,7 @@ export type AvailabilityCacheMetricsResponseCacheTiersInfo = { [key: string]: st
  */
 export interface AvailabilityCacheMetricsResponse {
   /** Availability cache metrics */
-  availability_cache_metrics: AvailabilityCacheMetricsResponseAvailabilityCacheMetrics;
+  availability_cache_metrics: AvailabilityCacheMetrics;
   /** Cache tier configuration */
   cache_tiers_info: AvailabilityCacheMetricsResponseCacheTiersInfo;
   /** Performance recommendations */
@@ -1205,29 +1221,70 @@ export interface AvailabilityCheckRequest {
   start_time: string;
 }
 
-export type AvailabilityCheckResponseConflictsWithAnyOfItem = { [key: string]: unknown };
-
-export type AvailabilityCheckResponseConflictsWith =
-  | AvailabilityCheckResponseConflictsWithAnyOfItem[]
-  | null;
+/**
+ * List of conflicting bookings if any
+ */
+export type AvailabilityCheckResponseConflictsWith = ConflictingBookingInfo[] | null;
 
 export type AvailabilityCheckResponseMinAdvanceHours = number | null;
 
 export type AvailabilityCheckResponseReason = string | null;
 
-export type AvailabilityCheckResponseTimeInfoAnyOf = { [key: string]: unknown };
-
-export type AvailabilityCheckResponseTimeInfo = AvailabilityCheckResponseTimeInfoAnyOf | null;
+/**
+ * Time slot information for the availability check
+ */
+export type AvailabilityCheckResponseTimeInfo = TimeSlotInfo | null;
 
 /**
  * Response for availability check.
  */
 export interface AvailabilityCheckResponse {
   available: boolean;
+  /** List of conflicting bookings if any */
   conflicts_with?: AvailabilityCheckResponseConflictsWith;
   min_advance_hours?: AvailabilityCheckResponseMinAdvanceHours;
   reason?: AvailabilityCheckResponseReason;
+  /** Time slot information for the availability check */
   time_info?: AvailabilityCheckResponseTimeInfo;
+}
+
+/**
+ * ID of conflicting booking
+ */
+export type AvailabilityConflictInfoBookingId = string | null;
+
+/**
+ * End time of conflict
+ */
+export type AvailabilityConflictInfoEndTime = string | null;
+
+/**
+ * Start time of conflict
+ */
+export type AvailabilityConflictInfoStartTime = string | null;
+
+/**
+ * Information about a booking that conflicts with an availability operation.
+ */
+export interface AvailabilityConflictInfo {
+  /** ID of conflicting booking */
+  booking_id?: AvailabilityConflictInfoBookingId;
+  /** End time of conflict */
+  end_time?: AvailabilityConflictInfoEndTime;
+  /** Start time of conflict */
+  start_time?: AvailabilityConflictInfoStartTime;
+}
+
+/**
+ * Availability-specific cache metrics.
+ */
+export interface AvailabilityMetrics {
+  /** Availability cache hit rate */
+  availability_hit_rate?: string;
+  /** Availability cache invalidations */
+  availability_invalidations?: number;
+  /** Total availability requests */
+  availability_total_requests?: number;
 }
 
 /**
@@ -1610,6 +1667,20 @@ export interface BadgeProgressView {
   [key: string]: unknown;
 }
 
+/**
+ * Basic cache statistics.
+ */
+export interface BasicCacheStats {
+  /** Cache errors */
+  errors?: number;
+  /** Cache hit rate percentage */
+  hit_rate?: string;
+  /** Cache hits */
+  hits?: number;
+  /** Cache misses */
+  misses?: number;
+}
+
 export type BetaMetricsSummaryResponsePhaseCounts24h = { [key: string]: number };
 
 export interface BetaMetricsSummaryResponse {
@@ -1717,11 +1788,35 @@ export interface BodyRespondToReviewApiV1ReviewsReviewIdRespondPost {
   response_text: string;
 }
 
-export type BookedSlotsResponseBookedSlotsItem = { [key: string]: unknown };
+/**
+ * Individual booked slot with booking details for calendar display.
+ */
+export interface BookedSlotItem {
+  /** ULID of the booking */
+  booking_id: string;
+  /** ISO date string (YYYY-MM-DD) */
+  date: string;
+  /** Duration of the booking in minutes */
+  duration_minutes: number;
+  /** ISO time string (HH:MM:SS) */
+  end_time: string;
+  /** Location type (neutral, student, instructor) */
+  location_type: string;
+  /** Abbreviated service area */
+  service_area_short: string;
+  /** Name of the service booked */
+  service_name: string;
+  /** ISO time string (HH:MM:SS) */
+  start_time: string;
+  /** Student's first name */
+  student_first_name: string;
+  /** Student's last name initial */
+  student_last_initial: string;
+}
 
 export interface BookedSlotsResponse {
   /** List of booked slots with booking details */
-  booked_slots: BookedSlotsResponseBookedSlotsItem[];
+  booked_slots: BookedSlotItem[];
   week_end: string;
   week_start: string;
 }
@@ -2254,11 +2349,58 @@ export interface BudgetInfo {
   skipped_operations?: string[];
 }
 
+/**
+ * Details for build_response pipeline stage.
+ */
+export interface BuildResponseStageDetails {
+  /** Number of results in final response */
+  result_count: number;
+}
+
 export interface BulkUpdateResponse {
   failed: number;
   results: OperationResult[];
   skipped: number;
   successful: number;
+}
+
+/**
+ * Location resolution tier used
+ */
+export type Burst1StageDetailsLocationTier = number | null;
+
+/**
+ * Details for burst1 pipeline stage (pre-OpenAI batch).
+ */
+export interface Burst1StageDetails {
+  /** Location resolution tier used */
+  location_tier?: Burst1StageDetailsLocationTier;
+  /** Whether region lookup was loaded */
+  region_lookup_loaded: boolean;
+  /** Number of text search candidates */
+  text_candidates: number;
+}
+
+/**
+ * Details for burst2 pipeline stage (post-OpenAI batch).
+ */
+export interface Burst2StageDetails {
+  /** Whether filtering failed */
+  filter_failed: boolean;
+  /** Whether ranking failed */
+  ranking_failed: boolean;
+  /** Total candidates after retrieval */
+  total_candidates: number;
+  /** Whether vector search was used */
+  vector_search_used: boolean;
+}
+
+/**
+ * Details for cache_check pipeline stage.
+ */
+export interface CacheCheckStageDetails {
+  /** Cache check latency in milliseconds */
+  latency_ms: number;
 }
 
 /**
@@ -2277,11 +2419,6 @@ export interface CacheHealthStatus {
   total_requests: number;
 }
 
-/**
- * Availability-specific cache metrics
- */
-export type CacheMetricsResponseAvailabilityMetrics = { [key: string]: unknown };
-
 export type CacheMetricsResponseRedisInfoAnyOf = { [key: string]: unknown };
 
 /**
@@ -2294,7 +2431,7 @@ export type CacheMetricsResponseRedisInfo = CacheMetricsResponseRedisInfoAnyOf |
  */
 export interface CacheMetricsResponse {
   /** Availability-specific cache metrics */
-  availability_metrics: CacheMetricsResponseAvailabilityMetrics;
+  availability_metrics: AvailabilityMetrics;
   /** Cache errors */
   errors: number;
   /** Cache hit rate percentage */
@@ -2487,6 +2624,17 @@ export interface CategoryWithServices {
   subtitle?: CategoryWithServicesSubtitle;
 }
 
+export type CeleryQueuesDataQueues = { [key: string]: number };
+
+/**
+ * Celery queue status data.
+ */
+export interface CeleryQueuesData {
+  queues?: CeleryQueuesDataQueues;
+  status?: string;
+  total_pending?: number;
+}
+
 export interface CheckoutApplyRequest {
   order_id: string;
 }
@@ -2623,6 +2771,33 @@ export interface CodebaseSection {
   total_lines_with_blanks: number;
 }
 
+/**
+ * ID of the conflicting booking
+ */
+export type ConflictingBookingInfoBookingId = string | null;
+
+/**
+ * End time of conflict (HH:MM:SS)
+ */
+export type ConflictingBookingInfoEndTime = string | null;
+
+/**
+ * Start time of conflict (HH:MM:SS)
+ */
+export type ConflictingBookingInfoStartTime = string | null;
+
+/**
+ * Information about a conflicting booking.
+ */
+export interface ConflictingBookingInfo {
+  /** ID of the conflicting booking */
+  booking_id?: ConflictingBookingInfoBookingId;
+  /** End time of conflict (HH:MM:SS) */
+  end_time?: ConflictingBookingInfoEndTime;
+  /** Start time of conflict (HH:MM:SS) */
+  start_time?: ConflictingBookingInfoStartTime;
+}
+
 export type ConsentPayloadUserAgent = string | null;
 
 /**
@@ -2702,6 +2877,16 @@ export interface ConversionBehavior {
   avg_searches_before_conversion: number;
   /** Most common first search query */
   most_common_first_search: string;
+}
+
+/**
+ * Combined conversion metrics.
+ */
+export interface ConversionMetrics {
+  /** Conversion behavior metrics */
+  conversion_behavior: ConversionBehavior;
+  /** Guest session metrics */
+  guest_sessions: GuestConversionMetrics;
 }
 
 /**
@@ -2866,16 +3051,36 @@ export interface DataExportResponse {
 }
 
 /**
+ * Database metrics for monitoring dashboard.
+ */
+export interface DatabaseDashboardMetrics {
+  /** Average pool usage percentage */
+  average_pool_usage_percent?: number;
+  /** Connection pool status */
+  pool: DatabasePoolStatus;
+  /** Number of slow queries */
+  slow_queries_count?: number;
+}
+
+/**
+ * Database health metrics.
+ */
+export interface DatabaseHealthMetrics {
+  /** Health status */
+  status: string;
+  /** Pool usage percentage */
+  usage_percent: number;
+}
+
+/**
  * Error message if unhealthy
  */
 export type DatabaseHealthResponseError = string | null;
 
-export type DatabaseHealthResponsePoolStatusAnyOf = { [key: string]: unknown };
-
 /**
  * Connection pool status
  */
-export type DatabaseHealthResponsePoolStatus = DatabaseHealthResponsePoolStatusAnyOf | null;
+export type DatabaseHealthResponsePoolStatus = DatabasePoolMetrics | null;
 
 /**
  * Response for database health check endpoint.
@@ -2891,29 +3096,106 @@ export interface DatabaseHealthResponse {
   status: string;
 }
 
-export type DatabasePoolStatusResponseConfiguration = { [key: string]: unknown };
+/**
+ * Connection recycle time seconds
+ */
+export type DatabasePoolConfigurationRecycle = number | null;
 
-export type DatabasePoolStatusResponsePool = { [key: string]: unknown };
+/**
+ * Connection timeout seconds
+ */
+export type DatabasePoolConfigurationTimeout = number | null;
 
-export type DatabasePoolStatusResponseRecommendations = { [key: string]: unknown };
+/**
+ * SQLAlchemy pool configuration.
+ */
+export interface DatabasePoolConfiguration {
+  /** Maximum overflow connections */
+  max_overflow: number;
+  /** Base pool size */
+  pool_size: number;
+  /** Connection recycle time seconds */
+  recycle?: DatabasePoolConfigurationRecycle;
+  /** Connection timeout seconds */
+  timeout?: DatabasePoolConfigurationTimeout;
+}
 
+/**
+ * Database connection pool metrics.
+ */
+export interface DatabasePoolMetrics {
+  /** Available connections */
+  checked_in: number;
+  /** Active connections */
+  checked_out: number;
+  /** Maximum pool size */
+  max_size: number;
+  /** Overflow connections */
+  overflow: number;
+  /** Base pool size */
+  size: number;
+  /** Total connections (size + overflow) */
+  total: number;
+  /** Pool usage percentage */
+  usage_percent: number;
+}
+
+/**
+ * Database connection pool status.
+ */
+export interface DatabasePoolStatus {
+  /** Available connections */
+  checked_in: number;
+  /** Active connections */
+  checked_out: number;
+  /** Overflow connections */
+  overflow: number;
+  /** Total pool size */
+  pool_size: number;
+  /** Pool usage percentage */
+  usage_percent: number;
+}
+
+/**
+ * Response for database pool status endpoint.
+ */
 export interface DatabasePoolStatusResponse {
-  configuration: DatabasePoolStatusResponseConfiguration;
-  pool: DatabasePoolStatusResponsePool;
-  recommendations: DatabasePoolStatusResponseRecommendations;
+  configuration: DatabasePoolConfiguration;
+  pool: DatabasePoolMetrics;
+  recommendations: DatabaseRecommendations;
   status: string;
 }
 
-export type DatabaseStatsResponseConfiguration = { [key: string]: unknown };
+/**
+ * Current load level
+ */
+export type DatabaseRecommendationsCurrentLoad =
+  (typeof DatabaseRecommendationsCurrentLoad)[keyof typeof DatabaseRecommendationsCurrentLoad];
 
-export type DatabaseStatsResponseHealth = { [key: string]: unknown };
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const DatabaseRecommendationsCurrentLoad = {
+  low: 'low',
+  normal: 'normal',
+  high: 'high',
+} as const;
 
-export type DatabaseStatsResponsePool = { [key: string]: unknown };
+/**
+ * Database pool recommendations.
+ */
+export interface DatabaseRecommendations {
+  /** Current load level */
+  current_load: DatabaseRecommendationsCurrentLoad;
+  /** Whether pool size should be increased */
+  increase_pool_size: boolean;
+}
 
+/**
+ * Response for database statistics endpoint.
+ */
 export interface DatabaseStatsResponse {
-  configuration: DatabaseStatsResponseConfiguration;
-  health: DatabaseStatsResponseHealth;
-  pool: DatabaseStatsResponsePool;
+  configuration: DatabasePoolConfiguration;
+  health: DatabaseHealthMetrics;
+  pool: DatabasePoolMetrics;
   status: string;
 }
 
@@ -2943,6 +3225,30 @@ export interface DeleteMessageResponse {
 export interface DeleteWindowResponse {
   message?: string;
   window_id: string;
+}
+
+export type DeviceContextBrowser = string | null;
+
+export type DeviceContextConnectionType = string | null;
+
+export type DeviceContextDeviceType = string | null;
+
+export type DeviceContextOs = string | null;
+
+export type DeviceContextScreenHeight = number | null;
+
+export type DeviceContextScreenWidth = number | null;
+
+/**
+ * Device information for analytics.
+ */
+export interface DeviceContext {
+  browser?: DeviceContextBrowser;
+  connection_type?: DeviceContextConnectionType;
+  device_type?: DeviceContextDeviceType;
+  os?: DeviceContextOs;
+  screen_height?: DeviceContextScreenHeight;
+  screen_width?: DeviceContextScreenWidth;
 }
 
 /**
@@ -3070,6 +3376,21 @@ export interface EditMessageRequest {
   content: string;
 }
 
+/**
+ * Skip/error reason if any
+ */
+export type EmbeddingStageDetailsReason = string | null;
+
+/**
+ * Details for embedding pipeline stage.
+ */
+export interface EmbeddingStageDetails {
+  /** Skip/error reason if any */
+  reason?: EmbeddingStageDetailsReason;
+  /** Whether embedding was actually used */
+  used: boolean;
+}
+
 export type ExistingReviewIdsResponse = string[];
 
 /**
@@ -3093,11 +3414,6 @@ export interface ExportAnalyticsResponse {
   user: string;
 }
 
-/**
- * Basic cache statistics
- */
-export type ExtendedCacheStatsBasicStats = { [key: string]: unknown };
-
 export type ExtendedCacheStatsKeyPatternsAnyOf = { [key: string]: number };
 
 /**
@@ -3117,11 +3433,48 @@ export type ExtendedCacheStatsRedisInfo = ExtendedCacheStatsRedisInfoAnyOf | nul
  */
 export interface ExtendedCacheStats {
   /** Basic cache statistics */
-  basic_stats: ExtendedCacheStatsBasicStats;
+  basic_stats: BasicCacheStats;
   /** Cache key pattern counts */
   key_patterns?: ExtendedCacheStatsKeyPatterns;
   /** Redis server information */
   redis_info?: ExtendedCacheStatsRedisInfo;
+}
+
+/**
+ * Full query text (only for queries > 2000ms)
+ */
+export type ExtremelySlowQueryDetailsFullQuery = string | null;
+
+/**
+ * Details for extremely slow database queries.
+ */
+export interface ExtremelySlowQueryDetails {
+  /** Alert type discriminator */
+  alert_type?: 'extremely_slow_query';
+  /** Query duration in milliseconds */
+  duration_ms: number;
+  /** Full query text (only for queries > 2000ms) */
+  full_query?: ExtremelySlowQueryDetailsFullQuery;
+  /** First 200 chars of the query */
+  query_preview: string;
+}
+
+/**
+ * Details for extremely slow HTTP requests.
+ */
+export interface ExtremelySlowRequestDetails {
+  /** Alert type discriminator */
+  alert_type?: 'extremely_slow_request';
+  /** Client IP address */
+  client: string;
+  /** Request duration in milliseconds */
+  duration_ms: number;
+  /** HTTP method (GET, POST, etc.) */
+  method: string;
+  /** Request path */
+  path: string;
+  /** HTTP response status code */
+  status_code: number;
 }
 
 /**
@@ -3345,6 +3698,65 @@ export interface HealthResponse {
   timestamp: string;
   /** API version */
   version: string;
+}
+
+/**
+ * Number of checked out connections
+ */
+export type HighDbPoolUsageDetailsCheckedOut = number | null;
+
+/**
+ * Total possible connections
+ */
+export type HighDbPoolUsageDetailsTotalPossible = number | null;
+
+/**
+ * Pool usage percentage
+ */
+export type HighDbPoolUsageDetailsUsagePercent = number | null;
+
+/**
+ * Details for high database connection pool usage.
+ */
+export interface HighDbPoolUsageDetails {
+  /** Alert type discriminator */
+  alert_type?: 'high_db_pool_usage';
+  /** Number of checked out connections */
+  checked_out?: HighDbPoolUsageDetailsCheckedOut;
+  /** Total possible connections */
+  total_possible?: HighDbPoolUsageDetailsTotalPossible;
+  /** Pool usage percentage */
+  usage_percent?: HighDbPoolUsageDetailsUsagePercent;
+}
+
+/**
+ * Memory usage in MB
+ */
+export type HighMemoryUsageDetailsMemoryMb = number | null;
+
+/**
+ * Memory usage percentage
+ */
+export type HighMemoryUsageDetailsPercent = number | null;
+
+/**
+ * Details for high memory usage alerts.
+ */
+export interface HighMemoryUsageDetails {
+  /** Alert type discriminator */
+  alert_type?: 'high_memory_usage';
+  /** Memory usage in MB */
+  memory_mb?: HighMemoryUsageDetailsMemoryMb;
+  /** Memory usage percentage */
+  percent?: HighMemoryUsageDetailsPercent;
+}
+
+/**
+ * Details for hydrate pipeline stage.
+ */
+export interface HydrateStageDetails {
+  /** Number of results after hydration */
+  result_count: number;
 }
 
 export interface IdentityRefreshResponse {
@@ -3599,15 +4011,69 @@ export interface InstructorProfileUpdate {
   years_experience?: InstructorProfileUpdateYearsExperience;
 }
 
-export type InstructorRatingsResponseByServiceItem = { [key: string]: unknown };
-
-export type InstructorRatingsResponseOverall = { [key: string]: unknown };
-
+/**
+ * Instructor rating statistics with overall and per-service breakdown.
+ */
 export interface InstructorRatingsResponse {
-  by_service?: InstructorRatingsResponseByServiceItem[];
+  /** Per-service rating breakdown */
+  by_service?: ServiceRatingStats[];
   /** @pattern ^(new|establishing|established|trusted)$ */
   confidence_level: string;
-  overall: InstructorRatingsResponseOverall;
+  /** Overall rating statistics */
+  overall: OverallRatingStats;
+}
+
+export type InstructorSearchResultAverageRating = number | null;
+
+export type InstructorSearchResultBio = string | null;
+
+export type InstructorSearchResultIsFavorited = boolean | null;
+
+export type InstructorSearchResultServiceAreaSummary = string | null;
+
+export type InstructorSearchResultTeachesAdults = boolean | null;
+
+export type InstructorSearchResultTeachesKids = boolean | null;
+
+export type InstructorSearchResultYearsExperience = number | null;
+
+/**
+ * Instructor in search results.
+ */
+export interface InstructorSearchResult {
+  average_rating?: InstructorSearchResultAverageRating;
+  bio?: InstructorSearchResultBio;
+  favorited_count?: number;
+  first_name: string;
+  has_profile_picture?: boolean;
+  id: string;
+  is_favorited?: InstructorSearchResultIsFavorited;
+  is_live?: boolean;
+  last_initial: string;
+  profile_picture_version?: number;
+  review_count?: number;
+  service_area_boroughs?: string[];
+  service_area_summary?: InstructorSearchResultServiceAreaSummary;
+  services?: InstructorSearchResultService[];
+  teaches_adults?: InstructorSearchResultTeachesAdults;
+  teaches_kids?: InstructorSearchResultTeachesKids;
+  user_id: string;
+  years_experience?: InstructorSearchResultYearsExperience;
+}
+
+export type InstructorSearchResultServiceCustomDescription = string | null;
+
+/**
+ * Service offering in search results.
+ */
+export interface InstructorSearchResultService {
+  catalog_service_id: string;
+  custom_description?: InstructorSearchResultServiceCustomDescription;
+  duration_options?: number[];
+  hourly_rate: number;
+  id: string;
+  is_active?: boolean;
+  name: string;
 }
 
 /**
@@ -3906,6 +4372,21 @@ export interface LocationResolutionInfo {
 }
 
 /**
+ * Resolution tier that succeeded
+ */
+export type LocationResolutionStageDetailsTier = number | null;
+
+/**
+ * Details for location_resolution pipeline stage.
+ */
+export interface LocationResolutionStageDetails {
+  /** Whether location was successfully resolved */
+  resolved: boolean;
+  /** Resolution tier that succeeded */
+  tier?: LocationResolutionStageDetailsTier;
+}
+
+/**
  * Confidence score when available
  */
 export type LocationTierResultConfidence = number | null;
@@ -3967,6 +4448,28 @@ export interface LoginResponse {
   requires_2fa?: boolean;
   temp_token?: LoginResponseTempToken;
   token_type?: LoginResponseTokenType;
+}
+
+/**
+ * Current cache hit rate
+ */
+export type LowCacheHitRateDetailsHitRate = number | null;
+
+/**
+ * Target cache hit rate
+ */
+export type LowCacheHitRateDetailsTarget = number | null;
+
+/**
+ * Details for low cache hit rate alerts.
+ */
+export interface LowCacheHitRateDetails {
+  /** Alert type discriminator */
+  alert_type?: 'low_cache_hit_rate';
+  /** Current cache hit rate */
+  hit_rate?: LowCacheHitRateDetailsHitRate;
+  /** Target cache hit rate */
+  target?: LowCacheHitRateDetailsTarget;
 }
 
 /**
@@ -4091,11 +4594,6 @@ export interface ModelOption {
 }
 
 /**
- * Database metrics and pool status
- */
-export type MonitoringDashboardResponseDatabase = { [key: string]: unknown };
-
-/**
  * Comprehensive monitoring dashboard response.
  */
 export interface MonitoringDashboardResponse {
@@ -4104,7 +4602,7 @@ export interface MonitoringDashboardResponse {
   /** Cache health status */
   cache: CacheHealthStatus;
   /** Database metrics and pool status */
-  database: MonitoringDashboardResponseDatabase;
+  database: DatabaseDashboardMetrics;
   /** System memory metrics */
   memory: MemoryMetrics;
   /** Performance recommendations */
@@ -4446,6 +4944,33 @@ export interface NotificationUnreadCountResponse {
   unread_count: number;
 }
 
+export type ObservabilityCandidateId = string | null;
+
+export type ObservabilityCandidateLexicalScore = number | null;
+
+export type ObservabilityCandidatePosition = number | null;
+
+export type ObservabilityCandidateScore = number | null;
+
+export type ObservabilityCandidateServiceCatalogId = string | null;
+
+export type ObservabilityCandidateSource = string | null;
+
+export type ObservabilityCandidateVectorScore = number | null;
+
+/**
+ * Search candidate for observability tracking.
+ */
+export interface ObservabilityCandidate {
+  id?: ObservabilityCandidateId;
+  lexical_score?: ObservabilityCandidateLexicalScore;
+  position?: ObservabilityCandidatePosition;
+  score?: ObservabilityCandidateScore;
+  service_catalog_id?: ObservabilityCandidateServiceCatalogId;
+  source?: ObservabilityCandidateSource;
+  vector_score?: ObservabilityCandidateVectorScore;
+}
+
 export interface OnboardingResponse {
   /** Stripe connected account ID */
   account_id: string;
@@ -4493,6 +5018,23 @@ export interface OperationResult {
   reason?: OperationResultReason;
   slot_id?: OperationResultSlotId;
   status: OperationResultStatus;
+}
+
+/**
+ * Display-formatted rating (e.g., '4.5★') or None if below threshold
+ */
+export type OverallRatingStatsDisplayRating = string | null;
+
+/**
+ * Overall rating statistics computed using Dirichlet smoothing.
+ */
+export interface OverallRatingStats {
+  /** Display-formatted rating (e.g., '4.5★') or None if below threshold */
+  display_rating?: OverallRatingStatsDisplayRating;
+  /** Computed rating (Dirichlet-smoothed) */
+  rating: number;
+  /** Total number of reviews */
+  total_reviews: number;
 }
 
 export type OverridePayloadAction =
@@ -4572,6 +5114,14 @@ export interface PaginatedResponseUpcomingBookingResponse {
   per_page?: number;
   /** Total number of items */
   total: number;
+}
+
+/**
+ * Details for parse pipeline stage.
+ */
+export interface ParseStageDetails {
+  /** Parsing mode used (regex/llm) */
+  mode: string;
 }
 
 /**
@@ -4838,6 +5388,28 @@ export interface PayoutSummary {
 }
 
 /**
+ * Cache statistics for performance metrics.
+ */
+export interface PerformanceCacheStats {
+  /** Cache hit rate percentage */
+  hit_rate?: string;
+  /** Cache hits */
+  hits?: number;
+  /** Cache misses */
+  misses?: number;
+}
+
+/**
+ * Database metrics for performance monitoring.
+ */
+export interface PerformanceDatabaseMetrics {
+  /** Active database connections */
+  active_connections?: number;
+  /** Connection pool status */
+  pool_status: DatabasePoolStatus;
+}
+
+/**
  * Search performance metrics.
  */
 export interface PerformanceMetrics {
@@ -4848,16 +5420,6 @@ export interface PerformanceMetrics {
   /** Percentage of searches with zero results */
   zero_result_rate: number;
 }
-
-/**
- * Cache statistics
- */
-export type PerformanceMetricsResponseCache = { [key: string]: unknown };
-
-/**
- * Database connection metrics
- */
-export type PerformanceMetricsResponseDatabase = { [key: string]: unknown };
 
 /**
  * System resource metrics
@@ -4873,11 +5435,11 @@ export interface PerformanceMetricsResponse {
   /** Booking service metrics */
   booking_service: ServiceMetrics;
   /** Cache statistics */
-  cache: PerformanceMetricsResponseCache;
+  cache: PerformanceCacheStats;
   /** Conflict checker metrics */
   conflict_checker: ServiceMetrics;
   /** Database connection metrics */
-  database: PerformanceMetricsResponseDatabase;
+  database: PerformanceDatabaseMetrics;
   /** System resource metrics */
   system: PerformanceMetricsResponseSystem;
 }
@@ -4921,18 +5483,26 @@ export interface PhoneVerifyResponse {
   verified?: boolean;
 }
 
-export type PipelineStageDetailsAnyOf = { [key: string]: unknown };
-
 /**
- * Stage details
+ * Type-specific stage details
  */
-export type PipelineStageDetails = PipelineStageDetailsAnyOf | null;
+export type PipelineStageDetails =
+  | CacheCheckStageDetails
+  | Burst1StageDetails
+  | ParseStageDetails
+  | EmbeddingStageDetails
+  | LocationResolutionStageDetails
+  | Burst2StageDetails
+  | HydrateStageDetails
+  | BuildResponseStageDetails
+  | SkippedStageDetails
+  | null;
 
 /**
  * Timing and status for a pipeline stage.
  */
 export interface PipelineStage {
-  /** Stage details */
+  /** Type-specific stage details */
   details?: PipelineStageDetails;
   /**
    * Stage duration in ms
@@ -5288,13 +5858,31 @@ export interface PricingPreviewOut {
 }
 
 /**
- * Privacy and retention statistics
+ * Search events eligible for deletion based on retention policy
  */
-export type PrivacyStatisticsResponseStatistics = { [key: string]: unknown };
+export type PrivacyStatisticsSearchEventsEligibleForDeletion = number | null;
+
+/**
+ * Privacy and retention statistics returned by get_privacy_statistics.
+ */
+export interface PrivacyStatistics {
+  /** Number of active users */
+  active_users: number;
+  /** Number of search event records */
+  search_event_records: number;
+  /** Search events eligible for deletion based on retention policy */
+  search_events_eligible_for_deletion?: PrivacyStatisticsSearchEventsEligibleForDeletion;
+  /** Number of search history records */
+  search_history_records: number;
+  /** Total number of bookings */
+  total_bookings: number;
+  /** Total number of users */
+  total_users: number;
+}
 
 export interface PrivacyStatisticsResponse {
   /** Privacy and retention statistics */
-  statistics: PrivacyStatisticsResponseStatistics;
+  statistics: PrivacyStatistics;
   /** Status of the request */
   status: string;
 }
@@ -5327,6 +5915,22 @@ export interface ProxyUploadResponse {
   url?: ProxyUploadResponseUrl;
 }
 
+/**
+ * Summary of availability for a single date.
+ */
+export interface PublicAvailabilitySummaryEntry {
+  /** Afternoon availability */
+  afternoon_available?: boolean;
+  /** Date in YYYY-MM-DD format */
+  date: string;
+  /** Evening availability */
+  evening_available?: boolean;
+  /** Morning availability */
+  morning_available?: boolean;
+  /** Total available hours */
+  total_hours?: number;
+}
+
 export type PublicConfigResponseUpdatedAt = string | null;
 
 export interface PublicConfigResponse {
@@ -5357,7 +5961,7 @@ export type PublicInstructorAvailabilityAvailabilityByDate =
   PublicInstructorAvailabilityAvailabilityByDateAnyOf | null;
 
 export type PublicInstructorAvailabilityAvailabilitySummaryAnyOf = {
-  [key: string]: { [key: string]: unknown };
+  [key: string]: PublicAvailabilitySummaryEntry;
 };
 
 /**
@@ -5530,8 +6134,6 @@ export interface RateLimitState {
  */
 export type RateLimitStatsBreakdownByType = { [key: string]: number };
 
-export type RateLimitStatsTopLimitedClientsItem = { [key: string]: unknown };
-
 /**
  * Rate limit statistics.
  */
@@ -5539,7 +6141,7 @@ export interface RateLimitStats {
   /** Breakdown by limit type */
   breakdown_by_type: RateLimitStatsBreakdownByType;
   /** Top rate-limited clients */
-  top_limited_clients: RateLimitStatsTopLimitedClientsItem[];
+  top_limited_clients: RateLimitedClient[];
   /** Total rate limit keys in Redis */
   total_keys: number;
 }
@@ -5554,6 +6156,18 @@ export interface RateLimitTestResponse {
   note: string;
   /** Request timestamp */
   timestamp: string;
+}
+
+/**
+ * Rate-limited client information.
+ */
+export interface RateLimitedClient {
+  /** Request count */
+  count: number;
+  /** Most rate-limited endpoint */
+  endpoint: string;
+  /** Client identifier key */
+  key: string;
 }
 
 /**
@@ -5649,16 +6263,64 @@ export interface RecentAlertsResponse {
   total: number;
 }
 
-export type RedisCeleryQueuesResponseQueues = { [key: string]: unknown };
-
-export interface RedisCeleryQueuesResponse {
-  queues: RedisCeleryQueuesResponseQueues;
+/**
+ * Active Redis connection counts.
+ */
+export interface RedisActiveConnections {
+  local_redis?: number;
+  upstash?: number;
 }
 
-export type RedisConnectionAuditResponseConnectionsItem = { [key: string]: unknown };
+/**
+ * Response for Redis Celery queues.
+ */
+export interface RedisCeleryQueuesResponse {
+  queues: CeleryQueuesData;
+}
 
+/**
+ * Redis client statistics.
+ */
+export interface RedisClientStats {
+  blocked_clients?: number;
+  connected_clients?: number;
+}
+
+export type RedisConnectionAuditDataEnvironmentVariables = { [key: string]: string };
+
+export type RedisConnectionAuditDataServiceConnections = { [key: string]: RedisServiceConnection };
+
+/**
+ * Redis connection audit data.
+ */
+export interface RedisConnectionAuditData {
+  active_connections?: RedisActiveConnections;
+  api_cache: string;
+  celery_broker: string;
+  environment_variables?: RedisConnectionAuditDataEnvironmentVariables;
+  migration_status?: string;
+  recommendation?: string;
+  service_connections?: RedisConnectionAuditDataServiceConnections;
+  upstash_detected?: boolean;
+}
+
+/**
+ * Response for Redis connection audit.
+ */
 export interface RedisConnectionAuditResponse {
-  connections: RedisConnectionAuditResponseConnectionsItem[];
+  connections: RedisConnectionAuditData[];
+}
+
+/**
+ * Redis connection statistics.
+ */
+export interface RedisConnectionStats {
+  evicted_keys?: number;
+  expired_keys?: number;
+  instantaneous_ops_per_sec?: number;
+  rejected_connections?: number;
+  total_commands_processed?: number;
+  total_connections_received?: number;
 }
 
 export interface RedisFlushQueuesResponse {
@@ -5683,10 +6345,63 @@ export interface RedisHealthResponse {
   status: string;
 }
 
-export type RedisStatsResponseStats = { [key: string]: unknown };
+/**
+ * Redis memory metrics.
+ */
+export interface RedisMemoryInfo {
+  maxmemory_human?: string;
+  mem_fragmentation_ratio?: number;
+  used_memory_human?: string;
+  used_memory_peak_human?: string;
+  used_memory_rss_human?: string;
+}
 
+/**
+ * Redis operation rate metrics.
+ */
+export interface RedisOperationMetrics {
+  current_ops_per_sec?: number;
+  estimated_daily_ops?: number;
+  estimated_monthly_ops?: number;
+}
+
+/**
+ * Redis server information.
+ */
+export interface RedisServerInfo {
+  redis_version?: string;
+  uptime_in_days?: number;
+}
+
+/**
+ * Redis connection info for a service.
+ */
+export interface RedisServiceConnection {
+  host: string;
+  type: string;
+  url: string;
+}
+
+export type RedisStatsDataCelery = { [key: string]: number };
+
+/**
+ * Complete Redis statistics data.
+ */
+export interface RedisStatsData {
+  celery?: RedisStatsDataCelery;
+  clients?: RedisClientStats;
+  memory?: RedisMemoryInfo;
+  operations?: RedisOperationMetrics;
+  server?: RedisServerInfo;
+  stats?: RedisConnectionStats;
+  status?: string;
+}
+
+/**
+ * Response for Redis statistics.
+ */
 export interface RedisStatsResponse {
-  stats: RedisStatsResponseStats;
+  stats: RedisStatsData;
 }
 
 /**
@@ -5887,18 +6602,23 @@ export interface ResultDistribution {
   zero_results: number;
 }
 
-/**
- * Statistics of retention policy application
- */
-export type RetentionPolicyResponseStats = { [key: string]: unknown };
-
 export interface RetentionPolicyResponse {
   /** Human-readable message */
   message: string;
   /** Statistics of retention policy application */
-  stats: RetentionPolicyResponseStats;
+  stats: RetentionStats;
   /** Status of the retention policy application */
   status: string;
+}
+
+/**
+ * Statistics from applying retention policies.
+ */
+export interface RetentionStats {
+  /** Number of old bookings anonymized */
+  old_bookings_anonymized?: number;
+  /** Number of search events deleted */
+  search_events_deleted?: number;
 }
 
 export type RetryPaymentResponseError = string | null;
@@ -6029,9 +6749,16 @@ export interface SavePaymentMethodRequest {
 }
 
 /**
- * Conversion metrics
+ * Individual schedule item for availability creation.
  */
-export type SearchAnalyticsSummaryResponseConversions = { [key: string]: unknown };
+export interface ScheduleItem {
+  /** ISO date string (YYYY-MM-DD) */
+  date: string;
+  /** End time (HH:MM or HH:MM:SS) */
+  end_time: string;
+  /** Start time (HH:MM or HH:MM:SS) */
+  start_time: string;
+}
 
 /**
  * Breakdown by search type
@@ -6043,7 +6770,7 @@ export type SearchAnalyticsSummaryResponseSearchTypes = { [key: string]: SearchT
  */
 export interface SearchAnalyticsSummaryResponse {
   /** Conversion metrics */
-  conversions: SearchAnalyticsSummaryResponseConversions;
+  conversions: ConversionMetrics;
   /** Date range for analytics */
   date_range: DateRange;
   /** Search performance metrics */
@@ -6158,6 +6885,27 @@ export interface SearchConfigUpdate {
   parsing_timeout_ms?: SearchConfigUpdateParsingTimeoutMs;
 }
 
+export type SearchContextPageOrigin = string | null;
+
+export type SearchContextReferrer = string | null;
+
+export type SearchContextSessionSearchCount = number | null;
+
+export type SearchContextViewportHeight = number | null;
+
+export type SearchContextViewportWidth = number | null;
+
+/**
+ * Context about where the search originated.
+ */
+export interface SearchContext {
+  page_origin?: SearchContextPageOrigin;
+  referrer?: SearchContextReferrer;
+  session_search_count?: SearchContextSessionSearchCount;
+  viewport_height?: SearchContextViewportHeight;
+  viewport_width?: SearchContextViewportWidth;
+}
+
 /**
  * Location resolution details
  */
@@ -6237,6 +6985,30 @@ export interface SearchEffectiveness {
   zero_result_rate: number;
 }
 
+export type SearchFiltersAppliedAgeGroup = string | null;
+
+export type SearchFiltersAppliedMaxPrice = number | null;
+
+export type SearchFiltersAppliedMinPrice = number | null;
+
+export type SearchFiltersAppliedSearch = string | null;
+
+export type SearchFiltersAppliedServiceAreaBoroughs = string[] | null;
+
+export type SearchFiltersAppliedServiceCatalogId = string | null;
+
+/**
+ * Filters applied to instructor search.
+ */
+export interface SearchFiltersApplied {
+  age_group?: SearchFiltersAppliedAgeGroup;
+  max_price?: SearchFiltersAppliedMaxPrice;
+  min_price?: SearchFiltersAppliedMinPrice;
+  search?: SearchFiltersAppliedSearch;
+  service_area_boroughs?: SearchFiltersAppliedServiceAreaBoroughs;
+  service_catalog_id?: SearchFiltersAppliedServiceCatalogId;
+}
+
 /**
  * Error message if unavailable
  */
@@ -6290,38 +7062,30 @@ export interface SearchHealthResponse {
   status: string;
 }
 
-export type SearchHistoryCreateDeviceContextAnyOf = { [key: string]: unknown };
-
 /**
  * Device context from frontend including screen size, connection type, etc.
  */
-export type SearchHistoryCreateDeviceContext = SearchHistoryCreateDeviceContextAnyOf | null;
+export type SearchHistoryCreateDeviceContext = DeviceContext | null;
 
 /**
  * UUID for guest session tracking
  */
 export type SearchHistoryCreateGuestSessionId = string | null;
 
-export type SearchHistoryCreateObservabilityCandidatesAnyOfItem = { [key: string]: unknown };
-
 /**
  * Optional top-N candidate objects for observability. Each item may include: position, service_catalog_id (or id), score, vector_score, lexical_score, source.
  */
-export type SearchHistoryCreateObservabilityCandidates =
-  | SearchHistoryCreateObservabilityCandidatesAnyOfItem[]
-  | null;
+export type SearchHistoryCreateObservabilityCandidates = ObservabilityCandidate[] | null;
 
 /**
  * Number of results returned
  */
 export type SearchHistoryCreateResultsCount = number | null;
 
-export type SearchHistoryCreateSearchContextAnyOf = { [key: string]: unknown };
-
 /**
  * Additional context like page origin, viewport size, etc.
  */
-export type SearchHistoryCreateSearchContext = SearchHistoryCreateSearchContextAnyOf | null;
+export type SearchHistoryCreateSearchContext = SearchContext | null;
 
 /**
  * Schema for creating search history.
@@ -6445,6 +7209,15 @@ export interface SearchMetricsResponse {
    * @maximum 1
    */
   zero_result_rate: number;
+}
+
+/**
+ * Pagination metadata for search results.
+ */
+export interface SearchPagination {
+  count?: number;
+  limit?: number;
+  skip?: number;
 }
 
 /**
@@ -6703,6 +7476,30 @@ export interface ServiceMetrics {
 }
 
 /**
+ * Display-formatted rating or None if below threshold
+ */
+export type ServiceRatingStatsDisplayRating = string | null;
+
+/**
+ * Computed rating or None if below min_reviews threshold
+ */
+export type ServiceRatingStatsRating = number | null;
+
+/**
+ * Per-service rating statistics.
+ */
+export interface ServiceRatingStats {
+  /** Display-formatted rating or None if below threshold */
+  display_rating?: ServiceRatingStatsDisplayRating;
+  /** ID of the instructor's service offering */
+  instructor_service_id: string;
+  /** Computed rating or None if below min_reviews threshold */
+  rating?: ServiceRatingStatsRating;
+  /** Number of reviews for this service */
+  review_count: number;
+}
+
+/**
  * Age groups this service is offered to. Allowed: 'kids', 'adults'. Use both for both.
  */
 export type ServiceResponseAgeGroups = string[] | null;
@@ -6794,27 +7591,21 @@ export interface ServiceResponse {
   service_catalog_name: string;
 }
 
-export type ServiceSearchMetadataFiltersApplied = { [key: string]: unknown };
-
-export type ServiceSearchMetadataPagination = { [key: string]: unknown };
-
 /**
  * Metadata describing instructor search results.
  */
 export interface ServiceSearchMetadata {
   active_instructors?: number;
-  filters_applied?: ServiceSearchMetadataFiltersApplied;
-  pagination?: ServiceSearchMetadataPagination;
+  filters_applied?: SearchFiltersApplied;
+  pagination?: SearchPagination;
   total_matches?: number;
 }
-
-export type ServiceSearchResponseInstructorsItem = { [key: string]: unknown };
 
 /**
  * Envelope for service-focused instructor search results.
  */
 export interface ServiceSearchResponse {
-  instructors?: ServiceSearchResponseInstructorsItem[];
+  instructors?: InstructorSearchResult[];
   metadata: ServiceSearchMetadata;
   query: string;
   search_type?: 'service';
@@ -6833,6 +7624,14 @@ export interface SignedUploadResponse {
   object_key: string;
   public_url?: SignedUploadResponsePublicUrl;
   upload_url: string;
+}
+
+/**
+ * Details for skipped pipeline stages.
+ */
+export interface SkippedStageDetails {
+  /** Reason the stage was skipped */
+  reason: string;
 }
 
 export type SlotOperationAction = (typeof SlotOperationAction)[keyof typeof SlotOperationAction];
@@ -6954,9 +7753,7 @@ export type StudentBadgeViewConfirmedAt = string | null;
 
 export type StudentBadgeViewDescription = string | null;
 
-export type StudentBadgeViewProgressAnyOf = { [key: string]: unknown };
-
-export type StudentBadgeViewProgress = BadgeProgressView | StudentBadgeViewProgressAnyOf | null;
+export type StudentBadgeViewProgress = BadgeProgressView | null;
 
 export type StudentBadgeViewStatus = string | null;
 
@@ -7117,6 +7914,20 @@ export interface TimeRange {
  */
 export interface TimeSlot {
   end_time: string;
+  start_time: string;
+}
+
+/**
+ * Time slot information for availability checks.
+ */
+export interface TimeSlotInfo {
+  /** ISO date string (YYYY-MM-DD) */
+  date: string;
+  /** ISO time string (HH:MM:SS) */
+  end_time: string;
+  /** Instructor ID */
+  instructor_id: string;
+  /** ISO time string (HH:MM:SS) */
   start_time: string;
 }
 
@@ -7334,9 +8145,7 @@ export type UserCreateGuestSessionId = string | null;
 
 export type UserCreateIsActive = boolean | null;
 
-export type UserCreateMetadataAnyOf = { [key: string]: unknown };
-
-export type UserCreateMetadata = UserCreateMetadataAnyOf | null;
+export type UserCreateMetadata = UserRegistrationMetadata | null;
 
 export type UserCreatePhone = string | null;
 
@@ -7402,6 +8211,28 @@ export interface UserLogin {
   password: string;
 }
 
+export type UserRegistrationMetadataCampaign = string | null;
+
+export type UserRegistrationMetadataInviteCode = string | null;
+
+export type UserRegistrationMetadataMarketingTag = string | null;
+
+export type UserRegistrationMetadataReferralCode = string | null;
+
+export type UserRegistrationMetadataReferralSource = string | null;
+
+/**
+ * Metadata provided during user registration.
+ */
+export interface UserRegistrationMetadata {
+  campaign?: UserRegistrationMetadataCampaign;
+  invite_code?: UserRegistrationMetadataInviteCode;
+  marketing_tag?: UserRegistrationMetadataMarketingTag;
+  referral_code?: UserRegistrationMetadataReferralCode;
+  referral_source?: UserRegistrationMetadataReferralSource;
+  [key: string]: unknown;
+}
+
 export type UserSummaryProfilePhotoUrl = string | null;
 
 /**
@@ -7453,9 +8284,10 @@ export interface ValidationError {
   type: string;
 }
 
-export type ValidationSlotDetailConflictsWithAnyOfItem = { [key: string]: unknown };
-
-export type ValidationSlotDetailConflictsWith = ValidationSlotDetailConflictsWithAnyOfItem[] | null;
+/**
+ * Bookings that conflict with this operation
+ */
+export type ValidationSlotDetailConflictsWith = AvailabilityConflictInfo[] | null;
 
 export type ValidationSlotDetailDate = string | null;
 
@@ -7472,6 +8304,7 @@ export type ValidationSlotDetailStartTime = string | null;
  */
 export interface ValidationSlotDetail {
   action: string;
+  /** Bookings that conflict with this operation */
   conflicts_with?: ValidationSlotDetailConflictsWith;
   date?: ValidationSlotDetailDate;
   end_time?: ValidationSlotDetailEndTime;
@@ -7557,8 +8390,6 @@ export interface WeekAvailabilityUpdateResponse {
  */
 export type WeekSpecificScheduleCreateBaseVersion = string | null;
 
-export type WeekSpecificScheduleCreateScheduleItem = { [key: string]: unknown };
-
 /**
  * Deprecated alias for base_version (optimistic concurrency token)
  */
@@ -7579,7 +8410,8 @@ export interface WeekSpecificScheduleCreate {
   clear_existing?: boolean;
   /** If true, bypass server-side version checks when saving */
   override?: boolean;
-  schedule: WeekSpecificScheduleCreateScheduleItem[];
+  /** List of schedule items with date, start_time, and end_time */
+  schedule: ScheduleItem[];
   /** Deprecated alias for base_version (optimistic concurrency token) */
   version?: WeekSpecificScheduleCreateVersion;
   /** Optional Monday date. If not provided, inferred from schedule dates */

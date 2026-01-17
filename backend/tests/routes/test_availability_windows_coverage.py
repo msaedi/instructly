@@ -68,9 +68,9 @@ def test_save_week_availability_parses_date_time_objects(db, test_instructor):
         clear_existing=True,
         schedule=[
             {
-                "date": week_start,
-                "start_time": time(9, 0),
-                "end_time": time(10, 0),
+                "date": week_start.isoformat(),
+                "start_time": "09:00",
+                "end_time": "10:00",
             }
         ],
     )
@@ -89,10 +89,12 @@ def test_save_week_availability_parses_date_time_objects(db, test_instructor):
 
 
 def test_save_week_availability_invalid_schedule_returns_500(db, test_instructor):
+    from app.schemas.availability_window import ScheduleItem
+
     payload = WeekSpecificScheduleCreate.model_construct(
         schedule=[
-            {"date": None, "start_time": "09:00", "end_time": "10:00"},
-            {"date": "bad-date", "start_time": "09:00", "end_time": "10:00"},
+            ScheduleItem.model_construct(date=None, start_time="09:00", end_time="10:00"),
+            ScheduleItem.model_construct(date="bad-date", start_time="09:00", end_time="10:00"),
         ],
         clear_existing=True,
         week_start=None,
@@ -257,10 +259,19 @@ async def test_get_week_booked_slots_success_and_errors(test_instructor):
 
     class SuccessPresentation:
         def format_booked_slots_from_service_data(self, booked_slots_by_date):
+            # Return list of BookedSlotItem-compatible dicts
             return [
                 {
+                    "booking_id": "01K2MAY484FQGFEQVN3VKGYZ58",
                     "date": next(iter(booked_slots_by_date.keys())),
-                    "slots": next(iter(booked_slots_by_date.values())),
+                    "start_time": "09:00:00",
+                    "end_time": "10:00:00",
+                    "student_first_name": "John",
+                    "student_last_initial": "D",
+                    "service_name": "Piano Lesson",
+                    "service_area_short": "UES",
+                    "duration_minutes": 60,
+                    "location_type": "student",
                 }
             ]
 

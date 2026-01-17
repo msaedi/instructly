@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from ..models.booking import Booking
 from ..repositories.factory import RepositoryFactory
+from ..schemas.availability_responses import BookedSlotItem
 from ..utils.time_helpers import string_to_time
 from .base import BaseService
 
@@ -140,7 +141,7 @@ class PresentationService(BaseService):
         slot_start_time: time,
         slot_end_time: time,
         slot_date: date,
-    ) -> Dict[str, Any]:
+    ) -> BookedSlotItem:
         """
         Format a booked slot for calendar preview display.
 
@@ -151,7 +152,7 @@ class PresentationService(BaseService):
             slot_date: The date of the slot
 
         Returns:
-            Formatted slot dictionary for frontend display
+            BookedSlotItem for frontend display
         """
         # Format student name
         name_info = self.format_student_name_for_privacy(
@@ -161,23 +162,23 @@ class PresentationService(BaseService):
         # Format service area
         service_area_short = self.abbreviate_service_area(booking.service_area)
 
-        return {
-            "booking_id": booking.id,
-            "date": slot_date.isoformat(),
-            "start_time": slot_start_time.isoformat(),
-            "end_time": slot_end_time.isoformat(),
-            "student_first_name": name_info["first_name"],
-            "student_last_initial": name_info["last_initial"],
-            "service_name": booking.service_name,
-            "service_area_short": service_area_short,
-            "duration_minutes": booking.duration_minutes,
-            "location_type": booking.location_type or "neutral",
-        }
+        return BookedSlotItem(
+            booking_id=booking.id,
+            date=slot_date.isoformat(),
+            start_time=slot_start_time.isoformat(),
+            end_time=slot_end_time.isoformat(),
+            student_first_name=name_info["first_name"],
+            student_last_initial=name_info["last_initial"],
+            service_name=booking.service_name,
+            service_area_short=service_area_short,
+            duration_minutes=booking.duration_minutes,
+            location_type=booking.location_type or "neutral",
+        )
 
     @BaseService.measure_operation("format_booked_slots_batch")  # METRICS ADDED
     def format_booked_slots_from_service_data(
         self, booked_slots_by_date: Dict[str, List[Dict[str, Any]]]
-    ) -> List[Dict[str, Any]]:
+    ) -> List[BookedSlotItem]:
         """
         Format booked slots data from ConflictChecker service.
 
@@ -188,9 +189,9 @@ class PresentationService(BaseService):
             booked_slots_by_date: Raw slot data from ConflictChecker
 
         Returns:
-            List of formatted slot dictionaries
+            List of BookedSlotItem for frontend display
         """
-        formatted_slots = []
+        formatted_slots: List[BookedSlotItem] = []
 
         for date_str, slots in booked_slots_by_date.items():
             for slot in slots:

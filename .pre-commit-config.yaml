@@ -192,6 +192,24 @@ repos:
         pass_filenames: true
         description: Routes must delegate all DB operations to service layer
 
+      # Type safety guardrails (Phase 3)
+      - id: audit-untyped-dicts
+        name: Backend Dict[str,Any] audit
+        entry: bash -c 'cd backend && ./scripts/audit-untyped-dicts.sh --ci'
+        language: system
+        pass_filenames: false
+        files: ^backend/app/schemas/.*\.py$
+        description: Prevent new untyped Dict[str,Any] in Pydantic schemas
+
+      - id: audit-adhoc-types
+        name: Frontend ad-hoc type audit
+        entry: bash -c 'cd frontend && ./scripts/audit-adhoc-types.sh --ci'
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx)$
+        exclude: ^frontend/(node_modules|\.next|src/api/generated)/
+        description: Prevent ad-hoc type casts (as any, as unknown, @ts-ignore)
+
   - repo: local
     hooks:
       - id: gitleaks-system

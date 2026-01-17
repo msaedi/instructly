@@ -5,11 +5,87 @@ These models ensure consistent API responses for alert-related endpoints
 and provide proper documentation through FastAPI's automatic docs.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Dict, List, Literal, Optional, Union
 
 from pydantic import ConfigDict, Field
 
 from ._strict_base import StrictModel
+
+# ============================================================================
+# Alert Details - Discriminated Union by alert_type
+# ============================================================================
+
+
+class ExtremelySlowQueryDetails(StrictModel):
+    """Details for extremely slow database queries."""
+
+    alert_type: Literal["extremely_slow_query"] = Field(
+        default="extremely_slow_query", description="Alert type discriminator"
+    )
+    duration_ms: float = Field(description="Query duration in milliseconds")
+    query_preview: str = Field(description="First 200 chars of the query")
+    full_query: Optional[str] = Field(
+        default=None, description="Full query text (only for queries > 2000ms)"
+    )
+
+
+class ExtremelySlowRequestDetails(StrictModel):
+    """Details for extremely slow HTTP requests."""
+
+    alert_type: Literal["extremely_slow_request"] = Field(
+        default="extremely_slow_request", description="Alert type discriminator"
+    )
+    duration_ms: float = Field(description="Request duration in milliseconds")
+    method: str = Field(description="HTTP method (GET, POST, etc.)")
+    path: str = Field(description="Request path")
+    status_code: int = Field(description="HTTP response status code")
+    client: str = Field(description="Client IP address")
+
+
+class HighDbPoolUsageDetails(StrictModel):
+    """Details for high database connection pool usage."""
+
+    alert_type: Literal["high_db_pool_usage"] = Field(
+        default="high_db_pool_usage", description="Alert type discriminator"
+    )
+    usage_percent: Optional[float] = Field(default=None, description="Pool usage percentage")
+    checked_out: Optional[int] = Field(
+        default=None, description="Number of checked out connections"
+    )
+    total_possible: Optional[int] = Field(default=None, description="Total possible connections")
+
+
+class HighMemoryUsageDetails(StrictModel):
+    """Details for high memory usage alerts."""
+
+    alert_type: Literal["high_memory_usage"] = Field(
+        default="high_memory_usage", description="Alert type discriminator"
+    )
+    memory_mb: Optional[float] = Field(default=None, description="Memory usage in MB")
+    percent: Optional[float] = Field(default=None, description="Memory usage percentage")
+
+
+class LowCacheHitRateDetails(StrictModel):
+    """Details for low cache hit rate alerts."""
+
+    alert_type: Literal["low_cache_hit_rate"] = Field(
+        default="low_cache_hit_rate", description="Alert type discriminator"
+    )
+    hit_rate: Optional[float] = Field(default=None, description="Current cache hit rate")
+    target: Optional[float] = Field(default=None, description="Target cache hit rate")
+
+
+# Discriminated union of all alert details types
+AlertDetailsUnion = Annotated[
+    Union[
+        ExtremelySlowQueryDetails,
+        ExtremelySlowRequestDetails,
+        HighDbPoolUsageDetails,
+        HighMemoryUsageDetails,
+        LowCacheHitRateDetails,
+    ],
+    Field(discriminator="alert_type"),
+]
 
 
 class AlertDetail(StrictModel):
@@ -29,7 +105,9 @@ class AlertDetail(StrictModel):
     created_at: str = Field(description="When the alert was created (ISO format)")
     email_sent: bool = Field(description="Whether email notification was sent")
     github_issue: bool = Field(description="Whether GitHub issue was created")
-    details: Optional[Dict[str, Any]] = Field(default=None, description="Additional alert details")
+    details: Optional[AlertDetailsUnion] = Field(
+        default=None, description="Type-specific alert details"
+    )
 
 
 class RecentAlertsResponse(StrictModel):

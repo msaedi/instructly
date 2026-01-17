@@ -1,24 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { CACHE_TIMES } from '@/lib/react-query/queryClient';
-import { reviewsApi, ReviewItem as ApiReviewItem, ReviewListPageResponse } from '@/services/api/reviews';
+import { reviewsApi, ReviewListPageResponse } from '@/services/api/reviews';
 
-export interface ReviewItem {
-  id: string;
-  rating: number;
-  review_text?: string | null;
-  created_at: string;
-  instructor_service_id: string;
-  reviewer_display_name?: string | null;
-}
-
-export interface ReviewsResponse {
-  reviews: ReviewItem[];
-  total: number;
-  page: number;
-  per_page: number;
-  has_next: boolean;
-  has_prev: boolean;
-}
+// ReviewItem and ReviewsResponse removed - use generated types from @/services/api/reviews
+// which re-exports from @/features/shared/api/types (OpenAPI shim)
 
 export function useInstructorReviews(
   instructorId: string,
@@ -26,9 +11,9 @@ export function useInstructorReviews(
   limit: number = 12,
   opts?: { minRating?: number; rating?: number; withText?: boolean; instructorServiceId?: string }
 ) {
-  return useQuery<ReviewsResponse>({
+  return useQuery<ReviewListPageResponse>({
     queryKey: ['instructors', instructorId, 'reviews', { page, limit, opts }],
-    queryFn: async (): Promise<ReviewsResponse> => {
+    queryFn: async (): Promise<ReviewListPageResponse> => {
       const queryOpts: { minRating?: number; rating?: number; withText?: boolean } = {};
 
       if (opts?.minRating !== undefined) {
@@ -43,29 +28,14 @@ export function useInstructorReviews(
         queryOpts.withText = opts.withText;
       }
 
-      const res: ReviewListPageResponse = await reviewsApi.getRecent(
+      // API returns ReviewListPageResponse directly - no transformation needed
+      return reviewsApi.getRecent(
         instructorId,
         opts?.instructorServiceId,
         limit,
         page,
         Object.keys(queryOpts).length > 0 ? queryOpts : undefined
       );
-      const items: ApiReviewItem[] = res.reviews || [];
-      return {
-        reviews: items.map((r) => ({
-          id: r.id,
-          rating: r.rating,
-          review_text: r.review_text ?? null,
-          created_at: r.created_at,
-          instructor_service_id: r.instructor_service_id,
-          reviewer_display_name: r.reviewer_display_name ?? null,
-        })),
-        total: res.total,
-        page: res.page,
-        per_page: res.per_page,
-        has_next: res.has_next,
-        has_prev: res.has_prev,
-      };
     },
     staleTime: CACHE_TIMES.SLOW,
     enabled: !!instructorId,

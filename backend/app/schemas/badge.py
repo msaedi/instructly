@@ -6,7 +6,7 @@ Pydantic response models for student badges.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -27,7 +27,7 @@ class StudentBadgeView(BaseModel):
     status: Optional[str] = None
     awarded_at: Optional[datetime] = None
     confirmed_at: Optional[datetime] = None
-    progress: Optional[BadgeProgressView | Dict[str, Any]] = None
+    progress: Optional[BadgeProgressView] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -53,7 +53,7 @@ class AdminAwardSchema(BaseModel):
     revoked_at: Optional[datetime] = None
     badge: AdminAwardBadgeSchema
     student: AdminAwardStudentSchema
-    progress_snapshot: Optional[Dict[str, Any]] = None
+    progress_snapshot: Optional[BadgeProgressView] = None
 
 
 class AdminAwardListResponse(BaseModel):

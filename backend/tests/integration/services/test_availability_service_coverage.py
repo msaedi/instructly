@@ -35,6 +35,7 @@ from app.models.user import User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.schemas.availability_window import (
     BlackoutDateCreate,
+    ScheduleItem,
     SpecificDateAvailabilityCreate,
     WeekSpecificScheduleCreate,
 )
@@ -1780,11 +1781,11 @@ class TestAvailabilityHelpersCoverage:
         assert monday == fixed_today - timedelta(days=fixed_today.weekday())
 
         schedule = [
-            {
-                "date": (fixed_today - timedelta(days=1)).isoformat(),
-                "start_time": "09:00",
-                "end_time": "10:00",
-            }
+            ScheduleItem(
+                date=(fixed_today - timedelta(days=1)).isoformat(),
+                start_time="09:00",
+                end_time="10:00",
+            )
         ]
         grouped = availability_service._group_schedule_by_date(
             schedule, test_instructor.id

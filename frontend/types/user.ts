@@ -97,84 +97,11 @@ export interface UserData extends User {
   timezone?: string;
 }
 
-/**
- * Authentication request for login
- *
- * @interface LoginRequest
- */
-export interface LoginRequest {
-  /** Email address (OAuth2 expects 'username' field) */
-  username: string;
-
-  /** User password */
-  password: string;
-}
-
-/**
- * Authentication response from login/register
- *
- * @interface AuthResponse
- */
-export interface AuthResponse {
-  /** JWT access token */
-  access_token: string;
-
-  /** Token type (usually "bearer") */
-  token_type: string;
-
-  /** Token expiration time in seconds */
-  expires_in?: number;
-
-  /** Refresh token (if implemented) */
-  refresh_token?: string;
-
-  /** User data (sometimes included in auth response) */
-  user?: User;
-}
-
-/**
- * User registration request
- *
- * @interface RegisterRequest
- */
-export interface RegisterRequest {
-  /** User's email address */
-  email: string;
-
-  /** User's first name */
-  first_name: string;
-
-  /** User's last name */
-  last_name: string;
-
-  /** User's phone number (required) */
-  phone: string;
-
-  /** User's zip code */
-  zip_code: string;
-
-  /** User's password */
-  password: string;
-
-  /** Password confirmation */
-  password_confirm?: string;
-
-  /** User role selection */
-  role: string; // Accepts RoleName enum values as strings
-
-  /** Agreement to terms (if required) */
-  terms_accepted?: boolean;
-}
-
-/**
- * Password reset request
- *
- * @interface PasswordResetRequest
- */
-export interface PasswordResetRequest {
-  /** Email address for reset */
-  email: string;
-}
+// Auth request/response types removed - use generated types from @/features/shared/api/types:
+// - LoginRequest: defined inline where needed (OAuth2 form data)
+// - LoginResponse: export type LoginResponse = components['schemas']['LoginResponse']
+// - RegisterRequest: use generated type from shim
+// - PasswordResetRequest: export type PasswordResetRequest = components['schemas']['PasswordResetRequest']
 
 /**
  * Password reset confirmation
@@ -192,39 +119,7 @@ export interface PasswordResetConfirm {
   password_confirm: string;
 }
 
-/**
- * User profile update request
- *
- * @interface UserProfileUpdate
- */
-export interface UserProfileUpdate {
-  /** Updated first name */
-  first_name?: string;
-
-  /** Updated last name */
-  last_name?: string;
-
-  /** Updated phone number */
-  phone?: string;
-
-  /** Updated zip code */
-  zip_code?: string;
-
-  /** Updated email */
-  email?: string;
-
-  /** Current password (required for email change) */
-  current_password?: string;
-
-  /** New password (optional) */
-  new_password?: string;
-
-  /** Preferred language */
-  preferred_language?: string;
-
-  /** Timezone */
-  timezone?: string;
-}
+// UserProfileUpdate removed - use generated types from @/features/shared/api/types
 
 /**
  * Type guard to check if a string is a valid UserRole

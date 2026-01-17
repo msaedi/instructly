@@ -11,7 +11,7 @@ embedded data to eliminate N+1 queries from the frontend.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -175,13 +175,98 @@ class LocationTierResult(BaseModel):
     details: Optional[str] = Field(None, description="Additional tier details")
 
 
+# ============================================================================
+# Pipeline Stage Details - Typed Union for API documentation
+# ============================================================================
+# Note: These models provide typed documentation for OpenAPI/TypeScript generation.
+# The service code constructs details as plain dicts; Pydantic validates on serialization.
+
+
+class CacheCheckStageDetails(BaseModel):
+    """Details for cache_check pipeline stage."""
+
+    latency_ms: int = Field(description="Cache check latency in milliseconds")
+
+
+class Burst1StageDetails(BaseModel):
+    """Details for burst1 pipeline stage (pre-OpenAI batch)."""
+
+    text_candidates: int = Field(description="Number of text search candidates")
+    region_lookup_loaded: bool = Field(description="Whether region lookup was loaded")
+    location_tier: Optional[int] = Field(default=None, description="Location resolution tier used")
+
+
+class ParseStageDetails(BaseModel):
+    """Details for parse pipeline stage."""
+
+    mode: str = Field(description="Parsing mode used (regex/llm)")
+
+
+class EmbeddingStageDetails(BaseModel):
+    """Details for embedding pipeline stage."""
+
+    reason: Optional[str] = Field(default=None, description="Skip/error reason if any")
+    used: bool = Field(description="Whether embedding was actually used")
+
+
+class LocationResolutionStageDetails(BaseModel):
+    """Details for location_resolution pipeline stage."""
+
+    resolved: bool = Field(description="Whether location was successfully resolved")
+    tier: Optional[int] = Field(default=None, description="Resolution tier that succeeded")
+
+
+class Burst2StageDetails(BaseModel):
+    """Details for burst2 pipeline stage (post-OpenAI batch)."""
+
+    vector_search_used: bool = Field(description="Whether vector search was used")
+    total_candidates: int = Field(description="Total candidates after retrieval")
+    filter_failed: bool = Field(description="Whether filtering failed")
+    ranking_failed: bool = Field(description="Whether ranking failed")
+
+
+class HydrateStageDetails(BaseModel):
+    """Details for hydrate pipeline stage."""
+
+    result_count: int = Field(description="Number of results after hydration")
+
+
+class BuildResponseStageDetails(BaseModel):
+    """Details for build_response pipeline stage."""
+
+    result_count: int = Field(description="Number of results in final response")
+
+
+class SkippedStageDetails(BaseModel):
+    """Details for skipped pipeline stages."""
+
+    reason: str = Field(description="Reason the stage was skipped")
+
+
+# Union of all pipeline stage details types (without discriminator for runtime compatibility)
+# OpenAPI will generate typed interfaces for each model
+PipelineStageDetailsUnion = Union[
+    CacheCheckStageDetails,
+    Burst1StageDetails,
+    ParseStageDetails,
+    EmbeddingStageDetails,
+    LocationResolutionStageDetails,
+    Burst2StageDetails,
+    HydrateStageDetails,
+    BuildResponseStageDetails,
+    SkippedStageDetails,
+]
+
+
 class PipelineStage(BaseModel):
     """Timing and status for a pipeline stage."""
 
     name: str = Field(..., description="Stage name")
     duration_ms: int = Field(..., ge=0, description="Stage duration in ms")
     status: StageStatus = Field(..., description="Stage status")
-    details: Optional[Dict[str, Any]] = Field(None, description="Stage details")
+    details: Optional[PipelineStageDetailsUnion] = Field(
+        None, description="Type-specific stage details"
+    )
 
 
 class BudgetInfo(BaseModel):

@@ -271,9 +271,9 @@ class TestPrivacyService:
 
         result = privacy_service.apply_retention_policies()
 
-        # Verify old data was processed
-        assert result["search_events_deleted"] == 1
-        assert result["old_bookings_anonymized"] >= 1  # At least our test booking
+        # Verify old data was processed (result is now a RetentionStats Pydantic model)
+        assert result.search_events_deleted == 1
+        assert result.old_bookings_anonymized >= 1  # At least our test booking
 
         # Booking still exists (can't be anonymized due to NOT NULL constraints)
         booking = db.query(Booking).filter_by(id=old_booking.id).first()
@@ -287,15 +287,12 @@ class TestPrivacyService:
         _ = sample_booking  # Ensures booking exists
         result = privacy_service.get_privacy_statistics()
 
-        assert "total_users" in result
-        assert "active_users" in result
-        assert "search_history_records" in result
-        assert "search_event_records" in result
-        assert "total_bookings" in result
-
-        assert result["total_users"] >= 1
-        assert result["active_users"] >= 1
-        assert result["total_bookings"] >= 1
+        # Result is now a PrivacyStatistics Pydantic model
+        assert result.total_users >= 1
+        assert result.active_users >= 1
+        assert result.search_history_records >= 0
+        assert result.search_event_records >= 0
+        assert result.total_bookings >= 1
 
     def test_measure_operation_decorator(self, privacy_service, sample_user_for_privacy):
         """Test that operations are properly measured."""
@@ -367,4 +364,5 @@ class TestPrivacyService:
         db.commit()
 
         stats = privacy_service.get_privacy_statistics()
-        assert stats["search_events_eligible_for_deletion"] >= 1
+        # Result is now a PrivacyStatistics Pydantic model
+        assert stats.search_events_eligible_for_deletion >= 1

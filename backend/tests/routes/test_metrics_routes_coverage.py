@@ -84,7 +84,15 @@ async def test_get_performance_metrics(monkeypatch) -> None:
     monkeypatch.setattr(
         metrics_routes.psutil, "disk_usage", lambda _path: SimpleNamespace(percent=70.0)
     )
-    monkeypatch.setattr(metrics_routes, "get_db_pool_status", lambda: {"pool": "ok"})
+    # Must provide all required fields for DatabasePoolStatus
+    pool_status = {
+        "pool_size": 10,
+        "checked_in": 8,
+        "checked_out": 2,
+        "overflow": 0,
+        "usage_percent": 20.0,
+    }
+    monkeypatch.setattr(metrics_routes, "get_db_pool_status", lambda: pool_status)
 
     response = await metrics_routes.get_performance_metrics(
         availability_service=_Service(),
@@ -94,9 +102,10 @@ async def test_get_performance_metrics(monkeypatch) -> None:
         metrics_repository=metrics_repository,
     )
 
-    assert response.database["active_connections"] == 3
+    assert response.database.active_connections == 3
+    # system remains Dict[str, float]
     assert response.system["cpu_percent"] == 12.5
-    assert response.cache["hits"] == 2
+    assert response.cache.hits == 2
 
 
 @pytest.mark.asyncio
@@ -123,8 +132,9 @@ async def test_get_cache_metrics_branches(monkeypatch) -> None:
     )
 
     response = await metrics_routes.get_cache_metrics(cache_service=cache_service)
+    # redis_info remains Dict[str, Any]
     assert response.redis_info["used_memory_human"] == "1M"
-    assert response.availability_metrics["availability_total_requests"] == 4
+    assert response.availability_metrics.availability_total_requests == 4
     assert response.performance_insights
 
 
@@ -161,7 +171,7 @@ async def test_get_availability_cache_metrics(monkeypatch) -> None:
     )
 
     response = await metrics_routes.get_availability_cache_metrics(cache_service=cache_service)
-    assert response.availability_cache_metrics["total_requests"] == 4
+    assert response.availability_cache_metrics.total_requests == 4
     assert response.top_cached_keys_sample
 
 

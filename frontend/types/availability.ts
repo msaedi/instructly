@@ -170,12 +170,11 @@ export interface ValidationSlotDetail {
   /** Bookings that conflict with this operation */
   conflicts_with?: Array<{
     /** ID of the conflicting booking */
-    booking_id?: string;
+    booking_id?: string | null;
     /** Start time of the conflicting booking */
-    start_time?: string;
+    start_time?: string | null;
     /** End time of the conflicting booking */
-    end_time?: string;
-    [key: string]: unknown;
+    end_time?: string | null;
   }> | null;
 }
 

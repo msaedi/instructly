@@ -74,12 +74,20 @@ async def test_get_monitoring_dashboard_success(monkeypatch, db) -> None:
         monitoring_routes.monitor, "check_cache_health", lambda _stats: cache_health
     )
     monkeypatch.setattr(monitoring_routes, "get_cache_service", lambda _db: _DummyCacheService())
-    monkeypatch.setattr(monitoring_routes, "get_db_pool_status", lambda: {"pool_size": 10})
+    # Must provide all required fields for DatabasePoolStatus
+    pool_status = {
+        "pool_size": 10,
+        "checked_in": 8,
+        "checked_out": 2,
+        "overflow": 0,
+        "usage_percent": 20.0,
+    }
+    monkeypatch.setattr(monitoring_routes, "get_db_pool_status", lambda: pool_status)
 
     response = await monitoring_routes.get_monitoring_dashboard(db)
 
     assert response.status == "ok"
-    assert response.database["pool"]["pool_size"] == 10
+    assert response.database.pool.pool_size == 10
     assert response.cache.status == "healthy"
     assert response.recommendations
 
@@ -153,7 +161,8 @@ async def test_get_extended_cache_stats(monkeypatch, db) -> None:
     monkeypatch.setattr(monitoring_routes, "get_cache_service", lambda _db: _DummyCacheService())
     stats = await monitoring_routes.get_extended_cache_stats(db)
 
-    assert stats.basic_stats["hits"] == 5
+    assert stats.basic_stats.hits == 5
+    # redis_info and key_patterns remain Dict types
     assert stats.redis_info["used_memory_human"] == "1M"
     assert stats.key_patterns["avail:*"] == 3
 

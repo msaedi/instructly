@@ -152,8 +152,8 @@ def test_get_instructor_ratings_success():
         instructor_id="01HF4G12ABCDEF3456789XYZAB",
         service=_Service(),
     )
-    assert response.overall["rating"] == 4.8
-    assert response.overall["total_reviews"] == 12
+    assert response.overall.rating == 4.8
+    assert response.overall.total_reviews == 12
 
 
 def test_get_ratings_batch_handles_min_reviews():

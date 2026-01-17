@@ -33,7 +33,17 @@ class _PoolStub:
 
 @pytest.mark.asyncio
 async def test_database_health_success(monkeypatch):
-    monkeypatch.setattr(routes, "get_db_pool_status", lambda: {"size": 1})
+    # Must provide all required fields for DatabasePoolMetrics
+    pool_status = {
+        "size": 5,
+        "checked_in": 3,
+        "checked_out": 2,
+        "overflow": 0,
+        "total": 5,
+        "max_size": 10,
+        "usage_percent": 20.0,
+    }
+    monkeypatch.setattr(routes, "get_db_pool_status", lambda: pool_status)
 
     response = await routes.database_health()
 
@@ -58,7 +68,7 @@ async def test_database_pool_status_critical(monkeypatch):
     response = await routes.database_pool_status(current_user=SimpleNamespace())
 
     assert response.status == "critical"
-    assert response.pool["usage_percent"] > 80
+    assert response.pool.usage_percent > 80
 
 
 @pytest.mark.asyncio
@@ -72,10 +82,39 @@ async def test_database_pool_status_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_database_stats_success(monkeypatch):
-    pool_status = SimpleNamespace(
+    # Import the actual response schema to create a proper mock
+    from app.schemas.database_monitor_responses import (
+        DatabasePoolConfiguration,
+        DatabasePoolMetrics,
+        DatabasePoolStatusResponse,
+        DatabaseRecommendations,
+    )
+
+    # Create a proper DatabasePoolStatusResponse instance
+    pool_metrics = DatabasePoolMetrics(
+        size=1,
+        checked_in=1,
+        checked_out=0,
+        overflow=0,
+        total=1,
+        max_size=5,
+        usage_percent=10.0,
+    )
+    configuration = DatabasePoolConfiguration(
+        pool_size=1,
+        max_overflow=4,
+        timeout=30.0,
+        recycle=3600.0,
+    )
+    recommendations = DatabaseRecommendations(
+        increase_pool_size=False,
+        current_load="low",
+    )
+    pool_status = DatabasePoolStatusResponse(
         status="healthy",
-        pool={"usage_percent": 10, "size": 1},
-        configuration={},
+        pool=pool_metrics,
+        configuration=configuration,
+        recommendations=recommendations,
     )
 
     async def _pool_status(_user):
@@ -85,7 +124,7 @@ async def test_database_stats_success(monkeypatch):
 
     response = await routes.database_stats(current_user=SimpleNamespace())
 
-    assert response.health["status"] == "healthy"
+    assert response.health.status == "healthy"
 
 
 @pytest.mark.asyncio

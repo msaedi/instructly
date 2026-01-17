@@ -45,14 +45,19 @@ def test_get_recent_alerts_maps_rows():
     rows = [
         SimpleNamespace(
             id="a1",
-            alert_type="slow_query",
+            alert_type="extremely_slow_query",
             severity="warning",
             title="Slow",
             message="Query slow",
             created_at=now,
             email_sent=False,
             github_issue_created=True,
-            details={"q": "SELECT"},
+            # Use typed details matching ExtremelySlowQueryDetails
+            details={
+                "alert_type": "extremely_slow_query",
+                "duration_ms": 5000.0,
+                "query_preview": "SELECT * FROM users...",
+            },
         )
     ]
     repo = _AlertsRepo(rows)

@@ -107,6 +107,10 @@ jobs:
       working-directory: backend
       run: python scripts/check_openapi_responses.py
 
+    - name: Audit untyped Dict[str,Any] (Phase 3 guardrail)
+      working-directory: backend
+      run: ./scripts/audit-untyped-dicts.sh --ci
+
     - name: Mypy strict (hard fail)
       run: bash tools/mypy_strict_gate.sh
 

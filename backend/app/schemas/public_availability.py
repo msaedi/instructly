@@ -10,9 +10,19 @@ No internal IDs or implementation details are exposed.
 """
 
 from datetime import date
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class PublicAvailabilitySummaryEntry(BaseModel):
+    """Summary of availability for a single date."""
+
+    date: str = Field(description="Date in YYYY-MM-DD format")
+    morning_available: bool = Field(default=False, description="Morning availability")
+    afternoon_available: bool = Field(default=False, description="Afternoon availability")
+    evening_available: bool = Field(default=False, description="Evening availability")
+    total_hours: float = Field(default=0.0, description="Total available hours")
 
 
 class PublicTimeSlot(BaseModel):
@@ -87,7 +97,7 @@ class PublicInstructorAvailability(BaseModel):
     )
 
     # Summary fields (populated when detail_level == "summary")
-    availability_summary: Optional[Dict[str, Dict[str, Any]]] = Field(
+    availability_summary: Optional[Dict[str, PublicAvailabilitySummaryEntry]] = Field(
         None, description="Summary of availability by date - only in summary detail"
     )
 

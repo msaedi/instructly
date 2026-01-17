@@ -98,7 +98,8 @@ def apply_retention_policies(self: DatabaseTask) -> Dict[str, int]:
 
         # Combine results
         combined_stats = {
-            **retention_stats,
+            "search_events_deleted": retention_stats.search_events_deleted,
+            "old_bookings_anonymized": retention_stats.old_bookings_anonymized,
             "soft_deleted_searches_removed": soft_deleted,
             "guest_sessions_removed": guest_sessions,
         }
@@ -177,7 +178,7 @@ def generate_privacy_report(self: DatabaseTask) -> Dict[str, Any]:
         }
 
         logger.info(
-            f"Privacy report generated: {len(privacy_stats)} privacy metrics, {len(cleanup_stats)} cleanup metrics"
+            f"Privacy report generated successfully with {len(cleanup_stats)} cleanup metrics"
         )
         return report
 
@@ -215,13 +216,13 @@ def anonymize_old_bookings(self: DatabaseTask, days_old: Optional[int] = None) -
 
             try:
                 retention_stats = privacy_service.apply_retention_policies()
-                anonymized_count = int(retention_stats.get("old_bookings_anonymized", 0) or 0)
+                anonymized_count = retention_stats.old_bookings_anonymized
             finally:
                 # Restore original setting
                 settings.booking_pii_retention_days = original_setting
         else:
             retention_stats = privacy_service.apply_retention_policies()
-            anonymized_count = int(retention_stats.get("old_bookings_anonymized", 0) or 0)
+            anonymized_count = retention_stats.old_bookings_anonymized
 
         logger.info(f"Anonymized {anonymized_count} old bookings")
         return anonymized_count

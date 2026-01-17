@@ -259,8 +259,12 @@ async def register(
         try:
             invite_code = None
             metadata_obj = getattr(payload, "metadata", None)
-            if isinstance(metadata_obj, dict):
-                invite_code = metadata_obj.get("invite_code")
+            if metadata_obj is not None:
+                # Handle both dict (legacy) and Pydantic model (typed)
+                if isinstance(metadata_obj, dict):
+                    invite_code = metadata_obj.get("invite_code")
+                else:
+                    invite_code = getattr(metadata_obj, "invite_code", None)
             if invite_code:
                 svc = BetaService(db)
                 grant, reason, invite = await asyncio.to_thread(

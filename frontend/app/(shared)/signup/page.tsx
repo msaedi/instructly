@@ -358,8 +358,7 @@ function SignUpForm() {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
         ...(guestSessionId && { guest_session_id: guestSessionId }),
         metadata: {
-          founding: searchParams.get('founding') === 'true' || undefined,
-          invite_code: searchParams.get('invite_code') || undefined,
+          invite_code: searchParams.get('invite_code') ?? null,
         },
       };
 

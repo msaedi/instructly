@@ -6,11 +6,49 @@ Defines request/response models for search history endpoints.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 from ._strict_base import StrictRequestModel
+
+
+class SearchContext(BaseModel):
+    """Context about where the search originated."""
+
+    page_origin: Optional[str] = None
+    viewport_width: Optional[int] = None
+    viewport_height: Optional[int] = None
+    referrer: Optional[str] = None
+    session_search_count: Optional[int] = None
+
+
+class DeviceContext(BaseModel):
+    """Device information for analytics."""
+
+    screen_width: Optional[int] = None
+    screen_height: Optional[int] = None
+    connection_type: Optional[str] = None
+    connection_effective_type: Optional[str] = None
+    device_type: Optional[str] = None
+    browser: Optional[str] = None
+    os: Optional[str] = None
+    viewport_size: Optional[str] = None  # Format: "WxH" e.g. "375x812"
+    screen_resolution: Optional[str] = None  # Format: "WxH" e.g. "750x1624"
+    language: Optional[str] = None
+    timezone: Optional[str] = None
+
+
+class ObservabilityCandidate(BaseModel):
+    """Search candidate for observability tracking."""
+
+    position: Optional[int] = None
+    service_catalog_id: Optional[str] = None
+    id: Optional[str] = None  # Alternative to service_catalog_id
+    score: Optional[float] = None
+    vector_score: Optional[float] = None
+    lexical_score: Optional[float] = None
+    source: Optional[str] = None
 
 
 class SearchHistoryBase(BaseModel):
@@ -47,14 +85,14 @@ class SearchHistoryBase(BaseModel):
 class SearchHistoryCreate(StrictRequestModel, SearchHistoryBase):
     """Schema for creating search history."""
 
-    search_context: Optional[Dict[str, Any]] = Field(
+    search_context: Optional[SearchContext] = Field(
         None, description="Additional context like page origin, viewport size, etc."
     )
-    device_context: Optional[Dict[str, Any]] = Field(
+    device_context: Optional[DeviceContext] = Field(
         None,
         description="Device context from frontend including screen size, connection type, etc.",
     )
-    observability_candidates: Optional[List[Dict[str, Any]]] = Field(
+    observability_candidates: Optional[List[ObservabilityCandidate]] = Field(
         default=None,
         description=(
             "Optional top-N candidate objects for observability. "

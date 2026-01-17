@@ -181,7 +181,7 @@ class PipelineTimer:
                 "name": name,
                 "duration_ms": max(0, int(duration_ms)),
                 "status": status,
-                "details": details or {},
+                "details": details if details else None,
             }
         )
 

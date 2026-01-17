@@ -203,8 +203,16 @@ export async function recordSearch(
     // Refresh session on search activity
     refreshSession();
 
-    // Get analytics context
-    const analyticsContext = getAnalyticsContext();
+    // Get analytics context and map to API SearchContext type
+    const rawAnalyticsContext = getAnalyticsContext();
+    const [viewportWidth, viewportHeight] = rawAnalyticsContext.viewport.split('x').map(Number);
+    const searchContext: SearchHistoryCreate['search_context'] = {
+      page_origin: rawAnalyticsContext.page,
+      viewport_width: viewportWidth || null,
+      viewport_height: viewportHeight || null,
+      referrer: typeof document !== 'undefined' ? document.referrer || null : null,
+      session_search_count: rawAnalyticsContext.page_view_count,
+    };
 
     // Capture device context
     const deviceContext = captureDeviceContext();
@@ -218,7 +226,7 @@ export async function recordSearch(
       search_query: searchRecord.query,
       search_type: searchRecord.search_type,
       ...(searchRecord.results_count !== undefined && { results_count: searchRecord.results_count }),
-      search_context: analyticsContext,
+      search_context: searchContext,
       device_context: deviceInfo,
     };
     if (searchRecord.observability_candidates && searchRecord.observability_candidates.length > 0) {

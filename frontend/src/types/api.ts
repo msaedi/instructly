@@ -96,7 +96,6 @@ export interface WeekSpecificScheduleCreate {
     date: string;
     start_time: string;
     end_time: string;
-    [key: string]: unknown;
   }>;
   clear_existing?: boolean;
   week_start?: string | null;
@@ -126,7 +125,11 @@ export interface ValidationSlotDetail {
   end_time?: string | null;
   slot_id?: string | null;
   reason?: string | null;
-  conflicts_with?: Array<Record<string, unknown>> | null;
+  conflicts_with?: Array<{
+    booking_id?: string | null;
+    start_time?: string | null;
+    end_time?: string | null;
+  }> | null;
 }
 
 export interface ValidationSummary {
@@ -235,7 +238,13 @@ export interface BookingOpportunity {
 export interface BookingOpportunitiesResult {
   opportunities: BookingOpportunity[];
   total_found: number;
-  search_parameters: Record<string, unknown>;
+  search_parameters: {
+    instructor_id: string;
+    instructor_service_id: string;
+    date_range_start: string;
+    date_range_end: string;
+    preferred_times?: string[] | null;
+  };
 }
 
 // From instructor.py

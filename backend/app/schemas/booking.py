@@ -10,7 +10,7 @@ availability changes.
 
 from datetime import date, datetime, time, timedelta, timezone
 import re
-from typing import Any, Dict, List, Literal, Mapping, Optional
+from typing import Any, List, Literal, Mapping, Optional
 
 from pydantic import (
     BaseModel,
@@ -25,6 +25,28 @@ import pytz
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
 from ._strict_base import StrictModel, StrictRequestModel
+
+
+class ConflictingBookingInfo(StrictModel):
+    """Information about a conflicting booking."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    booking_id: Optional[str] = Field(default=None, description="ID of the conflicting booking")
+    start_time: Optional[str] = Field(default=None, description="Start time of conflict (HH:MM:SS)")
+    end_time: Optional[str] = Field(default=None, description="End time of conflict (HH:MM:SS)")
+
+
+class TimeSlotInfo(StrictModel):
+    """Time slot information for availability checks."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    date: str = Field(description="ISO date string (YYYY-MM-DD)")
+    start_time: str = Field(description="ISO time string (HH:MM:SS)")
+    end_time: str = Field(description="ISO time string (HH:MM:SS)")
+    instructor_id: str = Field(description="Instructor ID")
+
 
 DATE_ONLY_REGEX = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -836,9 +858,12 @@ class AvailabilityCheckResponse(StrictModel):
     available: bool
     reason: Optional[str] = None
     min_advance_hours: Optional[int] = None
-    conflicts_with: Optional[List[Dict[str, Any]]] = None  # List of conflicting bookings if any
-    # Optional metadata sometimes included by handlers; keep optional to preserve strictness
-    time_info: Optional[Dict[str, Any]] = None
+    conflicts_with: Optional[List[ConflictingBookingInfo]] = Field(
+        default=None, description="List of conflicting bookings if any"
+    )
+    time_info: Optional[TimeSlotInfo] = Field(
+        default=None, description="Time slot information for the availability check"
+    )
 
 
 class BookingStatsResponse(StandardizedModel):
@@ -964,13 +989,28 @@ class BookingOpportunity(BaseModel):
     available: bool = True
 
 
-class FindBookingOpportunitiesResponse(StrictModel):
+class BookingSearchParameters(StrictModel):
+    """Search parameters used to find booking opportunities."""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    instructor_id: str = Field(description="Instructor searched")
+    instructor_service_id: str = Field(description="Service to book")
+    date_range_start: str = Field(description="Start of search range (YYYY-MM-DD)")
+    date_range_end: str = Field(description="End of search range (YYYY-MM-DD)")
+    preferred_times: Optional[List[str]] = Field(
+        default=None, description="Preferred start times (HH:MM:SS)"
+    )
+
+
+class FindBookingOpportunitiesResponse(StrictModel):
     """Response with available booking opportunities."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     opportunities: List[BookingOpportunity]
     total_found: int
-    search_parameters: Dict[str, Any]
+    search_parameters: BookingSearchParameters = Field(description="Parameters used for the search")
 
 
 __all__ = [

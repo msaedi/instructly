@@ -267,28 +267,9 @@ export interface BookingFilters {
   per_page?: number;
 }
 
-/**
- * Request payload for cancelling a booking
- * (Frontend-only - generated OpenAPI only has AdminCancelBookingRequest)
- */
-export interface CancelBookingRequest {
-  /** Reason for cancellation */
-  cancellation_reason: string;
-}
+// CancelBookingRequest removed - dead code (wrong field name)
+// Use generated BookingCancel from @/features/shared/api/types which has correct field: reason
 
 // BookingStatsResponse - now imported from shim (see top of file)
 
-/**
- * Response for availability slot queries
- * (Frontend-only type - not in generated OpenAPI)
- */
-export interface AvailabilitySlotResponse {
-  /** Slot ID */
-  id: number;
-  /** Date of the slot */
-  date: string;
-  /** Start time */
-  start_time: string;
-  /** End time */
-  end_time: string;
-}
+// AvailabilitySlotResponse removed - unused dead code

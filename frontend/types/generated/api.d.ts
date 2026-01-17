@@ -6527,10 +6527,7 @@ export type components = {
             confirmed_at?: string | null;
             /** Hold Until */
             hold_until?: string | null;
-            /** Progress Snapshot */
-            progress_snapshot?: {
-                [key: string]: unknown;
-            } | null;
+            progress_snapshot?: components["schemas"]["BadgeProgressView"] | null;
             /** Revoked At */
             revoked_at?: string | null;
             /** Status */
@@ -7278,11 +7275,9 @@ export type components = {
             created_at: string;
             /**
              * Details
-             * @description Additional alert details
+             * @description Type-specific alert details
              */
-            details?: {
-                [key: string]: unknown;
-            } | null;
+            details?: (components["schemas"]["ExtremelySlowQueryDetails"] | components["schemas"]["ExtremelySlowRequestDetails"] | components["schemas"]["HighDbPoolUsageDetails"] | components["schemas"]["HighMemoryUsageDetails"] | components["schemas"]["LowCacheHitRateDetails"]) | null;
             /**
              * Email Sent
              * @description Whether email notification was sent
@@ -7644,17 +7639,54 @@ export type components = {
             total: number;
         };
         /**
+         * AvailabilityCacheMetrics
+         * @description Detailed availability cache metrics.
+         */
+        AvailabilityCacheMetrics: {
+            /**
+             * Cache Efficiency
+             * @description Cache efficiency rating
+             * @default unknown
+             */
+            cache_efficiency: string;
+            /**
+             * Hit Rate
+             * @description Cache hit rate percentage
+             * @default 0.0%
+             */
+            hit_rate: string;
+            /**
+             * Hits
+             * @description Cache hits
+             * @default 0
+             */
+            hits: number;
+            /**
+             * Invalidations
+             * @description Cache invalidations
+             * @default 0
+             */
+            invalidations: number;
+            /**
+             * Misses
+             * @description Cache misses
+             * @default 0
+             */
+            misses: number;
+            /**
+             * Total Requests
+             * @description Total cache requests
+             * @default 0
+             */
+            total_requests: number;
+        };
+        /**
          * AvailabilityCacheMetricsResponse
          * @description Availability-specific cache metrics response.
          */
         AvailabilityCacheMetricsResponse: {
-            /**
-             * Availability Cache Metrics
-             * @description Availability cache metrics
-             */
-            availability_cache_metrics: {
-                [key: string]: unknown;
-            };
+            /** @description Availability cache metrics */
+            availability_cache_metrics: components["schemas"]["AvailabilityCacheMetrics"];
             /**
              * Cache Tiers Info
              * @description Cache tier configuration
@@ -7717,18 +7749,62 @@ export type components = {
         AvailabilityCheckResponse: {
             /** Available */
             available: boolean;
-            /** Conflicts With */
-            conflicts_with?: {
-                [key: string]: unknown;
-            }[] | null;
+            /**
+             * Conflicts With
+             * @description List of conflicting bookings if any
+             */
+            conflicts_with?: components["schemas"]["ConflictingBookingInfo"][] | null;
             /** Min Advance Hours */
             min_advance_hours?: number | null;
             /** Reason */
             reason?: string | null;
-            /** Time Info */
-            time_info?: {
-                [key: string]: unknown;
-            } | null;
+            /** @description Time slot information for the availability check */
+            time_info?: components["schemas"]["TimeSlotInfo"] | null;
+        };
+        /**
+         * AvailabilityConflictInfo
+         * @description Information about a booking that conflicts with an availability operation.
+         */
+        AvailabilityConflictInfo: {
+            /**
+             * Booking Id
+             * @description ID of conflicting booking
+             */
+            booking_id?: string | null;
+            /**
+             * End Time
+             * @description End time of conflict
+             */
+            end_time?: string | null;
+            /**
+             * Start Time
+             * @description Start time of conflict
+             */
+            start_time?: string | null;
+        };
+        /**
+         * AvailabilityMetrics
+         * @description Availability-specific cache metrics.
+         */
+        AvailabilityMetrics: {
+            /**
+             * Availability Hit Rate
+             * @description Availability cache hit rate
+             * @default 0.0%
+             */
+            availability_hit_rate: string;
+            /**
+             * Availability Invalidations
+             * @description Availability cache invalidations
+             * @default 0
+             */
+            availability_invalidations: number;
+            /**
+             * Availability Total Requests
+             * @description Total availability requests
+             * @default 0
+             */
+            availability_total_requests: number;
         };
         /**
          * AvailabilityWindowResponse
@@ -8138,6 +8214,36 @@ export type components = {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * BasicCacheStats
+         * @description Basic cache statistics.
+         */
+        BasicCacheStats: {
+            /**
+             * Errors
+             * @description Cache errors
+             * @default 0
+             */
+            errors: number;
+            /**
+             * Hit Rate
+             * @description Cache hit rate percentage
+             * @default 0.0%
+             */
+            hit_rate: string;
+            /**
+             * Hits
+             * @description Cache hits
+             * @default 0
+             */
+            hits: number;
+            /**
+             * Misses
+             * @description Cache misses
+             * @default 0
+             */
+            misses: number;
+        };
         /** BetaMetricsSummaryResponse */
         BetaMetricsSummaryResponse: {
             /** Invites Errors 24H */
@@ -8278,15 +8384,69 @@ export type components = {
             /** Response Text */
             response_text: string;
         };
+        /**
+         * BookedSlotItem
+         * @description Individual booked slot with booking details for calendar display.
+         */
+        BookedSlotItem: {
+            /**
+             * Booking Id
+             * @description ULID of the booking
+             */
+            booking_id: string;
+            /**
+             * Date
+             * @description ISO date string (YYYY-MM-DD)
+             */
+            date: string;
+            /**
+             * Duration Minutes
+             * @description Duration of the booking in minutes
+             */
+            duration_minutes: number;
+            /**
+             * End Time
+             * @description ISO time string (HH:MM:SS)
+             */
+            end_time: string;
+            /**
+             * Location Type
+             * @description Location type (neutral, student, instructor)
+             */
+            location_type: string;
+            /**
+             * Service Area Short
+             * @description Abbreviated service area
+             */
+            service_area_short: string;
+            /**
+             * Service Name
+             * @description Name of the service booked
+             */
+            service_name: string;
+            /**
+             * Start Time
+             * @description ISO time string (HH:MM:SS)
+             */
+            start_time: string;
+            /**
+             * Student First Name
+             * @description Student's first name
+             */
+            student_first_name: string;
+            /**
+             * Student Last Initial
+             * @description Student's last name initial
+             */
+            student_last_initial: string;
+        };
         /** BookedSlotsResponse */
         BookedSlotsResponse: {
             /**
              * Booked Slots
              * @description List of booked slots with booking details
              */
-            booked_slots: {
-                [key: string]: unknown;
-            }[];
+            booked_slots: components["schemas"]["BookedSlotItem"][];
             /**
              * Week End
              * Format: date
@@ -8825,6 +8985,17 @@ export type components = {
              */
             skipped_operations?: string[];
         };
+        /**
+         * BuildResponseStageDetails
+         * @description Details for build_response pipeline stage.
+         */
+        BuildResponseStageDetails: {
+            /**
+             * Result Count
+             * @description Number of results in final response
+             */
+            result_count: number;
+        };
         /** BulkUpdateResponse */
         BulkUpdateResponse: {
             /** Failed */
@@ -8835,6 +9006,64 @@ export type components = {
             skipped: number;
             /** Successful */
             successful: number;
+        };
+        /**
+         * Burst1StageDetails
+         * @description Details for burst1 pipeline stage (pre-OpenAI batch).
+         */
+        Burst1StageDetails: {
+            /**
+             * Location Tier
+             * @description Location resolution tier used
+             */
+            location_tier?: number | null;
+            /**
+             * Region Lookup Loaded
+             * @description Whether region lookup was loaded
+             */
+            region_lookup_loaded: boolean;
+            /**
+             * Text Candidates
+             * @description Number of text search candidates
+             */
+            text_candidates: number;
+        };
+        /**
+         * Burst2StageDetails
+         * @description Details for burst2 pipeline stage (post-OpenAI batch).
+         */
+        Burst2StageDetails: {
+            /**
+             * Filter Failed
+             * @description Whether filtering failed
+             */
+            filter_failed: boolean;
+            /**
+             * Ranking Failed
+             * @description Whether ranking failed
+             */
+            ranking_failed: boolean;
+            /**
+             * Total Candidates
+             * @description Total candidates after retrieval
+             */
+            total_candidates: number;
+            /**
+             * Vector Search Used
+             * @description Whether vector search was used
+             */
+            vector_search_used: boolean;
+        };
+        /**
+         * CacheCheckStageDetails
+         * @description Details for cache_check pipeline stage.
+         */
+        CacheCheckStageDetails: {
+            /**
+             * Latency Ms
+             * @description Cache check latency in milliseconds
+             */
+            latency_ms: number;
         };
         /**
          * CacheHealthStatus
@@ -8872,13 +9101,8 @@ export type components = {
          * @description Detailed cache metrics response.
          */
         CacheMetricsResponse: {
-            /**
-             * Availability Metrics
-             * @description Availability-specific cache metrics
-             */
-            availability_metrics: {
-                [key: string]: unknown;
-            };
+            /** @description Availability-specific cache metrics */
+            availability_metrics: components["schemas"]["AvailabilityMetrics"];
             /**
              * Errors
              * @description Cache errors
@@ -9137,6 +9361,26 @@ export type components = {
             /** Subtitle */
             subtitle?: string | null;
         };
+        /**
+         * CeleryQueuesData
+         * @description Celery queue status data.
+         */
+        CeleryQueuesData: {
+            /** Queues */
+            queues?: {
+                [key: string]: number;
+            };
+            /**
+             * Status
+             * @default unknown
+             */
+            status: string;
+            /**
+             * Total Pending
+             * @default 0
+             */
+            total_pending: number;
+        };
         /** CheckoutApplyRequest */
         CheckoutApplyRequest: {
             /** Order Id */
@@ -9301,6 +9545,27 @@ export type components = {
             total_lines_with_blanks: number;
         };
         /**
+         * ConflictingBookingInfo
+         * @description Information about a conflicting booking.
+         */
+        ConflictingBookingInfo: {
+            /**
+             * Booking Id
+             * @description ID of the conflicting booking
+             */
+            booking_id?: string | null;
+            /**
+             * End Time
+             * @description End time of conflict (HH:MM:SS)
+             */
+            end_time?: string | null;
+            /**
+             * Start Time
+             * @description Start time of conflict (HH:MM:SS)
+             */
+            start_time?: string | null;
+        };
+        /**
          * ConsentPayload
          * @description Payload required to record FCRA consent.
          */
@@ -9404,6 +9669,16 @@ export type components = {
              * @description Most common first search query
              */
             most_common_first_search: string;
+        };
+        /**
+         * ConversionMetrics
+         * @description Combined conversion metrics.
+         */
+        ConversionMetrics: {
+            /** @description Conversion behavior metrics */
+            conversion_behavior: components["schemas"]["ConversionBehavior"];
+            /** @description Guest session metrics */
+            guest_sessions: components["schemas"]["GuestConversionMetrics"];
         };
         /**
          * ConversionMetricsResponse
@@ -9626,6 +9901,42 @@ export type components = {
             status: string;
         };
         /**
+         * DatabaseDashboardMetrics
+         * @description Database metrics for monitoring dashboard.
+         */
+        DatabaseDashboardMetrics: {
+            /**
+             * Average Pool Usage Percent
+             * @description Average pool usage percentage
+             * @default 0
+             */
+            average_pool_usage_percent: number;
+            /** @description Connection pool status */
+            pool: components["schemas"]["DatabasePoolStatus"];
+            /**
+             * Slow Queries Count
+             * @description Number of slow queries
+             * @default 0
+             */
+            slow_queries_count: number;
+        };
+        /**
+         * DatabaseHealthMetrics
+         * @description Database health metrics.
+         */
+        DatabaseHealthMetrics: {
+            /**
+             * Status
+             * @description Health status
+             */
+            status: string;
+            /**
+             * Usage Percent
+             * @description Pool usage percentage
+             */
+            usage_percent: number;
+        };
+        /**
          * DatabaseHealthResponse
          * @description Response for database health check endpoint.
          */
@@ -9640,50 +9951,148 @@ export type components = {
              * @description Health check message
              */
             message: string;
-            /**
-             * Pool Status
-             * @description Connection pool status
-             */
-            pool_status?: {
-                [key: string]: unknown;
-            } | null;
+            /** @description Connection pool status */
+            pool_status?: components["schemas"]["DatabasePoolMetrics"] | null;
             /**
              * Status
              * @description Health status (healthy/unhealthy)
              */
             status: string;
         };
-        /** DatabasePoolStatusResponse */
+        /**
+         * DatabasePoolConfiguration
+         * @description SQLAlchemy pool configuration.
+         */
+        DatabasePoolConfiguration: {
+            /**
+             * Max Overflow
+             * @description Maximum overflow connections
+             */
+            max_overflow: number;
+            /**
+             * Pool Size
+             * @description Base pool size
+             */
+            pool_size: number;
+            /**
+             * Recycle
+             * @description Connection recycle time seconds
+             */
+            recycle?: number | null;
+            /**
+             * Timeout
+             * @description Connection timeout seconds
+             */
+            timeout?: number | null;
+        };
+        /**
+         * DatabasePoolMetrics
+         * @description Database connection pool metrics.
+         */
+        DatabasePoolMetrics: {
+            /**
+             * Checked In
+             * @description Available connections
+             */
+            checked_in: number;
+            /**
+             * Checked Out
+             * @description Active connections
+             */
+            checked_out: number;
+            /**
+             * Max Size
+             * @description Maximum pool size
+             */
+            max_size: number;
+            /**
+             * Overflow
+             * @description Overflow connections
+             */
+            overflow: number;
+            /**
+             * Size
+             * @description Base pool size
+             */
+            size: number;
+            /**
+             * Total
+             * @description Total connections (size + overflow)
+             */
+            total: number;
+            /**
+             * Usage Percent
+             * @description Pool usage percentage
+             */
+            usage_percent: number;
+        };
+        /**
+         * DatabasePoolStatus
+         * @description Database connection pool status.
+         */
+        DatabasePoolStatus: {
+            /**
+             * Checked In
+             * @description Available connections
+             */
+            checked_in: number;
+            /**
+             * Checked Out
+             * @description Active connections
+             */
+            checked_out: number;
+            /**
+             * Overflow
+             * @description Overflow connections
+             */
+            overflow: number;
+            /**
+             * Pool Size
+             * @description Total pool size
+             */
+            pool_size: number;
+            /**
+             * Usage Percent
+             * @description Pool usage percentage
+             */
+            usage_percent: number;
+        };
+        /**
+         * DatabasePoolStatusResponse
+         * @description Response for database pool status endpoint.
+         */
         DatabasePoolStatusResponse: {
-            /** Configuration */
-            configuration: {
-                [key: string]: unknown;
-            };
-            /** Pool */
-            pool: {
-                [key: string]: unknown;
-            };
-            /** Recommendations */
-            recommendations: {
-                [key: string]: unknown;
-            };
+            configuration: components["schemas"]["DatabasePoolConfiguration"];
+            pool: components["schemas"]["DatabasePoolMetrics"];
+            recommendations: components["schemas"]["DatabaseRecommendations"];
             /** Status */
             status: string;
         };
-        /** DatabaseStatsResponse */
+        /**
+         * DatabaseRecommendations
+         * @description Database pool recommendations.
+         */
+        DatabaseRecommendations: {
+            /**
+             * Current Load
+             * @description Current load level
+             * @enum {string}
+             */
+            current_load: "low" | "normal" | "high";
+            /**
+             * Increase Pool Size
+             * @description Whether pool size should be increased
+             */
+            increase_pool_size: boolean;
+        };
+        /**
+         * DatabaseStatsResponse
+         * @description Response for database statistics endpoint.
+         */
         DatabaseStatsResponse: {
-            /** Configuration */
-            configuration: {
-                [key: string]: unknown;
-            };
-            /** Health */
-            health: {
-                [key: string]: unknown;
-            };
-            /** Pool */
-            pool: {
-                [key: string]: unknown;
-            };
+            configuration: components["schemas"]["DatabasePoolConfiguration"];
+            health: components["schemas"]["DatabaseHealthMetrics"];
+            pool: components["schemas"]["DatabasePoolMetrics"];
             /** Status */
             status: string;
         };
@@ -9741,6 +10150,24 @@ export type components = {
             message: string;
             /** Window Id */
             window_id: string;
+        };
+        /**
+         * DeviceContext
+         * @description Device information for analytics.
+         */
+        DeviceContext: {
+            /** Browser */
+            browser?: string | null;
+            /** Connection Type */
+            connection_type?: string | null;
+            /** Device Type */
+            device_type?: string | null;
+            /** Os */
+            os?: string | null;
+            /** Screen Height */
+            screen_height?: number | null;
+            /** Screen Width */
+            screen_width?: number | null;
         };
         /**
          * EarningsExportRequest
@@ -9836,6 +10263,22 @@ export type components = {
              */
             content: string;
         };
+        /**
+         * EmbeddingStageDetails
+         * @description Details for embedding pipeline stage.
+         */
+        EmbeddingStageDetails: {
+            /**
+             * Reason
+             * @description Skip/error reason if any
+             */
+            reason?: string | null;
+            /**
+             * Used
+             * @description Whether embedding was actually used
+             */
+            used: boolean;
+        };
         /** ExistingReviewIdsResponse */
         ExistingReviewIdsResponse: string[];
         /**
@@ -9874,13 +10317,8 @@ export type components = {
          * @description Extended cache statistics.
          */
         ExtendedCacheStats: {
-            /**
-             * Basic Stats
-             * @description Basic cache statistics
-             */
-            basic_stats: {
-                [key: string]: unknown;
-            };
+            /** @description Basic cache statistics */
+            basic_stats: components["schemas"]["BasicCacheStats"];
             /**
              * Key Patterns
              * @description Cache key pattern counts
@@ -9895,6 +10333,68 @@ export type components = {
             redis_info?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /**
+         * ExtremelySlowQueryDetails
+         * @description Details for extremely slow database queries.
+         */
+        ExtremelySlowQueryDetails: {
+            /**
+             * @description Alert type discriminator (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            alert_type: "extremely_slow_query";
+            /**
+             * Duration Ms
+             * @description Query duration in milliseconds
+             */
+            duration_ms: number;
+            /**
+             * Full Query
+             * @description Full query text (only for queries > 2000ms)
+             */
+            full_query?: string | null;
+            /**
+             * Query Preview
+             * @description First 200 chars of the query
+             */
+            query_preview: string;
+        };
+        /**
+         * ExtremelySlowRequestDetails
+         * @description Details for extremely slow HTTP requests.
+         */
+        ExtremelySlowRequestDetails: {
+            /**
+             * @description Alert type discriminator (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            alert_type: "extremely_slow_request";
+            /**
+             * Client
+             * @description Client IP address
+             */
+            client: string;
+            /**
+             * Duration Ms
+             * @description Request duration in milliseconds
+             */
+            duration_ms: number;
+            /**
+             * Method
+             * @description HTTP method (GET, POST, etc.)
+             */
+            method: string;
+            /**
+             * Path
+             * @description Request path
+             */
+            path: string;
+            /**
+             * Status Code
+             * @description HTTP response status code
+             */
+            status_code: number;
         };
         /**
          * FavoriteResponse
@@ -10203,6 +10703,64 @@ export type components = {
              */
             version: string;
         };
+        /**
+         * HighDbPoolUsageDetails
+         * @description Details for high database connection pool usage.
+         */
+        HighDbPoolUsageDetails: {
+            /**
+             * @description Alert type discriminator (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            alert_type: "high_db_pool_usage";
+            /**
+             * Checked Out
+             * @description Number of checked out connections
+             */
+            checked_out?: number | null;
+            /**
+             * Total Possible
+             * @description Total possible connections
+             */
+            total_possible?: number | null;
+            /**
+             * Usage Percent
+             * @description Pool usage percentage
+             */
+            usage_percent?: number | null;
+        };
+        /**
+         * HighMemoryUsageDetails
+         * @description Details for high memory usage alerts.
+         */
+        HighMemoryUsageDetails: {
+            /**
+             * @description Alert type discriminator (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            alert_type: "high_memory_usage";
+            /**
+             * Memory Mb
+             * @description Memory usage in MB
+             */
+            memory_mb?: number | null;
+            /**
+             * Percent
+             * @description Memory usage percentage
+             */
+            percent?: number | null;
+        };
+        /**
+         * HydrateStageDetails
+         * @description Details for hydrate pipeline stage.
+         */
+        HydrateStageDetails: {
+            /**
+             * Result Count
+             * @description Number of results after hydration
+             */
+            result_count: number;
+        };
         /** IdentityRefreshResponse */
         IdentityRefreshResponse: {
             /**
@@ -10498,18 +11056,100 @@ export type components = {
             /** Years Experience */
             years_experience?: number | null;
         };
-        /** InstructorRatingsResponse */
+        /**
+         * InstructorRatingsResponse
+         * @description Instructor rating statistics with overall and per-service breakdown.
+         */
         InstructorRatingsResponse: {
-            /** By Service */
-            by_service?: {
-                [key: string]: unknown;
-            }[];
+            /**
+             * By Service
+             * @description Per-service rating breakdown
+             */
+            by_service?: components["schemas"]["ServiceRatingStats"][];
             /** Confidence Level */
             confidence_level: string;
-            /** Overall */
-            overall: {
-                [key: string]: unknown;
-            };
+            /** @description Overall rating statistics */
+            overall: components["schemas"]["OverallRatingStats"];
+        };
+        /**
+         * InstructorSearchResult
+         * @description Instructor in search results.
+         */
+        InstructorSearchResult: {
+            /** Average Rating */
+            average_rating?: number | null;
+            /** Bio */
+            bio?: string | null;
+            /**
+             * Favorited Count
+             * @default 0
+             */
+            favorited_count: number;
+            /** First Name */
+            first_name: string;
+            /**
+             * Has Profile Picture
+             * @default false
+             */
+            has_profile_picture: boolean;
+            /** Id */
+            id: string;
+            /** Is Favorited */
+            is_favorited?: boolean | null;
+            /**
+             * Is Live
+             * @default false
+             */
+            is_live: boolean;
+            /** Last Initial */
+            last_initial: string;
+            /**
+             * Profile Picture Version
+             * @default 0
+             */
+            profile_picture_version: number;
+            /**
+             * Review Count
+             * @default 0
+             */
+            review_count: number;
+            /** Service Area Boroughs */
+            service_area_boroughs?: string[];
+            /** Service Area Summary */
+            service_area_summary?: string | null;
+            /** Services */
+            services?: components["schemas"]["InstructorSearchResultService"][];
+            /** Teaches Adults */
+            teaches_adults?: boolean | null;
+            /** Teaches Kids */
+            teaches_kids?: boolean | null;
+            /** User Id */
+            user_id: string;
+            /** Years Experience */
+            years_experience?: number | null;
+        };
+        /**
+         * InstructorSearchResultService
+         * @description Service offering in search results.
+         */
+        InstructorSearchResultService: {
+            /** Catalog Service Id */
+            catalog_service_id: string;
+            /** Custom Description */
+            custom_description?: string | null;
+            /** Duration Options */
+            duration_options?: number[];
+            /** Hourly Rate */
+            hourly_rate: number;
+            /** Id */
+            id: string;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
         };
         /**
          * InstructorServiceCreate
@@ -10912,6 +11552,22 @@ export type components = {
             tiers?: components["schemas"]["LocationTierResult"][];
         };
         /**
+         * LocationResolutionStageDetails
+         * @description Details for location_resolution pipeline stage.
+         */
+        LocationResolutionStageDetails: {
+            /**
+             * Resolved
+             * @description Whether location was successfully resolved
+             */
+            resolved: boolean;
+            /**
+             * Tier
+             * @description Resolution tier that succeeded
+             */
+            tier?: number | null;
+        };
+        /**
          * LocationTierResult
          * @description Result of a location resolution tier attempt.
          */
@@ -10980,6 +11636,27 @@ export type components = {
             temp_token?: string | null;
             /** Token Type */
             token_type?: string | null;
+        };
+        /**
+         * LowCacheHitRateDetails
+         * @description Details for low cache hit rate alerts.
+         */
+        LowCacheHitRateDetails: {
+            /**
+             * @description Alert type discriminator (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            alert_type: "low_cache_hit_rate";
+            /**
+             * Hit Rate
+             * @description Current cache hit rate
+             */
+            hit_rate?: number | null;
+            /**
+             * Target
+             * @description Target cache hit rate
+             */
+            target?: number | null;
         };
         /**
          * MarkMessagesReadRequest
@@ -11141,13 +11818,8 @@ export type components = {
             alerts: components["schemas"]["AlertInfo"][];
             /** @description Cache health status */
             cache: components["schemas"]["CacheHealthStatus"];
-            /**
-             * Database
-             * @description Database metrics and pool status
-             */
-            database: {
-                [key: string]: unknown;
-            };
+            /** @description Database metrics and pool status */
+            database: components["schemas"]["DatabaseDashboardMetrics"];
             /** @description System memory metrics */
             memory: components["schemas"]["MemoryMetrics"];
             /**
@@ -11528,6 +12200,26 @@ export type components = {
             /** Unread Count */
             unread_count: number;
         };
+        /**
+         * ObservabilityCandidate
+         * @description Search candidate for observability tracking.
+         */
+        ObservabilityCandidate: {
+            /** Id */
+            id?: string | null;
+            /** Lexical Score */
+            lexical_score?: number | null;
+            /** Position */
+            position?: number | null;
+            /** Score */
+            score?: number | null;
+            /** Service Catalog Id */
+            service_catalog_id?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Vector Score */
+            vector_score?: number | null;
+        };
         /** OnboardingResponse */
         OnboardingResponse: {
             /**
@@ -11599,6 +12291,27 @@ export type components = {
              * @enum {string}
              */
             status: "success" | "failed" | "skipped";
+        };
+        /**
+         * OverallRatingStats
+         * @description Overall rating statistics computed using Dirichlet smoothing.
+         */
+        OverallRatingStats: {
+            /**
+             * Display Rating
+             * @description Display-formatted rating (e.g., '4.5★') or None if below threshold
+             */
+            display_rating?: string | null;
+            /**
+             * Rating
+             * @description Computed rating (Dirichlet-smoothed)
+             */
+            rating: number;
+            /**
+             * Total Reviews
+             * @description Total number of reviews
+             */
+            total_reviews: number;
         };
         /** OverridePayload */
         OverridePayload: {
@@ -11712,6 +12425,17 @@ export type components = {
              * @description Total number of items
              */
             total: number;
+        };
+        /**
+         * ParseStageDetails
+         * @description Details for parse pipeline stage.
+         */
+        ParseStageDetails: {
+            /**
+             * Mode
+             * @description Parsing mode used (regex/llm)
+             */
+            mode: string;
         };
         /**
          * ParsedQueryInfo
@@ -12036,6 +12760,44 @@ export type components = {
             status: string;
         };
         /**
+         * PerformanceCacheStats
+         * @description Cache statistics for performance metrics.
+         */
+        PerformanceCacheStats: {
+            /**
+             * Hit Rate
+             * @description Cache hit rate percentage
+             * @default 0.0%
+             */
+            hit_rate: string;
+            /**
+             * Hits
+             * @description Cache hits
+             * @default 0
+             */
+            hits: number;
+            /**
+             * Misses
+             * @description Cache misses
+             * @default 0
+             */
+            misses: number;
+        };
+        /**
+         * PerformanceDatabaseMetrics
+         * @description Database metrics for performance monitoring.
+         */
+        PerformanceDatabaseMetrics: {
+            /**
+             * Active Connections
+             * @description Active database connections
+             * @default 0
+             */
+            active_connections: number;
+            /** @description Connection pool status */
+            pool_status: components["schemas"]["DatabasePoolStatus"];
+        };
+        /**
          * PerformanceMetrics
          * @description Search performance metrics.
          */
@@ -12065,22 +12827,12 @@ export type components = {
             availability_service: components["schemas"]["ServiceMetrics"];
             /** @description Booking service metrics */
             booking_service: components["schemas"]["ServiceMetrics"];
-            /**
-             * Cache
-             * @description Cache statistics
-             */
-            cache: {
-                [key: string]: unknown;
-            };
+            /** @description Cache statistics */
+            cache: components["schemas"]["PerformanceCacheStats"];
             /** @description Conflict checker metrics */
             conflict_checker: components["schemas"]["ServiceMetrics"];
-            /**
-             * Database
-             * @description Database connection metrics
-             */
-            database: {
-                [key: string]: unknown;
-            };
+            /** @description Database connection metrics */
+            database: components["schemas"]["PerformanceDatabaseMetrics"];
             /**
              * System
              * @description System resource metrics
@@ -12158,11 +12910,9 @@ export type components = {
         PipelineStage: {
             /**
              * Details
-             * @description Stage details
+             * @description Type-specific stage details
              */
-            details?: {
-                [key: string]: unknown;
-            } | null;
+            details?: components["schemas"]["CacheCheckStageDetails"] | components["schemas"]["Burst1StageDetails"] | components["schemas"]["ParseStageDetails"] | components["schemas"]["EmbeddingStageDetails"] | components["schemas"]["LocationResolutionStageDetails"] | components["schemas"]["Burst2StageDetails"] | components["schemas"]["HydrateStageDetails"] | components["schemas"]["BuildResponseStageDetails"] | components["schemas"]["SkippedStageDetails"] | null;
             /**
              * Duration Ms
              * @description Stage duration in ms
@@ -12565,15 +13315,46 @@ export type components = {
             /** Top Up Transfer Cents */
             top_up_transfer_cents: number;
         };
+        /**
+         * PrivacyStatistics
+         * @description Privacy and retention statistics returned by get_privacy_statistics.
+         */
+        PrivacyStatistics: {
+            /**
+             * Active Users
+             * @description Number of active users
+             */
+            active_users: number;
+            /**
+             * Search Event Records
+             * @description Number of search event records
+             */
+            search_event_records: number;
+            /**
+             * Search Events Eligible For Deletion
+             * @description Search events eligible for deletion based on retention policy
+             */
+            search_events_eligible_for_deletion?: number | null;
+            /**
+             * Search History Records
+             * @description Number of search history records
+             */
+            search_history_records: number;
+            /**
+             * Total Bookings
+             * @description Total number of bookings
+             */
+            total_bookings: number;
+            /**
+             * Total Users
+             * @description Total number of users
+             */
+            total_users: number;
+        };
         /** PrivacyStatisticsResponse */
         PrivacyStatisticsResponse: {
-            /**
-             * Statistics
-             * @description Privacy and retention statistics
-             */
-            statistics: {
-                [key: string]: unknown;
-            };
+            /** @description Privacy and retention statistics */
+            statistics: components["schemas"]["PrivacyStatistics"];
             /**
              * Status
              * @description Status of the request
@@ -12617,6 +13398,41 @@ export type components = {
             ok: boolean;
             /** Url */
             url?: string | null;
+        };
+        /**
+         * PublicAvailabilitySummaryEntry
+         * @description Summary of availability for a single date.
+         */
+        PublicAvailabilitySummaryEntry: {
+            /**
+             * Afternoon Available
+             * @description Afternoon availability
+             * @default false
+             */
+            afternoon_available: boolean;
+            /**
+             * Date
+             * @description Date in YYYY-MM-DD format
+             */
+            date: string;
+            /**
+             * Evening Available
+             * @description Evening availability
+             * @default false
+             */
+            evening_available: boolean;
+            /**
+             * Morning Available
+             * @description Morning availability
+             * @default false
+             */
+            morning_available: boolean;
+            /**
+             * Total Hours
+             * @description Total available hours
+             * @default 0
+             */
+            total_hours: number;
         };
         /** PublicConfigResponse */
         PublicConfigResponse: {
@@ -12672,9 +13488,7 @@ export type components = {
              * @description Summary of availability by date - only in summary detail
              */
             availability_summary?: {
-                [key: string]: {
-                    [key: string]: unknown;
-                };
+                [key: string]: components["schemas"]["PublicAvailabilitySummaryEntry"];
             } | null;
             /**
              * Detail Level
@@ -12865,9 +13679,7 @@ export type components = {
              * Top Limited Clients
              * @description Top rate-limited clients
              */
-            top_limited_clients: {
-                [key: string]: unknown;
-            }[];
+            top_limited_clients: components["schemas"]["RateLimitedClient"][];
             /**
              * Total Keys
              * @description Total rate limit keys in Redis
@@ -12894,6 +13706,27 @@ export type components = {
              * @description Request timestamp
              */
             timestamp: string;
+        };
+        /**
+         * RateLimitedClient
+         * @description Rate-limited client information.
+         */
+        RateLimitedClient: {
+            /**
+             * Count
+             * @description Request count
+             */
+            count: number;
+            /**
+             * Endpoint
+             * @description Most rate-limited endpoint
+             */
+            endpoint: string;
+            /**
+             * Key
+             * @description Client identifier key
+             */
+            key: string;
         };
         /**
          * RatingSummary
@@ -12991,19 +13824,122 @@ export type components = {
              */
             total: number;
         };
-        /** RedisCeleryQueuesResponse */
-        RedisCeleryQueuesResponse: {
-            /** Queues */
-            queues: {
-                [key: string]: unknown;
-            };
+        /**
+         * RedisActiveConnections
+         * @description Active Redis connection counts.
+         */
+        RedisActiveConnections: {
+            /**
+             * Local Redis
+             * @default 0
+             */
+            local_redis: number;
+            /**
+             * Upstash
+             * @default 0
+             */
+            upstash: number;
         };
-        /** RedisConnectionAuditResponse */
+        /**
+         * RedisCeleryQueuesResponse
+         * @description Response for Redis Celery queues.
+         */
+        RedisCeleryQueuesResponse: {
+            queues: components["schemas"]["CeleryQueuesData"];
+        };
+        /**
+         * RedisClientStats
+         * @description Redis client statistics.
+         */
+        RedisClientStats: {
+            /**
+             * Blocked Clients
+             * @default 0
+             */
+            blocked_clients: number;
+            /**
+             * Connected Clients
+             * @default 0
+             */
+            connected_clients: number;
+        };
+        /**
+         * RedisConnectionAuditData
+         * @description Redis connection audit data.
+         */
+        RedisConnectionAuditData: {
+            active_connections?: components["schemas"]["RedisActiveConnections"];
+            /** Api Cache */
+            api_cache: string;
+            /** Celery Broker */
+            celery_broker: string;
+            /** Environment Variables */
+            environment_variables?: {
+                [key: string]: string;
+            };
+            /**
+             * Migration Status
+             * @default unknown
+             */
+            migration_status: string;
+            /**
+             * Recommendation
+             * @default
+             */
+            recommendation: string;
+            /** Service Connections */
+            service_connections?: {
+                [key: string]: components["schemas"]["RedisServiceConnection"];
+            };
+            /**
+             * Upstash Detected
+             * @default false
+             */
+            upstash_detected: boolean;
+        };
+        /**
+         * RedisConnectionAuditResponse
+         * @description Response for Redis connection audit.
+         */
         RedisConnectionAuditResponse: {
             /** Connections */
-            connections: {
-                [key: string]: unknown;
-            }[];
+            connections: components["schemas"]["RedisConnectionAuditData"][];
+        };
+        /**
+         * RedisConnectionStats
+         * @description Redis connection statistics.
+         */
+        RedisConnectionStats: {
+            /**
+             * Evicted Keys
+             * @default 0
+             */
+            evicted_keys: number;
+            /**
+             * Expired Keys
+             * @default 0
+             */
+            expired_keys: number;
+            /**
+             * Instantaneous Ops Per Sec
+             * @default 0
+             */
+            instantaneous_ops_per_sec: number;
+            /**
+             * Rejected Connections
+             * @default 0
+             */
+            rejected_connections: number;
+            /**
+             * Total Commands Processed
+             * @default 0
+             */
+            total_commands_processed: number;
+            /**
+             * Total Connections Received
+             * @default 0
+             */
+            total_connections_received: number;
         };
         /** RedisFlushQueuesResponse */
         RedisFlushQueuesResponse: {
@@ -13033,12 +13969,112 @@ export type components = {
              */
             status: string;
         };
-        /** RedisStatsResponse */
-        RedisStatsResponse: {
-            /** Stats */
-            stats: {
-                [key: string]: unknown;
+        /**
+         * RedisMemoryInfo
+         * @description Redis memory metrics.
+         */
+        RedisMemoryInfo: {
+            /**
+             * Maxmemory Human
+             * @default N/A
+             */
+            maxmemory_human: string;
+            /**
+             * Mem Fragmentation Ratio
+             * @default 0
+             */
+            mem_fragmentation_ratio: number;
+            /**
+             * Used Memory Human
+             * @default N/A
+             */
+            used_memory_human: string;
+            /**
+             * Used Memory Peak Human
+             * @default N/A
+             */
+            used_memory_peak_human: string;
+            /**
+             * Used Memory Rss Human
+             * @default N/A
+             */
+            used_memory_rss_human: string;
+        };
+        /**
+         * RedisOperationMetrics
+         * @description Redis operation rate metrics.
+         */
+        RedisOperationMetrics: {
+            /**
+             * Current Ops Per Sec
+             * @default 0
+             */
+            current_ops_per_sec: number;
+            /**
+             * Estimated Daily Ops
+             * @default 0
+             */
+            estimated_daily_ops: number;
+            /**
+             * Estimated Monthly Ops
+             * @default 0
+             */
+            estimated_monthly_ops: number;
+        };
+        /**
+         * RedisServerInfo
+         * @description Redis server information.
+         */
+        RedisServerInfo: {
+            /**
+             * Redis Version
+             * @default unknown
+             */
+            redis_version: string;
+            /**
+             * Uptime In Days
+             * @default 0
+             */
+            uptime_in_days: number;
+        };
+        /**
+         * RedisServiceConnection
+         * @description Redis connection info for a service.
+         */
+        RedisServiceConnection: {
+            /** Host */
+            host: string;
+            /** Type */
+            type: string;
+            /** Url */
+            url: string;
+        };
+        /**
+         * RedisStatsData
+         * @description Complete Redis statistics data.
+         */
+        RedisStatsData: {
+            /** Celery */
+            celery?: {
+                [key: string]: number;
             };
+            clients?: components["schemas"]["RedisClientStats"];
+            memory?: components["schemas"]["RedisMemoryInfo"];
+            operations?: components["schemas"]["RedisOperationMetrics"];
+            server?: components["schemas"]["RedisServerInfo"];
+            stats?: components["schemas"]["RedisConnectionStats"];
+            /**
+             * Status
+             * @default unknown
+             */
+            status: string;
+        };
+        /**
+         * RedisStatsResponse
+         * @description Response for Redis statistics.
+         */
+        RedisStatsResponse: {
+            stats: components["schemas"]["RedisStatsData"];
         };
         /**
          * RedisTestResponse
@@ -13316,18 +14352,31 @@ export type components = {
              * @description Human-readable message
              */
             message: string;
-            /**
-             * Stats
-             * @description Statistics of retention policy application
-             */
-            stats: {
-                [key: string]: unknown;
-            };
+            /** @description Statistics of retention policy application */
+            stats: components["schemas"]["RetentionStats"];
             /**
              * Status
              * @description Status of the retention policy application
              */
             status: string;
+        };
+        /**
+         * RetentionStats
+         * @description Statistics from applying retention policies.
+         */
+        RetentionStats: {
+            /**
+             * Old Bookings Anonymized
+             * @description Number of old bookings anonymized
+             * @default 0
+             */
+            old_bookings_anonymized: number;
+            /**
+             * Search Events Deleted
+             * @description Number of search events deleted
+             * @default 0
+             */
+            search_events_deleted: number;
         };
         /**
          * RetryPaymentResponse
@@ -13479,17 +14528,33 @@ export type components = {
             set_as_default: boolean;
         };
         /**
+         * ScheduleItem
+         * @description Individual schedule item for availability creation.
+         */
+        ScheduleItem: {
+            /**
+             * Date
+             * @description ISO date string (YYYY-MM-DD)
+             */
+            date: string;
+            /**
+             * End Time
+             * @description End time (HH:MM or HH:MM:SS)
+             */
+            end_time: string;
+            /**
+             * Start Time
+             * @description Start time (HH:MM or HH:MM:SS)
+             */
+            start_time: string;
+        };
+        /**
          * SearchAnalyticsSummaryResponse
          * @description Comprehensive search analytics summary.
          */
         SearchAnalyticsSummaryResponse: {
-            /**
-             * Conversions
-             * @description Conversion metrics
-             */
-            conversions: {
-                [key: string]: unknown;
-            };
+            /** @description Conversion metrics */
+            conversions: components["schemas"]["ConversionMetrics"];
             /** @description Date range for analytics */
             date_range: components["schemas"]["DateRange"];
             /** @description Search performance metrics */
@@ -13625,6 +14690,22 @@ export type components = {
             parsing_timeout_ms?: number | null;
         };
         /**
+         * SearchContext
+         * @description Context about where the search originated.
+         */
+        SearchContext: {
+            /** Page Origin */
+            page_origin?: string | null;
+            /** Referrer */
+            referrer?: string | null;
+            /** Session Search Count */
+            session_search_count?: number | null;
+            /** Viewport Height */
+            viewport_height?: number | null;
+            /** Viewport Width */
+            viewport_width?: number | null;
+        };
+        /**
          * SearchDiagnostics
          * @description Full diagnostics for admin tooling.
          */
@@ -13726,6 +14807,24 @@ export type components = {
             zero_result_rate: number;
         };
         /**
+         * SearchFiltersApplied
+         * @description Filters applied to instructor search.
+         */
+        SearchFiltersApplied: {
+            /** Age Group */
+            age_group?: string | null;
+            /** Max Price */
+            max_price?: number | null;
+            /** Min Price */
+            min_price?: number | null;
+            /** Search */
+            search?: string | null;
+            /** Service Area Boroughs */
+            service_area_boroughs?: string[] | null;
+            /** Service Catalog Id */
+            service_catalog_id?: string | null;
+        };
+        /**
          * SearchHealthCache
          * @description Cache health status.
          */
@@ -13789,13 +14888,8 @@ export type components = {
          * @description Schema for creating search history.
          */
         SearchHistoryCreate: {
-            /**
-             * Device Context
-             * @description Device context from frontend including screen size, connection type, etc.
-             */
-            device_context?: {
-                [key: string]: unknown;
-            } | null;
+            /** @description Device context from frontend including screen size, connection type, etc. */
+            device_context?: components["schemas"]["DeviceContext"] | null;
             /**
              * Guest Session Id
              * @description UUID for guest session tracking
@@ -13805,21 +14899,14 @@ export type components = {
              * Observability Candidates
              * @description Optional top-N candidate objects for observability. Each item may include: position, service_catalog_id (or id), score, vector_score, lexical_score, source.
              */
-            observability_candidates?: {
-                [key: string]: unknown;
-            }[] | null;
+            observability_candidates?: components["schemas"]["ObservabilityCandidate"][] | null;
             /**
              * Results Count
              * @description Number of results returned
              */
             results_count?: number | null;
-            /**
-             * Search Context
-             * @description Additional context like page origin, viewport size, etc.
-             */
-            search_context?: {
-                [key: string]: unknown;
-            } | null;
+            /** @description Additional context like page origin, viewport size, etc. */
+            search_context?: components["schemas"]["SearchContext"] | null;
             /**
              * Search Query
              * @description The search query string
@@ -13949,6 +15036,27 @@ export type components = {
              * @description Rate of zero-result searches
              */
             zero_result_rate: number;
+        };
+        /**
+         * SearchPagination
+         * @description Pagination metadata for search results.
+         */
+        SearchPagination: {
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /**
+             * Limit
+             * @default 100
+             */
+            limit: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
         };
         /**
          * SearchPerformanceResponse
@@ -14259,6 +15367,32 @@ export type components = {
             total_operations: number;
         };
         /**
+         * ServiceRatingStats
+         * @description Per-service rating statistics.
+         */
+        ServiceRatingStats: {
+            /**
+             * Display Rating
+             * @description Display-formatted rating or None if below threshold
+             */
+            display_rating?: string | null;
+            /**
+             * Instructor Service Id
+             * @description ID of the instructor's service offering
+             */
+            instructor_service_id: string;
+            /**
+             * Rating
+             * @description Computed rating or None if below min_reviews threshold
+             */
+            rating?: number | null;
+            /**
+             * Review Count
+             * @description Number of reviews for this service
+             */
+            review_count: number;
+        };
+        /**
          * ServiceResponse
          * @description Schema for service responses.
          *
@@ -14350,14 +15484,8 @@ export type components = {
              * @default 0
              */
             active_instructors: number;
-            /** Filters Applied */
-            filters_applied?: {
-                [key: string]: unknown;
-            };
-            /** Pagination */
-            pagination?: {
-                [key: string]: unknown;
-            };
+            filters_applied?: components["schemas"]["SearchFiltersApplied"];
+            pagination?: components["schemas"]["SearchPagination"];
             /**
              * Total Matches
              * @default 0
@@ -14370,9 +15498,7 @@ export type components = {
          */
         ServiceSearchResponse: {
             /** Instructors */
-            instructors?: {
-                [key: string]: unknown;
-            }[];
+            instructors?: components["schemas"]["InstructorSearchResult"][];
             metadata: components["schemas"]["ServiceSearchMetadata"];
             /** Query */
             query: string;
@@ -14400,6 +15526,17 @@ export type components = {
             public_url?: string | null;
             /** Upload Url */
             upload_url: string;
+        };
+        /**
+         * SkippedStageDetails
+         * @description Details for skipped pipeline stages.
+         */
+        SkippedStageDetails: {
+            /**
+             * Reason
+             * @description Reason the stage was skipped
+             */
+            reason: string;
         };
         /**
          * SlotOperation
@@ -14557,10 +15694,7 @@ export type components = {
             earned: boolean;
             /** Name */
             name: string;
-            /** Progress */
-            progress?: components["schemas"]["BadgeProgressView"] | {
-                [key: string]: unknown;
-            } | null;
+            progress?: components["schemas"]["BadgeProgressView"] | null;
             /** Slug */
             slug: string;
             /** Status */
@@ -14761,6 +15895,32 @@ export type components = {
             /**
              * Start Time
              * Format: time
+             */
+            start_time: string;
+        };
+        /**
+         * TimeSlotInfo
+         * @description Time slot information for availability checks.
+         */
+        TimeSlotInfo: {
+            /**
+             * Date
+             * @description ISO date string (YYYY-MM-DD)
+             */
+            date: string;
+            /**
+             * End Time
+             * @description ISO time string (HH:MM:SS)
+             */
+            end_time: string;
+            /**
+             * Instructor Id
+             * @description Instructor ID
+             */
+            instructor_id: string;
+            /**
+             * Start Time
+             * @description ISO time string (HH:MM:SS)
              */
             start_time: string;
         };
@@ -15100,10 +16260,7 @@ export type components = {
             is_active: boolean | null;
             /** Last Name */
             last_name: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
+            metadata?: components["schemas"]["UserRegistrationMetadata"] | null;
             /** Password */
             password: string;
             /** Phone */
@@ -15170,6 +16327,24 @@ export type components = {
             password: string;
         };
         /**
+         * UserRegistrationMetadata
+         * @description Metadata provided during user registration.
+         */
+        UserRegistrationMetadata: {
+            /** Campaign */
+            campaign?: string | null;
+            /** Invite Code */
+            invite_code?: string | null;
+            /** Marketing Tag */
+            marketing_tag?: string | null;
+            /** Referral Code */
+            referral_code?: string | null;
+            /** Referral Source */
+            referral_source?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
          * UserSummary
          * @description Minimal user info for conversation list.
          */
@@ -15231,10 +16406,11 @@ export type components = {
         ValidationSlotDetail: {
             /** Action */
             action: string;
-            /** Conflicts With */
-            conflicts_with?: {
-                [key: string]: unknown;
-            }[] | null;
+            /**
+             * Conflicts With
+             * @description Bookings that conflict with this operation
+             */
+            conflicts_with?: components["schemas"]["AvailabilityConflictInfo"][] | null;
             /** Date */
             date?: string | null;
             /** End Time */
@@ -15380,10 +16556,11 @@ export type components = {
              * @default false
              */
             override: boolean;
-            /** Schedule */
-            schedule: {
-                [key: string]: unknown;
-            }[];
+            /**
+             * Schedule
+             * @description List of schedule items with date, start_time, and end_time
+             */
+            schedule: components["schemas"]["ScheduleItem"][];
             /**
              * Version
              * @description Deprecated alias for base_version (optimistic concurrency token)

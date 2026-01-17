@@ -8,23 +8,8 @@ const stripePromise = loadStripe(
 
 export const getStripe = (): Promise<Stripe | null> => stripePromise;
 
-export interface CreatePaymentIntentRequest {
-  amount: number;
-  currency: string;
-  captureMethod: 'manual' | 'automatic';
-  metadata: {
-    bookingId: string;
-    instructorId: string;
-    studentId: string;
-    lessonDate: string;
-    bookingType: string;
-  };
-}
-
-export interface ConfirmPaymentRequest {
-  paymentIntentId: string;
-  paymentMethodId: string;
-}
+// Payment intent request types removed - use generated types from @/features/shared/api/types
+// or @/src/api/generated/instructly.schemas if needed
 
 // Stripe Elements configuration
 export const stripeElementsOptions = {
