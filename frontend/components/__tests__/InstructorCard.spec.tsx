@@ -186,3 +186,279 @@ describe('InstructorCard next available booking', () => {
     expect(button).toHaveTextContent(/Wed, May 8/);
   });
 });
+
+describe('InstructorCard rendering', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-05-08T12:00:00Z'));
+    pushMock.mockClear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('renders instructor name correctly', () => {
+    renderWithQueryClient(
+      <InstructorCard instructor={buildInstructor()} />
+    );
+
+    expect(screen.getByTestId('instructor-name')).toHaveTextContent('Sarah C.');
+  });
+
+  it('renders hourly rate', () => {
+    renderWithQueryClient(
+      <InstructorCard instructor={buildInstructor()} />
+    );
+
+    expect(screen.getByTestId('instructor-price')).toHaveTextContent('$60/hr');
+  });
+
+  it('renders view profile link', () => {
+    const onViewProfile = jest.fn();
+
+    renderWithQueryClient(
+      <InstructorCard
+        instructor={buildInstructor()}
+        onViewProfile={onViewProfile}
+      />
+    );
+
+    const viewProfileLink = screen.getByTestId('instructor-link');
+    expect(viewProfileLink).toBeInTheDocument();
+    expect(viewProfileLink).toHaveTextContent('View Profile');
+    expect(viewProfileLink).toHaveTextContent('and Reviews');
+
+    fireEvent.click(viewProfileLink);
+    expect(onViewProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders favorite button', () => {
+    renderWithQueryClient(
+      <InstructorCard instructor={buildInstructor()} />
+    );
+
+    const favoriteButton = screen.getByRole('button', { name: /sign in to save/i });
+    expect(favoriteButton).toBeInTheDocument();
+  });
+
+  it('renders "More options" button and calls onBookNow', () => {
+    const onBookNow = jest.fn();
+
+    renderWithQueryClient(
+      <InstructorCard
+        instructor={buildInstructor()}
+        onBookNow={onBookNow}
+      />
+    );
+
+    const moreOptionsButton = screen.getByRole('button', { name: /more options/i });
+    expect(moreOptionsButton).toBeInTheDocument();
+
+    fireEvent.click(moreOptionsButton);
+    expect(onBookNow).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders instructor card container', () => {
+    renderWithQueryClient(
+      <InstructorCard instructor={buildInstructor()} />
+    );
+
+    expect(screen.getByTestId('instructor-card')).toBeInTheDocument();
+  });
+
+  it('disables next available button when no availability data', () => {
+    renderWithQueryClient(
+      <InstructorCard instructor={buildInstructor()} />
+    );
+
+    const button = screen.getByRole('button', { name: /no availability info/i });
+    expect(button).toBeDisabled();
+  });
+});
+
+describe('InstructorCard duration selection', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-05-08T12:00:00Z'));
+    pushMock.mockClear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('renders duration options when multiple are available', () => {
+    renderWithQueryClient(
+      <InstructorCard instructor={buildInstructor()} />
+    );
+
+    expect(screen.getByLabelText(/30 min/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/45 min/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/60 min/)).toBeInTheDocument();
+  });
+
+  it('calculates prices for each duration option', () => {
+    renderWithQueryClient(
+      <InstructorCard instructor={buildInstructor()} />
+    );
+
+    // $60/hr = $30 for 30 min, $45 for 45 min, $60 for 60 min
+    // The labels contain text like "30 min ($30)"
+    expect(screen.getByText(/30 min \(\$30\)/)).toBeInTheDocument();
+    expect(screen.getByText(/45 min \(\$45\)/)).toBeInTheDocument();
+    expect(screen.getByText(/60 min \(\$60\)/)).toBeInTheDocument();
+  });
+
+  it('selects first duration by default', () => {
+    renderWithQueryClient(
+      <InstructorCard instructor={buildInstructor()} />
+    );
+
+    const radio30 = screen.getByLabelText(/30 min/) as HTMLInputElement;
+    expect(radio30.checked).toBe(true);
+  });
+
+  it('does not render duration options when only one is available', () => {
+    const instructor = buildInstructor();
+    const baseService = instructor.services[0];
+    if (baseService) {
+      instructor.services = [{
+        ...baseService,
+        duration_options: [60],
+      }];
+    }
+
+    renderWithQueryClient(
+      <InstructorCard instructor={instructor} />
+    );
+
+    expect(screen.queryByText('Duration:')).not.toBeInTheDocument();
+  });
+});
+
+describe('InstructorCard compact mode', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-05-08T12:00:00Z'));
+    pushMock.mockClear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('applies compact styling when compact prop is true', () => {
+    renderWithQueryClient(
+      <InstructorCard instructor={buildInstructor()} compact={true} />
+    );
+
+    const card = screen.getByTestId('instructor-card');
+    expect(card).toHaveClass('px-4', 'py-4');
+  });
+
+  it('applies regular styling when compact prop is false', () => {
+    renderWithQueryClient(
+      <InstructorCard instructor={buildInstructor()} compact={false} />
+    );
+
+    const card = screen.getByTestId('instructor-card');
+    expect(card).toHaveClass('p-6');
+  });
+});
+
+describe('InstructorCard badges', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-05-08T12:00:00Z'));
+    pushMock.mockClear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('shows founding badge when instructor is founding', () => {
+    const instructor = {
+      ...buildInstructor(),
+      is_founding_instructor: true,
+    };
+
+    renderWithQueryClient(
+      <InstructorCard instructor={instructor} />
+    );
+
+    expect(screen.getByText(/founding instructor/i)).toBeInTheDocument();
+  });
+
+  it('does not show founding badge when instructor is not founding', () => {
+    const instructor = {
+      ...buildInstructor(),
+      is_founding_instructor: false,
+    };
+
+    renderWithQueryClient(
+      <InstructorCard instructor={instructor} />
+    );
+
+    expect(screen.queryByText(/founding instructor/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('InstructorCard distance display', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-05-08T12:00:00Z'));
+    pushMock.mockClear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('shows distance when available', () => {
+    const instructor = {
+      ...buildInstructor(),
+      distance_mi: 2.5,
+    };
+
+    renderWithQueryClient(
+      <InstructorCard instructor={instructor} />
+    );
+
+    expect(screen.getByText(/2\.5 mi/)).toBeInTheDocument();
+  });
+
+  it('does not show distance when not available', () => {
+    const instructor = {
+      ...buildInstructor(),
+      distance_mi: undefined,
+    };
+
+    renderWithQueryClient(
+      <InstructorCard instructor={instructor} />
+    );
+
+    // Should not show distance display like "X.X mi"
+    expect(screen.queryByText(/\d+\.\d+ mi$/)).not.toBeInTheDocument();
+  });
+});
+
+describe('InstructorCard years experience', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-05-08T12:00:00Z'));
+    pushMock.mockClear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('shows years of experience when available', () => {
+    const instructor = {
+      ...buildInstructor(),
+      years_experience: 10,
+    };
+
+    renderWithQueryClient(
+      <InstructorCard instructor={instructor} />
+    );
+
+    expect(screen.getByText(/10 years experience/)).toBeInTheDocument();
+  });
+});
