@@ -10,11 +10,16 @@ import type { UseQueryOptions } from '@tanstack/react-query';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/api/queryKeys';
 import { withApiBase } from '@/lib/apiBase';
-import type { ConversationMessagesResponse } from '@/types/conversation';
+import type { components } from '@/features/shared/api/types';
 
-// Renamed to avoid *Request pattern (not from generated API)
-type EditMessagePayload = { content: string };
-type ReactionPayload = { emoji: string };
+type MessageConfig = components['schemas']['MessageConfigResponse'];
+type UnreadCount = components['schemas']['UnreadCountResponse'];
+type ConversationMessages = components['schemas']['MessagesResponse'];
+type MarkReadPayload = components['schemas']['MarkMessagesReadRequest'];
+type MarkReadResult = components['schemas']['MarkMessagesReadResponse'];
+type DeleteMessageResult = components['schemas']['DeleteMessageResponse'];
+type EditMessagePayload = components['schemas']['EditMessageRequest'];
+type ReactionPayload = components['schemas']['ReactionRequest'];
 
 /**
  * Get message configuration (edit window, etc.).
@@ -42,7 +47,7 @@ export function useMessageConfig() {
       if (!res.ok) {
         throw new Error('Failed to load message config');
       }
-      return res.json() as Promise<{ edit_window_minutes: number }>;
+      return res.json() as Promise<MessageConfig>;
     },
     staleTime: 1000 * 60 * 60,
   });
@@ -75,7 +80,7 @@ export function useUnreadCount(enabled: boolean = true) {
       if (!res.ok) {
         throw new Error('Failed to load unread count');
       }
-      return res.json() as Promise<{ unread_count: number; user_id: string }>;
+      return res.json() as Promise<UnreadCount>;
     },
     staleTime: 1000 * 30,
     enabled,
@@ -116,19 +121,19 @@ export function useConversationMessages(
   before?: string,
   enabled: boolean = true,
   options?: Omit<
-    UseQueryOptions<ConversationMessagesResponse, Error, ConversationMessagesResponse>,
+    UseQueryOptions<ConversationMessages, Error, ConversationMessages>,
     'queryKey' | 'queryFn' | 'onSuccess' | 'onError'
   > & {
-    onSuccess?: (data: ConversationMessagesResponse) => void;
+    onSuccess?: (data: ConversationMessages) => void;
     onError?: (error: Error) => void;
   }
 ) {
   const pagination = before ? { limit, before } : { limit };
   const { onSuccess, onError, ...queryOptions } = options ?? {};
 
-  const query = useQuery<ConversationMessagesResponse, Error>({
+  const query = useQuery<ConversationMessages, Error>({
     queryKey: queryKeys.messages.conversationMessages(conversationId ?? '', pagination),
-    queryFn: async (): Promise<ConversationMessagesResponse> => {
+    queryFn: async (): Promise<ConversationMessages> => {
       const params = new URLSearchParams({ limit: String(limit) });
       if (before) params.append('before', before);
       const response = await fetch(
@@ -142,7 +147,7 @@ export function useConversationMessages(
       if (!response.ok) {
         throw new Error('Failed to fetch conversation messages');
       }
-      return (await response.json()) as ConversationMessagesResponse;
+      return (await response.json()) as ConversationMessages;
     },
     staleTime: 1000 * 60, // 1 minute
     enabled: enabled && !!conversationId,
@@ -185,7 +190,7 @@ export function useConversationMessages(
 export function useMarkMessagesAsRead() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (body: { conversation_id?: string; message_ids?: string[] }) => {
+    mutationFn: async (body: MarkReadPayload): Promise<MarkReadResult> => {
       const response = await fetch(withApiBase('/api/v1/messages/mark-read'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -200,7 +205,7 @@ export function useMarkMessagesAsRead() {
         );
       }
 
-      return response.json();
+      return response.json() as Promise<MarkReadResult>;
     },
     onSuccess: () => {
       // Invalidate unread count so dashboard badge updates
@@ -231,7 +236,7 @@ export function useMarkMessagesAsRead() {
  */
 export function useDeleteMessage() {
   return useMutation({
-    mutationFn: async ({ messageId }: { messageId: string }) => {
+    mutationFn: async ({ messageId }: { messageId: string }): Promise<DeleteMessageResult> => {
       const res = await fetch(withApiBase(`/api/v1/messages/${messageId}`), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -241,7 +246,7 @@ export function useDeleteMessage() {
         const message = await res.text();
         throw new Error(message || 'Failed to delete message');
       }
-      return res.json();
+      return res.json() as Promise<DeleteMessageResult>;
     },
   });
 }
@@ -270,7 +275,13 @@ export function useDeleteMessage() {
  */
 export function useEditMessage() {
   return useMutation({
-    mutationFn: async ({ messageId, data }: { messageId: string; data: EditMessagePayload }) => {
+    mutationFn: async ({
+      messageId,
+      data,
+    }: {
+      messageId: string;
+      data: EditMessagePayload;
+    }): Promise<void> => {
       const res = await fetch(withApiBase(`/api/v1/messages/${messageId}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -281,7 +292,6 @@ export function useEditMessage() {
         const message = await res.text();
         throw new Error(message || 'Failed to edit message');
       }
-      return res;
     },
   });
 }
@@ -309,7 +319,13 @@ export function useEditMessage() {
  */
 export function useAddReaction() {
   return useMutation({
-    mutationFn: async ({ messageId, data }: { messageId: string; data: ReactionPayload }) => {
+    mutationFn: async ({
+      messageId,
+      data,
+    }: {
+      messageId: string;
+      data: ReactionPayload;
+    }): Promise<void> => {
       const res = await fetch(withApiBase(`/api/v1/messages/${messageId}/reactions`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -320,7 +336,6 @@ export function useAddReaction() {
         const message = await res.text();
         throw new Error(message || 'Failed to add reaction');
       }
-      return res;
     },
   });
 }
@@ -348,7 +363,13 @@ export function useAddReaction() {
  */
 export function useRemoveReaction() {
   return useMutation({
-    mutationFn: async ({ messageId, data }: { messageId: string; data: ReactionPayload }) => {
+    mutationFn: async ({
+      messageId,
+      data,
+    }: {
+      messageId: string;
+      data: ReactionPayload;
+    }): Promise<void> => {
       const res = await fetch(withApiBase(`/api/v1/messages/${messageId}/reactions`), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -359,7 +380,6 @@ export function useRemoveReaction() {
         const message = await res.text();
         throw new Error(message || 'Failed to remove reaction');
       }
-      return res;
     },
   });
 }
@@ -390,7 +410,7 @@ export async function fetchMessageConfig() {
     throw new Error(`Failed to fetch message config (status ${response.status})`);
   }
 
-  return response.json();
+  return response.json() as Promise<MessageConfig>;
 }
 
 /**
@@ -412,7 +432,7 @@ export async function fetchUnreadCount() {
     throw new Error(`Failed to fetch unread count (status ${response.status})`);
   }
 
-  return response.json();
+  return response.json() as Promise<UnreadCount>;
 }
 
 /**
@@ -423,10 +443,7 @@ export async function fetchUnreadCount() {
  * await markMessagesAsReadImperative({ conversation_id: '01ABC...' });
  * ```
  */
-export async function markMessagesAsReadImperative(body: {
-  conversation_id?: string;
-  message_ids?: string[];
-}) {
+export async function markMessagesAsReadImperative(body: MarkReadPayload) {
   const response = await fetch(withApiBase('/api/v1/messages/mark-read'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -439,7 +456,7 @@ export async function markMessagesAsReadImperative(body: {
     throw new Error(message || `Failed to mark messages as read (status ${response.status})`);
   }
 
-  return response.json();
+  return response.json() as Promise<MarkReadResult>;
 }
 
 /**
@@ -462,7 +479,7 @@ export async function deleteMessageImperative(messageId: string) {
     throw new Error(message || `Failed to delete message (status ${response.status})`);
   }
 
-  return response.json();
+  return response.json() as Promise<DeleteMessageResult>;
 }
 
 /**

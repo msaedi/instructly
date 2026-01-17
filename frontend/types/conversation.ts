@@ -92,17 +92,17 @@ export interface ConversationMessage {
   id: string;
   conversation_id: string;
   content: string;
-  sender_id: string | null; // null for system messages
+  sender_id?: string | null; // null for system messages
   is_from_me: boolean;
   message_type: string; // 'user' | 'system_booking_created' | 'system_booking_cancelled' | etc
   booking_id?: string | null;
   booking_details?: BookingSummary | null;
   created_at: string;
   edited_at?: string | null;
-  is_deleted: boolean;
+  is_deleted?: boolean;
   delivered_at?: string | null;
-  read_by: ReadReceiptEntry[];
-  reactions: ReactionInfo[];
+  read_by?: ReadReceiptEntry[];
+  reactions?: ReactionInfo[];
 }
 
 /**
@@ -110,7 +110,7 @@ export interface ConversationMessage {
  */
 export interface ConversationMessagesResponse {
   messages: ConversationMessage[];
-  has_more: boolean;
+  has_more?: boolean;
   next_cursor?: string | null;
 }
 

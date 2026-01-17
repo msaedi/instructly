@@ -11,6 +11,7 @@ export type * as Gen from '@/types/generated/api';
 // Import and re-export components for use in other files
 import type { components } from '@/types/generated/api';
 export type { components };
+export type { operations } from '@/types/generated/api';
 
 // Canonical aliases for commonly used models (import these, not from Gen.* directly)
 export type User = components['schemas']['AuthUserWithPermissionsResponse'];
