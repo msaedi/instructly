@@ -1,0 +1,312 @@
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import InstructorProfileForm from '../InstructorProfileForm';
+import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
+import { useSession } from '@/src/api/hooks/useSession';
+import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
+import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
+import { toast } from 'sonner';
+import { submitServiceAreasOnce } from '@/app/(auth)/instructor/profile/serviceAreaSubmit';
+import { useRouter } from 'next/navigation';
+
+jest.mock('@/hooks/queries/useInstructorProfileMe', () => ({
+  useInstructorProfileMe: jest.fn(),
+}));
+
+jest.mock('@/src/api/hooks/useSession', () => ({
+  useSession: jest.fn(),
+}));
+
+jest.mock('@/hooks/queries/useUserAddresses', () => ({
+  useUserAddresses: jest.fn(),
+  useInvalidateUserAddresses: jest.fn(),
+}));
+
+jest.mock('@/lib/api', () => {
+  const actual = jest.requireActual('@/lib/api');
+  return { ...actual, fetchWithAuth: jest.fn() };
+});
+
+jest.mock('@/lib/logger', () => ({
+  logger: { debug: jest.fn(), warn: jest.fn(), error: jest.fn() },
+}));
+
+jest.mock('@/lib/httpErrors', () => ({
+  formatProblemMessages: jest.fn(() => ['Bad request']),
+}));
+
+jest.mock('@/lib/profileSchemaDebug', () => ({
+  debugProfilePayload: jest.fn(),
+}));
+
+jest.mock('@/lib/profileServiceAreas', () => ({
+  getServiceAreaBoroughs: jest.fn(() => ['Manhattan']),
+}));
+
+jest.mock('@/app/(auth)/instructor/profile/serviceAreaSubmit', () => ({
+  submitServiceAreasOnce: jest.fn(),
+}));
+
+jest.mock('@/components/dashboard/SectionHeroCard', () => {
+  function SectionHeroCard({ title }: { title: string }) {
+    return <div data-testid="section-hero">{title}</div>;
+  }
+  return { SectionHeroCard };
+});
+
+jest.mock('@/components/UserProfileDropdown', () => {
+  function UserProfileDropdown() {
+    return <div data-testid="user-profile-dropdown" />;
+  }
+  return UserProfileDropdown;
+});
+
+jest.mock('@/components/user/ProfilePictureUpload', () => {
+  function ProfilePictureUpload({ ariaLabel }: { ariaLabel?: string }) {
+    return (
+      <button type="button" aria-label={ariaLabel || 'Upload profile photo'}>Upload</button>
+    );
+  }
+  return { ProfilePictureUpload };
+});
+
+jest.mock('@/features/instructor-profile/SkillsPricingInline', () => {
+  function SkillsPricingInline() {
+    return <div data-testid="skills-inline">Skills</div>;
+  }
+  return { __esModule: true, default: SkillsPricingInline };
+});
+
+jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/PersonalInfoCard', () => {
+  function PersonalInfoCard({ profile, onProfileChange, onToggle }: { profile: { first_name?: string; last_name?: string; postal_code?: string }; onProfileChange: (updates: Record<string, string>) => void; onToggle: () => void }) {
+    return (
+      <section>
+        <div data-testid="personal-info">{profile.first_name}-{profile.last_name}-{profile.postal_code}</div>
+        <button type="button" onClick={() => onProfileChange({ first_name: 'Updated' })}>Update Name</button>
+        <button type="button" onClick={onToggle}>Toggle</button>
+      </section>
+    );
+  }
+  return { PersonalInfoCard };
+});
+
+jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/BioCard', () => {
+  function BioCard({ profile, bioTooShort, onGenerateBio }: { profile: { bio?: string }; bioTooShort: boolean; onGenerateBio: () => void }) {
+    return (
+      <section>
+        <div data-testid="bio-content">{profile.bio}</div>
+        <div data-testid="bio-too-short">{bioTooShort ? 'short' : 'long'}</div>
+        <button type="button" onClick={onGenerateBio}>Generate Bio</button>
+      </section>
+    );
+  }
+  return { BioCard };
+});
+
+jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard', () => {
+  function ServiceAreasCard({ selectedNeighborhoods, formatNeighborhoodName, onToggleBoroughAccordion, onGlobalFilterChange }: { selectedNeighborhoods: Set<string>; formatNeighborhoodName: (value: string) => string; onToggleBoroughAccordion: (borough: string) => void; onGlobalFilterChange: (value: string) => void }) {
+    return (
+      <section>
+        <div data-testid="service-areas-count">{selectedNeighborhoods.size}</div>
+        <div data-testid="formatted-name">{formatNeighborhoodName('lower east')}</div>
+        <button type="button" onClick={() => onToggleBoroughAccordion('Manhattan')}>Toggle Borough</button>
+        <button type="button" onClick={() => onGlobalFilterChange('park')}>Filter</button>
+      </section>
+    );
+  }
+  return { ServiceAreasCard };
+});
+
+jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/PreferredLocationsCard', () => {
+  function PreferredLocationsCard({ setPreferredLocations, setNeutralPlaces }: { setPreferredLocations: (values: string[]) => void; setNeutralPlaces: (values: string[]) => void }) {
+    return (
+      <section>
+        <button type="button" onClick={() => setPreferredLocations(['Studio'])}>Set Preferred</button>
+        <button type="button" onClick={() => setNeutralPlaces(['Library'])}>Set Neutral</button>
+      </section>
+    );
+  }
+  return { PreferredLocationsCard };
+});
+
+jest.mock('sonner', () => ({
+  toast: {
+    error: jest.fn(),
+    success: jest.fn(),
+  },
+}));
+
+const mockUseInstructorProfileMe = useInstructorProfileMe as jest.Mock;
+const mockUseSession = useSession as jest.Mock;
+const mockUseUserAddresses = useUserAddresses as jest.Mock;
+const mockUseInvalidateUserAddresses = useInvalidateUserAddresses as jest.Mock;
+const mockFetchWithAuth = fetchWithAuth as jest.Mock;
+
+describe('InstructorProfileForm', () => {
+  const createWrapper = () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    Wrapper.displayName = 'InstructorProfileFormWrapper';
+    return { Wrapper, queryClient };
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUseSession.mockReturnValue({ data: null, isLoading: false });
+    mockUseUserAddresses.mockReturnValue({ data: null, isLoading: false });
+    mockUseInvalidateUserAddresses.mockReturnValue(jest.fn());
+    submitServiceAreasOnce.mockResolvedValue(undefined);
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ is_nyc: true }) });
+    Object.defineProperty(window, 'sessionStorage', {
+      value: { setItem: jest.fn(), getItem: jest.fn(), removeItem: jest.fn() },
+      writable: true,
+    });
+  });
+
+  it('shows a loading state when profile data has not arrived', () => {
+    const { Wrapper } = createWrapper();
+    mockUseInstructorProfileMe.mockReturnValue({ data: null, isLoading: false });
+
+    render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+  });
+
+  it('prefills data and saves successfully', async () => {
+    const { Wrapper, queryClient } = createWrapper();
+    const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
+    const onStepStatusChange = jest.fn();
+    mockUseSession.mockReturnValue({
+      data: { id: 'user-1', first_name: 'Taylor', last_name: 'Swift', zip_code: '10001' },
+      isLoading: false,
+    });
+    mockUseUserAddresses.mockReturnValue({
+      data: { items: [{ id: 'addr-1', postal_code: '00000', is_default: true }] },
+      isLoading: false,
+    });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: {
+        bio: 'A'.repeat(420),
+        years_experience: 5,
+        min_advance_booking_hours: 3,
+        buffer_time_minutes: 90,
+        service_area_neighborhoods: [{ neighborhood_id: 'n1', name: 'Lower East Side' }],
+        service_area_boroughs: ['Manhattan'],
+        preferred_teaching_locations: [{ address: 'Studio', label: 'Main' }],
+        preferred_public_spaces: [{ address: 'Library' }],
+        has_profile_picture: true,
+      },
+      isLoading: false,
+    });
+
+    mockFetchWithAuth.mockImplementation(async (url: string) => {
+      if (url === '/api/v1/addresses/service-areas/me') {
+        return { ok: true, status: 200, json: async () => ({ items: [{ neighborhood_id: 'n1' }] }) };
+      }
+      if (url === API_ENDPOINTS.ME) {
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      if (url === '/api/v1/addresses/me') {
+        return { ok: true, status: 200, json: async () => ({ items: [{ id: 'addr-1', postal_code: '00000', is_default: true }] }) };
+      }
+      if (url === '/api/v1/addresses/me/addr-1') {
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    render(<InstructorProfileForm onStepStatusChange={onStepStatusChange} />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('personal-info')).toHaveTextContent('Taylor-Swift-00000');
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(mockFetchWithAuth).toHaveBeenCalledWith(API_ENDPOINTS.INSTRUCTOR_PROFILE, expect.any(Object));
+    });
+    expect(submitServiceAreasOnce).toHaveBeenCalled();
+    expect(invalidateSpy).toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalledWith('Profile saved', expect.any(Object));
+    expect(onStepStatusChange).toHaveBeenCalledWith('done');
+  });
+
+  it('surfaces save errors when the profile update fails', async () => {
+    const { Wrapper } = createWrapper();
+    mockUseSession.mockReturnValue({
+      data: { id: 'user-1', first_name: 'Taylor', last_name: 'Swift', zip_code: '10001' },
+      isLoading: false,
+    });
+    mockUseUserAddresses.mockReturnValue({
+      data: { items: [{ id: 'addr-1', postal_code: '00000', is_default: true }] },
+      isLoading: false,
+    });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: { bio: 'A'.repeat(420), has_profile_picture: true },
+      isLoading: false,
+    });
+
+    mockFetchWithAuth.mockImplementation(async (url: string) => {
+      if (url === '/api/v1/addresses/service-areas/me') {
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      }
+      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+        return { ok: false, status: 400, json: async () => ({ message: 'Bad' }) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    expect(await screen.findByText(/bad request/i)).toBeInTheDocument();
+    expect(toast.error).toHaveBeenCalledWith('Bad request');
+  });
+
+  it('redirects onboarding instructors who are already live', async () => {
+    const replace = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ push: jest.fn(), replace, prefetch: jest.fn() });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: { is_live: true, onboarding_completed_at: '2025-01-01T00:00:00Z' },
+      isLoading: false,
+    });
+    mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
+    mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+
+    const { Wrapper } = createWrapper();
+    render(<InstructorProfileForm context="onboarding" />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith('/instructor/dashboard');
+    });
+    expect(toast.success).toHaveBeenCalled();
+  });
+
+  it('generates a long bio when requested', async () => {
+    const { Wrapper } = createWrapper();
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: { bio: 'Short bio', has_profile_picture: true },
+      isLoading: false,
+    });
+
+    render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /generate bio/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('bio-too-short')).toHaveTextContent('long');
+    });
+  });
+});
