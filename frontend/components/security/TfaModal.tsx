@@ -5,6 +5,11 @@ import { createPortal } from 'react-dom';
 import { fetchWithAuth } from '@/lib/api';
 import { toast } from 'sonner';
 import { useTfaStatus } from '@/hooks/queries/useTfaStatus';
+import type { ApiErrorResponse, components } from '@/features/shared/api/types';
+
+type TfaSetupInitiateResponse = components['schemas']['TFASetupInitiateResponse'];
+type TfaSetupVerifyResponse = components['schemas']['TFASetupVerifyResponse'];
+type BackupCodesResponse = components['schemas']['BackupCodesResponse'];
 
 type Props = {
   onClose: () => void;
@@ -63,7 +68,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
         setLoading(false);
         return;
       }
-      const data = await res.json();
+      const data = (await res.json()) as TfaSetupInitiateResponse;
       setQr(data.qr_code_data_url);
       setSecret(data.secret);
       setStep('show');
@@ -84,12 +89,12 @@ export default function TfaModal({ onClose, onChanged }: Props) {
         body: JSON.stringify({ code }),
       });
       if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
-        setError((b as { detail?: string }).detail || "That code didn't work. Please try again.");
+        const b = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+        setError(b.detail || "That code didn't work. Please try again.");
         setLoading(false);
         return;
       }
-      const data = await res.json();
+      const data = (await res.json()) as TfaSetupVerifyResponse;
       setBackupCodes(data.backup_codes || []);
       setStep('enabled');
       onChanged();
@@ -111,8 +116,8 @@ export default function TfaModal({ onClose, onChanged }: Props) {
         body: JSON.stringify({ current_password: currentPassword }),
       });
       if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
-        setError((b as { detail?: string }).detail || 'Failed to disable');
+        const b = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+        setError(b.detail || 'Failed to disable');
         setLoading(false);
         return;
       }
@@ -136,7 +141,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
         setLoading(false);
         return;
       }
-      const data = await res.json();
+      const data = (await res.json()) as BackupCodesResponse;
       setBackupCodes(data.backup_codes || []);
       toast.success('Backup codes regenerated');
     } catch {

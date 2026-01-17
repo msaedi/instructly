@@ -8,6 +8,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { API_ENDPOINTS } from '@/lib/api';
 import { ApiError, http, httpGet } from '@/lib/http';
+import type { AuthUserResponse, InstructorProfile } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { getGuestSessionId, transferGuestSearchesToAccount } from '@/lib/searchTracking';
@@ -179,7 +180,7 @@ function LoginForm({ redirect }: { redirect: string }) {
           return;
         }
 
-        const meUser = await httpGet<{ roles?: string[] }>(API_ENDPOINTS.ME);
+        const meUser = await httpGet<AuthUserResponse>(API_ENDPOINTS.ME);
         const roles = Array.isArray(meUser?.roles) ? meUser.roles : [];
         const isAdmin = roles.includes('admin');
         const isInstructor = roles.includes('instructor');
@@ -188,7 +189,7 @@ function LoginForm({ redirect }: { redirect: string }) {
           router.push('/admin/engineering/codebase');
         } else if (isInstructor) {
           try {
-            const prof = await httpGet<{ is_live?: boolean }>(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+            const prof = await httpGet<InstructorProfile>(API_ENDPOINTS.INSTRUCTOR_PROFILE);
             const next = prof?.is_live ? '/instructor/dashboard' : '/instructor/onboarding/status';
             router.push(next);
           } catch (profileError) {
@@ -292,7 +293,7 @@ function LoginForm({ redirect }: { redirect: string }) {
           router.push(storedRedirect);
           return;
         }
-        const meUser = await httpGet<{ roles?: string[] }>(API_ENDPOINTS.ME);
+        const meUser = await httpGet<AuthUserResponse>(API_ENDPOINTS.ME);
         const roles = Array.isArray(meUser?.roles) ? meUser.roles : [];
         const isAdmin = roles.includes('admin');
         const isInstructor = roles.includes('instructor');
@@ -300,7 +301,7 @@ function LoginForm({ redirect }: { redirect: string }) {
           router.push('/admin/engineering/codebase');
         } else if (isInstructor) {
           try {
-            const prof = await httpGet<{ is_live?: boolean }>(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+            const prof = await httpGet<InstructorProfile>(API_ENDPOINTS.INSTRUCTOR_PROFILE);
             const next = prof?.is_live ? '/instructor/dashboard' : '/instructor/onboarding/status';
             router.push(next);
           } catch (profileErr) {

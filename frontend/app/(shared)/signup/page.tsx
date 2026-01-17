@@ -24,12 +24,11 @@ import { useBetaConfig } from '@/lib/beta-config';
 // Background handled globally via GlobalBackground
 
 // Import centralized types
-import type { RegisterRequest, AuthResponse } from '@/types/user';
 import { RequestStatus } from '@/types/api';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
 import { RoleName } from '@/types/enums';
-import type { User as AuthUser } from '@/features/shared/hooks/useAuth';
+import type { AuthUserResponse, components } from '@/features/shared/api/types';
 
 /**
  * Form validation errors interface
@@ -347,7 +346,7 @@ function SignUpForm() {
       const guestSessionId = getGuestSessionId();
 
       // Prepare registration data with new fields
-      const registrationData: RegisterRequest & { guest_session_id?: string; metadata?: Record<string, unknown> } = {
+      const registrationData: components['schemas']['UserCreate'] = {
         first_name: formData.firstName.trim(),
         last_name: formData.lastName.trim(),
         email: formData.email.trim().toLowerCase(),
@@ -355,6 +354,8 @@ function SignUpForm() {
         zip_code: formData.zipCode.trim(),
         password: formData.password,
         role: searchParams.get('role') === 'instructor' ? RoleName.INSTRUCTOR : RoleName.STUDENT,
+        is_active: true,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
         ...(guestSessionId && { guest_session_id: guestSessionId }),
         metadata: {
           founding: searchParams.get('founding') === 'true' || undefined,
@@ -368,7 +369,7 @@ function SignUpForm() {
       });
       logger.time('registration');
       try {
-        await httpPost(API_ENDPOINTS.REGISTER, registrationData);
+        await httpPost<AuthUserResponse>(API_ENDPOINTS.REGISTER, registrationData);
       } catch (err) {
         if (err instanceof ApiError) {
           const status = err.status;
@@ -436,9 +437,9 @@ function SignUpForm() {
             password: formData.password,
           }).toString();
 
-      let authData: AuthResponse;
+      let authData: components['schemas']['LoginResponse'];
       try {
-        authData = await http<AuthResponse>('POST', loginPath, {
+        authData = await http<components['schemas']['LoginResponse']>('POST', loginPath, {
           headers: loginHeaders,
           body: loginPayload,
         });
@@ -454,14 +455,17 @@ function SignUpForm() {
         logger.timeEnd('auto-login');
       }
 
-      localStorage.setItem('access_token', authData.access_token);
+      const accessToken = authData.access_token ?? null;
+      if (accessToken) {
+        localStorage.setItem('access_token', accessToken);
+      }
 
       logger.info('Auto-login successful, fetching user data and updating auth context');
 
       // Session is cookie-based; fetch user data without storing tokens client-side
-      let userData: AuthUser | null = null;
+      let userData: AuthUserResponse | null = null;
       try {
-        userData = await httpGet<AuthUser>(API_ENDPOINTS.ME);
+        userData = await httpGet<AuthUserResponse>(API_ENDPOINTS.ME);
       } catch (fetchError) {
         logger.warn('Failed to fetch user data after login, using default redirect', fetchError instanceof Error ? fetchError : undefined);
         await checkAuth();
@@ -478,7 +482,7 @@ function SignUpForm() {
             await http('POST', '/api/v1/beta/invites/consume', {
               headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${authData.access_token}`,
+                ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
               },
               body: {
                 code: inviteCode,
@@ -491,14 +495,32 @@ function SignUpForm() {
         } catch (e) {
           logger.warn('Failed to consume beta invite after signup', e instanceof Error ? e : new Error(String(e)));
         }
+        const {
+          phone,
+          zip_code,
+          timezone,
+          profile_picture_version,
+          has_profile_picture,
+          permissions,
+          ...restUser
+        } = userData;
+        const normalizedUser = {
+          ...restUser,
+          permissions: permissions ?? [],
+          ...(phone != null ? { phone } : {}),
+          ...(zip_code != null ? { zip_code } : {}),
+          ...(timezone != null ? { timezone } : {}),
+          ...(profile_picture_version != null ? { profile_picture_version } : {}),
+          ...(has_profile_picture != null ? { has_profile_picture } : {}),
+        };
         logger.info('User data fetched, redirecting based on role', {
           userId: userData.id,
           roles: userData.roles,
-          redirectTo: hasRole(userData, RoleName.INSTRUCTOR) ? '/instructor/dashboard' : redirect,
+          redirectTo: hasRole(normalizedUser, RoleName.INSTRUCTOR) ? '/instructor/dashboard' : redirect,
         });
         // Ensure AuthProvider state is up-to-date before hitting gated routes
         await checkAuth();
-        const nextDestination = redirect || (hasRole(userData, RoleName.INSTRUCTOR) ? '/instructor/onboarding/welcome' : '/');
+        const nextDestination = redirect || (hasRole(normalizedUser, RoleName.INSTRUCTOR) ? '/instructor/onboarding/welcome' : '/');
         setPostSignupRedirect({ target: nextDestination, expectedUserId: userData.id });
       }
 

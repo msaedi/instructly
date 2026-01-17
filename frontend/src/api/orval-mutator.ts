@@ -116,7 +116,7 @@ export async function customFetch<
     try {
       const contentType = response.headers.get('content-type');
       if (contentType?.includes('application/json')) {
-        errorData = await response.json();
+        errorData = (await response.json()) as unknown;
       } else {
         errorData = await response.text();
       }
@@ -162,7 +162,7 @@ export async function customFetch<
   // Parse JSON response
   const contentType = response.headers.get('content-type');
   if (contentType?.includes('application/json')) {
-    const jsonResponse = await response.json();
+    const jsonResponse = (await response.json()) as TResponse;
     // [MSG-DEBUG] Log successful messaging response data preview
     if (isMessaging) {
       logger.debug('[MSG-DEBUG] API Response Data', {

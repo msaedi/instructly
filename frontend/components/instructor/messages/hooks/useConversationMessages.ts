@@ -8,7 +8,7 @@
 import { useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { withApiBase } from '@/lib/apiBase';
-import type { ConversationMessage, GetMessagesParams } from '@/types/conversation';
+import type { ConversationMessage, ConversationMessagesResponse, GetMessagesParams } from '@/types/conversation';
 import { conversationQueryKeys } from '@/src/api/services/conversations';
 
 export type UseConversationMessagesOptions = {
@@ -68,7 +68,11 @@ async function fetchMessages(
     throw new Error(`Failed to fetch messages: ${response.status}`);
   }
 
-  return response.json();
+  const payload = (await response.json()) as ConversationMessagesResponse;
+  return {
+    ...payload,
+    next_cursor: payload.next_cursor ?? null,
+  };
 }
 
 export function useConversationMessages({

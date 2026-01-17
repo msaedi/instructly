@@ -1,19 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { queryFn } from '@/lib/react-query/api';
-import type { InstructorService } from '@/types/instructor';
-
-interface ServicesResponse {
-  services: InstructorService[];
-  total: number;
-}
+import type { InstructorServicesResponse } from '@/features/shared/api/types';
 
 /**
  * Hook to fetch instructor services
  * Uses 1-hour cache as services rarely change
  */
 export function useInstructorServices(instructorId: string) {
-  return useQuery<ServicesResponse>({
+  return useQuery<InstructorServicesResponse>({
     queryKey: ['instructors', instructorId, 'services'],
     queryFn: queryFn(`/instructors/${instructorId}/services`, {
       requireAuth: false, // Public endpoint

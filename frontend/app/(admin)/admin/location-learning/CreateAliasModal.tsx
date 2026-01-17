@@ -5,16 +5,9 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { fetchWithAuth } from '@/lib/api';
+import type { LocationLearningRegionsResponse } from '@/features/shared/api/types';
 
-interface RegionOption {
-  id: string;
-  name: string;
-  borough?: string | null;
-}
-
-interface RegionsResponse {
-  regions: RegionOption[];
-}
+type RegionsResponse = LocationLearningRegionsResponse;
 
 async function fetchRegions(): Promise<RegionsResponse> {
   const res = await fetchWithAuth('/api/v1/admin/location-learning/regions?limit=5000');

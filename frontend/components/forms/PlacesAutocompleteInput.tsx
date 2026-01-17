@@ -12,14 +12,10 @@ import { forwardRef, useCallback, useEffect, useId, useMemo, useRef, useState } 
 
 import { cn } from '@/lib/utils';
 import { withApiBase } from '@/lib/apiBase';
+import type { components } from '@/features/shared/api/types';
 
-type PlaceSuggestion = {
-  place_id: string;
-  provider?: string | null;
-  description?: string | null;
-  text?: string | null;
-  types?: string[] | null;
-};
+type PlaceSuggestion = components['schemas']['PlaceSuggestion'];
+type AutocompleteResponse = components['schemas']['AutocompleteResponse'];
 
 interface PlacesAutocompleteInputProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> {
@@ -147,34 +143,21 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
             return;
           }
 
-          const data = await response.json();
+          const data = (await response.json()) as AutocompleteResponse;
           const items = Array.isArray(data?.items) ? data.items : [];
 
           const normalized: PlaceSuggestion[] = items
-            .map((item: Record<string, unknown>) => {
-              const rawPlaceId =
-                typeof item['place_id'] === 'string'
-                  ? item['place_id']
-                  : typeof item['id'] === 'string'
-                    ? item['id']
-                    : undefined;
-              const placeId = rawPlaceId?.trim();
-              const description = typeof item['description'] === 'string' ? item['description'] : null;
-              const text = typeof item['text'] === 'string' ? item['text'] : null;
-              const types = Array.isArray(item['types']) ? (item['types'] as string[]) : null;
-              const providerRaw = typeof item['provider'] === 'string' ? item['provider'].trim() : undefined;
-
-              return placeId && placeId.length > 0
-                ? {
-                    place_id: placeId,
-                    provider: providerRaw || undefined,
-                    description,
-                    text,
-                    types,
-                  }
-                : null;
+            .map((item) => {
+              const placeId = item.place_id?.trim();
+              if (!placeId) return null;
+              const providerRaw = item.provider?.trim();
+              return {
+                ...item,
+                place_id: placeId,
+                provider: providerRaw || item.provider,
+              };
             })
-            .filter((item: PlaceSuggestion | null): item is PlaceSuggestion => item !== null)
+            .filter((item): item is PlaceSuggestion => item !== null)
             .slice(0, suggestionLimit);
 
           setSuggestions(normalized);

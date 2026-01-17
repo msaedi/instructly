@@ -11,11 +11,29 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import * as Select from '@radix-ui/react-select';
 import { ChevronDown, Check } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import type { components } from '@/features/shared/api/types';
 
-type FoundingCount = {
-  count: number;
-  cap: number;
-  remaining: number;
+type FoundingCount = components['schemas']['FoundingCountResponse'];
+type BetaSettingsResponse = components['schemas']['BetaSettingsResponse'];
+type BetaMetricsSummaryResponse = components['schemas']['BetaMetricsSummaryResponse'];
+type InviteSendRequest = components['schemas']['InviteSendRequest'];
+type InviteSendResponse = components['schemas']['InviteSendResponse'];
+type InviteBatchProgressResponse = components['schemas']['InviteBatchProgressResponse'];
+type InviteBatchSendRequest = components['schemas']['InviteBatchSendRequest'];
+type InviteBatchAsyncStartResponse = components['schemas']['InviteBatchAsyncStartResponse'];
+type InviteGenerateRequest = components['schemas']['InviteGenerateRequest'];
+type InviteGenerateResponse = components['schemas']['InviteGenerateResponse'];
+
+type BetaSummary = {
+  phase: string;
+  invites24h: number;
+  errors24h: number;
+};
+
+type InviteResult = {
+  code: string;
+  join_url: string;
+  welcome_url: string;
 };
 
 export default function BetaInvitesAdminPage() {
@@ -26,13 +44,13 @@ export default function BetaInvitesAdminPage() {
   const [days, setDays] = useState(14);
   const [source, setSource] = useState('admin_ui');
   const [grantFoundingStatus, setGrantFoundingStatus] = useState(true);
-  const [result, setResult] = useState<{ code: string; join_url: string; welcome_url: string } | null>(null);
+  const [result, setResult] = useState<InviteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [betaSummary, setBetaSummary] = useState<{ phase: string; invites24h: number; errors24h: number } | null>(null);
+  const [betaSummary, setBetaSummary] = useState<BetaSummary | null>(null);
   const [csvText, setCsvText] = useState('');
   const [asyncTaskId, setAsyncTaskId] = useState<string | null>(null);
-  const [progress, setProgress] = useState<{ state: string; current: number; total: number; sent: number; failed: number; sent_items?: { id: string; code: string; email: string; join_url: string; welcome_url: string }[]; failed_items?: { email: string; reason: string }[] } | null>(null);
+  const [progress, setProgress] = useState<InviteBatchProgressResponse | null>(null);
   const [showDetails, setShowDetails] = useState(false);
 
   // Cookies carry auth; avoid localStorage for security and SSR safety
@@ -61,9 +79,11 @@ export default function BetaInvitesAdminPage() {
           fetch(withApiBase(`/api/v1/beta/settings`), { credentials: 'include' }),
           fetch(withApiBase(`/api/v1/beta/metrics/summary`), { credentials: 'include' }),
         ]);
-        const settings = settingsRes.ok ? await settingsRes.json() : null;
+        const settings = settingsRes.ok ? ((await settingsRes.json()) as BetaSettingsResponse) : null;
         const phase = settings?.beta_phase || 'unknown';
-        const data = summaryRes.ok ? await summaryRes.json() : { invites_sent_24h: 0, invites_errors_24h: 0 };
+        const data = summaryRes.ok
+          ? ((await summaryRes.json()) as BetaMetricsSummaryResponse)
+          : { invites_sent_24h: 0, invites_errors_24h: 0 };
         setBetaSummary({ phase, invites24h: data.invites_sent_24h || 0, errors24h: data.invites_errors_24h || 0 });
       } catch {
         setBetaSummary(null);
@@ -85,9 +105,9 @@ export default function BetaInvitesAdminPage() {
       try {
         const res = await fetch(withApiBase(`/api/v1/beta/invites/send-batch-progress?task_id=${encodeURIComponent(asyncTaskId || '')}`), { credentials: 'include' });
         if (!res.ok) throw new Error('progress error');
-        const data = await res.json();
+        const data = (await res.json()) as InviteBatchProgressResponse;
         if (!cancelled) {
-          setProgress({ state: data.state, current: data.current, total: data.total, sent: data.sent, failed: data.failed });
+          setProgress(data);
           if (data.state === 'SUCCESS' || data.state === 'FAILURE') return; // stop
           setTimeout(() => { void poll(); }, 1500);
         }
@@ -120,14 +140,21 @@ export default function BetaInvitesAdminPage() {
     setError(null);
     setResult(null);
     try {
+      const payload: InviteSendRequest = {
+        to_email: email,
+        role,
+        expires_in_days: days,
+        source,
+        grant_founding_status: grantFoundingStatus,
+      };
       const res = await fetch(withApiBase(`/api/v1/beta/invites/send`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to_email: email, role, expires_in_days: days, source, grant_founding_status: grantFoundingStatus }),
+        body: JSON.stringify(payload),
         credentials: 'include',
       });
       if (!res.ok) throw new Error((await res.text()) || `Failed to send invite (${res.status})`);
-      const data = await res.json();
+      const data = (await res.json()) as InviteSendResponse;
       setResult({ code: data.code, join_url: data.join_url, welcome_url: data.welcome_url });
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed';
@@ -364,14 +391,21 @@ export default function BetaInvitesAdminPage() {
                         .filter((s) => s.length > 0);
                       if (emails.length === 0) return;
                       try {
+                        const payload: InviteGenerateRequest = {
+                          count: emails.length,
+                          role,
+                          expires_in_days: days,
+                          source: 'csv_upload',
+                          emails,
+                        };
                         const res = await fetch(withApiBase('/api/v1/beta/invites/generate'), {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ count: emails.length, role, expires_in_days: days, source: 'csv_upload', emails }),
+                          body: JSON.stringify(payload),
                           credentials: 'include',
                         });
                         if (!res.ok) throw new Error((await res.text()) || `Failed to generate invites (${res.status})`);
-                        const data = await res.json();
+                        const data = (await res.json()) as InviteGenerateResponse;
                         // Show a simple success summary
                         setResult({ code: data.invites?.[0]?.code || 'bulk', join_url: '#', welcome_url: '#' });
                       } catch (err: unknown) {
@@ -392,16 +426,29 @@ export default function BetaInvitesAdminPage() {
                         .filter((s) => s.length > 0);
                       if (emails.length === 0) return;
                       try {
+                        const payload: InviteBatchSendRequest = {
+                          emails,
+                          role,
+                          expires_in_days: days,
+                          source: 'csv_upload',
+                        };
                         const r = await fetch(withApiBase('/api/v1/beta/invites/send-batch-async'), {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ emails, role, expires_in_days: days, source: 'csv_upload' }),
+                          body: JSON.stringify(payload),
                           credentials: 'include',
                         });
                         if (!r.ok) throw new Error((await r.text()) || `Failed to send batch invites (${r.status})`);
-                        const data = await r.json();
+                        const data = (await r.json()) as InviteBatchAsyncStartResponse;
                         setAsyncTaskId(data.task_id);
-                        setProgress({ state: 'PENDING', current: 0, total: emails.length, sent: 0, failed: 0 });
+                        setProgress({
+                          task_id: data.task_id,
+                          state: 'PENDING',
+                          current: 0,
+                          total: emails.length,
+                          sent: 0,
+                          failed: 0,
+                        });
                       } catch (err: unknown) {
                         const errorMessage = err instanceof Error ? err.message : 'Failed to send batch invites';
                         setError(errorMessage);

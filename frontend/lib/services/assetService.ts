@@ -287,10 +287,11 @@ async function ensureServiceCatalogLoaded(): Promise<void> {
     try {
       const resp = await publicApi.getAllServicesWithInstructors();
       if (!resp || resp.error || !resp.data) return;
-      const { categories } = resp.data;
+      const categories = resp.data.categories ?? [];
       for (const cat of categories) {
         const categorySlug = cat.slug as string;
-        for (const svc of cat.services) {
+        const services = cat.services ?? [];
+        for (const svc of services) {
           const meta: ServiceMeta = {
             id: String(svc.id),
             slug: svc.slug,

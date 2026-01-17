@@ -115,7 +115,7 @@ export function ServiceAreasCard({
               <div className="text-sm text-gray-700 dark:text-gray-300 mb-2">Results</div>
               <div className="flex flex-wrap gap-2">
                 {searchHits.map((n) => {
-                  const nid = n['neighborhood_id'] || (n as Record<string, unknown>)['id'] as string;
+                  const nid = n.neighborhood_id;
                   if (!nid) return null;
                   const checked = selectedNeighborhoods.has(nid);
                   return (
@@ -223,11 +223,11 @@ export function ServiceAreasCard({
                       {isAccordionOpen && (
                         <div className="px-3 pb-3 mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto overflow-x-hidden scrollbar-hide">
                           {(list || []).map((n) => {
-                            const nid = n['neighborhood_id'] || (n as Record<string, unknown>)['id'] as string;
+                            const nid = n.neighborhood_id;
                             if (!nid) return null;
                             const checked = selectedNeighborhoods.has(nid);
                             const label = formatNeighborhoodName(n['name'] || String(nid));
-                            const regionCode = String(n.code || n.ntacode || idToItem[nid]?.ntacode || nid);
+                            const regionCode = String(n.ntacode || idToItem[nid]?.ntacode || nid);
                             return (
                               <button
                                 key={`${borough}-${nid}`}

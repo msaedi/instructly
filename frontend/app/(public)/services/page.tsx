@@ -4,9 +4,8 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { Search, Music, BookOpen, Dumbbell, Globe, Palette, Baby, Sparkles, type LucideProps } from 'lucide-react';
-import { type CatalogService } from '@/features/shared/api/client';
+import type { CategoryServiceDetail, CategoryWithServices as ApiCategoryWithServices } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
-import { getString, getNumber, getBoolean, getStringArray } from '@/lib/typesafe';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useAllServicesWithInstructors } from '@/hooks/queries/useServices';
 import { useKidsAvailableServices } from '@/hooks/queries/useKidsAvailableServices';
@@ -67,7 +66,7 @@ interface CategoryWithServices {
   name: string;
   icon: React.ForwardRefExoticComponent<Omit<LucideProps, "ref"> & React.RefAttributes<SVGSVGElement>>; // Lucide icon component
   subtitle: string;
-  services: CatalogService[];
+  services: CategoryServiceDetail[];
 }
 
 export default function AllServicesPage() {
@@ -113,38 +112,27 @@ export default function AllServicesPage() {
 
     // If React Query has the data, use it (hook extracts .data automatically)
     if (servicesData) {
-      // Transform the response to match our component's expected structure
-      const categories: CategoryWithServices[] = servicesData.categories.map(
-        (category: { id: string; slug: string; name: string; subtitle: string; services: unknown[] }) => {
-          // Find matching emoji from CATEGORY_CONFIG
-          const config = CATEGORY_CONFIG.find((c) => c.slug === category.slug);
-
-          return {
-            id: category.id,
-            slug: category.slug,
-            name: category.name.toUpperCase(), // Ensure uppercase for consistency
-            icon: config?.icon || Search, // Default icon if not found
-            subtitle: category.subtitle,
-            services: category.services.map((service: unknown) => {
-              return {
-                id: getString(service, 'id', ''),
-                category_id: getString(service, 'category_id', ''),
-                name: getString(service, 'name', ''),
-                slug: getString(service, 'slug', ''),
-                description: getString(service, 'description', ''),
-                search_terms: getStringArray(service, 'search_terms', []),
-                display_order: getNumber(service, 'display_order', 0),
-                online_capable: getBoolean(service, 'online_capable', false),
-                requires_certification: getBoolean(service, 'requires_certification', false),
-                is_active: getBoolean(service, 'is_active', true),
-                instructor_count: getNumber(service, 'instructor_count', 0),
-                ...(getNumber(service, 'actual_min_price') ? { actual_min_price: getNumber(service, 'actual_min_price') } : {}),
-                ...(getNumber(service, 'actual_max_price') ? { actual_max_price: getNumber(service, 'actual_max_price') } : {}),
-              };
-            }),
-          };
-        }
-      );
+      const apiCategories: ApiCategoryWithServices[] = servicesData.categories ?? [];
+      const categories: CategoryWithServices[] = apiCategories.map((category) => {
+        const config = CATEGORY_CONFIG.find((c) => c.slug === category.slug);
+        const services = (category.services ?? []).map((service) => ({
+          ...service,
+          description: service.description ?? '',
+          search_terms: service.search_terms ?? [],
+          is_active: service.is_active ?? true,
+          is_trending: service.is_trending ?? false,
+          online_capable: service.online_capable ?? false,
+          requires_certification: service.requires_certification ?? false,
+        }));
+        return {
+          id: category.id,
+          slug: category.slug,
+          name: category.name.toUpperCase(),
+          icon: config?.icon ?? Search,
+          subtitle: category.subtitle ?? '',
+          services,
+        };
+      });
       setCategoriesWithServices(categories);
 
       // Initialize visible services count for each category
@@ -172,18 +160,21 @@ export default function AllServicesPage() {
       const existingIds = new Set(kidsCat.services.map((s) => s.id));
       const injected = kidsServices
         .filter((ks) => !existingIds.has(ks.id))
-        .map((ks): CatalogService => ({
+        .map((ks): CategoryServiceDetail => ({
           id: ks.id,
           category_id: kidsCat.id,
           name: ks.name,
           slug: ks.slug,
+          active_instructors: 0,
+          demand_score: 0,
+          instructor_count: 0,
+          is_trending: false,
           description: '',
           search_terms: [],
           display_order: 0,
           online_capable: true,
           requires_certification: false,
           is_active: true,
-          instructor_count: 1,
         }));
       kidsCat.services = [...injected, ...kidsCat.services];
     }

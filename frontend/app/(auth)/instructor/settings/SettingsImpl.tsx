@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { ArrowLeft, Settings, ChevronDown, Shield, Power, KeyRound, Gift } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
+import type { AddressListResponse } from '@/features/shared/api/types';
 import TfaModal from '@/components/security/TfaModal';
 import ChangePasswordModal from '@/components/security/ChangePasswordModal';
 import DeleteAccountModal from '@/components/security/DeleteAccountModal';
@@ -532,7 +533,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       try {
         const addrRes = await fetchWithAuth('/api/v1/addresses/me');
         if (addrRes.ok) {
-          const list = await addrRes.json();
+          const list = (await addrRes.json()) as AddressListResponse;
           const items = Array.isArray(list?.items) ? list.items : [];
           const def =
             items.find((a: { is_default?: boolean }) => a?.is_default) || (items.length > 0 ? items[0] : null);

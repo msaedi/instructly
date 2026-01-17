@@ -1,5 +1,3 @@
-export type InviteValidateResult = {
-  valid: boolean;
-  reason?: string | null;
-  email?: string | null;
-};
+import type { components } from '@/features/shared/api/types';
+
+export type InviteValidateResult = components['schemas']['InviteValidateResponse'];

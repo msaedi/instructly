@@ -6,25 +6,11 @@
  */
 
 import { fetchWithAuth } from '@/lib/api';
-import type { FavoritesListResponse } from '@/features/shared/api/types';
-
-/**
- * Response from add/remove favorite operations
- */
-interface FavoriteOperationResponse {
-  success: boolean;
-  message: string;
-  favorite_id?: string;
-  already_favorited?: boolean;
-  not_favorited?: boolean;
-}
-
-/**
- * Response from favorite status check
- */
-interface FavoriteStatusResponse {
-  is_favorited: boolean;
-}
+import type {
+  FavoriteResponse,
+  FavoriteStatusResponse,
+  FavoritesListResponse,
+} from '@/features/shared/api/types';
 
 /**
  * Favorites API service
@@ -35,12 +21,12 @@ export const favoritesApi = {
    * @param instructorId - ULID of the instructor to favorite
    * @returns Promise with operation result
    */
-  add: async (instructorId: string): Promise<FavoriteOperationResponse> => {
+  add: async (instructorId: string): Promise<FavoriteResponse> => {
     const response = await fetchWithAuth(`/api/v1/favorites/${instructorId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
-    return response.json();
+    return response.json() as Promise<FavoriteResponse>;
   },
 
   /**
@@ -48,11 +34,11 @@ export const favoritesApi = {
    * @param instructorId - ULID of the instructor to unfavorite
    * @returns Promise with operation result
    */
-  remove: async (instructorId: string): Promise<FavoriteOperationResponse> => {
+  remove: async (instructorId: string): Promise<FavoriteResponse> => {
     const response = await fetchWithAuth(`/api/v1/favorites/${instructorId}`, {
       method: 'DELETE',
     });
-    return response.json();
+    return response.json() as Promise<FavoriteResponse>;
   },
 
   /**
@@ -61,7 +47,7 @@ export const favoritesApi = {
    */
   list: async (): Promise<FavoritesListResponse> => {
     const response = await fetchWithAuth('/api/v1/favorites');
-    return response.json();
+    return response.json() as Promise<FavoritesListResponse>;
   },
 
   /**
@@ -71,7 +57,7 @@ export const favoritesApi = {
    */
   check: async (instructorId: string): Promise<FavoriteStatusResponse> => {
     const response = await fetchWithAuth(`/api/v1/favorites/check/${instructorId}`);
-    return response.json();
+    return response.json() as Promise<FavoriteStatusResponse>;
   },
 
   /**
@@ -80,7 +66,7 @@ export const favoritesApi = {
    * @param currentStatus - Current favorite status
    * @returns Promise with operation result
    */
-  toggle: async (instructorId: string, currentStatus: boolean): Promise<FavoriteOperationResponse> => {
+  toggle: async (instructorId: string, currentStatus: boolean): Promise<FavoriteResponse> => {
     if (currentStatus) {
       return favoritesApi.remove(instructorId);
     } else {

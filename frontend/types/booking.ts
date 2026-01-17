@@ -4,7 +4,7 @@ import type { ServiceAreaNeighborhood } from '@/types/instructor';
 
 // Booking status enum
 export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
-export type LocationType = 'student_home' | 'instructor_location' | 'neutral';
+export type LocationType = 'student_home' | 'instructor_location' | 'neutral' | 'in_person' | 'remote';
 
 // Privacy-protected instructor info for student-facing views
 export interface InstructorInfo {

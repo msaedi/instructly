@@ -1,39 +1,16 @@
 import { fetchWithAuth } from '@/lib/api';
+import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 
-export type NotificationPreferenceChannels = {
-  email: boolean;
-  push: boolean;
-  sms: boolean;
-};
-
-export interface PreferencesByCategory {
-  lesson_updates: NotificationPreferenceChannels;
-  messages: NotificationPreferenceChannels;
-  reviews: NotificationPreferenceChannels;
-  learning_tips: NotificationPreferenceChannels;
-  system_updates: NotificationPreferenceChannels;
-  promotional: NotificationPreferenceChannels;
-}
-
-export interface PreferenceResponse {
-  id: string;
-  category: string;
-  channel: string;
-  enabled: boolean;
-  locked: boolean;
-}
-
-export interface PreferenceUpdate {
-  category: string;
-  channel: string;
-  enabled: boolean;
-}
+export type PreferencesByCategory = components['schemas']['PreferencesByCategory'];
+export type PreferenceResponse = components['schemas']['PreferenceResponse'];
+export type PreferenceUpdate = components['schemas']['PreferenceUpdate'];
+export type NotificationPreferenceChannels = Record<string, boolean>;
 
 const BASE_PATH = '/api/v1/notification-preferences';
 
 async function parseErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
-    const payload = (await response.json()) as { detail?: string; message?: string };
+    const payload = (await response.json()) as ApiErrorResponse;
     return payload.detail ?? payload.message ?? fallback;
   } catch {
     return fallback;

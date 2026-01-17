@@ -18,12 +18,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { fetchWithAuth } from '@/lib/api';
 import { CACHE_TIMES } from '@/lib/react-query/queryClient';
+import type { components } from '@/features/shared/api/types';
 
-export interface TfaStatus {
-  enabled: boolean;
-  verified_at?: string | null;
-  last_used_at?: string | null;
-}
+type TfaStatus = components['schemas']['TFAStatusResponse'];
 
 const QUERY_KEY = ['user', '2fa', 'status'] as const;
 
@@ -41,12 +38,7 @@ export function useTfaStatus(enabled: boolean = true) {
       if (!response.ok) {
         throw new Error('Failed to fetch 2FA status');
       }
-      const data = await response.json();
-      return {
-        enabled: !!data.enabled,
-        verified_at: data.verified_at || null,
-        last_used_at: data.last_used_at || null,
-      };
+      return (await response.json()) as TfaStatus;
     },
     enabled,
     staleTime: CACHE_TIMES.FREQUENT, // 5 minutes - status doesn't change often

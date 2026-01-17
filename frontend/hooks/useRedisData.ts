@@ -48,6 +48,11 @@ export function useRedisData(token: string | null): UseRedisDataReturn {
         redisApi.getHealth(),
         redisApi.testConnection(),
       ]);
+      const normalizedTestConnection = {
+        status: testConnection.status ?? 'unknown',
+        ping: Boolean(testConnection.ping),
+        message: testConnection.message ?? '',
+      };
 
       // Fetch authenticated data if token is available
       let stats = null;
@@ -66,7 +71,7 @@ export function useRedisData(token: string | null): UseRedisDataReturn {
         health,
         stats,
         queues,
-        testConnection,
+        testConnection: normalizedTestConnection,
         connectionAudit,
       });
     } catch (err) {

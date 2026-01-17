@@ -1,34 +1,19 @@
 import { httpGet, httpPost } from '@/features/shared/api/http';
+import type { components } from '@/features/shared/api/types';
 
-export type BGCStatus = 'pending' | 'review' | 'consider' | 'passed' | 'failed' | 'canceled';
-export type BGCEnv = 'sandbox' | 'production';
+export type BGCStatus = components['schemas']['BackgroundCheckStatusResponse']['status'];
+export type BGCEnv = components['schemas']['BackgroundCheckStatusResponse']['env'];
 
-export interface BGCInviteResponse {
-  ok: boolean;
-  status: BGCStatus;
-  report_id?: string | null;
-  candidate_id?: string | null;
-  invitation_id?: string | null;
-  already_in_progress?: boolean;
-}
+export type BGCInviteResponse = components['schemas']['BackgroundCheckInviteResponse'];
 
-export interface BGCStatusResponse {
-  status: BGCStatus;
-  report_id?: string | null;
-  completed_at?: string | null;
-  env: BGCEnv;
-  consent_recent?: boolean;
-  consent_recent_at?: string | null;
-  valid_until?: string | null;
-  expires_in_days?: number | null;
-  is_expired?: boolean;
-  eta?: string | null;
+export type BGCStatusResponse = Omit<
+  components['schemas']['BackgroundCheckStatusResponse'],
+  'bgc_includes_canceled'
+> & {
   bgcIncludesCanceled?: boolean;
-}
-
-type RawBGCStatusResponse = Omit<BGCStatusResponse, 'bgcIncludesCanceled'> & {
-  bgc_includes_canceled?: boolean | null;
 };
+
+type RawBGCStatusResponse = components['schemas']['BackgroundCheckStatusResponse'];
 
 export async function bgcInvite(instructorId: string): Promise<BGCInviteResponse> {
   return httpPost<BGCInviteResponse>(`/api/v1/instructors/${instructorId}/bgc/invite`, {});
@@ -53,15 +38,14 @@ export async function bgcRecheck(instructorId: string): Promise<BGCInviteRespons
   return httpPost<BGCInviteResponse>(`/api/v1/instructors/${instructorId}/bgc/recheck`, {});
 }
 
-export interface BGCConsentPayload {
-  consent_version: string;
-  disclosure_version: string;
-  user_agent?: string;
-}
+export type BGCConsentPayload = components['schemas']['ConsentPayload'];
 
 export async function bgcConsent(
   instructorId: string,
   payload: BGCConsentPayload
-): Promise<{ ok: boolean }> {
-  return httpPost<{ ok: boolean }>(`/api/v1/instructors/${instructorId}/bgc/consent`, payload);
+): Promise<components['schemas']['ConsentResponse']> {
+  return httpPost<components['schemas']['ConsentResponse']>(
+    `/api/v1/instructors/${instructorId}/bgc/consent`,
+    payload
+  );
 }

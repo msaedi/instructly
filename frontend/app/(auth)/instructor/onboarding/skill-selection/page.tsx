@@ -6,7 +6,7 @@ import { BookOpen, CheckSquare, Lightbulb } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
+import type { ApiErrorResponse, CategoryServiceDetail, ServiceCategory } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { FloorViolation, evaluatePriceFloorViolations, formatCents } from '@/lib/pricing/priceFloors';
@@ -34,7 +34,7 @@ function Step3SkillsPricingInner() {
   const redirectParam = searchParams?.get('redirect') || null;
   const { user, isAuthenticated } = useAuth();
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
-  const [servicesByCategory, setServicesByCategory] = useState<Record<string, CatalogService[]>>({});
+  const [servicesByCategory, setServicesByCategory] = useState<Record<string, CategoryServiceDetail[]>>({});
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -52,8 +52,9 @@ function Step3SkillsPricingInner() {
   const { fees } = usePlatformFees();
   const pricingFloors = pricingConfig?.price_floor_cents ?? null;
   const isFoundingInstructor = Boolean(rawData.profile?.is_founding_instructor);
-  const currentTierPct =
-    typeof rawData.profile?.current_tier_pct === 'number' ? rawData.profile.current_tier_pct : null;
+  const profileRecord = rawData.profile as Record<string, unknown> | null;
+  const currentTierRaw = profileRecord?.['current_tier_pct'] ?? profileRecord?.['instructor_tier_pct'];
+  const currentTierPct = typeof currentTierRaw === 'number' ? currentTierRaw : null;
   const platformFeeRate = useMemo(
     () =>
       resolvePlatformFeeRate({
@@ -104,9 +105,10 @@ function Step3SkillsPricingInner() {
           setCollapsed(initialCollapsed);
         }
         if (all.status === 200 && all.data) {
-          const map: Record<string, CatalogService[]> = {};
-          for (const c of all.data.categories.filter((c) => c.slug !== 'kids')) {
-            map[c.slug] = c.services;
+          const map: Record<string, CategoryServiceDetail[]> = {};
+          const categories = all.data.categories ?? [];
+          for (const c of categories.filter((category) => category.slug !== 'kids')) {
+            map[c.slug] = c.services ?? [];
           }
           setServicesByCategory(map);
         }
@@ -191,7 +193,7 @@ function Step3SkillsPricingInner() {
     });
   }, [servicesByCategory, selected.length]);
 
-  const toggleService = (svc: CatalogService) => {
+  const toggleService = (svc: CategoryServiceDetail) => {
     const isSelected = selected.some((s) => s.catalog_service_id === svc.id);
 
     if (isSelected) {
@@ -303,7 +305,7 @@ function Step3SkillsPricingInner() {
         // If profile not ready yet or any server error, proceed to verification and try later
         try {
           // Best effort to log error but keep user moving forward
-          const msg = await res.json();
+          const msg = (await res.json()) as ApiErrorResponse;
           logger.warn('Save services failed, moving to verification', { msg });
         } catch {}
         window.location.href = nextUrl;

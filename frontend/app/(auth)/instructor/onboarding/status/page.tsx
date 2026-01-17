@@ -14,20 +14,18 @@ import { useGoLiveInstructor } from '@/src/api/services/instructors';
 import { logger } from '@/lib/logger';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingStepStatus, canInstructorGoLive } from '@/features/instructor-onboarding/useOnboardingStepStatus';
+import type { components } from '@/features/shared/api/types';
+
+type OnboardingStatusResponse = components['schemas']['OnboardingStatusResponse'];
+type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
 
 export default function OnboardingStatusPage() {
   const router = useRouter();
   useAuth(); // Ensure auth context is available
   const goLiveMutation = useGoLiveInstructor();
   const { stepStatus, rawData } = useOnboardingStepStatus();
-  const [connectStatus, setConnectStatus] = useState<{
-    has_account: boolean;
-    onboarding_completed: boolean;
-    charges_enabled: boolean;
-    payouts_enabled: boolean;
-    details_submitted: boolean;
-  } | null>(null);
-  const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
+  const [connectStatus, setConnectStatus] = useState<OnboardingStatusResponse | null>(null);
+  const [profile, setProfile] = useState<InstructorProfileResponse | null>(null);
   const [, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connectLoading, setConnectLoading] = useState(false);
@@ -70,7 +68,7 @@ export default function OnboardingStatusPage() {
       setConnectStatus(rawData.connectStatus);
     }
     if (rawData.profile) {
-      setProfile(rawData.profile as Record<string, unknown>);
+      setProfile(rawData.profile);
     }
     setLoading(false);
   }, [rawData.profile, rawData.connectStatus]);
@@ -138,7 +136,9 @@ export default function OnboardingStatusPage() {
           } catch {}
           const [s, me] = await Promise.all([
             getConnectStatus().catch(() => null),
-            fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+            fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE)
+              .then(async (r) => (r.ok ? ((await r.json()) as InstructorProfileResponse) : null))
+              .catch(() => null),
           ]);
           if (s) setConnectStatus(s);
           if (me) setProfile(me);

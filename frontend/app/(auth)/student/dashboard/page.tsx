@@ -19,7 +19,7 @@ import { RoleName } from '@/types/enums';
 import { fetchAPI, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { toast } from 'sonner';
 import { favoritesApi } from '@/services/api/favorites';
-import type { FavoritesListResponse } from '@/features/shared/api/types';
+import type { ApiErrorResponse, FavoritesListResponse, components } from '@/features/shared/api/types';
 import { getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { StudentBadgesSection } from '@/features/student/badges/StudentBadgesSection';
 import RewardsPanel from '@/features/referrals/RewardsPanel';
@@ -1468,7 +1468,7 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
     place_id: '',
   });
   const [query, setQuery] = useState('');
-  type PlaceSuggestion = { place_id: string; provider?: string; description?: string; text?: string };
+  type PlaceSuggestion = components['schemas']['PlaceSuggestion'];
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -1491,8 +1491,8 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
           `/api/v1/addresses/places/autocomplete?q=${encodeURIComponent(value)}`,
         );
         if (!res.ok) return;
-        const data = await res.json();
-        setSuggestions(data.items || []);
+        const data = (await res.json()) as components['schemas']['AutocompleteResponse'];
+        setSuggestions(data.items);
       } catch {}
     }, 250);
   };
@@ -1517,7 +1517,7 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
+        const errorData = (await res.json().catch(() => null)) as ApiErrorResponse | null;
         const errorMessage = errorData?.detail || errorData?.message || 'Failed to save address';
         toast.error(errorMessage, {
           style: {
@@ -1596,18 +1596,18 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
                           `/api/v1/addresses/places/details?place_id=${encodeURIComponent(s.place_id)}${providerQuery}`,
                         );
                         if (res.ok) {
-                          const d = (await res.json()) as Record<string, unknown>;
-                          const street = [d['street_number'], d['street_name']].filter(Boolean).join(' ');
+                          const d = (await res.json()) as components['schemas']['PlaceDetails'];
+                          const street = [d.street_number, d.street_name].filter(Boolean).join(' ');
                           setForm((prev) => ({
                             ...prev,
                             place_id: s.place_id,
                             street_line1: street || prev.street_line1,
-                            locality: (d['city'] as string) || prev.locality,
-                            administrative_area: (d['state'] as string) || prev.administrative_area,
-                            postal_code: (d['postal_code'] as string) || prev.postal_code,
+                            locality: d.city || prev.locality,
+                            administrative_area: d.state || prev.administrative_area,
+                            postal_code: d.postal_code || prev.postal_code,
                           }));
                           suppressAutocompleteRef.current = true;
-                          setQuery((d['formatted_address'] as string) || s.description || s.text || '');
+                          setQuery(d.formatted_address || s.description || s.text || '');
                         } else {
                           setForm((prev) => ({ ...prev, place_id: s.place_id }));
                           suppressAutocompleteRef.current = true;
@@ -1697,8 +1697,8 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
       });
       if (!delRes.ok) {
         try {
-          const body = await delRes.json();
-          if (delRes.status === 400 && body?.detail) {
+          const body = (await delRes.json().catch(() => ({}))) as ApiErrorResponse;
+          if (delRes.status === 400 && body.detail) {
             setError(body.detail);
           } else {
             setError('Failed to delete account. Please try again later.');
@@ -1821,14 +1821,14 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
+        const body = (await res.json().catch(() => ({}))) as ApiErrorResponse;
         logger.error('Profile update failed', new Error(String(res.status)), { body });
         setError(body.detail || 'Failed to update profile');
         setLoading(false);
         return;
       }
 
-      await res.json();
+      void ((await res.json()) as components['schemas']['AuthUserResponse']);
       logger.info('Profile update successful');
 
       toast.success('Profile updated successfully', {
@@ -1954,7 +1954,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
+        const body = (await res.json().catch(() => ({}))) as ApiErrorResponse;
         setError(body.detail || 'Failed to change password.');
         setSubmitting(false);
         return;

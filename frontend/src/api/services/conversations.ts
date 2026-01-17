@@ -88,7 +88,7 @@ export async function listConversations(
     throw new Error(`Failed to list conversations: ${response.status}`);
   }
 
-  return response.json();
+  return response.json() as Promise<ConversationList>;
 }
 
 /**
@@ -105,7 +105,7 @@ export async function getConversation(conversationId: string): Promise<Conversat
     throw new Error(`Failed to get conversation: ${response.status}`);
   }
 
-  return response.json();
+  return response.json() as Promise<ConversationDetails>;
 }
 
 /**
@@ -132,7 +132,7 @@ export async function createConversation(
     throw new Error(`Failed to create conversation: ${response.status}`);
   }
 
-  return response.json();
+  return response.json() as Promise<CreateConversationResult>;
 }
 
 /**
@@ -169,7 +169,7 @@ export async function getMessages(
     throw new Error(`Failed to get messages: ${response.status}`);
   }
 
-  return response.json();
+  return response.json() as Promise<ConversationMessages>;
 }
 
 /**
@@ -196,7 +196,7 @@ export async function sendMessage(
     throw new Error(`Failed to send message: ${response.status}`);
   }
 
-  return response.json();
+  return response.json() as Promise<SendMessageResult>;
 }
 
 /**

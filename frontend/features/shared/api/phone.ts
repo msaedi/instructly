@@ -1,20 +1,15 @@
 import { fetchWithAuth } from '@/lib/api';
+import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 
-export interface PhoneStatusResponse {
-  phone_number: string | null;
-  verified: boolean;
-}
-
-export interface PhoneVerifyResponse {
-  sent?: boolean;
-  verified?: boolean;
-}
+type PhoneUpdateResponse = components['schemas']['PhoneUpdateResponse'];
+export type PhoneVerifyResponse = components['schemas']['PhoneVerifyResponse'];
+export type PhoneStatusResponse = PhoneUpdateResponse;
 
 const BASE_PATH = '/api/v1/account/phone';
 
 async function parseErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
-    const payload = (await response.json()) as { detail?: string; message?: string };
+    const payload = (await response.json()) as ApiErrorResponse;
     return payload.detail ?? payload.message ?? fallback;
   } catch {
     return fallback;

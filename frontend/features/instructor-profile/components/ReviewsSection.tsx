@@ -4,7 +4,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useInstructorReviews } from '../hooks/useInstructorReviews';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
-import type { ReviewItem } from '@/services/api/reviews';
 
 interface ReviewsSectionProps {
   instructorId: string;
@@ -85,7 +84,7 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {data?.reviews?.map((review: ReviewItem) => (
+        {data?.reviews?.map((review) => (
           <div
             key={review.id}
             className="p-3 bg-white rounded-lg border border-gray-100"

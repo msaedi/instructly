@@ -6,7 +6,9 @@ import { toast } from 'sonner';
 
 import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
-import type { OnboardingStatusResponse } from '@/services/api/payments';
+import type { components } from '@/features/shared/api/types';
+
+type OnboardingStatusResponse = components['schemas']['OnboardingStatusResponse'];
 
 const delay = (ms: number) =>
   new Promise<void>((resolve) => {

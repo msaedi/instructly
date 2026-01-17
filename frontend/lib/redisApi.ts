@@ -4,72 +4,54 @@
  */
 
 import { withApiBase } from '@/lib/apiBase';
+import type { components } from '@/features/shared/api/types';
 
 function apiBaseUrl(): string {
   return withApiBase('/').replace(/\/$/, '');
 }
 
-export interface RedisHealth {
-  status: 'healthy' | 'unhealthy';
-  connected: boolean;
-  error?: string;
-}
+export type RedisHealthResponse = components['schemas']['RedisHealthResponse'];
+export type RedisStatsResponse = components['schemas']['RedisStatsResponse'];
+export type RedisCeleryQueuesResponse = components['schemas']['RedisCeleryQueuesResponse'];
+export type RedisConnectionAuditResponse = components['schemas']['RedisConnectionAuditResponse'];
+export type RedisTestResponse = components['schemas']['RedisTestResponse'];
 
+export type RedisHealth = RedisHealthResponse;
 export interface RedisStats {
-  status: string;
-  server: {
-    redis_version: string;
-    uptime_in_seconds: number;
-    uptime_in_days: number;
+  server?: {
+    redis_version?: string;
+    uptime_in_days?: number;
   };
-  memory: {
-    used_memory_human: string;
-    used_memory_peak_human: string;
-    used_memory_rss_human: string;
-    maxmemory_human: string;
-    mem_fragmentation_ratio: number;
+  clients?: {
+    connected_clients?: number;
   };
-  clients: {
-    connected_clients: number;
-    blocked_clients: number;
+  operations?: {
+    current_ops_per_sec?: number;
+    estimated_daily_ops?: number;
+    total_commands_processed?: number;
   };
-  operations: {
-    total_commands_processed: number;
-    instantaneous_ops_per_sec: number;
-    current_ops_per_sec: number;
-    estimated_daily_ops: number;
+  memory?: {
+    used_memory_human?: string;
+    used_memory_peak_human?: string;
+    used_memory_rss_human?: string;
+    maxmemory_human?: string;
+    mem_fragmentation_ratio?: number;
   };
 }
 
 export interface CeleryQueues {
-  status: string;
   queues: Record<string, number>;
   total_pending: number;
 }
 
 export interface ConnectionAudit {
-  api_cache: string;
-  celery_broker: string;
-  active_connections: {
-    local_redis: number;
-    upstash: number;
+  service_connections?: {
+    api_service?: { host?: string; type?: string };
+    celery_broker?: { host?: string; type?: string };
   };
-  upstash_detected: boolean;
-  service_connections: {
-    api_service: {
-      url: string;
-      host: string;
-      type: string;
-    };
-    celery_broker: {
-      url: string;
-      host: string;
-      type: string;
-    };
+  active_connections?: {
+    local_redis?: number;
   };
-  environment_variables: Record<string, string>;
-  migration_status: string;
-  recommendation: string;
 }
 
 /**
@@ -90,7 +72,7 @@ async function fetchWithAuth<T>(endpoint: string, _token: string | null): Promis
     throw new Error(`API error: ${response.status}`);
   }
 
-  return response.json();
+  return (await response.json()) as T;
 }
 
 /**
@@ -107,7 +89,7 @@ async function fetchPublic<T>(endpoint: string): Promise<T> {
     throw new Error(`API error: ${response.status}`);
   }
 
-  return response.json();
+  return (await response.json()) as T;
 }
 
 /**
@@ -117,43 +99,50 @@ export const redisApi = {
   /**
    * Get Redis health status (no auth required)
    */
-  async getHealth(): Promise<RedisHealth> {
-    return fetchPublic<RedisHealth>('/api/v1/redis/health');
+  async getHealth(): Promise<RedisHealthResponse> {
+    return fetchPublic<RedisHealthResponse>('/api/v1/redis/health');
   },
 
   /**
    * Get Redis statistics (requires admin auth)
    */
   async getStats(token: string): Promise<RedisStats> {
-    return fetchWithAuth<RedisStats>('/api/v1/redis/stats', token);
+    const response = await fetchWithAuth<RedisStatsResponse>('/api/v1/redis/stats', token);
+    const stats = response.stats;
+    return typeof stats === 'object' && stats
+      ? (stats as RedisStats)
+      : {};
   },
 
   /**
    * Get Celery queue status (requires admin auth)
    */
   async getCeleryQueues(token: string): Promise<CeleryQueues> {
-    return fetchWithAuth<CeleryQueues>('/api/v1/redis/celery-queues', token);
+    const response = await fetchWithAuth<RedisCeleryQueuesResponse>('/api/v1/redis/celery-queues', token);
+    const queues = response.queues as Record<string, number>;
+    const total_pending = Object.values(queues).reduce(
+      (sum, value) => sum + (typeof value === 'number' ? value : 0),
+      0
+    );
+    return { queues, total_pending };
   },
 
   /**
    * Get Redis test connection (no auth required)
    */
-  async testConnection(): Promise<{
-    status: string;
-    ping: boolean;
-    redis_version?: string;
-    uptime_seconds?: number;
-    connected_clients?: number;
-    message: string;
-    error?: string;
-  }> {
-    return fetchPublic('/api/v1/redis/test');
+  async testConnection(): Promise<RedisTestResponse> {
+    return fetchPublic<RedisTestResponse>('/api/v1/redis/test');
   },
 
   /**
    * Get Redis connection audit (requires admin auth)
    */
-  async getConnectionAudit(token: string): Promise<ConnectionAudit> {
-    return fetchWithAuth<ConnectionAudit>('/api/v1/redis/connection-audit', token);
+  async getConnectionAudit(token: string): Promise<ConnectionAudit | null> {
+    const response = await fetchWithAuth<RedisConnectionAuditResponse>('/api/v1/redis/connection-audit', token);
+    const connection = Array.isArray(response.connections) ? response.connections[0] : null;
+    if (connection && typeof connection === 'object') {
+      return connection as ConnectionAudit;
+    }
+    return null;
   },
 };

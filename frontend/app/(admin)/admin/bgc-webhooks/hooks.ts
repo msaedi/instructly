@@ -3,28 +3,11 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
 import { httpGet } from '@/features/shared/api/http';
+import type { components } from '@/features/shared/api/types';
 
-export interface WebhookLogItem {
-  id: string;
-  event_type: string;
-  delivery_id?: string | null;
-  resource_id?: string | null;
-  result?: string | null;
-  http_status?: number | null;
-  signature?: string | null;
-  created_at: string;
-  payload: Record<string, unknown>;
-  instructor_id?: string | null;
-  report_id?: string | null;
-  candidate_id?: string | null;
-  invitation_id?: string | null;
-}
-
-export interface WebhookLogResponse {
-  items: WebhookLogItem[];
-  next_cursor: string | null;
-  error_count_24h: number;
-}
+export type WebhookLogItem = components['schemas']['BGCWebhookLogEntry'];
+type WebhookLogResponse = components['schemas']['BGCWebhookLogListResponse'];
+type WebhookStatsResponse = components['schemas']['BGCWebhookStatsResponse'];
 
 export interface WebhookFilterState {
   events: string[];
@@ -56,7 +39,7 @@ export function useBGCWebhookLogs(filters: WebhookFilterState) {
   });
 
   const pages = query.data?.pages ?? [];
-  const logs = pages.flatMap((page) => page.items);
+  const logs: WebhookLogItem[] = pages.flatMap((page) => page.items);
   const errorCount24h = pages[0]?.error_count_24h ?? 0;
 
   return {
@@ -74,7 +57,7 @@ export function useBGCWebhookLogs(filters: WebhookFilterState) {
 export function useBGCWebhookStats() {
   return useQuery({
     queryKey: ['admin', 'bgc', 'webhooks', 'stats'],
-    queryFn: async () => httpGet<{ error_count_24h: number }>('/api/v1/admin/background-checks/webhooks/stats'),
+    queryFn: async () => httpGet<WebhookStatsResponse>('/api/v1/admin/background-checks/webhooks/stats'),
     refetchInterval: 60_000,
   });
 }

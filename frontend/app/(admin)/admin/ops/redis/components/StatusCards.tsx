@@ -1,14 +1,11 @@
 import { CheckCircle, XCircle, Server, Cpu, Users } from 'lucide-react';
+import type { RedisHealth, RedisStats } from '@/lib/redisApi';
 
 interface StatusCardsProps {
   data: {
-    health: { status: string; connected: boolean } | null;
-    stats: {
-      server: { redis_version: string; uptime_in_days: number };
-      clients: { connected_clients: number };
-      operations: { current_ops_per_sec: number };
-    } | null;
-    testConnection: { status: string; ping: boolean } | null;
+    health: RedisHealth | null;
+    stats: RedisStats | null;
+    testConnection: { status: string; ping: boolean; message?: string } | null;
   };
 }
 

@@ -27,6 +27,7 @@ import {
   type NormalizedModality,
 } from '@/lib/pricing/priceFloors';
 import { formatCentsToDisplay } from '@/lib/api/pricing';
+import type { PricingLineItem } from '@/lib/api/pricing';
 import { usePricingPreview } from '../hooks/usePricingPreview';
 import {
   computeStudentFeePercent,
@@ -480,12 +481,13 @@ function PaymentConfirmationInner({
   const remainingBalanceDollars = remainingBalanceCents / 100;
   const promoApplyDisabled = referralActive || (!promoActive && promoCode.trim().length === 0);
 
-  const previewAdditionalLineItems = useMemo(() => {
+  const previewAdditionalLineItems = useMemo<PricingLineItem[]>(() => {
     if (!pricingPreview) {
-      return [] as { label: string; amount_cents: number }[];
+      return [];
     }
+    const lineItems: PricingLineItem[] = pricingPreview.line_items;
     const studentFeeCents = pricingPreview.student_fee_cents;
-    return pricingPreview.line_items.filter((item) => {
+    return lineItems.filter((item) => {
       const normalizedLabel = item.label.toLowerCase();
       if (normalizedLabel.startsWith('booking protection')) {
         return false;

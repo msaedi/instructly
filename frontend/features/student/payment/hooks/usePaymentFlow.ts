@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookingPayment, PaymentMethod, PaymentCard, PAYMENT_STATUS } from '../types';
+import type { PaymentProcessResponse } from '@/features/shared/api/types';
 
 interface UsePaymentFlowProps {
   booking: BookingPayment;
@@ -93,7 +94,7 @@ export function usePaymentFlow({
         throw new Error('Payment processing failed');
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as PaymentProcessResponse;
 
       // Update booking with payment info
       booking.paymentStatus = PAYMENT_STATUS.AUTHORIZED;

@@ -5,6 +5,8 @@ import type {
   ReferralLedgerResponse,
   ReferralCheckoutApplyResponse,
   ReferralErrorResponse,
+  ReferralSendResponse,
+  ApiErrorResponse,
 } from '@/features/shared/api/types';
 
 export const REFERRALS_ME_KEY = '/api/v1/referrals/me';
@@ -100,7 +102,7 @@ export async function applyReferralCredit(orderId: string): Promise<ReferralChec
 
   let payload: unknown = null;
   try {
-    payload = await response.json();
+    payload = (await response.json()) as ReferralCheckoutApplyResponse | ReferralErrorResponse | ApiErrorResponse;
   } catch (error) {
     if (response.ok) {
       throw error instanceof Error ? error : new Error('Unexpected response when applying referral credit');
@@ -111,7 +113,7 @@ export async function applyReferralCredit(orderId: string): Promise<ReferralChec
     const errorBody = isReferralError(payload)
       ? payload
       : { reason: response.status === 409 ? 'promo_conflict' : 'disabled' };
-    return normalizeError(errorBody.reason, (payload as { message?: string })?.message);
+    return normalizeError(errorBody.reason, (payload as ApiErrorResponse | undefined)?.message);
   }
 
   return payload as ReferralCheckoutApplyResponse;
@@ -142,16 +144,18 @@ export async function sendReferralInvites({ emails, shareUrl, fromName }: SendRe
     }),
   });
 
-  let payload: { count?: number; detail?: string } | null = null;
+  let payload: ReferralSendResponse | ApiErrorResponse | null = null;
   try {
-    payload = (await response.json()) as { count?: number; detail?: string };
+    payload = (await response.json()) as ReferralSendResponse;
   } catch {
     payload = null;
   }
 
   if (!response.ok) {
-    throw new Error(payload?.detail || 'Failed to send invites');
+    const errorPayload = payload as ApiErrorResponse | null;
+    throw new Error(errorPayload?.detail || errorPayload?.message || 'Failed to send invites');
   }
 
-  return payload?.count ?? emails.length;
+  const sendPayload = payload as ReferralSendResponse | null;
+  return sendPayload?.sent ?? emails.length;
 }

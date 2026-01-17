@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 
 import { httpGet, httpPost } from '@/features/shared/api/http';
+import type { components } from '@/features/shared/api/types';
 import type { BGCInviteResponse } from '@/lib/api/bgc';
 
 export interface BGCCaseItem {
@@ -39,11 +40,6 @@ export interface BGCCaseListResult {
   has_prev: boolean;
 }
 
-export interface BGCCounts {
-  review: number;
-  pending: number;
-}
-
 export interface AdminInstructorDetail {
   id: string;
   name: string;
@@ -69,17 +65,58 @@ export interface AdminInstructorDetail {
 const COUNTS_QUERY_KEY: QueryKey = ['admin', 'bgc', 'counts'];
 const CASES_QUERY_KEY_PREFIX: QueryKey = ['admin', 'bgc', 'cases'];
 
-type BGCCaseItemApi = Omit<BGCCaseItem, 'bgcIncludesCanceled'> & {
-  bgc_includes_canceled?: boolean | null;
-};
+type BGCCaseItemApi = components['schemas']['BGCCaseItemModel'];
+type BGCCaseListResultApi = components['schemas']['BGCCaseListResponse'];
+type BGCCounts = components['schemas']['BGCCaseCountsResponse'];
+type AdminInstructorDetailApi = components['schemas']['AdminInstructorDetailResponse'];
+type BGCOverrideResponse = components['schemas']['BGCOverrideResponse'];
+type BGCDisputeResponse = components['schemas']['BGCDisputeResponse'];
 
-type BGCCaseListResultApi = Omit<BGCCaseListResult, 'items'> & {
-  items: BGCCaseItemApi[];
-};
+const normalizeCaseItem = (item: BGCCaseItemApi): BGCCaseItem => ({
+  instructor_id: item.instructor_id,
+  name: item.name,
+  email: item.email,
+  bgc_status: item.bgc_status ?? null,
+  bgcIncludesCanceled: Boolean(item.bgc_includes_canceled),
+  bgc_report_id: item.bgc_report_id ?? null,
+  bgc_completed_at: item.bgc_completed_at ?? null,
+  bgc_eta: item.bgc_eta ?? null,
+  created_at: item.created_at ?? null,
+  updated_at: item.updated_at ?? null,
+  consent_recent: Boolean(item.consent_recent),
+  consent_recent_at: item.consent_recent_at ?? null,
+  checkr_report_url: item.checkr_report_url ?? null,
+  is_live: Boolean(item.is_live),
+  in_dispute: Boolean(item.in_dispute),
+  dispute_note: item.dispute_note ?? null,
+  dispute_opened_at: item.dispute_opened_at ?? null,
+  dispute_resolved_at: item.dispute_resolved_at ?? null,
+  bgc_valid_until: item.bgc_valid_until ?? null,
+  bgc_expires_in_days: item.bgc_expires_in_days ?? null,
+  bgc_is_expired: Boolean(item.bgc_is_expired),
+});
 
-type AdminInstructorDetailApi = Omit<AdminInstructorDetail, 'bgcIncludesCanceled'> & {
-  bgc_includes_canceled?: boolean | null;
-};
+const normalizeInstructorDetail = (detail: AdminInstructorDetailApi): AdminInstructorDetail => ({
+  id: detail.id,
+  name: detail.name,
+  email: detail.email,
+  is_live: Boolean(detail.is_live),
+  bgc_status: detail.bgc_status ?? null,
+  bgcIncludesCanceled: Boolean(detail.bgc_includes_canceled),
+  bgc_report_id: detail.bgc_report_id ?? null,
+  bgc_completed_at: detail.bgc_completed_at ?? null,
+  bgc_eta: detail.bgc_eta ?? null,
+  consent_recent_at: detail.consent_recent_at ?? null,
+  created_at: detail.created_at ?? null,
+  updated_at: detail.updated_at ?? null,
+  bgc_valid_until: detail.bgc_valid_until ?? null,
+  bgc_expires_in_days: detail.bgc_expires_in_days ?? null,
+  bgc_is_expired: Boolean(detail.bgc_is_expired),
+  bgc_in_dispute: Boolean(detail.bgc_in_dispute),
+  bgc_dispute_note: detail.bgc_dispute_note ?? null,
+  bgc_dispute_opened_at: detail.bgc_dispute_opened_at ?? null,
+  bgc_dispute_resolved_at: detail.bgc_dispute_resolved_at ?? null,
+});
 
 export function useBGCCounts(enabled = true) {
   const isClient = typeof window !== 'undefined';
@@ -115,10 +152,7 @@ export function useBGCCases(
       const response = await httpGet<BGCCaseListResultApi>(url);
       return {
         ...response,
-        items: response.items.map(({ bgc_includes_canceled, ...rest }) => ({
-          ...rest,
-          bgcIncludesCanceled: Boolean(bgc_includes_canceled),
-        })),
+        items: response.items.map(normalizeCaseItem),
       };
     },
     refetchOnWindowFocus: false,
@@ -131,7 +165,7 @@ export function useBGCOverride() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) =>
-      httpPost<{ ok: boolean; new_status: string }>(`/api/v1/admin/background-checks/${id}/override`, { action }),
+      httpPost<BGCOverrideResponse>(`/api/v1/admin/background-checks/${id}/override`, { action }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: COUNTS_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: CASES_QUERY_KEY_PREFIX, exact: false });
@@ -156,19 +190,11 @@ function invalidateBackgroundCheckQueries(queryClient: ReturnType<typeof useQuer
   }
 }
 
-type DisputeResponse = {
-  ok: boolean;
-  in_dispute: boolean;
-  dispute_note: string | null;
-  dispute_opened_at: string | null;
-  dispute_resolved_at: string | null;
-};
-
 export function useBGCDisputeOpen() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, note }: DisputePayload) =>
-      httpPost<DisputeResponse>(`/api/v1/admin/background-checks/${id}/dispute/open`, { note }),
+      httpPost<BGCDisputeResponse>(`/api/v1/admin/background-checks/${id}/dispute/open`, { note }),
     onSuccess: (_, variables) => {
       invalidateBackgroundCheckQueries(queryClient, variables.id);
     },
@@ -179,7 +205,7 @@ export function useBGCDisputeResolve() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, note }: DisputePayload) =>
-      httpPost<DisputeResponse>(`/api/v1/admin/background-checks/${id}/dispute/resolve`, { note }),
+      httpPost<BGCDisputeResponse>(`/api/v1/admin/background-checks/${id}/dispute/resolve`, { note }),
     onSuccess: (_, variables) => {
       invalidateBackgroundCheckQueries(queryClient, variables.id);
     },
@@ -217,11 +243,7 @@ export function useAdminInstructorDetail(instructorId: string | null) {
       const detail = await httpGet<AdminInstructorDetailApi>(`/api/v1/admin/instructors/${instructorId}`, {
         credentials: 'include',
       });
-      const { bgc_includes_canceled, ...rest } = detail;
-      return {
-        ...rest,
-        bgcIncludesCanceled: Boolean(bgc_includes_canceled),
-      };
+      return normalizeInstructorDetail(detail);
     },
     enabled: isClient && Boolean(instructorId),
     staleTime: 60_000,

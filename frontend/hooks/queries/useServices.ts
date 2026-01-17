@@ -3,7 +3,7 @@ import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-quer
 import { convertApiResponse } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi } from '@/features/shared/api/client';
-import type { ServiceCategory as ShimServiceCategory } from '@/features/shared/api/types';
+import type { ServiceCategory as ShimServiceCategory, ServiceSearchResponseWithPaging } from '@/features/shared/api/types';
 import type { CatalogService } from '@/features/shared/api/client';
 import { withApiBase } from '@/lib/apiBase';
 
@@ -141,9 +141,10 @@ interface ServiceSearchFilters {
  * ```
  */
 export function useServicesInfiniteSearch(filters: ServiceSearchFilters) {
-  return useInfiniteQuery({
+  return useInfiniteQuery<ServiceSearchResponseWithPaging>({
     queryKey: [...queryKeys.services.all, 'search', filters] as const,
     queryFn: async ({ pageParam = 0 }) => {
+      const page = typeof pageParam === 'number' ? pageParam : 0;
       // Build query string from filters
       const params = new URLSearchParams();
       if (filters.query) params.append('q', filters.query);
@@ -152,7 +153,7 @@ export function useServicesInfiniteSearch(filters: ServiceSearchFilters) {
       if (filters.maxPrice) params.append('max_price', filters.maxPrice.toString());
       if (filters.onlineOnly) params.append('online_only', 'true');
       if (filters.certificationRequired) params.append('certification_required', 'true');
-      params.append('page', pageParam.toString());
+      params.append('page', page.toString());
       params.append('limit', '20');
 
       const response = await fetch(
@@ -163,11 +164,11 @@ export function useServicesInfiniteSearch(filters: ServiceSearchFilters) {
         throw new Error('Failed to fetch services');
       }
 
-      return response.json();
+      return (await response.json()) as ServiceSearchResponseWithPaging;
     },
     getNextPageParam: (lastPage, _pages) => {
       // Assume the API returns { services: [], hasMore: boolean, nextPage: number }
-      return lastPage.hasMore ? lastPage.nextPage : undefined;
+      return lastPage.hasMore ? lastPage.nextPage ?? undefined : undefined;
     },
     initialPageParam: 0,
     staleTime: CACHE_TIMES.FREQUENT, // 5 minutes for search results

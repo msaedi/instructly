@@ -7,6 +7,16 @@ import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { logger } from '@/lib/logger';
 import { WeekSchedule, TimeSlot, WeekBits } from '@/types/availability';
 import { fromWindows, toWindows } from '@/lib/calendar/bitset';
+import type {
+  ApiErrorResponse,
+  ApplyToDateRangeResponse,
+  AvailabilityUpdateErrorResponse,
+  WeekValidationResponse,
+  components,
+} from '@/features/shared/api/types';
+
+type WeekAvailabilityUpdateResponse = components['schemas']['WeekAvailabilityUpdateResponse'];
+type CopyWeekResponse = components['schemas']['CopyWeekResponse'];
 
 export interface SaveWeekOptions {
   clearExisting?: boolean;
@@ -49,7 +59,7 @@ export interface UseAvailabilityReturn {
 
   // API orchestrations (thin)
   saveWeek: (opts?: SaveWeekOptions) => Promise<SaveWeekResult>;
-  validateWeek: () => Promise<{ success: boolean; message: string; issues?: unknown[] }>;
+  validateWeek: () => Promise<WeekValidationResponse | null>;
   copyFromPreviousWeek: () => Promise<{ success: boolean; message: string }>;
   applyToFutureWeeks: (
     endISO: string
@@ -213,16 +223,13 @@ export function useAvailability(): UseAvailabilityReturn {
         const status = res.status;
         const responseEtag = res.headers?.get?.('ETag') || undefined;
         const allowPastHeader = res.headers?.get?.('X-Allow-Past');
-        const responseJson = await res
+        const responseJson = (await res
           .clone()
           .json()
-          .catch(() => undefined) as {
-          message?: string;
-          version?: string;
-          week_version?: string;
-          current_version?: string;
-          error?: string;
-        } | undefined;
+          .catch(() => undefined)) as
+          | WeekAvailabilityUpdateResponse
+          | AvailabilityUpdateErrorResponse
+          | undefined;
 
         if (!res.ok) {
           if (typeof allowPastHeader === 'string') {
@@ -231,10 +238,11 @@ export function useAvailability(): UseAvailabilityReturn {
               normalizedAllow === '1' || normalizedAllow === 'true' || normalizedAllow === 'yes'
             );
           }
-          const serverVersion =
-            typeof responseJson?.current_version === 'string'
-              ? responseJson?.current_version
-              : responseEtag;
+          const conflictVersion =
+            responseJson && 'current_version' in responseJson
+              ? responseJson.current_version
+              : undefined;
+          const serverVersion = typeof conflictVersion === 'string' ? conflictVersion : responseEtag;
           if (serverVersion) {
             if (typeof window !== 'undefined') {
               (window as Window & { __week_version?: string }).__week_version = serverVersion;
@@ -242,7 +250,10 @@ export function useAvailability(): UseAvailabilityReturn {
             setVersion(serverVersion);
           }
           let message: string;
-          if (status === 409 || responseJson?.error === 'version_conflict') {
+          const isVersionConflict =
+            status === 409 ||
+            (responseJson && 'error' in responseJson && responseJson.error === 'version_conflict');
+          if (isVersionConflict) {
             message = 'Week availability changed in another session.';
           } else {
             const detail = extractErrorMessage(responseJson, 'Failed to save availability');
@@ -256,7 +267,10 @@ export function useAvailability(): UseAvailabilityReturn {
           };
         }
 
-        const newVersion = responseEtag || responseJson?.week_version || responseJson?.version;
+        const newVersion =
+          responseEtag ||
+          (responseJson && 'week_version' in responseJson ? responseJson.week_version : undefined) ||
+          (responseJson && 'version' in responseJson ? responseJson.version : undefined);
         if (typeof allowPastHeader === 'string') {
           const normalizedAllow = allowPastHeader.trim().toLowerCase();
           setAllowPastEdits(
@@ -307,7 +321,7 @@ export function useAvailability(): UseAvailabilityReturn {
         }),
       });
       if (!res.ok) return null;
-      return await res.json();
+      return (await res.json()) as WeekValidationResponse;
     } catch (e) {
       logger.error('validateWeek error', e);
       return null;
@@ -327,11 +341,12 @@ export function useAvailability(): UseAvailabilityReturn {
         }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({} as Record<string, unknown>));
+        const err = (await res.json().catch(() => ({} as ApiErrorResponse))) as ApiErrorResponse;
         return { success: false, message: extractErrorMessage(err, 'Failed to copy week') };
       }
+      const payload = (await res.json().catch(() => null)) as CopyWeekResponse | null;
       await refreshSchedule();
-      return { success: true, message: 'Copied previous week' };
+      return { success: true, message: payload?.message ?? 'Copied previous week' };
     } catch (e) {
       logger.error('copyFromPreviousWeek error', e);
       return { success: false, message: 'Network error while copying' };
@@ -350,20 +365,26 @@ export function useAvailability(): UseAvailabilityReturn {
             end_date: endISO,
           }),
         });
-        const responseJson = await res
+        const responseJson = (await res
           .clone()
           .json()
-          .catch(() => undefined as { message?: string; weeks_affected?: number; days_written?: number } | undefined);
+          .catch(() => undefined)) as ApplyToDateRangeResponse | ApiErrorResponse | undefined;
 
         if (!res.ok) {
-          const err = (responseJson ?? {}) as Record<string, unknown>;
-          return { success: false, message: extractErrorMessage(err, 'Failed to apply to future weeks') };
+          return {
+            success: false,
+            message: extractErrorMessage(responseJson, 'Failed to apply to future weeks'),
+          };
         }
 
         const weeksAffected =
-          typeof responseJson?.weeks_affected === 'number' ? responseJson.weeks_affected : undefined;
+          responseJson && 'weeks_affected' in responseJson && typeof responseJson.weeks_affected === 'number'
+            ? responseJson.weeks_affected
+            : undefined;
         const daysWritten =
-          typeof responseJson?.days_written === 'number' ? responseJson.days_written : undefined;
+          responseJson && 'days_written' in responseJson && typeof responseJson.days_written === 'number'
+            ? responseJson.days_written
+            : undefined;
 
         if (weeksAffected !== undefined || daysWritten !== undefined) {
           logger.info('Applied schedule to future range', {

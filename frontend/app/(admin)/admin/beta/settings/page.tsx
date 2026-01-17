@@ -37,7 +37,7 @@ export default function BetaSettingsPage() {
   }, []);
 
   const onChange = (field: keyof BetaSettings, value: boolean | string) => {
-    setForm((prev) => ({ ...prev, [field]: value } as BetaSettings));
+    setForm((prev: BetaSettings) => ({ ...prev, [field]: value } as BetaSettings));
   };
 
   const onSubmit = async (e: React.FormEvent) => {

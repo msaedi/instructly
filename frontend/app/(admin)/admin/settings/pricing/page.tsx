@@ -15,43 +15,14 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
+import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 
-type TierConfig = {
-  min: number;
-  max: number | null;
-  pct: number;
-};
-
-type PriceFloorConfig = {
-  private_in_person: number;
-  private_remote: number;
-};
-
-type StudentCreditCycle = {
-  cycle_len: number;
-  mod10: number;
-  cents10: number;
-  mod20: number;
-  cents20: number;
-};
-
-type PricingConfig = {
-  student_fee_pct: number;
-  founding_instructor_rate_pct: number;
-  founding_instructor_cap: number;
-  founding_search_boost: number;
-  instructor_tiers: TierConfig[];
-  tier_activity_window_days: number;
-  tier_stepdown_max: number;
-  tier_inactivity_reset_days: number;
-  price_floor_cents: PriceFloorConfig;
-  student_credit_cycle: StudentCreditCycle;
-};
-
-type PricingConfigResponse = {
-  config: PricingConfig;
-  updated_at: string | null;
-};
+type TierConfig = components['schemas']['TierConfig'];
+type PriceFloorConfig = components['schemas']['PriceFloorConfig'];
+type StudentCreditCycle = components['schemas']['StudentCreditCycle'];
+type PricingConfig = components['schemas']['PricingConfig'];
+type PricingConfigPayload = components['schemas']['PricingConfigPayload'];
+type PricingConfigResponse = components['schemas']['PricingConfigResponse'];
 
 const DEFAULT_CONFIG: PricingConfig = {
   student_fee_pct: 0.12,
@@ -149,11 +120,11 @@ export default function PricingSettingsPage() {
           }
           throw new PricingConfigError('unknown', `Failed to fetch config (${response.status})`);
         }
-        const payload = (await response.json()) as PricingConfigResponse;
-        if (!cancelled && payload?.config) {
-          setConfig(payload.config);
-          setUpdatedAt(payload.updated_at);
-          initialConfigRef.current = JSON.stringify(payload.config);
+        const responsePayload = (await response.json()) as PricingConfigResponse;
+        if (!cancelled && responsePayload?.config) {
+          setConfig(responsePayload.config);
+          setUpdatedAt(responsePayload.updated_at ?? null);
+          initialConfigRef.current = JSON.stringify(responsePayload.config);
           setLoadError(null);
           setSubmitError(null);
         }
@@ -327,23 +298,24 @@ export default function PricingSettingsPage() {
     setSaving(true);
     setSubmitError(null);
     try {
+      const configPayload: PricingConfigPayload = config;
       const response = await fetch(withApiBase('/api/v1/admin/config/pricing'), {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
+        body: JSON.stringify(configPayload),
       });
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        const detail = payload?.detail ?? `HTTP ${response.status}`;
+        const errorPayload = (await response.json().catch(() => null)) as ApiErrorResponse | null;
+        const detail = errorPayload?.detail ?? errorPayload?.message ?? `HTTP ${response.status}`;
         throw new Error(String(detail));
       }
 
-      const payload = (await response.json()) as PricingConfigResponse;
-      setConfig(payload.config);
-      setUpdatedAt(payload.updated_at);
-      initialConfigRef.current = JSON.stringify(payload.config);
+      const responsePayload = (await response.json()) as PricingConfigResponse;
+      setConfig(responsePayload.config);
+      setUpdatedAt(responsePayload.updated_at ?? null);
+      initialConfigRef.current = JSON.stringify(responsePayload.config);
       toast.success('Pricing configuration saved');
     } catch (err) {
       if (process.env.NODE_ENV !== 'production') {

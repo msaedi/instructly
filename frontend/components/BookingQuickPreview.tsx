@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { BookingPreview, getLocationTypeIcon } from '@/types/booking';
+import type { BookingPreview } from '@/features/shared/api/types';
+import { getLocationTypeIcon, type LocationType } from '@/types/booking';
 import { fetchBookingPreview } from '@/lib/api';
 import Modal from '@/components/Modal';
 import { logger } from '@/lib/logger';
@@ -85,7 +86,7 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
               <div>
                 <span className="text-sm text-gray-500">Location</span>
                 <p className="font-medium flex items-center gap-1">
-                  <span>{getLocationTypeIcon(booking.location_type)}</span>
+                  <span>{getLocationTypeIcon(booking.location_type as LocationType)}</span>
                   <span>{booking.location_type_display}</span>
                 </p>
                 {booking.meeting_location && (

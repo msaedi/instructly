@@ -1,25 +1,9 @@
 import { fetchWithAuth } from '@/lib/api';
+import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 
-export interface NotificationItem {
-  id: string;
-  category: string;
-  type: string;
-  title: string;
-  body: string | null;
-  data: Record<string, unknown> | null;
-  read_at: string | null;
-  created_at: string;
-}
-
-export interface NotificationListResponse {
-  notifications: NotificationItem[];
-  total: number;
-  unread_count: number;
-}
-
-export interface NotificationUnreadCountResponse {
-  unread_count: number;
-}
+export type NotificationItem = components['schemas']['NotificationResponse'];
+export type NotificationListResponse = components['schemas']['NotificationListResponse'];
+export type NotificationUnreadCountResponse = components['schemas']['NotificationUnreadCountResponse'];
 
 export interface NotificationQueryParams {
   limit?: number;
@@ -32,7 +16,7 @@ const UNREAD_COUNT_PATH = '/api/v1/notifications/unread-count';
 
 async function parseErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
-    const payload = (await response.json()) as { detail?: string; message?: string };
+    const payload = (await response.json()) as ApiErrorResponse;
     return payload.detail ?? payload.message ?? fallback;
   } catch {
     return fallback;

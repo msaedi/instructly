@@ -21,6 +21,9 @@ import {
 } from '@/lib/availability/dateHelpers';
 import { fromWindows, newEmptyBits, toWindows } from '@/lib/calendar/bitset';
 import { logger } from '@/lib/logger';
+import type { ApiErrorResponse, components } from '@/features/shared/api/types';
+
+type WeekAvailabilityResponse = components['schemas']['WeekAvailabilityResponse'];
 
 type WeekBitsSetter = WeekBits | ((prev: WeekBits) => WeekBits);
 
@@ -280,7 +283,7 @@ export function useWeekSchedule(
       );
 
       if (!response.ok) {
-        const errorBody = await response.json().catch(() => undefined);
+        const errorBody = (await response.json().catch(() => undefined)) as ApiErrorResponse | undefined;
         const detail = extractDetailFromResponse(errorBody) || response.statusText || 'Unknown error';
         const messageText = `Failed to load availability (${response.status}): ${detail}`;
         logger.error('Failed to fetch weekly availability', new Error(messageText), {
@@ -294,7 +297,7 @@ export function useWeekSchedule(
         return;
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as WeekAvailabilityResponse;
       const headerEtag = response.headers.get('ETag') || undefined;
       const headerLastModified = response.headers.get('Last-Modified') || undefined;
       const allowPastHeader = response.headers.get('X-Allow-Past');

@@ -5,6 +5,7 @@ import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BGCStep } from '@/components/instructor/BGCStep';
 import { bgcInvite, bgcRecheck, bgcStatus } from '@/lib/api/bgc';
+import type { BGCInviteResponse, BGCStatusResponse } from '@/lib/api/bgc';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { normalizeProblem } from '@/lib/errors/problem';
 import { toast } from 'sonner';
@@ -21,6 +22,19 @@ jest.mock('sonner', () => {
 });
 
 const originalConsoleWarn = console.warn.bind(console);
+const makeStatus = (overrides: Partial<BGCStatusResponse>): BGCStatusResponse => ({
+  status: 'pending',
+  env: 'sandbox',
+  consent_recent: false,
+  is_expired: false,
+  ...overrides,
+});
+const makeInvite = (overrides: Partial<BGCInviteResponse>): BGCInviteResponse => ({
+  status: 'pending',
+  ok: true,
+  already_in_progress: false,
+  ...overrides,
+});
 
 beforeAll(() => {
   jest.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
@@ -56,10 +70,7 @@ describe('BGCStep', () => {
   });
 
   it('shows pending status chip and disables CTA', async () => {
-    mockedBGCStatus.mockResolvedValueOnce({
-      status: 'pending',
-      env: 'sandbox',
-    });
+    mockedBGCStatus.mockResolvedValueOnce(makeStatus({ status: 'pending' }));
 
     render(<BGCStep instructorId="instructor-123" />);
 
@@ -72,11 +83,7 @@ describe('BGCStep', () => {
 
   it('displays ETA when provided for pending status', async () => {
     const etaIso = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
-    mockedBGCStatus.mockResolvedValueOnce({
-      status: 'pending',
-      env: 'sandbox',
-      eta: etaIso,
-    });
+    mockedBGCStatus.mockResolvedValueOnce(makeStatus({ status: 'pending', eta: etaIso }));
 
     render(<BGCStep instructorId="instructor-eta" />);
 
@@ -92,14 +99,10 @@ describe('BGCStep', () => {
   it('invites background check with debounce and success toast', async () => {
     const timeoutSpy = jest.spyOn(global, 'setTimeout');
     mockedBGCStatus
-      .mockResolvedValueOnce({ status: 'failed', env: 'sandbox' })
-      .mockResolvedValueOnce({ status: 'failed', env: 'sandbox', report_id: 'RPT-1' });
+      .mockResolvedValueOnce(makeStatus({ status: 'failed' }))
+      .mockResolvedValueOnce(makeStatus({ status: 'failed', report_id: 'RPT-1' }));
 
-    mockedBGCInvite.mockResolvedValue({
-      ok: true,
-      status: 'failed',
-      report_id: 'RPT-1',
-    });
+    mockedBGCInvite.mockResolvedValue(makeInvite({ status: 'failed', report_id: 'RPT-1' }));
 
     render(<BGCStep instructorId="instructor-456" />);
 
@@ -120,7 +123,7 @@ describe('BGCStep', () => {
   });
 
   it('waits for consent before starting invite', async () => {
-    mockedBGCStatus.mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
+    mockedBGCStatus.mockResolvedValueOnce(makeStatus({ status: 'failed' }));
     const ensureConsent = jest.fn().mockResolvedValueOnce(false);
 
     render(<BGCStep instructorId="instructor-consent" ensureConsent={ensureConsent} />);
@@ -138,15 +141,12 @@ describe('BGCStep', () => {
 
   it('shows neutral toast when already in progress', async () => {
     mockedBGCStatus
-      .mockResolvedValueOnce({ status: 'failed', env: 'sandbox' })
-      .mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
+      .mockResolvedValueOnce(makeStatus({ status: 'failed' }))
+      .mockResolvedValueOnce(makeStatus({ status: 'failed' }));
 
-    mockedBGCInvite.mockResolvedValue({
-      ok: true,
-      status: 'failed',
-      report_id: 'RPT-2',
-      already_in_progress: true,
-    });
+    mockedBGCInvite.mockResolvedValue(
+      makeInvite({ status: 'failed', report_id: 'RPT-2', already_in_progress: true })
+    );
 
     render(<BGCStep instructorId="instructor-789" />);
 
@@ -161,7 +161,7 @@ describe('BGCStep', () => {
   });
 
   it('displays canceled status messaging and keeps CTA enabled', async () => {
-    mockedBGCStatus.mockResolvedValueOnce({ status: 'canceled', env: 'sandbox' });
+    mockedBGCStatus.mockResolvedValueOnce(makeStatus({ status: 'canceled' }));
 
     render(<BGCStep instructorId="instructor-canceled" />);
 
@@ -174,7 +174,7 @@ describe('BGCStep', () => {
   });
 
   it('disables CTA and shows message when forbidden', async () => {
-    mockedBGCStatus.mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
+    mockedBGCStatus.mockResolvedValueOnce(makeStatus({ status: 'failed' }));
     const response = { status: 403 } as Response;
     const problem = {
       type: 'about:blank',
@@ -198,7 +198,7 @@ describe('BGCStep', () => {
   });
 
   it('shows auth failure message when Checkr rejects credentials during invite', async () => {
-    mockedBGCStatus.mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
+    mockedBGCStatus.mockResolvedValueOnce(makeStatus({ status: 'failed' }));
     const response = { status: 400 } as Response;
     const problem = {
       type: 'about:blank',
@@ -224,7 +224,7 @@ describe('BGCStep', () => {
   });
 
   it('shows package misconfiguration message when Checkr rejects invite package', async () => {
-    mockedBGCStatus.mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
+    mockedBGCStatus.mockResolvedValueOnce(makeStatus({ status: 'failed' }));
     const response = { status: 400 } as Response;
     const problem = {
       type: 'about:blank',
@@ -251,7 +251,7 @@ describe('BGCStep', () => {
   });
 
   it('shows invalid ZIP message when backend reports invalid work location', async () => {
-    mockedBGCStatus.mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
+    mockedBGCStatus.mockResolvedValueOnce(makeStatus({ status: 'failed' }));
     const response = { status: 400 } as Response;
     const problem = {
       type: 'about:blank',
@@ -276,7 +276,7 @@ describe('BGCStep', () => {
   });
 
   it('shows provider work location error when Checkr rejects work_locations', async () => {
-    mockedBGCStatus.mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
+    mockedBGCStatus.mockResolvedValueOnce(makeStatus({ status: 'failed' }));
     const response = { status: 400 } as Response;
     const problem = {
       type: 'about:blank',
@@ -303,10 +303,10 @@ describe('BGCStep', () => {
   it('polls pending status with backoff 15s→60s→300s then clears when passed', async () => {
     jest.useFakeTimers();
     mockedBGCStatus
-      .mockResolvedValueOnce({ status: 'pending', env: 'sandbox' })
-      .mockResolvedValueOnce({ status: 'pending', env: 'sandbox' })
-      .mockResolvedValueOnce({ status: 'pending', env: 'sandbox' })
-      .mockResolvedValueOnce({ status: 'passed', env: 'sandbox', completed_at: '2025-01-01T00:00:00Z' });
+      .mockResolvedValueOnce(makeStatus({ status: 'pending' }))
+      .mockResolvedValueOnce(makeStatus({ status: 'pending' }))
+      .mockResolvedValueOnce(makeStatus({ status: 'pending' }))
+      .mockResolvedValueOnce(makeStatus({ status: 'passed', completed_at: '2025-01-01T00:00:00Z' }));
 
     render(<BGCStep instructorId="instructor-poll" />);
 
@@ -338,10 +338,10 @@ describe('BGCStep', () => {
   it('polls review status with identical backoff and stops after completion', async () => {
     jest.useFakeTimers();
     mockedBGCStatus
-      .mockResolvedValueOnce({ status: 'review', env: 'sandbox' })
-      .mockResolvedValueOnce({ status: 'review', env: 'sandbox' })
-      .mockResolvedValueOnce({ status: 'review', env: 'sandbox' })
-      .mockResolvedValueOnce({ status: 'passed', env: 'sandbox', completed_at: '2025-02-02T00:00:00Z' });
+      .mockResolvedValueOnce(makeStatus({ status: 'review' }))
+      .mockResolvedValueOnce(makeStatus({ status: 'review' }))
+      .mockResolvedValueOnce(makeStatus({ status: 'review' }))
+      .mockResolvedValueOnce(makeStatus({ status: 'passed', completed_at: '2025-02-02T00:00:00Z' }));
 
     render(<BGCStep instructorId="instructor-review" />);
 
@@ -373,17 +373,18 @@ describe('BGCStep', () => {
   it('allows re-check when validity is expiring', async () => {
     const soon = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
     mockedBGCStatus
-      .mockResolvedValueOnce({
-        status: 'passed',
-        env: 'sandbox',
-        consent_recent: true,
-        valid_until: soon,
-        expires_in_days: 5,
-        is_expired: false,
-      })
-      .mockResolvedValueOnce({ status: 'pending', env: 'sandbox', is_expired: false });
+      .mockResolvedValueOnce(
+        makeStatus({
+          status: 'passed',
+          consent_recent: true,
+          valid_until: soon,
+          expires_in_days: 5,
+          is_expired: false,
+        })
+      )
+      .mockResolvedValueOnce(makeStatus({ status: 'pending', is_expired: false }));
 
-    mockedBGCRecheck.mockResolvedValue({ ok: true, status: 'pending', report_id: 'RPT-R' });
+    mockedBGCRecheck.mockResolvedValue(makeInvite({ status: 'pending', report_id: 'RPT-R' }));
 
     render(<BGCStep instructorId="instructor-recheck" />);
 
@@ -396,18 +397,19 @@ describe('BGCStep', () => {
 
   it('requests consent before re-checking when needed', async () => {
     mockedBGCStatus
-      .mockResolvedValueOnce({
-        status: 'passed',
-        env: 'sandbox',
-        consent_recent: false,
-        valid_until: null,
-        expires_in_days: 0,
-        is_expired: true,
-      })
-      .mockResolvedValueOnce({ status: 'pending', env: 'sandbox' });
+      .mockResolvedValueOnce(
+        makeStatus({
+          status: 'passed',
+          consent_recent: false,
+          valid_until: null,
+          expires_in_days: 0,
+          is_expired: true,
+        })
+      )
+      .mockResolvedValueOnce(makeStatus({ status: 'pending' }));
 
     const ensureConsent = jest.fn().mockResolvedValue(true);
-    mockedBGCRecheck.mockResolvedValue({ ok: true, status: 'pending', report_id: 'RPT-R2' });
+    mockedBGCRecheck.mockResolvedValue(makeInvite({ status: 'pending', report_id: 'RPT-R2' }));
 
     render(<BGCStep instructorId="instructor-recheck-consent" ensureConsent={ensureConsent} />);
 
@@ -419,14 +421,15 @@ describe('BGCStep', () => {
   });
 
   it('shows retry info when re-check is rate limited', async () => {
-    mockedBGCStatus.mockResolvedValueOnce({
-      status: 'passed',
-      env: 'sandbox',
-      consent_recent: true,
-      valid_until: null,
-      expires_in_days: 0,
-      is_expired: true,
-    });
+    mockedBGCStatus.mockResolvedValueOnce(
+      makeStatus({
+        status: 'passed',
+        consent_recent: true,
+        valid_until: null,
+        expires_in_days: 0,
+        is_expired: true,
+      })
+    );
 
     const response = { status: 429 } as Response;
     const problem = {
@@ -446,14 +449,15 @@ describe('BGCStep', () => {
   });
 
   it('shows auth failure message when Checkr rejects re-check credentials', async () => {
-    mockedBGCStatus.mockResolvedValueOnce({
-      status: 'passed',
-      env: 'sandbox',
-      consent_recent: true,
-      valid_until: null,
-      expires_in_days: 0,
-      is_expired: true,
-    });
+    mockedBGCStatus.mockResolvedValueOnce(
+      makeStatus({
+        status: 'passed',
+        consent_recent: true,
+        valid_until: null,
+        expires_in_days: 0,
+        is_expired: true,
+      })
+    );
 
     const response = { status: 400 } as Response;
     const problem = {
@@ -478,14 +482,15 @@ describe('BGCStep', () => {
   });
 
   it('shows package misconfiguration message when Checkr rejects re-check package', async () => {
-    mockedBGCStatus.mockResolvedValueOnce({
-      status: 'passed',
-      env: 'sandbox',
-      consent_recent: true,
-      valid_until: null,
-      expires_in_days: 0,
-      is_expired: true,
-    });
+    mockedBGCStatus.mockResolvedValueOnce(
+      makeStatus({
+        status: 'passed',
+        consent_recent: true,
+        valid_until: null,
+        expires_in_days: 0,
+        is_expired: true,
+      })
+    );
 
     const response = { status: 400 } as Response;
     const problem = {
@@ -511,14 +516,15 @@ describe('BGCStep', () => {
   });
 
   it('shows invalid ZIP message when backend reports invalid work location for re-check', async () => {
-    mockedBGCStatus.mockResolvedValueOnce({
-      status: 'passed',
-      env: 'sandbox',
-      consent_recent: true,
-      valid_until: null,
-      expires_in_days: 0,
-      is_expired: true,
-    });
+    mockedBGCStatus.mockResolvedValueOnce(
+      makeStatus({
+        status: 'passed',
+        consent_recent: true,
+        valid_until: null,
+        expires_in_days: 0,
+        is_expired: true,
+      })
+    );
 
     const response = { status: 400 } as Response;
     const problem = {
@@ -543,14 +549,15 @@ describe('BGCStep', () => {
   });
 
   it('shows provider work location error when Checkr rejects re-check work_locations', async () => {
-    mockedBGCStatus.mockResolvedValueOnce({
-      status: 'passed',
-      env: 'sandbox',
-      consent_recent: true,
-      valid_until: null,
-      expires_in_days: 0,
-      is_expired: true,
-    });
+    mockedBGCStatus.mockResolvedValueOnce(
+      makeStatus({
+        status: 'passed',
+        consent_recent: true,
+        valid_until: null,
+        expires_in_days: 0,
+        is_expired: true,
+      })
+    );
 
     const response = { status: 400 } as Response;
     const problem = {
@@ -575,7 +582,7 @@ describe('BGCStep', () => {
   });
 
   it('shows rate limited toast when invite is rate limited', async () => {
-    mockedBGCStatus.mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
+    mockedBGCStatus.mockResolvedValueOnce(makeStatus({ status: 'failed' }));
     const response = { status: 429 } as Response;
     const structuredDetail = {
       status: 429,

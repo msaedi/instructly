@@ -11,45 +11,14 @@ import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { CreateAliasModal } from './CreateAliasModal';
+import type {
+  ApiErrorResponse,
+  LocationLearningPendingAliasesResponse,
+  LocationLearningUnresolvedQueriesResponse,
+} from '@/features/shared/api/types';
 
-interface ClickCount {
-  region_boundary_id: string;
-  region_name?: string | null;
-  count: number;
-}
-
-interface UnresolvedQueryItem {
-  id: string;
-  query_normalized: string;
-  search_count: number;
-  unique_user_count: number;
-  click_count: number;
-  clicks: ClickCount[];
-  sample_original_queries: string[];
-  first_seen_at: string;
-  last_seen_at: string;
-  status: string;
-}
-
-interface UnresolvedQueriesResponse {
-  queries: UnresolvedQueryItem[];
-  total: number;
-}
-
-interface PendingAliasItem {
-  id: string;
-  alias_normalized: string;
-  region_boundary_id?: string | null;
-  region_name?: string | null;
-  confidence: number;
-  user_count: number;
-  status: string;
-  created_at: string;
-}
-
-interface PendingAliasesResponse {
-  aliases: PendingAliasItem[];
-}
+type UnresolvedQueriesResponse = LocationLearningUnresolvedQueriesResponse;
+type PendingAliasesResponse = LocationLearningPendingAliasesResponse;
 
 async function fetchUnresolved(limit = 50): Promise<UnresolvedQueriesResponse> {
   const res = await fetchWithAuth(`/api/v1/admin/location-learning/unresolved?limit=${limit}`);
@@ -96,8 +65,8 @@ async function createManualAlias(payload: {
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(body.detail || 'Failed to create alias');
+    const body = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+    throw new Error(body.detail || body.message || 'Failed to create alias');
   }
 }
 
