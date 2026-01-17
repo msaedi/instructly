@@ -143,6 +143,7 @@ const mockUseSession = useSession as jest.Mock;
 const mockUseUserAddresses = useUserAddresses as jest.Mock;
 const mockUseInvalidateUserAddresses = useInvalidateUserAddresses as jest.Mock;
 const mockFetchWithAuth = fetchWithAuth as jest.Mock;
+const mockSubmitServiceAreasOnce = submitServiceAreasOnce as jest.MockedFunction<typeof submitServiceAreasOnce>;
 
 describe('InstructorProfileForm', () => {
   const createWrapper = () => {
@@ -159,7 +160,7 @@ describe('InstructorProfileForm', () => {
     mockUseSession.mockReturnValue({ data: null, isLoading: false });
     mockUseUserAddresses.mockReturnValue({ data: null, isLoading: false });
     mockUseInvalidateUserAddresses.mockReturnValue(jest.fn());
-    submitServiceAreasOnce.mockResolvedValue(undefined);
+    mockSubmitServiceAreasOnce.mockResolvedValue(undefined);
     global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ is_nyc: true }) });
     Object.defineProperty(window, 'sessionStorage', {
       value: { setItem: jest.fn(), getItem: jest.fn(), removeItem: jest.fn() },
