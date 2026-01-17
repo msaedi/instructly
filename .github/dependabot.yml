@@ -8,6 +8,11 @@ updates:
     labels:
       - "dependencies"
       - "security"
+    ignore:
+      - dependency-name: "starlette"
+        versions: [">=0.51.0"]
+        # FastAPI 0.128.0 requires starlette<0.51.0
+        # Remove this ignore when FastAPI supports 0.51.0+
 
   - package-ecosystem: "npm"
     directory: "/frontend"

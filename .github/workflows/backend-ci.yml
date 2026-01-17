@@ -93,6 +93,12 @@ jobs:
         pip install --no-cache-dir -r requirements-dev.txt || true
         pip install --no-cache-dir ruff mypy pytest-cov pytest-timeout
 
+    - name: Verify dependency compatibility
+      working-directory: backend
+      run: |
+        pip check
+        echo "All dependencies compatible"
+
     - name: Check disk usage (after backend deps)
       run: df -h
 
