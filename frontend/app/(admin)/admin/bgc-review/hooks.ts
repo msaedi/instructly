@@ -105,7 +105,8 @@ const normalizeInstructorDetail = (detail: AdminInstructorDetailApi): AdminInstr
   bgcIncludesCanceled: Boolean(detail.bgc_includes_canceled),
   bgc_report_id: detail.bgc_report_id ?? null,
   bgc_completed_at: detail.bgc_completed_at ?? null,
-  bgc_eta: detail.bgc_eta ?? null,
+  // bgc_eta missing from AdminInstructorDetailResponse schema - backend gap
+  bgc_eta: (detail as AdminInstructorDetailApi & { bgc_eta?: string | null }).bgc_eta ?? null,
   consent_recent_at: detail.consent_recent_at ?? null,
   created_at: detail.created_at ?? null,
   updated_at: detail.updated_at ?? null,

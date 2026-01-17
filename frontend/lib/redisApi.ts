@@ -4,17 +4,26 @@
  */
 
 import { withApiBase } from '@/lib/apiBase';
-import type { components } from '@/features/shared/api/types';
+import type {
+  RedisHealthResponse,
+  RedisStatsResponse,
+  RedisCeleryQueuesResponse,
+  RedisConnectionAuditResponse,
+  RedisTestResponse,
+} from '@/features/shared/api/types';
 
 function apiBaseUrl(): string {
   return withApiBase('/').replace(/\/$/, '');
 }
 
-export type RedisHealthResponse = components['schemas']['RedisHealthResponse'];
-export type RedisStatsResponse = components['schemas']['RedisStatsResponse'];
-export type RedisCeleryQueuesResponse = components['schemas']['RedisCeleryQueuesResponse'];
-export type RedisConnectionAuditResponse = components['schemas']['RedisConnectionAuditResponse'];
-export type RedisTestResponse = components['schemas']['RedisTestResponse'];
+// Re-export types for consumers
+export type {
+  RedisHealthResponse,
+  RedisStatsResponse,
+  RedisCeleryQueuesResponse,
+  RedisConnectionAuditResponse,
+  RedisTestResponse,
+};
 
 export type RedisHealth = RedisHealthResponse;
 export interface RedisStats {

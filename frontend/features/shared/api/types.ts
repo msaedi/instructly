@@ -292,3 +292,78 @@ export type AdminAwardListResponse = components['schemas']['AdminAwardListRespon
 
 // Search history
 export type SearchHistoryResponse = components['schemas']['SearchHistoryResponse'];
+
+// Analytics types (admin dashboard)
+export type SearchTrendsResponse = components['schemas']['SearchTrendsResponse'];
+export type PopularSearchesResponse = components['schemas']['PopularSearchesResponse'];
+export type SearchReferrersResponse = components['schemas']['SearchReferrersResponse'];
+export type CandidateCategoryTrendsResponse = components['schemas']['CandidateCategoryTrendsResponse'];
+export type CandidateTopServicesResponse = components['schemas']['CandidateTopServicesResponse'];
+export type CandidateServiceQueriesResponse = components['schemas']['CandidateServiceQueriesResponse'];
+export type CandidateScoreDistributionResponse = components['schemas']['CandidateScoreDistributionResponse'];
+export type CodebaseMetricsResponse = components['schemas']['CodebaseMetricsResponse'];
+export type CodebaseHistoryResponse = components['schemas']['CodebaseHistoryResponse'];
+export type CodebaseCategoryStats = components['schemas']['CodebaseCategoryStats'];
+export type CodebaseSection = components['schemas']['CodebaseSection'];
+export type CodebaseHistoryEntry = components['schemas']['CodebaseHistoryEntry'];
+export type DailySearchTrend = components['schemas']['DailySearchTrend'];
+export type PopularSearch = components['schemas']['PopularSearch'];
+export type SearchReferrer = components['schemas']['SearchReferrer'];
+export type ZeroResultQueryItem = components['schemas']['ZeroResultQueryItem'];
+export type SearchAnalyticsSummaryResponse = components['schemas']['SearchAnalyticsSummaryResponse'];
+export type ConversionMetricsResponse = components['schemas']['ConversionMetricsResponse'];
+export type SearchPerformanceResponse = components['schemas']['SearchPerformanceResponse'];
+export type CandidateSummaryResponse = components['schemas']['CandidateSummaryResponse'];
+export type CandidateCategoryTrend = components['schemas']['CandidateCategoryTrend'];
+export type CandidateTopService = components['schemas']['CandidateTopService'];
+export type CandidateServiceQuery = components['schemas']['CandidateServiceQuery'];
+
+// Redis monitoring types (admin dashboard)
+export type RedisHealthResponse = components['schemas']['RedisHealthResponse'];
+export type RedisStatsResponse = components['schemas']['RedisStatsResponse'];
+export type RedisCeleryQueuesResponse = components['schemas']['RedisCeleryQueuesResponse'];
+export type RedisConnectionAuditResponse = components['schemas']['RedisConnectionAuditResponse'];
+export type RedisTestResponse = components['schemas']['RedisTestResponse'];
+
+// Database monitoring types (admin dashboard)
+export type DatabaseHealthResponse = components['schemas']['DatabaseHealthResponse'];
+export type DatabaseStatsResponse = components['schemas']['DatabaseStatsResponse'];
+export type DatabasePoolStatusResponse = components['schemas']['DatabasePoolStatusResponse'];
+
+// Upload types
+export type SignedUploadResponse = components['schemas']['SignedUploadResponse'];
+export type ProxyUploadResponse = components['schemas']['ProxyUploadResponse'];
+export type CreateSignedUploadRequest = components['schemas']['CreateSignedUploadRequest'];
+
+// Common response types
+export type SuccessResponse = components['schemas']['SuccessResponse'];
+export type IdentitySessionResponse = components['schemas']['IdentitySessionResponse'];
+export type OnboardingStatusResponse = components['schemas']['OnboardingStatusResponse'];
+
+// Auth types
+export type LoginResponse = components['schemas']['LoginResponse'];
+
+// Beta types
+export type BetaSettingsResponse = components['schemas']['BetaSettingsResponse'];
+export type BetaSettingsUpdateRequest = components['schemas']['BetaSettingsUpdateRequest'];
+export type PerformanceMetricsResponse = components['schemas']['PerformanceMetricsResponse'];
+export type BetaMetricsSummaryResponse = components['schemas']['BetaMetricsSummaryResponse'];
+
+// Pricing types
+export type PricingConfigResponse = components['schemas']['PricingConfigResponse'];
+export type PricingLineItem = components['schemas']['LineItem'];
+export type PricingTierConfig = components['schemas']['TierConfig'];
+export type PricingConfig = components['schemas']['PricingConfig'];
+export type PricingPreviewQuotePayload = components['schemas']['PricingPreviewIn'];
+
+// Conversation types
+export type ConversationListResponse = components['schemas']['ConversationListResponse'];
+export type CreateConversationResponse = components['schemas']['CreateConversationResponse'];
+export type ConversationDetail = components['schemas']['ConversationDetail'];
+export type ConversationListItem = components['schemas']['ConversationListItem'];
+
+// Finalize profile picture payload
+export type FinalizeProfilePicturePayload = components['schemas']['FinalizeProfilePicturePayload'];
+
+// Upcoming booking response
+export type UpcomingBookingResponse = components['schemas']['UpcomingBookingResponse'];

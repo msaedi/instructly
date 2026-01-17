@@ -1,17 +1,17 @@
 import { fetchJson, ApiProblemError } from '@/lib/api/fetch';
 import { logger } from '@/lib/logger';
-import type { components, PricingPreviewResponse } from '@/features/shared/api/types';
+import type {
+  PricingPreviewResponse,
+  PricingLineItem,
+  PricingTierConfig,
+  PricingConfig,
+  PricingPreviewQuotePayload,
+  PricingConfigResponse,
+} from '@/features/shared/api/types';
 
-export type { PricingPreviewResponse };
-
-export type PricingLineItem = components['schemas']['LineItem'];
-export type PricingTierConfig = components['schemas']['TierConfig'];
-export type PricingConfig = components['schemas']['PricingConfig'];
-export type PricingPreviewQuotePayload = components['schemas']['PricingPreviewIn'];
+export type { PricingPreviewResponse, PricingLineItem, PricingTierConfig, PricingConfig, PricingPreviewQuotePayload };
 
 export type PricingPreviewQuotePayloadBase = Omit<PricingPreviewQuotePayload, 'applied_credit_cents'>;
-
-type PricingConfigResponse = components['schemas']['PricingConfigResponse'];
 
 export async function fetchPricingConfig(): Promise<PricingConfigResponse> {
   try {

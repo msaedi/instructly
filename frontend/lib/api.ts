@@ -1,11 +1,19 @@
 // frontend/lib/api.ts
 import type {
-  components,
   BookingPreview,
   ValidateWeekRequest,
   WeekValidationResponse,
   UpcomingBookingList,
   ApiErrorResponse,
+  NYCZipCheckResponse,
+  IdentitySessionResponse,
+  CreateSignedUploadRequest,
+  SignedUploadResponse,
+  ProxyUploadResponse,
+  FinalizeProfilePicturePayload,
+  SuccessResponse,
+  UpcomingBookingResponse,
+  OnboardingStatusResponse,
 } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
@@ -16,15 +24,7 @@ type FetchWithAuthOptions = RequestInit & {
 };
 
 type WeekSchedule = ValidateWeekRequest['current_week'];
-type NYCZipCheckResponse = components['schemas']['NYCZipCheckResponse'];
-type IdentitySessionResponse = components['schemas']['IdentitySessionResponse'];
-type CreateSignedUploadRequest = components['schemas']['CreateSignedUploadRequest'];
-type SignedUploadResponse = components['schemas']['SignedUploadResponse'];
-type ProxyUploadResponse = components['schemas']['ProxyUploadResponse'];
-type FinalizeProfilePicturePayload = components['schemas']['FinalizeProfilePicturePayload'];
-type SuccessResponse = components['schemas']['SuccessResponse'];
-type UpcomingBooking = components['schemas']['UpcomingBookingResponse'];
-type OnboardingStatusResponse = components['schemas']['OnboardingStatusResponse'];
+type UpcomingBooking = UpcomingBookingResponse;
 
 /**
  * API Client for InstaInstru Platform

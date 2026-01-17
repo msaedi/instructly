@@ -2,12 +2,12 @@
 
 import { getErrorMessage } from '@/lib/api';
 import { withApiBase } from '@/lib/apiBase';
-import type { components } from '@/features/shared/api/types';
-
-type BetaSettingsResponse = components['schemas']['BetaSettingsResponse'];
-type BetaSettingsUpdateRequest = components['schemas']['BetaSettingsUpdateRequest'];
-type PerformanceMetricsResponse = components['schemas']['PerformanceMetricsResponse'];
-type BetaMetricsSummaryResponse = components['schemas']['BetaMetricsSummaryResponse'];
+import type {
+  BetaSettingsResponse,
+  BetaSettingsUpdateRequest,
+  PerformanceMetricsResponse,
+  BetaMetricsSummaryResponse,
+} from '@/features/shared/api/types';
 
 export type BetaSettings = BetaSettingsResponse;
 export type MetricsPerformanceResponse = PerformanceMetricsResponse;

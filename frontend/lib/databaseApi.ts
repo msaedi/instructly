@@ -4,15 +4,22 @@
  */
 
 import { withApiBase } from '@/lib/apiBase';
-import type { components } from '@/features/shared/api/types';
+import type {
+  DatabaseHealthResponse,
+  DatabaseStatsResponse,
+  DatabasePoolStatusResponse,
+} from '@/features/shared/api/types';
 
 function apiBaseUrl(): string {
   return withApiBase('/').replace(/\/$/, '');
 }
 
-export type DatabaseHealthResponse = components['schemas']['DatabaseHealthResponse'];
-export type DatabaseStatsResponse = components['schemas']['DatabaseStatsResponse'];
-export type DatabasePoolStatusResponse = components['schemas']['DatabasePoolStatusResponse'];
+// Re-export types for consumers
+export type {
+  DatabaseHealthResponse,
+  DatabaseStatsResponse,
+  DatabasePoolStatusResponse,
+};
 
 export type DatabaseHealth = DatabaseHealthResponse;
 export type DatabasePoolStatus = DatabasePoolStatusResponse;

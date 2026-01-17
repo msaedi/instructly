@@ -4,30 +4,56 @@
 
 import { logger } from '@/lib/logger';
 import { withApiBase } from '@/lib/apiBase';
-import type { components } from '@/features/shared/api/types';
+import type {
+  CodebaseCategoryStats,
+  CodebaseSection,
+  CodebaseMetricsResponse,
+  CodebaseHistoryEntry,
+  CodebaseHistoryResponse,
+  DailySearchTrend,
+  PopularSearch,
+  SearchReferrer,
+  ZeroResultQueryItem,
+  SearchTrendsResponse,
+  PopularSearchesResponse,
+  SearchReferrersResponse,
+  SearchAnalyticsSummaryResponse,
+  ConversionMetricsResponse,
+  SearchPerformanceResponse,
+  CandidateSummaryResponse,
+  CandidateCategoryTrend,
+  CandidateCategoryTrendsResponse,
+  CandidateTopService,
+  CandidateTopServicesResponse,
+  CandidateServiceQuery,
+  CandidateServiceQueriesResponse,
+  CandidateScoreDistributionResponse,
+} from '@/features/shared/api/types';
 
 function apiBaseUrl(): string {
   return withApiBase('/').replace(/\/$/, '');
 }
 
-// Codebase metrics types
-export type CodebaseCategoryStats = components['schemas']['CodebaseCategoryStats'];
-export type CodebaseSection = components['schemas']['CodebaseSection'];
-export type CodebaseMetricsResponse = components['schemas']['CodebaseMetricsResponse'];
-export type CodebaseHistoryEntry = components['schemas']['CodebaseHistoryEntry'];
-type CodebaseHistoryResponse = components['schemas']['CodebaseHistoryResponse'];
+// Re-export types for consumers
+export type {
+  CodebaseCategoryStats,
+  CodebaseSection,
+  CodebaseMetricsResponse,
+  CodebaseHistoryEntry,
+  PopularSearch,
+  SearchReferrer,
+  CandidateCategoryTrend,
+  CandidateTopService,
+  CandidateServiceQuery,
+};
 
-// Search analytics types
-export type SearchTrend = components['schemas']['DailySearchTrend'];
-export type PopularSearch = components['schemas']['PopularSearch'];
-export type SearchReferrer = components['schemas']['SearchReferrer'];
-export type ZeroResultSearch = components['schemas']['ZeroResultQueryItem'];
-type SearchTrendsResponse = components['schemas']['SearchTrendsResponse'];
-type PopularSearchesResponse = components['schemas']['PopularSearchesResponse'];
-type SearchReferrersResponse = components['schemas']['SearchReferrersResponse'];
-export type SearchAnalyticsSummary = components['schemas']['SearchAnalyticsSummaryResponse'];
-export type ConversionMetrics = components['schemas']['ConversionMetricsResponse'];
-export type SearchPerformance = components['schemas']['SearchPerformanceResponse'];
+// Type aliases for backwards compatibility
+export type SearchTrend = DailySearchTrend;
+export type ZeroResultSearch = ZeroResultQueryItem;
+export type SearchAnalyticsSummary = SearchAnalyticsSummaryResponse;
+export type ConversionMetrics = ConversionMetricsResponse;
+export type SearchPerformance = SearchPerformanceResponse;
+export type CandidateSummary = CandidateSummaryResponse;
 
 export interface ServicePillPerformance {
   service_name: string;
@@ -62,16 +88,6 @@ export interface UserSearchBehavior {
     deletion_rate: number;
   };
 }
-
-// Candidates analytics types
-export type CandidateSummary = components['schemas']['CandidateSummaryResponse'];
-export type CandidateCategoryTrend = components['schemas']['CandidateCategoryTrend'];
-type CandidateCategoryTrendsResponse = components['schemas']['CandidateCategoryTrendsResponse'];
-export type CandidateTopService = components['schemas']['CandidateTopService'];
-type CandidateTopServicesResponse = components['schemas']['CandidateTopServicesResponse'];
-export type CandidateServiceQuery = components['schemas']['CandidateServiceQuery'];
-type CandidateServiceQueriesResponse = components['schemas']['CandidateServiceQueriesResponse'];
-type CandidateScoreDistributionResponse = components['schemas']['CandidateScoreDistributionResponse'];
 
 // Shared fetch helper
 async function fetchWithAuth<T>(endpoint: string, _token: string | null | undefined): Promise<T> {
