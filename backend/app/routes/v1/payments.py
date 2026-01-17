@@ -600,6 +600,7 @@ async def get_instructor_earnings(
     )
 
 
+# openapi-exempt: file download (StreamingResponse) cannot have JSON response schema
 @router.post(
     "/earnings/export",
     response_model=None,

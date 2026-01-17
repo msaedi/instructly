@@ -54,6 +54,7 @@ metrics_lite_router = APIRouter(
 RateLimitAdmin = cast(Any, getattr(rate_limiter_module, "RateLimitAdmin"))
 
 
+# openapi-exempt: internal metrics endpoint (include_in_schema=False, returns plain text)
 @metrics_lite_router.get(
     "/metrics-lite",
     include_in_schema=False,

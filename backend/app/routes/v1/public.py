@@ -202,7 +202,8 @@ def create_guest_session(
     return GuestSessionResponse(guest_id=guest_id)
 
 
-@router.post("/logout")
+# openapi-exempt: 204 No Content - no response body
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 def public_logout(response_obj: Response, request: Request) -> Response:
     """Clear known session cookies. Public to support cross-origin preview logout.
 

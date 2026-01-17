@@ -169,6 +169,7 @@ def validate_invite(
     return payload
 
 
+# openapi-exempt: 204 No Content - no response body
 @router.get(
     "/invites/verified",
     status_code=status.HTTP_204_NO_CONTENT,

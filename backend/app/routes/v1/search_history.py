@@ -279,6 +279,7 @@ async def record_guest_search(
     )
 
 
+# openapi-exempt: 204 No Content - no response body
 @router.delete("/{search_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_search(
     search_id: str = Path(..., pattern=ULID_PATH_PATTERN),

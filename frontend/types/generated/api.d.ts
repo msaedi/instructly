@@ -497,6 +497,86 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/auth-blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Auth Issues
+         * @description List accounts with auth issues (blocked or approaching lockout).
+         *
+         *     Requires ACCESS_MONITORING permission.
+         *
+         *     Returns accounts that are:
+         *     - Locked out (after 5+ failed attempts)
+         *     - Rate limited (minute or hour)
+         *     - Require CAPTCHA (after 3+ failures)
+         *     - Approaching lockout (3+ failures)
+         */
+        get: operations["list_auth_issues_api_v1_admin_auth_blocks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth-blocks/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Summary Stats
+         * @description Get summary statistics for auth blocks.
+         *
+         *     Requires ACCESS_MONITORING permission.
+         */
+        get: operations["get_summary_stats_api_v1_admin_auth_blocks_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth-blocks/{email}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Account State
+         * @description Get detailed auth state for a specific account.
+         *
+         *     Requires ACCESS_MONITORING permission.
+         */
+        get: operations["get_account_state_api_v1_admin_auth_blocks__email__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Clear Account Blocks
+         * @description Clear auth blocks for an account.
+         *
+         *     Requires MANAGE_USERS permission.
+         *
+         *     If no types specified, clears ALL blocks for the account.
+         */
+        delete: operations["clear_account_blocks_api_v1_admin_auth_blocks__email__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/background-checks/cases": {
         parameters: {
             query?: never;
@@ -959,6 +1039,142 @@ export type paths = {
         get: operations["admin_instructor_detail_api_v1_admin_instructors__instructor_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Manual Alias */
+        post: operations["create_manual_alias_api_v1_admin_location_learning_aliases_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/aliases/{alias_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Learned Alias */
+        post: operations["approve_learned_alias_api_v1_admin_location_learning_aliases__alias_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/aliases/{alias_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject Learned Alias */
+        post: operations["reject_learned_alias_api_v1_admin_location_learning_aliases__alias_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/pending-aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Pending Learned Aliases */
+        get: operations["list_pending_learned_aliases_api_v1_admin_location_learning_pending_aliases_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/process": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Process Location Learning */
+        post: operations["process_location_learning_api_v1_admin_location_learning_process_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/regions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Regions */
+        get: operations["list_regions_api_v1_admin_location_learning_regions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/unresolved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Unresolved Location Queries */
+        get: operations["list_unresolved_location_queries_api_v1_admin_location_learning_unresolved_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/unresolved/{query_normalized}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dismiss Unresolved Query */
+        post: operations["dismiss_unresolved_query_api_v1_admin_location_learning_unresolved__query_normalized__dismiss_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2682,6 +2898,86 @@ export type paths = {
          *         Updated booking information
          */
         post: operations["dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instructor-referrals/founding-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Founding Status
+         * @description Public endpoint to check founding phase status.
+         */
+        get: operations["get_founding_status_api_v1_instructor_referrals_founding_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instructor-referrals/popup-data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Popup Data
+         * @description Get data for the referral popup shown after go-live.
+         */
+        get: operations["get_popup_data_api_v1_instructor_referrals_popup_data_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instructor-referrals/referred": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Referred Instructors
+         * @description Get list of instructors referred by the current user.
+         */
+        get: operations["get_referred_instructors_api_v1_instructor_referrals_referred_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instructor-referrals/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Referral Stats
+         * @description Get current instructor's referral stats.
+         */
+        get: operations["get_referral_stats_api_v1_instructor_referrals_stats_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5741,6 +6037,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sse/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Sse Token
+         * @description Exchange a long-lived session for a short-lived SSE token.
+         */
+        post: operations["get_sse_token_api_v1_sse_token_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/students/badges": {
         parameters: {
             query?: never;
@@ -6514,6 +6830,169 @@ export type components = {
             name: string;
             /** Updated At */
             updated_at?: string | null;
+        };
+        /** AdminLocationLearningAliasActionResponse */
+        AdminLocationLearningAliasActionResponse: {
+            /** Alias Id */
+            alias_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "rejected";
+        };
+        /** AdminLocationLearningClickCount */
+        AdminLocationLearningClickCount: {
+            /** Count */
+            count: number;
+            /** Region Boundary Id */
+            region_boundary_id: string;
+            /** Region Name */
+            region_name?: string | null;
+        };
+        /**
+         * AdminLocationLearningCreateAliasRequest
+         * @description Create a manual location alias mapping.
+         */
+        AdminLocationLearningCreateAliasRequest: {
+            /**
+             * Alias
+             * @description Alias text to map
+             */
+            alias: string;
+            /**
+             * Alias Type
+             * @description Classification for this alias (abbreviation|colloquial|landmark|typo)
+             * @default landmark
+             */
+            alias_type: string | null;
+            /**
+             * Candidate Region Ids
+             * @description If provided (len>=2), create an ambiguous alias requiring clarification
+             */
+            candidate_region_ids?: string[] | null;
+            /**
+             * Region Boundary Id
+             * @description RegionBoundary id to map to (single-resolution alias)
+             */
+            region_boundary_id?: string | null;
+        };
+        /** AdminLocationLearningCreateAliasResponse */
+        AdminLocationLearningCreateAliasResponse: {
+            /** Alias Id */
+            alias_id: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "created";
+        };
+        /** AdminLocationLearningDismissQueryResponse */
+        AdminLocationLearningDismissQueryResponse: {
+            /** Query Normalized */
+            query_normalized: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "dismissed";
+        };
+        /** AdminLocationLearningLearnedAliasItem */
+        AdminLocationLearningLearnedAliasItem: {
+            /** Alias Normalized */
+            alias_normalized: string;
+            /** Confidence */
+            confidence: number;
+            /** Confirmations */
+            confirmations: number;
+            /** Region Boundary Id */
+            region_boundary_id: string;
+            /** Status */
+            status: string;
+        };
+        /** AdminLocationLearningPendingAliasItem */
+        AdminLocationLearningPendingAliasItem: {
+            /** Alias Normalized */
+            alias_normalized: string;
+            /** Confidence */
+            confidence: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Region Boundary Id */
+            region_boundary_id?: string | null;
+            /** Region Name */
+            region_name?: string | null;
+            /** Status */
+            status: string;
+            /** User Count */
+            user_count: number;
+        };
+        /** AdminLocationLearningPendingAliasesResponse */
+        AdminLocationLearningPendingAliasesResponse: {
+            /** Aliases */
+            aliases: components["schemas"]["AdminLocationLearningPendingAliasItem"][];
+        };
+        /** AdminLocationLearningProcessResponse */
+        AdminLocationLearningProcessResponse: {
+            /** Learned */
+            learned: components["schemas"]["AdminLocationLearningLearnedAliasItem"][];
+            /** Learned Count */
+            learned_count: number;
+        };
+        /** AdminLocationLearningRegionItem */
+        AdminLocationLearningRegionItem: {
+            /** Borough */
+            borough?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** AdminLocationLearningRegionsResponse */
+        AdminLocationLearningRegionsResponse: {
+            /** Regions */
+            regions: components["schemas"]["AdminLocationLearningRegionItem"][];
+        };
+        /** AdminLocationLearningUnresolvedQueriesResponse */
+        AdminLocationLearningUnresolvedQueriesResponse: {
+            /** Queries */
+            queries: components["schemas"]["AdminLocationLearningUnresolvedQueryItem"][];
+            /** Total */
+            total: number;
+        };
+        /** AdminLocationLearningUnresolvedQueryItem */
+        AdminLocationLearningUnresolvedQueryItem: {
+            /** Click Count */
+            click_count: number;
+            /** Clicks */
+            clicks: components["schemas"]["AdminLocationLearningClickCount"][];
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /** Id */
+            id: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Query Normalized */
+            query_normalized: string;
+            /** Sample Original Queries */
+            sample_original_queries: string[];
+            /** Search Count */
+            search_count: number;
+            /** Status */
+            status: string;
+            /** Unique User Count */
+            unique_user_count: number;
         };
         /**
          * AdminNoShowResolution
@@ -7729,6 +8208,30 @@ export type components = {
             /** Reason */
             reason?: string | null;
         };
+        /**
+         * BlockedAccount
+         * @description Blocked account information.
+         */
+        BlockedAccount: {
+            blocks: components["schemas"]["BlocksState"];
+            /** Email */
+            email: string;
+            /**
+             * Failure Count
+             * @default 0
+             */
+            failure_count: number;
+        };
+        /**
+         * BlocksState
+         * @description All block states for an account.
+         */
+        BlocksState: {
+            captcha_required?: components["schemas"]["CaptchaState"] | null;
+            lockout?: components["schemas"]["LockoutState"] | null;
+            rate_limit_hour?: components["schemas"]["RateLimitState"] | null;
+            rate_limit_minute?: components["schemas"]["RateLimitState"] | null;
+        };
         /** Body_dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post */
         Body_dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post: {
             /** Reason */
@@ -8485,6 +8988,14 @@ export type components = {
         /** CandidateTopServicesResponse */
         CandidateTopServicesResponse: components["schemas"]["CandidateTopService"][];
         /**
+         * CaptchaState
+         * @description CAPTCHA requirement state.
+         */
+        CaptchaState: {
+            /** Active */
+            active: boolean;
+        };
+        /**
          * CatalogServiceMinimalResponse
          * @description Minimal catalog service response for pills/lists.
          */
@@ -8674,6 +9185,38 @@ export type components = {
              * @description Whether payment was successful
              */
             success: boolean;
+        };
+        /**
+         * ClearBlocksRequest
+         * @description Request to clear auth blocks.
+         */
+        ClearBlocksRequest: {
+            /**
+             * Reason
+             * @description Reason for clearing blocks (for audit)
+             */
+            reason?: string | null;
+            /**
+             * Types
+             * @description Block types to clear: lockout, rate_limit, captcha, failures. If not specified, clears all.
+             */
+            types?: string[] | null;
+        };
+        /**
+         * ClearBlocksResponse
+         * @description Response after clearing blocks.
+         */
+        ClearBlocksResponse: {
+            /** Cleared */
+            cleared: string[];
+            /** Cleared At */
+            cleared_at: string;
+            /** Cleared By */
+            cleared_by: string;
+            /** Email */
+            email: string;
+            /** Reason */
+            reason?: string | null;
         };
         /** CodebaseCategoryStats */
         CodebaseCategoryStats: {
@@ -9476,6 +10019,20 @@ export type components = {
             remaining: number;
         };
         /**
+         * FoundingStatusResponse
+         * @description Public founding phase status.
+         */
+        FoundingStatusResponse: {
+            /** Is Founding Phase */
+            is_founding_phase: boolean;
+            /** Spots Filled */
+            spots_filled: number;
+            /** Spots Remaining */
+            spots_remaining: number;
+            /** Total Founding Spots */
+            total_founding_spots: number;
+        };
+        /**
          * GatedPingResponse
          * @description Simple response indicating gated ping success.
          */
@@ -10265,6 +10822,18 @@ export type components = {
             label: string;
         };
         /**
+         * ListAuthIssuesResponse
+         * @description Response for listing accounts with auth issues.
+         */
+        ListAuthIssuesResponse: {
+            /** Accounts */
+            accounts: components["schemas"]["BlockedAccount"][];
+            /** Scanned At */
+            scanned_at: string;
+            /** Total */
+            total: number;
+        };
+        /**
          * LiveAlertItem
          * @description Simplified alert item for live view.
          */
@@ -10379,6 +10948,24 @@ export type components = {
              * @description Location tier (0-5)
              */
             tier: number;
+        };
+        /**
+         * LockoutState
+         * @description Lockout block state.
+         */
+        LockoutState: {
+            /** Active */
+            active: boolean;
+            /**
+             * Level
+             * @default
+             */
+            level: string;
+            /**
+             * Ttl Seconds
+             * @default 0
+             */
+            ttl_seconds: number;
         };
         /** LoginResponse */
         LoginResponse: {
@@ -11725,6 +12312,22 @@ export type components = {
          */
         PopularSearchesResponse: components["schemas"]["PopularSearch"][];
         /**
+         * PopupDataResponse
+         * @description Data for the one-time referral popup after go-live.
+         */
+        PopupDataResponse: {
+            /** Bonus Amount Cents */
+            bonus_amount_cents: number;
+            /** Founding Spots Remaining */
+            founding_spots_remaining: number;
+            /** Is Founding Phase */
+            is_founding_phase: boolean;
+            /** Referral Code */
+            referral_code: string;
+            /** Referral Link */
+            referral_link: string;
+        };
+        /**
          * PreferenceResponse
          * @description Single preference response.
          */
@@ -12227,6 +12830,26 @@ export type components = {
             status: string;
         };
         /**
+         * RateLimitState
+         * @description Rate limit block state.
+         */
+        RateLimitState: {
+            /** Active */
+            active: boolean;
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /** Limit */
+            limit: number;
+            /**
+             * Ttl Seconds
+             * @default 0
+             */
+            ttl_seconds: number;
+        };
+        /**
          * RateLimitStats
          * @description Rate limit statistics.
          */
@@ -12559,6 +13182,67 @@ export type components = {
              * @description Operation status ('ok' if the operation ran)
              */
             status: string;
+        };
+        /**
+         * ReferralStatsResponse
+         * @description Stats for instructor's referral activity.
+         */
+        ReferralStatsResponse: {
+            /** Completed Payouts */
+            completed_payouts: number;
+            /** Current Bonus Cents */
+            current_bonus_cents: number;
+            /** Founding Spots Remaining */
+            founding_spots_remaining: number;
+            /** Is Founding Phase */
+            is_founding_phase: boolean;
+            /** Pending Payouts */
+            pending_payouts: number;
+            /** Referral Code */
+            referral_code: string;
+            /** Referral Link */
+            referral_link: string;
+            /** Total Earned Cents */
+            total_earned_cents: number;
+            /** Total Referred */
+            total_referred: number;
+        };
+        /**
+         * ReferredInstructorInfo
+         * @description Info about an instructor this user referred.
+         */
+        ReferredInstructorInfo: {
+            /** First Lesson Completed At */
+            first_lesson_completed_at?: string | null;
+            /** First Name */
+            first_name: string;
+            /** Id */
+            id: string;
+            /** Is Live */
+            is_live: boolean;
+            /** Last Initial */
+            last_initial: string;
+            /** Payout Amount Cents */
+            payout_amount_cents?: number | null;
+            /** Payout Status */
+            payout_status: string;
+            /**
+             * Referred At
+             * Format: date-time
+             */
+            referred_at: string;
+            /** Went Live At */
+            went_live_at?: string | null;
+        };
+        /**
+         * ReferredInstructorsResponse
+         * @description List of instructors referred by current user.
+         */
+        ReferredInstructorsResponse: {
+            /** Instructors */
+            instructors: components["schemas"]["ReferredInstructorInfo"][];
+            /** Total Count */
+            total_count: number;
         };
         /**
          * RequestMetrics
@@ -13848,6 +14532,13 @@ export type components = {
              */
             start_time: string;
         };
+        /** SseTokenResponse */
+        SseTokenResponse: {
+            /** Expires In S */
+            expires_in_s: number;
+            /** Token */
+            token: string;
+        };
         /**
          * StageStatus
          * @description Status for pipeline stages and location tiers.
@@ -13940,6 +14631,32 @@ export type components = {
              * @default true
              */
             success: boolean;
+        };
+        /**
+         * SummaryStats
+         * @description Summary statistics for auth blocks.
+         */
+        SummaryStats: {
+            /**
+             * Captcha Required
+             * @default 0
+             */
+            captcha_required: number;
+            /**
+             * Locked Out
+             * @default 0
+             */
+            locked_out: number;
+            /**
+             * Rate Limited
+             * @default 0
+             */
+            rate_limited: number;
+            /**
+             * Total Blocked
+             * @default 0
+             */
+            total_blocked: number;
         };
         /** TFADisableRequest */
         TFADisableRequest: {
@@ -15551,6 +16268,154 @@ export interface operations {
             };
         };
     };
+    list_auth_issues_api_v1_admin_auth_blocks_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by block type: lockout, rate_limit, captcha */
+                type?: string | null;
+                /** @description Search by email (partial match) */
+                email?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAuthIssuesResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_summary_stats_api_v1_admin_auth_blocks_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SummaryStats"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_account_state_api_v1_admin_auth_blocks__email__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                email: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockedAccount"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_account_blocks_api_v1_admin_auth_blocks__email__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                email: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ClearBlocksRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClearBlocksResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     bgc_cases_api_v1_admin_background_checks_cases_get: {
         parameters: {
             query?: {
@@ -16343,6 +17208,245 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminInstructorDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_manual_alias_api_v1_admin_location_learning_aliases_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminLocationLearningCreateAliasRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningCreateAliasResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_learned_alias_api_v1_admin_location_learning_aliases__alias_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alias_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningAliasActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_learned_alias_api_v1_admin_location_learning_aliases__alias_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alias_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningAliasActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_pending_learned_aliases_api_v1_admin_location_learning_pending_aliases_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningPendingAliasesResponse"];
+                };
+            };
+        };
+    };
+    process_location_learning_api_v1_admin_location_learning_process_post: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningProcessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_regions_api_v1_admin_location_learning_regions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningRegionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_unresolved_location_queries_api_v1_admin_location_learning_unresolved_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningUnresolvedQueriesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_unresolved_query_api_v1_admin_location_learning_unresolved__query_normalized__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                query_normalized: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningDismissQueryResponse"];
                 };
             };
             /** @description Validation Error */
@@ -18948,6 +20052,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_founding_status_api_v1_instructor_referrals_founding_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoundingStatusResponse"];
+                };
+            };
+        };
+    };
+    get_popup_data_api_v1_instructor_referrals_popup_data_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PopupDataResponse"];
+                };
+            };
+        };
+    };
+    get_referred_instructors_api_v1_instructor_referrals_referred_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferredInstructorsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_referral_stats_api_v1_instructor_referrals_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralStatsResponse"];
                 };
             };
         };
@@ -23761,6 +24957,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sse_token_api_v1_sse_token_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SseTokenResponse"];
                 };
             };
         };

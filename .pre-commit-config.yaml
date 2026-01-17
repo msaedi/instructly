@@ -99,6 +99,22 @@ repos:
         pass_filenames: false
         description: Ensures services only use repositories for database access
 
+      - id: check-router-sync
+        name: Check router sync (main.py vs openapi_app.py)
+        entry: python backend/scripts/check_router_sync.py
+        language: python
+        files: ^backend/app/(main\.py|openapi_app\.py)$
+        pass_filenames: false
+        description: Ensures all routers in main.py are also in openapi_app.py for OpenAPI completeness
+
+      - id: check-route-response-models
+        name: Check route response models
+        entry: python backend/scripts/check_route_response_models.py
+        language: python
+        files: ^backend/app/routes/.*\.py$
+        pass_filenames: false
+        description: Ensures all routes have response_model or status_code=204
+
       - id: enforce-service-metrics
         name: Enforce @BaseService.measure_operation on service methods
         entry: python3 backend/scripts/check_service_metrics.py

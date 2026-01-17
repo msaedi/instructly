@@ -367,6 +367,54 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/auth-blocks": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_auth_issues_api_v1_admin_auth_blocks_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/auth-blocks/summary": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_summary_stats_api_v1_admin_auth_blocks_summary_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/auth-blocks/{email}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_account_state_api_v1_admin_auth_blocks__email__get"];
+ put?: never;
+ post?: never;
+ delete: operations["clear_account_blocks_api_v1_admin_auth_blocks__email__delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/background-checks/cases": {
  parameters: {
  query?: never;
@@ -761,6 +809,134 @@ export type paths = {
  get: operations["admin_instructor_detail_api_v1_admin_instructors__instructor_id__get"];
  put?: never;
  post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/aliases": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["create_manual_alias_api_v1_admin_location_learning_aliases_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/aliases/{alias_id}/approve": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["approve_learned_alias_api_v1_admin_location_learning_aliases__alias_id__approve_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/aliases/{alias_id}/reject": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["reject_learned_alias_api_v1_admin_location_learning_aliases__alias_id__reject_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/pending-aliases": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_pending_learned_aliases_api_v1_admin_location_learning_pending_aliases_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/process": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["process_location_learning_api_v1_admin_location_learning_process_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/regions": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_regions_api_v1_admin_location_learning_regions_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/unresolved": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_unresolved_location_queries_api_v1_admin_location_learning_unresolved_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/unresolved/{query_normalized}/dismiss": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["dismiss_unresolved_query_api_v1_admin_location_learning_unresolved__query_normalized__dismiss_post"];
  delete?: never;
  options?: never;
  head?: never;
@@ -1945,6 +2121,70 @@ export type paths = {
  get?: never;
  put?: never;
  post: operations["dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructor-referrals/founding-status": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_founding_status_api_v1_instructor_referrals_founding_status_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructor-referrals/popup-data": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_popup_data_api_v1_instructor_referrals_popup_data_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructor-referrals/referred": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_referred_instructors_api_v1_instructor_referrals_referred_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructor-referrals/stats": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_referral_stats_api_v1_instructor_referrals_stats_get"];
+ put?: never;
+ post?: never;
  delete?: never;
  options?: never;
  head?: never;
@@ -3999,6 +4239,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/sse/token": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["get_sse_token_api_v1_sse_token_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/students/badges": {
  parameters: {
  query?: never;
@@ -4444,6 +4700,77 @@ export type components = {
  name: string;
  updated_at?: string | null;
  };
+ AdminLocationLearningAliasActionResponse: {
+ alias_id: string;
+ status: "approved" | "rejected";
+ };
+ AdminLocationLearningClickCount: {
+ count: number;
+ region_boundary_id: string;
+ region_name?: string | null;
+ };
+ AdminLocationLearningCreateAliasRequest: {
+ alias: string;
+ alias_type: string | null;
+ candidate_region_ids?: string[] | null;
+ region_boundary_id?: string | null;
+ };
+ AdminLocationLearningCreateAliasResponse: {
+ alias_id: string;
+ status: "created";
+ };
+ AdminLocationLearningDismissQueryResponse: {
+ query_normalized: string;
+ status: "dismissed";
+ };
+ AdminLocationLearningLearnedAliasItem: {
+ alias_normalized: string;
+ confidence: number;
+ confirmations: number;
+ region_boundary_id: string;
+ status: string;
+ };
+ AdminLocationLearningPendingAliasItem: {
+ alias_normalized: string;
+ confidence: number;
+ created_at: string;
+ id: string;
+ region_boundary_id?: string | null;
+ region_name?: string | null;
+ status: string;
+ user_count: number;
+ };
+ AdminLocationLearningPendingAliasesResponse: {
+ aliases: components["schemas"]["AdminLocationLearningPendingAliasItem"][];
+ };
+ AdminLocationLearningProcessResponse: {
+ learned: components["schemas"]["AdminLocationLearningLearnedAliasItem"][];
+ learned_count: number;
+ };
+ AdminLocationLearningRegionItem: {
+ borough?: string | null;
+ id: string;
+ name: string;
+ };
+ AdminLocationLearningRegionsResponse: {
+ regions: components["schemas"]["AdminLocationLearningRegionItem"][];
+ };
+ AdminLocationLearningUnresolvedQueriesResponse: {
+ queries: components["schemas"]["AdminLocationLearningUnresolvedQueryItem"][];
+ total: number;
+ };
+ AdminLocationLearningUnresolvedQueryItem: {
+ click_count: number;
+ clicks: components["schemas"]["AdminLocationLearningClickCount"][];
+ first_seen_at: string;
+ id: string;
+ last_seen_at: string;
+ query_normalized: string;
+ sample_original_queries: string[];
+ search_count: number;
+ status: string;
+ unique_user_count: number;
+ };
  AdminNoShowResolution: "confirmed_after_review" | "dispute_upheld" | "cancelled";
  AdminNoShowResolutionRequest: {
  admin_notes?: string | null;
@@ -4886,6 +5213,17 @@ export type components = {
  instructor_id: string;
  reason?: string | null;
  };
+ BlockedAccount: {
+ blocks: components["schemas"]["BlocksState"];
+ email: string;
+ failure_count: number;
+ };
+ BlocksState: {
+ captcha_required?: components["schemas"]["CaptchaState"] | null;
+ lockout?: components["schemas"]["LockoutState"] | null;
+ rate_limit_hour?: components["schemas"]["RateLimitState"] | null;
+ rate_limit_minute?: components["schemas"]["RateLimitState"] | null;
+ };
  Body_dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post: {
  reason: string;
  };
@@ -5174,6 +5512,9 @@ export type components = {
  service_name: string;
  };
  CandidateTopServicesResponse: components["schemas"]["CandidateTopService"][];
+ CaptchaState: {
+ active: boolean;
+ };
  CatalogServiceMinimalResponse: {
  id: string;
  name: string;
@@ -5244,6 +5585,17 @@ export type components = {
  requires_action: boolean;
  status: string;
  success: boolean;
+ };
+ ClearBlocksRequest: {
+ reason?: string | null;
+ types?: string[] | null;
+ };
+ ClearBlocksResponse: {
+ cleared: string[];
+ cleared_at: string;
+ cleared_by: string;
+ email: string;
+ reason?: string | null;
  };
  CodebaseCategoryStats: {
  files: number;
@@ -5519,6 +5871,12 @@ export type components = {
  count: number;
  remaining: number;
  };
+ FoundingStatusResponse: {
+ is_founding_phase: boolean;
+ spots_filled: number;
+ spots_remaining: number;
+ total_founding_spots: number;
+ };
  GatedPingResponse: {
  ok: boolean;
  };
@@ -5769,6 +6127,11 @@ export type components = {
  amount_cents: number;
  label: string;
  };
+ ListAuthIssuesResponse: {
+ accounts: components["schemas"]["BlockedAccount"][];
+ scanned_at: string;
+ total: number;
+ };
  LiveAlertItem: {
  message: string;
  severity: string;
@@ -5795,6 +6158,11 @@ export type components = {
  result?: string | null;
  status: components["schemas"]["StageStatus"];
  tier: number;
+ };
+ LockoutState: {
+ active: boolean;
+ level: string;
+ ttl_seconds: number;
  };
  LoginResponse: {
  access_token?: string | null;
@@ -6201,6 +6569,13 @@ export type components = {
  unique_users: number;
  };
  PopularSearchesResponse: components["schemas"]["PopularSearch"][];
+ PopupDataResponse: {
+ bonus_amount_cents: number;
+ founding_spots_remaining: number;
+ is_founding_phase: boolean;
+ referral_code: string;
+ referral_link: string;
+ };
  PreferenceResponse: {
  category: string;
  channel: string;
@@ -6378,6 +6753,12 @@ export type components = {
  pattern: string;
  status: string;
  };
+ RateLimitState: {
+ active: boolean;
+ count: number;
+ limit: number;
+ ttl_seconds: number;
+ };
  RateLimitStats: {
  breakdown_by_type: {
  [key: string]: number;
@@ -6497,6 +6878,32 @@ export type components = {
  failed: number;
  sent: number;
  status: string;
+ };
+ ReferralStatsResponse: {
+ completed_payouts: number;
+ current_bonus_cents: number;
+ founding_spots_remaining: number;
+ is_founding_phase: boolean;
+ pending_payouts: number;
+ referral_code: string;
+ referral_link: string;
+ total_earned_cents: number;
+ total_referred: number;
+ };
+ ReferredInstructorInfo: {
+ first_lesson_completed_at?: string | null;
+ first_name: string;
+ id: string;
+ is_live: boolean;
+ last_initial: string;
+ payout_amount_cents?: number | null;
+ payout_status: string;
+ referred_at: string;
+ went_live_at?: string | null;
+ };
+ ReferredInstructorsResponse: {
+ instructors: components["schemas"]["ReferredInstructorInfo"][];
+ total_count: number;
  };
  RequestMetrics: {
  active_count: number;
@@ -6875,6 +7282,10 @@ export type components = {
  specific_date: string;
  start_time: string;
  };
+ SseTokenResponse: {
+ expires_in_s: number;
+ token: string;
+ };
  StageStatus: "success" | "skipped" | "timeout" | "error" | "cache_hit" | "miss" | "cancelled";
  StudentBadgeView: {
  awarded_at?: string | null;
@@ -6907,6 +7318,12 @@ export type components = {
  } | null;
  message: string;
  success: boolean;
+ };
+ SummaryStats: {
+ captcha_required: number;
+ locked_out: number;
+ rate_limited: number;
+ total_blocked: number;
  };
  TFADisableRequest: {
  current_password: string;
@@ -7921,6 +8338,141 @@ export interface operations {
  };
  };
  };
+ list_auth_issues_api_v1_admin_auth_blocks_get: {
+ parameters: {
+ query?: {
+ type?: string | null;
+ email?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ListAuthIssuesResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_summary_stats_api_v1_admin_auth_blocks_summary_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SummaryStats"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ get_account_state_api_v1_admin_auth_blocks__email__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ email: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BlockedAccount"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ clear_account_blocks_api_v1_admin_auth_blocks__email__delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ email: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: {
+ content: {
+ "application/json": components["schemas"]["ClearBlocksRequest"] | null;
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ClearBlocksResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  bgc_cases_api_v1_admin_background_checks_cases_get: {
  parameters: {
  query?: {
@@ -8660,6 +9212,230 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AdminInstructorDetailResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ create_manual_alias_api_v1_admin_location_learning_aliases_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningCreateAliasRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningCreateAliasResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ approve_learned_alias_api_v1_admin_location_learning_aliases__alias_id__approve_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ alias_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningAliasActionResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ reject_learned_alias_api_v1_admin_location_learning_aliases__alias_id__reject_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ alias_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningAliasActionResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_pending_learned_aliases_api_v1_admin_location_learning_pending_aliases_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningPendingAliasesResponse"];
+ };
+ };
+ };
+ };
+ process_location_learning_api_v1_admin_location_learning_process_post: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningProcessResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_regions_api_v1_admin_location_learning_regions_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningRegionsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_unresolved_location_queries_api_v1_admin_location_learning_unresolved_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningUnresolvedQueriesResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ dismiss_unresolved_query_api_v1_admin_location_learning_unresolved__query_normalized__dismiss_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ query_normalized: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningDismissQueryResponse"];
  };
  };
  422: {
@@ -11068,6 +11844,93 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_founding_status_api_v1_instructor_referrals_founding_status_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["FoundingStatusResponse"];
+ };
+ };
+ };
+ };
+ get_popup_data_api_v1_instructor_referrals_popup_data_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PopupDataResponse"];
+ };
+ };
+ };
+ };
+ get_referred_instructors_api_v1_instructor_referrals_referred_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ offset?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ReferredInstructorsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_referral_stats_api_v1_instructor_referrals_stats_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ReferralStatsResponse"];
  };
  };
  };
@@ -15484,6 +16347,25 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_sse_token_api_v1_sse_token_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SseTokenResponse"];
  };
  };
  };

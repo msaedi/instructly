@@ -99,6 +99,14 @@ jobs:
     - name: Ruff
       run: ruff check backend
 
+    - name: Check router sync (OpenAPI completeness)
+      working-directory: backend
+      run: python scripts/check_router_sync.py
+
+    - name: Check OpenAPI response schemas
+      working-directory: backend
+      run: python scripts/check_openapi_responses.py
+
     - name: Mypy strict (hard fail)
       run: bash tools/mypy_strict_gate.sh
 

@@ -513,6 +513,133 @@ export interface AdminInstructorDetailResponse {
   updated_at?: AdminInstructorDetailResponseUpdatedAt;
 }
 
+export type AdminLocationLearningAliasActionResponseStatus =
+  (typeof AdminLocationLearningAliasActionResponseStatus)[keyof typeof AdminLocationLearningAliasActionResponseStatus];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const AdminLocationLearningAliasActionResponseStatus = {
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface AdminLocationLearningAliasActionResponse {
+  alias_id: string;
+  status: AdminLocationLearningAliasActionResponseStatus;
+}
+
+export type AdminLocationLearningClickCountRegionName = string | null;
+
+export interface AdminLocationLearningClickCount {
+  count: number;
+  region_boundary_id: string;
+  region_name?: AdminLocationLearningClickCountRegionName;
+}
+
+/**
+ * Classification for this alias (abbreviation|colloquial|landmark|typo)
+ */
+export type AdminLocationLearningCreateAliasRequestAliasType = string | null;
+
+/**
+ * If provided (len>=2), create an ambiguous alias requiring clarification
+ */
+export type AdminLocationLearningCreateAliasRequestCandidateRegionIds = string[] | null;
+
+/**
+ * RegionBoundary id to map to (single-resolution alias)
+ */
+export type AdminLocationLearningCreateAliasRequestRegionBoundaryId = string | null;
+
+/**
+ * Create a manual location alias mapping.
+ */
+export interface AdminLocationLearningCreateAliasRequest {
+  /**
+   * Alias text to map
+   * @minLength 1
+   * @maxLength 255
+   */
+  alias: string;
+  /** Classification for this alias (abbreviation|colloquial|landmark|typo) */
+  alias_type?: AdminLocationLearningCreateAliasRequestAliasType;
+  /** If provided (len>=2), create an ambiguous alias requiring clarification */
+  candidate_region_ids?: AdminLocationLearningCreateAliasRequestCandidateRegionIds;
+  /** RegionBoundary id to map to (single-resolution alias) */
+  region_boundary_id?: AdminLocationLearningCreateAliasRequestRegionBoundaryId;
+}
+
+export interface AdminLocationLearningCreateAliasResponse {
+  alias_id: string;
+  status: 'created';
+}
+
+export interface AdminLocationLearningDismissQueryResponse {
+  query_normalized: string;
+  status: 'dismissed';
+}
+
+export interface AdminLocationLearningLearnedAliasItem {
+  alias_normalized: string;
+  confidence: number;
+  confirmations: number;
+  region_boundary_id: string;
+  status: string;
+}
+
+export type AdminLocationLearningPendingAliasItemRegionBoundaryId = string | null;
+
+export type AdminLocationLearningPendingAliasItemRegionName = string | null;
+
+export interface AdminLocationLearningPendingAliasItem {
+  alias_normalized: string;
+  confidence: number;
+  created_at: string;
+  id: string;
+  region_boundary_id?: AdminLocationLearningPendingAliasItemRegionBoundaryId;
+  region_name?: AdminLocationLearningPendingAliasItemRegionName;
+  status: string;
+  user_count: number;
+}
+
+export interface AdminLocationLearningPendingAliasesResponse {
+  aliases: AdminLocationLearningPendingAliasItem[];
+}
+
+export interface AdminLocationLearningProcessResponse {
+  learned: AdminLocationLearningLearnedAliasItem[];
+  learned_count: number;
+}
+
+export type AdminLocationLearningRegionItemBorough = string | null;
+
+export interface AdminLocationLearningRegionItem {
+  borough?: AdminLocationLearningRegionItemBorough;
+  id: string;
+  name: string;
+}
+
+export interface AdminLocationLearningRegionsResponse {
+  regions: AdminLocationLearningRegionItem[];
+}
+
+export interface AdminLocationLearningUnresolvedQueriesResponse {
+  queries: AdminLocationLearningUnresolvedQueryItem[];
+  total: number;
+}
+
+export interface AdminLocationLearningUnresolvedQueryItem {
+  click_count: number;
+  clicks: AdminLocationLearningClickCount[];
+  first_seen_at: string;
+  id: string;
+  last_seen_at: string;
+  query_normalized: string;
+  sample_original_queries: string[];
+  search_count: number;
+  status: string;
+  unique_user_count: number;
+}
+
 export type AdminNoShowResolution =
   (typeof AdminNoShowResolution)[keyof typeof AdminNoShowResolution];
 
@@ -1532,6 +1659,33 @@ export interface BlackoutDateResponse {
   reason?: BlackoutDateResponseReason;
 }
 
+/**
+ * Blocked account information.
+ */
+export interface BlockedAccount {
+  blocks: BlocksState;
+  email: string;
+  failure_count?: number;
+}
+
+export type BlocksStateCaptchaRequired = CaptchaState | null;
+
+export type BlocksStateLockout = LockoutState | null;
+
+export type BlocksStateRateLimitHour = RateLimitState | null;
+
+export type BlocksStateRateLimitMinute = RateLimitState | null;
+
+/**
+ * All block states for an account.
+ */
+export interface BlocksState {
+  captcha_required?: BlocksStateCaptchaRequired;
+  lockout?: BlocksStateLockout;
+  rate_limit_hour?: BlocksStateRateLimitHour;
+  rate_limit_minute?: BlocksStateRateLimitMinute;
+}
+
 export interface BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost {
   reason: string;
 }
@@ -2211,6 +2365,13 @@ export interface CandidateTopService {
 export type CandidateTopServicesResponse = CandidateTopService[];
 
 /**
+ * CAPTCHA requirement state.
+ */
+export interface CaptchaState {
+  active: boolean;
+}
+
+/**
  * Minimal catalog service response for pills/lists.
  */
 export interface CatalogServiceMinimalResponse {
@@ -2354,6 +2515,39 @@ export interface CheckoutResponse {
   status: string;
   /** Whether payment was successful */
   success: boolean;
+}
+
+/**
+ * Reason for clearing blocks (for audit)
+ */
+export type ClearBlocksRequestReason = string | null;
+
+/**
+ * Block types to clear: lockout, rate_limit, captcha, failures. If not specified, clears all.
+ */
+export type ClearBlocksRequestTypes = string[] | null;
+
+/**
+ * Request to clear auth blocks.
+ */
+export interface ClearBlocksRequest {
+  /** Reason for clearing blocks (for audit) */
+  reason?: ClearBlocksRequestReason;
+  /** Block types to clear: lockout, rate_limit, captcha, failures. If not specified, clears all. */
+  types?: ClearBlocksRequestTypes;
+}
+
+export type ClearBlocksResponseReason = string | null;
+
+/**
+ * Response after clearing blocks.
+ */
+export interface ClearBlocksResponse {
+  cleared: string[];
+  cleared_at: string;
+  cleared_by: string;
+  email: string;
+  reason?: ClearBlocksResponseReason;
 }
 
 export interface CodebaseCategoryStats {
@@ -3028,6 +3222,16 @@ export interface FoundingCountResponse {
 }
 
 /**
+ * Public founding phase status.
+ */
+export interface FoundingStatusResponse {
+  is_founding_phase: boolean;
+  spots_filled: number;
+  spots_remaining: number;
+  total_founding_spots: number;
+}
+
+/**
  * Simple response indicating gated ping success.
  */
 export interface GatedPingResponse {
@@ -3636,6 +3840,15 @@ export interface LineItem {
 }
 
 /**
+ * Response for listing accounts with auth issues.
+ */
+export interface ListAuthIssuesResponse {
+  accounts: BlockedAccount[];
+  scanned_at: string;
+  total: number;
+}
+
+/**
  * Simplified alert item for live view.
  */
 export interface LiveAlertItem {
@@ -3732,6 +3945,15 @@ export interface LocationTierResult {
    * @maximum 5
    */
   tier: number;
+}
+
+/**
+ * Lockout block state.
+ */
+export interface LockoutState {
+  active: boolean;
+  level?: string;
+  ttl_seconds?: number;
 }
 
 export type LoginResponseAccessToken = string | null;
@@ -4832,6 +5054,17 @@ export interface PopularSearch {
 export type PopularSearchesResponse = PopularSearch[];
 
 /**
+ * Data for the one-time referral popup after go-live.
+ */
+export interface PopupDataResponse {
+  bonus_amount_cents: number;
+  founding_spots_remaining: number;
+  is_founding_phase: boolean;
+  referral_code: string;
+  referral_link: string;
+}
+
+/**
  * Single preference response.
  */
 export interface PreferenceResponse {
@@ -5283,6 +5516,16 @@ export interface RateLimitResetResponse {
 }
 
 /**
+ * Rate limit block state.
+ */
+export interface RateLimitState {
+  active: boolean;
+  count?: number;
+  limit: number;
+  ttl_seconds?: number;
+}
+
+/**
  * Breakdown by limit type
  */
 export type RateLimitStatsBreakdownByType = { [key: string]: number };
@@ -5563,6 +5806,50 @@ export interface ReferralSendResponse {
   sent: number;
   /** Operation status ('ok' if the operation ran) */
   status: string;
+}
+
+/**
+ * Stats for instructor's referral activity.
+ */
+export interface ReferralStatsResponse {
+  completed_payouts: number;
+  current_bonus_cents: number;
+  founding_spots_remaining: number;
+  is_founding_phase: boolean;
+  pending_payouts: number;
+  referral_code: string;
+  referral_link: string;
+  total_earned_cents: number;
+  total_referred: number;
+}
+
+export type ReferredInstructorInfoFirstLessonCompletedAt = string | null;
+
+export type ReferredInstructorInfoPayoutAmountCents = number | null;
+
+export type ReferredInstructorInfoWentLiveAt = string | null;
+
+/**
+ * Info about an instructor this user referred.
+ */
+export interface ReferredInstructorInfo {
+  first_lesson_completed_at?: ReferredInstructorInfoFirstLessonCompletedAt;
+  first_name: string;
+  id: string;
+  is_live: boolean;
+  last_initial: string;
+  payout_amount_cents?: ReferredInstructorInfoPayoutAmountCents;
+  payout_status: string;
+  referred_at: string;
+  went_live_at?: ReferredInstructorInfoWentLiveAt;
+}
+
+/**
+ * List of instructors referred by current user.
+ */
+export interface ReferredInstructorsResponse {
+  instructors: ReferredInstructorInfo[];
+  total_count: number;
 }
 
 /**
@@ -6640,6 +6927,11 @@ export interface SpecificDateAvailabilityCreate {
   start_time: string;
 }
 
+export interface SseTokenResponse {
+  expires_in_s: number;
+  token: string;
+}
+
 /**
  * Status for pipeline stages and location tiers.
  */
@@ -6733,6 +7025,16 @@ export interface SuccessResponse {
   message: string;
   /** Operation success status */
   success?: boolean;
+}
+
+/**
+ * Summary statistics for auth blocks.
+ */
+export interface SummaryStats {
+  captcha_required?: number;
+  locked_out?: number;
+  rate_limited?: number;
+  total_blocked?: number;
 }
 
 export interface TFADisableRequest {
@@ -7419,6 +7721,19 @@ export type ListAdminAuditLogApiV1AdminAuditLogGetParams = {
   per_page?: number;
 };
 
+export type ListAuthIssuesApiV1AdminAuthBlocksGetParams = {
+  /**
+   * Filter by block type: lockout, rate_limit, captcha
+   */
+  type?: string | null;
+  /**
+   * Search by email (partial match)
+   */
+  email?: string | null;
+};
+
+export type ClearAccountBlocksApiV1AdminAuthBlocksEmailDeleteBody = ClearBlocksRequest | null;
+
 export type BgcCasesApiV1AdminBackgroundChecksCasesGetParams = {
   /**
    * review, pending, or all
@@ -7537,6 +7852,30 @@ export type ListAdminBookingsApiV1AdminBookingsGetParams = {
    * @maximum 200
    */
   per_page?: number;
+};
+
+export type ProcessLocationLearningApiV1AdminLocationLearningProcessPostParams = {
+  /**
+   * @minimum 1
+   * @maximum 2000
+   */
+  limit?: number;
+};
+
+export type ListRegionsApiV1AdminLocationLearningRegionsGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 5000
+   */
+  limit?: number;
+};
+
+export type ListUnresolvedLocationQueriesApiV1AdminLocationLearningUnresolvedGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 500
+   */
+  limit?: number;
 };
 
 export type ExportAnalyticsApiV1AnalyticsExportPostParams = {
@@ -7792,6 +8131,18 @@ export type GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams = {
 
 export type MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams = {
   notes?: string | null;
+};
+
+export type GetReferredInstructorsApiV1InstructorReferralsReferredGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+  /**
+   * @minimum 0
+   */
+  offset?: number;
 };
 
 export type ListInstructorsApiV1InstructorsGetParams = {

@@ -28,6 +28,7 @@ from app.routes.v1 import (
     health as health_v1,
     instructor_bgc as instructor_bgc_v1,
     instructor_bookings as instructor_bookings_v1,
+    instructor_referrals as instructor_referrals_v1,
     instructors as instructors_v1,
     internal as internal_v1,
     messages as messages_v1,
@@ -49,6 +50,7 @@ from app.routes.v1 import (
     search as search_v1,
     search_history as search_history_v1,
     services as services_v1,
+    sse as sse_v1,
     student_badges as student_badges_v1,
     two_factor_auth as two_factor_auth_v1,
     uploads as uploads_v1,
@@ -57,11 +59,13 @@ from app.routes.v1 import (
 )
 from app.routes.v1.admin import (
     audit as admin_audit_v1,
+    auth_blocks as admin_auth_blocks_v1,
     background_checks as admin_background_checks_v1,
     badges as admin_badges_v1,
     bookings as admin_bookings_v1,
     config as admin_config_v1,
     instructors as admin_instructors_v1,
+    location_learning as admin_location_learning_v1,
     refunds as admin_refunds_v1,
     search_config as admin_search_config_v1,
 )
@@ -106,12 +110,14 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(search_v1.router, prefix="/search")  # type: ignore[attr-defined]
     api_v1.include_router(search_history_v1.router, prefix="/search-history")  # type: ignore[attr-defined]
     api_v1.include_router(referrals_v1.router, prefix="/referrals")  # type: ignore[attr-defined]
+    api_v1.include_router(instructor_referrals_v1.router, prefix="/instructor-referrals")  # type: ignore[attr-defined]
 
     # Auth routes
     api_v1.include_router(account_v1.router, prefix="/account")  # type: ignore[attr-defined]
     api_v1.include_router(password_reset_v1.router, prefix="/password-reset")  # type: ignore[attr-defined]
     api_v1.include_router(two_factor_auth_v1.router, prefix="/2fa")  # type: ignore[attr-defined]
     api_v1.include_router(auth_v1.router, prefix="/auth")  # type: ignore[attr-defined]
+    api_v1.include_router(sse_v1.router, prefix="/sse")  # type: ignore[attr-defined]
 
     # Payment routes
     api_v1.include_router(payments_v1.router, prefix="/payments")  # type: ignore[attr-defined]
@@ -138,6 +144,8 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(admin_badges_v1.router, prefix="/admin/badges")  # type: ignore[attr-defined]
     api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/background-checks")  # type: ignore[attr-defined]
     api_v1.include_router(admin_instructors_v1.router, prefix="/admin/instructors")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_auth_blocks_v1.router, prefix="/admin/auth-blocks")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_location_learning_v1.router, prefix="/admin/location-learning")  # type: ignore[attr-defined]
     api_v1.include_router(admin_bookings_v1.router, prefix="/admin")  # type: ignore[attr-defined]
     api_v1.include_router(admin_refunds_v1.router, prefix="/admin/bookings")  # type: ignore[attr-defined]
     api_v1.include_router(referrals_v1.admin_router, prefix="/admin/referrals")  # type: ignore[attr-defined]

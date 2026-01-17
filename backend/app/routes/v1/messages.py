@@ -101,6 +101,7 @@ class EditMessageRequest(BaseModel):
 # ============================================================================
 
 
+# openapi-exempt: SSE stream cannot have JSON response schema
 @router.get(
     "/stream",
     responses={
@@ -396,6 +397,7 @@ async def mark_messages_as_read(
 # ============================================================================
 
 
+# openapi-exempt: 204 No Content - no response body
 @router.patch(
     "/{message_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -613,6 +615,7 @@ async def delete_message(
         )
 
 
+# openapi-exempt: 204 No Content - no response body
 @router.post(
     "/{message_id}/reactions",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -730,6 +733,7 @@ async def add_reaction(
         )
 
 
+# openapi-exempt: 204 No Content - no response body
 @router.delete(
     "/{message_id}/reactions",
     status_code=status.HTTP_204_NO_CONTENT,

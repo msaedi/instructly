@@ -128,11 +128,8 @@ export type ApiErrorResponse = {
   message?: string;
 };
 
-// SSE token exchange (not yet represented in OpenAPI)
-export type SseTokenResponse = {
-  token: string;
-  expires_in_s?: number;
-};
+// SSE token exchange - now generated from OpenAPI
+export type SseTokenResponse = components['schemas']['SseTokenResponse'];
 
 // Payment processing shim (endpoint not in OpenAPI yet)
 export type PaymentProcessResponse = {
@@ -381,3 +378,10 @@ export type PayoutSummary = components['schemas']['PayoutSummary'];
 export type PayoutHistoryResponse = components['schemas']['PayoutHistoryResponse'];
 export type OnboardingResponse = components['schemas']['OnboardingResponse'];
 export type TransactionHistoryItem = components['schemas']['TransactionHistoryItem'];
+
+// Instructor referral types
+export type ReferralStatsResponse = components['schemas']['ReferralStatsResponse'];
+export type ReferredInstructorInfo = components['schemas']['ReferredInstructorInfo'];
+export type ReferredInstructorsResponse = components['schemas']['ReferredInstructorsResponse'];
+export type FoundingStatusResponse = components['schemas']['FoundingStatusResponse'];
+export type PopupDataResponse = components['schemas']['PopupDataResponse'];
