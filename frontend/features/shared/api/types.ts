@@ -367,3 +367,17 @@ export type FinalizeProfilePicturePayload = components['schemas']['FinalizeProfi
 
 // Upcoming booking response
 export type UpcomingBookingResponse = components['schemas']['UpcomingBookingResponse'];
+
+// Availability update types
+export type WeekAvailabilityResponse = components['schemas']['WeekAvailabilityResponse'];
+export type WeekAvailabilityUpdateResponse = components['schemas']['WeekAvailabilityUpdateResponse'];
+export type CopyWeekResponse = components['schemas']['CopyWeekResponse'];
+
+// Payment types
+export type PaymentMethodResponse = components['schemas']['PaymentMethodResponse'];
+export type SavePaymentMethodRequest = components['schemas']['SavePaymentMethodRequest'];
+export type EarningsResponse = components['schemas']['EarningsResponse'];
+export type PayoutSummary = components['schemas']['PayoutSummary'];
+export type PayoutHistoryResponse = components['schemas']['PayoutHistoryResponse'];
+export type OnboardingResponse = components['schemas']['OnboardingResponse'];
+export type TransactionHistoryItem = components['schemas']['TransactionHistoryItem'];

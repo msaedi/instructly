@@ -21,9 +21,7 @@ import {
 } from '@/lib/availability/dateHelpers';
 import { fromWindows, newEmptyBits, toWindows } from '@/lib/calendar/bitset';
 import { logger } from '@/lib/logger';
-import type { ApiErrorResponse, components } from '@/features/shared/api/types';
-
-type WeekAvailabilityResponse = components['schemas']['WeekAvailabilityResponse'];
+import type { ApiErrorResponse, WeekAvailabilityResponse } from '@/features/shared/api/types';
 
 type WeekBitsSetter = WeekBits | ((prev: WeekBits) => WeekBits);
 

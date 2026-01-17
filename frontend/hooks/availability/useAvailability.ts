@@ -12,11 +12,9 @@ import type {
   ApplyToDateRangeResponse,
   AvailabilityUpdateErrorResponse,
   WeekValidationResponse,
-  components,
+  WeekAvailabilityUpdateResponse,
+  CopyWeekResponse,
 } from '@/features/shared/api/types';
-
-type WeekAvailabilityUpdateResponse = components['schemas']['WeekAvailabilityUpdateResponse'];
-type CopyWeekResponse = components['schemas']['CopyWeekResponse'];
 
 export interface SaveWeekOptions {
   clearExisting?: boolean;

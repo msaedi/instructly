@@ -535,9 +535,7 @@ export default function InstructorDashboardNew() {
     }
     const selectionMap = new Map<string, NeighborhoodSelection>();
     for (const item of serviceAreaResponse.items) {
-      const rawId = item.neighborhood_id ?? item.id;
-      if (typeof rawId !== 'string' && typeof rawId !== 'number') continue;
-      const id = String(rawId);
+      const id = item.neighborhood_id;
       const rawName = typeof item?.name === 'string' ? item.name.trim() : '';
       selectionMap.set(id, { neighborhood_id: id, name: rawName || id });
     }
