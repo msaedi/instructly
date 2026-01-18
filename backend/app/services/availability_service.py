@@ -253,7 +253,7 @@ class AvailabilityService(BaseService):
             monday = anchor - timedelta(days=anchor.weekday())
             ordered_days = [monday + timedelta(days=i) for i in range(7)]
             concat = b"".join(bits_by_day.get(day, new_empty_bits()) for day in ordered_days)
-        return hashlib.sha1(concat).hexdigest()
+        return hashlib.sha1(concat, usedforsecurity=False).hexdigest()
 
     @BaseService.measure_operation("get_week_bitmap_last_modified")
     def get_week_bitmap_last_modified(
@@ -405,8 +405,8 @@ class AvailabilityService(BaseService):
                 windows_created_count += len(new_windows) - len(old_windows)
 
             if perf_debug:
-                old_crc = hashlib.sha1(existing_bits).hexdigest()
-                new_crc = hashlib.sha1(desired_bits).hexdigest()
+                old_crc = hashlib.sha1(existing_bits, usedforsecurity=False).hexdigest()
+                new_crc = hashlib.sha1(desired_bits, usedforsecurity=False).hexdigest()
                 logger.debug(
                     "bitmap_write day=%s changed=%s old_crc=%s new_crc=%s override=%s allow_past=%s",
                     day.isoformat(),

@@ -162,17 +162,20 @@ def test_production_requires_production_server_mode():
     """Without production server mode, SITE_MODE=prod should require confirmation and fail in non-interactive tests."""
     os.environ["SITE_MODE"] = "prod"
 
-    from app.core.config import settings as _settings
-    from app.core.database_config import DatabaseConfig
+    try:
+        from app.core.config import settings as _settings
+        from app.core.database_config import DatabaseConfig
 
-    _settings.prod_database_url_raw = "postgresql://postgres:postgres@localhost:5432/instainstru_prod"
+        _settings.prod_database_url_raw = "postgresql://postgres:postgres@localhost:5432/instainstru_prod"
 
-    with patch("app.core.database_config.DatabaseConfig._is_ci_environment", return_value=False), patch(
-        "app.core.database_config.DatabaseConfig._check_production_mode", return_value=False
-    ):
-        config = DatabaseConfig()
-        with pytest.raises(RuntimeError, match="non-interactive mode"):
-            _ = config.get_database_url()
+        with patch("app.core.database_config.DatabaseConfig._is_ci_environment", return_value=False), patch(
+            "app.core.database_config.DatabaseConfig._check_production_mode", return_value=False
+        ):
+            config = DatabaseConfig()
+            with pytest.raises(RuntimeError, match="non-interactive mode"):
+                _ = config.get_database_url()
+    finally:
+        os.environ.pop("SITE_MODE", None)
 
 
 def test_local_prod_requires_confirmation():

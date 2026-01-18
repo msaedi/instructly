@@ -80,7 +80,7 @@ class RateLimiter:
         """
         # Hash long identifiers to keep keys reasonable
         if len(identifier) > 32:
-            identifier = hashlib.md5(identifier.encode()).hexdigest()[:16]
+            identifier = hashlib.md5(identifier.encode(), usedforsecurity=False).hexdigest()[:16]
 
         return f"rate_limit:{window_name}:{identifier}"
 

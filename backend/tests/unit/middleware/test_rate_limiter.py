@@ -390,6 +390,28 @@ class TestRateLimitDecorator:
         mock_limiter.check_rate_limit.assert_called_once()
 
     @patch("app.middleware.rate_limiter.RateLimiter")
+    def test_decorator_request_body_param_named_request(self, mock_limiter_class):
+        """Ensure body param named 'request' doesn't collide with Request detection."""
+        mock_limiter = Mock()
+        mock_limiter.check_rate_limit = AsyncMock(return_value=(True, 1, 0))
+        mock_limiter.get_remaining_requests = AsyncMock(return_value=4)
+        mock_limiter_class.return_value = mock_limiter
+
+        app = FastAPI()
+
+        @app.post("/collision")
+        @rate_limit("5/minute", key_type=RateLimitKeyType.IP)
+        async def collision(request: dict, req: Request):
+            return {"ok": True}
+
+        client = TestClient(app)
+        response = client.post("/collision", json={"foo": "bar"})
+
+        assert response.status_code == 200
+        assert response.json() == {"ok": True}
+        mock_limiter.check_rate_limit.assert_called_once()
+
+    @patch("app.middleware.rate_limiter.RateLimiter")
     def test_decorator_blocks_exceeded_limit(self, mock_limiter_class, client):
         """Test decorator blocks when limit exceeded."""
         mock_limiter = Mock()

@@ -585,6 +585,8 @@ def ensure_outbox_table() -> None:
 def _prepare_database() -> None:
     """Ensure extensions, tables, and constraints exist for tests."""
     with test_engine.connect() as conn:
+        if conn.dialect.name != "sqlite":
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         conn.commit()
 

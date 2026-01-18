@@ -247,6 +247,8 @@ def test_place_details_fallback_returns_none_404(monkeypatch):
         "app.services.geocoding.factory.create_geocoding_provider",
         stub_factory,
     )
+    monkeypatch.setenv("GEOCODING_PROVIDER", "google")
+    monkeypatch.setattr("app.core.config.settings.geocoding_provider", "google", raising=False)
 
     with pytest.raises(HTTPException) as excinfo:
         addresses_routes.place_details(place_id="place_123", provider=None)

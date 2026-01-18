@@ -208,7 +208,7 @@ class CacheKeyBuilder:
         """Generate a hash for complex cache keys."""
         # Sort keys for consistency
         sorted_data = json.dumps(data, sort_keys=True, default=str)
-        return hashlib.md5(sorted_data.encode()).hexdigest()[:12]
+        return hashlib.md5(sorted_data.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
 class CacheService(BaseService):
