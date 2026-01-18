@@ -1033,7 +1033,7 @@ def test_student_and_instructor_booking_branch_filters(
         start_time=time(9, 0),
         end_time=time(10, 0),
         status=BookingStatus.COMPLETED,
-        offset_index=32,
+        offset_index=180,
         allow_overlap=True,
         completed_at=fixed_now - timedelta(hours=2),
     )

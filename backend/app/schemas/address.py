@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ._strict_base import StrictModel, StrictRequestModel
 
@@ -25,7 +25,22 @@ class AddressBase(BaseModel):
 
 
 class AddressCreate(StrictRequestModel, AddressBase):
-    pass
+    @field_validator("custom_label", mode="before")
+    @classmethod
+    def normalize_custom_label(cls, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("custom_label must be a string")
+        stripped = value.strip()
+        return stripped or None
+
+    @model_validator(mode="after")
+    def validate_custom_label(self) -> "AddressCreate":
+        if self.label == "other":
+            if not self.custom_label:
+                raise ValueError("custom_label is required when label is 'other'")
+        return self
 
 
 class AddressUpdate(StrictRequestModel):
@@ -43,6 +58,23 @@ class AddressUpdate(StrictRequestModel):
     place_id: Optional[str] = None
     verification_status: Optional[str] = None
     is_default: Optional[bool] = None
+
+    @field_validator("custom_label", mode="before")
+    @classmethod
+    def normalize_custom_label(cls, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("custom_label must be a string")
+        stripped = value.strip()
+        return stripped or None
+
+    @model_validator(mode="after")
+    def validate_custom_label(self) -> "AddressUpdate":
+        if self.label == "other":
+            if not self.custom_label:
+                raise ValueError("custom_label is required when label is 'other'")
+        return self
 
 
 class AddressResponse(AddressBase):
