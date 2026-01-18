@@ -200,4 +200,51 @@ describe('CancellationConfirmationModal', () => {
     await user.click(screen.getByRole('button', { name: /contact support/i }));
     expect(logger.info).toHaveBeenCalledWith('Contact support clicked');
   });
+
+  it('renders full charge messaging when within full charge window', () => {
+    calculateCancellationFeeMock.mockReturnValue({
+      window: 'full',
+      lessonPrice: 50,
+      platformFee: 5,
+      willReceiveCredit: false,
+    });
+
+    render(
+      <CancellationConfirmationModal
+        isOpen
+        onClose={onClose}
+        lesson={baseLesson}
+        reason={reason}
+      />
+    );
+
+    expect(
+      screen.getByText((content) =>
+        content.includes('The full amount') && content.includes('55.00')
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText(/no credit or refund/i)).toBeInTheDocument();
+  });
+
+  it('logs an error when cancellation fails', async () => {
+    const error = new Error('Cancellation failed');
+    useCancelLessonMock.mockReturnValue({
+      mutateAsync: jest.fn().mockRejectedValue(error),
+      isSuccess: false,
+      isPending: false,
+    });
+
+    const user = userEvent.setup();
+    render(
+      <CancellationConfirmationModal
+        isOpen
+        onClose={onClose}
+        lesson={baseLesson}
+        reason={reason}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /confirm cancellation/i }));
+    expect(logger.error).toHaveBeenCalledWith('Failed to cancel lesson', error);
+  });
 });

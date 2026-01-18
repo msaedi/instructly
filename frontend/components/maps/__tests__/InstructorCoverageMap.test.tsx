@@ -338,4 +338,185 @@ describe('InstructorCoverageMap', () => {
     // Search area button is added via Leaflet control
     expect(screen.getByTestId('map-container')).toBeInTheDocument();
   });
+
+  it('handles dark mode preference change', () => {
+    const mockAddEventListener = jest.fn();
+    const mockRemoveEventListener = jest.fn();
+
+    const mockMatchMedia = jest.fn().mockReturnValue({
+      matches: false,
+      addEventListener: mockAddEventListener,
+      removeEventListener: mockRemoveEventListener,
+    });
+    window.matchMedia = mockMatchMedia;
+
+    const { unmount } = render(<InstructorCoverageMap />);
+
+    expect(mockAddEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+
+    // Simulate dark mode change
+    if (mockAddEventListener.mock.calls[0]) {
+      const changeHandler = mockAddEventListener.mock.calls[0][1];
+      act(() => {
+        changeHandler({ matches: true });
+      });
+    }
+
+    unmount();
+    expect(mockRemoveEventListener).toHaveBeenCalled();
+  });
+
+  it('renders without onBoundsChange callback', () => {
+    render(
+      <InstructorCoverageMap
+        featureCollection={mockFeatureCollection}
+      />
+    );
+
+    // Should not register map event handlers when callback not provided
+    expect(screen.getByTestId('map-container')).toBeInTheDocument();
+  });
+
+  it('renders with empty feature properties', () => {
+    const emptyPropsFeatureCollection = {
+      type: 'FeatureCollection' as const,
+      features: [
+        {
+          type: 'Feature' as const,
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[[-74, 40], [-73, 40], [-73, 41], [-74, 41], [-74, 40]]],
+          },
+          properties: {},
+        },
+      ],
+    };
+
+    render(
+      <InstructorCoverageMap
+        featureCollection={emptyPropsFeatureCollection}
+        showCoverage={true}
+      />
+    );
+
+    expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
+  });
+
+  it('handles feature without instructors array', () => {
+    const noInstructorsFeatureCollection = {
+      type: 'FeatureCollection' as const,
+      features: [
+        {
+          type: 'Feature' as const,
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[[-74, 40], [-73, 40], [-73, 41], [-74, 41], [-74, 40]]],
+          },
+          properties: {
+            name: 'Test Region',
+            // No instructors array
+          },
+        },
+      ],
+    };
+
+    render(
+      <InstructorCoverageMap
+        featureCollection={noInstructorsFeatureCollection}
+        showCoverage={true}
+        highlightInstructorId="inst-1"
+      />
+    );
+
+    expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
+  });
+
+  it('focuses on instructor coverage when focusInstructorId changes', () => {
+    const { rerender } = render(
+      <InstructorCoverageMap
+        featureCollection={mockFeatureCollection}
+        focusInstructorId={null}
+      />
+    );
+
+    rerender(
+      <InstructorCoverageMap
+        featureCollection={mockFeatureCollection}
+        focusInstructorId="inst-1"
+      />
+    );
+
+    expect(screen.getByTestId('map-container')).toBeInTheDocument();
+  });
+
+  it('handles JAWG token with dark mode', () => {
+    const originalEnv = process.env['NEXT_PUBLIC_JAWG_TOKEN'];
+    process.env['NEXT_PUBLIC_JAWG_TOKEN'] = 'test-token';
+
+    const mockMatchMedia = jest.fn().mockReturnValue({
+      matches: true, // dark mode
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    });
+    window.matchMedia = mockMatchMedia;
+
+    render(<InstructorCoverageMap />);
+
+    expect(screen.getByTestId('tile-layer')).toBeInTheDocument();
+
+    process.env['NEXT_PUBLIC_JAWG_TOKEN'] = originalEnv;
+  });
+
+  it('handles JAWG token with light mode', () => {
+    const originalEnv = process.env['NEXT_PUBLIC_JAWG_TOKEN'];
+    process.env['NEXT_PUBLIC_JAWG_TOKEN'] = 'test-token';
+
+    const mockMatchMedia = jest.fn().mockReturnValue({
+      matches: false, // light mode
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    });
+    window.matchMedia = mockMatchMedia;
+
+    render(<InstructorCoverageMap />);
+
+    expect(screen.getByTestId('tile-layer')).toBeInTheDocument();
+
+    process.env['NEXT_PUBLIC_JAWG_TOKEN'] = originalEnv;
+  });
+
+  it('handles missing matchMedia', () => {
+    const originalMatchMedia = window.matchMedia;
+    // @ts-expect-error - intentionally testing missing matchMedia
+    delete window.matchMedia;
+
+    render(<InstructorCoverageMap />);
+
+    expect(screen.getByTestId('map-container')).toBeInTheDocument();
+
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it('cleans up moveend and zoomend listeners on unmount', () => {
+    const onBoundsChange = jest.fn();
+    const { unmount } = render(
+      <InstructorCoverageMap onBoundsChange={onBoundsChange} />
+    );
+
+    unmount();
+
+    expect(mockMap.off).toHaveBeenCalledWith('moveend', expect.any(Function));
+    expect(mockMap.off).toHaveBeenCalledWith('zoomend', expect.any(Function));
+  });
+
+  it('renders without showSearchAreaButton callback', () => {
+    render(
+      <InstructorCoverageMap
+        showSearchAreaButton={true}
+        // No onSearchArea callback
+      />
+    );
+
+    expect(screen.getByTestId('map-container')).toBeInTheDocument();
+  });
 });

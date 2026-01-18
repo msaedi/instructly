@@ -1,15 +1,19 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
 import {
   useCurrentLessons,
   useCompletedLessons,
+  useCancelledLessons,
   useLessonDetails,
   useCancelLesson,
   useRescheduleLesson,
+  useCompleteLesson,
+  useMarkNoShow,
   calculateCancellationFee,
+  formatLessonStatus,
 } from '@/hooks/useMyLessons';
-import type { Booking } from '@/features/shared/api/types';
+import type { Booking, BookingStatus } from '@/features/shared/api/types';
 
 // Mock v1 bookings services
 const mockUseBookingsList = jest.fn();
@@ -19,6 +23,8 @@ const mockUseBooking = jest.fn();
 const mockUseCancelBooking = jest.fn();
 const mockUseRescheduleBooking = jest.fn();
 const mockUseCompleteBooking = jest.fn();
+const mockUseMarkBookingNoShow = jest.fn();
+const mockFetchBookingsList = jest.fn();
 
 jest.mock('@/src/api/services/bookings', () => ({
   useBookingsList: (...args: unknown[]) => mockUseBookingsList(...args),
@@ -28,6 +34,8 @@ jest.mock('@/src/api/services/bookings', () => ({
   useCancelBooking: () => mockUseCancelBooking(),
   useRescheduleBooking: () => mockUseRescheduleBooking(),
   useCompleteBooking: () => mockUseCompleteBooking(),
+  useMarkBookingNoShow: () => mockUseMarkBookingNoShow(),
+  fetchBookingsList: (...args: unknown[]) => mockFetchBookingsList(...args),
 }));
 
 // Mock v1 instructor-bookings services
@@ -185,6 +193,15 @@ describe('useMyLessons hooks', () => {
     mockUseCancelBooking.mockReturnValue(mockMutation());
     mockUseRescheduleBooking.mockReturnValue(mockMutation());
     mockUseCompleteBooking.mockReturnValue(mockMutation());
+    mockUseMarkBookingNoShow.mockReturnValue(mockMutation());
+    mockFetchBookingsList.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      per_page: 10,
+      has_next: false,
+      has_prev: false,
+    });
   });
 
   describe('useCurrentLessons', () => {
@@ -430,6 +447,330 @@ describe('useMyLessons hooks', () => {
       expect(result12.willReceiveCredit).toBe(false);
 
       jest.useRealTimers();
+    });
+
+    it('uses payment_summary when available', () => {
+      const booking = {
+        booking_date: '2024-12-30',
+        start_time: '14:00:00',
+        total_price: 60,
+        payment_summary: {
+          lesson_amount: 50,
+          service_fee: 10,
+        },
+      } as Booking;
+
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2024-12-25'));
+
+      const result = calculateCancellationFee(booking);
+      expect(result.lessonPrice).toBe(50);
+      expect(result.platformFee).toBe(10);
+
+      jest.useRealTimers();
+    });
+  });
+
+  describe('useCancelledLessons', () => {
+    it('fetches cancelled lessons', async () => {
+      const { result } = renderHook(() => useCancelledLessons(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(mockUseCancelledBookingsV1).toHaveBeenCalledWith(1, 20);
+    });
+
+    it('accepts custom page number', () => {
+      renderHook(() => useCancelledLessons(3), { wrapper });
+
+      expect(mockUseCancelledBookingsV1).toHaveBeenCalledWith(3, 20);
+    });
+  });
+
+  describe('useCompleteLesson', () => {
+    it('returns complete mutation', () => {
+      const { result } = renderHook(() => useCompleteLesson(), { wrapper });
+
+      expect(result.current.mutate).toBeDefined();
+      expect(result.current.mutateAsync).toBeDefined();
+    });
+
+    it('calls v1 complete mutation with correct params', async () => {
+      const mockMutate = jest.fn();
+      mockUseCompleteBooking.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
+      const { result } = renderHook(() => useCompleteLesson(), { wrapper });
+
+      result.current.mutate('01ABCDEF123456789012345678');
+
+      expect(mockMutate).toHaveBeenCalledWith(
+        { bookingId: '01ABCDEF123456789012345678' },
+        expect.any(Object)
+      );
+    });
+
+    it('calls onSuccess callback after completion', async () => {
+      const mockMutate = jest.fn((params, options) => {
+        // Simulate async completion
+        Promise.resolve().then(() => {
+          options?.onSuccess?.({ id: '01ABCDEF123456789012345678' });
+        });
+      });
+      mockUseCompleteBooking.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
+      const onSuccess = jest.fn();
+      const { result } = renderHook(() => useCompleteLesson(), { wrapper });
+
+      await act(async () => {
+        result.current.mutate('01ABCDEF123456789012345678', { onSuccess });
+      });
+
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalled();
+      });
+    });
+
+    it('calls onError callback on failure', async () => {
+      const mockError = new Error('Completion failed');
+      const mockMutate = jest.fn((_, options) => {
+        options?.onError?.(mockError);
+      });
+      mockUseCompleteBooking.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
+      const onError = jest.fn();
+      const { result } = renderHook(() => useCompleteLesson(), { wrapper });
+
+      result.current.mutate('01ABCDEF123456789012345678', { onError });
+
+      expect(onError).toHaveBeenCalledWith(mockError);
+    });
+  });
+
+  describe('useMarkNoShow', () => {
+    it('returns no-show mutation', () => {
+      const { result } = renderHook(() => useMarkNoShow(), { wrapper });
+
+      expect(result.current.mutate).toBeDefined();
+      expect(result.current.mutateAsync).toBeDefined();
+    });
+
+    it('calls v1 no-show mutation with correct params', async () => {
+      const mockMutate = jest.fn();
+      mockUseMarkBookingNoShow.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
+      const { result } = renderHook(() => useMarkNoShow(), { wrapper });
+
+      result.current.mutate('01ABCDEF123456789012345678');
+
+      expect(mockMutate).toHaveBeenCalledWith(
+        {
+          bookingId: '01ABCDEF123456789012345678',
+          data: { no_show_type: 'student' },
+        },
+        expect.any(Object)
+      );
+    });
+
+    it('calls onSuccess callback after marking no-show', async () => {
+      const mockMutate = jest.fn((_, options) => {
+        // Simulate async completion
+        Promise.resolve().then(() => {
+          options?.onSuccess?.();
+        });
+      });
+      mockUseMarkBookingNoShow.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
+      const onSuccess = jest.fn();
+      const { result } = renderHook(() => useMarkNoShow(), { wrapper });
+
+      await act(async () => {
+        result.current.mutate('01ABCDEF123456789012345678', { onSuccess });
+      });
+
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalled();
+      });
+    });
+
+    it('calls onError callback on failure', async () => {
+      const mockError = new Error('No-show marking failed');
+      const mockMutate = jest.fn((_, options) => {
+        options?.onError?.(mockError);
+      });
+      mockUseMarkBookingNoShow.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
+      const onError = jest.fn();
+      const { result } = renderHook(() => useMarkNoShow(), { wrapper });
+
+      result.current.mutate('01ABCDEF123456789012345678', { onError });
+
+      expect(onError).toHaveBeenCalledWith(mockError);
+    });
+  });
+
+  describe('formatLessonStatus', () => {
+    it('formats CONFIRMED status as Upcoming', () => {
+      expect(formatLessonStatus('CONFIRMED' as BookingStatus)).toBe('Upcoming');
+    });
+
+    it('formats COMPLETED status', () => {
+      expect(formatLessonStatus('COMPLETED' as BookingStatus)).toBe('Completed');
+    });
+
+    it('formats NO_SHOW status', () => {
+      expect(formatLessonStatus('NO_SHOW' as BookingStatus)).toBe('No-show');
+    });
+
+    it('formats CANCELLED status without cancellation date', () => {
+      expect(formatLessonStatus('CANCELLED' as BookingStatus)).toBe('Cancelled');
+    });
+
+    it('formats CANCELLED status with >24h cancellation', () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2024-12-27T14:00:00'));
+      const cancelledAt = '2024-12-25T10:00:00';
+      const result = formatLessonStatus('CANCELLED' as BookingStatus, cancelledAt);
+      expect(result).toContain('Cancelled');
+      jest.useRealTimers();
+    });
+
+    it('returns original status for unknown statuses', () => {
+      expect(formatLessonStatus('PENDING' as BookingStatus)).toBe('PENDING');
+    });
+  });
+
+  describe('useCurrentLessons edge cases', () => {
+    it('handles boolean parameter for backward compatibility', () => {
+      renderHook(() => useCurrentLessons(true), { wrapper });
+
+      expect(mockUseBookingsList).toHaveBeenCalledWith({
+        upcoming_only: true,
+        page: 1,
+        per_page: 10,
+      });
+    });
+
+    it('handles undefined data gracefully', () => {
+      mockUseBookingsList.mockReturnValue({
+        ...mockSuccessResponse(undefined),
+        data: undefined,
+      });
+
+      const { result } = renderHook(() => useCurrentLessons(), { wrapper });
+
+      expect(result.current.data).toBeUndefined();
+    });
+  });
+
+  describe('useCompletedLessons edge cases', () => {
+    it('handles error state', async () => {
+      mockUseBookingsHistory.mockReturnValue(mockErrorResponse('Failed to load'));
+
+      const { result } = renderHook(() => useCompletedLessons(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isError).toBe(true);
+      });
+    });
+  });
+
+  describe('useCancelLesson edge cases', () => {
+    it('calls onError on mutation failure', async () => {
+      const mockError = new Error('Cancel failed');
+      const mockMutate = jest.fn((_, options) => {
+        options?.onError?.(mockError);
+      });
+      mockUseCancelBooking.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
+      const onError = jest.fn();
+      const { result } = renderHook(() => useCancelLesson(), { wrapper });
+
+      result.current.mutate(
+        { lessonId: '01ABCDEF123456789012345678', reason: 'Test' },
+        { onError }
+      );
+
+      expect(onError).toHaveBeenCalledWith(mockError);
+    });
+  });
+
+  describe('useRescheduleLesson edge cases', () => {
+    it('calls onError on mutation failure', async () => {
+      const mockError = new Error('Reschedule failed');
+      const mockMutate = jest.fn((_, options) => {
+        options?.onError?.(mockError);
+      });
+      mockUseRescheduleBooking.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
+      const onError = jest.fn();
+      const { result } = renderHook(() => useRescheduleLesson(), { wrapper });
+
+      result.current.mutate(
+        {
+          lessonId: '01ABCDEF123456789012345678',
+          newDate: '2024-12-26',
+          newStartTime: '10:00:00',
+          newEndTime: '11:00:00',
+        },
+        { onError }
+      );
+
+      expect(onError).toHaveBeenCalledWith(mockError);
+    });
+
+    it('calculates duration correctly for 90-minute sessions', async () => {
+      const mockMutate = jest.fn();
+      mockUseRescheduleBooking.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
+      const { result } = renderHook(() => useRescheduleLesson(), { wrapper });
+
+      result.current.mutate({
+        lessonId: '01ABCDEF123456789012345678',
+        newDate: '2024-12-26',
+        newStartTime: '10:00:00',
+        newEndTime: '11:30:00', // 90 minutes
+      });
+
+      expect(mockMutate).toHaveBeenCalledWith(
+        {
+          bookingId: '01ABCDEF123456789012345678',
+          data: {
+            booking_date: '2024-12-26',
+            start_time: '10:00:00',
+            selected_duration: 90, // 90 minutes
+          },
+        },
+        expect.any(Object)
+      );
     });
   });
 });

@@ -110,6 +110,23 @@ describe('CancellationReasonModal', () => {
     jest.useRealTimers();
   });
 
+  it('hides reschedule option when within 12 hours', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2025-01-10T06:00:00Z'));
+
+    render(
+      <CancellationReasonModal
+        isOpen
+        onClose={onClose}
+        lesson={baseLesson}
+        onReschedule={onReschedule}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: /reschedule instead/i })).toBeNull();
+    jest.useRealTimers();
+  });
+
   it('shows pending state while cancelling', () => {
     useCancelLessonMock.mockReturnValue({
       mutateAsync,
@@ -170,5 +187,30 @@ describe('CancellationReasonModal', () => {
 
     await user.click(screen.getByRole('button', { name: /contact support/i }));
     expect(logger.info).toHaveBeenCalledWith('Contact support clicked');
+  });
+
+  it('logs an error when cancellation fails', async () => {
+    const error = new Error('Cancel failed');
+    useCancelLessonMock.mockReturnValue({
+      mutateAsync: jest.fn().mockRejectedValue(error),
+      isSuccess: false,
+      isPending: false,
+    });
+    const user = userEvent.setup();
+    render(
+      <CancellationReasonModal
+        isOpen
+        onClose={onClose}
+        lesson={baseLesson}
+        onReschedule={onReschedule}
+      />
+    );
+
+    await user.click(screen.getByLabelText(/lesson was booked by mistake/i));
+    await user.click(screen.getByRole('button', { name: /confirm cancellation/i }));
+
+    await waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith('Failed to cancel lesson', error);
+    });
   });
 });
