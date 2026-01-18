@@ -14,6 +14,46 @@ from app.models.service_catalog import InstructorService, ServiceCatalog
 from app.repositories.ranking_repository import RankingRepository
 
 
+def _boundary_expects_multipolygon(db) -> bool:
+    try:
+        row = db.execute(
+            text(
+                """
+                SELECT type
+                FROM geometry_columns
+                WHERE f_table_schema = 'public'
+                  AND f_table_name = 'region_boundaries'
+                  AND f_geometry_column = 'boundary'
+                """
+            )
+        ).first()
+        if row and row[0]:
+            return "MULTIPOLYGON" in str(row[0]).upper()
+    except Exception:
+        pass
+
+    try:
+        row = db.execute(
+            text(
+                """
+                SELECT postgis_typmod_type(a.atttypmod)
+                FROM pg_attribute a
+                JOIN pg_class c ON c.oid = a.attrelid
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public'
+                  AND c.relname = 'region_boundaries'
+                  AND a.attname = 'boundary'
+                """
+            )
+        ).first()
+        if row and row[0]:
+            return "MULTIPOLYGON" in str(row[0]).upper()
+    except Exception:
+        pass
+
+    return False
+
+
 def _set_region_geometry(db, region_id: str, lon: float, lat: float) -> None:
     geom = {
         "type": "Polygon",
@@ -27,12 +67,15 @@ def _set_region_geometry(db, region_id: str, lon: float, lat: float) -> None:
             ]
         ],
     }
+    geom_expr = "ST_SetSRID(ST_GeomFromGeoJSON(:geom), 4326)"
+    if _boundary_expects_multipolygon(db):
+        geom_expr = f"ST_Multi({geom_expr})"
     db.execute(
         text(
-            """
+            f"""
             UPDATE region_boundaries
-            SET boundary = ST_SetSRID(ST_GeomFromGeoJSON(:geom), 4326),
-                centroid = ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON(:geom), 4326))
+            SET boundary = {geom_expr},
+                centroid = ST_Centroid({geom_expr})
             WHERE id = :id
             """
         ),
