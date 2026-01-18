@@ -31,14 +31,13 @@ const customJestConfig = {
     '!**/*.d.ts',
     '!**/node_modules/**',
   ],
-  // Coverage threshold to prevent regression (set 2% below current baseline)
-  // Current: Statements 38.6%, Branches 30%, Functions 31.8%, Lines 40.2%
+  // Coverage threshold to prevent regression
   coverageThreshold: {
     global: {
-      statements: 36,
-      branches: 28,
-      functions: 29,
-      lines: 38,
+      statements: 92,
+      branches: 75,
+      functions: 90,
+      lines: 92,
     },
   },
 };
