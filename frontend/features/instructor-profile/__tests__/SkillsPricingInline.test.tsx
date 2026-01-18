@@ -516,4 +516,262 @@ describe('SkillsPricingInline', () => {
     // Component should render with fee info
     expect(screen.getByText(/platform fee/i)).toBeInTheDocument();
   });
+
+  it('handles empty skill request submission gracefully', async () => {
+    const user = userEvent.setup();
+    render(<SkillsPricingInline instructorProfile={{ is_live: false, services: [] } as never} />);
+
+    // Try to submit without entering text
+    await user.click(screen.getByRole('button', { name: /submit/i }));
+
+    // Should not show success message
+    expect(screen.queryByText(/we'll review/i)).not.toBeInTheDocument();
+  });
+
+  it('filters categories but excludes kids category', () => {
+    mockUseServiceCategories.mockReturnValue({
+      data: [
+        { slug: 'music', name: 'Music' },
+        { slug: 'kids', name: 'Kids Activities' },
+        { slug: 'sports', name: 'Sports' },
+      ],
+      isLoading: false,
+    });
+
+    render(<SkillsPricingInline instructorProfile={{ is_live: false, services: [] } as never} />);
+
+    expect(screen.getByRole('button', { name: /music/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sports/i })).toBeInTheDocument();
+    // Kids category should be filtered out
+    expect(screen.queryByRole('button', { name: /kids activities/i })).not.toBeInTheDocument();
+  });
+
+  it('handles profile with instructor_tier_pct fallback', () => {
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: {
+        is_live: false,
+        instructor_tier_pct: 15, // Fallback field name
+        services: [{
+          service_catalog_id: 'svc-1',
+          service_catalog_name: 'Piano',
+          hourly_rate: 100,
+        }],
+      },
+    });
+
+    render(<SkillsPricingInline />);
+
+    // Should render without errors
+    expect(screen.getByText(/platform fee/i)).toBeInTheDocument();
+  });
+
+  it('handles services with equipment_required array', async () => {
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: {
+        is_live: false,
+        services: [{
+          service_catalog_id: 'svc-1',
+          service_catalog_name: 'Piano',
+          hourly_rate: 50,
+          equipment_required: ['Piano', 'Music stand', 'Metronome'],
+        }],
+      },
+    });
+
+    render(<SkillsPricingInline />);
+
+    const equipmentInput = screen.getByPlaceholderText(/yoga mat/i);
+    expect(equipmentInput).toHaveValue('Piano, Music stand, Metronome');
+  });
+
+  it('handles service with single age_groups entry (kids)', () => {
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: {
+        is_live: false,
+        services: [{
+          service_catalog_id: 'svc-1',
+          service_catalog_name: 'Piano',
+          hourly_rate: 50,
+          age_groups: ['kids'],
+        }],
+      },
+    });
+
+    render(<SkillsPricingInline />);
+
+    // Should render the component with kids selected
+    const pianoElements = screen.getAllByText(/piano/i);
+    expect(pianoElements.length).toBeGreaterThan(0);
+  });
+
+  it('deduplicates services by catalog_service_id', () => {
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: {
+        is_live: false,
+        services: [
+          { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50 },
+          { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60 }, // Duplicate
+          { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 45 },
+        ],
+      },
+    });
+
+    render(<SkillsPricingInline />);
+
+    // Should only have 2 services (deduplicated)
+    const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+    expect(rateInputs).toHaveLength(2);
+  });
+
+  it('displays correct error for price floor violation with modality info', async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: {
+        is_live: false,
+        services: [{
+          service_catalog_id: 'svc-1',
+          service_catalog_name: 'Piano Lesson',
+          hourly_rate: 40,
+          duration_options: [60],
+          location_types: ['in-person'],
+        }],
+      },
+    });
+    mockUsePricingConfig.mockReturnValue({
+      config: { price_floor_cents: { private: { '60': 5000 } } },
+    });
+    mockEvaluateViolations.mockReturnValue([
+      { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 4000 },
+    ]);
+
+    render(<SkillsPricingInline />);
+
+    // Trigger autosave
+    await user.clear(screen.getByPlaceholderText(/hourly rate/i));
+    await user.type(screen.getByPlaceholderText(/hourly rate/i), '40');
+    jest.advanceTimersByTime(1200);
+
+    await waitFor(() => {
+      expect(screen.getByText(/minimum price for a in-person 60-minute private session/i)).toBeInTheDocument();
+    });
+    jest.useRealTimers();
+  });
+
+  it('collapses and expands categories correctly', async () => {
+    const user = userEvent.setup();
+    mockUseAllServices.mockReturnValue({
+      data: {
+        categories: [
+          {
+            slug: 'music',
+            services: [{ id: 'svc-1', name: 'Piano' }],
+          },
+        ],
+      },
+      isLoading: false,
+    });
+
+    render(<SkillsPricingInline instructorProfile={{ is_live: false, services: [] } as never} />);
+
+    const musicButton = screen.getByRole('button', { name: /music/i });
+
+    // Expand
+    await user.click(musicButton);
+    expect(screen.getByRole('button', { name: /piano \+/i })).toBeInTheDocument();
+
+    // Collapse
+    await user.click(musicButton);
+    // After collapsing, piano should not be visible
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /piano \+/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it('handles API error with message field', async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: {
+        is_live: false,
+        services: [{
+          service_catalog_id: 'svc-1',
+          service_catalog_name: 'Piano',
+          hourly_rate: 50,
+        }],
+      },
+    });
+    mockFetchWithAuth.mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      json: async () => ({ message: 'Validation failed' }),
+    });
+
+    render(<SkillsPricingInline />);
+
+    const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+    await user.clear(rateInput);
+    await user.type(rateInput, '55');
+    jest.advanceTimersByTime(1200);
+
+    await waitFor(() => {
+      expect(screen.getByText(/validation failed/i)).toBeInTheDocument();
+    });
+    jest.useRealTimers();
+  });
+
+  it('does not filter services from categories that have kids slug', () => {
+    mockUseAllServices.mockReturnValue({
+      data: {
+        categories: [
+          { slug: 'kids', services: [{ id: 'svc-kids', name: 'Kids Dancing' }] },
+          { slug: 'music', services: [{ id: 'svc-1', name: 'Piano' }] },
+        ],
+      },
+      isLoading: false,
+    });
+
+    render(<SkillsPricingInline instructorProfile={{ is_live: false, services: [] } as never} />);
+
+    // Music category should be shown
+    expect(screen.getByRole('button', { name: /music/i })).toBeInTheDocument();
+    // Kids category should be filtered
+    expect(screen.queryByRole('button', { name: /kids/i })).not.toBeInTheDocument();
+  });
+
+  it('handles service with name field instead of service_catalog_name', () => {
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: {
+        is_live: false,
+        services: [{
+          service_catalog_id: 'svc-1',
+          name: 'Custom Piano', // Using name instead of service_catalog_name
+          hourly_rate: 75,
+        }],
+      },
+    });
+
+    render(<SkillsPricingInline />);
+
+    const elements = screen.getAllByText(/custom piano/i);
+    expect(elements.length).toBeGreaterThan(0);
+  });
+
+  it('handles services with empty catalog_service_id', () => {
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: {
+        is_live: false,
+        services: [
+          { service_catalog_id: '', service_catalog_name: 'Invalid', hourly_rate: 50 },
+          { service_catalog_id: 'svc-1', service_catalog_name: 'Valid Piano', hourly_rate: 60 },
+        ],
+      },
+    });
+
+    render(<SkillsPricingInline />);
+
+    // Only valid service should be shown
+    const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+    expect(rateInputs).toHaveLength(1);
+  });
 });

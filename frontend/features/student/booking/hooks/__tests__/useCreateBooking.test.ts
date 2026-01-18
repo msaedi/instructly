@@ -11,7 +11,7 @@ jest.mock('@/src/api/services/bookings', () => ({
 
 describe('useCreateBooking', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
   });
 
   describe('Error Handling', () => {
@@ -229,5 +229,127 @@ describe('useCreateBooking', () => {
       );
       expect(result.current.booking).toEqual(booking);
     });
+  });
+
+  describe('Additional Error Scenarios', () => {
+    it('should handle 404 not found error', async () => {
+      mockCreateBookingImperative.mockRejectedValueOnce(
+        new Error('404: Instructor not found')
+      );
+
+      const { result } = renderHook(() => useCreateBooking());
+
+      await act(async () => {
+        await result.current.createBooking({
+          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+          booking_date: '2024-01-15',
+          start_time: '14:00:00',
+          selected_duration: 60,
+          location_type: 'neutral',
+        });
+      });
+
+      expect(result.current.error).toBe('Instructor or service not found');
+    });
+
+    it('should handle outside availability error', async () => {
+      mockCreateBookingImperative.mockRejectedValueOnce(
+        new Error('Selected time is outside availability')
+      );
+
+      const { result } = renderHook(() => useCreateBooking());
+
+      await act(async () => {
+        await result.current.createBooking({
+          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+          booking_date: '2024-01-15',
+          start_time: '23:00:00',
+          selected_duration: 60,
+          location_type: 'neutral',
+        });
+      });
+
+      expect(result.current.error).toBe(
+        "The selected time is outside the instructor's availability."
+      );
+    });
+
+    it('should handle non-Error thrown value', async () => {
+      mockCreateBookingImperative.mockRejectedValueOnce('String error');
+
+      const { result } = renderHook(() => useCreateBooking());
+
+      await act(async () => {
+        await result.current.createBooking({
+          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+          booking_date: '2024-01-15',
+          start_time: '14:00:00',
+          selected_duration: 60,
+          location_type: 'neutral',
+        });
+      });
+
+      expect(result.current.error).toBe('Failed to create booking');
+    });
+
+    it('should handle error with empty message', async () => {
+      mockCreateBookingImperative.mockRejectedValueOnce(new Error(''));
+
+      const { result } = renderHook(() => useCreateBooking());
+
+      await act(async () => {
+        await result.current.createBooking({
+          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+          booking_date: '2024-01-15',
+          start_time: '14:00:00',
+          selected_duration: 60,
+          location_type: 'neutral',
+        });
+      });
+
+      expect(result.current.error).toBe('An unexpected error occurred');
+    });
+  });
+
+});
+
+describe('calculateEndTime', () => {
+  // Import the function
+  const { calculateEndTime } = require('../useCreateBooking');
+
+  it('should calculate end time correctly for 60 minute duration', () => {
+    expect(calculateEndTime('10:00', 60)).toBe('11:00');
+  });
+
+  it('should calculate end time correctly for 90 minute duration', () => {
+    expect(calculateEndTime('10:00', 90)).toBe('11:30');
+  });
+
+  it('should calculate end time correctly for 30 minute duration', () => {
+    expect(calculateEndTime('14:30', 30)).toBe('15:00');
+  });
+
+  it('should handle times with seconds', () => {
+    expect(calculateEndTime('10:00:00', 60)).toBe('11:00');
+  });
+
+  it('should wrap around midnight correctly', () => {
+    expect(calculateEndTime('23:30', 60)).toBe('00:30');
+  });
+
+  it('should throw error for empty start time', () => {
+    expect(() => calculateEndTime('', 60)).toThrow('Start time is required');
+  });
+
+  it('should throw error for invalid time format', () => {
+    expect(() => calculateEndTime('invalid', 60)).toThrow('Invalid time format');
+  });
+
+  it('should handle single digit hours and minutes', () => {
+    expect(calculateEndTime('9:5', 60)).toBe('10:05');
   });
 });

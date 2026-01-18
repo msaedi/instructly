@@ -367,7 +367,9 @@ export default function EditProfileModal({
           firstName = u.first_name || '';
           lastName = u.last_name || '';
         }
-      } catch {}
+      } catch (err) {
+        logger.warn('Failed to fetch user profile data', err);
+      }
 
       // Fetch default address postal code
       let postalCode = '';
@@ -379,7 +381,9 @@ export default function EditProfileModal({
           const def = items.find((a: AddressItem) => a.is_default) || (items.length > 0 ? items[0] : null);
           postalCode = def?.postal_code || '';
         }
-      } catch {}
+      } catch (err) {
+        logger.warn('Failed to fetch default address', err);
+      }
 
       const normalizedServices = await normalizeInstructorServices(data.services ?? []);
 
@@ -605,7 +609,9 @@ export default function EditProfileModal({
         });
         return list;
       }
-    } catch {}
+    } catch (err) {
+      logger.warn('Failed to load borough neighborhoods', { borough, err });
+    }
     return boroughNeighborhoods[borough] || [];
   }, [boroughNeighborhoods]);
 
@@ -871,7 +877,9 @@ export default function EditProfileModal({
             last_name: profileData.last_name?.trim() || '',
           }),
         });
-      } catch {}
+      } catch (err) {
+        logger.warn('Failed to update user name', err);
+      }
 
       // Update default address postal code
       try {
@@ -897,7 +905,9 @@ export default function EditProfileModal({
             });
           }
         }
-      } catch {}
+      } catch (err) {
+        logger.warn('Failed to update postal code', err);
+      }
 
       // Ensure at least one service area (temporary guard while modal transitions)
       if (profileData.service_area_boroughs.length === 0) {
@@ -1036,7 +1046,9 @@ export default function EditProfileModal({
             last_name: profileData.last_name?.trim() || '',
           }),
         });
-      } catch {}
+      } catch (err) {
+        logger.warn('Failed to update user name in about section', err);
+      }
 
       try {
         const addrRes = await fetchWithAuth('/api/v1/addresses/me');
@@ -1061,7 +1073,9 @@ export default function EditProfileModal({
             });
           }
         }
-      } catch {}
+      } catch (err) {
+        logger.warn('Failed to update postal code in about section', err);
+      }
 
       // Persist bio and years of experience along with existing services/areas
       const payload = buildProfileUpdateBody(profileData, {
@@ -1332,13 +1346,13 @@ export default function EditProfileModal({
                     <div className="flex flex-wrap gap-2">
                       {globalNeighborhoodMatches
                         .slice(0, 200)
-                        .map((n) => {
+                        .map((n, index) => {
                           const nid = n.neighborhood_id || n.id;
                           if (!nid) return null;
                           const checked = selectedNeighborhoods.has(nid);
                           return (
                             <button
-                              key={`global-${nid}`}
+                              key={`global-${nid}-${index}`}
                               type="button"
                               onClick={() => toggleNeighborhood(nid)}
                               aria-pressed={checked}

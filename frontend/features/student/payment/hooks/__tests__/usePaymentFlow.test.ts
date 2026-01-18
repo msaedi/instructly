@@ -465,9 +465,7 @@ describe('usePaymentFlow', () => {
       expect(result.current.currentStep).toBe(PaymentStep.ERROR);
     });
 
-    // Note: This test documents a BUG - goToStep(ERROR) clears the error that was just set
-    // The error is set with setError() then immediately cleared by goToStep()
-    it('sets error message on API failure (bug: error gets cleared by goToStep)', async () => {
+    it('sets error message on API failure', async () => {
       const booking = createTestBooking();
       const mockFetch = jest.fn().mockResolvedValue({
         ok: false,
@@ -485,9 +483,7 @@ describe('usePaymentFlow', () => {
         await result.current.processPayment();
       });
 
-      // BUG: Error gets cleared because goToStep(ERROR) calls setError(null)
-      // Expected: result.current.error).toBe('Payment processing failed')
-      expect(result.current.error).toBeNull();
+      expect(result.current.error).toBe('Payment processing failed');
     });
 
     it('calls onError callback on API failure', async () => {
@@ -515,8 +511,7 @@ describe('usePaymentFlow', () => {
       expect(onError.mock.calls[0][0].message).toBe('Payment processing failed');
     });
 
-    // Note: This test documents a BUG - goToStep(ERROR) clears the error
-    it('handles network errors (bug: error gets cleared by goToStep)', async () => {
+    it('handles network errors', async () => {
       const booking = createTestBooking();
       const onError = jest.fn();
       const mockFetch = jest.fn().mockRejectedValue(new Error('Network error'));
@@ -535,13 +530,11 @@ describe('usePaymentFlow', () => {
       });
 
       expect(result.current.currentStep).toBe(PaymentStep.ERROR);
-      // BUG: error is cleared by goToStep(ERROR) - expected 'Network error'
-      expect(result.current.error).toBeNull();
+      expect(result.current.error).toBe('Network error');
       expect(onError).toHaveBeenCalled();
     });
 
-    // Note: This test documents a BUG - goToStep(ERROR) clears the error
-    it('handles non-Error exceptions (bug: error gets cleared by goToStep)', async () => {
+    it('handles non-Error exceptions', async () => {
       const booking = createTestBooking();
       const mockFetch = jest.fn().mockRejectedValue('String error');
       global.fetch = mockFetch;
@@ -556,8 +549,7 @@ describe('usePaymentFlow', () => {
         await result.current.processPayment();
       });
 
-      // BUG: error is cleared by goToStep(ERROR) - expected 'Payment failed'
-      expect(result.current.error).toBeNull();
+      expect(result.current.error).toBe('Payment failed');
     });
 
     it('sets isProcessing to false after completion', async () => {

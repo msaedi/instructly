@@ -5,7 +5,7 @@
  * Components should use these hooks instead of calling fetch directly.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { UseQueryOptions } from '@tanstack/react-query';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/api/queryKeys';
@@ -130,6 +130,8 @@ export function useConversationMessages(
 ) {
   const pagination = before ? { limit, before } : { limit };
   const { onSuccess, onError, ...queryOptions } = options ?? {};
+  const lastSuccessAtRef = useRef(0);
+  const lastErrorAtRef = useRef(0);
 
   const query = useQuery<ConversationMessages, Error>({
     queryKey: queryKeys.messages.conversationMessages(conversationId ?? '', pagination),
@@ -155,16 +157,26 @@ export function useConversationMessages(
   });
 
   useEffect(() => {
-    if (query.data && onSuccess) {
-      onSuccess(query.data);
+    if (!onSuccess || !query.isSuccess || !query.data) {
+      return;
     }
-  }, [onSuccess, query.data]);
+    if (query.dataUpdatedAt === lastSuccessAtRef.current) {
+      return;
+    }
+    lastSuccessAtRef.current = query.dataUpdatedAt;
+    onSuccess(query.data);
+  }, [onSuccess, query.data, query.dataUpdatedAt, query.isSuccess]);
 
   useEffect(() => {
-    if (query.error && onError) {
-      onError(query.error);
+    if (!onError || !query.isError || !query.error) {
+      return;
     }
-  }, [onError, query.error]);
+    if (query.errorUpdatedAt === lastErrorAtRef.current) {
+      return;
+    }
+    lastErrorAtRef.current = query.errorUpdatedAt;
+    onError(query.error);
+  }, [onError, query.error, query.errorUpdatedAt, query.isError]);
 
   return query;
 }

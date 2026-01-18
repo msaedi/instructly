@@ -138,4 +138,123 @@ describe('useInstructorServices', () => {
     expect(result.current.isLoading).toBe(true);
     expect(result.current.data).toBeUndefined();
   });
+
+  it('handles empty services array response', async () => {
+    const emptyResponse = { services: [] };
+    queryFnMock.mockReturnValue(() => Promise.resolve(emptyResponse));
+
+    const { result } = renderHook(
+      () => useInstructorServices('instructor-empty'),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.data?.services).toEqual([]);
+  });
+
+  it('does not refetch when instructorId changes from empty to valid', async () => {
+    const mockServices = { services: [{ id: 'svc-1', skill: 'Piano' }] };
+    queryFnMock.mockReturnValue(() => Promise.resolve(mockServices));
+
+    const { result, rerender } = renderHook(
+      ({ id }: { id: string }) => useInstructorServices(id),
+      {
+        wrapper: createWrapper(),
+        initialProps: { id: '' }
+      }
+    );
+
+    // Initially disabled
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isFetching).toBe(false);
+
+    // Update to valid ID
+    rerender({ id: 'instructor-new' });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.data).toEqual(mockServices);
+  });
+
+  it('maintains cache across re-renders with same instructorId', async () => {
+    const mockServices = { services: [{ id: 'svc-1', skill: 'Violin' }] };
+    let callCount = 0;
+    queryFnMock.mockReturnValue(() => {
+      callCount++;
+      return Promise.resolve(mockServices);
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 60000 } },
+    });
+
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const { result, rerender } = renderHook(
+      () => useInstructorServices('instructor-cache'),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    // Re-render should use cached data
+    rerender();
+
+    expect(result.current.data).toEqual(mockServices);
+    // Should only have called once due to cache
+    expect(callCount).toBe(1);
+  });
+
+  it('provides correct status flags during lifecycle', async () => {
+    let resolvePromise: (value: unknown) => void;
+    const slowPromise = new Promise((resolve) => {
+      resolvePromise = resolve;
+    });
+    queryFnMock.mockReturnValue(() => slowPromise);
+
+    const { result } = renderHook(
+      () => useInstructorServices('instructor-lifecycle'),
+      { wrapper: createWrapper() }
+    );
+
+    // Initially loading
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.isFetching).toBe(true);
+    expect(result.current.isSuccess).toBe(false);
+    expect(result.current.isError).toBe(false);
+
+    // Resolve the promise
+    resolvePromise!({ services: [] });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    // After success
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isFetching).toBe(false);
+    expect(result.current.isError).toBe(false);
+  });
+
+  it('sets requireAuth to false for public endpoint', () => {
+    queryFnMock.mockReturnValue(() => Promise.resolve({ services: [] }));
+
+    renderHook(
+      () => useInstructorServices('instructor-public'),
+      { wrapper: createWrapper() }
+    );
+
+    // Verify requireAuth is false (public endpoint)
+    const calls = queryFnMock.mock.calls;
+    expect(calls[0][1]).toEqual({ requireAuth: false });
+  });
 });

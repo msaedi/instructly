@@ -648,12 +648,10 @@ describe('useMyLessons hooks', () => {
     });
 
     it('formats CANCELLED status with >24h cancellation', () => {
-      jest.useFakeTimers();
-      jest.setSystemTime(new Date('2024-12-27T14:00:00'));
-      const cancelledAt = '2024-12-25T10:00:00';
-      const result = formatLessonStatus('CANCELLED' as BookingStatus, cancelledAt);
-      expect(result).toContain('Cancelled');
-      jest.useRealTimers();
+      const lessonDate = new Date('2024-12-27T14:00:00Z');
+      const cancelledAt = '2024-12-25T10:00:00Z';
+      const result = formatLessonStatus('CANCELLED' as BookingStatus, lessonDate, cancelledAt);
+      expect(result).toBe('Cancelled (>24hrs)');
     });
 
     it('returns original status for unknown statuses', () => {
@@ -1077,25 +1075,18 @@ describe('useMyLessons hooks', () => {
   });
 
   describe('formatLessonStatus detailed cancellation windows', () => {
-    // Note: There's a bug in formatLessonStatus - it uses new Date() as lessonDate
-    // instead of the actual lesson date. These tests document current (buggy) behavior.
     it('returns Cancelled (12-24hrs) for cancellation in 12-24h window', () => {
-      jest.useFakeTimers();
-      // Cancel date 20 hours before current time
-      const cancelDate = new Date(Date.now() - 20 * 60 * 60 * 1000);
-      const result = formatLessonStatus('CANCELLED' as BookingStatus, cancelDate.toISOString());
-      // Due to the bug, this returns based on difference between now and cancelDate
-      expect(result).toContain('Cancelled');
-      jest.useRealTimers();
+      const lessonDate = new Date('2024-12-27T12:00:00Z');
+      const cancelDate = new Date('2024-12-26T16:00:00Z');
+      const result = formatLessonStatus('CANCELLED' as BookingStatus, lessonDate, cancelDate.toISOString());
+      expect(result).toBe('Cancelled (12-24hrs)');
     });
 
     it('returns Cancelled (<12hrs) for cancellation within 12 hours', () => {
-      jest.useFakeTimers();
-      // Cancel date 6 hours before current time
-      const cancelDate = new Date(Date.now() - 6 * 60 * 60 * 1000);
-      const result = formatLessonStatus('CANCELLED' as BookingStatus, cancelDate.toISOString());
-      expect(result).toContain('Cancelled');
-      jest.useRealTimers();
+      const lessonDate = new Date('2024-12-27T12:00:00Z');
+      const cancelDate = new Date('2024-12-27T04:00:00Z');
+      const result = formatLessonStatus('CANCELLED' as BookingStatus, lessonDate, cancelDate.toISOString());
+      expect(result).toBe('Cancelled (<12hrs)');
     });
   });
 

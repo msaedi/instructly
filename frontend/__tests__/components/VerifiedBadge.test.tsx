@@ -50,4 +50,11 @@ describe('VerifiedBadge', () => {
     render(<VerifiedBadge />);
     expect(screen.getByText('Verified')).toBeInTheDocument();
   });
+
+  it('handles invalid date string gracefully', () => {
+    // Invalid date string that results in NaN when parsed
+    render(<VerifiedBadge dateISO="not-a-valid-date" />);
+    expect(screen.getByText('Verified')).toBeInTheDocument();
+    // Should fallback to generic tooltip without specific date
+  });
 });

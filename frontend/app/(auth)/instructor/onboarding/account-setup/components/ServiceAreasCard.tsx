@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronDown, MapPin } from 'lucide-react';
-import type { MutableRefObject, ReactNode } from 'react';
+import { useMemo, type MutableRefObject, type ReactNode } from 'react';
 import type { ServiceAreaItem } from '@/features/instructor-profile/types';
 
 type ServiceAreasCardProps = {
@@ -75,9 +75,24 @@ export function ServiceAreasCard({
     </div>
   );
 
-  const searchHits = nycBoroughs
-    .flatMap((borough) => boroughNeighborhoods[borough] || [])
-    .filter((n) => (n['name'] || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase()));
+  const searchHits = useMemo(() => {
+    const query = globalNeighborhoodFilter.trim().toLowerCase();
+    if (!query) return [];
+    const seen = new Set<string>();
+    const results: ServiceAreaItem[] = [];
+    const matches = nycBoroughs
+      .flatMap((borough) => boroughNeighborhoods[borough] || [])
+      .filter((n) => (n['name'] || '').toLowerCase().includes(query));
+
+    for (const match of matches) {
+      const nid = match.neighborhood_id;
+      if (!nid || seen.has(nid)) continue;
+      seen.add(nid);
+      results.push(match);
+    }
+
+    return results;
+  }, [nycBoroughs, boroughNeighborhoods, globalNeighborhoodFilter]);
 
   return (
     <section className="bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 dark:bg-gray-900/70 dark:border-gray-800/80">

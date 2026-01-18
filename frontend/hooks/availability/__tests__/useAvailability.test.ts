@@ -587,5 +587,310 @@ describe('useAvailability', () => {
 
       expect(saveResult?.message).toContain('Server error occurred');
     });
+
+    it('stringifies error when no standard fields present', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ code: 'UNKNOWN_ERROR', data: { foo: 'bar' } }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: OperationResult;
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult?.message).toContain('UNKNOWN_ERROR');
+    });
+
+    it('uses fallback when error is null or undefined', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve(null),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: OperationResult;
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult?.message).toContain('Failed to save availability');
+    });
+  });
+
+  describe('allowPastEdits header handling', () => {
+    it('sets allowPastEdits to true when X-Allow-Past header is "1"', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: {
+          get: (name: string) => (name === 'X-Allow-Past' ? '1' : null),
+        },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      expect(mockWeekScheduleState.setAllowPastEdits).toHaveBeenCalledWith(true);
+    });
+
+    it('sets allowPastEdits to true when X-Allow-Past header is "true"', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: {
+          get: (name: string) => (name === 'X-Allow-Past' ? 'true' : null),
+        },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      expect(mockWeekScheduleState.setAllowPastEdits).toHaveBeenCalledWith(true);
+    });
+
+    it('sets allowPastEdits to false for other header values', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: {
+          get: (name: string) => (name === 'X-Allow-Past' ? 'false' : null),
+        },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      expect(mockWeekScheduleState.setAllowPastEdits).toHaveBeenCalledWith(false);
+    });
+
+    it('handles X-Allow-Past header on error response', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        headers: {
+          get: (name: string) => (name === 'X-Allow-Past' ? 'yes' : null),
+        },
+        clone: () => ({
+          json: () => Promise.resolve({ detail: 'Error' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      expect(mockWeekScheduleState.setAllowPastEdits).toHaveBeenCalledWith(true);
+    });
+  });
+
+  describe('override option in saveWeek', () => {
+    it('sets override flag when passed in options', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek({ override: true });
+      });
+
+      expect(fetchWithAuth).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          body: expect.stringContaining('"override":true'),
+        })
+      );
+    });
+
+    it('defaults override to false when not specified', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      expect(fetchWithAuth).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          body: expect.stringContaining('"override":false'),
+        })
+      );
+    });
+  });
+
+  describe('version management', () => {
+    it('updates window.__week_version on successful save', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: {
+          get: (name: string) => (name === 'ETag' ? 'new-version-123' : null),
+        },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      expect((window as Window & { __week_version?: string }).__week_version).toBe('new-version-123');
+    });
+
+    it('uses stored window version as If-Match header', async () => {
+      (window as Window & { __week_version?: string }).__week_version = 'stored-version';
+
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      expect(fetchWithAuth).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'If-Match': 'stored-version',
+          }),
+        })
+      );
+    });
+
+    it('updates version on conflict response', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        headers: {
+          get: (name: string) => (name === 'ETag' ? 'conflict-version' : null),
+        },
+        clone: () => ({
+          json: () => Promise.resolve({ error: 'version_conflict', current_version: 'server-v2' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: OperationResult;
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult?.success).toBe(false);
+      expect(mockWeekScheduleState.setVersion).toHaveBeenCalled();
+    });
+
+    it('returns serverVersion on conflict', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ error: 'version_conflict', current_version: 'server-v3' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; serverVersion?: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult!.serverVersion).toBe('server-v3');
+    });
+  });
+
+  describe('weekDates transformation', () => {
+    it('maps weekDates info objects to Date objects', () => {
+      const { result } = renderHook(() => useAvailability());
+
+      expect(result.current.weekDates).toHaveLength(7);
+      expect(result.current.weekDates[0]).toEqual(new Date('2025-01-13'));
+    });
+  });
+
+  describe('optional fields in return value', () => {
+    it('includes version when present', () => {
+      mockWeekScheduleState.version = 'v1';
+      const { result } = renderHook(() => useAvailability());
+      expect(result.current.version).toBe('v1');
+    });
+
+    it('includes etag when present', () => {
+      mockWeekScheduleState.etag = 'etag-abc';
+      const { result } = renderHook(() => useAvailability());
+      expect(result.current.etag).toBe('etag-abc');
+    });
+
+    it('includes lastModified when present', () => {
+      mockWeekScheduleState.lastModified = '2025-01-13T00:00:00Z';
+      const { result } = renderHook(() => useAvailability());
+      expect(result.current.lastModified).toBe('2025-01-13T00:00:00Z');
+    });
+
+    it('includes allowPastEdits when defined', () => {
+      mockWeekScheduleState.allowPastEdits = true;
+      const { result } = renderHook(() => useAvailability());
+      expect(result.current.allowPastEdits).toBe(true);
+    });
   });
 });

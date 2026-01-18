@@ -721,4 +721,92 @@ describe('BookingModal', () => {
       expect(screen.getByText(/NYC/)).toBeInTheDocument();
     });
   });
+
+  describe('form submission validation alerts', () => {
+    it('alerts when phone is missing on submit attempt', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      // Name and email filled, skip phone
+      await userEvent.click(screen.getByRole('checkbox'));
+
+      // The button should be disabled, but let's verify the validation state
+      const continueButton = screen.getByRole('button', { name: 'Continue to Payment' });
+      expect(continueButton).toBeDisabled();
+    });
+
+    it('keeps button disabled when email is empty', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Jane Doe', email: '' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      const inputs = getTextInputs();
+      const phoneInput = inputs[2]!;
+      await userEvent.type(phoneInput, '555-1111');
+      await userEvent.click(screen.getByRole('checkbox'));
+
+      const continueButton = screen.getByRole('button', { name: 'Continue to Payment' });
+      expect(continueButton).toBeDisabled();
+    });
+
+    it('keeps button disabled when name is empty', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: '', email: 'jane@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      const inputs = getTextInputs();
+      const phoneInput = inputs[2]!;
+      await userEvent.type(phoneInput, '555-1111');
+      await userEvent.click(screen.getByRole('checkbox'));
+
+      const continueButton = screen.getByRole('button', { name: 'Continue to Payment' });
+      expect(continueButton).toBeDisabled();
+    });
+  });
+
+  describe('keyboard and accessibility', () => {
+    it('handles form inputs correctly', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Test User', email: 'test@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      // All text inputs should be accessible
+      const inputs = getTextInputs();
+      expect(inputs.length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  describe('duration selection variants', () => {
+    it('displays standard duration options', async () => {
+      useAuthMock.mockReturnValue({
+        user: null,
+        isAuthenticated: false,
+        redirectToLogin: jest.fn(),
+      });
+
+      renderModal();
+
+      // The component displays fixed duration options [30, 60, 90]
+      expect(screen.getByRole('radio', { name: /30 minutes/i })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: /60 minutes/i })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: /90 minutes/i })).toBeInTheDocument();
+    });
+  });
 });

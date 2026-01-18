@@ -47,7 +47,7 @@ export function LessonCard({
     lesson.status === 'COMPLETED' ||
     (lesson.status === 'CONFIRMED' && isCompleted && !showInProgressBadge);
 
-  // Status formatting helper available: formatLessonStatus(lesson.status, lesson.cancelled_at)
+  // Status formatting helper available: formatLessonStatus(lesson.status, lesson.booking_date, lesson.cancelled_at)
 
   const shouldFetchReviewed = Boolean(
     !suppressFetchReviewed &&

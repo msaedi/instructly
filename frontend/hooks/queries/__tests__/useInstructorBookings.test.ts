@@ -41,11 +41,16 @@ describe('useInstructorBookings', () => {
     completedMock.mockReturnValue(baseResult);
   });
 
-  it('returns empty page when disabled', () => {
+  it('returns empty page when disabled', async () => {
     const { result } = renderHook(() => useInstructorBookings({ enabled: false }));
 
     expect(result.current.data?.items).toEqual([]);
     expect(result.current.isLoading).toBe(false);
+
+    // Verify refetch returns EMPTY_PAGE
+    const refetchResult = await result.current.refetch();
+    expect(refetchResult.data?.items).toEqual([]);
+    expect(refetchResult.data?.total).toBe(0);
   });
 
   it('uses upcoming bookings endpoint for confirmed upcoming', () => {

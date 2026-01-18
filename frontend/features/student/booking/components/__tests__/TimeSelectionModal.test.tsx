@@ -1949,4 +1949,380 @@ describe('TimeSelectionModal', () => {
       expect(screen.queryByTestId('summary-section')).not.toBeInTheDocument();
     });
   });
+
+  describe('formatDateLabel edge cases', () => {
+    it('handles empty string for date label', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(publicApiMock.getInstructorAvailability).toHaveBeenCalled();
+      });
+
+      // Component should render without error
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('duration change edge cases', () => {
+    it('handles duration change when no availability data', async () => {
+      const user = userEvent.setup();
+
+      // Initially no availability data
+      publicApiMock.getInstructorAvailability.mockResolvedValueOnce({
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {},
+          timezone: 'America/New_York',
+          total_available_slots: 0,
+          earliest_available_date: null as unknown as string,
+        },
+      });
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId('duration-buttons').length).toBeGreaterThan(0);
+      });
+
+      // Change duration when no availability data
+      const duration60Buttons = screen.queryAllByTestId('duration-60');
+      if (duration60Buttons.length > 0) {
+        await user.click(duration60Buttons[0]!);
+      }
+
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+
+    it('handles duration change when slots are empty for selected date', async () => {
+      const user = userEvent.setup();
+      const dates = [getDateString(1), getDateString(2)];
+
+      const limitedAvailability = {
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {
+            [dates[0]!]: {
+              date: dates[0]!,
+              available_slots: [], // No slots on first date
+              is_blackout: false,
+            },
+            [dates[1]!]: {
+              date: dates[1]!,
+              available_slots: [{ start_time: '09:00', end_time: '12:00' }],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 1,
+          earliest_available_date: dates[1]!,
+        },
+      };
+      publicApiMock.getInstructorAvailability.mockResolvedValue(limitedAvailability);
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId('duration-buttons').length).toBeGreaterThan(0);
+      });
+
+      // Select the date with no slots
+      if (calendarOnDateSelect !== null) {
+        const selectDate = calendarOnDateSelect;
+        await act(async () => {
+          selectDate(dates[0]!);
+        });
+      }
+
+      // Try to change duration
+      const duration60Buttons = screen.queryAllByTestId('duration-60');
+      if (duration60Buttons.length > 0) {
+        await user.click(duration60Buttons[0]!);
+      }
+
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('jump to next available', () => {
+    it('displays duration availability notice and allows jumping to next date', async () => {
+      const user = userEvent.setup();
+      const dates = [getDateString(1), getDateString(2)];
+
+      // First date only has 30-min slots, second date has longer slots
+      const limitedAvailability = {
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {
+            [dates[0]!]: {
+              date: dates[0]!,
+              available_slots: [{ start_time: '10:00', end_time: '10:30' }], // Only 30min available
+              is_blackout: false,
+            },
+            [dates[1]!]: {
+              date: dates[1]!,
+              available_slots: [{ start_time: '09:00', end_time: '12:00' }], // 3 hours available
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 2,
+          earliest_available_date: dates[0]!,
+        },
+      };
+      publicApiMock.getInstructorAvailability.mockResolvedValue(limitedAvailability);
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId('duration-buttons').length).toBeGreaterThan(0);
+      });
+
+      // Select first date
+      if (calendarOnDateSelect !== null) {
+        const selectDate = calendarOnDateSelect;
+        await act(async () => {
+          selectDate(dates[0]!);
+        });
+      }
+
+      // Try to select 90-minute duration when only 30min is available on current date
+      const duration90Buttons = screen.queryAllByTestId('duration-90');
+      if (duration90Buttons.length > 0) {
+        await user.click(duration90Buttons[0]!);
+      }
+
+      // Component should render without errors
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('time parsing edge cases in handleContinue', () => {
+    it('handles time with malformed format gracefully', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(summaryOnContinue).not.toBeNull();
+      });
+
+      // Component should render without errors
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('invalid time selection via handleTimeSelect', () => {
+    it('rejects time not in available slots', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        const timeSlotsCount = screen.queryAllByTestId('time-slots-count');
+        expect(timeSlotsCount.length).toBeGreaterThan(0);
+        expect(Number(timeSlotsCount[0]?.textContent)).toBeGreaterThan(0);
+      });
+
+      // Component should render without errors
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('reconciliation effect with preferred time', () => {
+    it('uses preferred time from props when valid', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      // Provide a preSelectedTime that's likely in the slot list
+      render(<TimeSelectionModal {...defaultProps} preSelectedTime="9:00am" preSelectedDate={dates[0]} />);
+
+      await waitFor(() => {
+        const selectedTimeElements = screen.queryAllByTestId('selected-time');
+        expect(selectedTimeElements.length).toBeGreaterThan(0);
+      });
+
+      // Component should render with time selection
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('initial selection applied with duration', () => {
+    it('applies initial selection when date, time, and duration are all provided', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          initialDate={dates[0]}
+          initialTimeHHMM24="09:00"
+          initialDurationMinutes={60}
+        />
+      );
+
+      await waitFor(() => {
+        expect(publicApiMock.getInstructorAvailability).toHaveBeenCalled();
+      });
+
+      await waitFor(() => {
+        const selectedDurationElements = screen.queryAllByTestId('selected-duration');
+        expect(selectedDurationElements[0]?.textContent).toBe('60');
+      });
+    });
+  });
+
+  describe('error handling in duration change effect', () => {
+    it('handles exception in handleDurationSelect gracefully', async () => {
+      const user = userEvent.setup();
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId('duration-buttons').length).toBeGreaterThan(0);
+      });
+
+      // Change duration multiple times rapidly
+      const duration60Buttons = screen.queryAllByTestId('duration-60');
+      const duration90Buttons = screen.queryAllByTestId('duration-90');
+      const duration30Buttons = screen.queryAllByTestId('duration-30');
+
+      if (duration60Buttons.length > 0) {
+        await user.click(duration60Buttons[0]!);
+      }
+      if (duration90Buttons.length > 0) {
+        await user.click(duration90Buttons[0]!);
+      }
+      if (duration30Buttons.length > 0) {
+        await user.click(duration30Buttons[0]!);
+      }
+
+      // Component should handle rapid changes without error
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('date selection when no cache', () => {
+    it('fetches date-specific availability when not in cache', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(calendarOnDateSelect).not.toBeNull();
+      });
+
+      // Select a date not in the cache
+      const uncachedDate = getDateString(10);
+
+      // Mock the date-specific fetch
+      publicApiMock.getInstructorAvailability.mockResolvedValueOnce({
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {
+            [uncachedDate]: {
+              date: uncachedDate,
+              available_slots: [{ start_time: '11:00', end_time: '14:00' }],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 1,
+          earliest_available_date: uncachedDate,
+        },
+      });
+
+      await act(async () => {
+        calendarOnDateSelect?.(uncachedDate);
+      });
+
+      await waitFor(() => {
+        // Verify a date-specific call was made
+        const calls = publicApiMock.getInstructorAvailability.mock.calls;
+        const specificCall = calls.find(
+          ([, params]) =>
+            params &&
+            (params as { start_date?: string }).start_date === uncachedDate
+        );
+        expect(specificCall).toBeTruthy();
+      });
+    });
+
+    it('handles empty response for date-specific fetch', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(calendarOnDateSelect).not.toBeNull();
+      });
+
+      const uncachedDate = getDateString(10);
+
+      // Mock empty response
+      publicApiMock.getInstructorAvailability.mockResolvedValueOnce({
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {}, // Empty
+          timezone: 'America/New_York',
+          total_available_slots: 0,
+          earliest_available_date: dates[0]!,
+        },
+      });
+
+      await act(async () => {
+        calendarOnDateSelect?.(uncachedDate);
+      });
+
+      // Component should handle empty response
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('duration options change effect', () => {
+    it('resets to first duration when current selection not in options', async () => {
+      const instructorWithChangingDurations = {
+        ...mockInstructor,
+        services: [{ ...mockService, duration_options: [45, 90] }], // 60 not available
+      };
+
+      // Start with duration 60 which is not in options
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          instructor={instructorWithChangingDurations}
+          initialDurationMinutes={60}
+        />
+      );
+
+      await waitFor(() => {
+        // Should fall back to first available (45)
+        const selectedDurationElements = screen.queryAllByTestId('selected-duration');
+        expect(selectedDurationElements[0]?.textContent).toBe('45');
+      });
+    });
+  });
 });

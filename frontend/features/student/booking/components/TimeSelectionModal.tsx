@@ -296,7 +296,7 @@ export default function TimeSelectionModal({
 
   const logDev = (msg: string, ...args: unknown[]) => {
     if (process.env.NODE_ENV === 'development') {
-      logger.info(`[time-modal] ${msg}`, ...args);
+      logger.debug(`[time-modal] ${msg}`, ...args);
     }
   };
 

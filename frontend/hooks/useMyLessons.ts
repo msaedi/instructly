@@ -167,7 +167,7 @@ export function useCancelledLessons(page: number = 1) {
     data: result.data ? {
       items: result.data.items as Booking[],
       total: result.data.total,
-      page: result.data.page ?? 1,
+      page: result.data.page ?? page,
       per_page: result.data.per_page ?? 20,
       has_next: result.data.has_next,
       has_prev: result.data.has_prev,
@@ -240,14 +240,36 @@ export function useCancelLesson() {
 /**
  * Helper function to calculate duration in minutes from start and end times
  */
-function calculateDurationMinutes(startTime: string, endTime: string): number {
-  const [startHours, startMinutes] = startTime.split(':').map(Number);
-  const [endHours, endMinutes] = endTime.split(':').map(Number);
+function parseTimeToMinutes(time: string): number | null {
+  const parts = time.split(':');
+  if (parts.length < 2) {
+    return null;
+  }
+  const hours = Number(parts[0]);
+  const minutes = Number(parts[1]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return null;
+  }
+  if (hours < 0 || minutes < 0 || minutes >= 60) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
 
-  const startTotalMinutes = (startHours ?? 0) * 60 + (startMinutes ?? 0);
-  const endTotalMinutes = (endHours ?? 0) * 60 + (endMinutes ?? 0);
-
-  return endTotalMinutes - startTotalMinutes;
+function calculateDurationMinutes(
+  startTime: string | null | undefined,
+  endTime: string | null | undefined,
+): number {
+  if (!startTime || !endTime) {
+    return 0;
+  }
+  const startTotalMinutes = parseTimeToMinutes(startTime);
+  const endTotalMinutes = parseTimeToMinutes(endTime);
+  if (startTotalMinutes === null || endTotalMinutes === null) {
+    return 0;
+  }
+  const duration = endTotalMinutes - startTotalMinutes;
+  return duration > 0 ? duration : 0;
 }
 
 /**
@@ -527,24 +549,31 @@ export function calculateCancellationFee(lesson: CancellationFeeInput): Cancella
 /**
  * Helper to format lesson status display
  */
-export function formatLessonStatus(status: BookingStatus, cancelledAt?: string): string {
+export function formatLessonStatus(
+  status: BookingStatus,
+  lessonDate?: Date | string | null,
+  cancelledAt?: string,
+): string {
   switch (status) {
     case 'CONFIRMED':
       return 'Upcoming';
     case 'COMPLETED':
       return 'Completed';
     case 'CANCELLED':
-      if (cancelledAt) {
+      if (cancelledAt && lessonDate) {
         const cancelDate = new Date(cancelledAt);
-        const lessonDate = new Date(); // Would need actual lesson date
-        const hoursBeforeLesson = (lessonDate.getTime() - cancelDate.getTime()) / (1000 * 60 * 60);
+        const lessonDateValue = lessonDate instanceof Date ? lessonDate : new Date(lessonDate);
+        if (Number.isFinite(cancelDate.getTime()) && Number.isFinite(lessonDateValue.getTime())) {
+          const hoursBeforeLesson =
+            (lessonDateValue.getTime() - cancelDate.getTime()) / (1000 * 60 * 60);
 
-        if (hoursBeforeLesson > 24) {
-          return 'Cancelled (>24hrs)';
-        } else if (hoursBeforeLesson > 12) {
-          return 'Cancelled (12-24hrs)';
-        } else {
-          return 'Cancelled (<12hrs)';
+          if (hoursBeforeLesson > 24) {
+            return 'Cancelled (>24hrs)';
+          } else if (hoursBeforeLesson > 12) {
+            return 'Cancelled (12-24hrs)';
+          } else {
+            return 'Cancelled (<12hrs)';
+          }
         }
       }
       return 'Cancelled';
