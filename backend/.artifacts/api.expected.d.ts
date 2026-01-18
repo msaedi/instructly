@@ -5874,11 +5874,16 @@ export type components = {
  };
  DeviceContext: {
  browser?: string | null;
+ connection_effective_type?: string | null;
  connection_type?: string | null;
  device_type?: string | null;
+ language?: string | null;
  os?: string | null;
  screen_height?: number | null;
+ screen_resolution?: string | null;
  screen_width?: number | null;
+ timezone?: string | null;
+ viewport_size?: string | null;
  };
  EarningsExportRequest: {
  end_date?: string | null;

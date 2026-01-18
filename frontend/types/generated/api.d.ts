@@ -10158,16 +10158,26 @@ export type components = {
         DeviceContext: {
             /** Browser */
             browser?: string | null;
+            /** Connection Effective Type */
+            connection_effective_type?: string | null;
             /** Connection Type */
             connection_type?: string | null;
             /** Device Type */
             device_type?: string | null;
+            /** Language */
+            language?: string | null;
             /** Os */
             os?: string | null;
             /** Screen Height */
             screen_height?: number | null;
+            /** Screen Resolution */
+            screen_resolution?: string | null;
             /** Screen Width */
             screen_width?: number | null;
+            /** Timezone */
+            timezone?: string | null;
+            /** Viewport Size */
+            viewport_size?: string | null;
         };
         /**
          * EarningsExportRequest

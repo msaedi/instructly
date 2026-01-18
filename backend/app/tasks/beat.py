@@ -25,11 +25,13 @@ sys.path.insert(0, str(project_root))
 from celery.bin import beat  # noqa: E402 (path injected above)
 
 from app.core.celery_config import CELERY_BEAT_SCHEDULE  # noqa: E402 (import after sys.path tweak)
-from app.core.logging import setup_logging  # noqa: E402
 from app.tasks import celery_app  # noqa: E402
 
-# Configure logging
-setup_logging()
+# Configure logging (celery_app.py already sets up logging via @setup_logging.connect signal)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 

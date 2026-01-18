@@ -197,32 +197,29 @@ def anonymize_old_bookings(self: DatabaseTask, days_old: Optional[int] = None) -
 
     Args:
         days_old: Number of days old for booking anonymization.
-                 If None, uses config setting.
+                 If None, uses config setting. Custom values are logged
+                 but the system uses the configured retention period.
 
     Returns:
         Number of bookings anonymized
     """
-    logger.info(f"Starting booking anonymization for bookings older than {days_old} days")
+    from ..core.config import settings
+
+    # Use configured setting - custom days_old is logged for audit but not applied
+    # to avoid thread-unsafe global settings mutation in multi-worker environments
+    configured_days = getattr(settings, "booking_pii_retention_days", 2555)
+    if days_old is not None and days_old != configured_days:
+        logger.warning(
+            f"Custom days_old={days_old} requested, but using configured "
+            f"retention period of {configured_days} days for thread safety. "
+            f"To change retention period, update booking_pii_retention_days in settings."
+        )
+    logger.info(f"Starting booking anonymization for bookings older than {configured_days} days")
 
     try:
         privacy_service = PrivacyService(self.db)
-
-        # If days_old is provided, temporarily override the setting
-        if days_old is not None:
-            from ..core.config import settings
-
-            original_setting = getattr(settings, "booking_pii_retention_days", 2555)
-            settings.booking_pii_retention_days = days_old
-
-            try:
-                retention_stats = privacy_service.apply_retention_policies()
-                anonymized_count = retention_stats.old_bookings_anonymized
-            finally:
-                # Restore original setting
-                settings.booking_pii_retention_days = original_setting
-        else:
-            retention_stats = privacy_service.apply_retention_policies()
-            anonymized_count = retention_stats.old_bookings_anonymized
+        retention_stats = privacy_service.apply_retention_policies()
+        anonymized_count = retention_stats.old_bookings_anonymized
 
         logger.info(f"Anonymized {anonymized_count} old bookings")
         return anonymized_count
@@ -236,7 +233,7 @@ def anonymize_old_bookings(self: DatabaseTask, days_old: Optional[int] = None) -
 @typed_task(bind=True, base=DatabaseTask, name="privacy.process_data_export_request")
 def process_data_export_request(
     self: DatabaseTask,
-    user_id: int,
+    user_id: str,
     request_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -245,7 +242,7 @@ def process_data_export_request(
     This task can be used to handle large data exports asynchronously.
 
     Args:
-        user_id: ID of the user requesting data export
+        user_id: ULID of the user requesting data export
         request_id: Optional request ID for tracking
 
     Returns:
@@ -255,7 +252,7 @@ def process_data_export_request(
 
     try:
         privacy_service = PrivacyService(self.db)
-        export_data: Dict[str, Any] = privacy_service.export_user_data(str(user_id))
+        export_data: Dict[str, Any] = privacy_service.export_user_data(user_id)
 
         # Add metadata
         export_data["request_id"] = request_id
@@ -273,7 +270,7 @@ def process_data_export_request(
 @typed_task(bind=True, base=DatabaseTask, name="privacy.process_data_deletion_request")
 def process_data_deletion_request(
     self: DatabaseTask,
-    user_id: int,
+    user_id: str,
     delete_account: bool = False,
     request_id: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -284,7 +281,7 @@ def process_data_deletion_request(
     especially useful for large amounts of data.
 
     Args:
-        user_id: ID of the user requesting data deletion
+        user_id: ULID of the user requesting data deletion
         delete_account: Whether to delete the entire account
         request_id: Optional request ID for tracking
 
@@ -301,11 +298,11 @@ def process_data_deletion_request(
 
         if delete_account:
             deletion_stats: Dict[str, Any] = privacy_service.delete_user_data(
-                str(user_id), delete_account=True
+                user_id, delete_account=True
             )
         else:
             # Just anonymize
-            success = privacy_service.anonymize_user(str(user_id))
+            success = privacy_service.anonymize_user(user_id)
             deletion_stats = {"anonymized": 1 if success else 0}
 
         result = {

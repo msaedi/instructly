@@ -3229,26 +3229,41 @@ export interface DeleteWindowResponse {
 
 export type DeviceContextBrowser = string | null;
 
+export type DeviceContextConnectionEffectiveType = string | null;
+
 export type DeviceContextConnectionType = string | null;
 
 export type DeviceContextDeviceType = string | null;
+
+export type DeviceContextLanguage = string | null;
 
 export type DeviceContextOs = string | null;
 
 export type DeviceContextScreenHeight = number | null;
 
+export type DeviceContextScreenResolution = string | null;
+
 export type DeviceContextScreenWidth = number | null;
+
+export type DeviceContextTimezone = string | null;
+
+export type DeviceContextViewportSize = string | null;
 
 /**
  * Device information for analytics.
  */
 export interface DeviceContext {
   browser?: DeviceContextBrowser;
+  connection_effective_type?: DeviceContextConnectionEffectiveType;
   connection_type?: DeviceContextConnectionType;
   device_type?: DeviceContextDeviceType;
+  language?: DeviceContextLanguage;
   os?: DeviceContextOs;
   screen_height?: DeviceContextScreenHeight;
+  screen_resolution?: DeviceContextScreenResolution;
   screen_width?: DeviceContextScreenWidth;
+  timezone?: DeviceContextTimezone;
+  viewport_size?: DeviceContextViewportSize;
 }
 
 /**
