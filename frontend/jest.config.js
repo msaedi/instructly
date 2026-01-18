@@ -14,6 +14,16 @@ const customJestConfig = {
     '^@/(.*)$': '<rootDir>/$1',
   },
   testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/', '<rootDir>/e2e/'],
+  coveragePathIgnorePatterns: [
+    '/node_modules/',
+    '<rootDir>/features/student/payment/index\\.ts',
+    '<rootDir>/components/instructor/messages/hooks/index\\.ts',
+    '<rootDir>/components/instructor/messages/components/index\\.ts',
+    '<rootDir>/features/student/booking/public\\.ts',
+    '<rootDir>/features/shared/api/schemas\\.zod\\.ts',
+    '<rootDir>/features/student/booking/index\\.ts',
+    '<rootDir>/features/shared/booking/ui/index\\.ts',
+  ],
   collectCoverageFrom: [
     'features/**/*.{js,jsx,ts,tsx}',
     'hooks/**/*.{js,jsx,ts,tsx}',
