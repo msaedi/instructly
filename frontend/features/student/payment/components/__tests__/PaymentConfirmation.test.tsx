@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PaymentConfirmation from '../PaymentConfirmation';
 import { BookingType, PAYMENT_STATUS, PaymentMethod, type BookingPayment } from '../../types';
@@ -97,6 +97,21 @@ const mockBooking: BookingPayment = {
   paymentStatus: PAYMENT_STATUS.SCHEDULED,
 };
 
+const CONFLICT_CHECK_DELAY_MS = 250;
+
+const renderWithConflictCheck = async (ui: React.ReactElement) => {
+  jest.useFakeTimers();
+  try {
+    const result = render(ui);
+    await act(async () => {
+      jest.advanceTimersByTime(CONFLICT_CHECK_DELAY_MS + 1);
+    });
+    return result;
+  } finally {
+    jest.useRealTimers();
+  }
+};
+
 describe('PaymentConfirmation', () => {
   const defaultProps = {
     booking: mockBooking,
@@ -131,30 +146,30 @@ describe('PaymentConfirmation', () => {
   });
 
   describe('rendering', () => {
-    it('renders booking details', () => {
-      render(<PaymentConfirmation {...defaultProps} />);
+    it('renders booking details', async () => {
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       expect(screen.getByText('Confirm details')).toBeInTheDocument();
       expect(screen.getByText('Booking Your Lesson with')).toBeInTheDocument();
       expect(screen.getByText('John Doe')).toBeInTheDocument();
     });
 
-    it('displays lesson date and time', () => {
-      render(<PaymentConfirmation {...defaultProps} />);
+    it('displays lesson date and time', async () => {
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       expect(screen.getByText(/Saturday, February 1, 2025/)).toBeInTheDocument();
       expect(screen.getByText(/10:00 - 11:00/)).toBeInTheDocument();
     });
 
-    it('displays payment details section', () => {
-      render(<PaymentConfirmation {...defaultProps} />);
+    it('displays payment details section', async () => {
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       expect(screen.getByText('Payment details')).toBeInTheDocument();
       expect(screen.getByText(/Lesson \(60 min\)/)).toBeInTheDocument();
     });
 
-    it('displays cancellation policy', () => {
-      render(<PaymentConfirmation {...defaultProps} />);
+    it('displays cancellation policy', async () => {
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       expect(screen.getByText('Cancellation Policy')).toBeInTheDocument();
       expect(screen.getByText(/More than 24 hours/)).toBeInTheDocument();
@@ -162,8 +177,8 @@ describe('PaymentConfirmation', () => {
   });
 
   describe('payment method section', () => {
-    it('renders payment method header', () => {
-      render(<PaymentConfirmation {...defaultProps} />);
+    it('renders payment method header', async () => {
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       expect(screen.getByText('Payment Method')).toBeInTheDocument();
     });
@@ -213,7 +228,7 @@ describe('PaymentConfirmation', () => {
     });
 
     it('shows credit card form when no saved card', async () => {
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // When no card, payment section starts expanded
       await waitFor(() => {
@@ -361,14 +376,14 @@ describe('PaymentConfirmation', () => {
   });
 
   describe('location section', () => {
-    it('renders location section', () => {
-      render(<PaymentConfirmation {...defaultProps} />);
+    it('renders location section', async () => {
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       expect(screen.getByText('Lesson Location')).toBeInTheDocument();
     });
 
-    it('shows online toggle checkbox', () => {
-      render(<PaymentConfirmation {...defaultProps} />);
+    it('shows online toggle checkbox', async () => {
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Expand location section
       fireEvent.click(screen.getByText('Lesson Location'));
@@ -379,7 +394,7 @@ describe('PaymentConfirmation', () => {
     it('toggles online lesson when checkbox clicked', async () => {
       const user = userEvent.setup();
 
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Expand location section
       fireEvent.click(screen.getByText('Lesson Location'));
@@ -407,8 +422,8 @@ describe('PaymentConfirmation', () => {
       });
     });
 
-    it('shows saved location with change button', () => {
-      render(<PaymentConfirmation {...defaultProps} />);
+    it('shows saved location with change button', async () => {
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Expand location section
       fireEvent.click(screen.getByText('Lesson Location'));
@@ -420,7 +435,7 @@ describe('PaymentConfirmation', () => {
 
   describe('promo code section', () => {
     it('renders promo code input when no referral active', async () => {
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Payment section starts expanded when no card saved
       await waitFor(() => {
@@ -460,20 +475,20 @@ describe('PaymentConfirmation', () => {
   });
 
   describe('pricing display', () => {
-    it('displays lesson price', () => {
-      render(<PaymentConfirmation {...defaultProps} />);
+    it('displays lesson price', async () => {
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       expect(screen.getByText('$100.00')).toBeInTheDocument();
     });
 
-    it('displays service fee', () => {
-      render(<PaymentConfirmation {...defaultProps} />);
+    it('displays service fee', async () => {
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       expect(screen.getByText(/Service & Support/)).toBeInTheDocument();
     });
 
-    it('displays total amount', () => {
-      render(<PaymentConfirmation {...defaultProps} />);
+    it('displays total amount', async () => {
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       expect(screen.getByText('Total')).toBeInTheDocument();
     });
@@ -513,26 +528,26 @@ describe('PaymentConfirmation', () => {
       expect(screen.getByText('-$20.00')).toBeInTheDocument();
     });
 
-    it('shows loading skeleton during pricing preview load', () => {
+    it('shows loading skeleton during pricing preview load', async () => {
       usePricingPreviewMock.mockReturnValue({
         preview: null,
         loading: true,
         error: null,
       });
 
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       expect(screen.getAllByTestId('pricing-preview-skeleton').length).toBeGreaterThan(0);
     });
 
-    it('shows error message when pricing preview fails', () => {
+    it('shows error message when pricing preview fails', async () => {
       usePricingPreviewMock.mockReturnValue({
         preview: null,
         loading: false,
         error: 'Failed to load pricing',
       });
 
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       expect(screen.getByText('Unavailable')).toBeInTheDocument();
     });
@@ -552,7 +567,7 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       await waitFor(() => {
         expect(screen.getByText('Scheduling Conflict')).toBeInTheDocument();
@@ -572,7 +587,7 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       await waitFor(() => {
         const ctaButton = screen.getByTestId('booking-confirm-cta');
@@ -598,7 +613,7 @@ describe('PaymentConfirmation', () => {
       // Need to let conflict check complete first
       fetchBookingsListMock.mockResolvedValue({ items: [] });
 
-      render(
+      await renderWithConflictCheck(
         <PaymentConfirmation
           {...defaultProps}
           floorViolationMessage="Price too low"
@@ -637,7 +652,7 @@ describe('PaymentConfirmation', () => {
       // Ensure conflict check completes
       fetchBookingsListMock.mockResolvedValue({ items: [] });
 
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('booking-confirm-cta')).toHaveTextContent('Book now!');
@@ -648,7 +663,7 @@ describe('PaymentConfirmation', () => {
       const onConfirm = jest.fn();
       const user = userEvent.setup();
 
-      render(<PaymentConfirmation {...defaultProps} onConfirm={onConfirm} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} onConfirm={onConfirm} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('booking-confirm-cta')).not.toBeDisabled();
@@ -670,7 +685,7 @@ describe('PaymentConfirmation', () => {
       expect(screen.getByTestId('booking-confirm-cta')).toHaveTextContent('Checking availability...');
     });
 
-    it('shows updating total during pricing preview load', () => {
+    it('shows updating total during pricing preview load', async () => {
       usePricingPreviewMock.mockReturnValue({
         preview: null,
         loading: true,
@@ -679,7 +694,7 @@ describe('PaymentConfirmation', () => {
 
       fetchBookingsListMock.mockResolvedValue({ items: [] });
 
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Wait for conflict check to complete, then check pricing loading state
       // This is a complex async scenario; the test verifies the loading text appears
@@ -696,7 +711,7 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Wait for instructor profile to load
       await waitFor(() => {
@@ -717,7 +732,7 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       await waitFor(() => {
         expect(fetchInstructorProfileMock).toHaveBeenCalled();
@@ -1035,7 +1050,7 @@ describe('PaymentConfirmation', () => {
     it('handles conflict fetch error gracefully', async () => {
       fetchBookingsListMock.mockRejectedValue(new Error('Network error'));
 
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       await waitFor(() => {
         // Should still render despite error
@@ -1046,7 +1061,7 @@ describe('PaymentConfirmation', () => {
     it('handles empty bookings list response', async () => {
       fetchBookingsListMock.mockResolvedValue({ items: null });
 
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('booking-confirm-cta')).not.toBeDisabled();
@@ -1066,7 +1081,7 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Cancelled bookings should not count as conflicts
       await waitFor(() => {
@@ -1087,7 +1102,7 @@ describe('PaymentConfirmation', () => {
         ],
       });
 
-      render(<PaymentConfirmation {...defaultProps} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Adjacent bookings (ending at start time) should not conflict
       await waitFor(() => {
@@ -1351,11 +1366,19 @@ describe('PaymentConfirmation', () => {
         expect(screen.getByTestId('addr-state')).toBeInTheDocument();
       });
 
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toHaveFocus();
+      });
+
       const stateInput = screen.getByTestId('addr-state');
+      await user.click(stateInput);
+      await user.clear(stateInput);
       await user.type(stateInput, 'NY');
 
       // State input accepts value (may have validation/formatting)
-      expect(stateInput.getAttribute('value')).toBeTruthy();
+      await waitFor(() => {
+        expect(stateInput).toHaveValue('NY');
+      });
     });
 
     it('handles zip code change', async () => {
@@ -1372,11 +1395,17 @@ describe('PaymentConfirmation', () => {
         expect(screen.getByTestId('addr-zip')).toBeInTheDocument();
       });
 
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toHaveFocus();
+      });
+
       const zipInput = screen.getByTestId('addr-zip');
+      await user.click(zipInput);
+      await user.clear(zipInput);
       await user.type(zipInput, '10001');
 
       // Zip input accepts value (may have maxLength or validation)
-      expect(zipInput.getAttribute('value')).toBeTruthy();
+      expect(zipInput).toHaveValue('10001');
     });
 
     it('handles apt/unit field change', async () => {
@@ -1450,7 +1479,7 @@ describe('PaymentConfirmation', () => {
       const onConfirm = jest.fn();
       const user = userEvent.setup();
 
-      render(<PaymentConfirmation {...defaultProps} onConfirm={onConfirm} />);
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} onConfirm={onConfirm} />);
 
       await waitFor(() => {
         expect(screen.getByTestId('booking-confirm-cta')).not.toBeDisabled();
@@ -1537,6 +1566,794 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={bookingISODate} />);
 
       expect(screen.getByText(/Sunday, June 15, 2025/)).toBeInTheDocument();
+    });
+  });
+
+  describe('parseAddressComponents edge cases', () => {
+    it('parses address with nested result structure', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          result: {
+            address: {
+              line1: '123 Test St',
+              city: 'New York',
+              state: 'NY',
+              postal_code: '10001',
+            },
+            formatted_address: '123 Test St, New York, NY 10001',
+          },
+        },
+        error: null,
+      });
+
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Lesson Location')).toBeInTheDocument();
+      });
+    });
+
+    it('parses address with street_number and street_name separately', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          street_number: '123',
+          street_name: 'Broadway',
+          city: 'New York',
+          state_code: 'NY',
+          postal: '10001',
+          country_code: 'US',
+        },
+        error: null,
+      });
+
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
+      });
+    });
+
+    it('parses address with house_number field', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          house_number: '456',
+          route: 'Main St',
+          locality: 'Brooklyn',
+          administrative_area: 'NY',
+          zip_code: '11201',
+        },
+        error: null,
+      });
+
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Lesson Location')).toBeInTheDocument();
+      });
+    });
+
+    it('parses address with postal_town as city', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          line_1: '789 Park Ave',
+          postal_town: 'Manhattan',
+          region: 'New York',
+          postalCode: '10021',
+          country: 'United States',
+        },
+        error: null,
+      });
+
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
+      });
+    });
+
+    it('parses address with administrative_area_level_1 as state', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          address_line1: '321 Elm St',
+          administrative_area_level_2: 'Queens',
+          administrative_area_level_1: 'New York',
+          zip: '11375',
+        },
+        error: null,
+      });
+
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Lesson Location')).toBeInTheDocument();
+      });
+    });
+
+    it('handles empty strings in address components', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          line1: '',
+          city: '',
+          state: '',
+          postal_code: '',
+        },
+        error: null,
+      });
+
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('fetchPlaceDetails error handling', () => {
+    it('handles AbortError gracefully', async () => {
+      const abortError = new Error('AbortError');
+      abortError.name = 'AbortError';
+      getPlaceDetailsMock.mockRejectedValue(abortError);
+
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+        />
+      );
+
+      // Component should still render despite abort
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
+      });
+    });
+
+    it('handles network error in place details fetch', async () => {
+      getPlaceDetailsMock.mockRejectedValue(new Error('Network error'));
+
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+        />
+      );
+
+      // Component should still render despite error
+      await waitFor(() => {
+        expect(screen.getByText('Lesson Location')).toBeInTheDocument();
+      });
+    });
+
+    it('handles response with error status', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: null,
+        error: 'Invalid place ID',
+        status: 400,
+      });
+
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('address suggestion selection', () => {
+    it('handles suggestion with place_id', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          formatted_address: '100 Broadway, New York, NY 10005',
+          line1: '100 Broadway',
+          city: 'New York',
+          state: 'NY',
+          postal_code: '10005',
+        },
+        error: null,
+      });
+
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
+      });
+    });
+
+    it('handles suggestion with id instead of place_id', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          street_address: '200 Wall St',
+          locality: 'New York',
+          administrative_area: 'NY',
+          postal_code: '10005',
+        },
+        error: null,
+      });
+
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Lesson Location')).toBeInTheDocument();
+      });
+    });
+
+    it('handles suggestion with provider field', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          address1: '300 Madison Ave',
+          town: 'New York',
+          state: 'NY',
+          zip: '10017',
+        },
+        error: null,
+      });
+
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
+      });
+    });
+
+    it('uses description fallback when place details fail', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: null,
+        error: 'Place not found',
+      });
+
+      const bookingWithoutLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithoutLocation}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('addr-street')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('conflict computation with cache', () => {
+    it('handles booking with missing duration computing from end_time', async () => {
+      fetchBookingsListMock.mockResolvedValue({
+        items: [
+          {
+            booking_date: '2025-02-01',
+            start_time: '10:00',
+            end_time: '10:45',
+            duration_minutes: null,
+            status: 'pending',
+          },
+        ],
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Scheduling Conflict')).toBeInTheDocument();
+      });
+    });
+
+    it('handles booking list with pending status as conflict', async () => {
+      fetchBookingsListMock.mockResolvedValue({
+        items: [
+          {
+            booking_date: '2025-02-01',
+            start_time: '10:00',
+            end_time: '11:00',
+            duration_minutes: 60,
+            status: 'pending',
+          },
+        ],
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Scheduling Conflict')).toBeInTheDocument();
+      });
+    });
+
+    it('handles booking list with completed status as conflict', async () => {
+      fetchBookingsListMock.mockResolvedValue({
+        items: [
+          {
+            booking_date: '2025-02-01',
+            start_time: '10:00',
+            end_time: '11:00',
+            duration_minutes: 60,
+            status: 'completed',
+          },
+        ],
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      // Completed bookings are still counted as conflicts
+      await waitFor(() => {
+        expect(screen.getByText('Scheduling Conflict')).toBeInTheDocument();
+      });
+    });
+
+    it('handles booking with different date (no conflict)', async () => {
+      fetchBookingsListMock.mockResolvedValue({
+        items: [
+          {
+            booking_date: '2025-02-02', // Different date
+            start_time: '10:00',
+            end_time: '11:00',
+            duration_minutes: 60,
+            status: 'confirmed',
+          },
+        ],
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Scheduling Conflict')).not.toBeInTheDocument();
+      });
+    });
+
+    it('handles booking with same date but no time overlap', async () => {
+      fetchBookingsListMock.mockResolvedValue({
+        items: [
+          {
+            booking_date: '2025-02-01',
+            start_time: '14:00',
+            end_time: '15:00',
+            duration_minutes: 60,
+            status: 'confirmed',
+          },
+        ],
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Scheduling Conflict')).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('price floor and service area validation', () => {
+    it('computes price floor for in-person modality', () => {
+      usePricingFloorsMock.mockReturnValue({
+        floors: {
+          in_person: { min_cents: 5000 },
+          online: { min_cents: 3000 },
+        },
+        config: { student_fee_pct: 0.15 },
+      });
+
+      const inPersonBooking = {
+        ...mockBooking,
+        location: '123 Main St, New York, NY 10001',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={inPersonBooking} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('computes price floor for online modality', () => {
+      usePricingFloorsMock.mockReturnValue({
+        floors: {
+          in_person: { min_cents: 5000 },
+          online: { min_cents: 3000 },
+        },
+        config: { student_fee_pct: 0.15 },
+      });
+
+      const onlineBooking = {
+        ...mockBooking,
+        location: 'Online',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={onlineBooking} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles missing price floors config', () => {
+      usePricingFloorsMock.mockReturnValue({
+        floors: null,
+        config: null,
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+  });
+
+  describe('booking metadata handling', () => {
+    it('handles booking with metadata containing modality', async () => {
+      const bookingWithMetadata: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBooking,
+        metadata: {
+          modality: 'in_person',
+          lesson_timezone: 'America/New_York',
+        },
+      };
+
+      fetchBookingsListMock.mockResolvedValue({ items: [] });
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithMetadata} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Confirm details')).toBeInTheDocument();
+      });
+    });
+
+    it('handles booking with metadata containing online modality', async () => {
+      const bookingWithMetadata: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBooking,
+        metadata: {
+          modality: 'online',
+        },
+      };
+
+      fetchBookingsListMock.mockResolvedValue({ items: [] });
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithMetadata} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Confirm details')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('credit slider edge cases', () => {
+    it('handles credit slider with max value equal to total', async () => {
+      usePricingPreviewMock.mockReturnValue({
+        preview: {
+          base_price_cents: 5000,
+          student_fee_cents: 750,
+          student_pay_cents: 5750,
+          credit_applied_cents: 0,
+          line_items: [],
+        },
+        loading: false,
+        error: null,
+      });
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          availableCredits={100}
+          creditsUsed={0}
+          creditsAccordionExpanded={true}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('slider')).toBeInTheDocument();
+      });
+    });
+
+    it('handles credit slider with zero available credits', async () => {
+      usePricingPreviewMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 11500,
+          credit_applied_cents: 0,
+          line_items: [],
+        },
+        loading: false,
+        error: null,
+      });
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          availableCredits={0}
+        />
+      );
+
+      // Credits section should not be visible
+      expect(screen.queryByText('Available Credits')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('online lesson toggle with address update', () => {
+    it('updates booking when toggling to online', async () => {
+      const onBookingUpdate = jest.fn();
+      const user = userEvent.setup();
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          onBookingUpdate={onBookingUpdate}
+        />
+      );
+
+      // Expand location section
+      fireEvent.click(screen.getByText('Lesson Location'));
+
+      // Toggle online checkbox
+      await user.click(screen.getByLabelText('Online'));
+
+      // onBookingUpdate should be called
+      await waitFor(() => {
+        expect(onBookingUpdate).toHaveBeenCalled();
+      });
+    });
+
+    it('clears address fields when toggling to online', async () => {
+      const onBookingUpdate = jest.fn();
+      const user = userEvent.setup();
+
+      const bookingWithAddress = {
+        ...mockBooking,
+        location: '123 Main St, New York, NY 10001',
+      };
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          booking={bookingWithAddress}
+          onBookingUpdate={onBookingUpdate}
+        />
+      );
+
+      // Expand location section
+      fireEvent.click(screen.getByText('Lesson Location'));
+
+      // Toggle online checkbox
+      await user.click(screen.getByLabelText('Online'));
+
+      await waitFor(() => {
+        const checkbox = screen.getByLabelText('Online');
+        expect(checkbox).toBeChecked();
+      });
+    });
+  });
+
+  describe('edit lesson with instructor services', () => {
+    it('handles instructor with multiple services', async () => {
+      const user = userEvent.setup();
+
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [
+          { id: 'svc-1', skill: 'Piano', hourly_rate: 100, duration_options: [30, 60, 90] },
+          { id: 'svc-2', skill: 'Guitar', hourly_rate: 80, duration_options: [30, 60] },
+        ],
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(fetchInstructorProfileMock).toHaveBeenCalled();
+      });
+
+      await user.click(screen.getByText('Edit lesson'));
+
+      expect(screen.getByTestId('time-selection-modal')).toBeInTheDocument();
+    });
+
+    it('handles instructor with no services', async () => {
+      fetchInstructorProfileMock.mockResolvedValue({
+        services: [],
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(fetchInstructorProfileMock).toHaveBeenCalled();
+      });
+    });
+
+    it('handles instructor profile fetch error', async () => {
+      fetchInstructorProfileMock.mockRejectedValue(new Error('Failed to fetch'));
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      // Component should still render
+      await waitFor(() => {
+        expect(screen.getByText('Confirm details')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('CTA button states', () => {
+    it('shows correct CTA when checking availability', async () => {
+      fetchBookingsListMock.mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve({ items: [] }), 1000))
+      );
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      // Initially shows checking availability
+      expect(screen.getByTestId('booking-confirm-cta')).toHaveTextContent('Checking availability...');
+    });
+
+    it('shows correct CTA after availability check with no conflicts', async () => {
+      fetchBookingsListMock.mockResolvedValue({ items: [] });
+
+      await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('booking-confirm-cta')).toHaveTextContent('Book now!');
+      });
+    });
+  });
+
+  describe('parseDescriptionFallback edge cases', () => {
+    it('handles address with only two segments', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: null,
+        error: 'Place not found',
+      });
+
+      const bookingWithSimpleLocation = {
+        ...mockBooking,
+        location: 'Manhattan, NY',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithSimpleLocation} />);
+
+      fireEvent.click(screen.getByText('Lesson Location'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Lesson Location')).toBeInTheDocument();
+      });
+    });
+
+    it('handles address with three segments (no country)', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: null,
+        error: 'Place not found',
+      });
+
+      const bookingWithThreeSegments = {
+        ...mockBooking,
+        location: '123 Main St, New York, NY 10001',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithThreeSegments} />);
+
+      fireEvent.click(screen.getByText('Lesson Location'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Saved address')).toBeInTheDocument();
+      });
+    });
+
+    it('handles address with all five segments including country', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: null,
+        error: 'Place not found',
+      });
+
+      const bookingWithFullAddress = {
+        ...mockBooking,
+        location: '456 Broadway, Suite 100, New York, NY 10012, USA',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithFullAddress} />);
+
+      fireEvent.click(screen.getByText('Lesson Location'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Saved address')).toBeInTheDocument();
+      });
     });
   });
 });

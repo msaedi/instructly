@@ -47,6 +47,8 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => {
     inputClassName?: string;
     containerClassName?: string;
     onSelectSuggestion?: (suggestion: unknown) => void;
+    suggestionScope?: string;
+    inputProps?: React.ComponentPropsWithoutRef<'input'>;
   };
 
   const MockPlacesAutocompleteInput = React.forwardRef<HTMLInputElement, MockProps>(
@@ -58,21 +60,32 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => {
       onChange,
       placeholder,
       disabled,
+      onSelectSuggestion,
+      suggestionScope,
+      containerClassName,
+      inputProps,
       ...rest
-    }, ref) => (
-      <input
-        ref={ref}
-        placeholder={placeholder}
-        disabled={disabled}
-        className={inputClassName ?? className}
-        value={value ?? ''}
-        onChange={(event) => {
-          onValueChange?.(event.target.value);
-          onChange?.(event);
-        }}
-        {...rest}
-      />
-    ),
+    }, ref) => {
+      void onSelectSuggestion;
+      void suggestionScope;
+      void containerClassName;
+
+      return (
+        <input
+          ref={ref}
+          {...inputProps}
+          {...rest}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={inputClassName ?? className ?? inputProps?.className}
+          value={value ?? ''}
+          onChange={(event) => {
+            onValueChange?.(event.target.value);
+            onChange?.(event);
+          }}
+        />
+      );
+    },
   );
   MockPlacesAutocompleteInput.displayName = 'MockPlacesAutocompleteInput';
 

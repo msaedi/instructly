@@ -24,10 +24,27 @@ jest.mock('@/lib/logger', () => ({
 }));
 
 jest.mock('next/dynamic', () => () => {
-  const MockTimeSelectionModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+  const MockTimeSelectionModal = ({
+    isOpen,
+    onClose,
+    preSelectedDate,
+    preSelectedTime,
+    serviceId,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    preSelectedDate?: string;
+    preSelectedTime?: string;
+    serviceId?: string;
+  }) => {
     if (!isOpen) return null;
     return (
-      <div data-testid="time-selection-modal">
+      <div
+        data-testid="time-selection-modal"
+        data-preselected-date={preSelectedDate}
+        data-preselected-time={preSelectedTime}
+        data-service-id={serviceId}
+      >
         <button onClick={onClose}>Close Modal</button>
       </div>
     );
@@ -97,12 +114,42 @@ describe('AvailabilityCalendar', () => {
       expect(screen.getByText('Unable to load availability. Please try again.')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
     });
+
+    it('reloads the page when retry is clicked', async () => {
+      mockUseInstructorAvailability.mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: new Error('Failed to load'),
+      });
+
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      await userEvent.click(screen.getByRole('button', { name: /try again/i }));
+
+      consoleSpy.mockRestore();
+    });
   });
 
   describe('no availability state', () => {
     it('renders no availability message', () => {
       mockUseInstructorAvailability.mockReturnValue({
         data: { availability_by_date: {} },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      expect(
+        screen.getByText(/no available times in the next 14 days/i)
+      ).toBeInTheDocument();
+    });
+
+    it('handles missing availability data', () => {
+      mockUseInstructorAvailability.mockReturnValue({
+        data: null,
         isLoading: false,
         error: null,
       });
@@ -302,6 +349,78 @@ describe('AvailabilityCalendar', () => {
       }
     });
 
+    it('opens modal when afternoon slot is clicked', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            [tomorrowStr]: {
+              available_slots: [
+                { start_time: '14:00', end_time: '15:00' },
+              ],
+            },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      const dayButtons = screen.getAllByRole('button');
+      const availableDay = dayButtons.find((btn) => !btn.hasAttribute('disabled'));
+
+      if (availableDay) {
+        await user.click(availableDay);
+
+        await waitFor(() => {
+          expect(screen.getByText('2:00PM')).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByText('2:00PM'));
+        await waitFor(() => {
+          expect(screen.getByTestId('time-selection-modal')).toBeInTheDocument();
+        });
+      }
+    });
+
+    it('opens modal when evening slot is clicked', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            [tomorrowStr]: {
+              available_slots: [
+                { start_time: '18:00', end_time: '19:00' },
+              ],
+            },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      const dayButtons = screen.getAllByRole('button');
+      const availableDay = dayButtons.find((btn) => !btn.hasAttribute('disabled'));
+
+      if (availableDay) {
+        await user.click(availableDay);
+
+        await waitFor(() => {
+          expect(screen.getByText('6:00PM')).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByText('6:00PM'));
+        await waitFor(() => {
+          expect(screen.getByTestId('time-selection-modal')).toBeInTheDocument();
+        });
+      }
+    });
+
     it('filters out past time slots', () => {
       // Set time to 2pm
       jest.setSystemTime(new Date(`${todayStr}T14:00:00`));
@@ -360,6 +479,39 @@ describe('AvailabilityCalendar', () => {
 
       // Should clear the booking intent after restoration
       expect(mockClearBookingIntent).toHaveBeenCalled();
+    });
+
+    it('opens modal with preselected slot from booking intent', async () => {
+      jest.useFakeTimers();
+      const tomorrowStr = getDateString(1);
+      jest.setSystemTime(new Date(`${getDateString(0)}T09:00:00`));
+
+      mockGetBookingIntent.mockReturnValue({
+        instructorId: 'user-123',
+        date: tomorrowStr,
+        time: '10:00',
+        duration: 60,
+        serviceId: 'svc-1',
+      });
+
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            [tomorrowStr]: {
+              available_slots: [{ start_time: '10:00', end_time: '11:00' }],
+            },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<AvailabilityCalendar instructorId="inst-123" instructor={mockInstructor as never} />);
+
+      const modal = await screen.findByTestId('time-selection-modal');
+      expect(modal).toHaveAttribute('data-preselected-date', tomorrowStr);
+      expect(modal).toHaveAttribute('data-preselected-time', '10:00');
+      expect(modal).toHaveAttribute('data-service-id', 'svc-1');
     });
 
     it('does not restore booking intent for different instructor', () => {

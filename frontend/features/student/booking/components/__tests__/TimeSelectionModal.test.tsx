@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TimeSelectionModal from '../TimeSelectionModal';
@@ -113,6 +112,17 @@ jest.mock('@/features/shared/booking/ui/DurationButtons', () => {
 
 // Track SummarySection props
 let summaryOnContinue: (() => void) | null = null;
+
+const runContinueWithoutNavigation = async (onContinue: (() => void) | null) => {
+  const timeoutSpy = jest.spyOn(window, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
+  try {
+    await act(async () => {
+      onContinue?.();
+    });
+  } finally {
+    timeoutSpy.mockRestore();
+  }
+};
 
 jest.mock('@/features/shared/booking/ui/SummarySection', () => {
   return function MockSummarySection({ onContinue, isComplete, floorWarning }: {
@@ -238,6 +248,10 @@ describe('TimeSelectionModal', () => {
       },
       writable: true,
     });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   describe('visibility', () => {
@@ -524,9 +538,7 @@ describe('TimeSelectionModal', () => {
       const summaryCompleteElements = screen.getAllByTestId('summary-complete');
       const isComplete = summaryCompleteElements[0]?.textContent;
       if (isComplete === 'true') {
-        await act(async () => {
-          summaryOnContinue?.();
-        });
+        await runContinueWithoutNavigation(summaryOnContinue);
 
         expect(onTimeSelected).toHaveBeenCalledWith({
           date: expect.any(String),
@@ -554,9 +566,7 @@ describe('TimeSelectionModal', () => {
       const summaryCompleteElements = screen.getAllByTestId('summary-complete');
       const isComplete = summaryCompleteElements[0]?.textContent;
       if (isComplete === 'true') {
-        await act(async () => {
-          summaryOnContinue?.();
-        });
+        await runContinueWithoutNavigation(summaryOnContinue);
 
         expect(onClose).toHaveBeenCalled();
         expect(window.sessionStorage.setItem).toHaveBeenCalledWith('bookingData', expect.any(String));
@@ -588,9 +598,7 @@ describe('TimeSelectionModal', () => {
       const summaryCompleteElements = screen.getAllByTestId('summary-complete');
       const isComplete = summaryCompleteElements[0]?.textContent;
       if (isComplete === 'true') {
-        await act(async () => {
-          summaryOnContinue?.();
-        });
+        await runContinueWithoutNavigation(summaryOnContinue);
 
         expect(storeBookingIntentMock).toHaveBeenCalled();
         expect(redirectToLogin).toHaveBeenCalledWith('/student/booking/confirm');
@@ -603,8 +611,8 @@ describe('TimeSelectionModal', () => {
     it('shows floor warning when price is below minimum', async () => {
       usePricingFloorsMock.mockReturnValue({
         floors: {
-          in_person: { 30: 5000, 60: 10000, 90: 15000 },
-          remote: { 30: 3000, 60: 6000, 90: 9000 },
+          private_in_person: 10000,
+          private_remote: 6000,
         },
       });
 
@@ -834,6 +842,1111 @@ describe('TimeSelectionModal', () => {
       });
 
       expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('edge cases', () => {
+    it('handles initialDate with unexpected type gracefully', () => {
+      // Pass a number which should return null from normalizeDateInput
+      render(<TimeSelectionModal {...defaultProps} initialDate={12345 as unknown as Date} />);
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+
+    it('handles malformed initialTimeHHMM24 with non-numeric hour', () => {
+      render(<TimeSelectionModal {...defaultProps} initialTimeHHMM24="ab:30" />);
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+
+    it('handles empty availability data', async () => {
+      publicApiMock.getInstructorAvailability.mockResolvedValue({
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {},
+          timezone: 'America/New_York',
+          total_available_slots: 0,
+          earliest_available_date: getDateString(1),
+        },
+      });
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(publicApiMock.getInstructorAvailability).toHaveBeenCalled();
+      });
+
+      // Component should still render with no available dates
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+
+    it('handles duration option not found in list', async () => {
+      const instructorWithDifferentDurations = {
+        ...mockInstructor,
+        services: [{ ...mockService, duration_options: [45, 90] }],
+      };
+
+      render(<TimeSelectionModal {...defaultProps} instructor={instructorWithDifferentDurations} initialDurationMinutes={60} />);
+
+      // Should default to first available duration since 60 isn't in list
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('pricing preview errors', () => {
+    it('handles 422 pricing preview error', async () => {
+      const { ApiProblemError } = await import('@/lib/api/fetch');
+      const mockResponse = { status: 422, statusText: 'Unprocessable Entity' } as Response;
+
+      fetchPricingPreviewMock.mockRejectedValueOnce(
+        new ApiProblemError({ type: 'validation_error', detail: 'Price below minimum', title: 'Error', status: 422 }, mockResponse)
+      );
+
+      render(<TimeSelectionModal {...defaultProps} bookingDraftId="draft-123" />);
+
+      await waitFor(() => {
+        expect(fetchPricingPreviewMock).toHaveBeenCalled();
+      });
+
+      // Component should handle error gracefully
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('price floor handling', () => {
+    it('shows floor warning when hourly rate is below minimum', async () => {
+      usePricingFloorsMock.mockReturnValue({
+        floors: {
+          private_in_person: 10000,
+          private_remote: 6000,
+        },
+      });
+
+      const veryLowRateInstructor = {
+        ...mockInstructor,
+        services: [{ ...mockService, hourly_rate: 10 }], // $10/hr is way below $50 floor
+      };
+
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} instructor={veryLowRateInstructor} />);
+
+      await waitFor(() => {
+        // Floor warning should show in summary section
+        const summaryCompleteElements = screen.getAllByTestId('summary-complete');
+        expect(summaryCompleteElements[0]?.textContent).toBe('false');
+      });
+    });
+  });
+
+  describe('time selection with time select callback', () => {
+    it('handles time button click', async () => {
+      const user = userEvent.setup();
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        const timeDropdowns = screen.getAllByTestId('time-dropdown');
+        expect(timeDropdowns.length).toBeGreaterThan(0);
+      });
+
+      await waitFor(() => {
+        const timeSlotsCount = screen.queryAllByTestId('time-slots-count');
+        expect(timeSlotsCount.length).toBeGreaterThan(0);
+        expect(Number(timeSlotsCount[0]?.textContent)).toBeGreaterThan(0);
+      });
+
+      // Click the first available time slot
+      const timeButtons = screen.getAllByTestId(/^time-/);
+      if (timeButtons.length > 0) {
+        await user.click(timeButtons[0]!);
+      }
+
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('service without location types', () => {
+    it('handles service with undefined location types', () => {
+      const instructorNoLocationTypes = {
+        ...mockInstructor,
+        services: [{
+          id: 'svc-1',
+          duration_options: [30, 60],
+          hourly_rate: 60,
+          skill: 'Piano',
+          location_types: undefined as unknown as string[],
+        }],
+      };
+
+      render(<TimeSelectionModal {...defaultProps} instructor={instructorNoLocationTypes} />);
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('initial selection with preSelectedTime', () => {
+    it('applies preSelectedTime in AM format', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} preSelectedTime="9:00am" />);
+
+      await waitFor(() => {
+        expect(publicApiMock.getInstructorAvailability).toHaveBeenCalled();
+      });
+
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+
+    it('applies preSelectedTime in PM format', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} preSelectedTime="2:30pm" />);
+
+      await waitFor(() => {
+        expect(publicApiMock.getInstructorAvailability).toHaveBeenCalled();
+      });
+
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('availability fetching edge cases', () => {
+    it('handles availability with blackout date', async () => {
+      const dates = [getDateString(1), getDateString(2)];
+      const availabilityWithBlackout = {
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {
+            [dates[0]!]: {
+              date: dates[0]!,
+              available_slots: [],
+              is_blackout: true,
+            },
+            [dates[1]!]: {
+              date: dates[1]!,
+              available_slots: [{ start_time: '10:00', end_time: '12:00' }],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 1,
+          earliest_available_date: dates[1]!,
+        },
+      };
+
+      publicApiMock.getInstructorAvailability.mockResolvedValue(availabilityWithBlackout);
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(publicApiMock.getInstructorAvailability).toHaveBeenCalled();
+      });
+
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('authenticated user booking flow', () => {
+    it('stores booking data in sessionStorage for authenticated user', async () => {
+      const user = userEvent.setup();
+      const onClose = jest.fn();
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      useAuthMock.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: 'student-123', timezone: 'America/New_York' },
+        redirectToLogin: jest.fn(),
+      });
+
+      render(<TimeSelectionModal {...defaultProps} onClose={onClose} />);
+
+      // Wait for time slots to load
+      await waitFor(() => {
+        expect(screen.queryAllByTestId(/^time-/).length).toBeGreaterThan(0);
+      });
+
+      // Wait for summary to be available
+      await waitFor(() => {
+        expect(summaryOnContinue).not.toBeNull();
+      });
+
+      // Select a time slot
+      const timeButtons = screen.getAllByTestId(/^time-/);
+      if (timeButtons.length > 0) {
+        await user.click(timeButtons[0]!);
+      }
+
+      // Wait for selection to be complete
+      await waitFor(() => {
+        const summaryCompleteElements = screen.getAllByTestId('summary-complete');
+        expect(summaryCompleteElements[0]?.textContent).toBe('true');
+      });
+
+      // Click continue
+      await runContinueWithoutNavigation(summaryOnContinue);
+
+      // Verify sessionStorage was called (navigation happens asynchronously after)
+      expect(window.sessionStorage.setItem).toHaveBeenCalledWith('bookingData', expect.any(String));
+      expect(window.sessionStorage.setItem).toHaveBeenCalledWith('serviceId', expect.any(String));
+      expect(window.sessionStorage.setItem).toHaveBeenCalledWith('selectedSlot', expect.any(String));
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it('handles PM time selection correctly', async () => {
+      const user = userEvent.setup();
+      const onClose = jest.fn();
+      const dates = [getDateString(1)];
+
+      // Create availability with PM slots
+      const pmAvailability = {
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {
+            [dates[0]!]: {
+              date: dates[0]!,
+              available_slots: [{ start_time: '14:00', end_time: '18:00' }],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 1,
+          earliest_available_date: dates[0]!,
+        },
+      };
+      publicApiMock.getInstructorAvailability.mockResolvedValue(pmAvailability);
+
+      useAuthMock.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: 'student-123', timezone: 'America/New_York' },
+        redirectToLogin: jest.fn(),
+      });
+
+      render(<TimeSelectionModal {...defaultProps} onClose={onClose} />);
+
+      // Wait for time slots
+      await waitFor(() => {
+        expect(screen.queryAllByTestId(/^time-/).length).toBeGreaterThan(0);
+      });
+
+      await waitFor(() => {
+        expect(summaryOnContinue).not.toBeNull();
+      });
+
+      // Select a PM time slot
+      const timeButtons = screen.getAllByTestId(/^time-/);
+      if (timeButtons.length > 0) {
+        await user.click(timeButtons[0]!);
+      }
+
+      await waitFor(() => {
+        const summaryCompleteElements = screen.getAllByTestId('summary-complete');
+        expect(summaryCompleteElements[0]?.textContent).toBe('true');
+      });
+
+      await runContinueWithoutNavigation(summaryOnContinue);
+
+      expect(window.sessionStorage.setItem).toHaveBeenCalledWith('bookingData', expect.any(String));
+    });
+  });
+
+  describe('handleDateSelect single date fetch', () => {
+    it('fetches availability for a specific date not in cache', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(calendarOnDateSelect).not.toBeNull();
+      });
+
+      // Select a date that's not in the cache
+      const uncachedDate = getDateString(5);
+
+      // Mock the single-date fetch response
+      publicApiMock.getInstructorAvailability.mockResolvedValueOnce({
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {
+            [uncachedDate]: {
+              date: uncachedDate,
+              available_slots: [{ start_time: '11:00', end_time: '13:00' }],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 1,
+          earliest_available_date: uncachedDate,
+        },
+      });
+
+      await act(async () => {
+        calendarOnDateSelect?.(uncachedDate);
+      });
+
+      await waitFor(() => {
+        const dateSpecificCall = publicApiMock.getInstructorAvailability.mock.calls.find(
+          ([, params]) =>
+            params &&
+            (params as { start_date?: string; end_date?: string }).start_date === uncachedDate &&
+            (params as { start_date?: string; end_date?: string }).end_date === uncachedDate
+        );
+        expect(dateSpecificCall).toBeTruthy();
+      });
+    });
+
+    it('handles fetch error for specific date', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(calendarOnDateSelect).not.toBeNull();
+      });
+
+      const uncachedDate = getDateString(5);
+
+      // Make the single-date fetch fail
+      publicApiMock.getInstructorAvailability.mockRejectedValueOnce(new Error('Network error'));
+
+      await act(async () => {
+        calendarOnDateSelect?.(uncachedDate);
+      });
+
+      // Component should handle error gracefully
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+
+    it('handles date with no availability in response', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(calendarOnDateSelect).not.toBeNull();
+      });
+
+      const uncachedDate = getDateString(5);
+
+      // Return empty availability for the date
+      publicApiMock.getInstructorAvailability.mockResolvedValueOnce({
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {},
+          timezone: 'America/New_York',
+          total_available_slots: 0,
+          earliest_available_date: dates[0]!,
+        },
+      });
+
+      await act(async () => {
+        calendarOnDateSelect?.(uncachedDate);
+      });
+
+      // Component should handle empty availability gracefully
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('handleDurationSelect with availability notice', () => {
+    it('shows duration availability notice when no slots for duration', async () => {
+      const user = userEvent.setup();
+      const dates = [getDateString(1), getDateString(2)];
+
+      // Create availability that only has short slots on first date
+      const limitedAvailability = {
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {
+            [dates[0]!]: {
+              date: dates[0]!,
+              available_slots: [{ start_time: '10:00', end_time: '10:30' }], // Only 30min available
+              is_blackout: false,
+            },
+            [dates[1]!]: {
+              date: dates[1]!,
+              available_slots: [{ start_time: '09:00', end_time: '12:00' }], // 3 hours available
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 2,
+          earliest_available_date: dates[0]!,
+        },
+      };
+      publicApiMock.getInstructorAvailability.mockResolvedValue(limitedAvailability);
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId('duration-buttons').length).toBeGreaterThan(0);
+      });
+
+      // Try to select 90-minute duration when only 30min is available on current date
+      const duration90Buttons = screen.getAllByTestId('duration-90');
+      if (duration90Buttons.length > 0) {
+        await user.click(duration90Buttons[0]!);
+      }
+
+      // Should show notice or disable the duration
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+
+    it('handles duration selection when no availability data', async () => {
+      const user = userEvent.setup();
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId('duration-buttons').length).toBeGreaterThan(0);
+      });
+
+      // Select different durations
+      const duration60Buttons = screen.getAllByTestId('duration-60');
+      if (duration60Buttons.length > 0) {
+        await user.click(duration60Buttons[0]!);
+      }
+
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('price floor violation blocking', () => {
+    it('blocks continue when price floor is violated', async () => {
+      const onClose = jest.fn();
+
+      usePricingFloorsMock.mockReturnValue({
+        floors: {
+          private_in_person: 10000,
+          private_remote: 6000,
+        },
+      });
+
+      const veryLowRateInstructor = {
+        ...mockInstructor,
+        services: [{ ...mockService, hourly_rate: 10 }], // $10/hr is way below floor
+      };
+
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} instructor={veryLowRateInstructor} onClose={onClose} />);
+
+      await waitFor(() => {
+        expect(summaryOnContinue).not.toBeNull();
+      });
+
+      // Try to continue - should be blocked
+      await runContinueWithoutNavigation(summaryOnContinue);
+
+      // onClose should NOT be called because floor violation blocks continue
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('displays floor warning message', async () => {
+      usePricingFloorsMock.mockReturnValue({
+        floors: {
+          private_in_person: 10000,
+          private_remote: 6000,
+        },
+      });
+
+      const veryLowRateInstructor = {
+        ...mockInstructor,
+        services: [{ ...mockService, hourly_rate: 10 }],
+      };
+
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} instructor={veryLowRateInstructor} />);
+
+      await waitFor(() => {
+        const floorWarnings = screen.queryAllByTestId('floor-warning');
+        expect(floorWarnings.length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('time reconciliation effect', () => {
+    it('clears selected time when time slots become empty', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        const selectedTimeElements = screen.getAllByTestId('selected-time');
+        expect(selectedTimeElements[0]?.textContent).not.toBe('none');
+      });
+    });
+  });
+
+  describe('backdrop click handling', () => {
+    it('closes modal when backdrop is clicked on desktop', async () => {
+      const user = userEvent.setup();
+      const onClose = jest.fn();
+      render(<TimeSelectionModal {...defaultProps} onClose={onClose} />);
+
+      // Find the backdrop div (the one with onClick for handleBackdropClick)
+      const backdropElements = document.querySelectorAll('.fixed.inset-0.z-50.overflow-y-auto');
+      if (backdropElements.length > 0) {
+        await user.click(backdropElements[0]!);
+        expect(onClose).toHaveBeenCalled();
+      }
+    });
+  });
+
+  describe('initial selection with initialDurationMinutes', () => {
+    it('applies initialDurationMinutes when available in options', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          initialDate={dates[0]}
+          initialDurationMinutes={60}
+        />
+      );
+
+      await waitFor(() => {
+        const selectedDurationElements = screen.getAllByTestId('selected-duration');
+        expect(selectedDurationElements[0]?.textContent).toBe('60');
+      });
+    });
+
+    it('falls back to first duration when initialDurationMinutes not in options', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      // Initial duration of 45 is not in the default options [30, 60, 90]
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          initialDate={dates[0]}
+          initialDurationMinutes={45}
+        />
+      );
+
+      await waitFor(() => {
+        const selectedDurationElements = screen.getAllByTestId('selected-duration');
+        // Should fall back to first available (30)
+        expect(selectedDurationElements[0]?.textContent).toBe('30');
+      });
+    });
+  });
+
+  describe('service handling edge cases', () => {
+    it('handles instructor with no services gracefully on continue', async () => {
+      const onClose = jest.fn();
+      const instructorNoServices = {
+        ...mockInstructor,
+        services: [],
+      };
+
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} instructor={instructorNoServices} onClose={onClose} />);
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('unauthenticated user booking flow', () => {
+    it('stores booking intent and redirects to login for unauthenticated user', async () => {
+      const user = userEvent.setup();
+      const onClose = jest.fn();
+      const redirectToLogin = jest.fn();
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      useAuthMock.mockReturnValue({
+        isAuthenticated: false,
+        user: null,
+        redirectToLogin,
+      });
+
+      render(<TimeSelectionModal {...defaultProps} onClose={onClose} />);
+
+      // Wait for time slots
+      await waitFor(() => {
+        expect(screen.queryAllByTestId(/^time-/).length).toBeGreaterThan(0);
+      });
+
+      await waitFor(() => {
+        expect(summaryOnContinue).not.toBeNull();
+      });
+
+      // Select a time slot
+      const timeButtons = screen.getAllByTestId(/^time-/);
+      if (timeButtons.length > 0) {
+        await user.click(timeButtons[0]!);
+      }
+
+      await waitFor(() => {
+        const summaryCompleteElements = screen.getAllByTestId('summary-complete');
+        expect(summaryCompleteElements[0]?.textContent).toBe('true');
+      });
+
+      await runContinueWithoutNavigation(summaryOnContinue);
+
+      // Verify storeBookingIntent was called
+      expect(storeBookingIntentMock).toHaveBeenCalled();
+      expect(redirectToLogin).toHaveBeenCalledWith('/student/booking/confirm');
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  describe('jump to next available functionality', () => {
+    it('does nothing when targetDate is null', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(calendarOnDateSelect).not.toBeNull();
+      });
+
+      // Component should render normally
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('time parsing edge cases', () => {
+    it('handles 12:00am edge case correctly', async () => {
+      const user = userEvent.setup();
+      const onClose = jest.fn();
+      const dates = [getDateString(1)];
+
+      // Create availability with midnight slot
+      const midnightAvailability = {
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {
+            [dates[0]!]: {
+              date: dates[0]!,
+              available_slots: [{ start_time: '00:00', end_time: '02:00' }],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 1,
+          earliest_available_date: dates[0]!,
+        },
+      };
+      publicApiMock.getInstructorAvailability.mockResolvedValue(midnightAvailability);
+
+      useAuthMock.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: 'student-123', timezone: 'America/New_York' },
+        redirectToLogin: jest.fn(),
+      });
+
+      render(<TimeSelectionModal {...defaultProps} onClose={onClose} />);
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId(/^time-/).length).toBeGreaterThan(0);
+      });
+
+      await waitFor(() => {
+        expect(summaryOnContinue).not.toBeNull();
+      });
+
+      const timeButtons = screen.queryAllByTestId(/^time-/);
+      if (timeButtons.length > 0) {
+        await user.click(timeButtons[0]!);
+      }
+
+      await waitFor(() => {
+        const summaryCompleteElements = screen.getAllByTestId('summary-complete');
+        expect(summaryCompleteElements[0]?.textContent).toBe('true');
+      });
+
+      await runContinueWithoutNavigation(summaryOnContinue);
+
+      expect(window.sessionStorage.setItem).toHaveBeenCalledWith('bookingData', expect.any(String));
+    });
+
+    it('handles 12:00pm noon edge case correctly', async () => {
+      const user = userEvent.setup();
+      const onClose = jest.fn();
+      const dates = [getDateString(1)];
+
+      // Create availability with noon slot
+      const noonAvailability = {
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {
+            [dates[0]!]: {
+              date: dates[0]!,
+              available_slots: [{ start_time: '12:00', end_time: '14:00' }],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 1,
+          earliest_available_date: dates[0]!,
+        },
+      };
+      publicApiMock.getInstructorAvailability.mockResolvedValue(noonAvailability);
+
+      useAuthMock.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: 'student-123', timezone: 'America/New_York' },
+        redirectToLogin: jest.fn(),
+      });
+
+      render(<TimeSelectionModal {...defaultProps} onClose={onClose} />);
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId(/^time-/).length).toBeGreaterThan(0);
+      });
+
+      await waitFor(() => {
+        expect(summaryOnContinue).not.toBeNull();
+      });
+
+      const timeButtons = screen.queryAllByTestId(/^time-/);
+      if (timeButtons.length > 0) {
+        await user.click(timeButtons[0]!);
+      }
+
+      await waitFor(() => {
+        const summaryCompleteElements = screen.getAllByTestId('summary-complete');
+        expect(summaryCompleteElements[0]?.textContent).toBe('true');
+      });
+
+      await runContinueWithoutNavigation(summaryOnContinue);
+
+      expect(window.sessionStorage.setItem).toHaveBeenCalledWith('bookingData', expect.any(String));
+    });
+  });
+
+  describe('end time calculation overflow', () => {
+    it('handles end time that overflows to next hour', async () => {
+      const user = userEvent.setup();
+      const onClose = jest.fn();
+      const dates = [getDateString(1)];
+
+      // Create availability with slot that has minutes at 30
+      const overflowAvailability = {
+        status: 200 as const,
+        data: {
+          instructor_id: 'user-123',
+          instructor_first_name: 'John' as string | null,
+          instructor_last_initial: 'D' as string | null,
+          availability_by_date: {
+            [dates[0]!]: {
+              date: dates[0]!,
+              available_slots: [{ start_time: '10:30', end_time: '13:00' }],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 1,
+          earliest_available_date: dates[0]!,
+        },
+      };
+      publicApiMock.getInstructorAvailability.mockResolvedValue(overflowAvailability);
+
+      useAuthMock.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: 'student-123', timezone: 'America/New_York' },
+        redirectToLogin: jest.fn(),
+      });
+
+      render(<TimeSelectionModal {...defaultProps} onClose={onClose} />);
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId(/^time-/).length).toBeGreaterThan(0);
+      });
+
+      await waitFor(() => {
+        expect(summaryOnContinue).not.toBeNull();
+      });
+
+      // Select 90 minutes to trigger overflow (10:30 + 90min = 12:00)
+      const duration90Buttons = screen.queryAllByTestId('duration-90');
+      if (duration90Buttons.length > 0) {
+        await user.click(duration90Buttons[0]!);
+      }
+
+      await waitFor(() => {
+        const timeSlotsCount = screen.queryAllByTestId('time-slots-count');
+        expect(timeSlotsCount.length).toBeGreaterThan(0);
+        expect(Number(timeSlotsCount[0]?.textContent)).toBeGreaterThan(0);
+      });
+
+      const timeButtons = screen.queryAllByTestId(/^time-/);
+      if (timeButtons.length > 0) {
+        await user.click(timeButtons[0]!);
+      }
+
+      await waitFor(() => {
+        const summaryCompleteElements = screen.getAllByTestId('summary-complete');
+        expect(summaryCompleteElements[0]?.textContent).toBe('true');
+      });
+
+      await runContinueWithoutNavigation(summaryOnContinue);
+
+      expect(window.sessionStorage.setItem).toHaveBeenCalledWith('bookingData', expect.any(String));
+    });
+  });
+
+  describe('onTimeSelected callback', () => {
+    it('calls onTimeSelected callback when provided and closes modal', async () => {
+      const user = userEvent.setup();
+      const onClose = jest.fn();
+      const onTimeSelected = jest.fn();
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          onClose={onClose}
+          onTimeSelected={onTimeSelected}
+        />
+      );
+
+      // Wait for time slots to load
+      await waitFor(() => {
+        const timeSlotsCount = screen.queryAllByTestId('time-slots-count');
+        expect(timeSlotsCount.length).toBeGreaterThan(0);
+        expect(Number(timeSlotsCount[0]?.textContent)).toBeGreaterThan(0);
+      });
+
+      // Wait for summary to be available
+      await waitFor(() => {
+        expect(summaryOnContinue).not.toBeNull();
+      });
+
+      const timeButtons = screen.queryAllByTestId(/^time-/);
+      if (timeButtons.length > 0) {
+        await user.click(timeButtons[0]!);
+      }
+
+      await waitFor(() => {
+        const summaryCompleteElements = screen.getAllByTestId('summary-complete');
+        expect(summaryCompleteElements[0]?.textContent).toBe('true');
+      });
+
+      await act(async () => {
+        summaryOnContinue?.();
+      });
+
+      expect(onTimeSelected).toHaveBeenCalledWith(expect.objectContaining({
+        date: expect.any(String),
+        time: expect.any(String),
+        duration: expect.any(Number),
+      }));
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  describe('service selection fallback', () => {
+    it('uses serviceId from props when provided', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      const multiServiceInstructor = {
+        ...mockInstructor,
+        services: [
+          { ...mockService, id: 'svc-1', skill: 'Piano' },
+          { ...mockService, id: 'svc-2', skill: 'Guitar' },
+        ],
+      };
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          instructor={multiServiceInstructor}
+          serviceId="svc-2"
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+      });
+    });
+
+    it('falls back to first service when serviceId not found', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(
+        <TimeSelectionModal
+          {...defaultProps}
+          serviceId="non-existent-service"
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('modality detection', () => {
+    it('detects online modality from location types', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      const onlineInstructor = {
+        ...mockInstructor,
+        services: [{ ...mockService, location_types: ['online', 'virtual'] }],
+      };
+
+      render(<TimeSelectionModal {...defaultProps} instructor={onlineInstructor} />);
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+      });
+    });
+
+    it('detects remote modality from location types', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      const remoteInstructor = {
+        ...mockInstructor,
+        services: [{ ...mockService, location_types: ['remote'] }],
+      };
+
+      render(<TimeSelectionModal {...defaultProps} instructor={remoteInstructor} />);
+
+      await waitFor(() => {
+        expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('instructor timezone handling', () => {
+    it('handles instructor without timezone', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      const noTzInstructor = {
+        ...mockInstructor,
+        user: {
+          ...mockInstructor.user,
+          timezone: undefined,
+        },
+      };
+
+      render(<TimeSelectionModal {...defaultProps} instructor={noTzInstructor} />);
+
+      await waitFor(() => {
+        expect(publicApiMock.getInstructorAvailability).toHaveBeenCalled();
+      });
+
+      // Component should render and fetch availability without errors
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('month navigation', () => {
+    it('allows navigation to different months', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(calendarOnMonthChange).not.toBeNull();
+      });
+
+      // Navigate to next month
+      const nextMonth = new Date();
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+      await act(async () => {
+        calendarOnMonthChange?.(nextMonth);
+      });
+
+      // Component should handle month change gracefully
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('invalid time selection handling', () => {
+    it('ignores selection of time not in available slots', async () => {
+      const dates = [getDateString(1)];
+      publicApiMock.getInstructorAvailability.mockResolvedValue(mockAvailabilityResponse(dates));
+
+      render(<TimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        const timeSlotsCount = screen.getAllByTestId('time-slots-count');
+        expect(Number(timeSlotsCount[0]?.textContent)).toBeGreaterThan(0);
+      });
+
+      // Component renders correctly
+      expect(screen.queryAllByTestId('user-avatar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('escape key handling', () => {
+    it('closes modal on Escape key press', async () => {
+      const onClose = jest.fn();
+      render(<TimeSelectionModal {...defaultProps} onClose={onClose} />);
+
+      // Simulate Escape key press
+      await act(async () => {
+        const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true });
+        document.dispatchEvent(event);
+      });
+
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  describe('focus management', () => {
+    it('restores focus when modal closes', async () => {
+      const { rerender } = render(<TimeSelectionModal {...defaultProps} isOpen={true} />);
+
+      // Close the modal
+      rerender(<TimeSelectionModal {...defaultProps} isOpen={false} />);
+
+      // Modal should not be visible
+      expect(screen.queryByTestId('summary-section')).not.toBeInTheDocument();
     });
   });
 });

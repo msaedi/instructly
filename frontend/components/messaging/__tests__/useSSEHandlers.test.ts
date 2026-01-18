@@ -311,5 +311,33 @@ describe('useSSEHandlers', () => {
 
       expect(logger.debug).not.toHaveBeenCalled();
     });
+
+    it('logs debug message for read receipts when debug is true', () => {
+      const { logger } = jest.requireMock('@/lib/logger');
+      const { result } = renderHook(() => useSSEHandlers({ debug: true }));
+
+      act(() => {
+        result.current.handleSSEReadReceipt(['msg-1'], 'user-1');
+      });
+
+      expect(logger.debug).toHaveBeenCalledWith(
+        '[useSSEHandlers] handleSSEReadReceipt',
+        expect.objectContaining({ messageIds: ['msg-1'], readerId: 'user-1' })
+      );
+    });
+
+    it('logs warning for invalid read receipt when debug is true', () => {
+      const { logger } = jest.requireMock('@/lib/logger');
+      const { result } = renderHook(() => useSSEHandlers({ debug: true }));
+
+      act(() => {
+        result.current.handleSSEReadReceipt(undefined as unknown as string[], 'user-1');
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[useSSEHandlers] Invalid read receipt event',
+        expect.objectContaining({ messageIds: undefined, readerId: 'user-1' })
+      );
+    });
   });
 });

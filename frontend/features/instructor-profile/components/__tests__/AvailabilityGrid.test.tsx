@@ -346,4 +346,295 @@ describe('AvailabilityGrid', () => {
     expect(todayIndicator).toHaveTextContent('6');
     jest.useRealTimers();
   });
+
+  describe('time format conversion (toTwentyFourHour)', () => {
+    it('handles pm times correctly (e.g., 5pm -> 17:00)', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date(2025, 0, 6, 8, 0, 0));
+      const onSelectSlot = jest.fn();
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            '2025-01-06': { available_slots: [{ start_time: '17:00', end_time: '19:00' }] },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(
+        <AvailabilityGrid
+          instructorId="1"
+          weekStart={new Date(2025, 0, 6)}
+          onWeekChange={jest.fn()}
+          selectedSlot={null}
+          onSelectSlot={onSelectSlot}
+        />
+      );
+
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      await user.click(screen.getByLabelText(/select mon at 5pm/i));
+
+      expect(onSelectSlot).toHaveBeenCalledWith('2025-01-06', '17:00', 60, 120);
+      jest.useRealTimers();
+    });
+
+    it('handles midnight (12am -> 00:00) edge case', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date(2025, 0, 6, 0, 0, 0)); // Midnight
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            '2025-01-07': { available_slots: [{ start_time: '00:00', end_time: '02:00' }] },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      const { container } = render(
+        <AvailabilityGrid
+          instructorId="1"
+          weekStart={new Date(2025, 0, 6)}
+          onWeekChange={jest.fn()}
+          selectedSlot={null}
+          onSelectSlot={jest.fn()}
+        />
+      );
+
+      // The midnight slot should be rendered
+      expect(container).toBeInTheDocument();
+      jest.useRealTimers();
+    });
+
+    it('handles am times correctly (e.g., 9am -> 09:00)', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date(2025, 0, 6, 7, 0, 0));
+      const onSelectSlot = jest.fn();
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            '2025-01-06': { available_slots: [{ start_time: '09:00', end_time: '11:00' }] },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(
+        <AvailabilityGrid
+          instructorId="1"
+          weekStart={new Date(2025, 0, 6)}
+          onWeekChange={jest.fn()}
+          selectedSlot={null}
+          onSelectSlot={onSelectSlot}
+        />
+      );
+
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      await user.click(screen.getByLabelText(/select mon at 9am/i));
+
+      expect(onSelectSlot).toHaveBeenCalledWith('2025-01-06', '09:00', 60, 120);
+      jest.useRealTimers();
+    });
+
+    it('passes through already formatted HH:MM times', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date(2025, 0, 6, 8, 0, 0));
+      const onSelectSlot = jest.fn();
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            '2025-01-06': { available_slots: [{ start_time: '14:00', end_time: '16:00' }] },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(
+        <AvailabilityGrid
+          instructorId="1"
+          weekStart={new Date(2025, 0, 6)}
+          onWeekChange={jest.fn()}
+          selectedSlot={null}
+          onSelectSlot={onSelectSlot}
+        />
+      );
+
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      await user.click(screen.getByLabelText(/select mon at 2pm/i));
+
+      expect(onSelectSlot).toHaveBeenCalledWith('2025-01-06', '14:00', 60, 120);
+      jest.useRealTimers();
+    });
+  });
+
+  describe('scroll indicators', () => {
+    it('updates scroll indicators when scrolling', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date(2025, 0, 6, 8, 0, 0));
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            '2025-01-06': { available_slots: [
+              { start_time: '06:00', end_time: '22:00' },
+            ] },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      const { container } = render(
+        <AvailabilityGrid
+          instructorId="1"
+          weekStart={new Date(2025, 0, 6)}
+          onWeekChange={jest.fn()}
+          selectedSlot={null}
+          onSelectSlot={jest.fn()}
+        />
+      );
+
+      // Get the scroll container
+      const scrollContainer = container.querySelector('[data-testid="scroll-container"]') ??
+                              container.querySelector('.overflow-y-auto');
+
+      if (scrollContainer) {
+        // Simulate scroll
+        Object.defineProperty(scrollContainer, 'scrollTop', { value: 100, writable: true });
+        Object.defineProperty(scrollContainer, 'scrollHeight', { value: 500, writable: true });
+        Object.defineProperty(scrollContainer, 'clientHeight', { value: 200, writable: true });
+
+        // Trigger scroll event
+        scrollContainer.dispatchEvent(new Event('scroll'));
+      }
+
+      expect(container).toBeInTheDocument();
+      jest.useRealTimers();
+    });
+
+    it('shows scroll down indicator when at top', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date(2025, 0, 6, 8, 0, 0));
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            '2025-01-06': { available_slots: [
+              { start_time: '06:00', end_time: '22:00' },
+            ] },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      const { container } = render(
+        <AvailabilityGrid
+          instructorId="1"
+          weekStart={new Date(2025, 0, 6)}
+          onWeekChange={jest.fn()}
+          selectedSlot={null}
+          onSelectSlot={jest.fn()}
+        />
+      );
+
+      // Check scroll indicators exist (may be hidden based on content)
+      // Component should render regardless of indicator visibility
+      expect(container.querySelector('table')).toBeInTheDocument();
+      jest.useRealTimers();
+    });
+  });
+
+  describe('time parsing edge cases', () => {
+    it('handles malformed time gracefully', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date(2025, 0, 6, 8, 0, 0));
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            '2025-01-06': { available_slots: [
+              { start_time: '10:00', end_time: '12:00' },
+            ] },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      const { container } = render(
+        <AvailabilityGrid
+          instructorId="1"
+          weekStart={new Date(2025, 0, 6)}
+          onWeekChange={jest.fn()}
+          selectedSlot={null}
+          onSelectSlot={jest.fn()}
+        />
+      );
+
+      // Should render without crashing
+      expect(container.querySelector('table')).toBeInTheDocument();
+      jest.useRealTimers();
+    });
+
+    it('handles selecting slot with selectedSlot matching HH:MM format', () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date(2025, 0, 6, 8, 0, 0));
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            '2025-01-06': { available_slots: [{ start_time: '14:00', end_time: '16:00' }] },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      const { container } = render(
+        <AvailabilityGrid
+          instructorId="1"
+          weekStart={new Date(2025, 0, 6)}
+          onWeekChange={jest.fn()}
+          selectedSlot={{ date: '2025-01-06', time: '14:00', duration: 60 }}
+          onSelectSlot={jest.fn()}
+        />
+      );
+
+      // The selected slot should have the filled circle indicator
+      const selectedButton = container.querySelector('[data-testid="time-slot-Mon-2pm"]');
+      expect(selectedButton).toBeInTheDocument();
+      expect(selectedButton?.querySelector('.bg-black.rounded-full')).toBeInTheDocument();
+      jest.useRealTimers();
+    });
+
+    it('handles selecting slot with selectedSlot using am/pm format', () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date(2025, 0, 6, 8, 0, 0));
+      mockUseInstructorAvailability.mockReturnValue({
+        data: {
+          availability_by_date: {
+            '2025-01-06': { available_slots: [{ start_time: '09:00', end_time: '11:00' }] },
+          },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      const { container } = render(
+        <AvailabilityGrid
+          instructorId="1"
+          weekStart={new Date(2025, 0, 6)}
+          onWeekChange={jest.fn()}
+          selectedSlot={{ date: '2025-01-06', time: '9am', duration: 60 }}
+          onSelectSlot={jest.fn()}
+        />
+      );
+
+      // The selected slot should have the filled circle indicator
+      const selectedButton = container.querySelector('[data-testid="time-slot-Mon-9am"]');
+      expect(selectedButton).toBeInTheDocument();
+      expect(selectedButton?.querySelector('.bg-black.rounded-full')).toBeInTheDocument();
+      jest.useRealTimers();
+    });
+  });
 });

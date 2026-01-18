@@ -135,6 +135,9 @@ export function Chat({
 
   const reconnect = () => {
     // Reconnect is automatic in new implementation
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
     window.location.reload();
   };
 

@@ -211,6 +211,21 @@ export default function EditProfileModal({
   const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
   const [openBoroughs, setOpenBoroughs] = useState<Set<string>>(new Set());
   const [globalNeighborhoodFilter, setGlobalNeighborhoodFilter] = useState('');
+  const globalNeighborhoodMatches = useMemo(() => {
+    const query = globalNeighborhoodFilter.trim().toLowerCase();
+    if (!query) return [];
+    const seen = new Set<string>();
+    const matches = NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
+      .filter((n) => (n.name || '').toLowerCase().includes(query));
+    const results: ServiceAreaItem[] = [];
+    for (const match of matches) {
+      const nid = match.neighborhood_id || match.id;
+      if (!nid || seen.has(nid)) continue;
+      seen.add(nid);
+      results.push(match);
+    }
+    return results;
+  }, [NYC_BOROUGHS, boroughNeighborhoods, globalNeighborhoodFilter]);
   // Preferred locations (teaching address and public spaces) — UI-only like onboarding
   const [preferredAddress, setPreferredAddress] = useState('');
   const [teachingPlaces, setTeachingPlaces] = useState<PreferredTeachingLocationInput[]>([]);
@@ -976,7 +991,11 @@ export default function EditProfileModal({
     const updatedServices = [...profileData.services];
     const serviceToUpdate = updatedServices[index];
     if (!serviceToUpdate) return;
-    updatedServices[index] = { ...serviceToUpdate, [field]: value };
+    const nextValue =
+      field === 'hourly_rate' && typeof value === 'number' && Number.isNaN(value)
+        ? 0
+        : value;
+    updatedServices[index] = { ...serviceToUpdate, [field]: nextValue };
     setProfileData({ ...profileData, services: updatedServices });
   };
 
@@ -1234,9 +1253,13 @@ export default function EditProfileModal({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
                          focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 no-spinner"
                 value={profileData.years_experience}
-                onChange={(e) =>
-                  setProfileData({ ...profileData, years_experience: parseInt(e.target.value) })
-                }
+                onChange={(e) => {
+                  const parsed = parseInt(e.target.value, 10);
+                  setProfileData({
+                    ...profileData,
+                    years_experience: Number.isNaN(parsed) ? 0 : parsed,
+                  });
+                }}
                 min="0"
                 onKeyDown={(e) => {
                   if (['e', 'E', '.', '-', '+'].includes(e.key)) {
@@ -1307,8 +1330,8 @@ export default function EditProfileModal({
                   <div className="rounded-lg border border-gray-200 bg-white p-3 mb-3">
                     <div className="text-sm text-gray-700 mb-2">Results</div>
                     <div className="flex flex-wrap gap-2">
-                      {NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
-                        .filter((n) => (n.name || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase()))
+                      {globalNeighborhoodMatches
+                        .slice(0, 200)
                         .map((n) => {
                           const nid = n.neighborhood_id || n.id;
                           if (!nid) return null;
@@ -1328,11 +1351,9 @@ export default function EditProfileModal({
                             </button>
                           );
                         })
-                        .filter(Boolean)
-                        .slice(0, 200)}
-                      {NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
-                        .filter((n) => (n.name || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase())).length === 0 && (
-                          <div className="text-sm text-gray-500">No matches found</div>
+                        .filter(Boolean)}
+                      {globalNeighborhoodMatches.length === 0 && (
+                        <div className="text-sm text-gray-500">No matches found</div>
                       )}
                     </div>
                   </div>

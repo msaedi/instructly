@@ -31,6 +31,7 @@ describe('usePhoneVerification', () => {
     phoneApiMock.updatePhoneNumber.mockReset();
     phoneApiMock.sendVerification.mockReset();
     phoneApiMock.confirmVerification.mockReset();
+    phoneApiMock.getPhoneStatus.mockResolvedValue({ phone_number: '', verified: false });
   });
 
   it('returns phone status data', async () => {

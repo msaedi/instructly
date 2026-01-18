@@ -229,7 +229,9 @@ describe('Credits accordion expansion & persistence', () => {
 
     const toggleAfterRefresh = await screen.findByRole('button', { name: /Available Credits/i });
     expect(toggleAfterRefresh).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryAllByText(/Using \$45\.00/i).length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(screen.queryAllByText(/Using \$45\.00/i).length).toBeGreaterThan(0);
+    });
     expect(JSON.parse(sessionStorage.getItem(STORAGE_KEY)!)).toMatchObject({
       lastCreditCents: 4500,
       explicitlyRemoved: false,

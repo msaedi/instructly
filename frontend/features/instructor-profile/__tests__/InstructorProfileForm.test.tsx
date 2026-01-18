@@ -84,6 +84,13 @@ jest.mock('@/app/(auth)/instructor/onboarding/account-setup/components/PersonalI
     return (
       <section>
         <div data-testid="personal-info">{profile.first_name}-{profile.last_name}-{profile.postal_code}</div>
+        <label htmlFor="postal-code">Zip Code</label>
+        <input
+          id="postal-code"
+          type="text"
+          value={profile.postal_code ?? ''}
+          onChange={(event) => onProfileChange({ postal_code: event.target.value })}
+        />
         <button type="button" onClick={() => onProfileChange({ first_name: 'Updated' })}>Update Name</button>
         <button type="button" onClick={onToggle}>Toggle</button>
       </section>
@@ -592,6 +599,14 @@ describe('InstructorProfileForm', () => {
     });
 
     const user = userEvent.setup();
+    const zipInput = screen.getByLabelText(/zip code/i);
+    await user.clear(zipInput);
+    await user.type(zipInput, '99999');
+
+    await waitFor(() => {
+      expect(zipInput).toHaveValue('99999');
+    });
+
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     // Should succeed without crashing - address error is caught
@@ -753,5 +768,342 @@ describe('InstructorProfileForm', () => {
       // The formatted name "lower east" should become "Lower East"
       expect(screen.getByTestId('formatted-name')).toHaveTextContent('Lower East');
     });
+  });
+
+  it('handles address PATCH error when zip code changes', async () => {
+    const { Wrapper } = createWrapper();
+    mockUseSession.mockReturnValue({
+      data: { id: 'user-1', first_name: 'Test', last_name: 'User', zip_code: '99999' },
+      isLoading: false,
+    });
+    mockUseUserAddresses.mockReturnValue({
+      data: { items: [{ id: 'addr-1', postal_code: '00000', is_default: true }] },
+      isLoading: false,
+    });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: { bio: 'A'.repeat(420), has_profile_picture: true },
+      isLoading: false,
+    });
+
+    mockFetchWithAuth.mockImplementation(async (url: string, options?: { method?: string }) => {
+      if (url === '/api/v1/addresses/service-areas/me') {
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      }
+      if (url === '/api/v1/addresses/me' && !options?.method) {
+        return { ok: true, status: 200, json: async () => ({ items: [{ id: 'addr-1', postal_code: '00000', is_default: true }] }) };
+      }
+      if (url.includes('/api/v1/addresses/me/addr-1') && options?.method === 'PATCH') {
+        return { ok: false, status: 400, json: async () => ({ detail: 'Invalid postal code' }) };
+      }
+      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    const zipInput = screen.getByLabelText(/zip code/i);
+    await user.clear(zipInput);
+    await user.type(zipInput, '99999');
+
+    await waitFor(() => {
+      expect(zipInput).toHaveValue('99999');
+    });
+
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalled();
+    });
+  });
+
+  it('skips address create when required address fields are missing', async () => {
+    const { Wrapper } = createWrapper();
+    mockUseSession.mockReturnValue({
+      data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
+      isLoading: false,
+    });
+    mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: {
+        bio: 'A'.repeat(420),
+        has_profile_picture: true,
+        street_line1: '123 Test St',
+        locality: 'New York',
+        administrative_area: 'NY',
+        postal_code: '10001',
+      },
+      isLoading: false,
+    });
+
+    mockFetchWithAuth.mockImplementation(async (url: string, options?: { method?: string }) => {
+      if (url === '/api/v1/addresses/service-areas/me') {
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      }
+      if (url === '/api/v1/addresses/me' && !options?.method) {
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      }
+      if (url === '/api/v1/addresses/me' && options?.method === 'POST') {
+        return { ok: false, status: 400, json: async () => ({ detail: 'Invalid address' }) };
+      }
+      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(mockFetchWithAuth).toHaveBeenCalledWith(API_ENDPOINTS.INSTRUCTOR_PROFILE, expect.any(Object));
+    });
+
+    expect(mockFetchWithAuth).not.toHaveBeenCalledWith(
+      '/api/v1/addresses/me',
+      expect.objectContaining({ method: 'POST' })
+    );
+  });
+
+  it('handles unexpected save exception', async () => {
+    const { Wrapper } = createWrapper();
+    mockUseSession.mockReturnValue({
+      data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
+      isLoading: false,
+    });
+    mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: { bio: 'A'.repeat(420), has_profile_picture: true },
+      isLoading: false,
+    });
+
+    mockFetchWithAuth.mockImplementation(async (url: string) => {
+      if (url === '/api/v1/addresses/service-areas/me') {
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      }
+      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+        throw new Error('Unexpected network error');
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/failed to save profile/i)).toBeInTheDocument();
+    });
+  });
+
+  it('triggers personal info toggle callback', async () => {
+    const { Wrapper } = createWrapper();
+    mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
+    mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: { bio: 'Test' },
+      isLoading: false,
+    });
+
+    mockFetchWithAuth.mockImplementation(async (url: string) => {
+      if (url === '/api/v1/addresses/service-areas/me') {
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /^toggle$/i }));
+
+    // Toggle was triggered without errors
+    expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+  });
+
+  it('updates profile via handleProfileChange callback', async () => {
+    const { Wrapper } = createWrapper();
+    mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
+    mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: { bio: 'Test' },
+      isLoading: false,
+    });
+
+    mockFetchWithAuth.mockImplementation(async (url: string) => {
+      if (url === '/api/v1/addresses/service-areas/me') {
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /update name/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('personal-info')).toHaveTextContent('Updated');
+    });
+  });
+
+  it('handles address fetch returning non-404 error', async () => {
+    const { Wrapper } = createWrapper();
+    mockUseSession.mockReturnValue({
+      data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
+      isLoading: false,
+    });
+    mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: { bio: 'A'.repeat(420), has_profile_picture: true },
+      isLoading: false,
+    });
+
+    mockFetchWithAuth.mockImplementation(async (url: string) => {
+      if (url === '/api/v1/addresses/service-areas/me') {
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      }
+      if (url === '/api/v1/addresses/me') {
+        return { ok: false, status: 500, json: async () => ({ detail: 'Server error' }) };
+      }
+      if (url === API_ENDPOINTS.INSTRUCTOR_PROFILE) {
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalled();
+    });
+  });
+
+  it('skips address create when full address details are missing', async () => {
+    const { Wrapper } = createWrapper();
+    mockUseSession.mockReturnValue({
+      data: { id: 'user-1', first_name: 'Test', last_name: 'User' },
+      isLoading: false,
+    });
+    mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: {
+        bio: 'A'.repeat(420),
+        has_profile_picture: true,
+        street_line1: '123 Main St',
+        street_line2: 'Apt 4B',
+        locality: 'New York',
+        administrative_area: 'NY',
+        postal_code: '10001',
+        country_code: 'US',
+        place_id: 'ChIJd8BlQ2BZwokR2uD_nv8',
+        latitude: 40.7128,
+        longitude: -74.006,
+      },
+      isLoading: false,
+    });
+
+    mockFetchWithAuth.mockImplementation(async (url: string, options?: { method?: string; body?: string }) => {
+      if (url === '/api/v1/addresses/service-areas/me') {
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      }
+      if (url === '/api/v1/addresses/me' && !options?.method) {
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      }
+      if (url === '/api/v1/addresses/me' && options?.method === 'POST') {
+        // Verify the payload includes all fields
+        const body = JSON.parse(options.body || '{}');
+        expect(body.street_line2).toBe('Apt 4B');
+        expect(body.place_id).toBe('ChIJd8BlQ2BZwokR2uD_nv8');
+        expect(body.latitude).toBe(40.7128);
+        expect(body.longitude).toBe(-74.006);
+        return { ok: true, status: 201, json: async () => ({ id: 'new-addr' }) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(mockFetchWithAuth).toHaveBeenCalledWith(API_ENDPOINTS.INSTRUCTOR_PROFILE, expect.any(Object));
+    });
+
+    const createdAddress = mockFetchWithAuth.mock.calls.some(
+      ([url, options]) => url === '/api/v1/addresses/me' && options?.method === 'POST'
+    );
+    expect(createdAddress).toBe(false);
+  });
+
+  it('handles preferred locations and neutral places updates', async () => {
+    const { Wrapper } = createWrapper();
+    mockUseSession.mockReturnValue({ data: { id: 'user-1' }, isLoading: false });
+    mockUseUserAddresses.mockReturnValue({ data: { items: [] }, isLoading: false });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: { bio: 'Test' },
+      isLoading: false,
+    });
+
+    mockFetchWithAuth.mockImplementation(async (url: string) => {
+      if (url === '/api/v1/addresses/service-areas/me') {
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    render(<InstructorProfileForm />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('personal-info')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+
+    // Set preferred locations
+    await user.click(screen.getByRole('button', { name: /set preferred/i }));
+
+    // Set neutral places
+    await user.click(screen.getByRole('button', { name: /set neutral/i }));
+
+    // Both should work without errors
+    expect(screen.getByTestId('personal-info')).toBeInTheDocument();
   });
 });

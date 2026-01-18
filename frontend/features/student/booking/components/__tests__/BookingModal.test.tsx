@@ -267,6 +267,59 @@ describe('BookingModal', () => {
     });
   });
 
+  describe('auth state changes', () => {
+    it('shows booking form after auth flips to true and continue is clicked', async () => {
+      let authState: {
+        user: { first_name: string; last_name: string; email: string; id: string } | null;
+        isAuthenticated: boolean;
+        redirectToLogin: jest.Mock;
+      } = {
+        user: null,
+        isAuthenticated: false,
+        redirectToLogin: jest.fn(),
+      };
+      useAuthMock.mockImplementation(() => authState);
+
+      const onClose = jest.fn();
+      const { rerender } = render(
+        <BookingModal
+          isOpen
+          onClose={onClose}
+          onContinueToBooking={jest.fn()}
+          instructor={instructor}
+          selectedDate="2025-01-01"
+          selectedTime="10:00"
+        />
+      );
+
+      expect(screen.queryByText('Your Information')).not.toBeInTheDocument();
+
+      authState = {
+        user: { first_name: 'Jane', last_name: 'Doe', email: 'jane@example.com', id: 'user-1' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      };
+
+      rerender(
+        <BookingModal
+          isOpen
+          onClose={onClose}
+          onContinueToBooking={jest.fn()}
+          instructor={instructor}
+          selectedDate="2025-01-01"
+          selectedTime="10:00"
+        />
+      );
+
+      await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+      expect(screen.getByText('Your Information')).toBeInTheDocument();
+      const inputs = getTextInputs();
+      expect(inputs[0]).toHaveValue('Jane Doe');
+      expect(inputs[1]).toHaveValue('jane@example.com');
+    });
+  });
+
   describe('service selection', () => {
     beforeEach(() => {
       useAuthMock.mockReturnValue({
@@ -623,6 +676,30 @@ describe('BookingModal', () => {
       // Should still render but continue button should be disabled
       const continueButton = screen.getByRole('button', { name: 'Continue to Booking' });
       expect(continueButton).toBeDisabled();
+    });
+
+    it('alerts when submitting without a selected service', async () => {
+      useAuthMock.mockReturnValue({
+        user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+        isAuthenticated: true,
+        redirectToLogin: jest.fn(),
+      });
+
+      const instructorNoServices: Instructor = {
+        ...instructor,
+        services: [],
+      };
+
+      renderModal({ instructor: instructorNoServices });
+
+      const inputs = getTextInputs();
+      const phoneInput = inputs[2]!;
+      await userEvent.type(phoneInput, '555-1111');
+      await userEvent.click(screen.getByRole('checkbox'));
+
+      await userEvent.click(screen.getByRole('button', { name: 'Continue to Payment' }));
+
+      expect(window.alert).toHaveBeenCalledWith('Please select a service');
     });
 
     it('handles instructor with missing service area', () => {

@@ -294,12 +294,9 @@ export default function TimeSelectionModal({
   const selectedTimeRef = useRef<string | null>(effectiveInitialTimeDisplay);
   const selectedDurationRef = useRef<number>(initialDurationFallback);
 
-  const logDev = (...args: unknown[]) => {
-    if (process.env.NODE_ENV !== 'production') {
-      const { info } = console;
-      if (typeof info === 'function') {
-        info.call(console, '[time-modal]', ...args);
-      }
+  const logDev = (msg: string, ...args: unknown[]) => {
+    if (process.env.NODE_ENV === 'development') {
+      logger.info(`[time-modal] ${msg}`, ...args);
     }
   };
 

@@ -10,6 +10,7 @@ import {
   fetchPricingPreview,
   fetchPricingPreviewQuote,
 } from '@/lib/api/pricing';
+import { ApiProblemError } from '@/lib/api/fetch';
 
 // Mock dependencies
 jest.mock('@/lib/api/pricing', () => ({
@@ -780,5 +781,478 @@ describe('stableSerialize utility', () => {
     await waitFor(() => {
       expect(fetchPricingPreviewQuoteMock).toHaveBeenCalled();
     });
+  });
+});
+
+describe('ApiProblemError handling', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    fetchPricingPreviewMock.mockReset();
+    fetchPricingPreviewQuoteMock.mockReset();
+    fetchPricingPreviewMock.mockResolvedValue(mockPreviewResponse);
+    fetchPricingPreviewQuoteMock.mockResolvedValue(mockPreviewResponse);
+    window.sessionStorage.clear();
+  });
+
+  it('handles ApiProblemError with status code in applyCredit', async () => {
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 0,
+    });
+
+    const { result } = renderHook(() =>
+      usePricingPreviewController({ bookingId: 'booking-123' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.preview).not.toBeNull();
+    });
+
+    // Create ApiProblemError with status code
+    const apiError = new ApiProblemError(
+      { type: 'validation_error', title: 'Validation Error', detail: 'Credit limit exceeded', status: 400 },
+      { status: 400 } as Response
+    );
+    fetchPricingPreviewMock.mockRejectedValueOnce(apiError);
+
+    let thrownError: Error | null = null;
+    await act(async () => {
+      try {
+        await result.current.applyCredit(5000);
+      } catch (err) {
+        thrownError = err as Error;
+      }
+    });
+
+    expect(thrownError).toBe(apiError);
+    await waitFor(() => {
+      expect(result.current.error).toBe('Credit limit exceeded');
+    });
+  });
+
+  it('handles ApiProblemError without status code in applyCredit', async () => {
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 0,
+    });
+
+    const { result } = renderHook(() =>
+      usePricingPreviewController({ bookingId: 'booking-123' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.preview).not.toBeNull();
+    });
+
+    // Create ApiProblemError without status code (no response)
+    const apiError = new ApiProblemError(
+      { type: 'server_error', title: 'Server Error', detail: 'Unknown error', status: 500 },
+      { status: 500 } as Response
+    );
+    fetchPricingPreviewMock.mockRejectedValueOnce(apiError);
+
+    let thrownError: Error | null = null;
+    await act(async () => {
+      try {
+        await result.current.applyCredit(3000);
+      } catch (err) {
+        thrownError = err as Error;
+      }
+    });
+
+    expect(thrownError).toBe(apiError);
+    await waitFor(() => {
+      expect(result.current.error).toBe('Unknown error');
+    });
+  });
+
+  it('handles ApiProblemError with empty detail preserving empty string', async () => {
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 0,
+    });
+
+    const { result } = renderHook(() =>
+      usePricingPreviewController({ bookingId: 'booking-123' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.preview).not.toBeNull();
+    });
+
+    // Create ApiProblemError with empty detail - hook uses ?? so empty string is preserved
+    const apiError = new ApiProblemError(
+      { type: 'validation_error', title: 'Validation Error', detail: '', status: 422 },
+      { status: 422 } as Response
+    );
+    fetchPricingPreviewMock.mockRejectedValueOnce(apiError);
+
+    await act(async () => {
+      try {
+        await result.current.applyCredit(2000);
+      } catch {
+        // Expected
+      }
+    });
+
+    // Empty string detail is preserved (nullish coalescing ?? doesn't catch empty strings)
+    await waitFor(() => {
+      expect(result.current.error).toBe('');
+    });
+  });
+});
+
+describe('abort handling', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    fetchPricingPreviewMock.mockReset();
+    fetchPricingPreviewQuoteMock.mockReset();
+    fetchPricingPreviewMock.mockResolvedValue(mockPreviewResponse);
+    fetchPricingPreviewQuoteMock.mockResolvedValue(mockPreviewResponse);
+    window.sessionStorage.clear();
+  });
+
+  it('returns previewRef.current when abort signal is triggered in applyCredit', async () => {
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 0,
+    });
+
+    const { result } = renderHook(() =>
+      usePricingPreviewController({ bookingId: 'booking-123' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.preview).not.toBeNull();
+    });
+
+    // Mock slow fetch that we can abort
+    let resolveSlowFetch: ((value: unknown) => void) | null = null;
+    fetchPricingPreviewMock.mockImplementationOnce(() => {
+      return new Promise((resolve) => {
+        resolveSlowFetch = resolve;
+      });
+    });
+
+    // Start first applyCredit
+    const firstPromise = result.current.applyCredit(1000);
+
+    // Start second applyCredit to abort the first
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 2000,
+    });
+    const secondPromise = result.current.applyCredit(2000);
+
+    // Resolve the first (but it's aborted)
+    (resolveSlowFetch as unknown as (value: unknown) => void)({
+      ...mockPreviewResponse,
+      credit_applied_cents: 1000,
+    });
+
+    await act(async () => {
+      await Promise.all([firstPromise, secondPromise].map((p) => p.catch(() => {})));
+    });
+
+    // Final value should be from second request
+    expect(result.current.preview?.credit_applied_cents).toBe(2000);
+  });
+
+  it('handles AbortError gracefully in applyCredit', async () => {
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 0,
+    });
+
+    const { result } = renderHook(() =>
+      usePricingPreviewController({ bookingId: 'booking-123' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.preview).not.toBeNull();
+    });
+
+    const abortError = new Error('Aborted');
+    abortError.name = 'AbortError';
+    fetchPricingPreviewMock.mockRejectedValueOnce(abortError);
+
+    await act(async () => {
+      const response = await result.current.applyCredit(1500);
+      expect(response).toBe(result.current.preview);
+    });
+
+    // Error should not be set for AbortError
+    expect(result.current.error).toBeNull();
+  });
+
+  it('returns previewRef.current when signal is aborted after fetch in requestPricingPreview', async () => {
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 100,
+    });
+
+    const { result } = renderHook(() =>
+      usePricingPreviewController({ bookingId: 'booking-123' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.preview).not.toBeNull();
+    });
+
+    // Mock slow fetch
+    let resolveSlowFetch: ((value: unknown) => void) | null = null;
+    fetchPricingPreviewMock.mockImplementationOnce(() => {
+      return new Promise((resolve) => {
+        resolveSlowFetch = resolve;
+      });
+    });
+
+    // Start first request with new key
+    const firstPromise = result.current.requestPricingPreview({ key: 'key-1' });
+
+    // Start second request to abort first
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 200,
+    });
+    const secondPromise = result.current.requestPricingPreview({ key: 'key-2' });
+
+    // Resolve the first (but it's aborted)
+    (resolveSlowFetch as unknown as (value: unknown) => void)({
+      ...mockPreviewResponse,
+      credit_applied_cents: 150,
+    });
+
+    await act(async () => {
+      await Promise.all([firstPromise, secondPromise].map((p) => p.catch(() => {})));
+    });
+
+    expect(result.current.preview?.credit_applied_cents).toBe(200);
+  });
+});
+
+describe('validation edge cases', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    fetchPricingPreviewMock.mockReset();
+    fetchPricingPreviewQuoteMock.mockReset();
+    fetchPricingPreviewMock.mockResolvedValue(mockPreviewResponse);
+    fetchPricingPreviewQuoteMock.mockResolvedValue(mockPreviewResponse);
+    window.sessionStorage.clear();
+  });
+
+  it('validates empty instructor_id string', async () => {
+    const emptyInstructorPayload = {
+      ...mockQuotePayload,
+      instructor_id: '   ', // whitespace only
+    };
+
+    renderHook(() =>
+      usePricingPreviewController({
+        bookingId: null,
+        quotePayload: emptyInstructorPayload,
+      })
+    );
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(fetchPricingPreviewQuoteMock).not.toHaveBeenCalled();
+  });
+
+  it('validates empty instructor_service_id string', async () => {
+    const emptyServicePayload = {
+      ...mockQuotePayload,
+      instructor_service_id: '', // empty string
+    };
+
+    renderHook(() =>
+      usePricingPreviewController({
+        bookingId: null,
+        quotePayload: emptyServicePayload,
+      })
+    );
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(fetchPricingPreviewQuoteMock).not.toHaveBeenCalled();
+  });
+
+  it('validates empty meeting_location string', async () => {
+    const emptyLocationPayload = {
+      ...mockQuotePayload,
+      meeting_location: '  ', // whitespace only
+    };
+
+    renderHook(() =>
+      usePricingPreviewController({
+        bookingId: null,
+        quotePayload: emptyLocationPayload,
+      })
+    );
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(fetchPricingPreviewQuoteMock).not.toHaveBeenCalled();
+  });
+
+  it('skips fetch when quotePayloadBase is null in performFetch', async () => {
+    // This tests lines 286-289: when resolveQuotePayloadBase returns null
+    const { result } = renderHook(() =>
+      usePricingPreviewController({
+        bookingId: null,
+        quotePayload: null,
+        quotePayloadResolver: () => null, // Resolver returns null
+      })
+    );
+
+    // Request should not trigger fetch since quotePayloadBase is null
+    await act(async () => {
+      await result.current.requestPricingPreview({ key: 'some-key' });
+    });
+
+    expect(fetchPricingPreviewQuoteMock).not.toHaveBeenCalled();
+  });
+
+  it('handles negative credit values by normalizing to zero', async () => {
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 1000,
+    });
+
+    const { result } = renderHook(() =>
+      usePricingPreviewController({ bookingId: 'booking-123' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.preview).not.toBeNull();
+    });
+
+    fetchPricingPreviewMock.mockClear();
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 1000,
+    });
+
+    await act(async () => {
+      await result.current.applyCredit(-500);
+    });
+
+    await waitFor(() => {
+      expect(fetchPricingPreviewMock).toHaveBeenCalledWith(
+        'booking-123',
+        0, // Should be normalized to 0
+        expect.any(Object)
+      );
+    });
+  });
+});
+
+describe('persistCreditDecision edge cases', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    fetchPricingPreviewMock.mockReset();
+    fetchPricingPreviewQuoteMock.mockReset();
+    fetchPricingPreviewMock.mockResolvedValue(mockPreviewResponse);
+    fetchPricingPreviewQuoteMock.mockResolvedValue(mockPreviewResponse);
+    window.sessionStorage.clear();
+  });
+
+  it('does not persist when storage key is null', async () => {
+    // When both bookingId is null and quotePayloadBase is null, getCreditStorageKey returns null
+    // This tests line 221
+    const { result } = renderHook(() =>
+      usePricingPreviewController({
+        bookingId: null,
+        quotePayload: null,
+      })
+    );
+
+    // sessionStorage.setItem should not be called since key is null
+    expect(window.sessionStorage.setItem).not.toHaveBeenCalled();
+
+    // Verify controller initialized
+    expect(result.current.preview).toBeNull();
+  });
+
+  it('skips persistence when credit is already zero with no existing entry', async () => {
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 0,
+    });
+
+    renderHook(() => usePricingPreviewController({ bookingId: 'booking-persist-test' }));
+
+    await waitFor(() => {
+      expect(fetchPricingPreviewMock).toHaveBeenCalled();
+    });
+
+    // setItem should only be called if there's a meaningful value to persist
+    // or if explicitly set by user - verify via the specific key
+    const setItemCalls = (window.sessionStorage.setItem as jest.Mock).mock.calls;
+    const bookingKeyCalls = setItemCalls.filter((call: unknown[]) =>
+      (call[0] as string).includes('booking-persist-test')
+    );
+    // Credit is 0 and no existing entry, so it should not persist
+    expect(bookingKeyCalls.length).toBe(0);
+  });
+});
+
+describe('applyCredit deduplication', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    fetchPricingPreviewMock.mockReset();
+    fetchPricingPreviewQuoteMock.mockReset();
+    fetchPricingPreviewMock.mockResolvedValue(mockPreviewResponse);
+    fetchPricingPreviewQuoteMock.mockResolvedValue(mockPreviewResponse);
+    window.sessionStorage.clear();
+  });
+
+  it('returns early when credit value matches preview and no pending commit', async () => {
+    // This tests line 385
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 1500,
+    });
+
+    const { result } = renderHook(() =>
+      usePricingPreviewController({ bookingId: 'booking-123' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.preview?.credit_applied_cents).toBe(1500);
+    });
+
+    fetchPricingPreviewMock.mockClear();
+
+    // Apply same credit value without skipIfUnchanged - should still skip
+    await act(async () => {
+      const response = await result.current.applyCredit(1500);
+      // Should return existing preview without making a fetch
+      expect(response?.credit_applied_cents).toBe(1500);
+    });
+
+    expect(fetchPricingPreviewMock).not.toHaveBeenCalled();
+  });
+
+  it('returns early when lastCommitValueRef matches requested credit', async () => {
+    fetchPricingPreviewMock.mockResolvedValueOnce({
+      ...mockPreviewResponse,
+      credit_applied_cents: 0,
+    });
+
+    const { result } = renderHook(() =>
+      usePricingPreviewController({ bookingId: 'booking-123' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.preview).not.toBeNull();
+    });
+
+    // Mock slow fetch that doesn't resolve
+    fetchPricingPreviewMock.mockImplementation(() => new Promise(() => {}));
+
+    // Start first apply (won't complete)
+    result.current.applyCredit(2000);
+
+    // Try to apply same value again - should return early
+    const response = await result.current.applyCredit(2000);
+    expect(response).toBe(result.current.preview);
   });
 });

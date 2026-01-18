@@ -1,4 +1,4 @@
-import { render, screen, act, fireEvent } from '@testing-library/react';
+import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import InstructorCoverageMap from '../InstructorCoverageMap';
 
 // Mock the logger
@@ -10,6 +10,10 @@ jest.mock('@/lib/logger', () => ({
     warn: jest.fn(),
   },
 }));
+
+// Store references to event handlers
+let moveEndHandler: (() => void) | null = null;
+let zoomEndHandler: (() => void) | null = null;
 
 // Create mock map instance
 const mockMap = {
@@ -27,18 +31,28 @@ const mockMap = {
     getEast: () => -73,
     getWest: () => -74,
   })),
-  on: jest.fn(),
-  off: jest.fn(),
+  on: jest.fn((event: string, handler: () => void) => {
+    if (event === 'moveend') moveEndHandler = handler;
+    if (event === 'zoomend') zoomEndHandler = handler;
+  }),
+  off: jest.fn((event: string) => {
+    if (event === 'moveend') moveEndHandler = null;
+    if (event === 'zoomend') zoomEndHandler = null;
+  }),
   stop: jest.fn(),
 };
 
 // Mock react-leaflet
 jest.mock('react-leaflet', () => ({
-  MapContainer: ({ children, whenReady, ...props }: {
+  MapContainer: ({ children, whenReady, attributionControl, zoomControl, ...props }: {
     children: React.ReactNode;
     whenReady?: () => void;
+    attributionControl?: boolean;
+    zoomControl?: boolean;
     [key: string]: unknown;
   }) => {
+    void attributionControl;
+    void zoomControl;
     React.useEffect(() => {
       whenReady?.();
     }, [whenReady]);
@@ -67,38 +81,69 @@ jest.mock('react-leaflet', () => ({
   useMap: () => mockMap,
 }));
 
-// Mock Leaflet
-jest.mock('leaflet', () => ({
-  Control: jest.fn().mockImplementation(function (this: { position: string; onAdd?: () => HTMLElement }, options) {
-    this.position = options?.position || 'bottomright';
-    return {
-      addTo: jest.fn().mockReturnValue({ remove: jest.fn() }),
-      onAdd: this.onAdd,
-      ...this,
-    };
-  }),
-  DomUtil: {
-    create: jest.fn((tag: string) => document.createElement(tag)),
-  },
-  DomEvent: {
-    disableClickPropagation: jest.fn(),
-    disableScrollPropagation: jest.fn(),
-  },
-  geoJSON: jest.fn(() => ({
-    getBounds: jest.fn(() => ({
-      isValid: jest.fn(() => true),
-      getNorth: () => 41,
-      getSouth: () => 40,
-      getEast: () => -73,
-      getWest: () => -74,
+// Store control instances for testing
+const controlInstances: Array<{
+  onAdd?: (map: unknown) => HTMLElement;
+  remove: jest.Mock;
+  position: string;
+}> = [];
+
+// Track created markers for testing
+const createdMarkers: Array<{ addTo: jest.Mock; remove: jest.Mock }> = [];
+
+// Mock Leaflet with better control simulation
+jest.mock('leaflet', () => {
+  const L = {
+    Control: jest.fn().mockImplementation(function (this: {
+      position: string;
+      onAdd?: (map: unknown) => HTMLElement;
+    }, options?: { position?: string }) {
+      this.position = options?.position || 'bottomright';
+      const control = {
+        position: this.position,
+        onAdd: undefined as ((map: unknown) => HTMLElement) | undefined,
+        remove: jest.fn(),
+        addTo: jest.fn().mockImplementation((map: unknown) => {
+          // Execute onAdd when addTo is called to exercise the control logic
+          if (control.onAdd) {
+            const element = control.onAdd(map);
+            // Append to document for testing
+            document.body.appendChild(element);
+          }
+          controlInstances.push(control);
+          return control;
+        }),
+      };
+      return control;
+    }),
+    DomUtil: {
+      create: jest.fn((tag: string) => document.createElement(tag)),
+    },
+    DomEvent: {
+      disableClickPropagation: jest.fn(),
+      disableScrollPropagation: jest.fn(),
+    },
+    geoJSON: jest.fn(() => ({
+      getBounds: jest.fn(() => ({
+        isValid: jest.fn(() => true),
+        getNorth: () => 41,
+        getSouth: () => 40,
+        getEast: () => -73,
+        getWest: () => -74,
+      })),
+      remove: jest.fn(),
     })),
-    remove: jest.fn(),
-  })),
-  circleMarker: jest.fn(() => ({
-    addTo: jest.fn(),
-    remove: jest.fn(),
-  })),
-}));
+    circleMarker: jest.fn(() => {
+      const marker = {
+        addTo: jest.fn().mockReturnThis(),
+        remove: jest.fn(),
+      };
+      createdMarkers.push(marker);
+      return marker;
+    }),
+  };
+  return L;
+});
 
 // Import React after mocks
 import React from 'react';
@@ -138,6 +183,12 @@ describe('InstructorCoverageMap', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    controlInstances.length = 0;
+    createdMarkers.length = 0;
+    moveEndHandler = null;
+    zoomEndHandler = null;
+    // Clear document body of any appended controls
+    document.body.textContent = '';
   });
 
   it('renders map container', () => {
@@ -278,18 +329,451 @@ describe('InstructorCoverageMap', () => {
     expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
   });
 
-  it('calls onBoundsChange when map bounds change', () => {
-    const onBoundsChange = jest.fn();
-    render(
-      <InstructorCoverageMap
-        featureCollection={mockFeatureCollection}
-        onBoundsChange={onBoundsChange}
-      />
-    );
+  describe('MapBoundsTracker', () => {
+    it('calls onBoundsChange when moveend event fires', () => {
+      const onBoundsChange = jest.fn();
+      render(
+        <InstructorCoverageMap
+          featureCollection={mockFeatureCollection}
+          onBoundsChange={onBoundsChange}
+        />
+      );
 
-    // Map event handlers should be registered
-    expect(mockMap.on).toHaveBeenCalledWith('moveend', expect.any(Function));
-    expect(mockMap.on).toHaveBeenCalledWith('zoomend', expect.any(Function));
+      // Map event handlers should be registered
+      expect(mockMap.on).toHaveBeenCalledWith('moveend', expect.any(Function));
+      expect(mockMap.on).toHaveBeenCalledWith('zoomend', expect.any(Function));
+
+      // Trigger moveend event
+      act(() => {
+        if (moveEndHandler) moveEndHandler();
+      });
+
+      // Verify onBoundsChange was called with a bounds-like object
+      expect(onBoundsChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          getNorth: expect.any(Function),
+          getSouth: expect.any(Function),
+          getEast: expect.any(Function),
+          getWest: expect.any(Function),
+        })
+      );
+    });
+
+    it('calls onBoundsChange when zoomend event fires', () => {
+      const onBoundsChange = jest.fn();
+      render(
+        <InstructorCoverageMap
+          featureCollection={mockFeatureCollection}
+          onBoundsChange={onBoundsChange}
+        />
+      );
+
+      // Trigger zoomend event
+      act(() => {
+        if (zoomEndHandler) zoomEndHandler();
+      });
+
+      // If zoomEndHandler was registered, onBoundsChange should be called
+      if (zoomEndHandler) {
+        expect(onBoundsChange).toHaveBeenCalled();
+      }
+    });
+
+    it('does not throw when onBoundsChange is not provided', () => {
+      expect(() => {
+        render(
+          <InstructorCoverageMap
+            featureCollection={mockFeatureCollection}
+          />
+        );
+      }).not.toThrow();
+    });
+
+    it('cleans up event listeners on unmount', () => {
+      const onBoundsChange = jest.fn();
+      const { unmount } = render(
+        <InstructorCoverageMap onBoundsChange={onBoundsChange} />
+      );
+
+      unmount();
+
+      expect(mockMap.off).toHaveBeenCalledWith('moveend', expect.any(Function));
+      expect(mockMap.off).toHaveBeenCalledWith('zoomend', expect.any(Function));
+    });
+  });
+
+  describe('SearchAreaButton', () => {
+    it('creates search area button when showSearchAreaButton is true', () => {
+      const onSearchArea = jest.fn();
+      render(
+        <InstructorCoverageMap
+          showSearchAreaButton={true}
+          onSearchArea={onSearchArea}
+        />
+      );
+
+      // Button should be created by the control
+      const button = document.querySelector('button');
+      expect(button).toBeInTheDocument();
+    });
+
+    it('calls onSearchArea when button is clicked', () => {
+      const onSearchArea = jest.fn();
+      render(
+        <InstructorCoverageMap
+          showSearchAreaButton={true}
+          onSearchArea={onSearchArea}
+        />
+      );
+
+      const buttons = document.querySelectorAll('button');
+      // Find the search button (it's the one with Search this area text or in topleft position)
+      const searchButton = Array.from(buttons).find(btn =>
+        btn.textContent?.toLowerCase().includes('search')
+      );
+
+      if (searchButton) {
+        act(() => {
+          searchButton.click();
+        });
+        expect(onSearchArea).toHaveBeenCalled();
+      }
+    });
+
+    it('handles mouseover and mouseout on search button', () => {
+      const onSearchArea = jest.fn();
+      render(
+        <InstructorCoverageMap
+          showSearchAreaButton={true}
+          onSearchArea={onSearchArea}
+        />
+      );
+
+      const buttons = document.querySelectorAll('button');
+      const searchButton = Array.from(buttons).find(btn =>
+        btn.textContent?.toLowerCase().includes('search')
+      );
+
+      if (searchButton) {
+        // Test mouseover - should change box-shadow
+        act(() => {
+          searchButton.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        });
+
+        // Test mouseout - should revert box-shadow
+        act(() => {
+          searchButton.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+        });
+
+        // Should still be in the document after hover events
+        expect(searchButton).toBeInTheDocument();
+      }
+    });
+
+    it('does not create search area button when onSearchArea is not provided', () => {
+      render(
+        <InstructorCoverageMap
+          showSearchAreaButton={true}
+          // No onSearchArea callback
+        />
+      );
+
+      const buttons = document.querySelectorAll('button');
+      const searchButton = Array.from(buttons).find(btn =>
+        btn.textContent?.toLowerCase().includes('search')
+      );
+      expect(searchButton).toBeUndefined();
+    });
+
+    it('removes search area button on unmount', () => {
+      const onSearchArea = jest.fn();
+      const { unmount } = render(
+        <InstructorCoverageMap
+          showSearchAreaButton={true}
+          onSearchArea={onSearchArea}
+        />
+      );
+
+      unmount();
+
+      // Control's remove should have been called
+      const controlWithSearchButton = controlInstances.find(
+        c => c.position === 'topleft'
+      );
+      expect(controlWithSearchButton?.remove).toHaveBeenCalled();
+    });
+  });
+
+  describe('CustomControls', () => {
+    it('creates zoom and locate buttons', () => {
+      render(<InstructorCoverageMap />);
+
+      // Should have created buttons with titles
+      const locateButton = document.querySelector('button[title="Show your location"]');
+      const zoomInButton = document.querySelector('button[title="Zoom in"]');
+      const zoomOutButton = document.querySelector('button[title="Zoom out"]');
+
+      expect(locateButton).toBeInTheDocument();
+      expect(zoomInButton).toBeInTheDocument();
+      expect(zoomOutButton).toBeInTheDocument();
+    });
+
+    it('calls zoomIn when zoom in button is clicked', () => {
+      render(<InstructorCoverageMap />);
+
+      const zoomInButton = document.querySelector('button[title="Zoom in"]') as HTMLButtonElement | null;
+      expect(zoomInButton).toBeInTheDocument();
+
+      act(() => {
+        zoomInButton?.click();
+      });
+
+      expect(mockMap.zoomIn).toHaveBeenCalledWith(1);
+    });
+
+    it('calls zoomOut when zoom out button is clicked', () => {
+      render(<InstructorCoverageMap />);
+
+      const zoomOutButton = document.querySelector('button[title="Zoom out"]') as HTMLButtonElement | null;
+      expect(zoomOutButton).toBeInTheDocument();
+
+      act(() => {
+        zoomOutButton?.click();
+      });
+
+      expect(mockMap.zoomOut).toHaveBeenCalledWith(1);
+    });
+
+    it('handles locate button click with geolocation', async () => {
+      const mockGeolocation = {
+        getCurrentPosition: jest.fn((success) => {
+          success({
+            coords: {
+              latitude: 40.7,
+              longitude: -74.0,
+            },
+          });
+        }),
+      };
+      Object.defineProperty(navigator, 'geolocation', {
+        value: mockGeolocation,
+        configurable: true,
+      });
+
+      render(<InstructorCoverageMap />);
+
+      const locateButton = document.querySelector('button[title="Show your location"]') as HTMLButtonElement | null;
+      expect(locateButton).toBeInTheDocument();
+
+      act(() => {
+        locateButton?.click();
+      });
+
+      expect(mockGeolocation.getCurrentPosition).toHaveBeenCalled();
+      // After getting position, map should fly to the location
+      await waitFor(() => {
+        expect(mockMap.flyTo).toHaveBeenCalled();
+      });
+    });
+
+    it('handles locate button click with setView for close positions', async () => {
+      // Set map center close to test coordinates
+      mockMap.getCenter.mockReturnValue({ lat: 40.7, lng: -74.0 });
+
+      const mockGeolocation = {
+        getCurrentPosition: jest.fn((success) => {
+          success({
+            coords: {
+              latitude: 40.7001, // Very close to map center
+              longitude: -74.0001,
+            },
+          });
+        }),
+      };
+      Object.defineProperty(navigator, 'geolocation', {
+        value: mockGeolocation,
+        configurable: true,
+      });
+
+      render(<InstructorCoverageMap />);
+
+      const locateButton = document.querySelector('button[title="Show your location"]') as HTMLButtonElement | null;
+
+      act(() => {
+        locateButton?.click();
+      });
+
+      await waitFor(() => {
+        expect(mockMap.setView).toHaveBeenCalled();
+      });
+    });
+
+    it('handles locate button click when geolocation is not available', () => {
+      const originalGeolocation = navigator.geolocation;
+      // @ts-expect-error - intentionally testing missing geolocation
+      delete navigator.geolocation;
+
+      render(<InstructorCoverageMap />);
+
+      const locateButton = document.querySelector('button[title="Show your location"]') as HTMLButtonElement | null;
+
+      act(() => {
+        locateButton?.click();
+      });
+
+      // Should not throw
+      expect(locateButton).toBeInTheDocument();
+
+      // Restore
+      Object.defineProperty(navigator, 'geolocation', {
+        value: originalGeolocation,
+        configurable: true,
+      });
+    });
+
+    it('handles geolocation error gracefully', () => {
+      const mockGeolocation = {
+        getCurrentPosition: jest.fn((_success, error) => {
+          error(new Error('Geolocation denied'));
+        }),
+      };
+      Object.defineProperty(navigator, 'geolocation', {
+        value: mockGeolocation,
+        configurable: true,
+      });
+
+      render(<InstructorCoverageMap />);
+
+      const locateButton = document.querySelector('button[title="Show your location"]') as HTMLButtonElement | null;
+
+      act(() => {
+        locateButton?.click();
+      });
+
+      // Should handle error gracefully without crashing
+      expect(mockGeolocation.getCurrentPosition).toHaveBeenCalled();
+    });
+
+    it('handles multiple locate button clicks gracefully', async () => {
+      const mockGeolocation = {
+        getCurrentPosition: jest.fn((success) => {
+          // Simulate delayed response
+          setTimeout(() => {
+            success({
+              coords: {
+                latitude: 40.7,
+                longitude: -74.0,
+              },
+            });
+          }, 100);
+        }),
+      };
+      Object.defineProperty(navigator, 'geolocation', {
+        value: mockGeolocation,
+        configurable: true,
+      });
+
+      render(<InstructorCoverageMap />);
+
+      const locateButton = document.querySelector('button[title="Show your location"]') as HTMLButtonElement | null;
+
+      // Click twice quickly - should not throw
+      expect(() => {
+        act(() => {
+          locateButton?.click();
+          locateButton?.click();
+        });
+      }).not.toThrow();
+
+      // Geolocation should have been requested
+      expect(mockGeolocation.getCurrentPosition).toHaveBeenCalled();
+    });
+
+    it('removes custom controls on unmount', () => {
+      const { unmount } = render(<InstructorCoverageMap />);
+
+      unmount();
+
+      // Control's remove should have been called
+      const controlWithZoom = controlInstances.find(
+        c => c.position === 'bottomright'
+      );
+      expect(controlWithZoom?.remove).toHaveBeenCalled();
+    });
+
+    it('replaces previous location marker when clicking locate again', async () => {
+      // Track moveend handlers registered by the component
+      const moveendHandlers: Array<() => void> = [];
+      const zoomendHandlers: Array<() => void> = [];
+
+      mockMap.on.mockImplementation((event: string, handler: () => void) => {
+        if (event === 'moveend') {
+          moveEndHandler = handler;
+          moveendHandlers.push(handler);
+        }
+        if (event === 'zoomend') {
+          zoomEndHandler = handler;
+          zoomendHandlers.push(handler);
+        }
+      });
+
+      mockMap.off.mockImplementation((event: string, handler?: () => void) => {
+        if (handler) {
+          if (event === 'moveend') {
+            const idx = moveendHandlers.indexOf(handler);
+            if (idx >= 0) moveendHandlers.splice(idx, 1);
+          }
+          if (event === 'zoomend') {
+            const idx = zoomendHandlers.indexOf(handler);
+            if (idx >= 0) zoomendHandlers.splice(idx, 1);
+          }
+        }
+      });
+
+      const mockGeolocation = {
+        getCurrentPosition: jest.fn((success) => {
+          success({
+            coords: {
+              latitude: 40.7,
+              longitude: -74.0,
+            },
+          });
+        }),
+      };
+      Object.defineProperty(navigator, 'geolocation', {
+        value: mockGeolocation,
+        configurable: true,
+      });
+
+      render(<InstructorCoverageMap />);
+
+      const locateButton = document.querySelector('button[title="Show your location"]') as HTMLButtonElement | null;
+
+      // First click creates first marker
+      await act(async () => {
+        locateButton?.click();
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      expect(createdMarkers).toHaveLength(1);
+
+      // Simulate moveend event to reset isMoving flag
+      await act(async () => {
+        // Trigger all registered moveend handlers to reset isMoving
+        moveendHandlers.forEach(h => h());
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      // Second click should remove first marker and create second
+      await act(async () => {
+        locateButton?.click();
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      // First marker should have been removed before creating second
+      expect(createdMarkers[0]?.remove).toHaveBeenCalled();
+      expect(createdMarkers).toHaveLength(2);
+    });
   });
 
   it('respects dark mode preference', () => {
@@ -325,20 +809,6 @@ describe('InstructorCoverageMap', () => {
     expect(screen.getByTestId('map-container')).toBeInTheDocument();
   });
 
-  it('shows search area button when enabled', () => {
-    const onSearchArea = jest.fn();
-    render(
-      <InstructorCoverageMap
-        featureCollection={mockFeatureCollection}
-        showSearchAreaButton={true}
-        onSearchArea={onSearchArea}
-      />
-    );
-
-    // Search area button is added via Leaflet control
-    expect(screen.getByTestId('map-container')).toBeInTheDocument();
-  });
-
   it('handles dark mode preference change', () => {
     const mockAddEventListener = jest.fn();
     const mockRemoveEventListener = jest.fn();
@@ -364,17 +834,6 @@ describe('InstructorCoverageMap', () => {
 
     unmount();
     expect(mockRemoveEventListener).toHaveBeenCalled();
-  });
-
-  it('renders without onBoundsChange callback', () => {
-    render(
-      <InstructorCoverageMap
-        featureCollection={mockFeatureCollection}
-      />
-    );
-
-    // Should not register map event handlers when callback not provided
-    expect(screen.getByTestId('map-container')).toBeInTheDocument();
   });
 
   it('renders with empty feature properties', () => {
@@ -497,26 +956,194 @@ describe('InstructorCoverageMap', () => {
     window.matchMedia = originalMatchMedia;
   });
 
-  it('cleans up moveend and zoomend listeners on unmount', () => {
-    const onBoundsChange = jest.fn();
-    const { unmount } = render(
-      <InstructorCoverageMap onBoundsChange={onBoundsChange} />
-    );
+  it('keeps using fallback URL after Jawg fails even when theme changes', () => {
+    const originalEnv = process.env['NEXT_PUBLIC_JAWG_TOKEN'];
+    process.env['NEXT_PUBLIC_JAWG_TOKEN'] = 'test-token';
 
-    unmount();
+    const mockAddEventListener = jest.fn();
+    const mockMatchMedia = jest.fn().mockReturnValue({
+      matches: false,
+      addEventListener: mockAddEventListener,
+      removeEventListener: jest.fn(),
+    });
+    window.matchMedia = mockMatchMedia;
 
-    expect(mockMap.off).toHaveBeenCalledWith('moveend', expect.any(Function));
-    expect(mockMap.off).toHaveBeenCalledWith('zoomend', expect.any(Function));
+    render(<InstructorCoverageMap />);
+
+    // Simulate tile error (Jawg fails)
+    const tileLayer = screen.getByTestId('tile-layer');
+    act(() => {
+      fireEvent.click(tileLayer);
+    });
+
+    // Should be using fallback
+    expect(screen.getByTestId('tile-layer').getAttribute('data-url')).toContain('cartocdn');
+
+    // Change theme
+    if (mockAddEventListener.mock.calls[0]) {
+      const changeHandler = mockAddEventListener.mock.calls[0][1];
+      act(() => {
+        changeHandler({ matches: true }); // Switch to dark mode
+      });
+    }
+
+    // Should still be using fallback (not switch back to Jawg)
+    expect(screen.getByTestId('tile-layer').getAttribute('data-url')).toContain('cartocdn');
+
+    process.env['NEXT_PUBLIC_JAWG_TOKEN'] = originalEnv;
   });
 
-  it('renders without showSearchAreaButton callback', () => {
-    render(
-      <InstructorCoverageMap
-        showSearchAreaButton={true}
-        // No onSearchArea callback
-      />
-    );
+  describe('FitToCoverage', () => {
+    it('fits bounds to coverage on initial render', () => {
+      render(
+        <InstructorCoverageMap
+          featureCollection={mockFeatureCollection}
+          showCoverage={true}
+        />
+      );
 
-    expect(screen.getByTestId('map-container')).toBeInTheDocument();
+      expect(mockMap.fitBounds).toHaveBeenCalled();
+    });
+
+    it('does not fit bounds when focusInstructorId is set initially', () => {
+      mockMap.fitBounds.mockClear();
+
+      render(
+        <InstructorCoverageMap
+          featureCollection={mockFeatureCollection}
+          showCoverage={true}
+          focusInstructorId="inst-1"
+        />
+      );
+
+      // Should use flyToBounds for focused instructor, not fitBounds
+      expect(mockMap.flyToBounds).toHaveBeenCalled();
+    });
+
+    it('flies to instructor coverage when focusInstructorId is set', () => {
+      render(
+        <InstructorCoverageMap
+          featureCollection={mockFeatureCollection}
+          showCoverage={true}
+          focusInstructorId="inst-1"
+        />
+      );
+
+      expect(mockMap.flyToBounds).toHaveBeenCalled();
+    });
+
+    it('handles focusInstructorId with no matching features', () => {
+      render(
+        <InstructorCoverageMap
+          featureCollection={mockFeatureCollection}
+          showCoverage={true}
+          focusInstructorId="non-existent-instructor"
+        />
+      );
+
+      // Should render without errors
+      expect(screen.getByTestId('map-container')).toBeInTheDocument();
+    });
+
+    it('handles invalid bounds gracefully', () => {
+      const L = jest.requireMock('leaflet');
+      L.geoJSON.mockReturnValue({
+        getBounds: jest.fn(() => ({
+          isValid: jest.fn(() => false),
+        })),
+        remove: jest.fn(),
+      });
+
+      render(
+        <InstructorCoverageMap
+          featureCollection={mockFeatureCollection}
+          showCoverage={true}
+        />
+      );
+
+      // Should render without errors even with invalid bounds
+      expect(screen.getByTestId('map-container')).toBeInTheDocument();
+    });
+  });
+
+  describe('GeoJSON styling', () => {
+    it('applies default style when instructor is not highlighted', () => {
+      render(
+        <InstructorCoverageMap
+          featureCollection={mockFeatureCollection}
+          showCoverage={true}
+          highlightInstructorId="inst-1"
+        />
+      );
+
+      // GeoJSON should be rendered
+      expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
+    });
+
+    it('uses region_id as fallback name in popup', () => {
+      render(
+        <InstructorCoverageMap
+          featureCollection={{
+            type: 'FeatureCollection',
+            features: [{
+              type: 'Feature',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[[-74, 40], [-73, 40], [-73, 41], [-74, 41], [-74, 40]]],
+              },
+              properties: {
+                region_id: 'test-region',
+                // No name property
+              },
+            }],
+          }}
+          showCoverage={true}
+        />
+      );
+
+      expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
+    });
+
+    it('uses default Coverage Area when no name or region_id', () => {
+      render(
+        <InstructorCoverageMap
+          featureCollection={{
+            type: 'FeatureCollection',
+            features: [{
+              type: 'Feature',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[[-74, 40], [-73, 40], [-73, 41], [-74, 41], [-74, 40]]],
+              },
+              properties: {},
+            }],
+          }}
+          showCoverage={true}
+        />
+      );
+
+      expect(screen.getByTestId('geojson-layer')).toBeInTheDocument();
+    });
+  });
+
+  describe('control cleanup', () => {
+    it('removes controls when component unmounts', () => {
+      const { unmount } = render(
+        <InstructorCoverageMap
+          showSearchAreaButton={true}
+          onSearchArea={jest.fn()}
+        />
+      );
+
+      const controlsBefore = controlInstances.length;
+      expect(controlsBefore).toBeGreaterThan(0);
+
+      unmount();
+
+      // All controls should have remove called
+      controlInstances.forEach(control => {
+        expect(control.remove).toHaveBeenCalled();
+      });
+    });
   });
 });

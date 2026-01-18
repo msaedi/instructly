@@ -87,4 +87,14 @@ describe('LessonStatus', () => {
     expect(classes).toContain('font-medium');
     expect(classes).toContain('border');
   });
+
+  it('renders unknown status with default styling and uses status as label', () => {
+    // Test the default case in the switch statement
+    render(<LessonStatus status={'UNKNOWN_STATUS' as 'CONFIRMED'} />);
+
+    const badge = screen.getByText('UNKNOWN_STATUS');
+    expect(badge).toBeInTheDocument();
+    // Default variant uses gray styling
+    expect(badge).toHaveClass('bg-gray-50', 'text-gray-700', 'border-gray-200');
+  });
 });

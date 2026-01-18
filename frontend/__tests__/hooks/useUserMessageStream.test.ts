@@ -20,6 +20,12 @@ jest.mock('@/lib/logger', () => ({
   },
 }));
 
+// Mock fetchWithAuth
+const mockFetchWithAuth = jest.fn();
+jest.mock('@/lib/api', () => ({
+  fetchWithAuth: (...args: unknown[]) => mockFetchWithAuth(...args),
+}));
+
 // Mock EventSource
 class MockEventSource {
   url: string;
@@ -108,12 +114,12 @@ describe('useUserMessageStream', () => {
       checkAuth: jest.fn(),
     });
 
-    // Mock SSE token fetch
-    global.fetch = jest.fn().mockResolvedValue({
+    // Mock SSE token fetch with fetchWithAuth
+    mockFetchWithAuth.mockResolvedValue({
       ok: true,
       status: 200,
       json: () => Promise.resolve({ token: 'test-sse-token' }),
-    }) as jest.Mock;
+    });
   });
 
   afterEach(() => {
@@ -561,6 +567,39 @@ describe('useUserMessageStream', () => {
       // Should only be called once (duplicate filtered)
       expect(handler.onMessage).toHaveBeenCalledTimes(1);
     });
+
+    it('should prune seenMessageIds when exceeding MAX_SEEN_MESSAGE_IDS', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const handler = { onMessage: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('conv1', handler);
+      });
+
+      // Send 201 unique messages to trigger pruning (MAX_SEEN_MESSAGE_IDS = 200)
+      for (let i = 0; i < 201; i++) {
+        act(() => {
+          mockEventSource.simulateMessage('new_message', {
+            type: 'new_message',
+            conversation_id: 'conv1',
+            is_mine: false,
+            message: {
+              id: `msg-prune-test-${i}`,
+              content: `Message ${i}`,
+              sender_id: 'user2',
+              sender_name: 'User 2',
+              created_at: '2024-01-01T12:00:00Z',
+              booking_id: 'booking1',
+            },
+          });
+        });
+      }
+
+      // All 201 messages should be processed (each unique)
+      expect(handler.onMessage).toHaveBeenCalledTimes(201);
+    });
   });
 
   describe('heartbeat handling', () => {
@@ -619,6 +658,38 @@ describe('useUserMessageStream', () => {
       expect(result.current.isConnected).toBe(false);
       expect(result.current.connectionError).toBe('Heartbeat timeout');
     });
+
+    it('should schedule reconnect after heartbeat timeout and reconnect successfully', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      const firstEventSource = mockEventSource;
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+      expect(global.EventSource).toHaveBeenCalledTimes(1);
+
+      // Advance time past heartbeat timeout (45 seconds)
+      act(() => {
+        jest.advanceTimersByTime(46000);
+      });
+
+      expect(result.current.isConnected).toBe(false);
+      expect(firstEventSource.close).toHaveBeenCalled();
+
+      // Advance time past reconnect delay (3 seconds)
+      act(() => {
+        jest.advanceTimersByTime(4000);
+      });
+
+      await waitForEventSource();
+
+      // Should create a new EventSource after reconnect delay
+      expect(global.EventSource).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('authentication handling', () => {
@@ -636,11 +707,11 @@ describe('useUserMessageStream', () => {
     });
 
     it('should fall back to cookie auth when token fetch fails', async () => {
-      global.fetch = jest.fn().mockResolvedValue({
+      mockFetchWithAuth.mockResolvedValue({
         ok: false,
         status: 500,
         json: () => Promise.resolve({}),
-      }) as jest.Mock;
+      });
 
       const { result } = renderHook(() => useUserMessageStream());
       await waitForEventSource();
@@ -656,7 +727,7 @@ describe('useUserMessageStream', () => {
     });
 
     it('should fall back to cookie auth when token fetch throws', async () => {
-      global.fetch = jest.fn().mockRejectedValue(new Error('Network error')) as jest.Mock;
+      mockFetchWithAuth.mockRejectedValue(new Error('Network error'));
 
       const { result } = renderHook(() => useUserMessageStream());
       await waitForEventSource();
@@ -669,6 +740,59 @@ describe('useUserMessageStream', () => {
       });
 
       expect(result.current.isConnected).toBe(true);
+    });
+
+    it('should handle 401 unauthorized SSE token response', async () => {
+      const checkAuth = jest.fn();
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: 'user1', email: 'test@example.com' },
+        checkAuth,
+      });
+
+      mockFetchWithAuth.mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({}),
+      });
+
+      const { result } = renderHook(() => useUserMessageStream());
+
+      // Wait for async connectWithToken to complete
+      await act(async () => {
+        await jest.runAllTimersAsync();
+      });
+
+      // Should not create EventSource when unauthorized
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.connectionError).toBe('Not authenticated');
+      expect(checkAuth).toHaveBeenCalled();
+    });
+
+    it('should handle 403 forbidden SSE token response', async () => {
+      const checkAuth = jest.fn();
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        user: { id: 'user1', email: 'test@example.com' },
+        checkAuth,
+      });
+
+      mockFetchWithAuth.mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: () => Promise.resolve({}),
+      });
+
+      const { result } = renderHook(() => useUserMessageStream());
+
+      // Wait for async connectWithToken to complete
+      await act(async () => {
+        await jest.runAllTimersAsync();
+      });
+
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.connectionError).toBe('Not authenticated');
+      expect(checkAuth).toHaveBeenCalled();
     });
   });
 
@@ -741,6 +865,55 @@ describe('useUserMessageStream', () => {
 
       // The second error should be suppressed (logged at debug level instead)
       // This tests the connectionErrorLoggedRef behavior
+    });
+
+    it('should log warn on first connection error', async () => {
+      const { logger: mockLogger } = jest.requireMock('@/lib/logger') as { logger: { warn: jest.Mock } };
+
+      renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      mockLogger.warn.mockClear();
+
+      // First error - should log warn
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        '[SSE] Connection error, will retry',
+        expect.any(Object)
+      );
+    });
+
+    it('should schedule reconnect after error with reconnect delay', async () => {
+      renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      expect(global.EventSource).toHaveBeenCalledTimes(1);
+
+      // Trigger error
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      // Advance time past reconnect delay (3 seconds)
+      act(() => {
+        jest.advanceTimersByTime(4000);
+      });
+
+      await waitForEventSource();
+
+      // Should have attempted to reconnect
+      expect(global.EventSource).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -919,4 +1092,97 @@ describe('useUserMessageStream', () => {
       expect(result.current.isConnected).toBe(true);
     });
   });
+
+  describe('message ID deduplication pruning', () => {
+    it('should prune seen message IDs when exceeding max size', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const handler = { onMessage: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('conv1', handler);
+      });
+
+      // Send more than MAX_SEEN_MESSAGE_IDS (200) unique messages to trigger pruning
+      for (let i = 0; i < 205; i++) {
+        act(() => {
+          mockEventSource.simulateMessage('new_message', {
+            type: 'new_message',
+            conversation_id: 'conv1',
+            is_mine: false,
+            message: {
+              id: `msg-prune-${i}`,
+              content: `Message ${i}`,
+              sender_id: 'user2',
+              sender_name: 'User 2',
+              created_at: '2024-01-01T12:00:00Z',
+              booking_id: 'booking1',
+            },
+          });
+        });
+      }
+
+      // All unique messages should be handled
+      expect(handler.onMessage).toHaveBeenCalledTimes(205);
+    });
+  });
+
+  describe('heartbeat timeout reconnection', () => {
+    it('should schedule reconnect after heartbeat timeout and attempt to reconnect', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+
+      // Advance time past heartbeat timeout (45 seconds)
+      act(() => {
+        jest.advanceTimersByTime(46000);
+      });
+
+      // Connection should be lost and error set
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.connectionError).toBe('Heartbeat timeout');
+
+      // EventSource should have been closed
+      expect(mockEventSource.close).toHaveBeenCalled();
+
+      // Advance time to trigger reconnect (RECONNECT_DELAY = 3000ms)
+      act(() => {
+        jest.advanceTimersByTime(4000);
+      });
+
+      // Wait for async token fetch
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // Should attempt to create a new EventSource (reconnect)
+      expect(global.EventSource).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('connect skipping conditions', () => {
+    it('should skip connect when EventSource already exists', async () => {
+      const { rerender } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      // Rerender multiple times
+      rerender();
+      rerender();
+
+      // Should still only have one EventSource
+      expect(global.EventSource).toHaveBeenCalledTimes(1);
+    });
+
+  });
+
 });

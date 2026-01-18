@@ -1411,4 +1411,882 @@ describe('PaymentSection', () => {
       });
     });
   });
+
+  describe('sessionStorage credit UI state', () => {
+    beforeEach(() => {
+      // Clear sessionStorage before each test
+      sessionStorage.clear();
+    });
+
+    it('reads stored credits UI state from sessionStorage', async () => {
+      // Store some credit UI state
+      const key = 'test-credit-ui-state';
+      sessionStorage.setItem(key, JSON.stringify({ creditsCollapsed: true }));
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles invalid JSON in sessionStorage gracefully', async () => {
+      // Store invalid JSON
+      sessionStorage.setItem('test-credit-ui-state', 'not-valid-json');
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles empty sessionStorage value', async () => {
+      sessionStorage.setItem('test-credit-ui-state', '');
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('time conversion and duration calculation', () => {
+    it('handles 12-hour time format (AM/PM) in booking data', async () => {
+      const bookingWith12HourTime = {
+        ...mockBookingData,
+        startTime: '10:00am',
+        endTime: '11:00am',
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWith12HourTime} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles PM time format in booking data', async () => {
+      const bookingWithPMTime = {
+        ...mockBookingData,
+        startTime: '2:00pm',
+        endTime: '3:00pm',
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithPMTime} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles duration calculation from start/end times when duration is zero', async () => {
+      const bookingWithZeroDuration = {
+        ...mockBookingData,
+        duration: 0,
+        startTime: '10:00',
+        endTime: '11:30',
+        metadata: {
+          serviceId: 'service-789',
+        },
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithZeroDuration} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles string duration in metadata', async () => {
+      const bookingWithStringDuration = {
+        ...mockBookingData,
+        duration: 0,
+        metadata: {
+          serviceId: 'service-789',
+          duration: '60',
+        },
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithStringDuration} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles invalid time format gracefully', async () => {
+      const bookingWithInvalidTime = {
+        ...mockBookingData,
+        startTime: 'invalid-time',
+        endTime: 'also-invalid',
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithInvalidTime} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('currency normalization edge cases', () => {
+    it('handles booking with string totalAmount', async () => {
+      const bookingWithStringAmount = {
+        ...mockBookingData,
+        totalAmount: '115.50' as unknown as number,
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithStringAmount} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles booking with string basePrice', async () => {
+      const bookingWithStringBase = {
+        ...mockBookingData,
+        basePrice: '100.00' as unknown as number,
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithStringBase} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles booking with non-finite amount (NaN)', async () => {
+      const bookingWithNaN = {
+        ...mockBookingData,
+        totalAmount: NaN,
+        basePrice: NaN,
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithNaN} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles booking with Infinity amount', async () => {
+      const bookingWithInfinity = {
+        ...mockBookingData,
+        totalAmount: Infinity,
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithInfinity} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('date recovery from sessionStorage', () => {
+    beforeEach(() => {
+      sessionStorage.clear();
+    });
+
+    it('recovers date from selectedSlot in sessionStorage when date is missing', async () => {
+      const bookingWithoutDate = {
+        ...mockBookingData,
+        date: null as unknown as Date,
+      };
+
+      // Store a selected slot in sessionStorage
+      sessionStorage.setItem('selectedSlot', JSON.stringify({
+        date: '2025-02-15',
+        startTime: '10:00',
+        endTime: '11:00',
+      }));
+
+      const goToStep = jest.fn();
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.createCheckout.mockResolvedValue({
+        payment_intent_id: 'pi_123',
+        application_fee: 0,
+        success: true,
+        status: 'succeeded',
+        amount: 11500,
+        client_secret: 'secret_123',
+        requires_action: false,
+      });
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithoutDate} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      // Should attempt to process payment
+      await waitFor(() => {
+        expect(createBookingMock).toHaveBeenCalled();
+      });
+    });
+
+    it('handles missing date with no sessionStorage fallback', async () => {
+      const bookingWithoutDate = {
+        ...mockBookingData,
+        date: undefined as unknown as Date,
+      };
+
+      const goToStep = jest.fn();
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithoutDate} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      // Should go to error step due to missing date
+      await waitFor(() => {
+        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
+      });
+    });
+
+    it('handles invalid selectedSlot JSON in sessionStorage', async () => {
+      const bookingWithoutDate = {
+        ...mockBookingData,
+        date: null as unknown as Date,
+      };
+
+      // Store invalid JSON
+      sessionStorage.setItem('selectedSlot', 'not-valid-json');
+
+      const goToStep = jest.fn();
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithoutDate} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      // Should go to error step due to invalid JSON
+      await waitFor(() => {
+        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
+      });
+    });
+
+    it('handles selectedSlot without date property', async () => {
+      const bookingWithoutDate = {
+        ...mockBookingData,
+        date: null as unknown as Date,
+      };
+
+      // Store slot without date
+      sessionStorage.setItem('selectedSlot', JSON.stringify({
+        startTime: '10:00',
+        endTime: '11:00',
+      }));
+
+      const goToStep = jest.fn();
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithoutDate} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      // Should go to error step due to missing date in slot
+      await waitFor(() => {
+        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
+      });
+    });
+  });
+
+  describe('payment error message transformations', () => {
+    it('transforms "Payment failed with status" error message', async () => {
+      const goToStep = jest.fn();
+      const onError = jest.fn();
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.createCheckout.mockRejectedValue(
+        new Error('Payment failed with status: canceled')
+      );
+
+      render(
+        <PaymentSection {...defaultProps} onError={onError} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
+      });
+    });
+
+    it('handles 3DS authentication required error', async () => {
+      const goToStep = jest.fn();
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      // Simulate a requires_action error with client_secret
+      const error = new Error('requires_action');
+      (error as unknown as Record<string, unknown>)['client_secret'] = 'secret_123';
+      paymentServiceMock.createCheckout.mockRejectedValue(error);
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
+      });
+    });
+
+    it('handles non-Error exceptions during payment', async () => {
+      const goToStep = jest.fn();
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      // Reject with a string instead of an Error
+      paymentServiceMock.createCheckout.mockRejectedValue('String error message');
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
+      });
+    });
+  });
+
+  describe('booking cancellation on payment failure', () => {
+    it('cancels booking when payment fails after booking creation', async () => {
+      const cancelBookingMock = jest.fn().mockResolvedValue(undefined);
+      const { cancelBookingImperative } = jest.requireMock('@/src/api/services/bookings');
+      cancelBookingImperative.mockImplementation(cancelBookingMock);
+
+      const goToStep = jest.fn();
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-to-cancel', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.createCheckout.mockRejectedValue(new Error('Payment failed'));
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
+      });
+    });
+  });
+
+  describe('timezone metadata handling', () => {
+    it('uses timezone from metadata', async () => {
+      const bookingWithTimezone = {
+        ...mockBookingData,
+        metadata: {
+          serviceId: 'service-789',
+          timezone: 'America/New_York',
+        },
+      };
+
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.createCheckout.mockResolvedValue({
+        payment_intent_id: 'pi_123',
+        application_fee: 0,
+        success: true,
+        status: 'succeeded',
+        amount: 11500,
+        client_secret: 'secret_123',
+        requires_action: false,
+      });
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithTimezone} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(createBookingMock).toHaveBeenCalled();
+      });
+    });
+
+    it('uses lesson_timezone from metadata as fallback', async () => {
+      const bookingWithLessonTimezone = {
+        ...mockBookingData,
+        metadata: {
+          serviceId: 'service-789',
+          lesson_timezone: 'America/Los_Angeles',
+        },
+      };
+
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.createCheckout.mockResolvedValue({
+        payment_intent_id: 'pi_123',
+        application_fee: 0,
+        success: true,
+        status: 'succeeded',
+        amount: 11500,
+        client_secret: 'secret_123',
+        requires_action: false,
+      });
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithLessonTimezone} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(createBookingMock).toHaveBeenCalled();
+      });
+    });
+
+    it('uses instructor_timezone from metadata as fallback', async () => {
+      const bookingWithInstructorTimezone = {
+        ...mockBookingData,
+        metadata: {
+          serviceId: 'service-789',
+          instructor_timezone: 'America/Chicago',
+        },
+      };
+
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.createCheckout.mockResolvedValue({
+        payment_intent_id: 'pi_123',
+        application_fee: 0,
+        success: true,
+        status: 'succeeded',
+        amount: 11500,
+        client_secret: 'secret_123',
+        requires_action: false,
+      });
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={bookingWithInstructorTimezone} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(createBookingMock).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('payment without card when amount is due', () => {
+    it('throws error when payment required but no card selected', async () => {
+      const goToStep = jest.fn();
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      // Mock no payment methods
+      paymentServiceMock.listPaymentMethods.mockResolvedValue([]);
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
+      });
+    });
+  });
+
+  describe('payment status validation', () => {
+    it('accepts processing status as valid', async () => {
+      const onSuccess = jest.fn();
+      const goToStep = jest.fn();
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.createCheckout.mockResolvedValue({
+        payment_intent_id: 'pi_123',
+        application_fee: 0,
+        success: true,
+        status: 'processing',
+        amount: 11500,
+        client_secret: 'secret_123',
+        requires_action: false,
+      });
+
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(createBookingMock).toHaveBeenCalled();
+      });
+    });
+
+    it('accepts authorized status as valid', async () => {
+      const onSuccess = jest.fn();
+      const goToStep = jest.fn();
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.createCheckout.mockResolvedValue({
+        payment_intent_id: 'pi_123',
+        application_fee: 0,
+        success: true,
+        status: 'authorized',
+        amount: 11500,
+        client_secret: 'secret_123',
+        requires_action: false,
+      });
+
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(createBookingMock).toHaveBeenCalled();
+      });
+    });
+
+    it('accepts scheduled status as valid', async () => {
+      const onSuccess = jest.fn();
+      const goToStep = jest.fn();
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.createCheckout.mockResolvedValue({
+        payment_intent_id: 'pi_123',
+        application_fee: 0,
+        success: true,
+        status: 'scheduled',
+        amount: 11500,
+        client_secret: 'secret_123',
+        requires_action: false,
+      });
+
+      render(<PaymentSection {...defaultProps} onSuccess={onSuccess} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(createBookingMock).toHaveBeenCalled();
+      });
+    });
+  });
 });

@@ -1,5 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import { act } from 'react-dom/test-utils';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import BookingModalWithPayment from '../BookingModalWithPayment';
 import type { Instructor } from '../../types';

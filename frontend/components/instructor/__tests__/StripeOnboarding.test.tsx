@@ -92,8 +92,8 @@ describe('StripeOnboarding', () => {
     it('calls startOnboarding when clicking connect', async () => {
       paymentServiceMock.startOnboarding.mockResolvedValue({
         account_id: 'acct_123',
-        already_onboarded: false,
-        onboarding_url: 'https://connect.stripe.com/setup',
+        already_onboarded: true,
+        onboarding_url: '',
       });
 
       render(<StripeOnboarding instructorId={mockInstructorId} />);

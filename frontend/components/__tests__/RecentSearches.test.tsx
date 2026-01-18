@@ -89,7 +89,9 @@ describe('RecentSearches', () => {
     render(<RecentSearches />);
 
     await waitFor(() => expect(screen.getByText('Drums')).toBeInTheDocument());
-    await user.click(screen.getByRole('link', { name: /drums/i }));
+    const drumsLink = screen.getByRole('link', { name: /drums/i });
+    drumsLink.addEventListener('click', (event) => event.preventDefault());
+    await user.click(drumsLink);
 
     expect(window.sessionStorage.setItem).toHaveBeenCalledWith('navigationFrom', '/home');
   });
