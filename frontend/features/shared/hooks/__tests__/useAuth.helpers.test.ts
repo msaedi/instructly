@@ -75,14 +75,42 @@ describe('useAuth.helpers', () => {
       expect(hasRole(user, 'admin')).toBe(false);
     });
 
+    it('hasRole returns false for null user', () => {
+      expect(hasRole(null, 'student')).toBe(false);
+    });
+
+    it('hasRole returns false when roles is not an array', () => {
+      const userWithBadRoles = { ...user, roles: undefined } as unknown as User;
+      expect(hasRole(userWithBadRoles, 'student')).toBe(false);
+    });
+
     it('hasAnyRole returns true when any role matches', () => {
       expect(hasAnyRole(user, ['admin', 'student'])).toBe(true);
       expect(hasAnyRole(user, ['admin'])).toBe(false);
     });
 
+    it('hasAnyRole returns false when user has no roles', () => {
+      const userWithNoRoles = { ...user, roles: undefined } as unknown as User;
+      expect(hasAnyRole(userWithNoRoles, ['student'])).toBe(false);
+    });
+
+    it('hasAnyRole returns false when roles array is empty', () => {
+      const userWithEmptyRoles = { ...user, roles: [] };
+      expect(hasAnyRole(userWithEmptyRoles, ['student'])).toBe(false);
+    });
+
     it('hasPermission returns true only when permission exists', () => {
       expect(hasPermission(user, 'write')).toBe(true);
       expect(hasPermission(user, 'delete')).toBe(false);
+    });
+
+    it('hasPermission returns false for null user', () => {
+      expect(hasPermission(null, 'write')).toBe(false);
+    });
+
+    it('hasPermission returns false when permissions is not an array', () => {
+      const userWithBadPermissions = { ...user, permissions: undefined } as unknown as User;
+      expect(hasPermission(userWithBadPermissions, 'write')).toBe(false);
     });
 
     it('getPrimaryRole returns the first role or null', () => {

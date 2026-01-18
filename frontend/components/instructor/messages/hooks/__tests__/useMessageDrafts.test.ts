@@ -232,4 +232,13 @@ describe('useMessageDrafts', () => {
       'thread-1': 'Valid string',
     });
   });
+
+  it('handles empty cookie value gracefully', () => {
+    // Set cookie with empty value
+    mockCookies[DRAFT_COOKIE_NAME] = '';
+
+    const { result } = renderHook(() => useMessageDrafts());
+
+    expect(result.current.draftsByThread).toEqual({});
+  });
 });

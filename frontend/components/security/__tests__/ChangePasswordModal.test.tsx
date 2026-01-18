@@ -103,4 +103,38 @@ describe('ChangePasswordModal', () => {
       expect(screen.getByText('Network error.')).toBeInTheDocument();
     });
   });
+
+  it('handles JSON parse failure gracefully', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce({
+      ok: false,
+      json: jest.fn().mockRejectedValue(new Error('Invalid JSON')),
+    });
+
+    renderModal();
+
+    const [currentInput, newInput, confirmInput] = getPasswordInputs();
+    await userEvent.type(currentInput, 'current123');
+    await userEvent.type(newInput, 'newpassword');
+    await userEvent.type(confirmInput, 'newpassword');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save password' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to change password.')).toBeInTheDocument();
+    });
+  });
+
+  it('does not submit when canSubmit is false', async () => {
+    renderModal();
+
+    // Current password too short (needs 6 chars)
+    const [currentInput, newInput, confirmInput] = getPasswordInputs();
+    await userEvent.type(currentInput, '12345');  // Only 5 chars
+    await userEvent.type(newInput, 'newpassword');
+    await userEvent.type(confirmInput, 'newpassword');
+
+    // Button should be disabled
+    expect(screen.getByRole('button', { name: 'Save password' })).toBeDisabled();
+    expect(fetchWithAuthMock).not.toHaveBeenCalled();
+  });
 });

@@ -529,4 +529,85 @@ describe('useReactions', () => {
       expect(mockMutations.addReaction).not.toHaveBeenCalled();
     });
   });
+
+  describe('debug logging', () => {
+    it('logs debug messages when debug is true', async () => {
+      const { logger } = jest.requireMock('@/lib/logger');
+      const messages = [createMessage('msg-1', [])];
+
+      const { result } = renderHook(() =>
+        useReactions({
+          messages,
+          mutations: mockMutations,
+          debug: true,
+        })
+      );
+
+      await act(async () => {
+        await result.current.handleReaction('msg-1', '👍');
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(200);
+      });
+
+      expect(logger.debug).toHaveBeenCalled();
+    });
+  });
+
+  describe('timeout cleanup', () => {
+    it('clears existing processing timeout before setting new one', async () => {
+      const messages = [createMessage('msg-1', []), createMessage('msg-2', [])];
+
+      const { result } = renderHook(() =>
+        useReactions({ messages, mutations: mockMutations })
+      );
+
+      // First reaction
+      await act(async () => {
+        await result.current.handleReaction('msg-1', '👍');
+      });
+
+      // Advance timer partially
+      await act(async () => {
+        jest.advanceTimersByTime(200);
+      });
+
+      // Now processingReaction should be null, start second reaction
+      await act(async () => {
+        await result.current.handleReaction('msg-2', '❤️');
+      });
+
+      // Advance past timeout
+      await act(async () => {
+        jest.advanceTimersByTime(200);
+      });
+
+      expect(result.current.processingReaction).toBeNull();
+    });
+  });
+
+  describe('getCurrentReaction server fallback', () => {
+    it('returns null for unknown message ID', () => {
+      const messages = [createMessage('msg-1', ['👍'])];
+
+      const { result } = renderHook(() =>
+        useReactions({ messages, mutations: mockMutations })
+      );
+
+      // Query a message that doesn't exist
+      expect(result.current.getCurrentReaction('msg-unknown')).toBeNull();
+    });
+
+    it('returns server reaction when not in local state', () => {
+      const messages = [createMessage('msg-1', ['👍'])];
+
+      const { result } = renderHook(() =>
+        useReactions({ messages, mutations: mockMutations })
+      );
+
+      // Before local state is set, it should still return the server value
+      expect(result.current.getCurrentReaction('msg-1')).toBe('👍');
+    });
+  });
 });

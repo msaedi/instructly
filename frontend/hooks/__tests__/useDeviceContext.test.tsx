@@ -167,6 +167,51 @@ describe('useDeviceContext', () => {
     jest.useRealTimers();
   });
 
+  it('should clear previous debounce timer on rapid resizes', async () => {
+    jest.useFakeTimers();
+    renderHook(() =>
+      useDeviceContext({
+        monitorChanges: true,
+        debounceDelay: 300,
+      })
+    );
+
+    jest.clearAllMocks();
+
+    // Simulate multiple rapid resize events
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    // Wait 100ms (less than debounce delay)
+    act(() => {
+      jest.advanceTimersByTime(100);
+    });
+
+    // Another resize - should clear previous timer
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    // Wait another 100ms
+    act(() => {
+      jest.advanceTimersByTime(100);
+    });
+
+    // Should not have captured yet (debounce restarted)
+    expect(mockDeviceContext.captureDeviceContext).not.toHaveBeenCalled();
+
+    // Wait full debounce time from last resize
+    act(() => {
+      jest.advanceTimersByTime(200);
+    });
+
+    // Now should capture only once
+    expect(mockDeviceContext.captureDeviceContext).toHaveBeenCalledTimes(1);
+
+    jest.useRealTimers();
+  });
+
   it('should handle visibility change', () => {
     renderHook(() => useDeviceContext({ monitorChanges: true }));
 
@@ -192,6 +237,55 @@ describe('useDeviceContext', () => {
     unmount();
 
     expect(cleanupFn).toHaveBeenCalled();
+  });
+
+  it('should recapture context when connection changes with context', () => {
+    type ConnectionCallback = Parameters<typeof mockDeviceContext.monitorConnectionChanges>[0];
+    let connectionCallback: ConnectionCallback | null = null;
+
+    mockDeviceContext.monitorConnectionChanges.mockImplementation((cb: ConnectionCallback) => {
+      connectionCallback = cb;
+      return () => {};
+    });
+
+    const { result } = renderHook(() => useDeviceContext({ monitorChanges: true }));
+
+    jest.clearAllMocks();
+
+    // Simulate connection change with context (triggers full recapture)
+    act(() => {
+      if (connectionCallback) {
+        connectionCallback(true, { effectiveType: '4g' } as ReturnType<typeof deviceContext.captureDeviceContext>);
+      }
+    });
+
+    expect(mockDeviceContext.captureDeviceContext).toHaveBeenCalled();
+    expect(result.current.isOnline).toBe(true);
+  });
+
+  it('should update only isOnline when connection changes without context', () => {
+    type ConnectionCallback = Parameters<typeof mockDeviceContext.monitorConnectionChanges>[0];
+    let connectionCallback: ConnectionCallback | null = null;
+
+    mockDeviceContext.monitorConnectionChanges.mockImplementation((cb: ConnectionCallback) => {
+      connectionCallback = cb;
+      return () => {};
+    });
+
+    const { result } = renderHook(() => useDeviceContext({ monitorChanges: true }));
+
+    jest.clearAllMocks();
+
+    // Simulate going offline without full context
+    act(() => {
+      if (connectionCallback) {
+        connectionCallback(false, undefined);
+      }
+    });
+
+    // Should NOT recapture, just update isOnline
+    expect(mockDeviceContext.captureDeviceContext).not.toHaveBeenCalled();
+    expect(result.current.isOnline).toBe(false);
   });
 });
 

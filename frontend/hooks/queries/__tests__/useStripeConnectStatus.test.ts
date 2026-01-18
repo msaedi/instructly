@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useStripeConnectStatus } from '../useStripeConnectStatus';
+import { useStripeConnectStatus, stripeConnectStatusQueryKey } from '../useStripeConnectStatus';
 import { fetchWithAuth } from '@/lib/api';
 
 jest.mock('@/lib/api', () => ({
@@ -62,5 +62,9 @@ describe('useStripeConnectStatus', () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(fetchWithAuthMock).not.toHaveBeenCalled();
+  });
+
+  it('exports query key for use with invalidation', () => {
+    expect(stripeConnectStatusQueryKey).toEqual(['payments', 'connect', 'status']);
   });
 });

@@ -440,4 +440,52 @@ describe('UpcomingLessons', () => {
       });
     });
   });
+
+  describe('Date label formatting', () => {
+    it('shows "Today" for bookings today', async () => {
+      const now = new Date();
+      const todayBooking = createMockBooking({
+        booking_start_utc: now.toISOString(),
+        booking_date: now.toISOString().split('T')[0],
+      });
+
+      mockUseUpcomingBookings.mockReturnValue({
+        data: {
+          items: [todayBooking],
+          total: 1,
+        },
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useUpcomingBookings>);
+
+      render(<UpcomingLessons />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Today/)).toBeInTheDocument();
+      });
+    });
+
+    it('shows "Tomorrow" for bookings tomorrow', async () => {
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const tomorrowBooking = createMockBooking({
+        booking_start_utc: tomorrow.toISOString(),
+        booking_date: tomorrow.toISOString().split('T')[0],
+      });
+
+      mockUseUpcomingBookings.mockReturnValue({
+        data: {
+          items: [tomorrowBooking],
+          total: 1,
+        },
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useUpcomingBookings>);
+
+      render(<UpcomingLessons />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Tomorrow/)).toBeInTheDocument();
+      });
+    });
+  });
 });

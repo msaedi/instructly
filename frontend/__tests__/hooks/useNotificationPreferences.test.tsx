@@ -90,4 +90,36 @@ describe('useNotificationPreferences', () => {
       expect(result.current.preferences?.promotional.email).toBe(true);
     });
   });
+
+  it('rolls back optimistic update on mutation error', async () => {
+    const initialPreferences = {
+      lesson_updates: { email: true, push: true, sms: false },
+      messages: { email: false, push: true, sms: false },
+      reviews: { email: true, push: true, sms: false },
+      learning_tips: { email: true, push: true, sms: false },
+      system_updates: { email: true, push: false, sms: false },
+      promotional: { email: false, push: false, sms: false },
+    };
+
+    mockedApi.getPreferences.mockReset();
+    mockedApi.getPreferences.mockResolvedValue(initialPreferences);
+    mockedApi.updatePreference.mockRejectedValue(new Error('Network error'));
+
+    const { result } = renderHook(() => useNotificationPreferences(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.preferences?.promotional.email).toBe(false);
+    });
+
+    act(() => {
+      result.current.updatePreference('promotional', 'email', true);
+    });
+
+    // Wait for mutation to fail and rollback
+    await waitFor(() => {
+      expect(mockedApi.updatePreference).toHaveBeenCalledWith('promotional', 'email', true);
+      // Value should be rolled back to original after error
+      expect(result.current.preferences?.promotional.email).toBe(false);
+    });
+  });
 });

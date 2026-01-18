@@ -313,4 +313,123 @@ describe('ImageCropModal', () => {
     // Save button should be present
     expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
   });
+
+  it('logs error when image fails to load', async () => {
+    const { logger } = jest.requireMock('@/lib/logger');
+
+    // Mock Image to trigger onerror
+    jest.spyOn(global, 'Image').mockImplementation(() => {
+      const img = {
+        onload: null as (() => void) | null,
+        onerror: null as ((err?: unknown) => void) | null,
+        src: '',
+        naturalWidth: 0,
+        naturalHeight: 0,
+      };
+      Object.defineProperty(img, 'onerror', {
+        set(cb) {
+          // Trigger error asynchronously
+          setTimeout(() => {
+            if (cb) cb.call(img);
+          }, 0);
+        },
+        get() {
+          return null;
+        },
+      });
+      return img as unknown as HTMLImageElement;
+    });
+
+    render(<ImageCropModal {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith('Failed to load image for cropping');
+    });
+  });
+
+  it('ignores pointer move when not dragging', async () => {
+    render(<ImageCropModal {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Image crop area')).toBeInTheDocument();
+    });
+
+    const cropArea = screen.getByLabelText('Image crop area');
+
+    // Move without starting drag - should do nothing
+    fireEvent.pointerMove(cropArea, { clientX: 150, clientY: 150 });
+
+    // Cursor should still be 'grab' (not 'grabbing')
+    expect(cropArea).toHaveStyle({ cursor: 'grab' });
+  });
+
+  it('does not call onCropped when Save clicked before image loads', async () => {
+    // Mock Image to never load
+    jest.spyOn(global, 'Image').mockImplementation(() => {
+      const img = {
+        onload: null,
+        onerror: null,
+        src: '',
+        naturalWidth: 0,
+        naturalHeight: 0,
+      };
+      return img as unknown as HTMLImageElement;
+    });
+
+    const user = userEvent.setup();
+    const onCropped = jest.fn();
+    render(<ImageCropModal {...defaultProps} onCropped={onCropped} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    // onCropped should not be called because image hasn't loaded
+    expect(onCropped).not.toHaveBeenCalled();
+  });
+
+  it('logs error when toBlob throws an exception', async () => {
+    const { logger } = jest.requireMock('@/lib/logger');
+
+    HTMLCanvasElement.prototype.getContext = jest.fn(() => mockCanvasContext) as jest.Mock;
+    HTMLCanvasElement.prototype.toBlob = jest.fn(() => {
+      throw new Error('Canvas error');
+    });
+
+    const user = userEvent.setup();
+    const onCropped = jest.fn();
+    render(<ImageCropModal {...defaultProps} onCropped={onCropped} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to create cropped image',
+        expect.any(Error)
+      );
+    });
+  });
+
+  it('does nothing on save when canvas context returns null', async () => {
+    HTMLCanvasElement.prototype.getContext = jest.fn(() => null) as jest.Mock;
+
+    const user = userEvent.setup();
+    const onCropped = jest.fn();
+    render(<ImageCropModal {...defaultProps} onCropped={onCropped} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    // onCropped should not be called
+    expect(onCropped).not.toHaveBeenCalled();
+  });
 });

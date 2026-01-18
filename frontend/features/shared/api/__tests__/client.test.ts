@@ -1,4 +1,4 @@
-import { cleanFetch, getPlaceDetails, protectedApi, publicApi } from '@/features/shared/api/client';
+import { cleanFetch, getPlaceDetails, protectedApi, publicApi, PUBLIC_ENDPOINTS, PROTECTED_ENDPOINTS } from '@/features/shared/api/client';
 import { getSessionId, refreshSession } from '@/lib/sessionTracking';
 import { withApiBase } from '@/lib/apiBase';
 
@@ -267,5 +267,81 @@ describe('getPlaceDetails', () => {
     expect(requestUrl.pathname).toBe('/api/proxy/api/v1/addresses/places/details');
     expect(requestUrl.searchParams.get('place_id')).toBe('place-1');
     expect(requestUrl.searchParams.get('provider')).toBe('google');
+  });
+});
+
+describe('API endpoint constants', () => {
+  it('exports PUBLIC_ENDPOINTS with expected structure', () => {
+    expect(PUBLIC_ENDPOINTS.instructors.list).toBe('/api/v1/instructors');
+    expect(PUBLIC_ENDPOINTS.instructors.profile('abc123')).toBe('/api/v1/instructors/abc123');
+    expect(PUBLIC_ENDPOINTS.instructors.availability('abc123')).toBe('/api/v1/public/instructors/abc123/availability');
+  });
+
+  it('exports PROTECTED_ENDPOINTS with expected structure', () => {
+    expect(PROTECTED_ENDPOINTS.bookings.create).toBe('/api/v1/bookings');
+    expect(PROTECTED_ENDPOINTS.bookings.list).toBe('/api/v1/bookings');
+    expect(PROTECTED_ENDPOINTS.bookings.get('booking123')).toBe('/api/v1/bookings/booking123');
+    expect(PROTECTED_ENDPOINTS.bookings.cancel('booking123')).toBe('/api/v1/bookings/booking123/cancel');
+    expect(PROTECTED_ENDPOINTS.instructor.bookings.list).toBe('/api/v1/instructor-bookings/');
+  });
+});
+
+describe('SSR code paths', () => {
+  const originalFetch = global.fetch;
+  let fetchMock: jest.Mock;
+
+  beforeEach(() => {
+    fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: jest.fn() },
+      json: async () => ({}),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+  });
+
+  afterEach(() => {
+    if (originalFetch) {
+      global.fetch = originalFetch;
+    } else {
+      // @ts-expect-error - cleanup when fetch was initially undefined
+      delete global.fetch;
+    }
+  });
+
+  it('returns null for guest session when document is undefined', async () => {
+    const originalDocument = global.document;
+    // @ts-expect-error - simulate SSR environment
+    delete global.document;
+
+    try {
+      // Call publicApi method that uses getGuestSessionId internally
+      await publicApi.getRecentSearches();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const options = fetchMock.mock.calls[0][1] as RequestInit;
+      const headers = options.headers as Record<string, string>;
+      // Guest session header should not be set when document is undefined
+      expect(headers['X-Guest-Session-ID']).toBeUndefined();
+    } finally {
+      global.document = originalDocument;
+    }
+  });
+
+  it('handles sessionStorage error in guest session fallback', async () => {
+    document.cookie = 'guest_id=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+    const getItemSpy = jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('Storage access denied');
+    });
+
+    try {
+      await publicApi.getRecentSearches();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const options = fetchMock.mock.calls[0][1] as RequestInit;
+      const headers = options.headers as Record<string, string>;
+      // Should gracefully handle the error and not set guest header
+      expect(headers['X-Guest-Session-ID']).toBeUndefined();
+    } finally {
+      getItemSpy.mockRestore();
+    }
   });
 });

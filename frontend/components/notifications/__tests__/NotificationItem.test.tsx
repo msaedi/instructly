@@ -358,6 +358,42 @@ describe('NotificationItem', () => {
 
       expect(mockOnRead).not.toHaveBeenCalled();
     });
+
+    it('stops propagation on delete button keydown', async () => {
+      render(
+        <NotificationItem
+          notification={createNotification({ read_at: null })}
+          onRead={mockOnRead}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      const item = screen.getByRole('menuitem');
+      fireEvent.mouseEnter(item);
+
+      const deleteButton = screen.getByRole('button', { name: 'Delete notification' });
+      fireEvent.keyDown(deleteButton, { key: 'Enter' });
+
+      // onRead should not be called because keydown was stopped
+      expect(mockOnRead).not.toHaveBeenCalled();
+    });
+
+    it('hides delete button on mouse leave', async () => {
+      render(
+        <NotificationItem
+          notification={createNotification()}
+          onRead={mockOnRead}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      const item = screen.getByRole('menuitem');
+      fireEvent.mouseEnter(item);
+      expect(screen.getByRole('button', { name: 'Delete notification' })).toBeInTheDocument();
+
+      fireEvent.mouseLeave(item);
+      expect(screen.queryByRole('button', { name: 'Delete notification' })).not.toBeInTheDocument();
+    });
   });
 
   describe('accessibility', () => {

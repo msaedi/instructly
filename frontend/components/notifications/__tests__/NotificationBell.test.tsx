@@ -265,6 +265,54 @@ describe('NotificationBell', () => {
       expect(screen.getByText('First notification')).toBeInTheDocument();
       expect(screen.getByText('Second notification')).toBeInTheDocument();
     });
+
+    it('calls markAsRead when notification onRead is triggered', async () => {
+      const user = userEvent.setup();
+      const notification = createNotification({ id: 'test-id-123', title: 'Test' });
+
+      mockUseNotifications.mockReturnValue({
+        notifications: [notification],
+        unreadCount: 1,
+        isLoading: false,
+        error: null,
+        markAsRead: mockMarkAsRead,
+        markAllAsRead: mockMarkAllAsRead,
+        deleteNotification: mockDeleteNotification,
+        clearAll: mockClearAll,
+      });
+
+      render(<NotificationBell />);
+      await user.click(screen.getByRole('button', { name: /Notifications/ }));
+
+      // Click the "Mark Read" button in the mocked NotificationItem
+      await user.click(screen.getByText('Mark Read'));
+
+      expect(mockMarkAsRead.mutate).toHaveBeenCalledWith('test-id-123');
+    });
+
+    it('calls deleteNotification when notification onDelete is triggered', async () => {
+      const user = userEvent.setup();
+      const notification = createNotification({ id: 'delete-test-456', title: 'Test' });
+
+      mockUseNotifications.mockReturnValue({
+        notifications: [notification],
+        unreadCount: 1,
+        isLoading: false,
+        error: null,
+        markAsRead: mockMarkAsRead,
+        markAllAsRead: mockMarkAllAsRead,
+        deleteNotification: mockDeleteNotification,
+        clearAll: mockClearAll,
+      });
+
+      render(<NotificationBell />);
+      await user.click(screen.getByRole('button', { name: /Notifications/ }));
+
+      // Click the "Delete" button in the mocked NotificationItem
+      await user.click(screen.getByText('Delete'));
+
+      expect(mockDeleteNotification.mutate).toHaveBeenCalledWith('delete-test-456');
+    });
   });
 
   describe('mark all as read', () => {
@@ -379,6 +427,57 @@ describe('NotificationBell', () => {
 
       // First item should be focused
       expect(document.activeElement).toHaveAttribute('data-notification-item', 'true');
+    });
+
+    it('ignores non-arrow/escape keys on menu', async () => {
+      const user = userEvent.setup();
+      mockUseNotifications.mockReturnValue({
+        notifications: [createNotification()],
+        unreadCount: 1,
+        isLoading: false,
+        error: null,
+        markAsRead: mockMarkAsRead,
+        markAllAsRead: mockMarkAllAsRead,
+        deleteNotification: mockDeleteNotification,
+        clearAll: mockClearAll,
+      });
+
+      render(<NotificationBell />);
+      await user.click(screen.getByRole('button', { name: /Notifications/ }));
+
+      const menu = screen.getByRole('menu');
+
+      // Press a key that should be ignored (Tab, Enter, etc.)
+      fireEvent.keyDown(menu, { key: 'Tab' });
+
+      // Menu should still be open (Escape would close it)
+      expect(screen.getByRole('menu')).toBeInTheDocument();
+    });
+
+    it('handles arrow keys when no notification items exist', async () => {
+      const user = userEvent.setup();
+      // isLoading means no items rendered
+      mockUseNotifications.mockReturnValue({
+        notifications: [],
+        unreadCount: 0,
+        isLoading: true,
+        error: null,
+        markAsRead: mockMarkAsRead,
+        markAllAsRead: mockMarkAllAsRead,
+        deleteNotification: mockDeleteNotification,
+        clearAll: mockClearAll,
+      });
+
+      render(<NotificationBell />);
+      await user.click(screen.getByRole('button', { name: 'Notifications' }));
+
+      const menu = screen.getByRole('menu');
+
+      // Press ArrowDown when no items - should gracefully handle
+      fireEvent.keyDown(menu, { key: 'ArrowDown' });
+
+      // Menu should still be open and no errors
+      expect(screen.getByRole('menu')).toBeInTheDocument();
     });
   });
 

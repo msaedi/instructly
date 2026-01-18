@@ -245,6 +245,12 @@ describe('applyReferralCredit', () => {
 
     expect(result).toEqual(payload);
   });
+
+  it('rethrows when response is ok but json parsing fails', async () => {
+    fetchMock.mockResolvedValueOnce(makeResponse({ ok: true, jsonThrows: true }));
+
+    await expect(applyReferralCredit('order-3')).rejects.toThrow('bad json');
+  });
 });
 
 describe('sendReferralInvites', () => {
@@ -288,5 +294,25 @@ describe('sendReferralInvites', () => {
     await expect(
       sendReferralInvites({ emails: ['one@example.com'], shareUrl: 'https://share' })
     ).rejects.toThrow('Send failed');
+  });
+
+  it('handles json parse failure gracefully and returns email count', async () => {
+    fetchApiMock.mockResolvedValueOnce(makeResponse({ ok: true, jsonThrows: true }));
+
+    const result = await sendReferralInvites({
+      emails: ['one@example.com', 'two@example.com'],
+      shareUrl: 'https://share',
+    });
+
+    // Falls back to emails.length
+    expect(result).toBe(2);
+  });
+
+  it('throws fallback error when API fails with no detail', async () => {
+    fetchApiMock.mockResolvedValueOnce(makeResponse({ ok: false, json: {} }));
+
+    await expect(
+      sendReferralInvites({ emails: ['one@example.com'], shareUrl: 'https://share' })
+    ).rejects.toThrow('Failed to send invites');
   });
 });

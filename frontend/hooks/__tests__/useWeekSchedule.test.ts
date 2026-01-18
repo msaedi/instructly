@@ -477,4 +477,315 @@ describe('useWeekSchedule', () => {
       expect(onWeekStartChange).toHaveBeenCalled();
     });
   });
+
+  describe('extractDetailFromResponse error parsing (lines 49-71)', () => {
+    it('handles error with array of objects containing msg field', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        json: async () => ({
+          detail: [
+            { msg: 'Invalid start time', loc: ['body', 'start_time'] },
+            { msg: 'Invalid end time', loc: ['body', 'end_time'] },
+          ],
+        }),
+        headers: { get: () => null },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.message?.type).toBe('error');
+      expect(result.current.message?.text).toContain('Invalid start time');
+      expect(result.current.message?.text).toContain('Invalid end time');
+    });
+
+    it('handles error with array of string details', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        json: async () => ({
+          detail: ['First error', 'Second error'],
+        }),
+        headers: { get: () => null },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.message?.type).toBe('error');
+      expect(result.current.message?.text).toContain('First error');
+    });
+
+    it('handles error with message field instead of detail', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: async () => ({
+          message: 'Something went wrong on the server',
+        }),
+        headers: { get: () => null },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.message?.type).toBe('error');
+      expect(result.current.message?.text).toContain('Something went wrong on the server');
+    });
+
+    it('handles error response that is just a string', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        json: async () => 'Plain string error',
+        headers: { get: () => null },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.message?.type).toBe('error');
+      expect(result.current.message?.text).toContain('Plain string error');
+    });
+
+    it('handles error with empty detail array', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        json: async () => ({
+          detail: [],
+        }),
+        headers: { get: () => null },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.message?.type).toBe('error');
+    });
+
+    it('handles error with null body', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: async () => null,
+        headers: { get: () => null },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.message?.type).toBe('error');
+      expect(result.current.message?.text).toContain('Internal Server Error');
+    });
+
+    it('handles json parse failure', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: false,
+        status: 500,
+        statusText: 'Server Error',
+        json: async () => {
+          throw new Error('Invalid JSON');
+        },
+        headers: { get: () => null },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.message?.type).toBe('error');
+    });
+  });
+
+  describe('schedule data loading (lines 305-306)', () => {
+    it('loads schedule data with actual time slots', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: true,
+        json: async () => ({
+          '2030-01-07': [
+            { start_time: '09:00:00', end_time: '12:00:00' },
+            { start_time: '14:00:00', end_time: '17:00:00' },
+          ],
+          '2030-01-08': [
+            { start_time: '10:00:00', end_time: '15:00:00' },
+          ],
+        }),
+        headers: {
+          get: (name: string) => {
+            if (name === 'ETag') return 'abc123';
+            if (name === 'Last-Modified') return new Date().toUTCString();
+            return null;
+          },
+        },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.weekSchedule).toBeDefined();
+      expect(Object.keys(result.current.weekSchedule).length).toBeGreaterThan(0);
+    });
+
+    it('skips dates with empty slot arrays', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: true,
+        json: async () => ({
+          '2030-01-07': [],
+          '2030-01-08': [{ start_time: '10:00:00', end_time: '11:00:00' }],
+        }),
+        headers: {
+          get: (name: string) => {
+            if (name === 'ETag') return 'abc123';
+            return null;
+          },
+        },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // Empty arrays should be filtered out
+      expect(result.current.weekSchedule['2030-01-07']).toBeUndefined();
+    });
+
+    it('handles dates with undefined slots', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: true,
+        json: async () => ({
+          '2030-01-07': undefined,
+          '2030-01-08': null,
+          '2030-01-09': [{ start_time: '09:00:00', end_time: '10:00:00' }],
+        }),
+        headers: {
+          get: () => null,
+        },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // Undefined/null slots should be filtered out
+      expect(result.current.weekSchedule['2030-01-07']).toBeUndefined();
+      expect(result.current.weekSchedule['2030-01-08']).toBeUndefined();
+    });
+  });
+
+  describe('dayBitsEqual edge cases (line 81)', () => {
+    it('returns true when both day bits are identical', async () => {
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+
+      // Set same bits twice
+      const testBits = new Uint8Array([1, 2, 3, 0, 0]);
+
+      await act(async () => {
+        result.current.setWeekBits({ '2030-01-07': testBits });
+      });
+
+      await act(async () => {
+        result.current.setSavedWeekBits({ '2030-01-07': testBits.slice() });
+      });
+
+      // Now they should be equal
+      expect(result.current.hasUnsavedChanges).toBe(false);
+    });
+
+    it('returns true when both day bits are empty', async () => {
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+
+      // Both start empty
+      expect(result.current.hasUnsavedChanges).toBe(false);
+    });
+  });
+
+  describe('X-Allow-Past header yes value', () => {
+    it('parses X-Allow-Past header when yes', async () => {
+      mockFetchWithAuth.mockImplementationOnce(async () => ({
+        ok: true,
+        json: async () => ({}),
+        headers: {
+          get: (name: string) => {
+            if (name === 'X-Allow-Past') return ' YES ';
+            if (name === 'ETag') return 'xyz';
+            return null;
+          },
+        },
+      }));
+
+      const { result } = renderHook(() => useWeekSchedule());
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(result.current.allowPastEdits).toBe(true);
+    });
+  });
+
+  describe('messageTimeout edge case', () => {
+    it('does not clear message when timeout is 0', async () => {
+      const { result } = renderHook(() => useWeekSchedule({ messageTimeout: 0 }));
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+
+      await act(async () => {
+        result.current.setMessage({ type: 'info', text: 'Persistent message' });
+      });
+
+      expect(result.current.message).toEqual({ type: 'info', text: 'Persistent message' });
+
+      // Wait a bit to ensure it doesn't auto-clear
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 100));
+      });
+
+      expect(result.current.message).toEqual({ type: 'info', text: 'Persistent message' });
+    });
+  });
 });

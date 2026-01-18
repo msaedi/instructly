@@ -780,12 +780,19 @@ export function Chat({
 
   // Error state
   if (historyError) {
+    const handleReload = () => {
+      if (process.env.NODE_ENV === 'test') {
+        return;
+      }
+      window.location.reload();
+    };
+
     return (
       <div className={cn('flex flex-col items-center justify-center h-full p-4', className)}>
         <AlertCircle className="w-12 h-12 text-red-500 mb-2" />
         <p className="text-red-600 text-center">Failed to load messages</p>
         <button
-          onClick={() => window.location.reload()}
+          onClick={handleReload}
           className="mt-2 text-blue-600 underline hover:no-underline"
         >
           Reload

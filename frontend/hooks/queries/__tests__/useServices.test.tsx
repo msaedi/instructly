@@ -125,6 +125,39 @@ describe('useServices hooks', () => {
     global.fetch = originalFetch;
   });
 
+  it('includes all filter parameters in search query', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ services: [], hasMore: false }),
+    });
+    const originalFetch = global.fetch;
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    const { result } = renderHook(
+      () => useServicesInfiniteSearch({
+        query: 'music',
+        category: 'instruments',
+        minPrice: 20,
+        maxPrice: 100,
+        onlineOnly: true,
+        certificationRequired: true,
+      }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const callUrl = fetchMock.mock.calls[0][0] as string;
+    expect(callUrl).toContain('q=music');
+    expect(callUrl).toContain('category=instruments');
+    expect(callUrl).toContain('min_price=20');
+    expect(callUrl).toContain('max_price=100');
+    expect(callUrl).toContain('online_only=true');
+    expect(callUrl).toContain('certification_required=true');
+
+    global.fetch = originalFetch;
+  });
+
   it('exposes error state when infinite search fails', async () => {
     const fetchMock = jest.fn().mockResolvedValue({ ok: false });
     const originalFetch = global.fetch;
