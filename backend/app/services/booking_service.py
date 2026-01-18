@@ -191,8 +191,6 @@ class BookingService(BaseService):
         else:
             timestamp = booking.created_at or datetime.now(timezone.utc)
 
-        if timestamp is None:
-            raise RuntimeError("Timestamp missing for booking event")
         ts = timestamp.astimezone(timezone.utc)
         version = ts.isoformat()
         key = f"booking:{booking.id}:{event_type}:{version}"

@@ -1654,3 +1654,129 @@ class TestGetBookingForUserCoverage:
 
         assert result is not None
         assert result.id == booking_id
+
+
+class TestResolveActorPayloadRolesList:
+    """Test _resolve_actor_payload when role is extracted from roles list."""
+
+    def test_extract_role_from_roles_list(self, booking_service):
+        """Test extracting role from actor.roles when role/role_name are None.
+
+        Covers lines 286-292 in booking_service.py.
+        """
+        # Actor with roles list but no direct role attribute
+        actor = MagicMock()
+        actor.id = generate_ulid()
+        actor.role = None
+        actor.role_name = None
+
+        # Create role objects with name attributes
+        role1 = MagicMock()
+        role1.name = "student"
+        role2 = MagicMock()
+        role2.name = "instructor"
+        actor.roles = [role1, role2]
+
+        result = booking_service._resolve_actor_payload(actor, default_role="unknown")
+
+        assert result["role"] == "student"  # First role found
+        assert result["id"] == actor.id
+
+    def test_extract_role_from_empty_roles_list(self, booking_service):
+        """Test fallback when roles list is empty."""
+        actor = MagicMock()
+        actor.id = generate_ulid()
+        actor.role = None
+        actor.role_name = None
+        actor.roles = []  # Empty list
+
+        result = booking_service._resolve_actor_payload(actor, default_role="fallback")
+
+        assert result["role"] == "fallback"
+
+    def test_extract_role_from_roles_with_no_name(self, booking_service):
+        """Test fallback when role objects have no name attribute."""
+        actor = MagicMock()
+        actor.id = generate_ulid()
+        actor.role = None
+        actor.role_name = None
+
+        # Role objects without name attribute
+        role1 = MagicMock(spec=[])  # No attributes
+        actor.roles = [role1]
+
+        result = booking_service._resolve_actor_payload(actor, default_role="default_role")
+
+        assert result["role"] == "default_role"
+
+    def test_extract_role_from_tuple(self, booking_service):
+        """Test extracting role from tuple of roles."""
+        actor = MagicMock()
+        actor.id = generate_ulid()
+        actor.role = None
+        actor.role_name = None
+
+        role1 = MagicMock()
+        role1.name = "admin"
+        actor.roles = (role1,)  # Tuple instead of list
+
+        result = booking_service._resolve_actor_payload(actor, default_role="unknown")
+
+        assert result["role"] == "admin"
+
+
+class TestBookingEventIdentity:
+    """Test _booking_event_identity for timestamp edge cases."""
+
+    def test_booking_cancelled_with_cancelled_at(self, booking_service):
+        """Test cancelled booking uses cancelled_at timestamp."""
+        booking = MagicMock(spec=Booking)
+        booking.id = generate_ulid()
+        booking.cancelled_at = datetime(2026, 12, 25, 10, 0, tzinfo=timezone.utc)
+        booking.completed_at = None
+        booking.updated_at = datetime(2026, 12, 24, 10, 0, tzinfo=timezone.utc)
+        booking.created_at = datetime(2026, 12, 23, 10, 0, tzinfo=timezone.utc)
+
+        key, version = booking_service._booking_event_identity(booking, "booking.cancelled")
+
+        assert "2026-12-25" in version
+        assert "booking.cancelled" in key
+
+    def test_booking_completed_with_completed_at(self, booking_service):
+        """Test completed booking uses completed_at timestamp."""
+        booking = MagicMock(spec=Booking)
+        booking.id = generate_ulid()
+        booking.cancelled_at = None
+        booking.completed_at = datetime(2026, 12, 26, 10, 0, tzinfo=timezone.utc)
+        booking.updated_at = datetime(2026, 12, 24, 10, 0, tzinfo=timezone.utc)
+        booking.created_at = datetime(2026, 12, 23, 10, 0, tzinfo=timezone.utc)
+
+        key, version = booking_service._booking_event_identity(booking, "booking.completed")
+
+        assert "2026-12-26" in version
+
+    def test_booking_updated_uses_updated_at(self, booking_service):
+        """Test regular update uses updated_at timestamp."""
+        booking = MagicMock(spec=Booking)
+        booking.id = generate_ulid()
+        booking.cancelled_at = None
+        booking.completed_at = None
+        booking.updated_at = datetime(2026, 12, 27, 10, 0, tzinfo=timezone.utc)
+        booking.created_at = datetime(2026, 12, 23, 10, 0, tzinfo=timezone.utc)
+
+        key, version = booking_service._booking_event_identity(booking, "booking.updated")
+
+        assert "2026-12-27" in version
+
+    def test_booking_fallback_to_created_at(self, booking_service):
+        """Test fallback to created_at when no other timestamps."""
+        booking = MagicMock(spec=Booking)
+        booking.id = generate_ulid()
+        booking.cancelled_at = None
+        booking.completed_at = None
+        booking.updated_at = None
+        booking.created_at = datetime(2026, 12, 28, 10, 0, tzinfo=timezone.utc)
+
+        key, version = booking_service._booking_event_identity(booking, "booking.created")
+
+        assert "2026-12-28" in version
