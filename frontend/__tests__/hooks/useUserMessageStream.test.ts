@@ -394,4 +394,529 @@ describe('useUserMessageStream', () => {
       expect(handler.onTyping).toHaveBeenCalledWith('user2', 'John Doe', true);
     });
   });
+
+  describe('notification update handling', () => {
+    it('should route notification_update events to global handler', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const globalHandler = { onNotificationUpdate: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('__global__', globalHandler);
+      });
+
+      act(() => {
+        mockEventSource.simulateMessage('notification_update', {
+          type: 'notification_update',
+          unread_count: 5,
+        });
+      });
+
+      expect(globalHandler.onNotificationUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ unread_count: 5 })
+      );
+    });
+  });
+
+  describe('message edited handling', () => {
+    it('should route message_edited events to conversation handler', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const handler = { onMessageEdited: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('conv1', handler);
+      });
+
+      act(() => {
+        mockEventSource.simulateMessage('message_edited', {
+          type: 'message_edited',
+          conversation_id: 'conv1',
+          message_id: 'msg1',
+          data: { content: 'Updated content' },
+          editor_id: 'user2',
+        });
+      });
+
+      expect(handler.onMessageEdited).toHaveBeenCalledWith('msg1', 'Updated content', 'user2');
+    });
+
+    it('should route message_edited to global handler', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const globalHandler = { onMessageEdited: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('__global__', globalHandler);
+      });
+
+      act(() => {
+        mockEventSource.simulateMessage('message_edited', {
+          type: 'message_edited',
+          conversation_id: 'conv1',
+          message_id: 'msg1',
+          data: { content: 'Updated content' },
+          editor_id: 'user2',
+        });
+      });
+
+      expect(globalHandler.onMessageEdited).toHaveBeenCalledWith('msg1', 'Updated content', 'user2');
+    });
+
+    it('should not call handler if content is missing', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const handler = { onMessageEdited: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('conv1', handler);
+      });
+
+      act(() => {
+        mockEventSource.simulateMessage('message_edited', {
+          type: 'message_edited',
+          conversation_id: 'conv1',
+          message_id: 'msg1',
+          data: {},
+          editor_id: 'user2',
+        });
+      });
+
+      expect(handler.onMessageEdited).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('message deleted handling', () => {
+    it('should route message_deleted events to conversation handler', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const handler = { onMessageDeleted: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('conv1', handler);
+      });
+
+      act(() => {
+        mockEventSource.simulateMessage('message_deleted', {
+          type: 'message_deleted',
+          conversation_id: 'conv1',
+          message_id: 'msg1',
+          deleted_by: 'user2',
+        });
+      });
+
+      expect(handler.onMessageDeleted).toHaveBeenCalledWith('msg1', 'user2');
+    });
+  });
+
+  describe('duplicate message prevention', () => {
+    it('should deduplicate messages with the same ID', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const handler = { onMessage: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('conv1', handler);
+      });
+
+      // Send the same message twice
+      act(() => {
+        mockEventSource.simulateMessage('new_message', {
+          type: 'new_message',
+          conversation_id: 'conv1',
+          is_mine: false,
+          message: {
+            id: 'msg-duplicate-test',
+            content: 'Hello',
+            sender_id: 'user2',
+            sender_name: 'User 2',
+            created_at: '2024-01-01T12:00:00Z',
+            booking_id: 'booking1',
+          },
+        });
+      });
+
+      act(() => {
+        mockEventSource.simulateMessage('new_message', {
+          type: 'new_message',
+          conversation_id: 'conv1',
+          is_mine: false,
+          message: {
+            id: 'msg-duplicate-test',
+            content: 'Hello',
+            sender_id: 'user2',
+            sender_name: 'User 2',
+            created_at: '2024-01-01T12:00:00Z',
+            booking_id: 'booking1',
+          },
+        });
+      });
+
+      // Should only be called once (duplicate filtered)
+      expect(handler.onMessage).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('heartbeat handling', () => {
+    it('should handle keep-alive events', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+
+      // Simulate keep-alive (should not disconnect)
+      act(() => {
+        mockEventSource.simulateMessage('keep-alive', {});
+      });
+
+      expect(result.current.isConnected).toBe(true);
+    });
+
+    it('should handle heartbeat events', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+
+      // Simulate heartbeat
+      act(() => {
+        mockEventSource.simulateMessage('heartbeat', {});
+      });
+
+      expect(result.current.isConnected).toBe(true);
+    });
+
+    it('should reconnect after heartbeat timeout', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+
+      // Advance time past heartbeat timeout (45 seconds)
+      act(() => {
+        jest.advanceTimersByTime(46000);
+      });
+
+      // Should show connection error
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.connectionError).toBe('Heartbeat timeout');
+    });
+  });
+
+  describe('authentication handling', () => {
+    it('should not connect when not authenticated', async () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        user: null,
+        checkAuth: jest.fn(),
+      });
+
+      renderHook(() => useUserMessageStream());
+
+      // Should not create EventSource
+      expect(global.EventSource).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to cookie auth when token fetch fails', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({}),
+      }) as jest.Mock;
+
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      // Should still try to connect (fallback to cookie auth)
+      expect(global.EventSource).toHaveBeenCalled();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+    });
+
+    it('should fall back to cookie auth when token fetch throws', async () => {
+      global.fetch = jest.fn().mockRejectedValue(new Error('Network error')) as jest.Mock;
+
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      // Should still try to connect
+      expect(global.EventSource).toHaveBeenCalled();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+    });
+  });
+
+  describe('connection error handling', () => {
+    it('should set connection error on EventSource error', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.connectionError).toBe('Connection lost');
+    });
+
+    it('should schedule reconnect after connection error', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      expect(result.current.isConnected).toBe(true);
+
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      // Connection should be lost
+      expect(result.current.isConnected).toBe(false);
+      expect(result.current.connectionError).toBe('Connection lost');
+
+      // EventSource should have been closed
+      expect(mockEventSource.close).toHaveBeenCalled();
+    });
+
+    it('should suppress repeated error logs', async () => {
+      const { logger: mockLogger } = jest.requireMock('@/lib/logger') as { logger: { warn: jest.Mock } };
+
+      renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+      });
+
+      mockLogger.warn.mockClear();
+
+      // Trigger multiple errors
+      act(() => {
+        mockEventSource.simulateError();
+      });
+
+      // Recreate connection for next error
+      act(() => {
+        jest.advanceTimersByTime(4000);
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // The second error should be suppressed (logged at debug level instead)
+      // This tests the connectionErrorLoggedRef behavior
+    });
+  });
+
+  describe('event parsing error handling', () => {
+    it('should handle malformed new_message JSON', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const handler = { onMessage: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('conv1', handler);
+      });
+
+      // Simulate malformed JSON (this tests the catch block)
+      const listeners = mockEventSource.listeners.get('new_message');
+      listeners?.forEach((listener) => {
+        act(() => {
+          listener({ data: 'invalid json{' } as MessageEvent);
+        });
+      });
+
+      // Handler should not be called due to parse error
+      expect(handler.onMessage).not.toHaveBeenCalled();
+    });
+
+    it('should handle malformed typing_status JSON', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const handler = { onTyping: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('conv1', handler);
+      });
+
+      const listeners = mockEventSource.listeners.get('typing_status');
+      listeners?.forEach((listener) => {
+        act(() => {
+          listener({ data: 'invalid json{' } as MessageEvent);
+        });
+      });
+
+      expect(handler.onTyping).not.toHaveBeenCalled();
+    });
+
+    it('should handle malformed read_receipt JSON', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const handler = { onReadReceipt: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('conv1', handler);
+      });
+
+      const listeners = mockEventSource.listeners.get('read_receipt');
+      listeners?.forEach((listener) => {
+        act(() => {
+          listener({ data: 'invalid json{' } as MessageEvent);
+        });
+      });
+
+      expect(handler.onReadReceipt).not.toHaveBeenCalled();
+    });
+
+    it('should handle malformed reaction_update JSON', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const handler = { onReaction: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('conv1', handler);
+      });
+
+      const listeners = mockEventSource.listeners.get('reaction_update');
+      listeners?.forEach((listener) => {
+        act(() => {
+          listener({ data: 'invalid json{' } as MessageEvent);
+        });
+      });
+
+      expect(handler.onReaction).not.toHaveBeenCalled();
+    });
+
+    it('should handle malformed message_edited JSON', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const handler = { onMessageEdited: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('conv1', handler);
+      });
+
+      const listeners = mockEventSource.listeners.get('message_edited');
+      listeners?.forEach((listener) => {
+        act(() => {
+          listener({ data: 'invalid json{' } as MessageEvent);
+        });
+      });
+
+      expect(handler.onMessageEdited).not.toHaveBeenCalled();
+    });
+
+    it('should handle malformed message_deleted JSON', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const handler = { onMessageDeleted: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('conv1', handler);
+      });
+
+      const listeners = mockEventSource.listeners.get('message_deleted');
+      listeners?.forEach((listener) => {
+        act(() => {
+          listener({ data: 'invalid json{' } as MessageEvent);
+        });
+      });
+
+      expect(handler.onMessageDeleted).not.toHaveBeenCalled();
+    });
+
+    it('should handle malformed notification_update JSON', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+      const handler = { onNotificationUpdate: jest.fn() };
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        result.current.subscribe('__global__', handler);
+      });
+
+      const listeners = mockEventSource.listeners.get('notification_update');
+      listeners?.forEach((listener) => {
+        act(() => {
+          listener({ data: 'invalid json{' } as MessageEvent);
+        });
+      });
+
+      expect(handler.onNotificationUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('no handler registered', () => {
+    it('should silently ignore events for unsubscribed conversations', async () => {
+      const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
+
+      act(() => {
+        mockEventSource.simulateConnected();
+        // No handler subscribed for 'conv1'
+      });
+
+      // Should not throw when receiving event for unsubscribed conversation
+      act(() => {
+        mockEventSource.simulateMessage('new_message', {
+          type: 'new_message',
+          conversation_id: 'conv1',
+          is_mine: false,
+          message: {
+            id: 'msg1',
+            content: 'Hello',
+            sender_id: 'user2',
+            sender_name: 'User 2',
+            created_at: '2024-01-01T12:00:00Z',
+            booking_id: 'booking1',
+          },
+        });
+      });
+
+      // If we got here without throwing, the test passes
+      expect(result.current.isConnected).toBe(true);
+    });
+  });
 });

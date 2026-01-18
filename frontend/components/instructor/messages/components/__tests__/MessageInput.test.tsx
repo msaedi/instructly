@@ -128,6 +128,78 @@ describe('MessageInput', () => {
 
       expect(onAttachmentRemove).toHaveBeenCalledWith(0);
     });
+
+    it('triggers file input when clicking attach button', () => {
+      render(<MessageInput {...defaultProps} />);
+
+      const attachButton = screen.getByRole('button', { name: /attach file/i });
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      const clickSpy = jest.spyOn(fileInput, 'click');
+
+      fireEvent.click(attachButton);
+
+      expect(clickSpy).toHaveBeenCalled();
+      clickSpy.mockRestore();
+    });
+
+    it('calls onAttachmentAdd when files are selected', () => {
+      const onAttachmentAdd = jest.fn();
+      render(<MessageInput {...defaultProps} onAttachmentAdd={onAttachmentAdd} />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      const testFile = new File(['test content'], 'test.txt', { type: 'text/plain' });
+
+      // Create a mock FileList-like object
+      const mockFileList = {
+        0: testFile,
+        length: 1,
+        item: (index: number) => (index === 0 ? testFile : null),
+      } as unknown as FileList;
+
+      fireEvent.change(fileInput, { target: { files: mockFileList } });
+
+      expect(onAttachmentAdd).toHaveBeenCalledWith(mockFileList);
+    });
+
+    it('clears file input value after selecting files', () => {
+      const onAttachmentAdd = jest.fn();
+      render(<MessageInput {...defaultProps} onAttachmentAdd={onAttachmentAdd} />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      const testFile = new File(['test content'], 'test.txt', { type: 'text/plain' });
+
+      // Create a mock FileList-like object
+      const mockFileList = {
+        0: testFile,
+        length: 1,
+        item: (index: number) => (index === 0 ? testFile : null),
+      } as unknown as FileList;
+
+      // Set value to simulate file selection
+      Object.defineProperty(fileInput, 'value', {
+        writable: true,
+        value: 'C:\\fakepath\\test.txt',
+      });
+
+      fireEvent.change(fileInput, { target: { files: mockFileList } });
+
+      // Value should be cleared
+      expect(fileInput.value).toBe('');
+    });
+
+    it('supports multiple file selection', () => {
+      render(<MessageInput {...defaultProps} />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      expect(fileInput).toHaveAttribute('multiple');
+    });
+
+    it('hides the file input element', () => {
+      render(<MessageInput {...defaultProps} />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      expect(fileInput).toHaveClass('hidden');
+    });
   });
 
   describe('archived view', () => {
@@ -163,6 +235,88 @@ describe('MessageInput', () => {
       render(<MessageInput {...defaultProps} hasUpcomingBookings={false} />);
 
       expect(screen.queryByPlaceholderText('Type your message...')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('keyboard handling', () => {
+    it('calls onKeyPress when pressing a key in textarea', () => {
+      const onKeyPress = jest.fn();
+      render(<MessageInput {...defaultProps} onKeyPress={onKeyPress} />);
+
+      const textarea = screen.getByPlaceholderText('Type your message...');
+      fireEvent.keyPress(textarea, { key: 'Enter', code: 'Enter', charCode: 13 });
+
+      expect(onKeyPress).toHaveBeenCalled();
+    });
+
+    it('passes keyboard event to onKeyPress handler', () => {
+      const onKeyPress = jest.fn();
+      render(<MessageInput {...defaultProps} onKeyPress={onKeyPress} />);
+
+      const textarea = screen.getByPlaceholderText('Type your message...');
+      fireEvent.keyPress(textarea, { key: 'a', code: 'KeyA', charCode: 97 });
+
+      expect(onKeyPress).toHaveBeenCalledWith(
+        expect.objectContaining({
+          key: 'a',
+        })
+      );
+    });
+  });
+
+  describe('default props', () => {
+    it('uses default hasUpcomingBookings as true', () => {
+      const propsWithoutBookings: MessageInputProps = {
+        messageText: '',
+        pendingAttachments: [],
+        isSendDisabled: false,
+        typingUserName: null,
+        messageDisplay: 'inbox',
+        // hasUpcomingBookings intentionally omitted to test default
+        onMessageChange: jest.fn(),
+        onKeyPress: jest.fn(),
+        onSend: jest.fn(),
+        onAttachmentAdd: jest.fn(),
+        onAttachmentRemove: jest.fn(),
+      };
+
+      render(<MessageInput {...propsWithoutBookings} />);
+
+      // Should render full input since default is true
+      expect(screen.getByPlaceholderText('Type your message...')).toBeInTheDocument();
+    });
+  });
+
+  describe('attachment display', () => {
+    it('shows file name with title attribute', () => {
+      const longFileName = 'very-long-file-name-that-might-be-truncated.pdf';
+      const mockFiles = [new File(['content'], longFileName, { type: 'application/pdf' })];
+
+      render(<MessageInput {...defaultProps} pendingAttachments={mockFiles} />);
+
+      const fileNameElement = screen.getByText(longFileName);
+      expect(fileNameElement).toHaveAttribute('title', longFileName);
+    });
+
+    it('removes second attachment when clicking its remove button', () => {
+      const onAttachmentRemove = jest.fn();
+      const mockFiles: File[] = [
+        new File(['content1'], 'file1.pdf', { type: 'application/pdf' }),
+        new File(['content2'], 'file2.pdf', { type: 'application/pdf' }),
+      ];
+
+      render(
+        <MessageInput
+          {...defaultProps}
+          pendingAttachments={mockFiles}
+          onAttachmentRemove={onAttachmentRemove}
+        />
+      );
+
+      const removeButtons = screen.getAllByRole('button', { name: /remove attachment/i });
+      fireEvent.click(removeButtons[1]!);
+
+      expect(onAttachmentRemove).toHaveBeenCalledWith(1);
     });
   });
 });

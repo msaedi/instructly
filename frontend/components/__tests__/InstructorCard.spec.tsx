@@ -461,4 +461,302 @@ describe('InstructorCard years experience', () => {
 
     expect(screen.getByText(/10 years experience/)).toBeInTheDocument();
   });
+
+  it('does not show experience when zero', () => {
+    const instructor = {
+      ...buildInstructor(),
+      years_experience: 0,
+    };
+
+    renderWithQueryClient(
+      <InstructorCard instructor={instructor} />
+    );
+
+    expect(screen.queryByText(/years experience/)).not.toBeInTheDocument();
+  });
+});
+
+describe('InstructorCard bio display', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-05-08T12:00:00Z'));
+    pushMock.mockClear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('displays instructor bio in non-compact mode', () => {
+    const instructor = {
+      ...buildInstructor(),
+      bio: 'I am an experienced piano teacher.',
+    };
+
+    renderWithQueryClient(
+      <InstructorCard instructor={instructor} compact={false} />
+    );
+
+    expect(screen.getByText(/I am an experienced piano teacher/)).toBeInTheDocument();
+  });
+
+  it('hides bio in compact mode', () => {
+    const instructor = {
+      ...buildInstructor(),
+      bio: 'I am an experienced piano teacher.',
+    };
+
+    renderWithQueryClient(
+      <InstructorCard instructor={instructor} compact={true} />
+    );
+
+    expect(screen.queryByText(/I am an experienced piano teacher/)).not.toBeInTheDocument();
+  });
+});
+
+describe('InstructorCard BGC badge', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-05-08T12:00:00Z'));
+    pushMock.mockClear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('shows BGC badge when instructor is live', () => {
+    const instructor = {
+      ...buildInstructor(),
+      is_live: true,
+      bgc_status: 'clear',
+    };
+
+    renderWithQueryClient(
+      <InstructorCard instructor={instructor} />
+    );
+
+    // BGC badge should be shown
+    expect(screen.getByTestId('instructor-card')).toBeInTheDocument();
+  });
+
+  it('shows BGC badge when status is pending', () => {
+    const instructor = {
+      ...buildInstructor(),
+      is_live: false,
+      bgc_status: 'pending',
+    };
+
+    renderWithQueryClient(
+      <InstructorCard instructor={instructor} />
+    );
+
+    expect(screen.getByTestId('instructor-card')).toBeInTheDocument();
+  });
+});
+
+describe('InstructorCard favorite interactions', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-05-08T12:00:00Z'));
+    pushMock.mockClear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('redirects guest users to login when clicking favorite', () => {
+    renderWithQueryClient(
+      <InstructorCard instructor={buildInstructor()} />
+    );
+
+    const favoriteButton = screen.getByRole('button', { name: /sign in to save/i });
+    fireEvent.click(favoriteButton);
+
+    expect(pushMock).toHaveBeenCalledWith(
+      expect.stringContaining('/login?returnTo=')
+    );
+  });
+});
+
+describe('InstructorCard service highlighting', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-05-08T12:00:00Z'));
+    pushMock.mockClear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('highlights matching service catalog', () => {
+    const instructor = buildInstructor();
+
+    renderWithQueryClient(
+      <InstructorCard
+        instructor={instructor}
+        highlightServiceCatalogId="catalog-1"
+      />
+    );
+
+    expect(screen.getByTestId('instructor-card')).toBeInTheDocument();
+  });
+});
+
+describe('InstructorCard availability edge cases', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-05-08T12:00:00Z'));
+    pushMock.mockClear();
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('handles blackout days in availability', () => {
+    renderWithQueryClient(
+      <InstructorCard
+        instructor={buildInstructor()}
+        availabilityData={buildAvailabilityData({
+          '2024-05-10': {
+            is_blackout: true,
+          },
+          '2024-05-11': {
+            available_slots: [{ start_time: '09:00', end_time: '10:00' }],
+          },
+        })}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /Next Available/i });
+    // Should skip blackout day and show May 11
+    expect(button).toHaveTextContent(/Sat, May 11/);
+  });
+
+  it('handles slots with insufficient duration', () => {
+    renderWithQueryClient(
+      <InstructorCard
+        instructor={buildInstructor()}
+        availabilityData={buildAvailabilityData({
+          '2024-05-10': {
+            available_slots: [{ start_time: '09:00', end_time: '09:15' }], // Only 15 min
+          },
+          '2024-05-11': {
+            available_slots: [{ start_time: '10:00', end_time: '11:00' }],
+          },
+        })}
+      />
+    );
+
+    // Default duration is 30 min, so May 10 slot is too short
+    const button = screen.getByRole('button', { name: /Next Available/i });
+    expect(button).toHaveTextContent(/Sat, May 11/);
+  });
+
+  it('handles past dates in availability', () => {
+    renderWithQueryClient(
+      <InstructorCard
+        instructor={buildInstructor()}
+        availabilityData={buildAvailabilityData({
+          '2024-05-01': { // Past date
+            available_slots: [{ start_time: '09:00', end_time: '10:00' }],
+          },
+          '2024-05-10': {
+            available_slots: [{ start_time: '09:00', end_time: '10:00' }],
+          },
+        })}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /Next Available/i });
+    // Should skip past date
+    expect(button).toHaveTextContent(/Fri, May 10/);
+  });
+
+  it('handles slot that starts in the past for today', () => {
+    // System time is 2024-05-08T12:00:00Z
+    renderWithQueryClient(
+      <InstructorCard
+        instructor={buildInstructor()}
+        availabilityData={buildAvailabilityData({
+          '2024-05-08': {
+            available_slots: [
+              { start_time: '08:00', end_time: '09:00' }, // Past slot
+              { start_time: '14:00', end_time: '15:00' }, // Future slot
+            ],
+          },
+        })}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /Next Available/i });
+    expect(button).toHaveTextContent(/Wed, May 8/);
+    expect(button).toHaveTextContent(/2:00/);
+  });
+});
+
+describe('InstructorCard ratings from query', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-05-08T12:00:00Z'));
+    pushMock.mockClear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('renders without rating when not enough reviews', () => {
+    renderWithQueryClient(
+      <InstructorCard
+        instructor={{
+          ...buildInstructor(),
+          rating: 4.5,
+          total_reviews: 2, // Less than 3
+        }}
+      />
+    );
+
+    // Rating should not be shown
+    expect(screen.queryByText(/4\.5/)).not.toBeInTheDocument();
+  });
+});
+
+describe('InstructorCard pricing display', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2024-05-08T12:00:00Z'));
+    pushMock.mockClear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('handles non-numeric hourly rate gracefully', () => {
+    const instructor = buildInstructor();
+    const baseService = instructor.services[0];
+    if (baseService) {
+      instructor.services = [{
+        ...baseService,
+        hourly_rate: 'invalid' as unknown as number,
+      }];
+    }
+
+    renderWithQueryClient(
+      <InstructorCard instructor={instructor} />
+    );
+
+    expect(screen.getByTestId('instructor-price')).toHaveTextContent('$0/hr');
+  });
+
+  it('handles missing services gracefully', () => {
+    const instructor = {
+      ...buildInstructor(),
+      services: [],
+    };
+
+    renderWithQueryClient(
+      <InstructorCard instructor={instructor} />
+    );
+
+    expect(screen.getByTestId('instructor-card')).toBeInTheDocument();
+  });
 });

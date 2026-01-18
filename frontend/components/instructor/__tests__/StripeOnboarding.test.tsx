@@ -228,10 +228,299 @@ describe('StripeOnboarding', () => {
     });
   });
 
-  // NOTE: Error handling tests are omitted because the component re-throws errors
-  // after handling them (for debugging), which causes Jest to fail the tests.
-  // The component's error handling logic is verified via:
-  // 1. The error state variable being set correctly
-  // 2. E2E tests that can properly handle async error scenarios
-  // 3. Manual testing of the error UI
+  describe('error handling', () => {
+    // Note: Since checkStatus rethrows errors after setting state, we need to handle the rejection
+    const originalOnUnhandledRejection = process.listeners('unhandledRejection');
+
+    beforeEach(() => {
+      // Remove all unhandledRejection listeners for error handling tests
+      process.removeAllListeners('unhandledRejection');
+      // Add our own handler that does nothing (suppresses the error)
+      process.on('unhandledRejection', () => {});
+    });
+
+    afterEach(() => {
+      // Restore original handlers
+      process.removeAllListeners('unhandledRejection');
+      originalOnUnhandledRejection.forEach((listener) => {
+        process.on('unhandledRejection', listener as NodeJS.UnhandledRejectionListener);
+      });
+    });
+
+    it('shows error state when status fetch fails', async () => {
+      paymentServiceMock.getOnboardingStatus.mockImplementation(() =>
+        Promise.reject(new Error('Network error'))
+      );
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Connection Error')).toBeInTheDocument();
+        expect(screen.getByText('Failed to load onboarding status')).toBeInTheDocument();
+      });
+    });
+
+    it('shows try again button on error', async () => {
+      paymentServiceMock.getOnboardingStatus.mockImplementation(() =>
+        Promise.reject(new Error('Network error'))
+      );
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+      });
+    });
+
+    it('handles startOnboarding error', async () => {
+      paymentServiceMock.getOnboardingStatus.mockResolvedValue({
+        has_account: false,
+        onboarding_completed: false,
+        charges_enabled: false,
+        payouts_enabled: false,
+        details_submitted: false,
+        requirements: [],
+      });
+      paymentServiceMock.startOnboarding.mockRejectedValue(new Error('Start failed'));
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /connect stripe account/i })).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /connect stripe account/i }));
+
+      await waitFor(() => {
+        expect(paymentServiceMock.startOnboarding).toHaveBeenCalled();
+      });
+
+      // Button should be re-enabled after error
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /connect stripe account/i })).toBeEnabled();
+      });
+    });
+
+    it('handles getDashboardLink error', async () => {
+      paymentServiceMock.getOnboardingStatus.mockResolvedValue({
+        has_account: true,
+        onboarding_completed: true,
+        charges_enabled: true,
+        payouts_enabled: true,
+        details_submitted: true,
+        requirements: [],
+      });
+      paymentServiceMock.getDashboardLink.mockRejectedValue(new Error('Dashboard error'));
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /view payouts dashboard/i })).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /view payouts dashboard/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Failed to open dashboard. Please try again.')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('already onboarded', () => {
+    it('refreshes status when already onboarded', async () => {
+      paymentServiceMock.getOnboardingStatus.mockResolvedValue({
+        has_account: false,
+        onboarding_completed: false,
+        charges_enabled: false,
+        payouts_enabled: false,
+        details_submitted: false,
+        requirements: [],
+      });
+      paymentServiceMock.startOnboarding.mockResolvedValue({
+        account_id: 'acct_123',
+        already_onboarded: true,
+        onboarding_url: '',
+      });
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /connect stripe account/i })).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /connect stripe account/i }));
+
+      await waitFor(() => {
+        expect(paymentServiceMock.getOnboardingStatus).toHaveBeenCalledTimes(2);
+      });
+    });
+  });
+
+  describe('refresh status', () => {
+    it('refetches status when clicking refresh', async () => {
+      paymentServiceMock.getOnboardingStatus.mockResolvedValue({
+        has_account: true,
+        onboarding_completed: true,
+        charges_enabled: true,
+        payouts_enabled: true,
+        details_submitted: true,
+        requirements: [],
+      });
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /refresh status/i })).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /refresh status/i }));
+
+      await waitFor(() => {
+        expect(paymentServiceMock.getOnboardingStatus).toHaveBeenCalledTimes(2);
+      });
+    });
+  });
+
+  describe('polling behavior', () => {
+    it('starts polling when returning from Stripe', async () => {
+      // Mock returning from Stripe
+      const mockUseSearchParams = jest.requireMock('next/navigation').useSearchParams;
+      mockUseSearchParams.mockReturnValue({
+        get: (param: string) => (param === 'stripe_onboarding_return' ? 'true' : null),
+      });
+
+      paymentServiceMock.getOnboardingStatus.mockResolvedValue({
+        has_account: true,
+        onboarding_completed: false,
+        charges_enabled: false,
+        payouts_enabled: false,
+        details_submitted: true,
+        requirements: ['Bank account'],
+      });
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Verifying Your Account')).toBeInTheDocument();
+      });
+
+      // Reset mock for cleanup
+      mockUseSearchParams.mockReturnValue({
+        get: jest.fn(() => null),
+      });
+    });
+
+    it('stops polling after onboarding completes', async () => {
+      const mockUseSearchParams = jest.requireMock('next/navigation').useSearchParams;
+      mockUseSearchParams.mockReturnValue({
+        get: (param: string) => (param === 'stripe_onboarding_return' ? 'true' : null),
+      });
+
+      const mockReplaceState = jest.fn();
+      const originalReplaceState = window.history.replaceState;
+      window.history.replaceState = mockReplaceState;
+
+      // First call returns incomplete, then complete
+      paymentServiceMock.getOnboardingStatus
+        .mockResolvedValueOnce({
+          has_account: true,
+          onboarding_completed: false,
+          charges_enabled: false,
+          payouts_enabled: false,
+          details_submitted: true,
+          requirements: [],
+        })
+        .mockResolvedValue({
+          has_account: true,
+          onboarding_completed: true,
+          charges_enabled: true,
+          payouts_enabled: true,
+          details_submitted: true,
+          requirements: [],
+        });
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      // Wait for polling to start
+      await waitFor(() => {
+        expect(screen.getByText('Verifying Your Account')).toBeInTheDocument();
+      });
+
+      // Advance timer to trigger poll and flush promises
+      await jest.advanceTimersByTimeAsync(2100);
+
+      await waitFor(() => {
+        expect(screen.getByText('Stripe Account Connected')).toBeInTheDocument();
+      });
+
+      // Cleanup
+      window.history.replaceState = originalReplaceState;
+      mockUseSearchParams.mockReturnValue({
+        get: jest.fn(() => null),
+      });
+    });
+
+    it('stops polling after timeout', async () => {
+      const mockUseSearchParams = jest.requireMock('next/navigation').useSearchParams;
+      mockUseSearchParams.mockReturnValue({
+        get: (param: string) => (param === 'stripe_onboarding_return' ? 'true' : null),
+      });
+
+      paymentServiceMock.getOnboardingStatus.mockResolvedValue({
+        has_account: true,
+        onboarding_completed: false,
+        charges_enabled: false,
+        payouts_enabled: false,
+        details_submitted: true,
+        requirements: ['Something'],
+      });
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Verifying Your Account')).toBeInTheDocument();
+      });
+
+      // Advance through 15+ poll attempts (16 * 2100ms)
+      await jest.advanceTimersByTimeAsync(16 * 2100);
+
+      // After 15 attempts, polling should stop and show the incomplete state
+      await waitFor(() => {
+        expect(screen.getByText('Complete Your Setup')).toBeInTheDocument();
+      });
+
+      // Cleanup
+      mockUseSearchParams.mockReturnValue({
+        get: jest.fn(() => null),
+      });
+    });
+  });
+
+  describe('incomplete onboarding with enabled features', () => {
+    it('shows enabled indicators correctly', async () => {
+      paymentServiceMock.getOnboardingStatus.mockResolvedValue({
+        has_account: true,
+        onboarding_completed: false,
+        charges_enabled: true,
+        payouts_enabled: true,
+        details_submitted: true,
+        requirements: [],
+      });
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Complete Your Setup')).toBeInTheDocument();
+      });
+
+      // Check status indicators are present (they show check icons when enabled)
+      const chargesLabel = screen.getByText('Charges enabled:');
+      const payoutsLabel = screen.getByText('Payouts enabled:');
+      const detailsLabel = screen.getByText('Details submitted:');
+
+      expect(chargesLabel).toBeInTheDocument();
+      expect(payoutsLabel).toBeInTheDocument();
+      expect(detailsLabel).toBeInTheDocument();
+    });
+  });
 });

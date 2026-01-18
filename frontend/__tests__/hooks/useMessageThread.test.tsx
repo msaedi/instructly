@@ -449,5 +449,607 @@ describe('useMessageThread', () => {
       expect(mockSendConversationMessage).toHaveBeenCalledTimes(1);
       expect(onSuccess).toHaveBeenCalledTimes(1);
     });
+
+    it('sends message from compose view with recipient', async () => {
+      mockSendConversationMessage.mockResolvedValue({ id: 'msg-server' });
+      const onSuccess = jest.fn();
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        await result.current.handleSendMessage({
+          selectedChat: '__compose__',
+          messageText: 'Hello from compose',
+          pendingAttachments: [],
+          composeRecipient: mockConversation,
+          conversations: [mockConversation],
+          getPrimaryBookingId: () => 'booking1',
+          onSuccess,
+        });
+      });
+
+      expect(mockSendConversationMessage).toHaveBeenCalledTimes(1);
+      expect(onSuccess).toHaveBeenCalledWith('conv1', true);
+    });
+
+    it('sends message with attachments', async () => {
+      mockSendConversationMessage.mockResolvedValue({ id: 'msg-server' });
+      const onSuccess = jest.fn();
+      const { result } = renderWithProps([mockConversation]);
+
+      const mockFile = new File(['test content'], 'test.pdf', { type: 'application/pdf' });
+
+      await act(async () => {
+        await result.current.handleSendMessage({
+          selectedChat: 'conv1',
+          messageText: '',
+          pendingAttachments: [mockFile],
+          composeRecipient: null,
+          conversations: [mockConversation],
+          getPrimaryBookingId: () => 'booking1',
+          onSuccess,
+        });
+      });
+
+      expect(mockSendConversationMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not send empty message without attachments', async () => {
+      const onSuccess = jest.fn();
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        await result.current.handleSendMessage({
+          selectedChat: 'conv1',
+          messageText: '   ',
+          pendingAttachments: [],
+          composeRecipient: null,
+          conversations: [mockConversation],
+          getPrimaryBookingId: () => 'booking1',
+          onSuccess,
+        });
+      });
+
+      expect(mockSendConversationMessage).not.toHaveBeenCalled();
+      expect(onSuccess).not.toHaveBeenCalled();
+    });
+
+    it('handles send failure gracefully', async () => {
+      mockSendConversationMessage.mockRejectedValue(new Error('Network error'));
+      const onSuccess = jest.fn();
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        await result.current.handleSendMessage({
+          selectedChat: 'conv1',
+          messageText: 'Hello',
+          pendingAttachments: [],
+          composeRecipient: null,
+          conversations: [mockConversation],
+          getPrimaryBookingId: () => 'booking1',
+          onSuccess,
+        });
+      });
+
+      // Should still call onSuccess even with send error (optimistic message was created)
+      expect(onSuccess).toHaveBeenCalled();
+    });
+
+    it('does not send when currentUserId is undefined', async () => {
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: undefined,
+            conversations: [mockConversation],
+            setConversations: setConversationsMock,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      const onSuccess = jest.fn();
+      await act(async () => {
+        await result.current.handleSendMessage({
+          selectedChat: 'conv1',
+          messageText: 'Hello',
+          pendingAttachments: [],
+          composeRecipient: null,
+          conversations: [mockConversation],
+          getPrimaryBookingId: () => 'booking1',
+          onSuccess,
+        });
+      });
+
+      expect(mockSendConversationMessage).not.toHaveBeenCalled();
+    });
+
+    it('does not send from compose without recipient', async () => {
+      const onSuccess = jest.fn();
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        await result.current.handleSendMessage({
+          selectedChat: '__compose__',
+          messageText: 'Hello',
+          pendingAttachments: [],
+          composeRecipient: null,
+          conversations: [mockConversation],
+          getPrimaryBookingId: () => 'booking1',
+          onSuccess,
+        });
+      });
+
+      expect(mockSendConversationMessage).not.toHaveBeenCalled();
+    });
+
+    it('creates new conversation entry if not found', async () => {
+      mockSendConversationMessage.mockResolvedValue({ id: 'msg-server' });
+      const onSuccess = jest.fn();
+      const newRecipient: ConversationEntry = {
+        id: 'new-conv',
+        name: 'New User',
+        lastMessage: '',
+        timestamp: '',
+        unread: 0,
+        avatar: 'NU',
+        type: 'student',
+        bookingIds: [],
+        primaryBookingId: null,
+        studentId: 'new-student',
+        instructorId: 'instructor1',
+        latestMessageAt: 0,
+      };
+
+      const { result } = renderWithProps([]);
+
+      await act(async () => {
+        await result.current.handleSendMessage({
+          selectedChat: '__compose__',
+          messageText: 'Hello new user',
+          pendingAttachments: [],
+          composeRecipient: newRecipient,
+          conversations: [],
+          getPrimaryBookingId: () => null,
+          onSuccess,
+        });
+      });
+
+      expect(setConversationsMock).toHaveBeenCalled();
+    });
+  });
+
+  describe('handleSSEMessage', () => {
+    it('handles incoming message from other user', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      // First load messages to establish the thread
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      await waitFor(() => {
+        expect(result.current.threadMessages.length).toBe(1);
+      });
+
+      // Now handle SSE message
+      await act(async () => {
+        result.current.handleSSEMessage(
+          {
+            id: 'sse-msg-1',
+            content: 'Hello from SSE',
+            sender_id: 'student1',
+            sender_name: 'John Student',
+            created_at: new Date().toISOString(),
+            is_mine: false,
+          },
+          'conv1',
+          mockConversation
+        );
+      });
+
+      expect(result.current.threadMessages.length).toBe(2);
+      expect(result.current.threadMessages[1]?.text).toBe('Hello from SSE');
+    });
+
+    it('updates existing message with delivered_at timestamp', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      // First load messages
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      await waitFor(() => {
+        expect(result.current.threadMessages.length).toBe(1);
+      });
+
+      // Add an own message first
+      await act(async () => {
+        result.current.handleSSEMessage(
+          {
+            id: 'own-msg-1',
+            content: 'My message',
+            sender_id: currentUserId,
+            sender_name: 'Instructor',
+            created_at: new Date().toISOString(),
+            is_mine: true,
+          },
+          'conv1',
+          mockConversation
+        );
+      });
+
+      // Now update it with delivered_at
+      await act(async () => {
+        result.current.handleSSEMessage(
+          {
+            id: 'own-msg-1',
+            content: 'My message',
+            sender_id: currentUserId,
+            sender_name: 'Instructor',
+            created_at: new Date().toISOString(),
+            delivered_at: new Date().toISOString(),
+            is_mine: true,
+          },
+          'conv1',
+          mockConversation
+        );
+      });
+
+      // Should not duplicate the message
+      const ownMsgs = result.current.threadMessages.filter((m) => m.senderId === currentUserId);
+      expect(ownMsgs.length).toBeLessThanOrEqual(2);
+    });
+
+    it('does nothing when currentUserId is undefined', async () => {
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: undefined,
+            conversations: [mockConversation],
+            setConversations: setConversationsMock,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await act(async () => {
+        result.current.handleSSEMessage(
+          {
+            id: 'sse-msg-1',
+            content: 'Hello',
+            sender_id: 'student1',
+            sender_name: 'John',
+            created_at: new Date().toISOString(),
+            is_mine: false,
+          },
+          'conv1',
+          mockConversation
+        );
+      });
+
+      expect(result.current.threadMessages.length).toBe(0);
+    });
+  });
+
+  describe('handleArchiveConversation', () => {
+    it('moves active messages to archived', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      await waitFor(() => {
+        expect(result.current.threadMessages.length).toBe(1);
+      });
+
+      expect(result.current.messagesByThread['conv1']?.length).toBe(1);
+
+      await act(async () => {
+        result.current.handleArchiveConversation('conv1');
+      });
+
+      expect(result.current.messagesByThread['conv1']?.length).toBe(0);
+      expect(result.current.archivedMessagesByThread['conv1']?.length).toBe(1);
+      expect(result.current.threadMessages.length).toBe(0);
+    });
+
+    it('does not archive compose thread', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.handleArchiveConversation('__compose__');
+      });
+
+      expect(result.current.archivedMessagesByThread['__compose__']).toBeUndefined();
+    });
+  });
+
+  describe('handleDeleteConversation', () => {
+    it('moves all messages (active and archived) to trash', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      await waitFor(() => {
+        expect(result.current.threadMessages.length).toBe(1);
+      });
+
+      await act(async () => {
+        result.current.handleDeleteConversation('conv1');
+      });
+
+      expect(result.current.messagesByThread['conv1']?.length).toBe(0);
+      expect(result.current.archivedMessagesByThread['conv1']?.length).toBe(0);
+      expect(result.current.trashMessagesByThread['conv1']?.length).toBe(1);
+      expect(result.current.threadMessages.length).toBe(0);
+    });
+
+    it('does not delete compose thread', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.handleDeleteConversation('__compose__');
+      });
+
+      expect(result.current.trashMessagesByThread['__compose__']).toBeUndefined();
+    });
+  });
+
+  describe('setThreadMessagesForDisplay', () => {
+    it('shows inbox messages by default', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      await waitFor(() => {
+        expect(result.current.threadMessages.length).toBe(1);
+      });
+
+      await act(async () => {
+        result.current.setThreadMessagesForDisplay('conv1', 'inbox');
+      });
+
+      expect(result.current.threadMessages.length).toBe(1);
+    });
+
+    it('shows archived messages when mode is archived', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      await waitFor(() => {
+        expect(result.current.threadMessages.length).toBe(1);
+      });
+
+      // Archive the conversation
+      await act(async () => {
+        result.current.handleArchiveConversation('conv1');
+      });
+
+      // Switch to archived view
+      await act(async () => {
+        result.current.setThreadMessagesForDisplay('conv1', 'archived');
+      });
+
+      expect(result.current.threadMessages.length).toBe(1);
+      expect(result.current.threadMessages[0]?.isArchived).toBe(true);
+    });
+
+    it('shows trash messages when mode is trash', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      await waitFor(() => {
+        expect(result.current.threadMessages.length).toBe(1);
+      });
+
+      // Delete the conversation
+      await act(async () => {
+        result.current.handleDeleteConversation('conv1');
+      });
+
+      // Switch to trash view
+      await act(async () => {
+        result.current.setThreadMessagesForDisplay('conv1', 'trash');
+      });
+
+      expect(result.current.threadMessages.length).toBe(1);
+      expect(result.current.threadMessages[0]?.isTrashed).toBe(true);
+    });
+
+    it('does nothing for compose thread', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.setThreadMessagesForDisplay('__compose__', 'inbox');
+      });
+
+      expect(result.current.threadMessages.length).toBe(0);
+    });
+  });
+
+  describe('updateThreadMessage', () => {
+    it('updates message in all state objects', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      await waitFor(() => {
+        expect(result.current.threadMessages.length).toBe(1);
+      });
+
+      const originalId = result.current.threadMessages[0]?.id;
+
+      await act(async () => {
+        result.current.updateThreadMessage(originalId!, (msg) => ({
+          ...msg,
+          text: 'Updated text',
+        }));
+      });
+
+      expect(result.current.threadMessages[0]?.text).toBe('Updated text');
+      expect(result.current.messagesByThread['conv1']?.[0]?.text).toBe('Updated text');
+    });
+
+    it('updates archived messages', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      await waitFor(() => {
+        expect(result.current.threadMessages.length).toBe(1);
+      });
+
+      const originalId = result.current.threadMessages[0]?.id;
+
+      // Archive the conversation
+      await act(async () => {
+        result.current.handleArchiveConversation('conv1');
+      });
+
+      // Update the archived message
+      await act(async () => {
+        result.current.updateThreadMessage(originalId!, (msg) => ({
+          ...msg,
+          text: 'Updated archived text',
+        }));
+      });
+
+      expect(result.current.archivedMessagesByThread['conv1']?.[0]?.text).toBe('Updated archived text');
+    });
+
+    it('updates trash messages', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      await waitFor(() => {
+        expect(result.current.threadMessages.length).toBe(1);
+      });
+
+      const originalId = result.current.threadMessages[0]?.id;
+
+      // Delete the conversation
+      await act(async () => {
+        result.current.handleDeleteConversation('conv1');
+      });
+
+      // Update the trashed message
+      await act(async () => {
+        result.current.updateThreadMessage(originalId!, (msg) => ({
+          ...msg,
+          text: 'Updated trash text',
+        }));
+      });
+
+      expect(result.current.trashMessagesByThread['conv1']?.[0]?.text).toBe('Updated trash text');
+    });
+  });
+
+  describe('loadThreadMessages edge cases', () => {
+    it('does nothing for compose thread', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.loadThreadMessages('__compose__', mockConversation, 'inbox');
+      });
+
+      expect(result.current.threadMessages.length).toBe(0);
+    });
+
+    it('does nothing when currentUserId is undefined', async () => {
+      const { result } = renderHook(
+        () =>
+          useMessageThread({
+            currentUserId: undefined,
+            conversations: [mockConversation],
+            setConversations: setConversationsMock,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      expect(result.current.threadMessages.length).toBe(0);
+    });
+
+    it('does nothing when conversation is null', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', null, 'inbox');
+      });
+
+      expect(result.current.threadMessages.length).toBe(0);
+    });
+  });
+
+  describe('history error handling', () => {
+    it('logs error when history fetch fails', async () => {
+      const { logger } = jest.requireMock('@/lib/logger') as { logger: { error: jest.Mock } };
+
+      mockUseConversationMessages.mockImplementation(
+        (
+          conversationId: string,
+          _limit?: number,
+          _before?: string,
+          _enabled?: boolean,
+          _options?: { onSuccess?: (data: ConversationMessagesResponse) => void }
+        ) => {
+          if (!conversationId) {
+            return { data: undefined, isLoading: false, error: undefined };
+          }
+          return {
+            data: undefined,
+            isLoading: false,
+            error: new Error('Fetch failed'),
+          };
+        }
+      );
+
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      // Wait for potential error logging
+      await waitFor(() => {
+        expect(logger.error).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('mark as read failure handling', () => {
+    it('handles mark as read failure gracefully', async () => {
+      mockMarkMessagesAsReadImperative.mockRejectedValue(new Error('Mark read failed'));
+
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      // Should not throw - just logs the error
+      await waitFor(() => {
+        expect(result.current.threadMessages.length).toBe(1);
+      });
+    });
   });
 });

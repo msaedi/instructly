@@ -1,0 +1,485 @@
+import React from 'react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import RescheduleTimeSelectionModal from '../RescheduleTimeSelectionModal';
+import { publicApi } from '@/features/shared/api/client';
+
+// Mock dependencies
+jest.mock('@/lib/logger', () => ({
+  logger: {
+    info: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    warn: jest.fn(),
+  },
+}));
+
+jest.mock('@/features/shared/hooks/useAuth', () => ({
+  useAuth: () => ({
+    user: { id: 'student-1', timezone: 'America/New_York' },
+  }),
+}));
+
+jest.mock('@/features/shared/api/client', () => ({
+  publicApi: {
+    getInstructorAvailability: jest.fn(),
+  },
+}));
+
+jest.mock('@/components/user/UserAvatar', () => ({
+  UserAvatar: ({ user }: { user: { first_name: string } }) => (
+    <div data-testid="user-avatar">{user.first_name}</div>
+  ),
+}));
+
+jest.mock('@/features/shared/booking/ui/Calendar', () => {
+  return function MockCalendar({
+    onDateSelect,
+    availableDates,
+  }: {
+    onDateSelect: (date: string) => void;
+    availableDates: string[];
+  }) {
+    return (
+      <div data-testid="calendar">
+        {availableDates.map((date) => (
+          <button
+            key={date}
+            data-testid={`date-${date}`}
+            onClick={() => onDateSelect(date)}
+          >
+            {date}
+          </button>
+        ))}
+      </div>
+    );
+  };
+});
+
+jest.mock('@/features/shared/booking/ui/TimeDropdown', () => {
+  return function MockTimeDropdown({
+    selectedTime,
+    timeSlots,
+    onTimeSelect,
+    isLoading,
+  }: {
+    selectedTime: string | null;
+    timeSlots: string[];
+    onTimeSelect: (time: string) => void;
+    isLoading?: boolean;
+  }) {
+    if (isLoading) return <div data-testid="time-loading">Loading times...</div>;
+    return (
+      <div data-testid="time-dropdown">
+        <span>Selected: {selectedTime}</span>
+        {timeSlots.map((time) => (
+          <button
+            key={time}
+            data-testid={`time-${time}`}
+            onClick={() => onTimeSelect(time)}
+          >
+            {time}
+          </button>
+        ))}
+      </div>
+    );
+  };
+});
+
+jest.mock('@/features/shared/booking/ui/DurationButtons', () => {
+  return function MockDurationButtons({
+    durationOptions,
+    selectedDuration,
+    onDurationSelect,
+  }: {
+    durationOptions: Array<{ duration: number; price: number }>;
+    selectedDuration: number;
+    onDurationSelect: (duration: number) => void;
+  }) {
+    return (
+      <div data-testid="duration-buttons">
+        {durationOptions.map(({ duration, price }) => (
+          <button
+            key={duration}
+            data-testid={`duration-${duration}`}
+            className={selectedDuration === duration ? 'selected' : ''}
+            onClick={() => onDurationSelect(duration)}
+          >
+            {duration}min - ${price}
+          </button>
+        ))}
+      </div>
+    );
+  };
+});
+
+jest.mock('@/features/shared/booking/ui/SummarySection', () => {
+  return function MockSummarySection({
+    selectedDate,
+    selectedTime,
+    selectedDuration,
+    price,
+    onContinue,
+    isComplete,
+  }: {
+    selectedDate: string | null;
+    selectedTime: string | null;
+    selectedDuration: number;
+    price: number;
+    onContinue: () => void;
+    isComplete: boolean;
+  }) {
+    return (
+      <div data-testid="summary-section">
+        <div>Date: {selectedDate}</div>
+        <div>Time: {selectedTime}</div>
+        <div>Duration: {selectedDuration}min</div>
+        <div>Price: ${price}</div>
+        <button
+          data-testid="continue-button"
+          onClick={onContinue}
+          disabled={!isComplete}
+        >
+          Continue
+        </button>
+      </div>
+    );
+  };
+});
+
+const getInstructorAvailabilityMock = publicApi.getInstructorAvailability as jest.Mock;
+
+const mockInstructor = {
+  user_id: 'inst-123',
+  user: {
+    first_name: 'John',
+    last_initial: 'D',
+  },
+  services: [
+    {
+      id: 'svc-1',
+      duration_options: [30, 60, 90],
+      hourly_rate: 60,
+      skill: 'Piano',
+    },
+  ],
+};
+
+const mockAvailabilityResponse = {
+  status: 200,
+  data: {
+    availability_by_date: {
+      '2025-01-20': {
+        date: '2025-01-20',
+        available_slots: [
+          { start_time: '09:00', end_time: '12:00' },
+          { start_time: '14:00', end_time: '17:00' },
+        ],
+        is_blackout: false,
+      },
+      '2025-01-21': {
+        date: '2025-01-21',
+        available_slots: [
+          { start_time: '10:00', end_time: '14:00' },
+        ],
+        is_blackout: false,
+      },
+    },
+  },
+};
+
+describe('RescheduleTimeSelectionModal', () => {
+  const defaultProps = {
+    isOpen: true,
+    onClose: jest.fn(),
+    instructor: mockInstructor,
+    onTimeSelected: jest.fn(),
+    onOpenChat: jest.fn(),
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2025-01-18T12:00:00Z'));
+    getInstructorAvailabilityMock.mockResolvedValue(mockAvailabilityResponse);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  describe('visibility', () => {
+    it('returns null when isOpen is false', () => {
+      const { container } = render(
+        <RescheduleTimeSelectionModal {...defaultProps} isOpen={false} />
+      );
+
+      expect(container.firstChild).toBeNull();
+    });
+
+    it('renders modal when isOpen is true', async () => {
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Need to reschedule?').length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('close behavior', () => {
+    it('calls onClose when escape key is pressed', async () => {
+      const onClose = jest.fn();
+      render(<RescheduleTimeSelectionModal {...defaultProps} onClose={onClose} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Need to reschedule?').length).toBeGreaterThan(0);
+      });
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('locks body scroll when open', async () => {
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(document.body.style.overflow).toBe('hidden');
+      });
+    });
+  });
+
+  describe('loading state', () => {
+    it('shows loading spinner while fetching availability', async () => {
+      getInstructorAvailabilityMock.mockImplementation(
+        () => new Promise(() => {}) // Never resolves
+      );
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Loading availability...').length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('error handling', () => {
+    it('shows error message when availability fetch fails', async () => {
+      getInstructorAvailabilityMock.mockResolvedValue({
+        status: 500,
+        error: 'Server error',
+      });
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        // The component displays the actual error message from the API response
+        expect(screen.getAllByText(/Server error/).length).toBeGreaterThan(0);
+      });
+    });
+
+    it('shows retry button on error', async () => {
+      getInstructorAvailabilityMock.mockResolvedValue({
+        status: 500,
+        error: 'Server error',
+      });
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByRole('button', { name: /try again/i }).length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('cannot reschedule within 12 hours', () => {
+    it('shows cannot reschedule message when lesson is within 12 hours', async () => {
+      const currentLesson = {
+        date: '2025-01-18',
+        time: '18:00:00',
+        service: 'Piano',
+      };
+
+      render(
+        <RescheduleTimeSelectionModal
+          {...defaultProps}
+          currentLesson={currentLesson}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Cannot Reschedule')).toBeInTheDocument();
+        expect(screen.getByText(/within 12 hours/)).toBeInTheDocument();
+      });
+    });
+
+    it('shows chat button in cannot reschedule view', async () => {
+      const currentLesson = {
+        date: '2025-01-18',
+        time: '18:00:00',
+        service: 'Piano',
+      };
+      const onOpenChat = jest.fn();
+
+      render(
+        <RescheduleTimeSelectionModal
+          {...defaultProps}
+          currentLesson={currentLesson}
+          onOpenChat={onOpenChat}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Chat with Instructor')).toBeInTheDocument();
+      });
+
+      // Use fireEvent instead of userEvent because userEvent has issues with fake timers
+      fireEvent.click(screen.getByText('Chat with Instructor'));
+      expect(onOpenChat).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('instructor display', () => {
+    it('displays instructor avatar', async () => {
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('user-avatar').length).toBeGreaterThan(0);
+        expect(screen.getAllByTestId('user-avatar')[0]).toHaveTextContent('John');
+      });
+    });
+
+    it('displays instructor name in availability header', async () => {
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/John D\.'s availability/).length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('current lesson display', () => {
+    it('shows current lesson banner when currentLesson is provided', async () => {
+      const currentLesson = {
+        date: '2025-01-25',
+        time: '14:00:00',
+        service: 'Piano Lesson',
+      };
+
+      render(
+        <RescheduleTimeSelectionModal
+          {...defaultProps}
+          currentLesson={currentLesson}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('current-lesson-banner').length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Current lesson:/).length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('availability loading', () => {
+    it('fetches availability when modal opens', async () => {
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(getInstructorAvailabilityMock).toHaveBeenCalledWith(
+          'inst-123',
+          expect.objectContaining({
+            start_date: expect.any(String),
+            end_date: expect.any(String),
+          })
+        );
+      });
+    });
+
+    it('shows calendar with available dates after loading', async () => {
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('duration selection', () => {
+    it('shows duration buttons when multiple options available', async () => {
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('duration-buttons').length).toBeGreaterThan(0);
+      });
+    });
+
+    it('does not show duration buttons with single duration option', async () => {
+      const singleDurationInstructor = {
+        ...mockInstructor,
+        services: [
+          {
+            id: 'svc-1',
+            duration_options: [60],
+            hourly_rate: 60,
+            skill: 'Piano',
+          },
+        ],
+      };
+
+      render(
+        <RescheduleTimeSelectionModal
+          {...defaultProps}
+          instructor={singleDurationInstructor}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+      });
+
+      expect(screen.queryByTestId('duration-buttons')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('summary section', () => {
+    it('renders summary section', async () => {
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('summary-section').length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('chat to reschedule', () => {
+    it('shows chat link', async () => {
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/Chat to reschedule/).length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('instructor without services', () => {
+    it('uses fallback duration options when none provided', async () => {
+      const noServicesInstructor = {
+        ...mockInstructor,
+        services: [],
+      };
+
+      render(
+        <RescheduleTimeSelectionModal
+          {...defaultProps}
+          instructor={noServicesInstructor}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+      });
+
+      // Should show duration buttons with fallback options
+      expect(screen.getAllByTestId('duration-buttons').length).toBeGreaterThan(0);
+    });
+  });
+});

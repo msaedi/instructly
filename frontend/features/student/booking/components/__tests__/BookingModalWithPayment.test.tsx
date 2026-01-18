@@ -39,6 +39,14 @@ const instructor: Instructor = {
   ],
 };
 
+const instructorMultipleServices: Instructor = {
+  ...instructor,
+  services: [
+    { id: 'service-1', skill: 'Piano', hourly_rate: 100, duration_options: [60], duration: 60 },
+    { id: 'service-2', skill: 'Guitar', hourly_rate: 80, duration_options: [30, 60], duration: 30 },
+  ],
+};
+
 const renderModal = (props?: Partial<React.ComponentProps<typeof BookingModalWithPayment>>) => {
   const onClose = jest.fn();
   render(
@@ -197,5 +205,176 @@ describe('BookingModalWithPayment', () => {
     });
 
     jest.useRealTimers();
+  });
+
+  it('shows alert when terms not agreed', async () => {
+    useAuthMock.mockReturnValue({
+      user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+      isAuthenticated: true,
+      redirectToLogin: jest.fn(),
+    });
+
+    renderModal();
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+    // Fill in all required fields but don't check terms
+    const inputs = getTextInputs();
+    const phoneInput = inputs[2]!;
+    await userEvent.type(phoneInput, '555-1111');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Payment' }));
+
+    expect(window.alert).toHaveBeenCalledWith('Please agree to the terms and cancellation policy');
+  });
+
+  it('handles back button from booking-details to select-time', async () => {
+    useAuthMock.mockReturnValue({
+      user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+      isAuthenticated: true,
+      redirectToLogin: jest.fn(),
+    });
+
+    renderModal();
+
+    // Go to booking details
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+    expect(screen.getByText('Booking Details')).toBeInTheDocument();
+
+    // Click back button
+    await userEvent.click(screen.getByRole('button', { name: 'Go back' }));
+
+    // Should be back at select-time
+    expect(screen.getByText('Book Your Session')).toBeInTheDocument();
+  });
+
+  it('handles back button from payment to booking-details', async () => {
+    useAuthMock.mockReturnValue({
+      user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+      isAuthenticated: true,
+      redirectToLogin: jest.fn(),
+    });
+
+    renderModal();
+
+    // Go to booking details
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+    // Fill form and go to payment
+    const inputs = getTextInputs();
+    const phoneInput = inputs[2]!;
+    await userEvent.type(phoneInput, '555-1111');
+    await userEvent.click(screen.getByRole('checkbox'));
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Payment' }));
+
+    // Should be at payment step
+    expect(screen.getByText('Payment')).toBeInTheDocument();
+
+    // Click back button
+    await userEvent.click(screen.getByRole('button', { name: 'Go back' }));
+
+    // Should be back at booking-details
+    expect(screen.getByText('Booking Details')).toBeInTheDocument();
+  });
+
+  it('allows changing service selection in dropdown', async () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      redirectToLogin: jest.fn(),
+    });
+
+    renderModal({ instructor: instructorMultipleServices });
+
+    // Find the service dropdown
+    const dropdown = screen.getByRole('combobox');
+    expect(dropdown).toBeInTheDocument();
+
+    // Change to Guitar service
+    await userEvent.selectOptions(dropdown, 'service-2');
+
+    // Verify Guitar is selected (price should change from $100 to $40 for 30min)
+    expect(screen.getByText(/\$40\.00 total/)).toBeInTheDocument();
+  });
+
+  it('allows entering notes in the booking form', async () => {
+    useAuthMock.mockReturnValue({
+      user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+      isAuthenticated: true,
+      redirectToLogin: jest.fn(),
+    });
+
+    renderModal();
+
+    // Go to booking details
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+    // Find notes textarea (it's the only textarea in the form - 4th element after name, email, phone)
+    const textboxes = screen.getAllByRole('textbox');
+    const textarea = textboxes.find(el => el.tagName === 'TEXTAREA') as HTMLTextAreaElement;
+    await userEvent.type(textarea, 'I want to learn jazz piano');
+
+    expect(textarea).toHaveValue('I want to learn jazz piano');
+  });
+
+  it('handles cancel from payment step', async () => {
+    useAuthMock.mockReturnValue({
+      user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+      isAuthenticated: true,
+      redirectToLogin: jest.fn(),
+    });
+
+    renderModal();
+
+    // Go to booking details
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+    // Fill form and go to payment
+    const inputs = getTextInputs();
+    const phoneInput = inputs[2]!;
+    await userEvent.type(phoneInput, '555-1111');
+    await userEvent.click(screen.getByRole('checkbox'));
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Payment' }));
+
+    // Click the mock cancel button in CheckoutFlow
+    await userEvent.click(screen.getByRole('button', { name: 'Mock Cancel' }));
+
+    // Should be back at booking-details
+    expect(screen.getByText('Booking Details')).toBeInTheDocument();
+  });
+
+  it('displays session details with service area and price', () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      redirectToLogin: jest.fn(),
+    });
+
+    renderModal();
+
+    // Should display service area
+    expect(screen.getByText('NYC')).toBeInTheDocument();
+    // Should display date and time
+    expect(screen.getByText(/2025-01-01 at 10:00/)).toBeInTheDocument();
+    // Should display price
+    expect(screen.getByText(/\$100\.00 total/)).toBeInTheDocument();
+  });
+
+  it('closes modal and resets state when close button clicked', async () => {
+    useAuthMock.mockReturnValue({
+      user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+      isAuthenticated: true,
+      redirectToLogin: jest.fn(),
+    });
+
+    const { onClose } = renderModal();
+
+    // Go to booking details
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+    expect(screen.getByText('Booking Details')).toBeInTheDocument();
+
+    // Close the modal
+    await userEvent.click(screen.getByRole('button', { name: 'Close booking modal' }));
+
+    expect(onClose).toHaveBeenCalled();
   });
 });
