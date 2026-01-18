@@ -13,6 +13,7 @@ Implements:
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Any, Optional, TypedDict, cast
 
 from sqlalchemy.orm import Session
@@ -45,6 +46,8 @@ from .ratings_math import (
     display_policy,
 )
 from .search.cache_invalidation import invalidate_on_review_change
+
+logger = logging.getLogger(__name__)
 
 
 class RatingComputation(TypedDict):
@@ -122,7 +125,7 @@ class ReviewService(BaseService):
                 return str(user_id)
         except Exception:
             # Fall back to treating the provided value as `users.id`
-            pass
+            logger.debug("Non-fatal error ignored", exc_info=True)
         return instructor_id
 
     @BaseService.measure_operation("submit_review")
@@ -251,8 +254,7 @@ class ReviewService(BaseService):
                     review.tip = tip_record
                 except Exception:
                     # Relationship assignment is best-effort; continue even if it fails
-                    pass
-
+                    logger.debug("Non-fatal error ignored", exc_info=True)
         # Invalidate caches
         self._invalidate_instructor_caches(booking.instructor_id)
 
@@ -419,8 +421,7 @@ class ReviewService(BaseService):
                             status=tip_status,
                         )
                     except Exception:
-                        pass
-
+                        logger.debug("Non-fatal error ignored", exc_info=True)
         return {
             "review": review,
             "tip_status": tip_status,
@@ -736,4 +737,4 @@ class ReviewService(BaseService):
             self.cache.delete(f"ratings:{self.CACHE_VERSION}:instructor:{instructor_id}")
             self.cache.delete(f"ratings:search:{self.CACHE_VERSION}:{instructor_id}:all")
         except Exception:
-            pass
+            logger.debug("Non-fatal error ignored", exc_info=True)

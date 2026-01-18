@@ -906,8 +906,7 @@ async def reschedule_booking(
             except DomainException as e:
                 raise e
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return BookingResponse.from_booking(new_booking)
     except DomainException as e:
         handle_domain_exception(e)

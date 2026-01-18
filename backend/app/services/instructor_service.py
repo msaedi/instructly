@@ -444,8 +444,7 @@ class InstructorService(BaseService):
                                 if geocoded and getattr(geocoded, "city", None):
                                     city = geocoded.city
                         except Exception:
-                            pass
-
+                            logger.debug("Non-fatal error ignored", exc_info=True)
                         # Resolve skill names from catalog ids
                         skill_names: List[str] = []
                         try:
@@ -457,7 +456,7 @@ class InstructorService(BaseService):
                                     # Use lowercase for natural phrasing (e.g., 'yoga')
                                     skill_names.append(str(catalog_entry.name).strip().lower())
                         except Exception:
-                            pass
+                            logger.debug("Non-fatal error ignored", exc_info=True)
 
                         def _oxford_join(items: List[str]) -> str:
                             if not items:

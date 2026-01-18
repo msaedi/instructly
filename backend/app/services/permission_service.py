@@ -7,6 +7,7 @@ role-based permissions and individual permission overrides.
 """
 
 import asyncio
+import logging
 from typing import TYPE_CHECKING, Dict, List, Optional, Set, Union
 
 from sqlalchemy.orm import Session
@@ -19,6 +20,8 @@ from .permission_cache import (
     invalidate_cached_permissions,
     set_cached_permissions,
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..models.rbac import UserPermission
@@ -378,7 +381,7 @@ class PermissionService(BaseService):
                 anyio.from_thread.run(invalidate_cached_permissions, user_id)
         except Exception:
             # Redis invalidation is best-effort, don't fail the operation
-            pass
+            logger.debug("Non-fatal error ignored", exc_info=True)
 
     async def _clear_user_cache_async(self, user_id: str) -> None:
         """Clear all cached entries for a specific user (both in-memory and Redis)."""

@@ -44,5 +44,5 @@ async def test_get_sse_token_sets_cache(monkeypatch):
     assert response.token == "tok"
     assert response.expires_in_s == routes.SSE_TOKEN_TTL_SECONDS
     assert redis.calls == [
-        (f"{routes.SSE_TOKEN_PREFIX}tok", routes.SSE_TOKEN_TTL_SECONDS, "user-9")
+        (f"{routes.SSE_KEY_PREFIX}tok", routes.SSE_TOKEN_TTL_SECONDS, "user-9")
     ]

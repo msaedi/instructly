@@ -3,7 +3,6 @@ from __future__ import annotations
 import builtins
 import json
 from pathlib import Path
-from types import SimpleNamespace
 
 from fastapi import HTTPException
 import pytest
@@ -66,51 +65,36 @@ def test_run_codebase_metrics_script_missing(tmp_path: Path) -> None:
 
 
 def test_run_codebase_metrics_script_failure(tmp_path: Path, monkeypatch) -> None:
-    backend_dir = tmp_path / "backend" / "scripts"
-    backend_dir.mkdir(parents=True)
-    script = backend_dir / "codebase_metrics.py"
-    script.write_text("print('hi')")
-
     monkeypatch.setattr(
-        codebase_routes.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout="", stderr="boom"),
+        codebase_routes,
+        "collect_codebase_metrics",
+        lambda _root: (_ for _ in ()).throw(RuntimeError("boom")),
     )
 
     with pytest.raises(HTTPException) as exc:
         codebase_routes._run_codebase_metrics_script(tmp_path)
 
-    assert "Metrics process failed" in exc.value.detail
+    assert "Failed to run metrics script" in exc.value.detail
 
 
 def test_run_codebase_metrics_script_bad_json(tmp_path: Path, monkeypatch) -> None:
-    backend_dir = tmp_path / "backend" / "scripts"
-    backend_dir.mkdir(parents=True)
-    script = backend_dir / "codebase_metrics.py"
-    script.write_text("print('hi')")
-
     monkeypatch.setattr(
-        codebase_routes.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="bad", stderr=""),
+        codebase_routes,
+        "collect_codebase_metrics",
+        lambda _root: (_ for _ in ()).throw(ValueError("Invalid metrics payload")),
     )
 
     with pytest.raises(HTTPException) as exc:
         codebase_routes._run_codebase_metrics_script(tmp_path)
 
-    assert "Invalid JSON" in exc.value.detail
+    assert "Failed to run metrics script" in exc.value.detail
 
 
 def test_run_codebase_metrics_script_exception(tmp_path: Path, monkeypatch) -> None:
-    backend_dir = tmp_path / "backend" / "scripts"
-    backend_dir.mkdir(parents=True)
-    script = backend_dir / "codebase_metrics.py"
-    script.write_text("print('hi')")
-
     def _boom(*_args, **_kwargs):
         raise OSError("boom")
 
-    monkeypatch.setattr(codebase_routes.subprocess, "run", _boom)
+    monkeypatch.setattr(codebase_routes, "collect_codebase_metrics", _boom)
 
     with pytest.raises(HTTPException) as exc:
         codebase_routes._run_codebase_metrics_script(tmp_path)

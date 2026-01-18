@@ -8,12 +8,15 @@ Slots exist = available. That's it.
 """
 
 import datetime
+import logging
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ._strict_base import StrictModel, StrictRequestModel
 from .base import StandardizedModel
+
+logger = logging.getLogger(__name__)
 
 
 class ScheduleItem(StrictModel):
@@ -414,4 +417,4 @@ try:
     WeekSpecificScheduleCreate.model_rebuild(force=True)
     ValidateWeekRequest.model_rebuild(force=True)
 except Exception:  # pragma: no cover - defensive initialization
-    pass
+    logger.debug("Failed to rebuild availability schemas", exc_info=True)

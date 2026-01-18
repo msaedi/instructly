@@ -1007,14 +1007,16 @@ class AvailabilityService(BaseService):
         self.cache_service.set_json(map_key, week_map, ttl=ttl_seconds)
 
     def _week_cache_keys(self, instructor_id: str, week_start: date) -> tuple[str, str]:
-        assert self.cache_service is not None
+        if self.cache_service is None:
+            raise RuntimeError("Cache service required for week cache keys")
         base_key = self.cache_service.key_builder.build(
             "availability", "week", instructor_id, week_start
         )
         return base_key, f"{base_key}:with_slots"
 
     def _week_cache_ttl_seconds(self, instructor_id: str, week_start: date) -> int:
-        assert self.cache_service is not None
+        if self.cache_service is None:
+            raise RuntimeError("Cache service required for week cache TTL calculation")
         today = get_user_today_by_id(instructor_id, self.db)
         tier = "hot" if week_start >= today else "warm"
         return self.cache_service.TTL_TIERS.get(tier, self.cache_service.TTL_TIERS["warm"])

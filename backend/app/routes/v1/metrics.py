@@ -7,6 +7,7 @@ This gives us immediate visibility without Prometheus complexity.
 
 import asyncio
 from datetime import datetime, timezone
+import logging
 import os
 from typing import Any, Dict, List, Mapping, Optional, cast
 
@@ -52,6 +53,7 @@ metrics_lite_router = APIRouter(
 
 
 RateLimitAdmin = cast(Any, getattr(rate_limiter_module, "RateLimitAdmin"))
+logger = logging.getLogger(__name__)
 
 
 # openapi-exempt: internal metrics endpoint (include_in_schema=False, returns plain text)
@@ -256,7 +258,7 @@ async def get_cache_metrics(
                 "evicted_keys": info.get("evicted_keys", 0),
             }
         except Exception:
-            pass  # Redis info is optional
+            logger.debug("Failed to fetch Redis info for cache metrics", exc_info=True)
 
     return CacheMetricsResponse(
         hits=stats.get("hits", 0),

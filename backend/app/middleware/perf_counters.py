@@ -156,7 +156,7 @@ class PerfCounterMiddleware(BaseHTTPMiddleware):
             request.state.cache_hits = state.cache_hits
             request.state.cache_misses = state.cache_misses
         except Exception:  # pragma: no cover - defensive
-            pass
+            logger.debug("Unable to attach perf counters to request state", exc_info=True)
         return response
 
 

@@ -42,5 +42,5 @@ class SearchQueryRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return None

@@ -253,6 +253,7 @@ def save_week_availability(
                         else date.fromisoformat(str(raw_date))
                     )
                 except Exception:
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                     continue
                 schedule_dates.append(parsed_date)
 

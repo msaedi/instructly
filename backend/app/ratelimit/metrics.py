@@ -1,6 +1,10 @@
+import logging
+
 from prometheus_client import Counter, Gauge, Histogram
 
 from app.monitoring.prometheus_metrics import REGISTRY
+
+logger = logging.getLogger(__name__)
 
 rl_decisions = Counter(
     "instainstru_rl_decisions_total",
@@ -60,4 +64,4 @@ try:
     rl_retry_after.labels(bucket="bootstrap", shadow="true").observe(0.0)
     rl_eval_duration.labels(bucket="bootstrap").observe(0.0)
 except Exception:
-    pass
+    logger.debug("Non-fatal error ignored", exc_info=True)

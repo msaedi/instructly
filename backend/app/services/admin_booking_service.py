@@ -582,8 +582,7 @@ class AdminBookingService(BaseService):
                 lesson_price = hourly_rate * minutes / Decimal(60)
                 return int((lesson_price * 100).quantize(Decimal("1")))
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
         total_price = self._to_float(booking.total_price)
         return int(total_price * 100)
 
@@ -854,6 +853,7 @@ class AdminBookingService(BaseService):
             try:
                 return int(value)
             except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
                 continue
         return None
 

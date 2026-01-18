@@ -40,7 +40,7 @@ def test_retryable_db_error_detection() -> None:
 
 
 def test_retry_delay(monkeypatch) -> None:
-    monkeypatch.setattr(db_module.random, "uniform", lambda *_args, **_kwargs: 0.0)
+    monkeypatch.setattr(db_module.secrets, "randbelow", lambda *_args, **_kwargs: 0)
     assert db_module._retry_delay(1) == 0.1
     assert db_module._retry_delay(2) == 0.2
 

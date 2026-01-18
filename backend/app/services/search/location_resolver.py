@@ -837,7 +837,7 @@ class LocationResolver:
                 try:
                     self.repository.db.rollback()
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
 
         await asyncio.to_thread(_cache_llm_alias)
 
@@ -908,7 +908,7 @@ class LocationResolver:
             try:
                 self.repository.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
 
     @staticmethod
     def _format_candidates(regions: Sequence[RegionBoundary]) -> List[LocationCandidate]:

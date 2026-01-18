@@ -239,8 +239,7 @@ class MessageService(BaseService):
             ):
                 raise ValidationException("Delete window has expired")
         except Exception:
-            pass
-
+            logger.debug("Non-fatal error ignored", exc_info=True)
         with self.transaction():
             deleted = self.repository.soft_delete_message(message_id, user_id)
             return bool(deleted)
@@ -339,7 +338,7 @@ class MessageService(BaseService):
             ):
                 raise ValidationException("Edit window has expired")
         except Exception:
-            pass
+            logger.debug("Non-fatal error ignored", exc_info=True)
         with self.transaction():
             # Save history and apply edit through repository
             # Repository returns edited_at timestamp (truthy) or None (falsy)

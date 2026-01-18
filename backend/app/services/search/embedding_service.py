@@ -144,7 +144,8 @@ class EmbeddingService:
                     is_owner = True
 
             if not is_owner:
-                assert pending_future is not None
+                if pending_future is None:
+                    raise RuntimeError("Pending future missing for embedding coalescing")
                 logger.info("[EMBED] Coalesced request for: %s", normalized[:50])
                 return await pending_future
 

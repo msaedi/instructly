@@ -57,7 +57,7 @@ async def get_redis(**_kwargs: Any) -> AsyncRedis:
             try:
                 await client.aclose()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             raise RuntimeError("Redis unavailable") from exc
 
         _clients_by_loop[loop] = client

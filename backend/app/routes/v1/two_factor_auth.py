@@ -260,4 +260,6 @@ def verify_login(
             samesite=settings.session_cookie_samesite or "lax",
             path="/",
         )
-    return TFAVerifyLoginResponse(access_token=access_token, token_type="bearer")
+    from app.core.constants import BEARER_SCHEME
+
+    return TFAVerifyLoginResponse(access_token=access_token, token_type=BEARER_SCHEME)

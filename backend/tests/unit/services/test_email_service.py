@@ -241,7 +241,7 @@ class TestEmailService:
                 to_email="user@example.com",
                 subject="Subject",
                 html_content="<p>body</p>",
-                template=TemplateRegistry.AUTH_PASSWORD_RESET,
+                template=TemplateRegistry.AUTH_PW_RESET,
             )
 
         mock_resend_send.assert_called_once()

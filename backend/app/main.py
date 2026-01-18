@@ -71,7 +71,11 @@ for _model in (WeekSpecificScheduleCreate, ValidateWeekRequest, AuditLogView):
     try:
         _model.model_rebuild(force=True)
     except Exception:  # pragma: no cover - defensive init
-        pass
+        logging.getLogger(__name__).debug(
+            "Failed to rebuild Pydantic model: %s",
+            getattr(_model, "__name__", repr(_model)),
+            exc_info=True,
+        )
 
 # Use the new ASGI middleware to avoid "No response returned" errors
 # Broadcaster for SSE multiplexing (v4.0)
@@ -186,7 +190,7 @@ def _metrics_auth_failure(reason: str) -> None:
     try:
         METRICS_AUTH_FAILURE_TOTAL.labels(reason=reason).inc()
     except Exception:
-        pass
+        logger.debug("Non-fatal error ignored", exc_info=True)
 
 
 def _extract_metrics_client_ip(request: Request) -> str:
@@ -368,12 +372,10 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         ts = TemplateService(None, None)
         _ = ts.render_template(
-            TemplateRegistry.AUTH_PASSWORD_RESET,
+            TemplateRegistry.AUTH_PW_RESET,
             {"reset_url": "https://example.com", "user_name": "Test"},
         )
-        _ = ts.render_template(
-            TemplateRegistry.AUTH_PASSWORD_RESET_CONFIRMATION, {"user_name": "Test"}
-        )
+        _ = ts.render_template(TemplateRegistry.AUTH_PW_RESET_CONFIRMATION, {"user_name": "Test"})
         _ = ts.render_template(
             TemplateRegistry.REFERRALS_INVITE_STANDALONE,
             {"inviter_name": "Test", "referral_link": "https://example.com"},
@@ -507,7 +509,7 @@ def _availability_safe_openapi() -> Dict[str, Any]:
         try:
             _model.model_rebuild(force=True)
         except Exception:
-            pass
+            logger.debug("Non-fatal error ignored", exc_info=True)
     return _original_openapi()
 
 
@@ -819,7 +821,7 @@ async def add_site_headers(
         response.headers["X-Phase"] = phase
     except Exception:
         # Never fail a response due to header attachment
-        pass
+        logger.debug("Non-fatal error ignored", exc_info=True)
     return response
 
 
@@ -944,9 +946,8 @@ class EnsureCorsOnErrorMiddleware(BaseHTTPMiddleware):
 
 
 _DYN_ALLOWED_ORIGINS = _compute_allowed_origins()
-assert (
-    "*" not in _DYN_ALLOWED_ORIGINS
-), "CORS allow_origins cannot include * when allow_credentials=True"
+if "*" in _DYN_ALLOWED_ORIGINS:
+    raise RuntimeError("CORS allow_origins cannot include * when allow_credentials=True")
 _log_bgc_config_summary(_DYN_ALLOWED_ORIGINS)
 
 # Normalize once for middleware config.
@@ -1243,7 +1244,7 @@ def _prewarm_metrics_cache() -> None:
         warm_prometheus_metrics_response_cache()
     except Exception:
         # Cache warmup should never block startup; swallow any issues.
-        pass
+        logger.debug("Non-fatal error ignored", exc_info=True)
 
 
 # Wrap with ASGI middleware for production

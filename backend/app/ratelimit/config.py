@@ -1,9 +1,12 @@
 from dataclasses import dataclass
 import json
+import logging
 import os
 from typing import Any, Dict, Optional, cast
 
 from .metrics import rl_active_overrides, rl_config_reload_total
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -135,8 +138,7 @@ def reload_config(cache_ttl_s: int = 30) -> Dict[str, Any]:
         rl_config_reload_total.inc()
         rl_active_overrides.set(len(_POLICY_OVERRIDES))
     except Exception:
-        pass
-
+        logger.debug("Non-fatal error ignored", exc_info=True)
     return info
 
 
@@ -169,8 +171,7 @@ async def reload_config_async(cache_ttl_s: int = 30) -> Dict[str, Any]:
         rl_config_reload_total.inc()
         rl_active_overrides.set(len(_POLICY_OVERRIDES))
     except Exception:
-        pass
-
+        logger.debug("Non-fatal error ignored", exc_info=True)
     return info
 
 
@@ -200,5 +201,6 @@ def get_effective_policy(
                     merged["shadow"] = bool(override["shadow"])
                 return merged
         except Exception:
+            logger.debug("Non-fatal error ignored", exc_info=True)
             continue
     return base

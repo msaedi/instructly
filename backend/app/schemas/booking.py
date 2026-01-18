@@ -9,6 +9,7 @@ availability changes.
 """
 
 from datetime import date, datetime, time, timedelta, timezone
+import logging
 import re
 from typing import Any, List, Literal, Mapping, Optional
 
@@ -25,6 +26,8 @@ import pytz
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
 from ._strict_base import StrictModel, StrictRequestModel
+
+logger = logging.getLogger(__name__)
 
 
 class ConflictingBookingInfo(StrictModel):
@@ -913,7 +916,7 @@ class UpcomingBookingResponse(StandardizedModel):
             try:
                 return float(v.amount)
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
         from decimal import Decimal
 
         try:

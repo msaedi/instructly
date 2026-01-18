@@ -93,8 +93,7 @@ class RateLimitMiddlewareASGI:
                 await self.app(scope, receive, send_testing_wrapper)
                 return
         except Exception:
-            pass
-
+            logger.debug("Non-fatal error ignored", exc_info=True)
         # Honor global rate limit toggle (disable entirely when false)
         if not getattr(settings, "rate_limit_enabled", True):
             await self.app(scope, receive, send)
@@ -241,8 +240,7 @@ class RateLimitMiddlewareASGI:
                     },
                 )
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
             # Send the response
             await response(scope, receive, send)
             return

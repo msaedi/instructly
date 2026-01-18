@@ -40,7 +40,7 @@ def process_location_learning(self: "Task[Any, Any]", limit: int = 500) -> Dict[
             try:
                 db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
         return {"status": "error", "error": str(exc)}
     finally:
         if db:

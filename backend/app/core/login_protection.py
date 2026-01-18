@@ -66,7 +66,7 @@ def record_login_result(result: str) -> None:
         login_attempts_total.labels(result=result).inc()
     except Exception:
         # Metrics must never block auth path
-        pass
+        logger.debug("Non-fatal error ignored", exc_info=True)
 
 
 def record_captcha_event(result: str) -> None:
@@ -74,7 +74,7 @@ def record_captcha_event(result: str) -> None:
     try:
         login_captcha_required_total.labels(result=result).inc()
     except Exception:
-        pass
+        logger.debug("Non-fatal error ignored", exc_info=True)
 
 
 async def _get_redis_client(explicit: Optional[Redis] = None) -> Optional[Redis]:

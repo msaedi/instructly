@@ -7,6 +7,7 @@ and best practices for metric types.
 """
 
 from collections import defaultdict
+import logging
 import os
 from threading import Lock
 from time import monotonic
@@ -20,6 +21,8 @@ from prometheus_client import (
     Histogram,
     generate_latest,
 )
+
+logger = logging.getLogger(__name__)
 
 # Create a custom registry to avoid conflicts with default metrics
 REGISTRY = CollectorRegistry()
@@ -377,4 +380,4 @@ try:
     notifications_dispatch_seconds.labels(event_type="bootstrap").observe(0.0)
     audit_log_list_seconds.observe(0.0)
 except Exception:
-    pass
+    logger.debug("Non-fatal error ignored", exc_info=True)

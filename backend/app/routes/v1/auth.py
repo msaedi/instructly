@@ -536,7 +536,9 @@ async def login(
             cache_service=cache_service,
         )
 
-    return LoginResponse(access_token=access_token, token_type="bearer", requires_2fa=False)
+    from app.core.constants import BEARER_SCHEME
+
+    return LoginResponse(access_token=access_token, token_type=BEARER_SCHEME, requires_2fa=False)
 
 
 @router.post("/change-password", response_model=PasswordChangeResponse)

@@ -113,7 +113,7 @@ async def test_get_current_user_sse_accepts_sse_query_token(unit_db, monkeypatch
 
     token = "sse-token-123"
     await fake_redis.setex(
-        f"{auth_sse.SSE_TOKEN_PREFIX}{token}",
+        f"{auth_sse.SSE_KEY_PREFIX}{token}",
         auth_sse.SSE_TOKEN_TTL_SECONDS,
         str(user.id),
     )

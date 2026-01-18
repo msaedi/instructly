@@ -351,7 +351,8 @@ class CacheService(BaseService):
 
         try:
             expiration = ttl if ttl is not None else self.TTL_TIERS.get("warm", 3600)
-            assert expiration is not None
+            if expiration is None:
+                raise RuntimeError("Cache TTL missing for backend set")
 
             if redis_client and self.circuit_breaker.state != CircuitState.OPEN:
 
@@ -451,7 +452,8 @@ class CacheService(BaseService):
             if ttl is None:
                 ttl = self.TTL_TIERS.get(tier, self.TTL_TIERS["warm"])
 
-            assert ttl is not None
+            if ttl is None:
+                raise RuntimeError("Cache TTL missing for set")
             expiration = ttl
             serialized = json.dumps(value, default=str)
 
@@ -687,7 +689,8 @@ class CacheService(BaseService):
         try:
             if ttl is None:
                 ttl = self.TTL_TIERS.get(tier, self.TTL_TIERS["warm"])
-            assert ttl is not None
+            if ttl is None:
+                raise RuntimeError("Cache TTL missing for mset")
 
             redis_client = await self._get_redis_client()
             if redis_client:
@@ -1062,7 +1065,7 @@ def _run_cache_coroutine(coro: Coroutine[Any, Any, _CT]) -> _CT:
 
                 await close_async_cache_redis_client()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
 
     loop = _cache_event_loop
     if loop is None or loop.is_closed():

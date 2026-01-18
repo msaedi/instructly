@@ -191,7 +191,8 @@ class BookingService(BaseService):
         else:
             timestamp = booking.created_at or datetime.now(timezone.utc)
 
-        assert timestamp is not None, "timestamp should always be computed for booking event"
+        if timestamp is None:
+            raise RuntimeError("Timestamp missing for booking event")
         ts = timestamp.astimezone(timezone.utc)
         version = ts.isoformat()
         key = f"booking:{booking.id}:{event_type}:{version}"
@@ -768,8 +769,7 @@ class BookingService(BaseService):
                                 booking.late_reschedule_used = True
                     except Exception:
                         # Non-fatal; linkage is analytics-only
-                        pass
-
+                        logger.debug("Non-fatal error ignored", exc_info=True)
                 # Override status to PENDING until payment confirmed
                 booking.status = BookingStatus.PENDING
                 booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
@@ -1376,13 +1376,12 @@ class BookingService(BaseService):
                             refreshed.payment_status = PaymentStatus.AUTHORIZED.value
                 self.repository.refresh(booking)
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
         elif trigger_immediate_auth:
             try:
                 self.repository.refresh(booking)
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
         # Create system message in conversation only after confirmation
         if booking.status != BookingStatus.CONFIRMED:
             return booking
@@ -1431,7 +1430,7 @@ class BookingService(BaseService):
         try:
             self._invalidate_booking_caches(booking)
         except Exception:
-            pass
+            logger.debug("Non-fatal error ignored", exc_info=True)
         return booking
 
     @BaseService.measure_operation("retry_authorization")
@@ -1904,8 +1903,7 @@ class BookingService(BaseService):
             try:
                 self.db.expire_all()
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
         # Refresh booking after possible authorization
         booking = self.repository.get_booking_with_details(booking_id)
         if not booking:

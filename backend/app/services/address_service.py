@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, Optional, Tuple, cast
 
 from sqlalchemy.orm import Session
@@ -19,6 +20,8 @@ from .base import BaseService
 from .cache_service import CacheService, CacheServiceSyncAdapter, get_cache_service
 from .geocoding.factory import create_geocoding_provider
 from .location_enrichment import LocationEnrichmentService
+
+logger = logging.getLogger(__name__)
 
 _BOROUGH_CENTROID: Dict[str, Tuple[float, float]] = {
     "Manhattan": (-73.985, 40.758),
@@ -361,8 +364,7 @@ class AddressService(BaseService):
                 if cached:
                     return cached
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
         # List areas for instructors
         areas = self.service_area_repo.list_neighborhoods_for_instructors(instructor_ids)
         neighborhood_ids = list({a.neighborhood_id for a in areas if a.neighborhood_id})
@@ -396,7 +398,7 @@ class AddressService(BaseService):
             try:
                 self.cache.set(cache_key, result, tier="hot")  # ~5 minutes
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
         return result
 
     @BaseService.measure_operation("list_neighborhoods")
@@ -417,8 +419,7 @@ class AddressService(BaseService):
                 if cached_list is not None:
                     return cached_list
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
         rows = self.region_repo.list_regions(
             region_type=region_type, parent_region=borough, limit=limit, offset=offset
         )
@@ -435,7 +436,7 @@ class AddressService(BaseService):
             try:
                 self.cache.set(cache_key, items, tier="warm")  # ~1 hour
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
         return items
 
     # Helpers

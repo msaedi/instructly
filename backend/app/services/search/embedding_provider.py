@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-import random
 from typing import List, Optional, Protocol
 
 from openai import AsyncOpenAI
@@ -136,17 +135,24 @@ class MockEmbeddingProvider:
 
     def _generate_embedding(self, text: str) -> List[float]:
         """Create deterministic embedding from text hash."""
-        # Create deterministic seed from text
-        text_hash = hashlib.sha256(text.lower().encode()).hexdigest()
-        seed = int(text_hash[:8], 16)
+        seed = text.lower().encode("utf-8")
+        values: List[float] = []
+        counter = 0
 
-        # Generate deterministic "embedding"
-        rng = random.Random(seed)
-        embedding = [rng.gauss(0, 1) for _ in range(self.dimensions)]
+        while len(values) < self.dimensions:
+            digest = hashlib.sha256(seed + counter.to_bytes(4, "big")).digest()
+            for idx in range(0, len(digest), 4):
+                chunk = digest[idx : idx + 4]
+                if len(chunk) < 4:
+                    break
+                raw = int.from_bytes(chunk, "big")
+                values.append((raw / 2**32) * 2.0 - 1.0)
+                if len(values) >= self.dimensions:
+                    break
+            counter += 1
 
-        # Normalize to unit length (like real embeddings)
-        magnitude = sum(x**2 for x in embedding) ** 0.5
-        return [x / magnitude for x in embedding]
+        magnitude = sum(x**2 for x in values) ** 0.5 or 1.0
+        return [x / magnitude for x in values]
 
     def get_model_name(self) -> str:
         return "mock-embedding-v1"

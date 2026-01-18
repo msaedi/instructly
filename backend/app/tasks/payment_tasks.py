@@ -418,8 +418,7 @@ def _process_authorization_for_booking(
 
                         prometheus_metrics.inc_credits_applied("authorization")
                     except Exception:
-                        pass
-
+                        logger.debug("Non-fatal error ignored", exc_info=True)
                 payment_repo.create_payment_event(
                     booking_id=booking_id,
                     event_type="auth_succeeded",
@@ -477,8 +476,7 @@ def _process_authorization_for_booking(
         try:
             check_immediate_auth_timeout.apply_async(args=[booking_id], countdown=30 * 60)
         except Exception:
-            pass
-
+            logger.debug("Non-fatal error ignored", exc_info=True)
     return stripe_result
 
 
@@ -2374,8 +2372,7 @@ def create_new_authorization_and_capture(
         try:
             db.commit()
         except Exception:
-            pass
-
+            logger.debug("Non-fatal error ignored", exc_info=True)
         # ========== Phase 2: Stripe calls (NO transaction) ==========
         db_stripe: Session = SessionLocal()
         try:
@@ -2732,7 +2729,10 @@ def check_authorization_health() -> Dict[str, Any]:
                 .first()
             )
         except Exception:
-            pass  # If this fails, we'll just report no recent auth
+            logger.debug(
+                "Unable to fetch last authorization event for health check",
+                exc_info=True,
+            )
 
         minutes_since_last_auth = None
         if last_auth_event:

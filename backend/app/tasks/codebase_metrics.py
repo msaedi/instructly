@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-import subprocess
 from typing import Any, Callable, Dict, List, TypeVar, cast
 
 from app.tasks.celery_app import BaseTask, celery_app
+from app.utils.codebase_metrics import collect_codebase_metrics
 
 TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
 
@@ -32,18 +32,7 @@ def _get_repo_root() -> Path:
 
 
 def _run_metrics_script(repo_root: Path) -> Dict[str, Any]:
-    script_path = repo_root / "backend" / "scripts" / "codebase_metrics.py"
-    result = subprocess.run(
-        ["python3", str(script_path), "--json", "--path", str(repo_root)],
-        cwd=str(repo_root),
-        capture_output=True,
-        text=True,
-        timeout=90,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or "metrics script failed")
-    return cast(Dict[str, Any], json.loads(result.stdout))
+    return collect_codebase_metrics(repo_root)
 
 
 def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], TaskCallable]:

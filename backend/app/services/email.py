@@ -216,7 +216,7 @@ class EmailService(BaseService):
             # Render via Jinja template
             template_service = TemplateService(self.db, self.cache)
             html_content = template_service.render_template(
-                TemplateRegistry.AUTH_PASSWORD_RESET,
+                TemplateRegistry.AUTH_PW_RESET,
                 context={"reset_url": reset_url, "user_name": user_name},
             )
 
@@ -228,7 +228,7 @@ class EmailService(BaseService):
                 subject=subject,
                 html_content=html_content,
                 text_content=text_content,
-                template=TemplateRegistry.AUTH_PASSWORD_RESET,
+                template=TemplateRegistry.AUTH_PW_RESET,
             )
 
             self.log_operation("password_reset_email_sent", to_email=to_email)
@@ -262,7 +262,7 @@ class EmailService(BaseService):
 
             template_service = TemplateService(self.db, self.cache)
             html_content = template_service.render_template(
-                TemplateRegistry.AUTH_PASSWORD_RESET_CONFIRMATION,
+                TemplateRegistry.AUTH_PW_RESET_CONFIRMATION,
                 context={"user_name": user_name},
             )
             text_content = (
@@ -274,7 +274,7 @@ class EmailService(BaseService):
                 subject=subject,
                 html_content=html_content,
                 text_content=text_content,
-                template=TemplateRegistry.AUTH_PASSWORD_RESET_CONFIRMATION,
+                template=TemplateRegistry.AUTH_PW_RESET_CONFIRMATION,
             )
 
             self.log_operation("password_reset_confirmation_sent", to_email=to_email)

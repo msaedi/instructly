@@ -152,7 +152,11 @@ async def _invalidate_user_address_cache(cache_service: CacheService, user_id: s
     try:
         await cache_service.delete(f"user_default_address:{user_id}")
     except Exception:
-        pass  # Non-critical - cache will expire naturally
+        logger.debug(
+            "Failed to invalidate user address cache for user_id=%s",
+            user_id,
+            exc_info=True,
+        )
 
 
 @router.post("/me", response_model=AddressResponse, status_code=status.HTTP_201_CREATED)

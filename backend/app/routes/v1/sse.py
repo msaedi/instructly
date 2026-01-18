@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict
 
 from ...api.dependencies.auth import get_current_active_user
-from ...auth_sse import SSE_TOKEN_PREFIX, SSE_TOKEN_TTL_SECONDS
+from ...auth_sse import SSE_KEY_PREFIX, SSE_TOKEN_TTL_SECONDS
 from ...core.cache_redis import get_async_cache_redis_client
 from ...models.user import User
 
@@ -40,7 +40,7 @@ async def get_sse_token(
 
     token = secrets.token_urlsafe(32)
     await redis.setex(
-        f"{SSE_TOKEN_PREFIX}{token}",
+        f"{SSE_KEY_PREFIX}{token}",
         SSE_TOKEN_TTL_SECONDS,
         str(current_user.id),
     )

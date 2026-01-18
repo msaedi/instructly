@@ -109,6 +109,7 @@ class AliasLearningService:
             try:
                 count = int(value or 0)
             except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
                 continue
             if count > top_count:
                 top_region_id = str(region_id)

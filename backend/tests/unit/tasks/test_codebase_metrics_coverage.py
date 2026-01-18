@@ -14,23 +14,17 @@ def test_get_repo_root_points_to_repo() -> None:
 
 
 def test_run_metrics_script_success(monkeypatch, tmp_path) -> None:
-    class DummyResult:
-        returncode = 0
-        stdout = json.dumps({"ok": True})
-        stderr = ""
-
-    monkeypatch.setattr(codebase_metrics.subprocess, "run", lambda *_a, **_k: DummyResult())
+    monkeypatch.setattr(codebase_metrics, "collect_codebase_metrics", lambda _root: {"ok": True})
     result = codebase_metrics._run_metrics_script(tmp_path)
     assert result == {"ok": True}
 
 
 def test_run_metrics_script_failure(monkeypatch, tmp_path) -> None:
-    class DummyResult:
-        returncode = 1
-        stdout = ""
-        stderr = "boom"
-
-    monkeypatch.setattr(codebase_metrics.subprocess, "run", lambda *_a, **_k: DummyResult())
+    monkeypatch.setattr(
+        codebase_metrics,
+        "collect_codebase_metrics",
+        lambda _root: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
     with pytest.raises(RuntimeError):
         codebase_metrics._run_metrics_script(tmp_path)
 

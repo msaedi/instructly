@@ -35,7 +35,7 @@ class PermissionName(str, Enum):
     MANAGE_OWN_PROFILE = "manage_own_profile"
     VIEW_OWN_BOOKINGS = "view_own_bookings"
     VIEW_OWN_SEARCH_HISTORY = "view_own_search_history"
-    CHANGE_OWN_PASSWORD = "change_own_password"
+    CHANGE_OWN_PW = "change_own_password"
     DELETE_OWN_ACCOUNT = "delete_own_account"
 
     # Student-specific permissions

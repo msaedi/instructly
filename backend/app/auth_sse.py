@@ -49,7 +49,7 @@ from .utils.cookies import session_cookie_candidates
 
 logger = logging.getLogger(__name__)
 
-SSE_TOKEN_PREFIX = "sse_token:"
+SSE_KEY_PREFIX = "sse_key:"
 SSE_TOKEN_TTL_SECONDS = 30
 
 
@@ -60,7 +60,7 @@ async def _get_user_from_sse_token(token: str) -> Optional[User]:
         logger.warning("[SSE] Redis unavailable for SSE token lookup")
         return None
 
-    key = f"{SSE_TOKEN_PREFIX}{token}"
+    key = f"{SSE_KEY_PREFIX}{token}"
     user_id_raw = await redis.get(key)
     if not user_id_raw:
         return None

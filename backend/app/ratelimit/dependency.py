@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+import logging
 import os
 import time
 
@@ -12,6 +13,8 @@ from .gcra import Decision
 from .headers import set_policy_headers, set_rate_headers
 from .metrics import rl_decisions, rl_eval_duration, rl_eval_errors, rl_retry_after
 from .redis_backend import GCRA_LUA, get_redis
+
+logger = logging.getLogger(__name__)
 
 
 def _compute_interval_ms(rate_per_min: int) -> int:
@@ -29,7 +32,7 @@ def _is_testing_env() -> bool:
         if getattr(settings, "is_testing", False):
             return True
     except Exception:
-        pass
+        logger.debug("Non-fatal error ignored", exc_info=True)
     if os.getenv("PYTEST_CURRENT_TEST"):
         return True
     flag = os.getenv("IS_TESTING", "").strip().lower()
@@ -119,15 +122,14 @@ def rate_limit(bucket: str) -> Callable[[Request, Response], Awaitable[None]]:
                 try:
                     rl_eval_errors.labels(bucket=bucket).inc()
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
             finally:
                 try:
                     rl_eval_duration.labels(bucket=bucket).observe(
                         max(time.perf_counter() - start_eval, 0.0)
                     )
                 except Exception:
-                    pass
-
+                    logger.debug("Non-fatal error ignored", exc_info=True)
         # Headers + metrics
         set_rate_headers(
             response,

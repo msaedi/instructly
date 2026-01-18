@@ -45,7 +45,7 @@ class RateLimitAlgorithm(Enum):
     """Rate limiting algorithms."""
 
     SLIDING_WINDOW = "sliding_window"
-    TOKEN_BUCKET = "token_bucket"
+    BUCKET = "token_bucket"
     FIXED_WINDOW = "fixed_window"
 
 
@@ -440,7 +440,7 @@ def rate_limit(
         try:
             wrapper.__signature__ = inspect.signature(func)
         except Exception:
-            pass
+            logger.debug("Non-fatal error ignored", exc_info=True)
         return cast(F, wrapper)
 
     return decorator

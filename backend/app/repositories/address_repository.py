@@ -1,5 +1,6 @@
 """Repositories for address and spatial models."""
 
+import logging
 from typing import List, Optional, cast
 
 from sqlalchemy.orm import Session, selectinload
@@ -7,6 +8,8 @@ from sqlalchemy.orm import Session, selectinload
 from ..models.address import InstructorServiceArea, NYCNeighborhood, UserAddress
 from ..models.region_boundary import RegionBoundary
 from .base_repository import BaseRepository
+
+logger = logging.getLogger(__name__)
 
 
 class UserAddressRepository(BaseRepository[UserAddress]):
@@ -213,5 +216,5 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return None

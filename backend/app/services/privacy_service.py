@@ -247,7 +247,7 @@ class PrivacyService(BaseService):
                 try:
                     user.account_status = "deactivated"
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                 # Anonymize PII
                 user.email = f"deleted_{user.id}@deleted.com"
                 user.first_name = "Deleted"
@@ -256,12 +256,11 @@ class PrivacyService(BaseService):
                 try:
                     user.phone = None  # phone is nullable
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                 try:
                     user.zip_code = "00000"  # zip_code is non-nullable; use neutral placeholder
                 except Exception:
-                    pass
-
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                 # Delete instructor profile if exists
                 instructor = self.instructor_repository.get_by_user_id(user_id)
                 if instructor:

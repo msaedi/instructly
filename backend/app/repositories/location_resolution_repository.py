@@ -49,7 +49,7 @@ class LocationResolutionRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return None
 
     def find_trusted_alias(self, normalized: str) -> Optional[LocationAlias]:
@@ -85,7 +85,7 @@ class LocationResolutionRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return None
 
     def find_cached_alias(
@@ -112,7 +112,7 @@ class LocationResolutionRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return None
 
     def increment_alias_user_count(self, alias_row: LocationAlias) -> None:
@@ -129,7 +129,7 @@ class LocationResolutionRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
 
     def get_region_by_id(self, region_id: str) -> Optional[RegionBoundary]:
         """Fetch a RegionBoundary by id within this region_code."""
@@ -148,7 +148,7 @@ class LocationResolutionRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return None
 
     def get_regions_by_ids(self, region_ids: list[str]) -> list[RegionBoundary]:
@@ -170,7 +170,7 @@ class LocationResolutionRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return []
 
     def list_regions(self, *, limit: int = 2000) -> list[RegionBoundary]:
@@ -196,7 +196,7 @@ class LocationResolutionRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return []
 
     def find_best_fuzzy_region(
@@ -235,7 +235,7 @@ class LocationResolutionRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return None, 0.0
 
     def get_best_fuzzy_score(self, normalized: str) -> float:
@@ -264,7 +264,7 @@ class LocationResolutionRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return 0.0
 
     def list_fuzzy_region_names(self, normalized: str, *, limit: int = 5) -> list[str]:
@@ -296,7 +296,7 @@ class LocationResolutionRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return []
 
         out: list[str] = []
@@ -344,7 +344,7 @@ class LocationResolutionRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return []
 
     def list_region_names(self) -> list[str]:
@@ -368,7 +368,7 @@ class LocationResolutionRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return []
 
     def has_region_name_embeddings(self) -> bool:
@@ -394,7 +394,7 @@ class LocationResolutionRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return False
 
     def find_regions_by_name_embedding(
@@ -448,5 +448,5 @@ class LocationResolutionRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return []
