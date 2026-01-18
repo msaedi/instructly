@@ -349,7 +349,9 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               return next;
             });
           }
-        } catch {}
+        } catch (err) {
+          logger.warn('Failed to prefill service areas', err);
+        }
 
         // Detect NYC from default address postal code using hook data
         try {
@@ -369,7 +371,9 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               }
             }
           }
-        } catch {}
+        } catch (err) {
+          logger.warn('Failed to check NYC zip', err);
+        }
       } catch (e) {
         logger.error('Failed to load profile', e);
         setError('Failed to load profile');
@@ -479,7 +483,9 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         });
         return list;
       }
-    } catch {}
+    } catch (err) {
+      logger.warn('Failed to load borough neighborhoods', { borough, err });
+    }
     return boroughNeighborhoods[borough] || [];
   }, [boroughNeighborhoods]);
 
@@ -681,8 +687,8 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             inFlightRef: inFlightServiceAreasRef,
             setSaving: setSavingServiceAreas,
           });
-        } catch {
-          // Swallow here; page already reports via toast earlier
+        } catch (err) {
+          logger.warn('Failed to submit service areas during profile save', err);
         }
       }
 
@@ -714,7 +720,11 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         selectedNeighborhoods.size > 0 &&
         (hasProfilePicture || false)
       );
-      try { sessionStorage.setItem('onboarding_step1_complete', ok ? 'true' : 'false'); } catch {}
+      try {
+        sessionStorage.setItem('onboarding_step1_complete', ok ? 'true' : 'false');
+      } catch (err) {
+        logger.warn('Failed to persist onboarding progress', err);
+      }
       onStepStatusChange?.(ok ? 'done' : 'failed');
 
       if (redirectTo) {
