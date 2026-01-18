@@ -35,6 +35,13 @@ repos:
         name: ruff (backend)
         args: ["backend"]
         pass_filenames: false
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.7
+    hooks:
+      - id: bandit
+        args: ["-r", "backend/app", "-ll"]
+        pass_filenames: false
   - repo: local
     hooks:
       - id: frontend-eslint

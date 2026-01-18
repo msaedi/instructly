@@ -208,9 +208,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install bandit pip-audit
 
-    - name: Bandit
+    - name: Security scan (Bandit)
       working-directory: backend
-      run: bandit -r app/ -ll -x tests --skip B324
+      run: bandit -r app -f txt
 
     - name: pip-audit (project dependencies only)
       working-directory: backend
