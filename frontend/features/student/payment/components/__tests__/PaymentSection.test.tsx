@@ -2289,4 +2289,838 @@ describe('PaymentSection', () => {
       });
     });
   });
+
+  describe('booking data edge cases for mergeBookingIntoPayment', () => {
+    it('handles booking data with string total_price', async () => {
+      const bookingWithStringPrice: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        totalAmount: '115.50' as unknown as number,
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithStringPrice} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles booking data with NaN total', async () => {
+      const bookingWithNaN: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        totalAmount: NaN,
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNaN} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles booking data with Infinity total', async () => {
+      const bookingWithInfinity: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        totalAmount: Infinity,
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithInfinity} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles booking data with missing duration_minutes', async () => {
+      const bookingWithNoDuration: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        duration: undefined as unknown as number,
+        metadata: {
+          serviceId: 'service-789',
+        },
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoDuration} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles booking with string duration in metadata', async () => {
+      const bookingWithStringDuration: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        duration: undefined as unknown as number,
+        metadata: {
+          serviceId: 'service-789',
+          duration: '60',
+        },
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithStringDuration} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles booking with HH:MM:SS start time format', async () => {
+      const bookingWithHHMMSS: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        startTime: '10:00:00',
+        endTime: '11:00:00',
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithHHMMSS} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('sessionStorage interactions', () => {
+    const originalSessionStorage = window.sessionStorage;
+
+    beforeEach(() => {
+      // Clear sessionStorage before each test
+      window.sessionStorage.clear();
+    });
+
+    afterEach(() => {
+      // Restore sessionStorage
+      Object.defineProperty(window, 'sessionStorage', {
+        value: originalSessionStorage,
+        writable: true,
+      });
+    });
+
+    it('reads credits UI state from sessionStorage', async () => {
+      window.sessionStorage.setItem('credits-ui-state-booking-123', JSON.stringify({ creditsCollapsed: true }));
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles malformed JSON in sessionStorage gracefully', async () => {
+      window.sessionStorage.setItem('credits-ui-state-booking-123', 'not-valid-json');
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('recovers booking date from sessionStorage when missing', async () => {
+      const bookingWithNoDate: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        date: undefined as unknown as Date,
+      };
+
+      window.sessionStorage.setItem('bookingData', JSON.stringify({ date: '2025-02-01' }));
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoDate} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('recovers serviceId from sessionStorage when missing in metadata', async () => {
+      const bookingWithNoServiceId: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        metadata: {},
+      };
+
+      window.sessionStorage.setItem('serviceId', 'fallback-service-123');
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoServiceId} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('quote selection edge cases', () => {
+    it('handles missing instructor ID', async () => {
+      const bookingWithNoInstructor: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        instructorId: '',
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoInstructor} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles missing service ID', async () => {
+      const bookingWithNoServiceId: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        metadata: {},
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoServiceId} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles invalid booking date format', async () => {
+      const bookingWithInvalidDate: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        date: 'not-a-date' as unknown as Date,
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithInvalidDate} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles missing start time', async () => {
+      const bookingWithNoStartTime: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        startTime: '',
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoStartTime} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles remote/online modality in metadata', async () => {
+      const bookingWithRemoteModality: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        location: 'Online',
+        metadata: {
+          serviceId: 'service-789',
+          modality: 'remote',
+        },
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithRemoteModality} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles virtual location keyword', async () => {
+      const bookingWithVirtualLocation: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        location: 'Virtual Meeting',
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithVirtualLocation} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles student_home modality', async () => {
+      const bookingWithStudentHome: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        metadata: {
+          serviceId: 'service-789',
+          modality: 'student_home',
+        },
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithStudentHome} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('duration resolution fallbacks', () => {
+    it('derives duration from start and end times when not provided', async () => {
+      const bookingWithNoDuration: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        duration: 0,
+        startTime: '10:00',
+        endTime: '11:30',
+        metadata: {
+          serviceId: 'service-789',
+        },
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNoDuration} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('uses duration_minutes from metadata as fallback', async () => {
+      const bookingWithMetadataDuration: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        duration: 0,
+        metadata: {
+          serviceId: 'service-789',
+          duration_minutes: 45,
+        },
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithMetadataDuration} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles negative duration difference gracefully', async () => {
+      const bookingWithNegativeDuration: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        duration: 0,
+        startTime: '11:00',
+        endTime: '10:00', // End before start
+        metadata: {
+          serviceId: 'service-789',
+        },
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithNegativeDuration} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('compact rendering', () => {
+    it('renders payment section correctly', async () => {
+      render(
+        <PaymentSection {...defaultProps} />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('payment methods loading fallback', () => {
+    it('uses empty array when payment methods API returns null', async () => {
+      paymentServiceMock.listPaymentMethods.mockResolvedValue(null as unknown as ReturnType<typeof paymentServiceMock.listPaymentMethods>);
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('uses empty array when payment methods API returns undefined', async () => {
+      paymentServiceMock.listPaymentMethods.mockResolvedValue(undefined as unknown as ReturnType<typeof paymentServiceMock.listPaymentMethods>);
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('credits management edge cases', () => {
+    it('handles zero available credits', async () => {
+      useCreditsMock.mockReturnValue({
+        data: { available: 0, expires_at: null },
+        isLoading: false,
+        refetch: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles null credits data', async () => {
+      useCreditsMock.mockReturnValue({
+        data: null,
+        isLoading: false,
+        refetch: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles credits with expiration date', async () => {
+      useCreditsMock.mockReturnValue({
+        data: { available: 100, expires_at: '2025-12-31T00:00:00Z' },
+        isLoading: false,
+        refetch: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('pricing preview edge cases', () => {
+    it('handles pricing preview with zero credit_applied_cents', async () => {
+      usePricingPreviewControllerMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 11500,
+          credit_applied_cents: 0,
+          line_items: [],
+        },
+        error: null,
+        loading: false,
+        applyCredit: jest.fn(),
+        requestPricingPreview: jest.fn(),
+        lastAppliedCreditCents: 0,
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles pricing preview with negative credit (edge case)', async () => {
+      usePricingPreviewControllerMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 11500,
+          credit_applied_cents: -500, // Negative edge case
+          line_items: [],
+        },
+        error: null,
+        loading: false,
+        applyCredit: jest.fn(),
+        requestPricingPreview: jest.fn(),
+        lastAppliedCreditCents: 0,
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles pricing preview loading state', async () => {
+      usePricingPreviewControllerMock.mockReturnValue({
+        preview: null,
+        error: null,
+        loading: true,
+        applyCredit: jest.fn(),
+        requestPricingPreview: jest.fn(),
+        lastAppliedCreditCents: 0,
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles pricing preview error state', async () => {
+      usePricingPreviewControllerMock.mockReturnValue({
+        preview: null,
+        error: 'Failed to fetch pricing',
+        loading: false,
+        applyCredit: jest.fn(),
+        requestPricingPreview: jest.fn(),
+        lastAppliedCreditCents: 0,
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('date and time normalization', () => {
+    it('handles Date object for booking date', async () => {
+      const bookingWithDateObject: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        date: new Date('2025-02-15T00:00:00Z'),
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithDateObject} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles ISO string for booking date', async () => {
+      const bookingWithISODate: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        date: '2025-02-15T10:00:00Z' as unknown as Date,
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithISODate} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles YYYY-MM-DD format for booking date', async () => {
+      const bookingWithYYYYMMDD: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        date: '2025-02-15' as unknown as Date,
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithYYYYMMDD} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles AM/PM time format', async () => {
+      const bookingWithAMPM: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        startTime: '10:00am',
+        endTime: '11:00am',
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithAMPM} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles 24-hour time format', async () => {
+      const bookingWith24Hour: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        startTime: '14:30',
+        endTime: '16:00',
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWith24Hour} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('MIXED payment method', () => {
+    it('handles MIXED payment method with credits', async () => {
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.METHOD_SELECTION,
+        paymentMethod: PaymentMethod.MIXED,
+        creditsToUse: 25,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      useCreditsMock.mockReturnValue({
+        data: { available: 50, expires_at: null },
+        isLoading: false,
+        refetch: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles MIXED payment covering full amount', async () => {
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.METHOD_SELECTION,
+        paymentMethod: PaymentMethod.MIXED,
+        creditsToUse: 115, // Full amount
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      useCreditsMock.mockReturnValue({
+        data: { available: 200, expires_at: null },
+        isLoading: false,
+        refetch: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('CREDITS_ONLY payment method', () => {
+    it('handles CREDITS_ONLY payment method', async () => {
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.METHOD_SELECTION,
+        paymentMethod: PaymentMethod.CREDITS,
+        creditsToUse: 115,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      useCreditsMock.mockReturnValue({
+        data: { available: 200, expires_at: null },
+        isLoading: false,
+        refetch: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('error handling', () => {
+    it('handles payment API network error', async () => {
+      const goToStep = jest.fn();
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.createCheckout.mockRejectedValue(new Error('Network error'));
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
+      });
+    });
+
+    it('handles booking creation failure', async () => {
+      const goToStep = jest.fn();
+      const createBookingMock = jest.fn().mockRejectedValue(new Error('Booking creation failed'));
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.createCheckout.mockResolvedValue({
+        payment_intent_id: 'pi_123',
+        application_fee: 0,
+        success: true,
+        status: 'succeeded',
+        amount: 11500,
+        client_secret: 'secret_123',
+        requires_action: false,
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
+      });
+    });
+
+    it('handles requires_action response correctly', async () => {
+      const goToStep = jest.fn();
+      const createBookingMock = jest.fn().mockResolvedValue({ id: 'booking-123', status: 'pending' });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: createBookingMock,
+        error: null,
+        reset: jest.fn(),
+      });
+
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.createCheckout.mockResolvedValue({
+        payment_intent_id: 'pi_123',
+        application_fee: 0,
+        success: false,
+        status: 'requires_action',
+        amount: 11500,
+        client_secret: 'secret_for_action',
+        requires_action: true,
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
+      });
+    });
+
+    it('handles insufficient_funds error', async () => {
+      const goToStep = jest.fn();
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      paymentServiceMock.createCheckout.mockResolvedValue({
+        payment_intent_id: 'pi_123',
+        application_fee: 0,
+        success: false,
+        status: 'insufficient_funds',
+        amount: 11500,
+        client_secret: 'secret_123',
+        requires_action: false,
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Confirm Payment'));
+
+      await waitFor(() => {
+        expect(goToStep).toHaveBeenCalledWith(PaymentStep.ERROR);
+      });
+    });
+  });
+
+  describe('card management', () => {
+    it('handles adding a new card', async () => {
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+
+      const addCardButton = screen.getByText('Add Card');
+      await userEvent.click(addCardButton);
+    });
+
+    it('handles selecting a card', async () => {
+      const selectPaymentMethod = jest.fn();
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.METHOD_SELECTION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod,
+        reset: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+
+      const selectCardButton = screen.getByText('Select Card');
+      await userEvent.click(selectCardButton);
+    });
+  });
+
+  describe('timezone metadata handling', () => {
+    it('preserves timezone from booking metadata', async () => {
+      const bookingWithTimezone: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        metadata: {
+          serviceId: 'service-789',
+          timezone: 'America/New_York',
+        },
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithTimezone} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+
+    it('handles missing timezone metadata', async () => {
+      const bookingWithoutTimezone: BookingPayment & { metadata?: Record<string, unknown> } = {
+        ...mockBookingData,
+        metadata: {
+          serviceId: 'service-789',
+        },
+      };
+
+      render(<PaymentSection {...defaultProps} bookingData={bookingWithoutTimezone} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
 });

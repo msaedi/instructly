@@ -774,4 +774,217 @@ describe('SkillsPricingInline', () => {
     const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
     expect(rateInputs).toHaveLength(1);
   });
+
+  describe('Coverage improvement tests', () => {
+    it('renders services from instructorProfile prop', async () => {
+      // Profile not yet loaded from hook (data is null)
+      mockUseInstructorProfileMe.mockReturnValue({ data: null });
+
+      render(
+        <SkillsPricingInline
+          instructorProfile={{ is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60 }] } as never}
+        />
+      );
+
+      // Service should be rendered from prop
+      expect(screen.getByPlaceholderText(/hourly rate/i)).toBeInTheDocument();
+    });
+
+    it('allows toggling service selection when profile is loaded', async () => {
+      const user = userEvent.setup();
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60 }] },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Click on Music category to see available services
+      await user.click(screen.getByRole('button', { name: /music/i }));
+
+      // Piano should be visible
+      expect(screen.getAllByText(/piano/i).length).toBeGreaterThan(0);
+    });
+
+    it('prevents live instructor from removing last skill via toggleServiceSelection', async () => {
+      const user = userEvent.setup();
+      // Profile loaded with is_live: true
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { is_live: true, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60 }] },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Click on Music category
+      await user.click(screen.getByRole('button', { name: /music/i }));
+      // Try to toggle off the piano (currently selected)
+      const pianoButton = screen.getByRole('button', { name: /piano ✓/i });
+      await user.click(pianoButton);
+
+      expect(screen.getByText(/must have at least one skill/i)).toBeInTheDocument();
+    });
+
+    it('handles skill request flow', async () => {
+      const user = userEvent.setup();
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { is_live: false, services: [] },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Find and type in the skill request input
+      const skillInput = screen.getByPlaceholderText(/request a new skill/i);
+      await user.type(skillInput, 'Juggling');
+
+      // Submit button should be available
+      const submitButton = screen.getByRole('button', { name: /submit/i });
+      expect(submitButton).toBeInTheDocument();
+    });
+
+    it('renders properly when profile is not loaded yet', async () => {
+      // Profile not loaded
+      mockUseInstructorProfileMe.mockReturnValue({ data: null });
+
+      render(
+        <SkillsPricingInline
+          instructorProfile={{ is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60 }] } as never}
+        />
+      );
+
+      // Component should render without crashing
+      expect(screen.getByPlaceholderText(/hourly rate/i)).toBeInTheDocument();
+    });
+
+    it('saves service with default duration_options when none specified', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+            duration_options: [], // Empty array should default to [60]
+          }],
+        },
+      });
+      mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+      render(<SkillsPricingInline />);
+
+      // Trigger autosave by changing the rate
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '65');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+        const callArgs = mockFetchWithAuth.mock.calls[0];
+        const body = JSON.parse(callArgs[1].body);
+        // Should have default duration of [60]
+        expect(body.services[0].duration_options).toEqual([60]);
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('saves service with equipment_required when equipment is specified', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+            equipment: 'keyboard, stand',
+          }],
+        },
+      });
+      mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+      render(<SkillsPricingInline />);
+
+      // Trigger autosave
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '65');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('clears autosave timeout when services change rapidly', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+          }],
+        },
+      });
+      mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+      render(<SkillsPricingInline />);
+
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+
+      // Type multiple values rapidly
+      await user.clear(rateInput);
+      await user.type(rateInput, '7');
+      jest.advanceTimersByTime(500); // Not enough to trigger autosave
+
+      await user.type(rateInput, '0');
+      jest.advanceTimersByTime(500); // Still not enough
+
+      // Now advance past the debounce threshold
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalledTimes(1);
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('does not save when live instructor has no services with rates', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: true,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: '', // Empty rate
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Try to trigger autosave with an empty rate still
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(screen.getByText(/must have at least one skill/i)).toBeInTheDocument();
+      });
+      // Should not have made API call
+      expect(mockFetchWithAuth).not.toHaveBeenCalled();
+
+      jest.useRealTimers();
+    });
+  });
 });

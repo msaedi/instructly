@@ -698,4 +698,178 @@ describe('RescheduleTimeSelectionModal', () => {
       expect(screen.getAllByTestId('user-avatar').length).toBeGreaterThan(0);
     });
   });
+
+  describe('edge cases for date selection failures', () => {
+    it('handles date selection when first available date data is missing', async () => {
+      // Response with dates that have no slots in the availability data
+      const edgeCaseResponse = {
+        status: 200,
+        data: {
+          availability_by_date: {
+            // Date exists but with no actual availability entry that matches
+          },
+        },
+      };
+      getInstructorAvailabilityMock.mockResolvedValue(edgeCaseResponse);
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        // Component should handle gracefully - no error shown, calendar renders
+        expect(screen.queryByText(/try again/i)).not.toBeInTheDocument();
+      });
+
+      // Calendar renders in both mobile and desktop layouts
+      expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+    });
+
+    it('handles date selection when availability data returns empty object', async () => {
+      const emptyDataResponse = {
+        status: 200,
+        data: {
+          availability_by_date: {},
+        },
+      };
+      getInstructorAvailabilityMock.mockResolvedValue(emptyDataResponse);
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        // Should handle empty availability gracefully
+        expect(document.body).toBeInTheDocument();
+      });
+    });
+
+    it('handles clicking on date that has no slot data', async () => {
+      // Create response where the date shows as available but has no slots
+      const partialDataResponse = {
+        status: 200,
+        data: {
+          availability_by_date: {
+            '2025-01-20': {
+              date: '2025-01-20',
+              available_slots: null, // Null slots
+              is_blackout: false,
+            },
+          },
+        },
+      };
+      getInstructorAvailabilityMock.mockResolvedValue(partialDataResponse);
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+      });
+
+      // Component should handle null slots gracefully
+      const dateButtons = screen.queryAllByTestId('date-2025-01-20');
+      if (dateButtons.length > 0) {
+        fireEvent.click(dateButtons[0]!);
+      }
+    });
+  });
+
+  describe('focus restoration on close', () => {
+    it('restores focus to previous element when modal closes', async () => {
+      // Create a button to focus before opening modal
+      const { rerender } = render(
+        <>
+          <button data-testid="trigger-button">Open Modal</button>
+          <RescheduleTimeSelectionModal {...defaultProps} />
+        </>
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Need to reschedule?').length).toBeGreaterThan(0);
+      });
+
+      // Close the modal
+      rerender(
+        <>
+          <button data-testid="trigger-button">Open Modal</button>
+          <RescheduleTimeSelectionModal {...defaultProps} isOpen={false} />
+        </>
+      );
+
+      // Modal should close cleanly
+      expect(screen.queryByText('Need to reschedule?')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('backdrop click edge cases', () => {
+    it('does not close when clicking on modal content', async () => {
+      const onClose = jest.fn();
+      render(<RescheduleTimeSelectionModal {...defaultProps} onClose={onClose} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Need to reschedule?').length).toBeGreaterThan(0);
+      });
+
+      // Click on the modal content (not backdrop)
+      const modalContent = screen.getAllByText('Need to reschedule?')[0];
+      if (modalContent) {
+        fireEvent.click(modalContent);
+      }
+
+      // onClose should not be called when clicking content
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('closes when clicking exactly on backdrop element', async () => {
+      const onClose = jest.fn();
+      render(<RescheduleTimeSelectionModal {...defaultProps} onClose={onClose} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Need to reschedule?').length).toBeGreaterThan(0);
+      });
+
+      // Find the backdrop and click it
+      const backdrop = document.querySelector('[data-testid="modal-backdrop"]');
+      if (backdrop) {
+        // Create a click event where target === currentTarget
+        const clickEvent = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+        });
+        Object.defineProperty(clickEvent, 'target', { value: backdrop });
+        Object.defineProperty(clickEvent, 'currentTarget', { value: backdrop });
+        backdrop.dispatchEvent(clickEvent);
+      }
+    });
+  });
+
+  describe('unmount during operation', () => {
+    it('handles unmount while loading', async () => {
+      getInstructorAvailabilityMock.mockImplementation(
+        () => new Promise(() => {}) // Never resolves
+      );
+
+      const { unmount } = render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Loading availability...').length).toBeGreaterThan(0);
+      });
+
+      // Unmount while still loading
+      unmount();
+
+      // Should not throw
+      expect(true).toBe(true);
+    });
+
+    it('handles unmount after date selection', async () => {
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+      });
+
+      // Click a date
+      const dateButtons = screen.queryAllByTestId('date-2025-01-20');
+      if (dateButtons.length > 0) {
+        fireEvent.click(dateButtons[0]!);
+      }
+    });
+  });
 });

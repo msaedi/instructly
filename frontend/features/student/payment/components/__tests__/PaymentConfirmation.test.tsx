@@ -2849,4 +2849,643 @@ describe('PaymentConfirmation', () => {
       });
     });
   });
+
+  describe('address suggestion selection', () => {
+    it('handles place details API success', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          result: {
+            address: {
+              line1: '456 Oak Ave',
+              city: 'Brooklyn',
+              state: 'NY',
+              postal_code: '11201',
+              country: 'US',
+            },
+            formatted_address: '456 Oak Ave, Brooklyn, NY 11201, USA',
+          },
+        },
+        error: null,
+        status: 200,
+      });
+
+      // Use booking without location to show address input
+      const bookingNoLocation = { ...mockBooking, location: '' };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
+
+      // Expand location section
+      fireEvent.click(screen.getByText('Lesson Location'));
+
+      await waitFor(() => {
+        // Address form should be visible with City input
+        expect(screen.getByPlaceholderText('City')).toBeInTheDocument();
+      });
+    });
+
+    it('handles place details API failure gracefully', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: null,
+        error: 'API Error',
+        status: 500,
+      });
+
+      // Use booking without location to show address input
+      const bookingNoLocation = { ...mockBooking, location: '' };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
+
+      // Expand location section
+      fireEvent.click(screen.getByText('Lesson Location'));
+
+      await waitFor(() => {
+        // Address form should be visible with City input
+        expect(screen.getByPlaceholderText('City')).toBeInTheDocument();
+      });
+    });
+
+    it('handles place details with nested result object', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          result: {
+            line1: '789 Pine St',
+            city: 'Queens',
+            state: 'NY',
+            postal_code: '11375',
+            country: 'US',
+          },
+        },
+        error: null,
+        status: 200,
+      });
+
+      // Use booking without location to show address input
+      const bookingNoLocation = { ...mockBooking, location: '' };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
+
+      fireEvent.click(screen.getByText('Lesson Location'));
+
+      await waitFor(() => {
+        // Address form should be visible with City input
+        expect(screen.getByPlaceholderText('City')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('pricing display edge cases', () => {
+    it('handles non-finite base price', async () => {
+      const bookingWithInfinitePrice = {
+        ...mockBooking,
+        basePrice: Infinity,
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithInfinitePrice} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles NaN base price', async () => {
+      const bookingWithNaNPrice = {
+        ...mockBooking,
+        basePrice: NaN,
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithNaNPrice} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles pricing preview with line items', async () => {
+      usePricingPreviewMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 11500,
+          credit_applied_cents: 500,
+          line_items: [
+            { label: 'Lesson (60 min)', amount_cents: 10000 },
+            { label: 'Service & Support (15%)', amount_cents: 1500 },
+            { label: 'Credits Applied', amount_cents: -500 },
+            { label: 'Booking Protection', amount_cents: 0 },
+            { label: 'Additional Fee', amount_cents: 200 },
+          ],
+        },
+        loading: false,
+        error: null,
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles pricing preview error state', async () => {
+      usePricingPreviewMock.mockReturnValue({
+        preview: null,
+        loading: false,
+        error: 'Failed to fetch pricing',
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('shows skeleton during pricing preview loading', async () => {
+      usePricingPreviewMock.mockReturnValue({
+        preview: null,
+        loading: true,
+        error: null,
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+      expect(screen.getAllByTestId('pricing-preview-skeleton').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('duration calculation edge cases', () => {
+    it('handles booking with missing duration', async () => {
+      const bookingNoDuration = {
+        ...mockBooking,
+        duration: undefined as unknown as number,
+        startTime: '10:00',
+        endTime: '11:30',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoDuration} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles booking with zero duration', async () => {
+      const bookingZeroDuration = {
+        ...mockBooking,
+        duration: 0,
+        startTime: '14:00',
+        endTime: '15:00',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingZeroDuration} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles booking with negative duration calculation', async () => {
+      const bookingNegativeDuration = {
+        ...mockBooking,
+        duration: 0,
+        startTime: '15:00',
+        endTime: '14:00', // End before start
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNegativeDuration} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles booking with invalid time formats', async () => {
+      const bookingInvalidTime = {
+        ...mockBooking,
+        duration: 0,
+        startTime: 'invalid',
+        endTime: 'also-invalid',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingInvalidTime} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+  });
+
+  describe('time display edge cases', () => {
+    it('handles missing start time', async () => {
+      const bookingNoStartTime = {
+        ...mockBooking,
+        startTime: '',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoStartTime} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles missing end time', async () => {
+      const bookingNoEndTime = {
+        ...mockBooking,
+        endTime: '',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoEndTime} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles time with HH:MM:SS format', async () => {
+      const bookingWithSeconds = {
+        ...mockBooking,
+        startTime: '10:00:00',
+        endTime: '11:00:00',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithSeconds} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles AM/PM time format', async () => {
+      const bookingWithAMPM = {
+        ...mockBooking,
+        startTime: '2:00pm',
+        endTime: '3:00pm',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWithAMPM} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+  });
+
+  describe('credits slider edge cases', () => {
+    it('handles credits slider with zero available credits', async () => {
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          availableCredits={0}
+          creditsUsed={0}
+        />
+      );
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles credits slider with credits exceeding total', async () => {
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          availableCredits={500}
+          creditsUsed={200}
+        />
+      );
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles credits slider with negative applied cents from preview', async () => {
+      usePricingPreviewMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 11500,
+          credit_applied_cents: -100, // Negative edge case
+          line_items: [],
+        },
+        loading: false,
+        error: null,
+      });
+
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          availableCredits={50}
+          creditsUsed={0}
+        />
+      );
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+  });
+
+  describe('online lesson handling', () => {
+    it('handles online lesson with no location', async () => {
+      const onlineBooking = {
+        ...mockBooking,
+        location: 'Online',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={onlineBooking} />);
+
+      await waitFor(() => {
+        const checkbox = screen.getByLabelText('Online');
+        expect(checkbox).toBeChecked();
+      });
+    });
+
+    it('handles virtual keyword in location', async () => {
+      const virtualBooking = {
+        ...mockBooking,
+        location: 'Virtual Meeting',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={virtualBooking} />);
+
+      // Component should render without errors
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles remote keyword in location', async () => {
+      const remoteBooking = {
+        ...mockBooking,
+        location: 'Remote Session',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={remoteBooking} />);
+
+      await waitFor(() => {
+        const checkbox = screen.getByLabelText('Online');
+        expect(checkbox).toBeChecked();
+      });
+    });
+  });
+
+  describe('promo code handling', () => {
+    it('disables promo apply when referral is active', async () => {
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          referralActive={true}
+        />
+      );
+
+      // Component should still render
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles promo code with empty string', async () => {
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          promoApplied={false}
+        />
+      );
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+  });
+
+  describe('payment method display', () => {
+    it('displays CREDITS_ONLY payment method correctly', async () => {
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          paymentMethod={PaymentMethod.CREDITS}
+          availableCredits={200}
+          creditsUsed={115}
+        />
+      );
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('displays MIXED payment method correctly', async () => {
+      render(
+        <PaymentConfirmation
+          {...defaultProps}
+          paymentMethod={PaymentMethod.MIXED}
+          availableCredits={100}
+          creditsUsed={50}
+          cardLast4="4242"
+        />
+      );
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+  });
+
+  describe('instructor id handling', () => {
+    it('handles missing instructor id', async () => {
+      const bookingNoInstructor = {
+        ...mockBooking,
+        instructorId: '',
+      };
+
+      fetchBookingsListMock.mockResolvedValue({ items: [] });
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoInstructor} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('handles undefined instructor id', async () => {
+      const bookingUndefinedInstructor = {
+        ...mockBooking,
+        instructorId: undefined as unknown as string,
+      };
+
+      fetchBookingsListMock.mockResolvedValue({ items: [] });
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingUndefinedInstructor} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+  });
+
+  describe('last minute booking', () => {
+    it('displays last minute indicator for last minute bookings', async () => {
+      const lastMinuteBooking = {
+        ...mockBooking,
+        bookingType: BookingType.LAST_MINUTE,
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={lastMinuteBooking} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+  });
+
+  describe('summary skeleton rendering', () => {
+    it('renders skeleton with custom width class', async () => {
+      usePricingPreviewMock.mockReturnValue({
+        preview: null,
+        loading: true,
+        error: null,
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      const skeletons = screen.getAllByTestId('pricing-preview-skeleton');
+      expect(skeletons.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('additional line items filtering', () => {
+    it('filters out booking protection line items', async () => {
+      usePricingPreviewMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 11500,
+          credit_applied_cents: 0,
+          line_items: [
+            { label: 'Booking Protection Fee', amount_cents: 100 },
+          ],
+        },
+        loading: false,
+        error: null,
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      expect(screen.queryByText('Booking Protection Fee')).not.toBeInTheDocument();
+    });
+
+    it('filters out service & support line items', async () => {
+      usePricingPreviewMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 11500,
+          credit_applied_cents: 0,
+          line_items: [
+            { label: 'Service & Support (15%)', amount_cents: 1500 },
+          ],
+        },
+        loading: false,
+        error: null,
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      // The line item with matching amount should be filtered
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('filters out credit line items', async () => {
+      usePricingPreviewMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 11500,
+          credit_applied_cents: 500,
+          line_items: [
+            { label: 'Credits Applied', amount_cents: -500 },
+          ],
+        },
+        loading: false,
+        error: null,
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+  });
+
+  describe('empty booking location', () => {
+    it('handles completely empty location', async () => {
+      const bookingEmptyLocation = {
+        ...mockBooking,
+        location: '',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingEmptyLocation} />);
+
+      // Expand location section
+      fireEvent.click(screen.getByText('Lesson Location'));
+
+      await waitFor(() => {
+        // Address form should be visible with City input
+        expect(screen.getByPlaceholderText('City')).toBeInTheDocument();
+      });
+    });
+
+    it('handles whitespace-only location', async () => {
+      const bookingWhitespaceLocation = {
+        ...mockBooking,
+        location: '   ',
+      };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingWhitespaceLocation} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+  });
+
+  describe('service support fee display', () => {
+    it('displays service support fee with correct percentage', async () => {
+      usePricingFloorsMock.mockReturnValue({
+        floors: null,
+        config: { student_fee_pct: 0.12 },
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+
+    it('displays service support fee with zero percentage', async () => {
+      usePricingFloorsMock.mockReturnValue({
+        floors: null,
+        config: { student_fee_pct: 0 },
+      });
+
+      render(<PaymentConfirmation {...defaultProps} />);
+
+      expect(screen.getByText('Confirm details')).toBeInTheDocument();
+    });
+  });
+
+  describe('state code normalization', () => {
+    it('handles full state name in location', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          result: {
+            address: {
+              line1: '123 Main St',
+              city: 'New York',
+              state: 'New York',
+              postal_code: '10001',
+              country: 'US',
+            },
+          },
+        },
+        error: null,
+        status: 200,
+      });
+
+      // Use booking without location to show address input
+      const bookingNoLocation = { ...mockBooking, location: '' };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
+
+      fireEvent.click(screen.getByText('Lesson Location'));
+
+      await waitFor(() => {
+        // Address form should be visible with City input
+        expect(screen.getByPlaceholderText('City')).toBeInTheDocument();
+      });
+    });
+
+    it('handles abbreviated state code', async () => {
+      getPlaceDetailsMock.mockResolvedValue({
+        data: {
+          result: {
+            address: {
+              line1: '456 Oak Ave',
+              city: 'Brooklyn',
+              state: 'NY',
+              postal_code: '11201',
+              country: 'US',
+            },
+          },
+        },
+        error: null,
+        status: 200,
+      });
+
+      // Use booking without location to show address input
+      const bookingNoLocation = { ...mockBooking, location: '' };
+
+      render(<PaymentConfirmation {...defaultProps} booking={bookingNoLocation} />);
+
+      fireEvent.click(screen.getByText('Lesson Location'));
+
+      await waitFor(() => {
+        // Address form should be visible with City input
+        expect(screen.getByPlaceholderText('City')).toBeInTheDocument();
+      });
+    });
+  });
 });

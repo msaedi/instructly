@@ -762,4 +762,102 @@ describe('LessonCard', () => {
       });
     });
   });
+
+  describe('rating display from fetched data', () => {
+    it('displays rating from API when data fetched has sufficient reviews', async () => {
+      // Mock the API to return rating data with enough reviews
+      reviewsApiMock.getInstructorRatings.mockResolvedValue({
+        confidence_level: 'established',
+        overall: { rating: 4.7, total_reviews: 10 },
+      });
+
+      const { Wrapper } = createWrapper();
+      render(
+        <Wrapper>
+          <LessonCard
+            lesson={mockBooking}
+            isCompleted={false}
+            onViewDetails={jest.fn()}
+            // No prefetched rating - will fetch
+          />
+        </Wrapper>
+      );
+
+      // Wait for the rating to be displayed from fetched data
+      await waitFor(() => {
+        expect(screen.getByTestId('rating')).toHaveTextContent('4.7');
+      });
+    });
+
+    it('hides rating from API when data fetched has insufficient reviews', async () => {
+      // Mock the API to return rating data with fewer than 3 reviews
+      reviewsApiMock.getInstructorRatings.mockResolvedValue({
+        confidence_level: 'new',
+        overall: { rating: 5.0, total_reviews: 2 },
+      });
+
+      const { Wrapper } = createWrapper();
+      render(
+        <Wrapper>
+          <LessonCard
+            lesson={mockBooking}
+            isCompleted={false}
+            onViewDetails={jest.fn()}
+          />
+        </Wrapper>
+      );
+
+      // Wait for API call to complete
+      await waitFor(() => {
+        expect(reviewsApiMock.getInstructorRatings).toHaveBeenCalled();
+      });
+
+      // Rating should not be displayed with fewer than 3 reviews
+      expect(screen.queryByTestId('rating')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('cancellation fee edge cases', () => {
+    it('shows full price when booking_date is missing', () => {
+      const { Wrapper } = createWrapper();
+      render(
+        <Wrapper>
+          <LessonCard
+            lesson={{
+              ...mockBooking,
+              status: 'CANCELLED',
+              cancelled_at: '2025-01-18T10:00:00Z',
+              booking_date: null as unknown as string,
+            }}
+            isCompleted={false}
+            onViewDetails={jest.fn()}
+          />
+        </Wrapper>
+      );
+
+      // Should fallback to full price when booking_date is missing
+      expect(screen.getByText('$60.00')).toBeInTheDocument();
+    });
+
+    it('shows full price when start_time is missing', () => {
+      const { Wrapper } = createWrapper();
+      render(
+        <Wrapper>
+          <LessonCard
+            lesson={{
+              ...mockBooking,
+              status: 'CANCELLED',
+              cancelled_at: '2025-01-18T10:00:00Z',
+              start_time: null as unknown as string,
+            }}
+            isCompleted={false}
+            onViewDetails={jest.fn()}
+          />
+        </Wrapper>
+      );
+
+      // Should fallback to full price when start_time is missing
+      expect(screen.getByText('$60.00')).toBeInTheDocument();
+    });
+  });
 });

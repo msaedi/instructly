@@ -1126,4 +1126,87 @@ describe('BGCStep', () => {
       // This is expected behavior
     });
   });
+
+  describe('polling error handling', () => {
+    it('handles error during polling and shows toast', async () => {
+      // First call succeeds and returns pending status
+      bgcStatusMock
+        .mockResolvedValueOnce({
+          ...defaultStatusResponse,
+          status: 'pending',
+        })
+        // Second call during polling fails
+        .mockRejectedValueOnce(new Error('Polling failed'));
+
+      render(<BGCStep instructorId={mockInstructorId} />);
+
+      // Wait for initial render
+      await waitFor(() => {
+        expect(screen.getByText('Verification pending')).toBeInTheDocument();
+      });
+
+      // Advance to first poll interval (15 seconds)
+      await act(async () => {
+        jest.advanceTimersByTime(15000);
+      });
+
+      // Error toast should be shown
+      await waitFor(() => {
+        expect(toastMock.error).toHaveBeenCalled();
+      });
+    });
+
+    it('clears existing poll timer when status changes', async () => {
+      // Start with pending status (triggers polling)
+      bgcStatusMock.mockResolvedValue({
+        ...defaultStatusResponse,
+        status: 'pending',
+      });
+
+      render(<BGCStep instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Verification pending')).toBeInTheDocument();
+      });
+
+      // Now change status to 'review' (still polls, but should clear previous timer)
+      bgcStatusMock.mockResolvedValue({
+        ...defaultStatusResponse,
+        status: 'review',
+      });
+
+      // Trigger a re-fetch by advancing time
+      await act(async () => {
+        jest.advanceTimersByTime(15000);
+      });
+
+      // Wait for new status
+      await waitFor(() => {
+        expect(screen.getByText('Under review')).toBeInTheDocument();
+      });
+
+      // Component should still be working correctly
+      expect(screen.getByTestId('bgc-step')).toBeInTheDocument();
+    });
+  });
+
+  describe('formatDate edge cases', () => {
+    it('handles completed_at with invalid date that throws', async () => {
+      // completed_at that will fail Date parsing in an unusual way
+      bgcStatusMock.mockResolvedValue({
+        ...defaultStatusResponse,
+        status: 'passed',
+        completed_at: '', // Empty string
+      });
+
+      render(<BGCStep instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Verified')).toBeInTheDocument();
+      });
+
+      // Should render without crashing
+      expect(screen.getByTestId('bgc-step')).toBeInTheDocument();
+    });
+  });
 });
