@@ -81,6 +81,10 @@ export interface Booking {
   service_area?: string;
   meeting_location?: string;
   location_type?: LocationType;
+  location_address?: string;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_place_id?: string | null;
 
   // Notes
   student_note?: string;

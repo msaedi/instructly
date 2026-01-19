@@ -154,6 +154,10 @@ export interface BookingCreate {
   student_note?: string | null;
   meeting_location?: string | null;
   location_type?: string | null;
+  location_address?: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_place_id?: string | null;
 }
 
 export interface BookingUpdate {
@@ -181,6 +185,10 @@ export interface BookingBase {
   service_area: string | null;
   meeting_location: string | null;
   location_type: string | null;
+  location_address: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
+  location_place_id: string | null;
   student_note: string | null;
   instructor_note: string | null;
   created_at: string;

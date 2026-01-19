@@ -410,6 +410,10 @@ def create_booking_safe(
         lesson_timezone=lesson_timezone,
         student_timezone=student_timezone,
     )
+    if "location_address" not in extra_fields:
+        meeting_location = extra_fields.get("meeting_location")
+        if isinstance(meeting_location, str) and meeting_location.strip():
+            extra_fields["location_address"] = meeting_location
 
     booking = Booking(
         student_id=student_id,
@@ -862,6 +866,10 @@ def create_booking_bulk(
         lesson_timezone=lesson_timezone,
         student_timezone=student_timezone,
     )
+    if "location_address" not in extra_fields:
+        meeting_location = extra_fields.get("meeting_location")
+        if isinstance(meeting_location, str) and meeting_location.strip():
+            extra_fields["location_address"] = meeting_location
 
     booking = Booking(
         student_id=student_id,

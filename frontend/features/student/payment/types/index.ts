@@ -19,6 +19,13 @@ export interface PaymentIntent {
   metadata: Record<string, unknown>;
 }
 
+export interface BookingAddress {
+  fullAddress?: string;
+  lat?: number;
+  lng?: number;
+  placeId?: string;
+}
+
 export interface BookingPayment {
   bookingId: string;
   instructorId: string;
@@ -29,6 +36,7 @@ export interface BookingPayment {
   endTime: string;
   duration: number;
   location: string;
+  address?: BookingAddress;
 
   basePrice: number;
   totalAmount: number;

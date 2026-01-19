@@ -900,6 +900,9 @@ def create_sample_bookings(session: Session):
                 duration_minutes = int((end_datetime - start_datetime).total_seconds() / 60)
 
                 # Create self-contained booking (NO availability_slot_id!)
+                meeting_location = random.choice(
+                    ["Student home", "Instructor studio", "Local library"]
+                )
                 booking = Booking(
                     student_id=student.id,
                     instructor_id=instructor_id,
@@ -913,7 +916,8 @@ def create_sample_bookings(session: Session):
                     duration_minutes=duration_minutes,
                     status=BookingStatus.COMPLETED,
                     location_type=random.choice(["student_location", "instructor_location", "neutral_location"]),
-                    meeting_location=f"{random.choice(['Student home', 'Instructor studio', 'Local library'])}",
+                    meeting_location=meeting_location,
+                    location_address=meeting_location,
                     student_note="Looking forward to the lesson!",
                     created_at=booking_date - timedelta(days=2),
                     confirmed_at=booking_date - timedelta(days=2),
@@ -962,6 +966,9 @@ def create_sample_bookings(session: Session):
                 status = BookingStatus.CONFIRMED
 
             # Create self-contained booking
+            meeting_location = random.choice(
+                ["Student home", "Instructor studio", "Local library"]
+            )
             booking = Booking(
                 student_id=student.id,
                 instructor_id=instructor_id,
@@ -975,7 +982,8 @@ def create_sample_bookings(session: Session):
                 duration_minutes=duration_minutes,
                 status=status,
                 location_type=random.choice(["student_location", "instructor_location", "neutral_location"]),
-                meeting_location=f"{random.choice(['Student home', 'Instructor studio', 'Local library'])}",
+                meeting_location=meeting_location,
+                location_address=meeting_location,
                 student_note=random.choice(
                     ["Looking forward to the lesson!", "Please focus on fundamentals", "I've been practicing!", None]
                 ),

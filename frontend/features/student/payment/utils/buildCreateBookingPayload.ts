@@ -53,6 +53,17 @@ function normalizeTimezone(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function normalizeNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
 type NormalizedLocationType =
   | 'student_location'
   | 'instructor_location'
@@ -105,7 +116,38 @@ export function buildCreateBookingPayload({
     booking.endTime,
   );
   const locationType = normalizeLocationType(metadata['modality'], booking.location);
-  const meetingLocation = booking.location || (locationType === 'online' ? 'Online' : 'In-person lesson');
+  const addressFromMetadata =
+    typeof metadata['location_address'] === 'string' ? metadata['location_address'] : undefined;
+  const addressFromBooking =
+    typeof booking.address?.fullAddress === 'string' ? booking.address.fullAddress : undefined;
+  const locationAddress =
+    locationType === 'online'
+      ? undefined
+      : addressFromBooking ?? addressFromMetadata ?? booking.location;
+  const locationLat =
+    locationType === 'online'
+      ? undefined
+      : booking.address?.lat ?? normalizeNumber(metadata['location_lat']);
+  const locationLng =
+    locationType === 'online'
+      ? undefined
+      : booking.address?.lng ?? normalizeNumber(metadata['location_lng']);
+  const locationPlaceId =
+    locationType === 'online'
+      ? undefined
+      : (typeof booking.address?.placeId === 'string' ? booking.address.placeId : undefined) ??
+        (typeof metadata['location_place_id'] === 'string'
+          ? metadata['location_place_id']
+          : undefined) ??
+        (typeof metadata['place_id'] === 'string' ? metadata['place_id'] : undefined);
+  const fallbackLocation =
+    typeof booking.location === 'string' && booking.location.trim().length > 0
+      ? booking.location
+      : undefined;
+  const meetingLocation =
+    locationAddress ??
+    fallbackLocation ??
+    (locationType === 'online' ? 'Online' : 'In-person lesson');
   const normalizedDate = normalizeBookingDate(bookingDate);
   const resolvedTimezone =
     normalizeTimezone(instructorTimezone) ??
@@ -124,6 +166,10 @@ export function buildCreateBookingPayload({
     selected_duration: durationMinutes,
     meeting_location: meetingLocation,
     location_type: locationType,
+    ...(locationAddress !== undefined ? { location_address: locationAddress } : {}),
+    ...(locationLat !== undefined ? { location_lat: locationLat } : {}),
+    ...(locationLng !== undefined ? { location_lng: locationLng } : {}),
+    ...(locationPlaceId !== undefined ? { location_place_id: locationPlaceId } : {}),
   };
 
   if (resolvedTimezone) {

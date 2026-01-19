@@ -4824,8 +4824,12 @@ class BookingService(BaseService):
             duration_minutes=selected_duration,
             status=BookingStatus.CONFIRMED,
             service_area=service_area_summary,
-            meeting_location=booking_data.meeting_location,
+            meeting_location=booking_data.location_address or booking_data.meeting_location,
             location_type=booking_data.location_type,
+            location_address=booking_data.location_address,
+            location_lat=booking_data.location_lat,
+            location_lng=booking_data.location_lng,
+            location_place_id=booking_data.location_place_id,
             student_note=booking_data.student_note,
         )
 

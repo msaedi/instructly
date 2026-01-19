@@ -169,6 +169,7 @@ class TestBookingServiceCreation:
             selected_duration=60,
             end_time=time(10, 0),
             location_type="neutral_location",
+            meeting_location="Test Location",
         )
 
         with pytest.raises(NotFoundException, match="Service not found or no longer available"):
@@ -211,6 +212,7 @@ class TestBookingServiceCreation:
             end_time=test_booking.end_time,
             selected_duration=60,
             location_type="neutral_location",
+            meeting_location="Test Location",
         )
 
         with pytest.raises(
@@ -234,6 +236,7 @@ class TestBookingServiceCreation:
             end_time=time(10, 0),
             selected_duration=60,
             location_type="neutral_location",
+            meeting_location="Test Location",
         )
 
         with pytest.raises(ValidationException, match="Only students can create bookings"):
@@ -280,6 +283,7 @@ class TestBookingServiceCreation:
             end_time=end_time,
             selected_duration=60,
             location_type="neutral_location",
+            meeting_location="Test Location",
         )
 
         with pytest.raises(BusinessRuleException, match="at least 48 hours in advance"):

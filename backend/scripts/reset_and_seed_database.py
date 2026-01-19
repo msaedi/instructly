@@ -918,6 +918,7 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
         status=status,
         service_area=area,
         meeting_location=meeting_location,
+        location_address=meeting_location,
         location_type=location_type,  # NEW FIELD
         student_note=random.choice(
             [

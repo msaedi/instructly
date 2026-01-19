@@ -142,6 +142,10 @@ def upgrade() -> None:
         sa.Column("status", sa.String(20), nullable=False, server_default="CONFIRMED"),
         sa.Column("service_area", sa.String(), nullable=True),
         sa.Column("meeting_location", sa.Text(), nullable=True),
+        sa.Column("location_address", sa.Text(), nullable=True),
+        sa.Column("location_lat", sa.Numeric(10, 8), nullable=True),
+        sa.Column("location_lng", sa.Numeric(11, 8), nullable=True),
+        sa.Column("location_place_id", sa.String(255), nullable=True),
         sa.Column(
             "location_type",
             sa.String(50),

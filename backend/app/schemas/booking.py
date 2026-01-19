@@ -9,6 +9,7 @@ availability changes.
 """
 
 from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
 import logging
 import re
 from typing import Any, List, Literal, Mapping, Optional
@@ -104,6 +105,12 @@ class BookingCreate(StrictRequestModel):
             "neutral_location",
         ]
     ] = Field("online", description="Type of meeting location")
+    location_address: Optional[str] = Field(
+        None, description="Structured location address for in-person lessons"
+    )
+    location_lat: Optional[float] = Field(None, description="Latitude for the lesson location")
+    location_lng: Optional[float] = Field(None, description="Longitude for the lesson location")
+    location_place_id: Optional[str] = Field(None, description="Place ID for the lesson location")
 
     # Note: end_time is calculated from start_time + selected_duration
     end_time: Optional[time] = Field(None, description="Calculated end time (set automatically)")
@@ -178,6 +185,17 @@ class BookingCreate(StrictRequestModel):
         if v and v not in valid_types:
             raise ValueError(f"location_type must be one of {valid_types}")
         return v or "online"
+
+    @model_validator(mode="after")
+    def validate_location_address(self) -> "BookingCreate":
+        """Ensure non-online bookings include a structured address."""
+        if self.location_type != "online":
+            address = (self.location_address or self.meeting_location or "").strip()
+            if not address:
+                raise ValueError("Address is required for non-online bookings")
+            if not self.location_address:
+                self.location_address = address
+        return self
 
     @model_validator(mode="after")
     def validate_time_order(self) -> "BookingCreate":
@@ -368,6 +386,10 @@ class BookingBase(StandardizedModel):
     service_area: Optional[str]
     meeting_location: Optional[str]
     location_type: Optional[str]
+    location_address: Optional[str] = None
+    location_lat: Optional[float] = None
+    location_lng: Optional[float] = None
+    location_place_id: Optional[str] = None
 
     # Notes
     student_note: Optional[str]
@@ -587,6 +609,13 @@ class BookingResponse(BookingBase):
                 return None
             return value if isinstance(value, int) else None
 
+        def _safe_float(value: object) -> Optional[float]:
+            if isinstance(value, bool):
+                return None
+            if isinstance(value, (int, float, Decimal)):
+                return float(value)
+            return None
+
         def _safe_bool(value: object) -> Optional[bool]:
             return value if isinstance(value, bool) else None
 
@@ -623,6 +652,10 @@ class BookingResponse(BookingBase):
             "service_area": _safe_str(getattr(booking, "service_area", None)),
             "meeting_location": _safe_str(getattr(booking, "meeting_location", None)),
             "location_type": _safe_location_type(getattr(booking, "location_type", None)),
+            "location_address": _safe_str(getattr(booking, "location_address", None)),
+            "location_lat": _safe_float(getattr(booking, "location_lat", None)),
+            "location_lng": _safe_float(getattr(booking, "location_lng", None)),
+            "location_place_id": _safe_str(getattr(booking, "location_place_id", None)),
             # Notes
             "student_note": _safe_str(getattr(booking, "student_note", None)),
             "instructor_note": _safe_str(getattr(booking, "instructor_note", None)),
@@ -740,6 +773,13 @@ class BookingCreateResponse(BookingResponse):
         def _safe_str(value: object) -> Optional[str]:
             return value if isinstance(value, str) else None
 
+        def _safe_float(value: object) -> Optional[float]:
+            if isinstance(value, bool):
+                return None
+            if isinstance(value, (int, float, Decimal)):
+                return float(value)
+            return None
+
         # Use the parent's from_booking method to build base response
         response_data = {
             # Base fields from BookingBase
@@ -765,6 +805,10 @@ class BookingCreateResponse(BookingResponse):
             "service_area": booking.service_area,
             "meeting_location": booking.meeting_location,
             "location_type": booking.location_type,
+            "location_address": _safe_str(getattr(booking, "location_address", None)),
+            "location_lat": _safe_float(getattr(booking, "location_lat", None)),
+            "location_lng": _safe_float(getattr(booking, "location_lng", None)),
+            "location_place_id": _safe_str(getattr(booking, "location_place_id", None)),
             # Notes
             "student_note": booking.student_note,
             "instructor_note": booking.instructor_note,

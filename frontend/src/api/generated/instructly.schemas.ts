@@ -1843,6 +1843,26 @@ export interface BookingConfirmPayment {
 export type BookingCreateEndTime = string | null;
 
 /**
+ * Structured location address for in-person lessons
+ */
+export type BookingCreateLocationAddress = string | null;
+
+/**
+ * Latitude for the lesson location
+ */
+export type BookingCreateLocationLat = number | null;
+
+/**
+ * Longitude for the lesson location
+ */
+export type BookingCreateLocationLng = number | null;
+
+/**
+ * Place ID for the lesson location
+ */
+export type BookingCreateLocationPlaceId = string | null;
+
+/**
  * Type of meeting location
  */
 export type BookingCreateLocationType =
@@ -1883,6 +1903,14 @@ export interface BookingCreate {
   instructor_id: string;
   /** Instructor service being booked */
   instructor_service_id: string;
+  /** Structured location address for in-person lessons */
+  location_address?: BookingCreateLocationAddress;
+  /** Latitude for the lesson location */
+  location_lat?: BookingCreateLocationLat;
+  /** Longitude for the lesson location */
+  location_lng?: BookingCreateLocationLng;
+  /** Place ID for the lesson location */
+  location_place_id?: BookingCreateLocationPlaceId;
   /** Type of meeting location */
   location_type?: BookingCreateLocationType;
   /** Specific meeting location if applicable */
@@ -1934,6 +1962,14 @@ export type BookingCreateResponseInstructorPayoutAmount = number | null;
 export type BookingCreateResponseInstructorTimezone = string | null;
 
 export type BookingCreateResponseLessonTimezone = string | null;
+
+export type BookingCreateResponseLocationAddress = string | null;
+
+export type BookingCreateResponseLocationLat = number | null;
+
+export type BookingCreateResponseLocationLng = number | null;
+
+export type BookingCreateResponseLocationPlaceId = string | null;
 
 export type BookingCreateResponseLocationType = string | null;
 
@@ -2021,6 +2057,10 @@ export interface BookingCreateResponse {
   instructor_service_id: string;
   instructor_timezone?: BookingCreateResponseInstructorTimezone;
   lesson_timezone?: BookingCreateResponseLessonTimezone;
+  location_address?: BookingCreateResponseLocationAddress;
+  location_lat?: BookingCreateResponseLocationLat;
+  location_lng?: BookingCreateResponseLocationLng;
+  location_place_id?: BookingCreateResponseLocationPlaceId;
   location_type: BookingCreateResponseLocationType;
   lock_resolution?: BookingCreateResponseLockResolution;
   lock_resolved_at?: BookingCreateResponseLockResolvedAt;
@@ -2067,6 +2107,14 @@ export interface BookingPaymentMethodUpdate {
   set_as_default?: boolean;
 }
 
+export type BookingPreviewResponseLocationAddress = string | null;
+
+export type BookingPreviewResponseLocationLat = number | null;
+
+export type BookingPreviewResponseLocationLng = number | null;
+
+export type BookingPreviewResponseLocationPlaceId = string | null;
+
 export type BookingPreviewResponseMeetingLocation = string | null;
 
 export type BookingPreviewResponseServiceArea = string | null;
@@ -2083,6 +2131,10 @@ export interface BookingPreviewResponse {
   end_time: string;
   instructor_first_name: string;
   instructor_last_name: string;
+  location_address?: BookingPreviewResponseLocationAddress;
+  location_lat?: BookingPreviewResponseLocationLat;
+  location_lng?: BookingPreviewResponseLocationLng;
+  location_place_id?: BookingPreviewResponseLocationPlaceId;
   location_type: string;
   location_type_display: string;
   meeting_location: BookingPreviewResponseMeetingLocation;
@@ -2155,6 +2207,14 @@ export type BookingResponseInstructorPayoutAmount = number | null;
 export type BookingResponseInstructorTimezone = string | null;
 
 export type BookingResponseLessonTimezone = string | null;
+
+export type BookingResponseLocationAddress = string | null;
+
+export type BookingResponseLocationLat = number | null;
+
+export type BookingResponseLocationLng = number | null;
+
+export type BookingResponseLocationPlaceId = string | null;
 
 export type BookingResponseLocationType = string | null;
 
@@ -2239,6 +2299,10 @@ export interface BookingResponse {
   instructor_service_id: string;
   instructor_timezone?: BookingResponseInstructorTimezone;
   lesson_timezone?: BookingResponseLessonTimezone;
+  location_address?: BookingResponseLocationAddress;
+  location_lat?: BookingResponseLocationLat;
+  location_lng?: BookingResponseLocationLng;
+  location_place_id?: BookingResponseLocationPlaceId;
   location_type: BookingResponseLocationType;
   lock_resolution?: BookingResponseLockResolution;
   lock_resolved_at?: BookingResponseLockResolvedAt;

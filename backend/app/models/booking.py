@@ -135,6 +135,10 @@ class Booking(Base):
     service_area = Column(String, nullable=True)
     location_type = Column(String(50), nullable=True, default=LocationType.ONLINE)
     meeting_location = Column(Text, nullable=True)
+    location_address = Column(Text, nullable=True)
+    location_lat = Column(Numeric(10, 8), nullable=True)
+    location_lng = Column(Numeric(11, 8), nullable=True)
+    location_place_id = Column(String(255), nullable=True)
     student_note = Column(Text, nullable=True)
     instructor_note = Column(Text, nullable=True)
     reminder_24h_sent = Column(Boolean, nullable=False, default=False)
@@ -614,6 +618,10 @@ class Booking(Base):
             "location_type": self.location_type,
             "location_type_display": self.location_type_display,
             "meeting_location": self.meeting_location,
+            "location_address": self.location_address,
+            "location_lat": float(self.location_lat) if self.location_lat is not None else None,
+            "location_lng": float(self.location_lng) if self.location_lng is not None else None,
+            "location_place_id": self.location_place_id,
             "service_area": self.service_area,
             "student_note": self.student_note,
             "instructor_note": self.instructor_note,

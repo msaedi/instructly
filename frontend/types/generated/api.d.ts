@@ -8511,6 +8511,26 @@ export type components = {
              */
             instructor_service_id: string;
             /**
+             * Location Address
+             * @description Structured location address for in-person lessons
+             */
+            location_address?: string | null;
+            /**
+             * Location Lat
+             * @description Latitude for the lesson location
+             */
+            location_lat?: number | null;
+            /**
+             * Location Lng
+             * @description Longitude for the lesson location
+             */
+            location_lng?: number | null;
+            /**
+             * Location Place Id
+             * @description Place ID for the lesson location
+             */
+            location_place_id?: string | null;
+            /**
              * Location Type
              * @description Type of meeting location
              * @default online
@@ -8611,6 +8631,14 @@ export type components = {
             instructor_timezone?: string | null;
             /** Lesson Timezone */
             lesson_timezone?: string | null;
+            /** Location Address */
+            location_address?: string | null;
+            /** Location Lat */
+            location_lat?: number | null;
+            /** Location Lng */
+            location_lng?: number | null;
+            /** Location Place Id */
+            location_place_id?: string | null;
             /** Location Type */
             location_type: string | null;
             /** Lock Resolution */
@@ -8716,6 +8744,14 @@ export type components = {
             instructor_first_name: string;
             /** Instructor Last Name */
             instructor_last_name: string;
+            /** Location Address */
+            location_address?: string | null;
+            /** Location Lat */
+            location_lat?: number | null;
+            /** Location Lng */
+            location_lng?: number | null;
+            /** Location Place Id */
+            location_place_id?: string | null;
             /** Location Type */
             location_type: string;
             /** Location Type Display */
@@ -8840,6 +8876,14 @@ export type components = {
             instructor_timezone?: string | null;
             /** Lesson Timezone */
             lesson_timezone?: string | null;
+            /** Location Address */
+            location_address?: string | null;
+            /** Location Lat */
+            location_lat?: number | null;
+            /** Location Lng */
+            location_lng?: number | null;
+            /** Location Place Id */
+            location_place_id?: string | null;
             /** Location Type */
             location_type: string | null;
             /** Lock Resolution */

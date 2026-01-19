@@ -5286,6 +5286,10 @@ export type components = {
  end_time?: string | null;
  instructor_id: string;
  instructor_service_id: string;
+ location_address?: string | null;
+ location_lat?: number | null;
+ location_lng?: number | null;
+ location_place_id?: string | null;
  location_type: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
  meeting_location?: string | null;
  selected_duration: number;
@@ -5321,6 +5325,10 @@ export type components = {
  instructor_service_id: string;
  instructor_timezone?: string | null;
  lesson_timezone?: string | null;
+ location_address?: string | null;
+ location_lat?: number | null;
+ location_lng?: number | null;
+ location_place_id?: string | null;
  location_type: string | null;
  lock_resolution?: string | null;
  lock_resolved_at?: string | null;
@@ -5365,6 +5373,10 @@ export type components = {
  end_time: string;
  instructor_first_name: string;
  instructor_last_name: string;
+ location_address?: string | null;
+ location_lat?: number | null;
+ location_lng?: number | null;
+ location_place_id?: string | null;
  location_type: string;
  location_type_display: string;
  meeting_location: string | null;
@@ -5411,6 +5423,10 @@ export type components = {
  instructor_service_id: string;
  instructor_timezone?: string | null;
  lesson_timezone?: string | null;
+ location_address?: string | null;
+ location_lat?: number | null;
+ location_lng?: number | null;
+ location_place_id?: string | null;
  location_type: string | null;
  lock_resolution?: string | null;
  lock_resolved_at?: string | null;

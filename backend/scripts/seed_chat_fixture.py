@@ -365,6 +365,7 @@ def seed_chat_fixture_booking(
                         duration_minutes=slot_duration,
                         location_type=location,
                         meeting_location=location,
+                        location_address=location,
                     )
                     session.add(booking)
                     session.commit()

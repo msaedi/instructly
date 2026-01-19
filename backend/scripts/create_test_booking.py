@@ -111,6 +111,7 @@ def create_test_booking():
             status=BookingStatus.CONFIRMED,
             location_type="instructor_location",
             meeting_location="123 Music Studio, New York, NY 10001",
+            location_address="123 Music Studio, New York, NY 10001",
             student_note="Looking forward to the lesson!",
             service_area="Manhattan",
         )

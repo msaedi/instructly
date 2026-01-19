@@ -26,6 +26,7 @@ Endpoints:
 
 import asyncio
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 import logging
 from typing import Any, NoReturn, Optional, cast
 
@@ -80,6 +81,23 @@ def handle_domain_exception(exc: DomainException) -> NoReturn:
     if hasattr(exc, "to_http_exception"):
         raise exc.to_http_exception()
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+
+
+def _safe_float(value: object) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float, Decimal)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _safe_str(value: object) -> Optional[str]:
+    return value if isinstance(value, str) else None
 
 
 # ============================================================================
@@ -529,6 +547,10 @@ async def get_booking_preview(
             if booking.location_type
             else "Online",
             meeting_location=booking.meeting_location,
+            location_address=_safe_str(getattr(booking, "location_address", None)),
+            location_lat=_safe_float(getattr(booking, "location_lat", None)),
+            location_lng=_safe_float(getattr(booking, "location_lng", None)),
+            location_place_id=_safe_str(getattr(booking, "location_place_id", None)),
             service_area=booking.service_area,
             status=booking.status,
             student_note=booking.student_note,
