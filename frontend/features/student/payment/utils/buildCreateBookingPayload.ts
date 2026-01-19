@@ -53,19 +53,31 @@ function normalizeTimezone(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function normalizeModality(modality: unknown, fallbackLocation: string | undefined): 'remote' | 'in_person' {
+type NormalizedLocationType =
+  | 'student_location'
+  | 'instructor_location'
+  | 'online'
+  | 'neutral_location';
+
+function normalizeLocationType(
+  modality: unknown,
+  fallbackLocation: string | undefined,
+): NormalizedLocationType {
   const raw = typeof modality === 'string' ? modality.toLowerCase() : '';
   if (raw.includes('remote') || raw.includes('online') || raw.includes('virtual')) {
-    return 'remote';
+    return 'online';
   }
-  if (raw.includes('in_person') || raw.includes('in-person')) {
-    return 'in_person';
+  if (raw.includes('instructor') || raw.includes('studio')) {
+    return 'instructor_location';
+  }
+  if (raw.includes('neutral') || raw.includes('public')) {
+    return 'neutral_location';
   }
   const fallback = typeof fallbackLocation === 'string' ? fallbackLocation.toLowerCase() : '';
-  if (fallback.includes('online') || fallback.includes('remote') || fallback.includes('virtual')) {
-    return 'remote';
+  if (fallback.includes('remote') || fallback.includes('online') || fallback.includes('virtual')) {
+    return 'online';
   }
-  return 'in_person';
+  return 'student_location';
 }
 
 /**
@@ -92,10 +104,9 @@ export function buildCreateBookingPayload({
     booking.startTime,
     booking.endTime,
   );
-  const modality = normalizeModality(metadata['modality'], booking.location);
-  const meetingLocation = booking.location || (modality === 'remote' ? 'Online' : 'In-person lesson');
+  const locationType = normalizeLocationType(metadata['modality'], booking.location);
+  const meetingLocation = booking.location || (locationType === 'online' ? 'Online' : 'In-person lesson');
   const normalizedDate = normalizeBookingDate(bookingDate);
-  const locationType = modality;
   const resolvedTimezone =
     normalizeTimezone(instructorTimezone) ??
     normalizeTimezone(metadata['timezone']) ??

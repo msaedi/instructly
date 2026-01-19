@@ -756,7 +756,7 @@ class DatabaseSeeder:
 
                     loc_types = [lt.lower() for lt in (service.location_types or [])]
                     is_remote = any(lt in {"online", "remote", "virtual"} for lt in loc_types)
-                    location_type = "remote" if is_remote else "student_home"
+                    location_type = "online" if is_remote else "student_location"
                     meeting_location = "Online" if is_remote else "Student location"
 
                     student = rng.choice(students)
@@ -1233,7 +1233,7 @@ class DatabaseSeeder:
                         status=BookingStatus.CONFIRMED,
                         service_area=None,
                         meeting_location="Online",
-                        location_type="neutral",
+                        location_type="neutral_location",
                     )
                     session.add(booking)
 
@@ -1396,7 +1396,7 @@ class DatabaseSeeder:
                     end_time=end_time,
                     **tz_fields,
                     status=BookingStatus.COMPLETED,
-                    location_type="neutral",
+                    location_type="neutral_location",
                     meeting_location="Zoom",
                     service_name=service.catalog_entry.name if service.catalog_entry else "Service",
                     service_area=None,
@@ -1545,7 +1545,7 @@ class DatabaseSeeder:
                     end_time=end_time,
                     **tz_fields,
                     status=BookingStatus.COMPLETED,
-                    location_type="neutral",
+                    location_type="neutral_location",
                     meeting_location="In-person",
                     service_name=catalog_service.name if catalog_service else "Service",
                     service_area="Manhattan",
@@ -1664,7 +1664,7 @@ class DatabaseSeeder:
                     end_time=end_time,
                     **tz_fields,
                     status=BookingStatus.COMPLETED,
-                    location_type="neutral",
+                    location_type="neutral_location",
                     meeting_location="Zoom",
                     service_name=service.catalog_entry.name if service.catalog_entry else "Service",
                     service_area=None,
@@ -1793,7 +1793,7 @@ class DatabaseSeeder:
                     end_time=end_time,
                     **tz_fields,
                     status=BookingStatus.COMPLETED,
-                    location_type="neutral",
+                    location_type="neutral_location",
                     meeting_location="In-person",
                     service_name=service_name,
                     service_area="Manhattan",
@@ -2071,7 +2071,7 @@ class DatabaseSeeder:
                             total_price,
                             duration,
                             BookingStatus.COMPLETED.value,
-                            "neutral",
+                            "neutral_location",
                             "In-person",
                             "Seeded completed booking for reviews",
                             helper_completed_at,

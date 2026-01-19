@@ -24,7 +24,9 @@ class BookedSlotItem(StrictModel):
     service_name: str = Field(description="Name of the service booked")
     service_area_short: str = Field(description="Abbreviated service area")
     duration_minutes: int = Field(description="Duration of the booking in minutes")
-    location_type: str = Field(description="Location type (neutral, student, instructor)")
+    location_type: str = Field(
+        description="Location type (student_location, instructor_location, online, neutral_location)"
+    )
 
 
 class WeekAvailabilityUpdateResponse(StrictModel):

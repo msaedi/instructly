@@ -91,7 +91,7 @@ class TestBookingRoutesNewFormat:
                 "selected_duration": 60,
                 "student_note": "Looking forward to the lesson!",
                 "meeting_location": "123 Main St",
-                "location_type": "neutral",
+                "location_type": "neutral_location",
             },
             headers=auth_headers_student,
         )
@@ -307,7 +307,7 @@ class TestBookingResponseFormat:
                 "selected_duration": 60,
                 "end_time": "15:00",
                 "student_note": "Test booking",
-                "location_type": "neutral",
+                "location_type": "neutral_location",
             },
             headers=auth_headers_student,
         )
@@ -392,7 +392,7 @@ def test_full_booking_flow_clean_architecture(
             "selected_duration": 60,
             "end_time": "11:00",
             "student_note": "Excited for my first lesson!",
-            "location_type": "neutral",
+            "location_type": "neutral_location",
         },
         headers=auth_headers_student,
     )

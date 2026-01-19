@@ -875,7 +875,7 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
         cancellation_reason = None
 
     # Determine location type and meeting location
-    location_types = ["student_home", "instructor_location", "neutral"]
+    location_types = ["student_location", "instructor_location", "neutral_location"]
     location_type = random.choice(location_types)
 
     area = "NYC"
@@ -888,11 +888,11 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
     if service_area and service_area.neighborhood:
         area = service_area.neighborhood.region_name or service_area.neighborhood.parent_region or "NYC"
 
-    if location_type == "student_home":
+    if location_type == "student_location":
         meeting_location = f"Student's home in {area}"
     elif location_type == "instructor_location":
         meeting_location = f"Instructor's studio in {area}"
-    else:  # neutral
+    else:  # neutral_location
         neutral_locations = [
             f"Starbucks at {area}",
             f"Public Library in {area}",

@@ -94,7 +94,7 @@ def test_reschedule_different_instructor_blocked(
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_status=PaymentStatus.AUTHORIZED.value,
         payment_intent_id="pi_resched",
     )
@@ -117,7 +117,7 @@ def test_reschedule_different_instructor_blocked(
         selected_duration=60,
         student_note=None,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
     )
 
     booking_service = BookingService(db)
@@ -152,7 +152,7 @@ def test_reschedule_lt12h_blocked(
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_status=PaymentStatus.AUTHORIZED.value,
         payment_intent_id="pi_resched",
     )
@@ -187,7 +187,7 @@ def test_reschedule_gte24h_unlimited(
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_status=PaymentStatus.AUTHORIZED.value,
         payment_intent_id="pi_resched",
     )
@@ -220,7 +220,7 @@ def test_second_reschedule_12_to_24h_blocked(
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_status=PaymentStatus.AUTHORIZED.value,
         payment_intent_id="pi_resched",
         late_reschedule_used=True,
@@ -258,7 +258,7 @@ def test_reschedule_count_incremented(
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_status=PaymentStatus.AUTHORIZED.value,
         payment_intent_id="pi_resched",
     )
@@ -273,7 +273,7 @@ def test_reschedule_count_incremented(
         selected_duration=60,
         student_note=None,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
     )
 
     booking_service = BookingService(db)

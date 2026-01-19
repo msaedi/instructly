@@ -40,14 +40,14 @@ describe('buildCreateBookingPayload', () => {
         start_time: '14:00',
         end_time: '15:00',
         selected_duration: 60,
-        location_type: 'remote',
+        location_type: 'online',
         meeting_location: expect.stringMatching(/online/i),
         timezone: 'America/New_York',
       })
     );
   });
 
-  it('falls back to in-person modality when metadata is absent', () => {
+  it('falls back to student location when metadata is absent', () => {
     const payload = buildCreateBookingPayload({
       instructorId: 'inst-99',
       serviceId: 'svc-2',
@@ -64,6 +64,6 @@ describe('buildCreateBookingPayload', () => {
     expect(payload.start_time).toBe('09:30');
     expect(payload.end_time).toBe('10:15');
     expect(payload.selected_duration).toBe(45);
-    expect(payload.location_type).toBe('in_person');
+    expect(payload.location_type).toBe('student_location');
   });
 });

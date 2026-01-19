@@ -366,6 +366,10 @@ def _ensure_region_boundary(db: Session, borough: str) -> RegionBoundary:
 def add_service_area(db: Session, user: User, neighborhood_id: str) -> InstructorServiceArea:
     """Attach a service area row for the given user."""
 
+    if db.get(User, user.id) is None:
+        db.merge(user)
+        db.flush()
+
     isa = (
         db.query(InstructorServiceArea)
         .filter(
@@ -722,7 +726,7 @@ def _prepare_database() -> None:
         conn.execute(
             text(
                 "ALTER TABLE bookings ADD CONSTRAINT ck_bookings_location_type "
-                "CHECK (location_type IN ('student_home', 'instructor_location', 'neutral', 'remote', 'online'))"
+                "CHECK (location_type IN ('student_location', 'instructor_location', 'online', 'neutral_location'))"
             )
         )
         conn.commit()

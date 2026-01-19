@@ -26,9 +26,9 @@ jest.mock('@/lib/timezone/formatBookingTime', () => ({
 jest.mock('@/types/booking', () => ({
   getLocationTypeIcon: jest.fn((type: string) => {
     const icons: Record<string, string> = {
-      IN_HOME: '🏠',
-      STUDIO: '🎹',
-      VIRTUAL: '💻',
+      student_location: '🏠',
+      instructor_location: '🏫',
+      online: '💻',
     };
     return icons[type] ?? '📍';
   }),
@@ -75,8 +75,8 @@ const createMockBookingPreview = (overrides: Partial<BookingPreview> = {}): Book
   start_time: '10:00',
   end_time: '11:00',
   total_price: 60,
-  location_type: 'IN_HOME',
-  location_type_display: 'In-Home Lesson',
+  location_type: 'student_location',
+  location_type_display: 'Student Location',
   meeting_location: '123 Main St, New York, NY',
   service_area: null,
   student_note: null,
@@ -184,7 +184,7 @@ describe('BookingQuickPreview', () => {
 
       await waitFor(() => {
         expect(screen.getByText('🏠')).toBeInTheDocument();
-        expect(screen.getByText('In-Home Lesson')).toBeInTheDocument();
+        expect(screen.getByText('Student Location')).toBeInTheDocument();
       });
     });
 

@@ -291,7 +291,7 @@ describe('protectedApi', () => {
       booking_date: '2025-01-15',
       start_time: '14:00:00',
       selected_duration: 60,
-      location_type: 'remote',
+      location_type: 'online',
     });
 
     expect(result.status).toBe(201);

@@ -75,7 +75,7 @@ class TestBookingRoutes:
             "selected_duration": 60,
             "student_note": "Looking forward to the lesson!",
             "meeting_location": "Central Park",
-            "location_type": "neutral",
+            "location_type": "neutral_location",
         }
 
     @pytest.fixture
@@ -153,7 +153,7 @@ class TestBookingRoutes:
         mock_booking.duration_minutes = 60
         mock_booking.service_area = "Manhattan"
         mock_booking.meeting_location = "Central Park"
-        mock_booking.location_type = "neutral"
+        mock_booking.location_type = "neutral_location"
         mock_booking.student_note = "Looking forward to the lesson!"
         mock_booking.instructor_note = None
         mock_booking.created_at = datetime.now()
@@ -294,7 +294,7 @@ class TestBookingRoutes:
             booking.duration_minutes = 60
             booking.service_area = "Manhattan"
             booking.meeting_location = "Location"
-            booking.location_type = "neutral"
+            booking.location_type = "neutral_location"
             booking.student_note = None
             booking.instructor_note = None
             booking.student_id = generate_ulid()
@@ -407,7 +407,7 @@ class TestBookingRoutes:
         cancelled_booking.duration_minutes = 60
         cancelled_booking.service_area = "Manhattan"
         cancelled_booking.meeting_location = "Location"
-        cancelled_booking.location_type = "neutral"
+        cancelled_booking.location_type = "neutral_location"
         cancelled_booking.student_note = None
         cancelled_booking.instructor_note = None
         cancelled_booking.student_id = generate_ulid()
@@ -483,7 +483,7 @@ class TestBookingRoutes:
         completed_booking.duration_minutes = 60
         completed_booking.service_area = "Manhattan"
         completed_booking.meeting_location = "Location"
-        completed_booking.location_type = "neutral"
+        completed_booking.location_type = "neutral_location"
         completed_booking.student_note = None
         completed_booking.instructor_note = "Great progress!"
         completed_booking.student_id = generate_ulid()
@@ -726,7 +726,7 @@ class TestBookingRoutes:
         mock_booking.start_time = time(9, 0)
         mock_booking.end_time = time(10, 0)
         mock_booking.duration_minutes = 60
-        mock_booking.location_type = "neutral"
+        mock_booking.location_type = "neutral_location"
         mock_booking.location_type_display = "Neutral Location"
         mock_booking.meeting_location = "Central Park"
         mock_booking.service_area = "Manhattan"
@@ -768,7 +768,7 @@ class TestBookingRoutes:
         updated_booking.duration_minutes = 60
         updated_booking.status = BookingStatus.CONFIRMED
         updated_booking.service_area = "Manhattan"
-        updated_booking.location_type = "neutral"
+        updated_booking.location_type = "neutral_location"
         updated_booking.student_note = None
         updated_booking.created_at = datetime.now()
         updated_booking.confirmed_at = datetime.now()
@@ -819,7 +819,7 @@ class TestBookingRoutes:
         mock_booking.duration_minutes = 60
         mock_booking.service_area = "Manhattan"
         mock_booking.meeting_location = "Central Park"
-        mock_booking.location_type = "neutral"
+        mock_booking.location_type = "neutral_location"
         mock_booking.student_note = "Looking forward!"
         mock_booking.instructor_note = None
         mock_booking.created_at = datetime.now()
@@ -1231,7 +1231,7 @@ class TestBookingRoutes:
         cancelled_booking.duration_minutes = 60
         cancelled_booking.service_area = "Manhattan"
         cancelled_booking.meeting_location = "Studio"
-        cancelled_booking.location_type = "neutral"
+        cancelled_booking.location_type = "neutral_location"
         cancelled_booking.student_note = None
         cancelled_booking.instructor_note = None
         cancelled_booking.student_id = generate_ulid()
@@ -1307,7 +1307,7 @@ class TestBookingRoutes:
         original.duration_minutes = 60
         original.service_area = "Manhattan"
         original.meeting_location = "Studio"
-        original.location_type = "neutral"
+        original.location_type = "neutral_location"
         original.student_note = "Bring sheet music"
         original.instructor_note = None
         # Nested objects used by response factories downstream
@@ -1423,7 +1423,7 @@ class TestBookingRoutes:
         original.duration_minutes = 60
         original.service_area = "Manhattan"
         original.meeting_location = "Studio"
-        original.location_type = "neutral"
+        original.location_type = "neutral_location"
         original.student_note = "Bring sheet music"
         original.instructor_note = None
         original.payment_intent_id = "pi_test123"

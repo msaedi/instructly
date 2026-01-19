@@ -258,7 +258,7 @@ class TestStudentConflictValidationIntegration:
             end_time=time(15, 0),
             selected_duration=60,
             instructor_service_id=math_service.id,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
 
@@ -279,7 +279,7 @@ class TestStudentConflictValidationIntegration:
             end_time=time(15, 30),
             selected_duration=60,
             instructor_service_id=piano_service.id,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
 
@@ -329,7 +329,7 @@ class TestStudentConflictValidationIntegration:
             end_time=time(15, 0),
             selected_duration=60,
             instructor_service_id=math_service.id,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
 
@@ -346,7 +346,7 @@ class TestStudentConflictValidationIntegration:
             end_time=time(16, 0),
             selected_duration=60,
             instructor_service_id=piano_service.id,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
 
@@ -415,7 +415,7 @@ class TestStudentConflictValidationIntegration:
             end_time=time(15, 0),
             selected_duration=60,
             instructor_service_id=math_service.id,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
 
@@ -432,7 +432,7 @@ class TestStudentConflictValidationIntegration:
             end_time=time(15, 30),
             selected_duration=60,
             instructor_service_id=math_service.id,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
 
@@ -477,7 +477,7 @@ class TestStudentConflictValidationIntegration:
             end_time=time(15, 0),
             selected_duration=60,
             instructor_service_id=math_service.id,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
 
@@ -500,7 +500,7 @@ class TestStudentConflictValidationIntegration:
             end_time=time(15, 30),
             selected_duration=60,
             instructor_service_id=piano_service.id,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
 

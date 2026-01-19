@@ -89,9 +89,10 @@ class PaymentStatus(str, Enum):
 class LocationType(str, Enum):
     """Where the lesson will take place."""
 
-    STUDENT_HOME = "student_home"
+    STUDENT_LOCATION = "student_location"
     INSTRUCTOR_LOCATION = "instructor_location"
-    NEUTRAL = "neutral"
+    ONLINE = "online"
+    NEUTRAL_LOCATION = "neutral_location"
 
 
 class Booking(Base):
@@ -132,7 +133,7 @@ class Booking(Base):
     # Booking details
     status = Column(String(20), nullable=False, default=BookingStatus.CONFIRMED, index=True)
     service_area = Column(String, nullable=True)
-    location_type = Column(String(50), nullable=True, default=LocationType.NEUTRAL)
+    location_type = Column(String(50), nullable=True, default=LocationType.ONLINE)
     meeting_location = Column(Text, nullable=True)
     student_note = Column(Text, nullable=True)
     instructor_note = Column(Text, nullable=True)
@@ -487,7 +488,7 @@ class Booking(Base):
             name="ck_bookings_status",
         ),
         CheckConstraint(
-            "location_type IN ('student_home', 'instructor_location', 'neutral', 'remote', 'online')",
+            "location_type IN ('student_location', 'instructor_location', 'online', 'neutral_location')",
             name="ck_bookings_location_type",
         ),
         CheckConstraint("duration_minutes > 0", name="check_duration_positive"),
@@ -580,10 +581,11 @@ class Booking(Base):
         """Get human-readable location type."""
         location = cast("LocationType | None", self.location_type)
         return {
-            LocationType.STUDENT_HOME: "Student's Home",
+            LocationType.STUDENT_LOCATION: "Student Location",
             LocationType.INSTRUCTOR_LOCATION: "Instructor's Location",
-            LocationType.NEUTRAL: "Neutral Location",
-        }.get(location or LocationType.NEUTRAL, "Neutral Location")
+            LocationType.ONLINE: "Online",
+            LocationType.NEUTRAL_LOCATION: "Neutral Location",
+        }.get(location or LocationType.ONLINE, "Online")
 
     @property
     def can_be_modified_by(self) -> Callable[[str], bool]:

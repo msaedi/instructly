@@ -99,7 +99,7 @@ class TestBookingServiceErrorHandling:
             end_time=end_time,
             selected_duration=60,
             instructor_service_id=service.id,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
 
@@ -168,7 +168,7 @@ class TestBookingServiceQueryVariations:
             total_price=50.0,
             duration_minutes=60,
             status=BookingStatus.CANCELLED,
-            location_type="neutral",
+            location_type="neutral_location",
         )
         db.add(cancelled_booking)
         db.commit()
@@ -213,7 +213,7 @@ class TestBookingServiceQueryVariations:
                 total_price=50.0,
                 duration_minutes=60,
                 status=BookingStatus.CONFIRMED,
-                location_type="neutral",
+                location_type="neutral_location",
             )
             db.add(booking)
         db.commit()
@@ -274,7 +274,7 @@ class TestBookingServiceStatisticsEdgeCases:
             total_price=100.0,  # 2 hours
             duration_minutes=120,
             status=BookingStatus.COMPLETED,
-            location_type="neutral",
+            location_type="neutral_location",
             completed_at=datetime.now(timezone.utc),
         )
         db.add(completed_booking)
@@ -563,7 +563,7 @@ class TestBookingServiceReminders:
             total_price=50.0,
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
-            location_type="neutral",
+            location_type="neutral_location",
         )
         db.add(another_booking)
         db.commit()
@@ -736,7 +736,7 @@ class TestStudentDoubleBookingPrevention:
             end_time=time(11, 0),
             selected_duration=60,
             instructor_service_id=service1.id,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
 
@@ -754,7 +754,7 @@ class TestStudentDoubleBookingPrevention:
             end_time=time(11, 30),
             selected_duration=60,
             instructor_service_id=piano_service.id,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
 
@@ -881,7 +881,7 @@ class TestStudentDoubleBookingPrevention:
             end_time=time(11, 0),
             selected_duration=60,
             instructor_service_id=service1.id,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
 
@@ -899,7 +899,7 @@ class TestStudentDoubleBookingPrevention:
             end_time=time(15, 0),  # 3:00 PM
             selected_duration=60,
             instructor_service_id=piano_service.id,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
 

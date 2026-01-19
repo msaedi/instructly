@@ -8411,7 +8411,7 @@ export type components = {
             end_time: string;
             /**
              * Location Type
-             * @description Location type (neutral, student, instructor)
+             * @description Location type (student_location, instructor_location, online, neutral_location)
              */
             location_type: string;
             /**
@@ -8513,9 +8513,9 @@ export type components = {
             /**
              * Location Type
              * @description Type of meeting location
-             * @default neutral
+             * @default online
              */
-            location_type: ("student_home" | "instructor_location" | "neutral" | "remote" | "in_person") | null;
+            location_type: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
             /**
              * Meeting Location
              * @description Specific meeting location if applicable
@@ -15289,7 +15289,7 @@ export type components = {
             levels_taught?: string[] | null;
             /**
              * Location Types
-             * @description Where lessons are offered. Allowed: 'in-person', 'online'
+             * @description Where lessons are offered. Allowed: 'in_person', 'online'
              */
             location_types?: string[] | null;
             /** Requirements */
@@ -15453,7 +15453,7 @@ export type components = {
             levels_taught?: string[] | null;
             /**
              * Location Types
-             * @description Where lessons are offered. Allowed: 'in-person', 'online'
+             * @description Where lessons are offered. Allowed: 'in_person', 'online'
              */
             location_types?: string[] | null;
             /**

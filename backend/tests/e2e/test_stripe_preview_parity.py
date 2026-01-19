@@ -220,7 +220,7 @@ def test_stripe_preview_amount_parity_e2e():
                 hourly_rate=Decimal("80.00"),
                 total_price=Decimal("80.00"),
                 status=BookingStatus.CONFIRMED,
-                location_type="remote",
+                location_type="online",
                 meeting_location="Online",
                 student_note=f"Stripe E2E {booking_tag}",
             )

@@ -45,7 +45,7 @@ def _create_scheduled_booking(
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_status=PaymentStatus.SCHEDULED.value,
         payment_method_id="pm_test",
     )
@@ -83,7 +83,7 @@ def _create_failed_auth_booking(
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
         payment_method_id="pm_test",
     )

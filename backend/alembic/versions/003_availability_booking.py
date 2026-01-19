@@ -146,7 +146,7 @@ def upgrade() -> None:
             "location_type",
             sa.String(50),
             nullable=True,
-            comment="Type of meeting location: student_home, instructor_location, or neutral",
+            comment="Type of meeting location: student_location, instructor_location, online, or neutral_location",
         ),
         sa.Column("student_note", sa.Text(), nullable=True),
         sa.Column("instructor_note", sa.Text(), nullable=True),
@@ -304,7 +304,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_bookings_location_type",
         "bookings",
-        "location_type IN ('student_home', 'instructor_location', 'neutral', 'remote', 'online')",
+        "location_type IN ('student_location', 'instructor_location', 'online', 'neutral_location')",
     )
     op.create_check_constraint(
         "ck_bookings_payment_status",

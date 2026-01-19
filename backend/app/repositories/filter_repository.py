@@ -520,7 +520,7 @@ class FilterRepository:
 
         The filter works by checking the location_types array in instructor_services.
         - "online" lesson_type -> services with 'online' in location_types
-        - "in_person" lesson_type -> services with 'in-person' in location_types
+        - "in_person" lesson_type -> services with 'in_person' in location_types
 
         Args:
             service_ids: List of instructor_service IDs to filter
@@ -536,7 +536,7 @@ class FilterRepository:
         if lesson_type == "online":
             type_value = "online"
         elif lesson_type == "in_person":
-            type_value = "in-person"
+            type_value = "in_person"
         else:
             return service_ids
 

@@ -324,18 +324,27 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     const rawLocation = (updatedBookingData.location ?? bookingData.location ?? '').toString().trim();
     const meetingLocation = rawLocation || 'Student provided address';
     const metadataModality = String(mergedMetadata['modality'] ?? '').trim().toLowerCase();
-    const isRemoteMetadata = metadataModality === 'remote' || metadataModality === 'online';
+    const normalizedMetadataModality =
+      metadataModality === 'student_home'
+        ? 'student_location'
+        : metadataModality === 'neutral'
+          ? 'neutral_location'
+          : metadataModality;
+    const isRemoteMetadata =
+      normalizedMetadataModality === 'remote' || normalizedMetadataModality === 'online';
     const isRemoteLocation = /online|remote|virtual/i.test(meetingLocation);
     const isRemote = isRemoteMetadata || isRemoteLocation;
 
     const allowedModalities: PricingPreviewSelection['modality'][] = [
       'remote',
       'in_person',
-      'student_home',
+      'student_location',
       'instructor_location',
-      'neutral',
+      'neutral_location',
     ];
-    const normalizedModality = (allowedModalities.find((value) => value === metadataModality) ??
+    const normalizedModality = (allowedModalities.find(
+      (value) => value === normalizedMetadataModality,
+    ) ??
       (isRemote ? 'remote' : 'in_person')) as PricingPreviewSelection['modality'];
 
     const selection = {

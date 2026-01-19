@@ -93,7 +93,7 @@ def _create_booking(
         duration_minutes=60,
         status=status,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_status=payment_status,
         payment_method_id=payment_method_id,
         payment_intent_id=payment_intent_id,

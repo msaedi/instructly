@@ -912,7 +912,7 @@ def create_sample_bookings(session: Session):
                     total_price=Decimal(str(service.hourly_rate * duration_minutes / 60)),
                     duration_minutes=duration_minutes,
                     status=BookingStatus.COMPLETED,
-                    location_type=random.choice(["student_home", "instructor_location", "neutral"]),
+                    location_type=random.choice(["student_location", "instructor_location", "neutral_location"]),
                     meeting_location=f"{random.choice(['Student home', 'Instructor studio', 'Local library'])}",
                     student_note="Looking forward to the lesson!",
                     created_at=booking_date - timedelta(days=2),
@@ -974,7 +974,7 @@ def create_sample_bookings(session: Session):
                 total_price=Decimal(str(service.hourly_rate * duration_minutes / 60)),
                 duration_minutes=duration_minutes,
                 status=status,
-                location_type=random.choice(["student_home", "instructor_location", "neutral"]),
+                location_type=random.choice(["student_location", "instructor_location", "neutral_location"]),
                 meeting_location=f"{random.choice(['Student home', 'Instructor studio', 'Local library'])}",
                 student_note=random.choice(
                     ["Looking forward to the lesson!", "Please focus on fundamentals", "I've been practicing!", None]

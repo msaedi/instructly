@@ -406,7 +406,7 @@ class TestBookingPaymentRoutes:
             "selected_duration": 60,
             "student_note": "Test booking",
             "meeting_location": "Central Park",
-            "location_type": "neutral",
+            "location_type": "neutral_location",
         }
 
         response = authenticated_client.post("/api/v1/bookings/", json=booking_data)

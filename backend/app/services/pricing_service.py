@@ -328,7 +328,7 @@ class PricingService(BaseService):
         location = str(getattr(booking, "location_type", "") or "").lower()
         if "remote" in location or "online" in location or "virtual" in location:
             return "remote"
-        if location in {"student_home", "instructor_location", "neutral", "in_person"}:
+        if location in {"student_location", "instructor_location", "neutral_location"}:
             if PricingService._meeting_location_indicates_remote(booking):
                 return "remote"
             return "in_person"

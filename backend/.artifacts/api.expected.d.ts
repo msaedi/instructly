@@ -5286,7 +5286,7 @@ export type components = {
  end_time?: string | null;
  instructor_id: string;
  instructor_service_id: string;
- location_type: ("student_home" | "instructor_location" | "neutral" | "remote" | "in_person") | null;
+ location_type: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
  meeting_location?: string | null;
  selected_duration: number;
  start_time: string;

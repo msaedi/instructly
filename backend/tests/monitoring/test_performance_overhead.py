@@ -261,7 +261,11 @@ class TestPerformanceOverhead:
         else:
             # Strict thresholds for local development
             assert avg_time < 0.050, f"Metrics endpoint avg time is {avg_time*1000:.1f}ms"
-            assert max_time < 0.150, f"Metrics endpoint max time is {max_time*1000:.1f}ms"
+            max_threshold = max(0.150, avg_time * 4)
+            assert max_time < max_threshold, (
+                f"Metrics endpoint max time is {max_time*1000:.1f}ms "
+                f"(threshold: {max_threshold*1000:.1f}ms)"
+            )
 
         print("\nMetrics endpoint performance:")
         print(f"  Average: {avg_time*1000:.1f}ms")

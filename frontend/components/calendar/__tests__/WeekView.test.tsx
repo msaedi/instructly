@@ -103,7 +103,7 @@ describe('WeekView', () => {
         service_name: 'Piano Lesson',
         service_area_short: 'UWS',
         duration_minutes: 60,
-        location_type: 'in_person' as LocationType,
+        location_type: 'student_location' as LocationType,
       },
     ];
     render(<WeekView {...defaultProps} bookedSlots={bookedSlots} />);

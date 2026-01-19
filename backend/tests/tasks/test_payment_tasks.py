@@ -550,7 +550,7 @@ class TestPaymentTasks:
         booking.total_price = 120.00
         booking.hourly_rate = Decimal("120.00")
         booking.duration_minutes = 60
-        booking.location_type = "student_home"
+        booking.location_type = "student_location"
         booking.instructor_service = MagicMock(location_types=None)
 
         mock_payment_repo = MagicMock()

@@ -177,7 +177,7 @@ class TestCleanArchitectureValidation:
                 "selected_duration": 60,
                 "student_note": "Test note",
                 "meeting_location": "Test location",
-                "location_type": "neutral",
+                "location_type": "neutral_location",
             },
             headers=auth_headers_student,
         )

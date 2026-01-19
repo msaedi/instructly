@@ -1399,6 +1399,58 @@ class TestResolveLocationOpenAI:
         assert llm_cache is None
         assert isinstance(unresolved, UnresolvedLocationInfo)
 
+    @pytest.mark.asyncio
+    async def test_resolve_location_openai_merges_embedding_candidates(self, nl_service):
+        region_lookup = RegionLookup(
+            region_names=["Queens", "Brooklyn"],
+            by_name={},
+            by_id={},
+            embeddings=[
+                SimpleNamespace(
+                    region_id="r1",
+                    region_name="Queens",
+                    borough=None,
+                    embedding=[0.1, 0.2],
+                    norm=1.0,
+                )
+            ],
+        )
+        nl_service.location_embedding_service.embed_location_text = AsyncMock(
+            return_value=[0.1, 0.2]
+        )
+        embedding_candidates = [
+            {"region_id": "r1", "region_name": "Queens", "borough": None, "similarity": 0.4}
+        ]
+        llm_embedding_candidates = [{"region_name": "Queens"}]
+        captured = {}
+
+        async def _fake_resolve_location_llm(**kwargs):
+            captured["candidate_names"] = kwargs.get("candidate_names", [])
+            return ResolvedLocation.from_not_found(), None, None
+
+        nl_service._resolve_location_llm = AsyncMock(side_effect=_fake_resolve_location_llm)
+
+        with patch(
+            "app.services.search.nl_search_service.LocationEmbeddingService.build_candidates_from_embeddings",
+            side_effect=[embedding_candidates, llm_embedding_candidates],
+        ):
+            with patch(
+                "app.services.search.nl_search_service.LocationEmbeddingService.pick_best_or_ambiguous",
+                return_value=(None, None),
+            ):
+                await nl_service._resolve_location_openai(
+                    "Queens",
+                    region_lookup=region_lookup,
+                    fuzzy_score=None,
+                    original_query=None,
+                    llm_candidates=["Brooklyn"],
+                    allow_tier4=True,
+                    allow_tier5=True,
+                )
+
+        assert "Queens" in captured["candidate_names"]
+        assert "Brooklyn" in captured["candidate_names"]
+
 
 def _make_post_data(*, skip_vector: bool = False) -> PostOpenAIData:
     filter_result = FilterResult(

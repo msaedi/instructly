@@ -40,7 +40,7 @@ describe('LessonCard', () => {
     total_price: 60,
     hourly_rate: 60,
     duration_minutes: 60,
-    location_type: 'student_home',
+    location_type: 'student_location',
     meeting_location: '123 Main St, NYC',
     student_note: 'Looking forward to the lesson!',
     instructor_id: '1',

@@ -97,7 +97,7 @@ def test_backfill_and_review_booking_creation(db: Session):
         student_id=student.id,
         instructor_service_id=service.id,
         base_date=base_date,
-        location_type="neutral",
+        location_type="neutral_location",
         meeting_location="Online",
         service_name="Piano Lessons",
         hourly_rate=Decimal("50.00"),

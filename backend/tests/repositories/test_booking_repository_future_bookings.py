@@ -92,7 +92,7 @@ class TestBookingRepositoryFutureBookings:
             duration_minutes=duration_minutes,
             status=status,
             meeting_location="Online",
-            location_type="neutral",
+            location_type="neutral_location",
             offset_index=offset_index,
         )
         if status == BookingStatus.CANCELLED:
@@ -502,7 +502,7 @@ class TestBookingRepositoryFutureBookings:
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
             meeting_location="Online",
-            location_type="neutral",
+            location_type="neutral_location",
         )
 
         morning_start = time(9, 0)
@@ -521,7 +521,7 @@ class TestBookingRepositoryFutureBookings:
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
             meeting_location="Online",
-            location_type="neutral",
+            location_type="neutral_location",
         )
 
         # Add in reverse order

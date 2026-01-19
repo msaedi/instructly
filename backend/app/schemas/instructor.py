@@ -164,7 +164,7 @@ class ServiceBase(StandardizedModel):
     )
     location_types: Optional[List[str]] = Field(
         default=None,
-        description="Where lessons are offered. Allowed: 'in-person', 'online'",
+        description="Where lessons are offered. Allowed: 'in_person', 'online'",
     )
     duration_options: List[int] = Field(
         default=[60],
@@ -236,16 +236,18 @@ class ServiceBase(StandardizedModel):
     def validate_location_types(cls, v: Optional[List[str]]) -> Optional[List[str]]:
         """Normalize and validate location types.
 
-        Allowed values: in-person, online.
+        Allowed values: in_person, online.
         """
         if v is None:
             return v
-        allowed = {"in-person", "online"}
+        allowed = {"in_person", "online"}
         normalized: List[str] = []
         for item in v:
             value = str(item).strip().lower()
+            if value == "in-person":
+                value = "in_person"
             if value not in allowed:
-                raise ValueError("location_types must be one or more of: 'in-person', 'online'")
+                raise ValueError("location_types must be one or more of: 'in_person', 'online'")
             if value not in normalized:
                 normalized.append(value)
         return normalized

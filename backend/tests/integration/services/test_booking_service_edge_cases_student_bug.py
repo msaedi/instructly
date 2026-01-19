@@ -168,7 +168,7 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
         end_time=time(16, 0),  # 4:00 PM
         selected_duration=60,
         instructor_service_id=math_service.id,
-        location_type="neutral",
+        location_type="neutral_location",
         meeting_location="Online",
     )
 
@@ -186,7 +186,7 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
         end_time=time(16, 30),  # 4:30 PM
         selected_duration=60,
         instructor_service_id=piano_service.id,
-        location_type="neutral",
+        location_type="neutral_location",
         meeting_location="Online",
     )
 

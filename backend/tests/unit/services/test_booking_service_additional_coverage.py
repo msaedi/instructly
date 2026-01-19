@@ -98,7 +98,7 @@ def make_booking_data(**overrides: object) -> SimpleNamespace:
         start_time=overrides.get("start_time", time(10, 0)),
         end_time=overrides.get("end_time", None),
         meeting_location=overrides.get("meeting_location", None),
-        location_type=overrides.get("location_type", "neutral"),
+        location_type=overrides.get("location_type", "neutral_location"),
         student_note=overrides.get("student_note", None),
     )
     return data

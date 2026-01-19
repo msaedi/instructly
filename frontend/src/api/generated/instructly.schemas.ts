@@ -1800,7 +1800,7 @@ export interface BookedSlotItem {
   duration_minutes: number;
   /** ISO time string (HH:MM:SS) */
   end_time: string;
-  /** Location type (neutral, student, instructor) */
+  /** Location type (student_location, instructor_location, online, neutral_location) */
   location_type: string;
   /** Abbreviated service area */
   service_area_short: string;
@@ -1846,11 +1846,10 @@ export type BookingCreateEndTime = string | null;
  * Type of meeting location
  */
 export type BookingCreateLocationType =
-  | 'student_home'
+  | 'student_location'
   | 'instructor_location'
-  | 'neutral'
-  | 'remote'
-  | 'in_person'
+  | 'online'
+  | 'neutral_location'
   | null;
 
 /**
@@ -7399,7 +7398,7 @@ export type ServiceCreateHourlyRate = number | number | string;
 export type ServiceCreateLevelsTaught = string[] | null;
 
 /**
- * Where lessons are offered. Allowed: 'in-person', 'online'
+ * Where lessons are offered. Allowed: 'in_person', 'online'
  */
 export type ServiceCreateLocationTypes = string[] | null;
 
@@ -7423,7 +7422,7 @@ export interface ServiceCreate {
   hourly_rate: ServiceCreateHourlyRate;
   /** Levels taught. Allowed: 'beginner', 'intermediate', 'advanced' */
   levels_taught?: ServiceCreateLevelsTaught;
-  /** Where lessons are offered. Allowed: 'in-person', 'online' */
+  /** Where lessons are offered. Allowed: 'in_person', 'online' */
   location_types?: ServiceCreateLocationTypes;
   requirements?: ServiceCreateRequirements;
   /** ID of the service from catalog */
@@ -7542,7 +7541,7 @@ export type ServiceResponseIsActive = boolean | null;
 export type ServiceResponseLevelsTaught = string[] | null;
 
 /**
- * Where lessons are offered. Allowed: 'in-person', 'online'
+ * Where lessons are offered. Allowed: 'in_person', 'online'
  */
 export type ServiceResponseLocationTypes = string[] | null;
 
@@ -7588,7 +7587,7 @@ export interface ServiceResponse {
   is_active?: ServiceResponseIsActive;
   /** Levels taught. Allowed: 'beginner', 'intermediate', 'advanced' */
   levels_taught?: ServiceResponseLevelsTaught;
-  /** Where lessons are offered. Allowed: 'in-person', 'online' */
+  /** Where lessons are offered. Allowed: 'in_person', 'online' */
   location_types?: ServiceResponseLocationTypes;
   /** Resolved name of the service from the catalog */
   name?: ServiceResponseName;

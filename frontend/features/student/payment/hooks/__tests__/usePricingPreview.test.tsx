@@ -62,7 +62,7 @@ const mockQuotePayload = {
   booking_date: '2025-02-01',
   start_time: '10:00',
   selected_duration: 60,
-  location_type: 'in_person',
+  location_type: 'student_location',
   meeting_location: '123 Main St',
 };
 
@@ -576,10 +576,10 @@ describe('usePricingPreviewController', () => {
       expect(fetchPricingPreviewQuoteMock).not.toHaveBeenCalled();
     });
 
-    it('accepts valid remote location_type', async () => {
+    it('accepts valid online location_type', async () => {
       const remotePayload = {
         ...mockQuotePayload,
-        location_type: 'remote',
+        location_type: 'online',
       };
 
       renderHook(() =>
@@ -594,10 +594,10 @@ describe('usePricingPreviewController', () => {
       });
     });
 
-    it('accepts valid student_home location_type', async () => {
+    it('accepts valid student_location location_type', async () => {
       const studentHomePayload = {
         ...mockQuotePayload,
-        location_type: 'student_home',
+        location_type: 'student_location',
       };
 
       renderHook(() =>

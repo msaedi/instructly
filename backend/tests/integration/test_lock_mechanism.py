@@ -131,7 +131,7 @@ def _create_booking(
         duration_minutes=60,
         status=status,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_method_id="pm_test",
         payment_intent_id=payment_intent_id,
         payment_status=payment_status,
@@ -356,7 +356,7 @@ def test_create_rescheduled_booking_with_locked_funds_links_chain(db: Session):
         selected_duration=60,
         student_note=None,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
     )
 
     service = BookingService(db)

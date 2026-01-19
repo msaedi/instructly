@@ -172,7 +172,7 @@ export interface FilterParams {
  * Location type for bookings
  */
 export enum LocationType {
-  STUDENT_HOME = 'student_home',
+  STUDENT_HOME = 'student_location',
   INSTRUCTOR_LOCATION = 'instructor_location',
   NEUTRAL = 'neutral',
 }

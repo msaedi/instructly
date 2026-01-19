@@ -134,7 +134,7 @@ class TestCircularDependencyEdgeCases:
             total_price=Decimal("50.00"),
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
         db.commit()
@@ -524,7 +524,7 @@ class TestSoftDeleteEdgeCases:
             start_time=target_start,
             selected_duration=60,
             end_time=target_end,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
 

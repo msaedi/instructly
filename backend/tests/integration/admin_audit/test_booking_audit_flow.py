@@ -49,7 +49,7 @@ async def test_booking_audit_flow(
         start_time=time(10, 0),
         selected_duration=30,
         student_note="Ring the doorbell",
-        location_type="remote",
+        location_type="online",
     )
 
     AvailabilityDayRepository(db).upsert_week(

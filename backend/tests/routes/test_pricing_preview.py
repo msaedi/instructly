@@ -53,7 +53,7 @@ def _create_booking(
         total_price=total_price,
         duration_minutes=duration_minutes,
         status=status.value,
-        location_type="student_home",
+        location_type="student_location",
     )
 
     if status is BookingStatus.COMPLETED:
@@ -190,7 +190,7 @@ def test_quote_preview_rejects_invalid_booking_date(
         "booking_date": "2024-13-01",
         "start_time": "10:00",
         "selected_duration": 60,
-        "location_type": "remote",
+        "location_type": "online",
         "meeting_location": "Online",
         "applied_credit_cents": 0,
     }
@@ -216,7 +216,7 @@ def test_quote_preview_rejects_invalid_start_time(
         "booking_date": "2024-05-01",
         "start_time": "25:00",
         "selected_duration": 60,
-        "location_type": "remote",
+        "location_type": "online",
         "meeting_location": "Online",
         "applied_credit_cents": 0,
     }
@@ -252,7 +252,7 @@ def test_quote_rejects_invalid_date_time(
         "booking_date": "2025-05-01",
         "start_time": "11:00",
         "selected_duration": 60,
-        "location_type": "student_home",
+        "location_type": "student_location",
         "meeting_location": "123 Main St",
         "applied_credit_cents": 0,
     }

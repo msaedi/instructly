@@ -953,7 +953,7 @@ def run_seed_all_pipeline(
                             duration_minutes=duration_minutes,
                             days_ahead_min=days_ahead_min,
                             days_ahead_max=days_ahead_max,
-                            location=os.getenv("CHAT_FIXTURE_LOCATION", "neutral"),
+                            location=os.getenv("CHAT_FIXTURE_LOCATION", "neutral_location"),
                             service_name=os.getenv("CHAT_FIXTURE_SERVICE_NAME", "Lesson"),
                             session_factory=SessionLocal,
                         )

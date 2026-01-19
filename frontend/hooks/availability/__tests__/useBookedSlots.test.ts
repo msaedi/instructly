@@ -33,7 +33,7 @@ const createSlot = (overrides: Partial<BookedSlotPreview> = {}): BookedSlotPrevi
   service_name: 'Math',
   service_area_short: 'NYC',
   duration_minutes: 120,
-  location_type: 'neutral',
+  location_type: 'neutral_location',
   ...overrides,
 });
 

@@ -118,7 +118,7 @@ def _create_locked_booking(
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
     )
     booking.payment_status = "locked"
     booking.payment_intent_id = "pi_locked"

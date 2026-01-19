@@ -381,7 +381,7 @@ class BookingService(BaseService):
     def _is_online_lesson(booking_data: BookingCreate) -> bool:
         """Return True when the lesson is remote/online."""
         location_type = getattr(booking_data, "location_type", None)
-        return location_type == "remote"
+        return location_type == "online"
 
     def _resolve_instructor_timezone(self, instructor_profile: InstructorProfile) -> str:
         """Resolve instructor timezone with a safe default."""

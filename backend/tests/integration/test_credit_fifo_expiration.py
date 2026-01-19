@@ -55,7 +55,7 @@ def _create_booking(db: Session, *, student_id: str, instructor_id: str, service
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
     )
     db.flush()
     return booking.id

@@ -121,7 +121,7 @@ def test_email_generation():
         booking.service_area = "Algebra"
 
         # Location details
-        booking.location_type = "neutral"
+        booking.location_type = "neutral_location"
         booking.location_type_display = "Neutral Location"
         booking.meeting_location = "Local Library"
 

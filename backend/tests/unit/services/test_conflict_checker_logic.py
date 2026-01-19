@@ -232,6 +232,29 @@ class TestConflictCheckerValidationRules:
         assert any("past" in error.lower() for error in result["errors"])
 
     @patch("app.services.conflict_checker.get_user_today_by_id")
+    def test_same_day_past_time_validation_rules(self, mock_get_today, service):
+        """Ensure same-day bookings in the past are rejected."""
+        service.repository.get_bookings_for_conflict_check.return_value = []
+        service.repository.get_blackout_date.return_value = None
+        service.check_minimum_advance_booking = Mock(return_value={"valid": True})
+
+        instructor = self._setup_user_mock(service)
+        today = date(2024, 1, 15)
+        mock_get_today.return_value = today
+
+        with patch("app.core.timezone_utils.get_user_now") as mock_get_user_now:
+            mock_get_user_now.return_value = datetime.combine(today, time(14, 0))
+            result = service.validate_booking_constraints(
+                instructor_id=instructor.id,
+                booking_date=today,
+                start_time=time(13, 0),
+                end_time=time(14, 0),
+            )
+
+        assert result["valid"] == False
+        assert any("past time slots" in error for error in result["errors"])
+
+    @patch("app.services.conflict_checker.get_user_today_by_id")
     def test_service_duration_validation_rules(self, mock_get_today, service):
         """Test service-specific duration validation."""
         # Mock service with duration options

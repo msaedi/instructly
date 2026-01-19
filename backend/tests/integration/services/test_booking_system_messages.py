@@ -73,7 +73,7 @@ class TestBookingSystemMessages:
             start_time=start_time,
             selected_duration=60,
             end_time=end_time,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
             student_note="Test booking",
         )
@@ -148,7 +148,7 @@ class TestBookingSystemMessages:
             start_time=start_time,
             selected_duration=60,
             end_time=end_time,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
             student_note="Test booking for cancellation",
         )
@@ -294,7 +294,7 @@ class TestBookingSystemMessages:
                 start_time=time(9, 0),
                 selected_duration=60,
                 end_time=time(10, 0),
-                location_type="neutral",
+                location_type="neutral_location",
                 meeting_location="Online",
                 student_note=f"Booking for day {days_ahead}",
             )

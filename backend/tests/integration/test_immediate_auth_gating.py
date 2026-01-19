@@ -67,7 +67,7 @@ def _create_pending_booking(
         duration_minutes=60,
         status=BookingStatus.PENDING,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
     )
     booking.payment_status = PaymentStatus.SCHEDULED.value
     db.commit()

@@ -114,7 +114,7 @@ const instructor: TimeSelectionModalProps['instructor'] = {
       duration_options: [30, 45, 60],
       hourly_rate: 120,
       skill: 'Math Tutoring',
-      location_types: ['remote'],
+      location_types: ['online'],
     },
   ],
 };

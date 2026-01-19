@@ -84,7 +84,7 @@ async def _create_booking(
         start_time=start_time,
         selected_duration=duration_minutes,
         end_time=end_dt,
-        location_type="remote",
+        location_type="online",
         meeting_location="Test location",
         student_note="Integration test",
     )

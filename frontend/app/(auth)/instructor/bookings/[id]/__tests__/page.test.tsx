@@ -44,7 +44,7 @@ const createMockBooking = (overrides = {}) => ({
   duration_minutes: 60,
   hourly_rate: 50,
   total_price: 56,
-  location_type: 'student_home',
+  location_type: 'student_location',
   meeting_location: '123 Main St',
   service_area: 'Manhattan',
   student_id: '01STUDENT123456789DEFGHI',

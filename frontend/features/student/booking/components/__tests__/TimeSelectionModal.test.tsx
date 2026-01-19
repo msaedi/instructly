@@ -1847,7 +1847,7 @@ describe('TimeSelectionModal', () => {
 
       const remoteInstructor = {
         ...mockInstructor,
-        services: [{ ...mockService, location_types: ['remote'] }],
+        services: [{ ...mockService, location_types: ['online'] }],
       };
 
       render(<TimeSelectionModal {...defaultProps} instructor={remoteInstructor} />);

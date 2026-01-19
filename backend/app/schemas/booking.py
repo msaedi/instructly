@@ -97,8 +97,13 @@ class BookingCreate(StrictRequestModel):
         None, description="Specific meeting location if applicable"
     )
     location_type: Optional[
-        Literal["student_home", "instructor_location", "neutral", "remote", "in_person"]
-    ] = Field("neutral", description="Type of meeting location")
+        Literal[
+            "student_location",
+            "instructor_location",
+            "online",
+            "neutral_location",
+        ]
+    ] = Field("online", description="Type of meeting location")
 
     # Note: end_time is calculated from start_time + selected_duration
     end_time: Optional[time] = Field(None, description="Calculated end time (set automatically)")
@@ -165,15 +170,14 @@ class BookingCreate(StrictRequestModel):
     def validate_location_type(cls, v: Optional[str]) -> str:
         """Ensure location type is valid."""
         valid_types = [
-            "student_home",
+            "student_location",
             "instructor_location",
-            "neutral",
-            "remote",
-            "in_person",
+            "online",
+            "neutral_location",
         ]
         if v and v not in valid_types:
             raise ValueError(f"location_type must be one of {valid_types}")
-        return v or "neutral"
+        return v or "online"
 
     @model_validator(mode="after")
     def validate_time_order(self) -> "BookingCreate":
@@ -563,12 +567,13 @@ class BookingResponse(BookingBase):
         # Defensive getters for possibly mocked attributes in tests
         def _safe_location_type(value: object) -> Optional[str]:
             if isinstance(value, str) and value in [
-                "student_home",
+                "student_location",
                 "instructor_location",
-                "neutral",
+                "online",
+                "neutral_location",
             ]:
                 return value
-            return "neutral"
+            return "online"
 
         def _safe_datetime(value: object) -> Optional[datetime]:
             return value if isinstance(value, datetime) else None

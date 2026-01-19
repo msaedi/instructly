@@ -119,7 +119,7 @@ describe('TimeSelectionModal preselected initialization', () => {
               duration_options: [30, 60, 90],
               hourly_rate: 120,
               skill: 'Math Tutoring',
-              location_types: ['remote'],
+              location_types: ['online'],
             },
           ],
         }}
@@ -184,7 +184,7 @@ describe('TimeSelectionModal preselected initialization', () => {
               duration_options: [30, 60, 90],
               hourly_rate: 120,
               skill: 'Math Tutoring',
-              location_types: ['remote'],
+              location_types: ['online'],
             },
           ],
         }}

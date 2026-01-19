@@ -211,7 +211,7 @@ def test_filter_by_lesson_type(db, test_instructor):
     fallback = repo.filter_by_lesson_type([service.id], "online")
     assert service.id in fallback
 
-    service.location_types = ["in-person"]
+    service.location_types = ["in_person"]
     db.flush()
     in_person = repo.filter_by_lesson_type([service.id], "in_person")
     assert service.id in in_person
@@ -221,3 +221,8 @@ def test_filter_by_lesson_type(db, test_instructor):
 
     unknown = repo.filter_by_lesson_type([service.id], "unknown")
     assert unknown == [service.id]
+
+
+def test_filter_by_lesson_type_empty_inputs(db):
+    repo = FilterRepository(db)
+    assert repo.filter_by_lesson_type([], "online") == []

@@ -79,7 +79,7 @@ def _create_booking_data(
         start_time=start_time,
         end_time=end_time,
         selected_duration=60,
-        location_type="remote",
+        location_type="online",
     )
 
 

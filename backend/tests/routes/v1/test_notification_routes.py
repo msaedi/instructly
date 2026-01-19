@@ -1,9 +1,18 @@
 """Tests for notification inbox routes."""
 
+from app.models.user import User
 from app.repositories.notification_repository import NotificationRepository
 
 
+def _ensure_users(db, *users) -> None:
+    for user in users:
+        if db.get(User, user.id) is None:
+            db.merge(user)
+    db.flush()
+
+
 def test_list_notifications(client, auth_headers_instructor, db, test_instructor, test_student):
+    _ensure_users(db, test_instructor, test_student)
     repo = NotificationRepository(db)
     repo.create_notification(
         user_id=test_instructor.id,
@@ -32,6 +41,7 @@ def test_list_notifications(client, auth_headers_instructor, db, test_instructor
 
 
 def test_list_notifications_unread_only(client, auth_headers_instructor, db, test_instructor):
+    _ensure_users(db, test_instructor)
     repo = NotificationRepository(db)
     first = repo.create_notification(
         user_id=test_instructor.id,
@@ -65,6 +75,7 @@ def test_list_notifications_unread_only(client, auth_headers_instructor, db, tes
 
 
 def test_get_unread_count(client, auth_headers_instructor, db, test_instructor):
+    _ensure_users(db, test_instructor)
     repo = NotificationRepository(db)
     repo.create_notification(
         user_id=test_instructor.id,
@@ -82,6 +93,7 @@ def test_get_unread_count(client, auth_headers_instructor, db, test_instructor):
 
 
 def test_mark_notification_read(client, auth_headers_instructor, db, test_instructor):
+    _ensure_users(db, test_instructor)
     repo = NotificationRepository(db)
     notification = repo.create_notification(
         user_id=test_instructor.id,
@@ -102,6 +114,7 @@ def test_mark_notification_read(client, auth_headers_instructor, db, test_instru
 
 
 def test_mark_all_notifications_read(client, auth_headers_instructor, db, test_instructor):
+    _ensure_users(db, test_instructor)
     repo = NotificationRepository(db)
     for idx in range(2):
         repo.create_notification(
@@ -120,6 +133,7 @@ def test_mark_all_notifications_read(client, auth_headers_instructor, db, test_i
 
 
 def test_delete_notification(client, auth_headers_instructor, db, test_instructor):
+    _ensure_users(db, test_instructor)
     repo = NotificationRepository(db)
     notification = repo.create_notification(
         user_id=test_instructor.id,
@@ -140,6 +154,7 @@ def test_delete_notification(client, auth_headers_instructor, db, test_instructo
 
 
 def test_delete_all_notifications(client, auth_headers_instructor, db, test_instructor):
+    _ensure_users(db, test_instructor)
     repo = NotificationRepository(db)
     for idx in range(2):
         repo.create_notification(
@@ -161,6 +176,7 @@ def test_delete_all_notifications(client, auth_headers_instructor, db, test_inst
 def test_mark_notification_read_requires_ownership(
     client, auth_headers_instructor, db, test_student
 ):
+    _ensure_users(db, test_student)
     repo = NotificationRepository(db)
     notification = repo.create_notification(
         user_id=test_student.id,

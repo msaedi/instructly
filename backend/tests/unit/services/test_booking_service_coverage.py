@@ -253,7 +253,7 @@ class TestIsOnlineLesson:
     def test_remote_location_type(self, booking_service):
         """Test remote location returns True."""
         booking_data = MagicMock()
-        booking_data.location_type = "remote"
+        booking_data.location_type = "online"
 
         result = booking_service._is_online_lesson(booking_data)
 
@@ -262,7 +262,7 @@ class TestIsOnlineLesson:
     def test_in_person_location_type(self, booking_service):
         """Test in-person location returns False."""
         booking_data = MagicMock()
-        booking_data.location_type = "in_person"
+        booking_data.location_type = "student_location"
 
         result = booking_service._is_online_lesson(booking_data)
 
@@ -358,7 +358,7 @@ class TestResolveLessonTimezone:
     def test_in_person_uses_instructor_timezone(self, booking_service):
         """Test in-person lesson uses instructor timezone."""
         booking_data = MagicMock()
-        booking_data.location_type = "in_person"
+        booking_data.location_type = "student_location"
 
         instructor_profile = MagicMock(spec=InstructorProfile)
         mock_user = MagicMock()

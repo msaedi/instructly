@@ -85,7 +85,7 @@ def _create_completed_booking(
         duration_minutes=60,
         status=BookingStatus.COMPLETED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_status=PaymentStatus.AUTHORIZED.value,
         payment_intent_id="pi_capture",
     )
@@ -142,7 +142,7 @@ def test_transfer_reversal_id_stored_on_12_24h_cancel(
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_status=PaymentStatus.AUTHORIZED.value,
         payment_intent_id="pi_cancel",
     )
@@ -190,7 +190,7 @@ def test_refund_id_stored_on_instructor_cancel(
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_status=PaymentStatus.SETTLED.value,
         payment_intent_id="pi_refund",
     )
@@ -240,7 +240,7 @@ def test_payout_transfer_id_stored_on_manual_payout(
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_status=PaymentStatus.AUTHORIZED.value,
         payment_intent_id="pi_payout",
     )
@@ -287,7 +287,7 @@ def test_advanced_payout_transfer_id_stored_on_capture_escalation(
         duration_minutes=60,
         status=BookingStatus.COMPLETED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
         payment_intent_id="pi_fail",
         capture_failed_at=datetime.now(timezone.utc) - timedelta(hours=80),

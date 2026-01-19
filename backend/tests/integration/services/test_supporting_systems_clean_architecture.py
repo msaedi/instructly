@@ -68,7 +68,7 @@ class TestSupportingSystemsIntegration:
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
             meeting_location="Test Studio",
-            location_type="neutral",
+            location_type="neutral_location",
             student_note="Looking forward to the lesson",
         )
         # Add relationships for email templates

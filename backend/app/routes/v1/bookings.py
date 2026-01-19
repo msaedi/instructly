@@ -524,10 +524,10 @@ async def get_booking_preview(
             start_time=str(booking.start_time),
             end_time=str(booking.end_time),
             duration_minutes=booking.duration_minutes,
-            location_type=booking.location_type or "neutral",
+            location_type=booking.location_type or "online",
             location_type_display=booking.location_type_display
             if booking.location_type
-            else "Neutral Location",
+            else "Online",
             meeting_location=booking.meeting_location,
             service_area=booking.service_area,
             status=booking.status,
@@ -775,8 +775,9 @@ async def reschedule_booking(
             _location_type = (
                 _location_type_raw
                 if isinstance(_location_type_raw, str)
-                and _location_type_raw in ["student_home", "instructor_location", "neutral"]
-                else "neutral"
+                and _location_type_raw
+                in ["student_location", "instructor_location", "online", "neutral_location"]
+                else "online"
             )
 
             new_booking_data = BookingCreate(

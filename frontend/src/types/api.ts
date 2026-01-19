@@ -47,9 +47,10 @@ export enum BookingStatus {
 }
 
 export enum LocationType {
-  STUDENT_HOME = 'student_home',
+  STUDENT_LOCATION = 'student_location',
   INSTRUCTOR_LOCATION = 'instructor_location',
-  NEUTRAL = 'neutral',
+  ONLINE = 'online',
+  NEUTRAL_LOCATION = 'neutral_location',
 }
 
 // Interfaces

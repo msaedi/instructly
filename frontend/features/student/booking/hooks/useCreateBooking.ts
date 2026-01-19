@@ -73,7 +73,7 @@ export function useCreateBooking(): UseCreateBookingReturn {
         booking_date: data.booking_date,
         start_time: data.start_time,
         selected_duration: selectedDuration,
-        location_type: data.location_type ?? 'neutral',
+        location_type: data.location_type ?? 'online',
         ...(data.student_note !== undefined ? { student_note: data.student_note } : {}),
         ...(data.meeting_location !== undefined ? { meeting_location: data.meeting_location } : {}),
       };
