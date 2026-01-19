@@ -92,6 +92,60 @@ describe('buildCreateBookingPayload', () => {
     expect(payload.meeting_location).toBe('123 Main St, Brooklyn, NY');
   });
 
+  it('prefers booking.address over metadata location fields', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-1',
+      serviceId: 'svc-1',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        location: '123 Main St, Brooklyn, NY',
+        metadata: {
+          modality: 'in_person',
+          location_address: 'Different address',
+          location_lat: 41.0,
+          location_lng: -74.0,
+          location_place_id: 'place_meta',
+        },
+        address: {
+          fullAddress: '123 Main St, Brooklyn, NY',
+          lat: 40.6892,
+          lng: -73.9857,
+          placeId: 'place_123',
+        },
+      },
+    });
+
+    expect(payload.location_address).toBe('123 Main St, Brooklyn, NY');
+    expect(payload.location_lat).toBe(40.6892);
+    expect(payload.location_lng).toBe(-73.9857);
+    expect(payload.location_place_id).toBe('place_123');
+  });
+
+  it('uses metadata address when booking.address is missing', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-2',
+      serviceId: 'svc-2',
+      bookingDate: '2025-02-01',
+      booking: {
+        ...baseBooking,
+        location: 'Studio 8',
+        metadata: {
+          modality: 'in_person',
+          location_address: 'Studio 8',
+          location_lat: 40.7,
+          location_lng: '-73.9',
+          location_place_id: 'place_meta',
+        },
+      },
+    });
+
+    expect(payload.location_address).toBe('Studio 8');
+    expect(payload.location_lat).toBe(40.7);
+    expect(payload.location_lng).toBe(-73.9);
+    expect(payload.location_place_id).toBe('place_meta');
+  });
+
   it('parses string duration and metadata location details', () => {
     const payload = buildCreateBookingPayload({
       instructorId: 'inst-2',

@@ -20,6 +20,18 @@ jest.mock('@/hooks/useServiceAreaCheck', () => ({
   useServiceAreaCheck: jest.fn(() => ({ data: null, isLoading: false })),
 }));
 
+jest.mock('@/hooks/useSavedAddresses', () => {
+  const actual = jest.requireActual('@/hooks/useSavedAddresses');
+  return {
+    ...actual,
+    useSavedAddresses: jest.fn(() => ({
+      addresses: [],
+      isLoading: false,
+      data: { items: [], total: 0 },
+    })),
+  };
+});
+
 // Mock localStorage
 const localStorageMock = {
   getItem: jest.fn(),

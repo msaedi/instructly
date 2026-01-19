@@ -30,3 +30,46 @@ def test_get_timestamp_from_ulid(monkeypatch) -> None:
     assert isinstance(timestamp, datetime)
 
     assert ulid_helper.get_timestamp_from_ulid("bad") is None
+
+
+class _TimestampWrapper:
+    def __init__(self, dt: datetime) -> None:
+        self.datetime = dt
+
+
+class _ParsedCallableTimestamp:
+    def __init__(self, dt: datetime) -> None:
+        self._dt = dt
+
+    def timestamp(self) -> _TimestampWrapper:
+        return _TimestampWrapper(self._dt)
+
+
+def test_get_timestamp_from_ulid_callable_timestamp(monkeypatch) -> None:
+    target = datetime(2024, 1, 1, 0, 0)
+    monkeypatch.setattr(
+        ulid_helper, "parse_ulid", lambda _value: _ParsedCallableTimestamp(target)
+    )
+
+    assert ulid_helper.get_timestamp_from_ulid("value") == target
+
+
+class _BadTimestamp:
+    def __call__(self) -> None:
+        raise TypeError("boom")
+
+
+class _ParsedTimestampFallback:
+    timestamp = _BadTimestamp()
+
+    def __init__(self, dt: datetime) -> None:
+        self.datetime = dt
+
+
+def test_get_timestamp_from_ulid_falls_back_on_timestamp_error(monkeypatch) -> None:
+    target = datetime(2024, 1, 2, 0, 0)
+    monkeypatch.setattr(
+        ulid_helper, "parse_ulid", lambda _value: _ParsedTimestampFallback(target)
+    )
+
+    assert ulid_helper.get_timestamp_from_ulid("value") == target

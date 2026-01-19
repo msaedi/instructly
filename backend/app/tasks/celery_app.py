@@ -64,7 +64,7 @@ def _patch_celery_redis_pubsub() -> None:
     if getattr(ResultConsumer, "_instructly_pubsub_patch", False):
         return
 
-    def _reconnect_pubsub(self) -> None:
+    def _reconnect_pubsub(self: Any) -> None:
         self._pubsub = None
         self.backend.client.connection_pool.reset()
         if self.subscribed_to:

@@ -18,6 +18,8 @@ import { formatMeetingLocation, toStateCode } from '@/utils/address/format';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
 import type { PlaceSuggestion } from '@/components/forms/PlacesAutocompleteInput';
 import { useServiceAreaCheck } from '@/hooks/useServiceAreaCheck';
+import { AddressSelector } from '@/components/booking/AddressSelector';
+import type { SavedAddress } from '@/hooks/useSavedAddresses';
 import { addMinutesHHMM, to24HourTime } from '@/lib/time';
 import { overlapsHHMM, minutesSinceHHMM } from '@/lib/time/overlap';
 import { toDateOnlyString } from '@/lib/availability/dateHelpers';
@@ -157,9 +159,10 @@ function PaymentConfirmationInner({
   const pricingPreview = pricingPreviewContext?.preview ?? null;
   const isPricingPreviewLoading = pricingPreviewContext?.loading ?? false;
   const pricingPreviewError = pricingPreviewContext?.error ?? null;
-
+  const [selectedSavedAddress, setSelectedSavedAddress] = useState<SavedAddress | null>(null);
   const hasSavedLocation = Boolean(
-    booking.location && booking.location !== '' && !/online|remote/i.test(String(booking.location))
+    selectedSavedAddress ||
+      (booking.location && booking.location !== '' && !/online|remote/i.test(String(booking.location)))
   );
   const [isEditingLocation, setIsEditingLocation] = useState(() => !hasSavedLocation);
   const [addressFields, setAddressFields] = useState<AddressFields>(EMPTY_ADDRESS);
@@ -174,6 +177,7 @@ function PaymentConfirmationInner({
   const conflictCacheRef = useRef<Map<string, { fetchedAt: number; items: ConflictListItem[] }>>(new Map());
   const addressDetailsAbortRef = useRef<AbortController | null>(null);
   const addressDetailsCacheRef = useRef<Map<string, AddressDetailsCacheEntry>>(new Map());
+  const lastLocationRef = useRef('');
   const serviceAreaLat = !isOnlineLesson ? addressCoords.lat ?? undefined : undefined;
   const serviceAreaLng = !isOnlineLesson ? addressCoords.lng ?? undefined : undefined;
   const { data: serviceAreaCheck, isLoading: isCheckingServiceArea } = useServiceAreaCheck({
@@ -185,6 +189,56 @@ function PaymentConfirmationInner({
   const setAddressField = useCallback((updates: Partial<AddressFields>) => {
     setAddressFields((prev) => ({ ...prev, ...updates }));
     setAddressCoords({ lat: null, lng: null, placeId: null });
+    setSelectedSavedAddress(null);
+  }, []);
+
+  const buildSavedAddressLine1 = useCallback((address: SavedAddress): string => {
+    const line1 = address.street_line1?.trim() ?? '';
+    const line2 = address.street_line2?.trim() ?? '';
+    return [line1, line2].filter((part) => part.length > 0).join(', ');
+  }, []);
+
+  const applySavedAddress = useCallback(
+    (address: SavedAddress) => {
+      setAddressFields({
+        line1: buildSavedAddressLine1(address),
+        city: address.locality ?? '',
+        state: address.administrative_area ?? '',
+        postalCode: address.postal_code ?? '',
+        country: address.country_code ?? '',
+      });
+      setAddressCoords({
+        lat: typeof address.latitude === 'number' ? address.latitude : null,
+        lng: typeof address.longitude === 'number' ? address.longitude : null,
+        placeId: typeof address.place_id === 'string' ? address.place_id : null,
+      });
+      setAddressDetailsError(null);
+      setIsEditingLocation(false);
+      lastLocationRef.current = '';
+    },
+    [buildSavedAddressLine1]
+  );
+
+  const handleSelectSavedAddress = useCallback(
+    (address: SavedAddress | null) => {
+      if (!address) {
+        setSelectedSavedAddress(null);
+        return;
+      }
+      setSelectedSavedAddress(address);
+      setIsOnlineLesson(false);
+      applySavedAddress(address);
+    },
+    [applySavedAddress]
+  );
+
+  const handleEnterNewAddress = useCallback(() => {
+    setSelectedSavedAddress(null);
+    setIsEditingLocation(true);
+    setAddressDetailsError(null);
+    requestAnimationFrame(() => {
+      addressLine1Ref.current?.focus();
+    });
   }, []);
 
   useEffect(() => () => {
@@ -380,6 +434,7 @@ function PaymentConfirmationInner({
 
     setIsEditingLocation(true);
     setAddressDetailsError(null);
+    setSelectedSavedAddress(null);
 
     const description = (suggestion.description ?? suggestion.text ?? '').trim();
     const fallbackFromDescription = parseDescriptionFallback(description);
@@ -890,7 +945,6 @@ function PaymentConfirmationInner({
     }
     return ADDRESS_PLACEHOLDER;
   }, [isOnlineLesson, formattedAddress, fallbackNonOnlineLocation]);
-  const lastLocationRef = useRef('');
 
   const handleOnlineToggleChange = (checked: boolean) => {
     addressDetailsAbortRef.current?.abort();
@@ -903,6 +957,8 @@ function PaymentConfirmationInner({
     setAddressDetailsError(null);
     if (checked) {
       setIsEditingLocation(false);
+    } else if (selectedSavedAddress) {
+      applySavedAddress(selectedSavedAddress);
     } else if (!hasSavedLocation) {
       setIsEditingLocation(true);
     }
@@ -1681,6 +1737,16 @@ function PaymentConfirmationInner({
                 </label>
               </div>
 
+              {!isOnlineLesson && isEditingLocation && (
+                <AddressSelector
+                  instructorId={booking.instructorId}
+                  locationType="student_location"
+                  selectedAddress={selectedSavedAddress}
+                  onSelectAddress={handleSelectSavedAddress}
+                  onEnterNewAddress={handleEnterNewAddress}
+                />
+              )}
+
               {hasSavedLocation && !isOnlineLesson && !isEditingLocation && (
                 <div className="bg-white p-3 rounded-lg border border-gray-200">
                   <div className="flex items-center justify-between">
@@ -1785,7 +1851,7 @@ function PaymentConfirmationInner({
                 </div>
               </div>
 
-              {!isOnlineLesson && isOutsideServiceArea && (
+              {!isOnlineLesson && isOutsideServiceArea && !selectedSavedAddress && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   <p className="font-medium">Location not covered</p>
                   <p>

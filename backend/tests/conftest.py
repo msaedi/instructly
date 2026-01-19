@@ -421,6 +421,9 @@ def add_service_area(db: Session, user: User, neighborhood_id: str) -> Instructo
         .first()
     )
     if isa:
+        if not isa.is_active:
+            isa.is_active = True
+            db.flush()
         return isa
 
     isa = InstructorServiceArea(
