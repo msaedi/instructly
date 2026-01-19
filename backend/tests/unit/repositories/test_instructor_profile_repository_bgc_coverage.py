@@ -220,6 +220,76 @@ class TestSetBgcInvitedAt:
             with pytest.raises(RepositoryException, match="not found"):
                 repository.set_bgc_invited_at("unknown-123", datetime.now(timezone.utc))
 
+
+def test_update_bgc_by_invitation_updates_fields(mock_db, repository):
+    profile = MagicMock()
+    mock_db.query.return_value.filter.return_value.first.return_value = profile
+
+    result = repository.update_bgc_by_invitation(
+        "invite-1",
+        status="pending",
+        note="waiting",
+    )
+
+    assert result == profile
+    assert profile.bgc_status == "pending"
+    assert profile.bgc_note == "waiting"
+    mock_db.flush.assert_called_once()
+
+
+def test_update_bgc_by_candidate_updates_fields(mock_db, repository):
+    profile = MagicMock()
+    mock_db.query.return_value.filter.return_value.first.return_value = profile
+
+    result = repository.update_bgc_by_candidate(
+        "candidate-1",
+        status="clear",
+        note="ok",
+    )
+
+    assert result == profile
+    assert profile.bgc_status == "clear"
+    assert profile.bgc_note == "ok"
+    mock_db.flush.assert_called_once()
+
+
+def test_update_bgc_by_report_id_returns_zero_when_missing(repository):
+    with patch.object(repository, "_resolve_profile_id_by_report", return_value=None):
+        assert repository.update_bgc_by_report_id("report-1") == 0
+
+
+def test_update_eta_by_report_id_returns_zero_when_profile_missing(repository):
+    with patch.object(repository, "_resolve_profile_id_by_report", return_value="profile-1"):
+        with patch.object(repository, "get_by_id", return_value=None):
+            assert repository.update_eta_by_report_id("report-1", datetime.now(timezone.utc)) == 0
+
+
+def test_record_adverse_event_sqlalchemy_error(mock_db, repository):
+    mock_db.flush.side_effect = SQLAlchemyError("flush failed")
+
+    from app.core.exceptions import RepositoryException
+
+    with pytest.raises(RepositoryException, match="Failed to record adverse-action event"):
+        repository.record_adverse_event("instructor-1", "notice-1", "pre_adverse")
+
+
+def test_has_adverse_event_sqlalchemy_error(mock_db, repository):
+    mock_db.query.side_effect = SQLAlchemyError("query failed")
+
+    from app.core.exceptions import RepositoryException
+
+    with pytest.raises(RepositoryException, match="Failed to check adverse-action event"):
+        repository.has_adverse_event("instructor-1", "notice-1", "pre_adverse")
+
+
+def test_set_dispute_open_not_found(mock_db, repository):
+    mock_db.query.return_value.filter.return_value.update.return_value = 0
+
+    from app.core.exceptions import RepositoryException
+
+    with pytest.raises(RepositoryException, match="not found"):
+        repository.set_dispute_open("instructor-1", note=None)
+
     def test_set_bgc_invited_at_sqlalchemy_error(self, mock_db, repository):
         """Test SQLAlchemy error handling with rollback."""
         mock_profile = MagicMock()

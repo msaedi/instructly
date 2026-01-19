@@ -425,3 +425,70 @@ class TestGoLiveMethod:
                     assert "identity" in missing
                     assert "stripe_connect" in missing
                     assert "background_check" in missing
+
+
+class TestGetInstructorUser:
+    """Tests for get_instructor_user edge cases."""
+
+    def test_get_instructor_user_missing_profile_for_user(self):
+        from app.core.exceptions import NotFoundException
+        from app.services.instructor_service import InstructorService
+
+        mock_db = MagicMock()
+        service = InstructorService(mock_db)
+
+        user = MagicMock()
+        user.id = "user-1"
+        service.user_repository = MagicMock()
+        service.profile_repository = MagicMock()
+        service.user_repository.get_by_id.return_value = user
+        service.profile_repository.get_by_user_id.return_value = None
+
+        with pytest.raises(NotFoundException):
+            service.get_instructor_user("user-1")
+
+    def test_get_instructor_user_missing_profile_by_id(self):
+        from app.core.exceptions import NotFoundException
+        from app.services.instructor_service import InstructorService
+
+        mock_db = MagicMock()
+        service = InstructorService(mock_db)
+        service.user_repository = MagicMock()
+        service.profile_repository = MagicMock()
+        service.user_repository.get_by_id.return_value = None
+        service.profile_repository.get_by_id.return_value = None
+
+        with pytest.raises(NotFoundException):
+            service.get_instructor_user("profile-1")
+
+    def test_get_instructor_user_missing_user_for_profile(self):
+        from app.core.exceptions import NotFoundException
+        from app.services.instructor_service import InstructorService
+
+        mock_db = MagicMock()
+        service = InstructorService(mock_db)
+        service.user_repository = MagicMock()
+        service.profile_repository = MagicMock()
+        service.user_repository.get_by_id.return_value = None
+        profile = MagicMock()
+        profile.user_id = "user-1"
+        service.profile_repository.get_by_id.return_value = profile
+
+        with pytest.raises(NotFoundException):
+            service.get_instructor_user("profile-1")
+
+
+class TestUpdateInstructorProfileMissing:
+    """Tests for update_instructor_profile missing profile branch."""
+
+    def test_update_instructor_profile_not_found(self):
+        from app.core.exceptions import NotFoundException
+        from app.services.instructor_service import InstructorService
+
+        mock_db = MagicMock()
+        service = InstructorService(mock_db)
+        service.profile_repository = MagicMock()
+        service.profile_repository.find_one_by.return_value = None
+
+        with pytest.raises(NotFoundException):
+            service.update_instructor_profile("user-1", MagicMock())

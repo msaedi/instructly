@@ -1018,7 +1018,11 @@ def test_student_and_instructor_booking_branch_filters(
     db, test_student, test_instructor_with_availability, test_booking, monkeypatch
 ):
     repo = BookingRepository(db)
-    fixed_now = datetime(2026, 1, 20, 12, 0, tzinfo=timezone.utc)
+    fixed_now = datetime.combine(
+        test_booking.booking_date + timedelta(days=10),
+        time(12, 0),
+        tzinfo=timezone.utc,
+    )
     monkeypatch.setattr(
         "app.repositories.booking_repository.get_user_now_by_id",
         lambda *_: fixed_now,

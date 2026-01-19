@@ -97,3 +97,36 @@ class TestWorkerConfiguration:
 
         assert hasattr(worker, "celery_app")
         assert worker.celery_app is not None
+
+
+def test_start_worker_builds_options(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from app.tasks import worker as worker_mod
+
+    captured = {}
+
+    class DummyWorker:
+        def __init__(self, app):
+            captured["app"] = app
+
+        def run(self, **kwargs):
+            captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(worker_mod.worker, "worker", DummyWorker)
+    monkeypatch.setattr(worker_mod.os, "uname", lambda: SimpleNamespace(nodename="testhost"))
+    monkeypatch.setattr(worker_mod.os, "cpu_count", lambda: 8)
+    monkeypatch.setenv("CELERY_LOG_LEVEL", "WARNING")
+    monkeypatch.setenv("CELERY_POOL", "solo")
+    monkeypatch.setenv("CELERY_CONCURRENCY", "2")
+    monkeypatch.setenv("CELERY_HOSTNAME", "custom@host")
+    monkeypatch.setenv("CELERY_QUEUES", "celery,analytics")
+
+    worker_mod.start_worker()
+
+    assert captured["app"] == worker_mod.celery_app
+    assert captured["kwargs"]["loglevel"] == "WARNING"
+    assert captured["kwargs"]["pool"] == "solo"
+    assert captured["kwargs"]["concurrency"] == 2
+    assert captured["kwargs"]["hostname"] == "custom@host"
+    assert captured["kwargs"]["queues"] == "celery,analytics"

@@ -298,3 +298,194 @@ class TestAdminBookingServiceExists:
         assert hasattr(BookingStatus, "CONFIRMED")
         assert hasattr(BookingStatus, "CANCELLED")
         assert hasattr(BookingStatus, "NO_SHOW")
+
+
+class TestAdminBookingServiceRealBranches:
+    """Exercise AdminBookingService branches against real methods."""
+
+    def test_list_audit_log_with_only_captures(self):
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        service._fetch_audit_entries = Mock()
+        service._fetch_capture_entries = Mock(return_value=([], 0))
+        service._build_audit_summary = Mock(
+            return_value={
+                "refunds_count": 0,
+                "refunds_total": 0.0,
+                "captures_count": 0,
+                "captures_total": 0.0,
+            }
+        )
+
+        result = service.list_audit_log(
+            actions=["payment_capture"],
+            admin_id=None,
+            date_from=None,
+            date_to=None,
+            page=1,
+            per_page=10,
+        )
+
+        service._fetch_audit_entries.assert_not_called()
+        assert result.total == 0
+
+    def test_cancel_booking_returns_none_when_missing(self):
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        service.booking_repo = Mock()
+        service.booking_repo.get_booking_with_details.return_value = None
+
+        booking, refund_id = service.cancel_booking(
+            booking_id="booking-1",
+            reason="reason",
+            note=None,
+            refund=False,
+            actor=Mock(id="admin"),
+        )
+
+        assert booking is None
+        assert refund_id is None
+
+    def test_cancel_booking_refund_missing_payment_intent(self):
+        from app.core.exceptions import ServiceException
+        from app.models.booking import BookingStatus
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.payment_intent_id = None
+        booking.status = BookingStatus.CONFIRMED
+        service.booking_repo = Mock(get_booking_with_details=Mock(return_value=booking))
+
+        with pytest.raises(ServiceException):
+            service.cancel_booking(
+                booking_id="booking-1",
+                reason="reason",
+                note=None,
+                refund=True,
+                actor=Mock(id="admin"),
+            )
+
+    def test_cancel_booking_refund_amount_zero(self):
+        from app.core.exceptions import ServiceException
+        from app.models.booking import BookingStatus
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.payment_intent_id = "pi_1"
+        booking.status = BookingStatus.CONFIRMED
+        booking.refunded_to_card_amount = 0
+        booking.settlement_outcome = None
+        service.booking_repo = Mock(get_booking_with_details=Mock(return_value=booking))
+        service._resolve_full_refund_cents = Mock(return_value=0)
+
+        with pytest.raises(ServiceException):
+            service.cancel_booking(
+                booking_id="booking-1",
+                reason="reason",
+                note=None,
+                refund=True,
+                actor=Mock(id="admin"),
+            )
+
+    def test_update_booking_status_unsupported(self):
+        from app.core.exceptions import ServiceException
+        from app.models.booking import BookingStatus
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.status = BookingStatus.CONFIRMED
+        booking.to_dict.return_value = {}
+        service.booking_repo = Mock(get_booking_with_details=Mock(return_value=booking))
+
+        with pytest.raises(ServiceException):
+            service.update_booking_status(
+                booking_id="booking-1",
+                status=BookingStatus.CANCELLED,
+                note=None,
+                actor=Mock(id="admin"),
+            )
+
+    def test_resolve_payment_intent_none_without_id(self):
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.payment_intent_id = None
+
+        assert service._resolve_payment_intent(booking) is None
+
+    def test_resolve_payment_events_returns_empty_on_error(self):
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        service.payment_repo = Mock(get_payment_events_for_booking=Mock(side_effect=RuntimeError("boom")))
+
+        assert service._resolve_payment_events("booking-1") == []
+
+    def test_resolve_credit_applied_cents_fallback_event(self):
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        event = Mock()
+        event.event_type = "auth_succeeded_credits_only"
+        event.event_data = {"credits_applied_cents": 500}
+
+        assert service._resolve_credit_applied_cents([event]) == 500
+
+    def test_resolve_lesson_price_cents_falls_back_to_total(self):
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.hourly_rate = "bad"
+        booking.duration_minutes = 60
+        booking.total_price = 25
+
+        assert service._resolve_lesson_price_cents(booking, payment_intent=None) == 2500
+
+    def test_fetch_capture_entries_skips_when_not_included(self):
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+
+        assert service._fetch_capture_entries(
+            include=False,
+            admin_id=None,
+            date_from=None,
+            date_to=None,
+            limit=10,
+        ) == ([], 0)
+
+    def test_fetch_capture_entries_skips_non_system_admin(self):
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+
+        assert service._fetch_capture_entries(
+            include=True,
+            admin_id="admin-1",
+            date_from=None,
+            date_to=None,
+            limit=10,
+        ) == ([], 0)
+
+    def test_build_timeline_adds_no_show_event(self):
+        from app.models.booking import BookingStatus
+        from app.services.admin_booking_service import AdminBookingService
+
+        service = AdminBookingService(Mock())
+        booking = Mock()
+        booking.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        booking.completed_at = None
+        booking.cancelled_at = None
+        booking.updated_at = None
+        booking.status = BookingStatus.NO_SHOW
+
+        events = service._build_timeline(booking, [])
+
+        assert any(event.event == "lesson_no_show" for event in events)
