@@ -46,6 +46,7 @@ from ..models.service_catalog import InstructorService
 from ..models.user import User
 from ..repositories.availability_day_repository import AvailabilityDayRepository
 from ..repositories.factory import RepositoryFactory
+from ..repositories.filter_repository import FilterRepository
 from ..repositories.job_repository import JobRepository
 from ..schemas.booking import BookingCreate, BookingUpdate
 from ..utils.time_helpers import string_to_time
@@ -176,6 +177,7 @@ class BookingService(BaseService):
         self.service_area_repository = RepositoryFactory.create_instructor_service_area_repository(
             db
         )
+        self.filter_repository = FilterRepository(db)
         self.event_outbox_repository = RepositoryFactory.create_event_outbox_repository(db)
         self.audit_repository = RepositoryFactory.create_audit_repository(db)
 
@@ -4669,6 +4671,31 @@ class BookingService(BaseService):
 
         return service, instructor_profile
 
+    def _validate_service_area(self, booking_data: BookingCreate, instructor_id: str) -> None:
+        """
+        Ensure travel-based bookings fall within the instructor's service area.
+        """
+        if booking_data.location_type not in ("student_location", "neutral_location"):
+            return
+
+        if booking_data.location_lat is None or booking_data.location_lng is None:
+            raise ValidationException(
+                "Coordinates are required to validate service area",
+                code="COORDINATES_REQUIRED",
+            )
+
+        is_covered = self.filter_repository.is_location_in_service_area(
+            instructor_id=instructor_id,
+            lat=float(booking_data.location_lat),
+            lng=float(booking_data.location_lng),
+        )
+        if not is_covered:
+            raise ValidationException(
+                "This location is outside the instructor's service area. "
+                "Please choose a different location or select a different instructor.",
+                code="OUTSIDE_SERVICE_AREA",
+            )
+
     def _check_conflicts_and_rules(
         self,
         booking_data: BookingCreate,
@@ -4694,6 +4721,8 @@ class BookingService(BaseService):
         # Check for instructor time conflicts
         if booking_data.end_time is None:
             raise ValidationException("End time must be specified before conflict checks")
+
+        self._validate_service_area(booking_data, booking_data.instructor_id)
 
         lesson_tz = self._resolve_lesson_timezone(booking_data, instructor_profile)
         booking_start_utc, _ = self._resolve_booking_times_utc(

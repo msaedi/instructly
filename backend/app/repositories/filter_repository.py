@@ -268,6 +268,37 @@ class FilterRepository:
         """
         return self.filter_by_location(instructor_ids, user_lng, user_lat, max_distance_meters)
 
+    def is_location_in_service_area(self, instructor_id: str, lat: float, lng: float) -> bool:
+        """
+        Check if coordinates fall within any active service area for an instructor.
+
+        Returns True if the point is inside at least one active service-area polygon.
+        """
+        query = text(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM instructor_service_areas isa
+                JOIN region_boundaries rb ON rb.id = isa.neighborhood_id
+                WHERE isa.instructor_id = :instructor_id
+                  AND isa.is_active = true
+                  AND ST_Covers(
+                      rb.boundary::geometry,
+                      ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geometry
+                  )
+            ) AS is_covered
+            """
+        )
+        result = self.db.execute(
+            query,
+            {
+                "instructor_id": instructor_id,
+                "lat": lat,
+                "lng": lng,
+            },
+        ).first()
+        return bool(result.is_covered) if result else False
+
     # =========================================================================
     # Availability Filtering (Bitmap)
     # =========================================================================

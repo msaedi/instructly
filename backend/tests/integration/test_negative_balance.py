@@ -168,6 +168,8 @@ def test_negative_balance_blocks_new_bookings(
         student_note=None,
         meeting_location="Test",
         location_type="neutral_location",
+        location_lat=40.758,
+        location_lng=-73.985,
     )
     booking_service = BookingService(db)
     with pytest.raises(BusinessRuleException):

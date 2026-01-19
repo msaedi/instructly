@@ -357,6 +357,8 @@ def test_create_rescheduled_booking_with_locked_funds_links_chain(db: Session):
         student_note=None,
         meeting_location="Test",
         location_type="neutral_location",
+        location_lat=40.758,
+        location_lng=-73.985,
     )
 
     service = BookingService(db)

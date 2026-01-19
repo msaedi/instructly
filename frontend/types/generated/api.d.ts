@@ -3466,6 +3466,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/instructors/{instructor_id}/check-service-area": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check Service Area
+         * @description Check whether coordinates fall within an instructor's service area.
+         */
+        get: operations["check_service_area_api_v1_instructors__instructor_id__check_service_area_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/instructors/{instructor_id}/coverage": {
         parameters: {
             query?: never;
@@ -11206,6 +11226,23 @@ export type components = {
             name: string;
         };
         /**
+         * InstructorServiceAreaCheckResponse
+         * @description Response payload for instructor service area coverage checks.
+         */
+        InstructorServiceAreaCheckResponse: {
+            coordinates: components["schemas"]["ServiceAreaCheckCoordinates"];
+            /**
+             * Instructor Id
+             * @description Instructor user ULID
+             */
+            instructor_id: string;
+            /**
+             * Is Covered
+             * @description True when the coordinates fall inside an instructor's active service areas
+             */
+            is_covered: boolean;
+        };
+        /**
          * InstructorServiceCreate
          * @description Create instructor service from catalog.
          */
@@ -15258,6 +15295,22 @@ export type components = {
             message: string;
             /** Reminders Sent */
             reminders_sent: number;
+        };
+        /**
+         * ServiceAreaCheckCoordinates
+         * @description Coordinates payload for service area checks.
+         */
+        ServiceAreaCheckCoordinates: {
+            /**
+             * Lat
+             * @description Latitude
+             */
+            lat: number;
+            /**
+             * Lng
+             * @description Longitude
+             */
+            lng: number;
         };
         /** ServiceAreaItem */
         ServiceAreaItem: {
@@ -22723,6 +22776,57 @@ export interface operations {
             };
             /** @description User is not authorized to access this resource */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Instructor not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_service_area_api_v1_instructors__instructor_id__check_service_area_get: {
+        parameters: {
+            query: {
+                /** @description Latitude */
+                lat: number;
+                /** @description Longitude */
+                lng: number;
+            };
+            header?: never;
+            path: {
+                /** @description Instructor user ULID */
+                instructor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstructorServiceAreaCheckResponse"];
+                };
+            };
+            /** @description Invalid instructor ID */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

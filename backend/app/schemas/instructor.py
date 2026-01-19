@@ -21,7 +21,7 @@ from ..core.constants import (
     MIN_BIO_LENGTH,
     MIN_SESSION_DURATION,
 )
-from ._strict_base import StrictRequestModel
+from ._strict_base import StrictModel, StrictRequestModel
 from .address import ServiceAreaNeighborhoodOut
 from .base import Money, StandardizedModel
 
@@ -105,6 +105,24 @@ class PreferredPublicSpaceIn(BaseModel):
     label: str | None = Field(default=None, min_length=1, max_length=64)
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class ServiceAreaCheckCoordinates(StrictModel):
+    """Coordinates payload for service area checks."""
+
+    lat: float = Field(..., description="Latitude")
+    lng: float = Field(..., description="Longitude")
+
+
+class InstructorServiceAreaCheckResponse(StrictModel):
+    """Response payload for instructor service area coverage checks."""
+
+    instructor_id: str = Field(..., description="Instructor user ULID")
+    is_covered: bool = Field(
+        ...,
+        description="True when the coordinates fall inside an instructor's active service areas",
+    )
+    coordinates: ServiceAreaCheckCoordinates
 
 
 class PreferredTeachingLocationOut(PreferredTeachingLocationIn):

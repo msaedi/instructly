@@ -525,7 +525,9 @@ class TestSoftDeleteEdgeCases:
             selected_duration=60,
             end_time=target_end,
             location_type="neutral_location",
-            meeting_location="Online",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
         )
 
         # Test async method - expect NotFoundException

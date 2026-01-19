@@ -54,8 +54,22 @@ def test_meeting_location_backfills_address() -> None:
         **_base_payload(),
         "location_type": "neutral_location",
         "meeting_location": "456 Elm St, Queens, NY",
+        "location_lat": 40.728,
+        "location_lng": -73.794,
     }
 
     data = BookingCreate(**payload)
 
     assert data.location_address == "456 Elm St, Queens, NY"
+
+
+@pytest.mark.parametrize("location_type", ["student_location", "neutral_location"])
+def test_travel_location_requires_coordinates(location_type: str) -> None:
+    payload = {
+        **_base_payload(),
+        "location_type": location_type,
+        "location_address": "123 Main St, Brooklyn, NY",
+    }
+
+    with pytest.raises(ValidationError, match="Coordinates are required"):
+        BookingCreate(**payload)

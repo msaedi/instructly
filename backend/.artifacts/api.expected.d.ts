@@ -2543,6 +2543,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/instructors/{instructor_id}/check-service-area": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["check_service_area_api_v1_instructors__instructor_id__check_service_area_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/instructors/{instructor_id}/coverage": {
  parameters: {
  query?: never;
@@ -6175,6 +6191,11 @@ export type components = {
  is_active: boolean;
  name: string;
  };
+ InstructorServiceAreaCheckResponse: {
+ coordinates: components["schemas"]["ServiceAreaCheckCoordinates"];
+ instructor_id: string;
+ is_covered: boolean;
+ };
  InstructorServiceCreate: {
  catalog_service_id: string;
  custom_description?: string | null;
@@ -7428,6 +7449,10 @@ export type components = {
  failed_reminders: number;
  message: string;
  reminders_sent: number;
+ };
+ ServiceAreaCheckCoordinates: {
+ lat: number;
+ lng: number;
  };
  ServiceAreaItem: {
  borough?: string | null;
@@ -13428,6 +13453,50 @@ export interface operations {
  content?: never;
  };
  403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ check_service_area_api_v1_instructors__instructor_id__check_service_area_get: {
+ parameters: {
+ query: {
+ lat: number;
+ lng: number;
+ };
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InstructorServiceAreaCheckResponse"];
+ };
+ };
+ 400: {
  headers: {
  [name: string]: unknown;
  };

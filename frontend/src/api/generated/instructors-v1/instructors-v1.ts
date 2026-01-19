@@ -22,11 +22,13 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetParams,
   CoverageFeatureCollectionResponse,
   HTTPValidationError,
   InstructorProfileCreate,
   InstructorProfileResponse,
   InstructorProfileUpdate,
+  InstructorServiceAreaCheckResponse,
   ListInstructorsApiV1InstructorsGetParams,
   PaginatedResponseInstructorProfileResponse,
 } from '../instructly.schemas';
@@ -755,6 +757,199 @@ export function useGetInstructorApiV1InstructorsInstructorIdGet<
     instructorId,
     options
   );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
+
+/**
+ * Check whether coordinates fall within an instructor's service area.
+ * @summary Check Service Area
+ */
+export const checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet = (
+  instructorId: string,
+  params: CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetParams,
+  signal?: AbortSignal
+) => {
+  return customFetch<InstructorServiceAreaCheckResponse>({
+    url: `/api/v1/instructors/${instructorId}/check-service-area`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
+
+export const getCheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetQueryKey = (
+  instructorId?: string,
+  params?: CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetParams
+) => {
+  return [
+    `/api/v1/instructors/${instructorId}/check-service-area`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getCheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>
+  >,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  params: CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getCheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetQueryKey(
+      instructorId,
+      params
+    );
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>>
+  > = ({ signal }) =>
+    checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet(instructorId, params, signal);
+
+  return { queryKey, queryFn, enabled: !!instructorId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>>
+  >;
+export type CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetQueryError =
+  ErrorType<void | HTTPValidationError>;
+
+export function useCheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet<
+  TData = Awaited<
+    ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>
+  >,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  params: CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet<
+  TData = Awaited<
+    ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>
+  >,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  params: CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet<
+  TData = Awaited<
+    ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>
+  >,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  params: CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Check Service Area
+ */
+
+export function useCheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet<
+  TData = Awaited<
+    ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>
+  >,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  params: CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof checkServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getCheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetQueryOptions(
+      instructorId,
+      params,
+      options
+    );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

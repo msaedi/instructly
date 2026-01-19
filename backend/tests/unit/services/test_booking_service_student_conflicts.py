@@ -230,7 +230,7 @@ class TestStudentConflictValidation:
             end_time=time(16, 30),
             selected_duration=60,
             instructor_service_id=generate_ulid(),
-            location_type="neutral_location",
+            location_type="online",
             meeting_location="Online",
         )
 
@@ -300,7 +300,7 @@ class TestStudentConflictValidation:
             end_time=time(17, 0),
             selected_duration=60,
             instructor_service_id=generate_ulid(),
-            location_type="neutral_location",
+            location_type="online",
             meeting_location="Online",
         )
 
@@ -403,7 +403,7 @@ class TestStudentConflictValidation:
             end_time=time(16, 0),
             selected_duration=60,
             instructor_service_id=generate_ulid(),
-            location_type="neutral_location",
+            location_type="online",
             meeting_location="Online",
         )
 
@@ -423,7 +423,7 @@ class TestStudentConflictValidation:
             end_time=time(16, 30),
             selected_duration=60,
             instructor_service_id=generate_ulid(),
-            location_type="neutral_location",
+            location_type="online",
             meeting_location="Online",
         )
 
@@ -466,7 +466,7 @@ class TestStudentConflictValidation:
             end_time=time(17, 0),
             selected_duration=60,
             instructor_service_id=generate_ulid(),
-            location_type="neutral_location",
+            location_type="online",
             meeting_location="Online",
         )
 
@@ -522,7 +522,7 @@ class TestStudentConflictValidation:
             end_time=time(16, 0),
             selected_duration=60,
             instructor_service_id=generate_ulid(),
-            location_type="neutral_location",
+            location_type="online",
             meeting_location="Online",
         )
 

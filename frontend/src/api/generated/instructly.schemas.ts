@@ -4155,6 +4155,17 @@ export interface InstructorSearchResultService {
 }
 
 /**
+ * Response payload for instructor service area coverage checks.
+ */
+export interface InstructorServiceAreaCheckResponse {
+  coordinates: ServiceAreaCheckCoordinates;
+  /** Instructor user ULID */
+  instructor_id: string;
+  /** True when the coordinates fall inside an instructor's active service areas */
+  is_covered: boolean;
+}
+
+/**
  * Custom description (optional)
  */
 export type InstructorServiceCreateCustomDescription = string | null;
@@ -7401,6 +7412,16 @@ export interface SendRemindersResponse {
   reminders_sent: number;
 }
 
+/**
+ * Coordinates payload for service area checks.
+ */
+export interface ServiceAreaCheckCoordinates {
+  /** Latitude */
+  lat: number;
+  /** Longitude */
+  lng: number;
+}
+
 export type ServiceAreaItemBorough = string | null;
 
 export type ServiceAreaItemName = string | null;
@@ -9113,6 +9134,17 @@ export type GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetPara
    * Start date (Monday) of the week
    */
   start_date: string;
+};
+
+export type CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetParams = {
+  /**
+   * Latitude
+   */
+  lat: number;
+  /**
+   * Longitude
+   */
+  lng: number;
 };
 
 export type StreamUserMessagesApiV1MessagesStreamGetParams = {

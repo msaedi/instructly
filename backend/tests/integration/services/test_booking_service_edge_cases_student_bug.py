@@ -169,7 +169,9 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
         selected_duration=60,
         instructor_service_id=math_service.id,
         location_type="neutral_location",
-        meeting_location="Online",
+        meeting_location="123 Main St, New York, NY",
+        location_lat=40.758,
+        location_lng=-73.985,
     )
 
     booking1 = await asyncio.to_thread(booking_service.create_booking,
@@ -186,8 +188,10 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
         end_time=time(16, 30),  # 4:30 PM
         selected_duration=60,
         instructor_service_id=piano_service.id,
-        location_type="neutral_location",
-        meeting_location="Online",
+        location_type="online",
+        meeting_location="456 Brooklyn Ave, Brooklyn, NY",
+        location_lat=40.65,
+        location_lng=-73.95,
     )
 
     # This should fail with ConflictException

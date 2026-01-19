@@ -75,6 +75,8 @@ class TestBookingRoutes:
             "selected_duration": 60,
             "student_note": "Looking forward to the lesson!",
             "meeting_location": "Central Park",
+            "location_lat": 40.781,
+            "location_lng": -73.966,
             "location_type": "neutral_location",
         }
 
@@ -1308,6 +1310,10 @@ class TestBookingRoutes:
         original.service_area = "Manhattan"
         original.meeting_location = "Studio"
         original.location_type = "neutral_location"
+        original.location_address = "123 Main St, New York, NY"
+        original.location_lat = 40.758
+        original.location_lng = -73.985
+        original.location_place_id = None
         original.student_note = "Bring sheet music"
         original.instructor_note = None
         # Nested objects used by response factories downstream
@@ -1424,6 +1430,10 @@ class TestBookingRoutes:
         original.service_area = "Manhattan"
         original.meeting_location = "Studio"
         original.location_type = "neutral_location"
+        original.location_address = "123 Main St, New York, NY"
+        original.location_lat = 40.758
+        original.location_lng = -73.985
+        original.location_place_id = None
         original.student_note = "Bring sheet music"
         original.instructor_note = None
         original.payment_intent_id = "pi_test123"

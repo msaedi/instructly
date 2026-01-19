@@ -195,6 +195,12 @@ class BookingCreate(StrictRequestModel):
                 raise ValueError("Address is required for non-online bookings")
             if not self.location_address:
                 self.location_address = address
+        if self.location_type in ("student_location", "neutral_location"):
+            if self.location_lat is None or self.location_lng is None:
+                raise ValueError(
+                    "Coordinates are required for service area validation. "
+                    "Please select an address using the address picker."
+                )
         return self
 
     @model_validator(mode="after")

@@ -100,7 +100,9 @@ class TestBookingServiceErrorHandling:
             selected_duration=60,
             instructor_service_id=service.id,
             location_type="neutral_location",
-            meeting_location="Online",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
         )
 
         # Should succeed despite notification failure
@@ -737,7 +739,9 @@ class TestStudentDoubleBookingPrevention:
             selected_duration=60,
             instructor_service_id=service1.id,
             location_type="neutral_location",
-            meeting_location="Online",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
         )
 
         booking1 = await asyncio.to_thread(booking_service.create_booking,
@@ -755,7 +759,9 @@ class TestStudentDoubleBookingPrevention:
             selected_duration=60,
             instructor_service_id=piano_service.id,
             location_type="neutral_location",
-            meeting_location="Online",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
         )
 
         # This should fail with ConflictException
@@ -882,7 +888,9 @@ class TestStudentDoubleBookingPrevention:
             selected_duration=60,
             instructor_service_id=service1.id,
             location_type="neutral_location",
-            meeting_location="Online",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
         )
 
         booking1 = await asyncio.to_thread(booking_service.create_booking,
@@ -900,7 +908,9 @@ class TestStudentDoubleBookingPrevention:
             selected_duration=60,
             instructor_service_id=piano_service.id,
             location_type="neutral_location",
-            meeting_location="Online",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
         )
 
         # This should succeed - no overlap

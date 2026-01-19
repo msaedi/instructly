@@ -117,7 +117,9 @@ class TestBookingServiceAccountStatus:
             selected_duration=60,
             end_time=time(start_time.hour + 1, start_time.minute),
             location_type="neutral_location",
-            meeting_location="Online",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
             student_note="Test booking",
         )
 
@@ -155,7 +157,9 @@ class TestBookingServiceAccountStatus:
             selected_duration=60,
             end_time=time(start_time.hour + 1, start_time.minute),
             location_type="neutral_location",
-            meeting_location="Online",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
             student_note="Test booking",
         )
 
@@ -196,7 +200,9 @@ class TestBookingServiceAccountStatus:
             selected_duration=60,
             end_time=time(start_time.hour + 1, start_time.minute),
             location_type="neutral_location",
-            meeting_location="Online",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
             student_note="Test booking",
         )
 
@@ -237,7 +243,9 @@ class TestBookingServiceAccountStatus:
             selected_duration=60,
             end_time=time(start_time.hour + 1, start_time.minute),
             location_type="neutral_location",
-            meeting_location="Online",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
             student_note="Test booking",
         )
 

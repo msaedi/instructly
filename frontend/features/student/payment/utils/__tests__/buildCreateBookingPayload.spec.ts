@@ -91,4 +91,84 @@ describe('buildCreateBookingPayload', () => {
     expect(payload.location_place_id).toBe('place_123');
     expect(payload.meeting_location).toBe('123 Main St, Brooklyn, NY');
   });
+
+  it('parses string duration and metadata location details', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-2',
+      serviceId: 'svc-2',
+      bookingDate: new Date('2025-02-01T00:00:00Z'),
+      booking: {
+        ...baseBooking,
+        duration: '90' as unknown as number,
+        location: 'Studio 8',
+        metadata: {
+          modality: 'studio',
+          location_address: 'Studio 8',
+          location_lat: 40.7,
+          location_lng: '-73.9',
+          location_place_id: 'place_meta',
+          timezone: 'America/Chicago',
+        },
+      },
+    });
+
+    expect(payload.selected_duration).toBe(90);
+    expect(payload.location_type).toBe('instructor_location');
+    expect(payload.location_address).toBe('Studio 8');
+    expect(payload.location_lat).toBe(40.7);
+    expect(payload.location_lng).toBe(-73.9);
+    expect(payload.location_place_id).toBe('place_meta');
+    expect(payload.meeting_location).toBe('Studio 8');
+    expect(payload.timezone).toBe('America/Chicago');
+  });
+
+  it('derives duration from start and end times when missing', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-3',
+      serviceId: 'svc-3',
+      bookingDate: '2025-06-10',
+      booking: {
+        ...baseBooking,
+        duration: 0,
+        startTime: '8:15am',
+        endTime: '9:45am',
+        location: 'Central Park',
+        metadata: { modality: 'public' },
+      },
+    });
+
+    expect(payload.selected_duration).toBe(90);
+    expect(payload.location_type).toBe('neutral_location');
+    expect(payload.meeting_location).toBe('Central Park');
+  });
+
+  it('falls back to online when the location hint is online', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-4',
+      serviceId: 'svc-4',
+      bookingDate: '2025-08-01',
+      booking: {
+        ...baseBooking,
+        location: 'Online session',
+        metadata: {},
+      },
+    });
+
+    expect(payload.location_type).toBe('online');
+    expect(payload).not.toHaveProperty('location_address');
+  });
+
+  it('throws when booking start or end time is missing', () => {
+    expect(() =>
+      buildCreateBookingPayload({
+        instructorId: 'inst-5',
+        serviceId: 'svc-5',
+        bookingDate: '2025-09-01',
+        booking: {
+          ...baseBooking,
+          startTime: '',
+        },
+      }),
+    ).toThrow('Booking start and end times are required to build payload');
+  });
 });

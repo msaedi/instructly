@@ -801,6 +801,10 @@ async def reschedule_booking(
                 in ["student_location", "instructor_location", "online", "neutral_location"]
                 else "online"
             )
+            _location_address = _safe_str(getattr(original, "location_address", None))
+            _location_lat = _safe_float(getattr(original, "location_lat", None))
+            _location_lng = _safe_float(getattr(original, "location_lng", None))
+            _location_place_id = _safe_str(getattr(original, "location_place_id", None))
 
             new_booking_data = BookingCreate(
                 instructor_id=original.instructor_id,
@@ -812,6 +816,10 @@ async def reschedule_booking(
                 student_note=_student_note,
                 meeting_location=_meeting_location,
                 location_type=_location_type,
+                location_address=_location_address,
+                location_lat=_location_lat,
+                location_lng=_location_lng,
+                location_place_id=_location_place_id,
             )
 
             raw_payment_intent_id = getattr(original, "payment_intent_id", None)

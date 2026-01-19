@@ -675,6 +675,8 @@ class TestValidateBookingPrerequisitesIntegration:
             selected_duration=60,
             end_time=time(11, 0),
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -703,6 +705,8 @@ class TestValidateBookingPrerequisitesIntegration:
             selected_duration=60,
             end_time=time(11, 0),
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -726,6 +730,8 @@ class TestValidateBookingPrerequisitesIntegration:
             selected_duration=60,
             end_time=time(11, 0),
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -749,6 +755,8 @@ class TestValidateBookingPrerequisitesIntegration:
             selected_duration=60,
             end_time=time(11, 0),
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -773,6 +781,8 @@ class TestValidateBookingPrerequisitesIntegration:
             selected_duration=60,
             end_time=time(11, 0),
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -801,6 +811,8 @@ class TestValidateBookingPrerequisitesIntegration:
             selected_duration=60,
             end_time=time(11, 0),
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -842,6 +854,8 @@ class TestCheckConflictsAndRulesIntegration:
             selected_duration=60,
             end_time=time(11, 30),
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -1606,6 +1620,8 @@ class TestCreateBookingWithPaymentSetupIntegration:
             selected_duration=invalid_duration,
             end_time=time(10, 45) if invalid_duration == 45 else time(13, 0),
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -1639,6 +1655,8 @@ class TestCreateBookingWithPaymentSetupIntegration:
             selected_duration=valid_duration,
             end_time=time(12, 0),
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -1695,6 +1713,8 @@ class TestCreateBookingWithRescheduleIntegration:
             selected_duration=valid_duration,
             end_time=time(11, 0),
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -1905,6 +1925,8 @@ class TestRescheduledBookingWithExistingPaymentIntegration:
             start_time=time(10, 0),
             selected_duration=60,
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -1947,6 +1969,8 @@ class TestRescheduledBookingWithExistingPaymentIntegration:
             start_time=time(10, 0),
             selected_duration=60,
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -1998,6 +2022,8 @@ class TestRescheduledBookingWithExistingPaymentIntegration:
             start_time=time(10, 0),
             selected_duration=invalid_duration,
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -2051,6 +2077,8 @@ class TestRescheduledBookingWithLockedFundsIntegration:
             start_time=time(10, 0),
             selected_duration=60,
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -2083,6 +2111,8 @@ class TestRescheduledBookingWithLockedFundsIntegration:
             start_time=time(10, 0),
             selected_duration=60,
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -2130,6 +2160,8 @@ class TestRescheduledBookingWithLockedFundsIntegration:
             start_time=time(10, 0),
             selected_duration=invalid_duration,
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 
@@ -2174,6 +2206,8 @@ class TestRescheduledBookingWithLockedFundsIntegration:
             start_time=time(10, 0),
             selected_duration=60,
             meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
             location_type="neutral_location",
         )
 

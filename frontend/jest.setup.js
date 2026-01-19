@@ -16,6 +16,10 @@ jest.mock('next/navigation', () => ({
   useSearchParams: jest.fn(() => new URLSearchParams()),
 }));
 
+jest.mock('@/hooks/useServiceAreaCheck', () => ({
+  useServiceAreaCheck: jest.fn(() => ({ data: null, isLoading: false })),
+}));
+
 // Mock localStorage
 const localStorageMock = {
   getItem: jest.fn(),

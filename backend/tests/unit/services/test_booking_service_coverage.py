@@ -950,6 +950,7 @@ class TestCheckConflictsAndRules:
         booking_data.booking_date = date(2026, 12, 25)
         booking_data.start_time = time(10, 0)
         booking_data.end_time = time(11, 0)
+        booking_data.location_type = "online"
 
         service = MagicMock(spec=Service)
         instructor_profile = MagicMock(spec=InstructorProfile)

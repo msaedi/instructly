@@ -17,6 +17,7 @@ import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import { formatMeetingLocation, toStateCode } from '@/utils/address/format';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
 import type { PlaceSuggestion } from '@/components/forms/PlacesAutocompleteInput';
+import { useServiceAreaCheck } from '@/hooks/useServiceAreaCheck';
 import { addMinutesHHMM, to24HourTime } from '@/lib/time';
 import { overlapsHHMM, minutesSinceHHMM } from '@/lib/time/overlap';
 import { toDateOnlyString } from '@/lib/availability/dateHelpers';
@@ -62,6 +63,20 @@ type AddressFields = {
   state: string;
   postalCode: string;
   country: string;
+};
+
+type AddressDetailsCacheEntry = {
+  fields: AddressFields;
+  formatted?: string;
+  lat?: number;
+  lng?: number;
+  placeId?: string;
+};
+
+type AddressCoords = {
+  lat: number | null;
+  lng: number | null;
+  placeId: string | null;
 };
 
 const EMPTY_ADDRESS: AddressFields = {
@@ -148,14 +163,28 @@ function PaymentConfirmationInner({
   );
   const [isEditingLocation, setIsEditingLocation] = useState(() => !hasSavedLocation);
   const [addressFields, setAddressFields] = useState<AddressFields>(EMPTY_ADDRESS);
+  const [addressCoords, setAddressCoords] = useState<AddressCoords>({
+    lat: null,
+    lng: null,
+    placeId: null,
+  });
   const [addressDetailsError, setAddressDetailsError] = useState<string | null>(null);
   const addressLine1Ref = useRef<HTMLInputElement>(null);
   const conflictAbortRef = useRef<AbortController | null>(null);
   const conflictCacheRef = useRef<Map<string, { fetchedAt: number; items: ConflictListItem[] }>>(new Map());
   const addressDetailsAbortRef = useRef<AbortController | null>(null);
-  const addressDetailsCacheRef = useRef<Map<string, { fields: AddressFields; formatted?: string }>>(new Map());
+  const addressDetailsCacheRef = useRef<Map<string, AddressDetailsCacheEntry>>(new Map());
+  const serviceAreaLat = !isOnlineLesson ? addressCoords.lat ?? undefined : undefined;
+  const serviceAreaLng = !isOnlineLesson ? addressCoords.lng ?? undefined : undefined;
+  const { data: serviceAreaCheck, isLoading: isCheckingServiceArea } = useServiceAreaCheck({
+    instructorId: booking.instructorId,
+    lat: serviceAreaLat,
+    lng: serviceAreaLng,
+  });
+  const isOutsideServiceArea = !isOnlineLesson && serviceAreaCheck?.is_covered === false;
   const setAddressField = useCallback((updates: Partial<AddressFields>) => {
     setAddressFields((prev) => ({ ...prev, ...updates }));
+    setAddressCoords({ lat: null, lng: null, placeId: null });
   }, []);
 
   useEffect(() => () => {
@@ -163,7 +192,9 @@ function PaymentConfirmationInner({
   }, []);
 
   const parseAddressComponents = useCallback(
-    (details: unknown): { fields: Partial<AddressFields>; formatted?: string } => {
+    (
+      details: unknown
+    ): { fields: Partial<AddressFields>; formatted?: string; lat?: number; lng?: number; placeId?: string } => {
       const root = (details as Record<string, unknown>) ?? {};
       const result = (root['result'] as Record<string, unknown>) ?? root;
       const address = (result['address'] as Record<string, unknown>) ?? result;
@@ -181,6 +212,24 @@ function PaymentConfirmationInner({
           }
         }
         return '';
+      };
+
+      const getNumber = (...keys: string[]) => {
+        for (const source of sources) {
+          for (const key of keys) {
+            const raw = source[key];
+            if (typeof raw === 'number' && Number.isFinite(raw)) {
+              return raw;
+            }
+            if (typeof raw === 'string') {
+              const parsed = Number(raw);
+              if (Number.isFinite(parsed)) {
+                return parsed;
+              }
+            }
+          }
+        }
+        return null;
       };
 
       const streetNumber = getValue('line1', 'street_line1') ? '' : getValue('street_number', 'house_number');
@@ -205,6 +254,30 @@ function PaymentConfirmationInner({
       const postalCandidate = getValue('postal', 'postal_code', 'postalCode', 'zip', 'zip_code');
       const countryCandidate = getValue('country', 'country_code', 'countryCode');
       const formatted = getValue('formatted_address', 'formattedAddress');
+      const placeId = getValue('provider_id', 'place_id', 'placeId');
+
+      let lat = getNumber('latitude', 'lat');
+      let lng = getNumber('longitude', 'lng');
+      if (lat == null || lng == null) {
+        const geometry = (result['geometry'] as Record<string, unknown>) ?? root['geometry'];
+        const location = geometry && typeof geometry === 'object'
+          ? (geometry['location'] as Record<string, unknown>)
+          : null;
+        if (location && typeof location === 'object') {
+          if (lat == null) {
+            const geoLat = location['lat'];
+            if (typeof geoLat === 'number' && Number.isFinite(geoLat)) {
+              lat = geoLat;
+            }
+          }
+          if (lng == null) {
+            const geoLng = location['lng'];
+            if (typeof geoLng === 'number' && Number.isFinite(geoLng)) {
+              lng = geoLng;
+            }
+          }
+        }
+      }
 
       const fields: Partial<AddressFields> = {};
       const resolvedLine1 = (explicitLine1 || derivedLine1).trim();
@@ -214,9 +287,24 @@ function PaymentConfirmationInner({
       if (postalCandidate) fields.postalCode = postalCandidate;
       if (countryCandidate) fields.country = countryCandidate;
 
-      const response: { fields: Partial<AddressFields>; formatted?: string } = { fields };
+      const response: {
+        fields: Partial<AddressFields>;
+        formatted?: string;
+        lat?: number;
+        lng?: number;
+        placeId?: string;
+      } = { fields };
       if (formatted) {
         response.formatted = formatted;
+      }
+      if (lat != null) {
+        response.lat = lat;
+      }
+      if (lng != null) {
+        response.lng = lng;
+      }
+      if (placeId) {
+        response.placeId = placeId;
       }
 
       return response;
@@ -320,6 +408,7 @@ function PaymentConfirmationInner({
       };
 
       setAddressFields(fallbackFields);
+      setAddressCoords({ lat: null, lng: null, placeId: null });
       setIsEditingLocation(false);
       lastLocationRef.current = '';
       addressDetailsAbortRef.current = null;
@@ -330,6 +419,11 @@ function PaymentConfirmationInner({
     const cached = addressDetailsCacheRef.current.get(cacheKey);
     if (cached) {
       setAddressFields(cached.fields);
+      setAddressCoords({
+        lat: cached.lat ?? null,
+        lng: cached.lng ?? null,
+        placeId: cached.placeId ?? null,
+      });
       setIsEditingLocation(false);
       lastLocationRef.current = '';
       addressDetailsAbortRef.current = null;
@@ -384,6 +478,9 @@ function PaymentConfirmationInner({
                 ...(parsedRetry.formatted
                   ? { formatted: parsedRetry.formatted }
                   : { formatted: formatFullAddress(normalizedRetryFields) }),
+                ...(parsedRetry.lat != null ? { lat: parsedRetry.lat } : {}),
+                ...(parsedRetry.lng != null ? { lng: parsedRetry.lng } : {}),
+                ...(parsedRetry.placeId ? { placeId: parsedRetry.placeId } : {}),
               });
             }
           }
@@ -408,12 +505,22 @@ function PaymentConfirmationInner({
       state: toStateCode(mergedFields.state),
     };
 
+    const normalizedCoords: AddressCoords = {
+      lat: parsedDetails?.lat ?? null,
+      lng: parsedDetails?.lng ?? null,
+      placeId: parsedDetails?.placeId ?? normalizedPlaceId,
+    };
+
     addressDetailsCacheRef.current.set(cacheKey, {
       fields: normalizedMergedFields,
       formatted: formatted ?? formatFullAddress(normalizedMergedFields),
+      ...(normalizedCoords.lat != null ? { lat: normalizedCoords.lat } : {}),
+      ...(normalizedCoords.lng != null ? { lng: normalizedCoords.lng } : {}),
+      ...(normalizedCoords.placeId ? { placeId: normalizedCoords.placeId } : {}),
     });
 
     setAddressFields(normalizedMergedFields);
+    setAddressCoords(normalizedCoords);
     const hasStructuredAddress =
       normalizedMergedFields.city &&
       normalizedMergedFields.state &&
@@ -789,6 +896,9 @@ function PaymentConfirmationInner({
     addressDetailsAbortRef.current?.abort();
     addressDetailsAbortRef.current = null;
     setIsOnlineLesson(checked);
+    if (checked) {
+      setAddressCoords({ lat: null, lng: null, placeId: null });
+    }
     setIsLocationExpanded(true);
     setAddressDetailsError(null);
     if (checked) {
@@ -850,8 +960,15 @@ function PaymentConfirmationInner({
       const nextLocation = modalityValue === 'remote'
         ? 'Online'
         : formattedAddress || prevFallback;
-
-      return {
+      const addressPayload = modalityValue === 'remote'
+        ? null
+        : {
+            fullAddress: nextLocation,
+            ...(addressCoords.lat != null ? { lat: addressCoords.lat } : {}),
+            ...(addressCoords.lng != null ? { lng: addressCoords.lng } : {}),
+            ...(addressCoords.placeId ? { placeId: addressCoords.placeId } : {}),
+          };
+      const nextBooking: BookingWithMetadata = {
         ...prev,
         location: nextLocation,
         metadata: {
@@ -859,6 +976,13 @@ function PaymentConfirmationInner({
           modality: modalityValue,
         },
       };
+
+      if (addressPayload) {
+        return { ...nextBooking, address: addressPayload };
+      }
+
+      const { address: _address, ...withoutAddress } = nextBooking;
+      return withoutAddress;
     });
   }, [
     isOnlineLesson,
@@ -867,6 +991,9 @@ function PaymentConfirmationInner({
     onBookingUpdate,
     hasLocationInitialized,
     isEditingLocation,
+    addressCoords.lat,
+    addressCoords.lng,
+    addressCoords.placeId,
   ]);
   const hourlyRate = useMemo(() => {
     if (!Number.isFinite(booking.duration) || booking.duration <= 0) return 0;
@@ -893,7 +1020,13 @@ function PaymentConfirmationInner({
 
   const activeFloorMessage = clientFloorWarning ?? floorViolationMessage ?? null;
   const isFloorBlocking = Boolean(activeFloorMessage);
-  const ctaDisabled = isCheckingConflict || hasConflict || isFloorBlocking || isPricingPreviewLoading;
+  const ctaDisabled =
+    isCheckingConflict ||
+    hasConflict ||
+    isFloorBlocking ||
+    isPricingPreviewLoading ||
+    isOutsideServiceArea ||
+    (isCheckingServiceArea && !isOnlineLesson);
   const ctaLabel = useMemo(() => {
     if (isCheckingConflict) return 'Checking availability...';
     if (hasConflict) return 'You have a conflict at this time';
@@ -954,6 +1087,14 @@ function PaymentConfirmationInner({
           ...prev,
           line1: booking.location,
         };
+      });
+    }
+
+    if (booking.address) {
+      setAddressCoords({
+        lat: booking.address.lat ?? null,
+        lng: booking.address.lng ?? null,
+        placeId: booking.address.placeId ?? null,
       });
     }
 
@@ -1643,6 +1784,16 @@ function PaymentConfirmationInner({
                   />
                 </div>
               </div>
+
+              {!isOnlineLesson && isOutsideServiceArea && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  <p className="font-medium">Location not covered</p>
+                  <p>
+                    This instructor doesn&#39;t serve this address. Choose a different location or
+                    select online for a video lesson.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

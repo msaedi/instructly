@@ -74,7 +74,9 @@ class TestBookingSystemMessages:
             selected_duration=60,
             end_time=end_time,
             location_type="neutral_location",
-            meeting_location="Online",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
             student_note="Test booking",
         )
 
@@ -149,7 +151,9 @@ class TestBookingSystemMessages:
             selected_duration=60,
             end_time=end_time,
             location_type="neutral_location",
-            meeting_location="Online",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
             student_note="Test booking for cancellation",
         )
 
@@ -295,7 +299,9 @@ class TestBookingSystemMessages:
                 selected_duration=60,
                 end_time=time(10, 0),
                 location_type="neutral_location",
-                meeting_location="Online",
+                meeting_location="123 Main St, New York, NY",
+                location_lat=40.758,
+                location_lng=-73.985,
                 student_note=f"Booking for day {days_ahead}",
             )
 

@@ -254,6 +254,8 @@ def test_quote_rejects_invalid_date_time(
         "selected_duration": 60,
         "location_type": "student_location",
         "meeting_location": "123 Main St",
+        "location_lat": 40.751,
+        "location_lng": -73.989,
         "applied_credit_cents": 0,
     }
     payload[field] = value

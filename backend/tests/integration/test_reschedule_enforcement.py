@@ -118,6 +118,8 @@ def test_reschedule_different_instructor_blocked(
         student_note=None,
         meeting_location="Test",
         location_type="neutral_location",
+        location_lat=40.73,
+        location_lng=-73.82,
     )
 
     booking_service = BookingService(db)
@@ -274,6 +276,8 @@ def test_reschedule_count_incremented(
         student_note=None,
         meeting_location="Test",
         location_type="neutral_location",
+        location_lat=40.758,
+        location_lng=-73.985,
     )
 
     booking_service = BookingService(db)

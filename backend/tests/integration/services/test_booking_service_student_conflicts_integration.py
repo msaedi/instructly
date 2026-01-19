@@ -30,6 +30,17 @@ try:  # pragma: no cover - fallback for direct backend pytest invocation
 except ModuleNotFoundError:  # pragma: no cover
     from tests.conftest import add_service_areas_for_boroughs
 
+MANHATTAN_LOCATION = {
+    "meeting_location": "123 Main St, New York, NY",
+    "location_lat": 40.758,
+    "location_lng": -73.985,
+}
+BROOKLYN_LOCATION = {
+    "meeting_location": "456 Brooklyn Ave, Brooklyn, NY",
+    "location_lat": 40.65,
+    "location_lng": -73.95,
+}
+
 
 @pytest.fixture(autouse=True)
 def _no_price_floors(disable_price_floors):
@@ -259,7 +270,7 @@ class TestStudentConflictValidationIntegration:
             selected_duration=60,
             instructor_service_id=math_service.id,
             location_type="neutral_location",
-            meeting_location="Online",
+            **MANHATTAN_LOCATION,
         )
 
         # Refresh student_user from database to avoid session issues
@@ -279,8 +290,8 @@ class TestStudentConflictValidationIntegration:
             end_time=time(15, 30),
             selected_duration=60,
             instructor_service_id=piano_service.id,
-            location_type="neutral_location",
-            meeting_location="Online",
+            location_type="online",
+            **BROOKLYN_LOCATION,
         )
 
         # Should fail with student conflict
@@ -330,7 +341,7 @@ class TestStudentConflictValidationIntegration:
             selected_duration=60,
             instructor_service_id=math_service.id,
             location_type="neutral_location",
-            meeting_location="Online",
+            **MANHATTAN_LOCATION,
         )
 
         booking1 = await asyncio.to_thread(booking_service.create_booking,
@@ -346,8 +357,8 @@ class TestStudentConflictValidationIntegration:
             end_time=time(16, 0),
             selected_duration=60,
             instructor_service_id=piano_service.id,
-            location_type="neutral_location",
-            meeting_location="Online",
+            location_type="online",
+            **BROOKLYN_LOCATION,
         )
 
         # Should succeed
@@ -416,7 +427,7 @@ class TestStudentConflictValidationIntegration:
             selected_duration=60,
             instructor_service_id=math_service.id,
             location_type="neutral_location",
-            meeting_location="Online",
+            **MANHATTAN_LOCATION,
         )
 
         booking1 = await asyncio.to_thread(booking_service.create_booking,
@@ -433,7 +444,7 @@ class TestStudentConflictValidationIntegration:
             selected_duration=60,
             instructor_service_id=math_service.id,
             location_type="neutral_location",
-            meeting_location="Online",
+            **MANHATTAN_LOCATION,
         )
 
         # Should fail with instructor conflict (not student conflict)
@@ -478,7 +489,7 @@ class TestStudentConflictValidationIntegration:
             selected_duration=60,
             instructor_service_id=math_service.id,
             location_type="neutral_location",
-            meeting_location="Online",
+            **MANHATTAN_LOCATION,
         )
 
         booking1 = await asyncio.to_thread(booking_service.create_booking,
@@ -500,8 +511,8 @@ class TestStudentConflictValidationIntegration:
             end_time=time(15, 30),
             selected_duration=60,
             instructor_service_id=piano_service.id,
-            location_type="neutral_location",
-            meeting_location="Online",
+            location_type="online",
+            **BROOKLYN_LOCATION,
         )
 
         # Should succeed since previous booking was cancelled
