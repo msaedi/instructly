@@ -26,7 +26,7 @@ pyotp==2.9.0
 qrcode==8.2
 
 # Async & Background Tasks
-celery==5.6.0
+celery==5.6.2
 redis==7.1.0
 broadcaster[redis]==0.3.1
 anyio==4.12.0
