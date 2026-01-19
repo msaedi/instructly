@@ -47,6 +47,44 @@ else:
     CELERY_WORKER_CONFIG = None
 
 
+def _patch_celery_redis_pubsub() -> None:
+    """
+    Compatibility patch for Celery 5.6.2 + redis-py 6.x.
+
+    Celery's Redis result consumer calls the deprecated redis-py get_connection
+    signature with args. This shim uses the new get_connection() API directly.
+
+    TODO: Remove when Celery fixes this upstream (track: https://github.com/celery/celery/issues/XXXX)
+    """
+    try:
+        from celery.backends.redis import ResultConsumer
+    except Exception:
+        return
+
+    if getattr(ResultConsumer, "_instructly_pubsub_patch", False):
+        return
+
+    def _reconnect_pubsub(self) -> None:
+        self._pubsub = None
+        self.backend.client.connection_pool.reset()
+        if self.subscribed_to:
+            metas = self.backend.client.mget(self.subscribed_to)
+            metas = [meta for meta in metas if meta]
+            for meta in metas:
+                self.on_state_change(self._decode_result(meta), None)
+        self._pubsub = self.backend.client.pubsub(
+            ignore_subscribe_messages=True,
+        )
+        if self.subscribed_to:
+            self._pubsub.subscribe(*self.subscribed_to)
+        else:
+            self._pubsub.connection = self._pubsub.connection_pool.get_connection()
+            self._pubsub.connection.register_connect_callback(self._pubsub.on_connect)
+
+    ResultConsumer._reconnect_pubsub = _reconnect_pubsub
+    ResultConsumer._instructly_pubsub_patch = True
+
+
 def create_celery_app() -> Celery:
     """
     Create and configure the Celery application.
@@ -54,6 +92,7 @@ def create_celery_app() -> Celery:
     Returns:
         Celery: Configured Celery application instance
     """
+    _patch_celery_redis_pubsub()
     # Create Celery instance
     # Allow environment variables to drive broker/backend for alignment with Flower/worker
     # Priority: CELERY_BROKER_URL -> REDIS_URL -> settings.redis_url -> default
