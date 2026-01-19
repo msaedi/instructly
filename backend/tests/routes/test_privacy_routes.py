@@ -139,6 +139,8 @@ class TestPrivacyEndpoints:
 
     def test_get_privacy_statistics_success(self, client, sample_admin_for_privacy, db):
         """Test successful privacy statistics retrieval (admin only)."""
+        from app.schemas.privacy import PrivacyStatistics
+
         # Assign admin role with proper permissions
         permission_service = PermissionService(db)
         permission_service.assign_role(sample_admin_for_privacy.id, RoleName.ADMIN)
@@ -151,12 +153,13 @@ class TestPrivacyEndpoints:
         with patch("app.routes.v1.privacy.PrivacyService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
-            mock_service.get_privacy_statistics.return_value = {
-                "total_users": 100,
-                "active_users": 95,
-                "search_history_records": 500,
-                "bookings_with_pii": 200,
-            }
+            mock_service.get_privacy_statistics.return_value = PrivacyStatistics(
+                total_users=100,
+                active_users=95,
+                search_history_records=500,
+                search_event_records=1000,
+                total_bookings=200,
+            )
 
             response = client.get("/api/v1/privacy/statistics", headers=headers)
 
@@ -168,6 +171,8 @@ class TestPrivacyEndpoints:
 
     def test_apply_retention_policies_success(self, client, sample_admin_for_privacy, db):
         """Test successful retention policy application (admin only)."""
+        from app.schemas.privacy import RetentionStats
+
         # Assign admin role with proper permissions
         permission_service = PermissionService(db)
         permission_service.assign_role(sample_admin_for_privacy.id, RoleName.ADMIN)
@@ -180,11 +185,10 @@ class TestPrivacyEndpoints:
         with patch("app.routes.v1.privacy.PrivacyService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
-            mock_service.apply_retention_policies.return_value = {
-                "search_events_deleted": 50,
-                "old_bookings_anonymized": 10,
-                "old_alerts_deleted": 25,
-            }
+            mock_service.apply_retention_policies.return_value = RetentionStats(
+                search_events_deleted=50,
+                old_bookings_anonymized=10,
+            )
 
             response = client.post("/api/v1/privacy/retention/apply", headers=headers)
 

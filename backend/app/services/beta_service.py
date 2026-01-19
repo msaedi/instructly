@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import os
-import random
+import secrets
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -79,7 +79,7 @@ def build_welcome_url(code: str, email: Optional[str], base_override: str | None
 
 
 def generate_code(length: int = 8) -> str:
-    return "".join(random.choice(ALPHABET) for _ in range(length))
+    return "".join(secrets.choice(ALPHABET) for _ in range(length))
 
 
 class BetaService(BaseService):

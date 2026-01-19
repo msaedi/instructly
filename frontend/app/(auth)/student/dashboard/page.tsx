@@ -19,7 +19,7 @@ import { RoleName } from '@/types/enums';
 import { fetchAPI, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { toast } from 'sonner';
 import { favoritesApi } from '@/services/api/favorites';
-import type { FavoritesListResponse } from '@/features/shared/api/types';
+import type { ApiErrorResponse, FavoritesListResponse, components } from '@/features/shared/api/types';
 import { getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { StudentBadgesSection } from '@/features/student/badges/StudentBadgesSection';
 import RewardsPanel from '@/features/referrals/RewardsPanel';
@@ -31,6 +31,7 @@ import { usePhoneVerification } from '@/features/shared/hooks/usePhoneVerificati
 type SavedAddress = {
   id: string;
   label?: string;
+  custom_label?: string;
   street_1?: string;
   street_2?: string;
   city?: string;
@@ -458,7 +459,9 @@ function StudentDashboardContent() {
                       {!isLoadingAddresses && (addresses || []).map((a) => (
                         <div key={a.id} className="rounded-xl border border-gray-200 p-4 hover:shadow-sm transition-shadow">
                           <p className="font-medium text-gray-900">
-                            {(a.label ? a.label.charAt(0).toUpperCase() + a.label.slice(1) : 'Address')} {a.is_default ? '(Default)' : ''}
+                            {(a.label === 'other'
+                              ? (a.custom_label || 'Other')
+                              : (a.label ? a.label.charAt(0).toUpperCase() + a.label.slice(1) : 'Address'))} {a.is_default ? '(Default)' : ''}
                           </p>
                           <p className="text-sm text-gray-600">
                             {[a.street_1, a.street_2].filter(Boolean).join(', ')}{[a.city, a.state].some(Boolean) ? `, ${[a.city, a.state].filter(Boolean).join(', ')}` : ''}{a.zip_code ? `, ${a.zip_code}` : ''}
@@ -1455,9 +1458,10 @@ export default function StudentDashboard() {
   );
 }
 
-function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'edit'; address?: SavedAddress; onClose: () => void; onSaved: () => void }) {
+export function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'edit'; address?: SavedAddress; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     label: address?.label || 'home',
+    custom_label: (address as Record<string, unknown>)?.['custom_label'] as string || '',
     street_line1: (address as Record<string, unknown>)?.['street_line1'] as string || '',
     street_line2: (address as Record<string, unknown>)?.['street_line2'] as string || '',
     locality: (address as Record<string, unknown>)?.['locality'] as string || '',
@@ -1468,11 +1472,12 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
     place_id: '',
   });
   const [query, setQuery] = useState('');
-  type PlaceSuggestion = { place_id: string; provider?: string; description?: string; text?: string };
+  type PlaceSuggestion = components['schemas']['PlaceSuggestion'];
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const suppressAutocompleteRef = useRef(false);
+  const customLabelMissing = form.label === 'other' && !form.custom_label.trim();
 
   const scheduleAutocomplete = (value: string) => {
     if (!value) {
@@ -1491,8 +1496,8 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
           `/api/v1/addresses/places/autocomplete?q=${encodeURIComponent(value)}`,
         );
         if (!res.ok) return;
-        const data = await res.json();
-        setSuggestions(data.items || []);
+        const data = (await res.json()) as components['schemas']['AutocompleteResponse'];
+        setSuggestions(data.items);
       } catch {}
     }, 250);
   };
@@ -1504,9 +1509,25 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
   };
 
   const save = async () => {
+    if (customLabelMissing) {
+      toast.error('Please add a custom label for "Other".', {
+        style: {
+          background: '#fbbf24',
+          color: '#000000',
+          border: 'none',
+        },
+      });
+      return;
+    }
     setLoading(true);
     try {
-      const payload = { ...form } as Record<string, unknown>;
+      const payload = {
+        ...form,
+        custom_label: form.custom_label.trim(),
+      } as Record<string, unknown>;
+      if (form.label !== 'other') {
+        delete payload['custom_label'];
+      }
       // Trim empty strings
       Object.keys(payload).forEach((k) => { if (payload[k] === '') delete payload[k]; });
       const endpoint = mode === 'create' ? '/api/v1/addresses/me' : `/api/v1/addresses/me/${address?.id}`;
@@ -1517,8 +1538,32 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        const errorMessage = errorData?.detail || errorData?.message || 'Failed to save address';
+        const errorData = (await res.json().catch(() => null)) as unknown;
+        const errorMessage = (() => {
+          if (!errorData || typeof errorData !== 'object') return 'Failed to save address';
+          const detail = (errorData as { detail?: unknown }).detail;
+          if (typeof detail === 'string') return detail;
+          if (Array.isArray(detail) && detail.length > 0) {
+            const first = detail[0];
+            if (typeof first === 'string') return first;
+            if (first && typeof first === 'object') {
+              const msg = (first as { msg?: unknown }).msg;
+              if (typeof msg === 'string') return msg;
+            }
+          }
+          const errors = (errorData as { errors?: unknown }).errors;
+          if (Array.isArray(errors) && errors.length > 0) {
+            const first = errors[0];
+            if (typeof first === 'string') return first;
+            if (first && typeof first === 'object') {
+              const msg = (first as { msg?: unknown }).msg;
+              if (typeof msg === 'string') return msg;
+            }
+          }
+          const message = (errorData as { message?: unknown }).message;
+          if (typeof message === 'string') return message;
+          return 'Failed to save address';
+        })();
         toast.error(errorMessage, {
           style: {
             background: '#fbbf24',
@@ -1563,7 +1608,7 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Label</label>
-              <select className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })}>
+              <select className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200" value={form.label} onChange={(e) => setForm((prev) => ({ ...prev, label: e.target.value, custom_label: e.target.value === 'other' ? prev.custom_label : '' }))}>
                 <option value="home">Home</option>
                 <option value="work">Work</option>
                 <option value="other">Other</option>
@@ -1574,6 +1619,21 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
               <label htmlFor="is_default" className="text-sm text-gray-700">Set as default</label>
             </div>
           </div>
+          {form.label === 'other' && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Custom label</label>
+              <input
+                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+                placeholder="e.g., Parent, Studio, School"
+                value={form.custom_label}
+                onChange={(e) => setForm({ ...form, custom_label: e.target.value })}
+                aria-invalid={customLabelMissing}
+              />
+              {customLabelMissing && (
+                <p className="mt-1 text-xs text-red-600">Custom label is required for “Other”.</p>
+              )}
+            </div>
+          )}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Address</label>
             <input
@@ -1596,18 +1656,18 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
                           `/api/v1/addresses/places/details?place_id=${encodeURIComponent(s.place_id)}${providerQuery}`,
                         );
                         if (res.ok) {
-                          const d = (await res.json()) as Record<string, unknown>;
-                          const street = [d['street_number'], d['street_name']].filter(Boolean).join(' ');
+                          const d = (await res.json()) as components['schemas']['PlaceDetails'];
+                          const street = [d.street_number, d.street_name].filter(Boolean).join(' ');
                           setForm((prev) => ({
                             ...prev,
                             place_id: s.place_id,
                             street_line1: street || prev.street_line1,
-                            locality: (d['city'] as string) || prev.locality,
-                            administrative_area: (d['state'] as string) || prev.administrative_area,
-                            postal_code: (d['postal_code'] as string) || prev.postal_code,
+                            locality: d.city || prev.locality,
+                            administrative_area: d.state || prev.administrative_area,
+                            postal_code: d.postal_code || prev.postal_code,
                           }));
                           suppressAutocompleteRef.current = true;
-                          setQuery((d['formatted_address'] as string) || s.description || s.text || '');
+                          setQuery(d.formatted_address || s.description || s.text || '');
                         } else {
                           setForm((prev) => ({ ...prev, place_id: s.place_id }));
                           suppressAutocompleteRef.current = true;
@@ -1654,7 +1714,7 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
         </div>
         <div className="mt-5 flex justify-end gap-3">
           <button className="rounded-md border border-gray-200 px-4 py-2 text-sm" onClick={onClose} disabled={loading}>Cancel</button>
-          <button className={`rounded-md px-4 py-2 text-sm text-white ${loading ? 'bg-purple-300' : 'bg-[#7E22CE] hover:bg-[#7E22CE]'}`} onClick={save} disabled={loading}>
+          <button className={`rounded-md px-4 py-2 text-sm text-white ${loading || customLabelMissing ? 'bg-purple-300' : 'bg-[#7E22CE] hover:bg-[#7E22CE]'}`} onClick={save} disabled={loading || customLabelMissing}>
             {loading ? 'Saving…' : 'Save'}
           </button>
         </div>
@@ -1697,8 +1757,8 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
       });
       if (!delRes.ok) {
         try {
-          const body = await delRes.json();
-          if (delRes.status === 400 && body?.detail) {
+          const body = (await delRes.json().catch(() => ({}))) as ApiErrorResponse;
+          if (delRes.status === 400 && body.detail) {
             setError(body.detail);
           } else {
             setError('Failed to delete account. Please try again later.');
@@ -1821,14 +1881,14 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
+        const body = (await res.json().catch(() => ({}))) as ApiErrorResponse;
         logger.error('Profile update failed', new Error(String(res.status)), { body });
         setError(body.detail || 'Failed to update profile');
         setLoading(false);
         return;
       }
 
-      await res.json();
+      void ((await res.json()) as components['schemas']['AuthUserResponse']);
       logger.info('Profile update successful');
 
       toast.success('Profile updated successfully', {
@@ -1954,7 +2014,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
+        const body = (await res.json().catch(() => ({}))) as ApiErrorResponse;
         setError(body.detail || 'Failed to change password.');
         setSubmitting(false);
         return;

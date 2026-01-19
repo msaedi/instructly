@@ -259,8 +259,12 @@ async def register(
         try:
             invite_code = None
             metadata_obj = getattr(payload, "metadata", None)
-            if isinstance(metadata_obj, dict):
-                invite_code = metadata_obj.get("invite_code")
+            if metadata_obj is not None:
+                # Handle both dict (legacy) and Pydantic model (typed)
+                if isinstance(metadata_obj, dict):
+                    invite_code = metadata_obj.get("invite_code")
+                else:
+                    invite_code = getattr(metadata_obj, "invite_code", None)
             if invite_code:
                 svc = BetaService(db)
                 grant, reason, invite = await asyncio.to_thread(
@@ -532,7 +536,9 @@ async def login(
             cache_service=cache_service,
         )
 
-    return LoginResponse(access_token=access_token, token_type="bearer", requires_2fa=False)
+    from app.core.constants import BEARER_SCHEME
+
+    return LoginResponse(access_token=access_token, token_type=BEARER_SCHEME, requires_2fa=False)
 
 
 @router.post("/change-password", response_model=PasswordChangeResponse)

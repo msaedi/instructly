@@ -6,6 +6,7 @@ Repository helpers for audit_log persistence and querying.
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 from typing import Any, Optional, Sequence
 
 from sqlalchemy import Select, and_, func, select
@@ -13,6 +14,8 @@ from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
 from app.monitoring.prometheus_metrics import prometheus_metrics
+
+logger = logging.getLogger(__name__)
 
 
 class AuditRepository:
@@ -27,7 +30,7 @@ class AuditRepository:
         try:
             prometheus_metrics.record_audit_write(audit.entity_type, audit.action)
         except Exception:
-            pass
+            logger.debug("Non-fatal error ignored", exc_info=True)
         self.db.flush()
 
     def list(

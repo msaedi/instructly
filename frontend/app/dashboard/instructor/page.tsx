@@ -24,6 +24,9 @@ import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { useStripeConnectStatus } from '@/hooks/queries/useStripeConnectStatus';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/api/queryKeys';
+import type { ApiErrorResponse, components } from '@/features/shared/api/types';
+
+type InstantPayoutResponse = components['schemas']['InstantPayoutResponse'];
 
 /**
  * InstructorDashboard Component
@@ -455,11 +458,11 @@ export default function InstructorDashboard() {
               try {
                 const res = await fetchWithAuth('/api/v1/payments/connect/instant-payout', { method: 'POST' });
                 if (!res.ok) {
-                  const err = await res.json().catch(() => ({} as Record<string, unknown>));
-                  alert(`Instant payout failed: ${err.detail || res.statusText}`);
+                  const err = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+                  alert(`Instant payout failed: ${err.detail || err.message || res.statusText}`);
                   return;
                 }
-                const data = await res.json();
+                const data = (await res.json()) as InstantPayoutResponse;
                 alert(`Instant payout requested: ${data.payout_id || 'OK'}`);
               } catch {
                 alert('Instant payout request error');

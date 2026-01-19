@@ -129,8 +129,7 @@ def get_existing_reviews_for_bookings(
     try:
         setattr(service.db, "current_student_id", current_user.id)
     except Exception:
-        pass
-
+        logger.debug("Non-fatal error ignored", exc_info=True)
     owner_repo = BookingRepository(service.db)
     owned_ids = owner_repo.filter_owned_booking_ids(booking_ids, current_user.id)
     if not owned_ids:

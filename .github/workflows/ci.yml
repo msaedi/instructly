@@ -118,6 +118,9 @@ jobs:
         working-directory: frontend
         run: npm run typecheck:strict-all
 
+      - name: Ad-hoc type audit (Phase 3 guardrail)
+        run: ./frontend/scripts/audit-adhoc-types.sh --ci
+
       - name: Response-model strict audit (hard)
         run: python tools/audit_response_model_strict.py
 

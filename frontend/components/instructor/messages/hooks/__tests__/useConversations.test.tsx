@@ -402,6 +402,288 @@ describe('useConversations', () => {
       });
     });
   });
+
+  describe('message formatting edge cases', () => {
+    it('should handle conversations with no last_message', async () => {
+      const mockData = createMockConversationListResponse([
+        {
+          id: 'conv1',
+          other_user: { id: 'user1', first_name: 'NoMsg', last_initial: 'U' },
+          unread_count: 0,
+          last_message: null,
+          upcoming_booking_count: 0,
+          upcoming_bookings: [],
+          state: 'active',
+        },
+      ]);
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+      });
+
+      const { result } = renderHook(
+        () =>
+          useConversations({
+            currentUserId: 'instructor1',
+            isLoadingUser: false,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.conversations).toHaveLength(1);
+      });
+
+      expect(result.current.conversations[0]?.lastMessage).toBe('No messages yet');
+      expect(result.current.conversations[0]?.timestamp).toBe('');
+    });
+
+    it('should truncate long messages to 100 characters', async () => {
+      const longMessage = 'a'.repeat(150);
+      const mockData = createMockConversationListResponse([
+        {
+          id: 'conv1',
+          other_user: { id: 'user1', first_name: 'Long', last_initial: 'M' },
+          unread_count: 0,
+          last_message: {
+            content: longMessage,
+            created_at: '2024-01-01T12:00:00Z',
+            is_from_me: false,
+          },
+          upcoming_booking_count: 0,
+          upcoming_bookings: [],
+          state: 'active',
+        },
+      ]);
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+      });
+
+      const { result } = renderHook(
+        () =>
+          useConversations({
+            currentUserId: 'instructor1',
+            isLoadingUser: false,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.conversations).toHaveLength(1);
+      });
+
+      expect(result.current.conversations[0]?.lastMessage).toHaveLength(103); // 100 + '...'
+      expect(result.current.conversations[0]?.lastMessage).toMatch(/\.\.\.$/);
+    });
+
+    it('should extract booking IDs from upcoming_bookings', async () => {
+      const mockData = createMockConversationListResponse([
+        {
+          id: 'conv1',
+          other_user: { id: 'user1', first_name: 'Booked', last_initial: 'U' },
+          unread_count: 0,
+          last_message: null,
+          upcoming_booking_count: 2,
+          upcoming_bookings: [
+            { id: 'booking1', date: '2024-02-01', start_time: '10:00', service_name: 'Piano' },
+            { id: 'booking2', date: '2024-02-02', start_time: '11:00', service_name: 'Guitar' },
+          ],
+          next_booking: { id: 'booking1', date: '2024-02-01', start_time: '10:00', service_name: 'Piano' },
+          state: 'active',
+        },
+      ]);
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+      });
+
+      const { result } = renderHook(
+        () =>
+          useConversations({
+            currentUserId: 'instructor1',
+            isLoadingUser: false,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.conversations).toHaveLength(1);
+      });
+
+      expect(result.current.conversations[0]?.bookingIds).toEqual(['booking1', 'booking2']);
+      expect(result.current.conversations[0]?.primaryBookingId).toBe('booking1');
+    });
+
+    it('should handle null next_booking', async () => {
+      const mockData = createMockConversationListResponse([
+        {
+          id: 'conv1',
+          other_user: { id: 'user1', first_name: 'NoNext', last_initial: 'B' },
+          unread_count: 0,
+          last_message: null,
+          upcoming_booking_count: 0,
+          upcoming_bookings: [],
+          state: 'active',
+        },
+      ]);
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+      });
+
+      const { result } = renderHook(
+        () =>
+          useConversations({
+            currentUserId: 'instructor1',
+            isLoadingUser: false,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.conversations).toHaveLength(1);
+      });
+
+      expect(result.current.conversations[0]?.primaryBookingId).toBeNull();
+    });
+  });
+
+  describe('manual actions', () => {
+    it('should provide loadConversations that triggers refetch', async () => {
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(createMockConversationListResponse()),
+      });
+
+      const { result } = renderHook(
+        () =>
+          useConversations({
+            currentUserId: 'instructor1',
+            isLoadingUser: false,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Reset call count
+      (global.fetch as jest.Mock).mockClear();
+
+      // Call loadConversations
+      result.current.loadConversations();
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalled();
+      });
+    });
+
+    it('should provide no-op setConversations for backward compatibility', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(createMockConversationListResponse()),
+      });
+
+      const { result } = renderHook(
+        () =>
+          useConversations({
+            currentUserId: 'instructor1',
+            isLoadingUser: false,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Should be callable without error (no-op)
+      expect(() => {
+        result.current.setConversations([]);
+      }).not.toThrow();
+    });
+  });
+
+  describe('SSE message edited callback', () => {
+    it('should call invalidate on message edited event', async () => {
+      let capturedCallbacks: { onMessage?: () => void; onMessageEdited?: () => void } = {};
+
+      mockSubscribe.mockImplementation((_: string, callbacks: typeof capturedCallbacks) => {
+        capturedCallbacks = callbacks;
+        return () => {};
+      });
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(createMockConversationListResponse()),
+      });
+
+      renderHook(
+        () =>
+          useConversations({
+            currentUserId: 'instructor1',
+            isLoadingUser: false,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(mockSubscribe).toHaveBeenCalled();
+      });
+
+      // Clear fetch calls from initial load
+      (global.fetch as jest.Mock).mockClear();
+
+      // Simulate message edited event
+      if (capturedCallbacks.onMessageEdited) {
+        capturedCallbacks.onMessageEdited();
+      }
+
+      // The invalidate should trigger a refetch
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('null data handling', () => {
+    it('should handle null conversations array in response', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ conversations: null }),
+      });
+
+      const { result } = renderHook(
+        () =>
+          useConversations({
+            currentUserId: 'instructor1',
+            isLoadingUser: false,
+          }),
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.conversations).toEqual([]);
+      expect(result.current.totalUnread).toBe(0);
+    });
+  });
 });
 
 describe('useUpdateConversationState', () => {

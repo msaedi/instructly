@@ -38,7 +38,12 @@ import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 import { useStripeConnectStatus } from '@/hooks/queries/useStripeConnectStatus';
 import { useQuery } from '@tanstack/react-query';
 import { withApiBase } from '@/lib/apiBase';
+import type { ConversationListResponse } from '@/types/conversation';
 import { FoundingBadge } from '@/components/ui/FoundingBadge';
+import type { ApiErrorResponse, components } from '@/features/shared/api/types';
+
+type DashboardLinkResponse = components['schemas']['DashboardLinkResponse'];
+type InstantPayoutResponse = components['schemas']['InstantPayoutResponse'];
 
 type NeighborhoodSelection = { neighborhood_id: string; name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
@@ -214,14 +219,7 @@ export default function InstructorDashboardNew() {
       if (!response.ok) {
         throw new Error(`Failed to load conversations: ${response.status}`);
       }
-      return response.json() as Promise<{
-        conversations: Array<{
-          id: string;
-          unread_count: number;
-          last_message?: { content: string | null } | null;
-          other_user: { first_name: string; last_initial: string };
-        }>;
-      }>;
+      return response.json() as Promise<ConversationListResponse>;
     },
     // Poll so the badge updates when new messages arrive while the user sits on the dashboard
     refetchInterval: 10_000,
@@ -537,9 +535,7 @@ export default function InstructorDashboardNew() {
     }
     const selectionMap = new Map<string, NeighborhoodSelection>();
     for (const item of serviceAreaResponse.items) {
-      const rawId = item.neighborhood_id ?? item.id;
-      if (typeof rawId !== 'string' && typeof rawId !== 'number') continue;
-      const id = String(rawId);
+      const id = item.neighborhood_id;
       const rawName = typeof item?.name === 'string' ? item.name.trim() : '';
       selectionMap.set(id, { neighborhood_id: id, name: rawName || id });
     }
@@ -1296,11 +1292,11 @@ export default function InstructorDashboardNew() {
                         }
                         const dl = await fetchWithAuth('/api/v1/payments/connect/dashboard');
                         if (dl.ok) {
-                          const data = await dl.json();
+                          const data = (await dl.json()) as DashboardLinkResponse;
                           window.open(data.dashboard_url, '_blank');
                         } else {
-                          const err = await dl.json().catch(() => ({ detail: 'Unknown error' }));
-                          alert(`Unable to open Stripe dashboard: ${err.detail || dl.statusText}`);
+                          const err = (await dl.json().catch(() => ({}))) as ApiErrorResponse;
+                          alert(`Unable to open Stripe dashboard: ${err.detail || err.message || dl.statusText}`);
                         }
                       } catch {
                         alert('Unable to open Stripe dashboard right now.');
@@ -1315,11 +1311,11 @@ export default function InstructorDashboardNew() {
                       try {
                         const res = await fetchWithAuth('/api/v1/payments/connect/instant-payout', { method: 'POST' });
                         if (!res.ok) {
-                          const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
-                          alert(`Instant payout failed: ${err.detail || res.statusText}`);
+                          const err = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+                          alert(`Instant payout failed: ${err.detail || err.message || res.statusText}`);
                           return;
                         }
-                        const data = await res.json();
+                        const data = (await res.json()) as InstantPayoutResponse;
                         alert(`Instant payout requested: ${data.payout_id || 'OK'}`);
                       } catch {
                         alert('Instant payout request error');
@@ -1433,7 +1429,7 @@ export default function InstructorDashboardNew() {
           preferredTeaching={preferredTeachingLocations}
           preferredPublic={preferredPublicSpaces}
           onSave={handleAreasModalSave}
-          instructorProfile={instructorProfile as unknown as Record<string, unknown> | null}
+          instructorProfile={instructorProfile ?? null}
         />
       )}
       <Modal isOpen={showVerifyModal} onClose={() => setShowVerifyModal(false)} title="" size="xl">
@@ -1533,9 +1529,10 @@ export default function InstructorDashboardNew() {
                               size_bytes: f.size,
                               purpose: 'background_check',
                             });
+                            const uploadHeaders = signed.headers ?? {};
                             const putRes = await fetch(signed.upload_url, {
                               method: 'PUT',
-                              headers: signed.headers,
+                              headers: uploadHeaders,
                               body: f,
                             });
                             if (!putRes.ok) throw new Error('Upload failed');

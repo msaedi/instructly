@@ -111,6 +111,7 @@ class LocationEmbeddingService:
             try:
                 sim_val = float(similarity)
             except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
                 continue
             if sim_val < min_similarity:
                 continue

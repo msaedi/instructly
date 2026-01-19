@@ -28,6 +28,16 @@ from .base import BaseService
 from .device_tracking_service import DeviceTrackingService
 from .geolocation_service import GeolocationService
 
+
+def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
+    """Get attribute from dict or Pydantic model, with fallback default."""
+    if obj is None:
+        return default
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -178,15 +188,19 @@ class SearchHistoryService(BaseService):
                     {
                         "device": {
                             **browser_info.get("device", {}),
-                            "type": device_context.get(
-                                "device_type", browser_info.get("device", {}).get("type")
+                            "type": _get_attr(
+                                device_context,
+                                "device_type",
+                                browser_info.get("device", {}).get("type"),
                             ),
                         },
-                        "viewport": device_context.get("viewport_size"),
-                        "screen": device_context.get("screen_resolution"),
+                        "viewport": _get_attr(device_context, "viewport_size"),
+                        "screen": _get_attr(device_context, "screen_resolution"),
                         "connection": {
-                            "type": device_context.get("connection_type"),
-                            "effective_type": device_context.get("connection_effective_type"),
+                            "type": _get_attr(device_context, "connection_type"),
+                            "effective_type": _get_attr(
+                                device_context, "connection_effective_type"
+                            ),
                         },
                     }
                 )
@@ -226,11 +240,9 @@ class SearchHistoryService(BaseService):
                 "ip_address": None,  # Never store raw IP
                 "ip_address_hash": ip_hash,
                 "geo_data": geo_data,
-                "device_type": device_context.get("device_type") if device_context else None,
+                "device_type": _get_attr(device_context, "device_type"),
                 "browser_info": browser_info,
-                "connection_type": device_context.get("connection_type")
-                if device_context
-                else None,
+                "connection_type": _get_attr(device_context, "connection_type"),
                 "is_returning_user": is_returning,
                 "page_view_count": search_data.get("context", {}).get("page_view_count")
                 if search_data.get("context")
@@ -246,17 +258,18 @@ class SearchHistoryService(BaseService):
             # Persist observability top-N candidates if provided
             try:
                 if observability_candidates:
-                    # Normalize candidate payload keys
+                    # Normalize candidate payload keys (use module-level _get_attr helper)
                     normalized = []
                     for idx, c in enumerate(observability_candidates):
                         normalized.append(
                             {
-                                "position": int(c.get("position", idx + 1)),
-                                "service_catalog_id": c.get("service_catalog_id") or c.get("id"),
-                                "score": c.get("score"),
-                                "vector_score": c.get("vector_score"),
-                                "lexical_score": c.get("lexical_score"),
-                                "source": c.get("source", "hybrid"),
+                                "position": int(_get_attr(c, "position", idx + 1)),
+                                "service_catalog_id": _get_attr(c, "service_catalog_id")
+                                or _get_attr(c, "id"),
+                                "score": _get_attr(c, "score"),
+                                "vector_score": _get_attr(c, "vector_score"),
+                                "lexical_score": _get_attr(c, "lexical_score"),
+                                "source": _get_attr(c, "source", "hybrid"),
                             }
                         )
                     await asyncio.to_thread(

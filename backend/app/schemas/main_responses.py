@@ -4,10 +4,12 @@ from ._strict_base import StrictModel
 Response models for main application endpoints.
 
 These models ensure consistent API responses for root, health check,
-and performance monitoring endpoints.
+and readiness endpoints.
+
+Note: PerformanceMetricsResponse is in monitoring_responses.py (typed version).
 """
 
-from typing import Any, Dict, Literal
+from typing import Literal
 
 from pydantic import ConfigDict, Field
 
@@ -39,13 +41,6 @@ class HealthLiteResponse(StrictModel):
     """Response for lightweight health check endpoint."""
 
     status: str = Field(description="Health status (ok/error)")
-
-
-class PerformanceMetricsResponse(StrictModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    """Response for performance metrics endpoint."""
-
-    metrics: Dict[str, Any] = Field(description="Performance metrics data")
 
 
 class ReadyProbeResponse(StrictModel):

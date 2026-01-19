@@ -8,7 +8,7 @@ import asyncio
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import logging
-import random
+import secrets
 import time
 from typing import Any, Awaitable, Callable, Generator, TypeVar
 
@@ -237,12 +237,11 @@ def get_db_with_retry(max_attempts: int = 2) -> Generator[Session, None, None]:
                 try:
                     db.rollback()
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                 try:
                     db.close()
                 except Exception:
-                    pass
-
+                    logger.debug("Non-fatal error ignored", exc_info=True)
             # Check if this is a retryable error
             if attempt < max_attempts and _is_retryable_db_error(exc):
                 delay = _retry_delay(attempt)
@@ -266,11 +265,11 @@ def get_db_with_retry(max_attempts: int = 2) -> Generator[Session, None, None]:
                 try:
                     db.rollback()
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                 try:
                     db.close()
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
             raise
 
     # Should not reach here, but just in case
@@ -305,7 +304,9 @@ def _is_retryable_db_error(exc: OperationalError) -> bool:
 
 def _retry_delay(attempt: int) -> float:
     base = 0.1 * (2 ** (attempt - 1))
-    return base + random.uniform(0, 0.05 * attempt)
+    jitter_max_ms = int(0.05 * attempt * 1000)
+    jitter = secrets.randbelow(jitter_max_ms + 1) / 1000.0
+    return base + jitter
 
 
 def with_db_retry(op_name: str, func: Callable[[], T], *, max_attempts: int = 3) -> T:

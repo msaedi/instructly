@@ -17,6 +17,7 @@ TEST FAILURE ANALYSIS - test_bookings.py
 """
 
 from datetime import date, datetime, time, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
 from fastapi import status
@@ -660,6 +661,56 @@ class TestBookingRoutes:
         assert data["items"][0]["instructor_first_name"] == "Test"
         # Student viewing instructor's info - sees only initial
         assert data["items"][0]["instructor_last_name"] == "I"
+
+    def test_get_upcoming_bookings_cached_dict(
+        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service, test_student
+    ):
+        """Cached dict bookings should still render correctly."""
+        booking_date = date.today() + timedelta(days=1)
+        price_with_amount = SimpleNamespace(amount="42.50")
+
+        booking_full = {
+            "id": generate_ulid(),
+            "student_id": test_student.id,
+            "instructor_id": generate_ulid(),
+            "booking_date": booking_date,
+            "start_time": time(9, 0),
+            "end_time": time(10, 0),
+            "service_name": "Guitar Basics",
+            "total_price": price_with_amount,
+            "meeting_location": "Studio",
+            "student": {"first_name": "Test", "last_name": "Student"},
+            "instructor": {"first_name": "Pat", "last_name": "Instructor"},
+        }
+        booking_initial = {
+            "id": generate_ulid(),
+            "student_id": generate_ulid(),
+            "instructor_id": generate_ulid(),
+            "booking_date": booking_date,
+            "start_time": time(11, 0),
+            "end_time": time(12, 0),
+            "service_name": "Piano",
+            "total_price": SimpleNamespace(amount="bad"),
+            "meeting_location": "Room 2",
+            "student": {"first_name": "Other", "last_name": "Learner"},
+            "instructor": {"first_name": "Sam", "last_name": "Teacher"},
+        }
+
+        mock_booking_service.get_bookings_for_user.return_value = [
+            booking_full,
+            booking_initial,
+        ]
+
+        response = client_with_mock_booking_service.get("/api/v1/bookings/upcoming", headers=auth_headers_student)
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["total"] == 2
+        assert data["items"][0]["total_price"] == 42.5
+        assert data["items"][0]["student_last_name"] == "Student"
+        assert data["items"][0]["instructor_last_name"] == "I"
+        assert data["items"][1]["total_price"] == 0.0
+        assert data["items"][1]["student_last_name"] == "L"
 
     def test_get_booking_preview(self, client_with_mock_booking_service, auth_headers_student, mock_booking_service):
         """Test getting booking preview."""

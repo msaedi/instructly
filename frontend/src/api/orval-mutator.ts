@@ -116,7 +116,7 @@ export async function customFetch<
     try {
       const contentType = response.headers.get('content-type');
       if (contentType?.includes('application/json')) {
-        errorData = await response.json();
+        errorData = (await response.json()) as unknown;
       } else {
         errorData = await response.text();
       }
@@ -137,7 +137,7 @@ export async function customFetch<
     }
 
     // Throw with consistent error structure
-    interface ErrorWithResponse extends Error {
+    interface FetchErrorWithContext extends Error {
       response: Response;
       status: number;
       data: unknown;
@@ -147,7 +147,7 @@ export async function customFetch<
       typeof errorData === 'object' && errorData && 'detail' in errorData
         ? String((errorData as { detail: unknown }).detail)
         : `HTTP ${response.status}: ${response.statusText}`
-    ) as ErrorWithResponse;
+    ) as FetchErrorWithContext;
     error.response = response;
     error.status = response.status;
     error.data = errorData;
@@ -162,7 +162,7 @@ export async function customFetch<
   // Parse JSON response
   const contentType = response.headers.get('content-type');
   if (contentType?.includes('application/json')) {
-    const jsonResponse = await response.json();
+    const jsonResponse = (await response.json()) as TResponse;
     // [MSG-DEBUG] Log successful messaging response data preview
     if (isMessaging) {
       logger.debug('[MSG-DEBUG] API Response Data', {

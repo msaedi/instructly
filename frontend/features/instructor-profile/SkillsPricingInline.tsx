@@ -11,9 +11,7 @@ import { evaluatePriceFloorViolations, formatCents, type FloorViolation } from '
 import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/queries/useServices';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
-
-type CatalogService = { id: string; name: string };
-type ServiceCategory = { slug: string; name: string };
+import type { ApiErrorResponse, CategoryServiceDetail, InstructorProfileResponse, ServiceCategory } from '@/features/shared/api/types';
 
 type SelectedService = {
   catalog_service_id: string;
@@ -31,17 +29,12 @@ type SelectedService = {
 interface Props {
   className?: string;
   /** Pre-fetched instructor profile to avoid duplicate API calls */
-  instructorProfile?: {
-    is_live?: boolean;
-    is_founding_instructor?: boolean;
-    current_tier_pct?: number | null;
-    services?: unknown[];
-  } | null;
+  instructorProfile?: InstructorProfileResponse | null;
 }
 
 export default function SkillsPricingInline({ className, instructorProfile }: Props) {
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
-  const [servicesByCategory, setServicesByCategory] = useState<Record<string, CatalogService[]>>({});
+  const [servicesByCategory, setServicesByCategory] = useState<Record<string, CategoryServiceDetail[]>>({});
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   const [svcLoading, setSvcLoading] = useState(false);
@@ -66,7 +59,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   const profileFeeContext = useMemo(() => {
     const profileData = instructorProfile ?? profileFromHook;
     const record = profileData as Record<string, unknown> | null;
-    const currentTierRaw = record?.['current_tier_pct'];
+    const currentTierRaw = record?.['current_tier_pct'] ?? record?.['instructor_tier_pct'];
     const currentTierPct =
       typeof currentTierRaw === 'number' && Number.isFinite(currentTierRaw) ? currentTierRaw : null;
     return {
@@ -119,15 +112,11 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
 
   useEffect(() => {
     if (allServicesData) {
-      const map: Record<string, CatalogService[]> = {};
-      for (const c of allServicesData.categories.filter(
-        (category: { slug: string; services: unknown[] }) => category.slug !== 'kids',
-      )) {
-        const deduped = Array.from(
-          new Map(
-            (c.services as CatalogService[]).map((svc) => [svc.id, svc]),
-          ).values(),
-        );
+      const map: Record<string, CategoryServiceDetail[]> = {};
+      const categories = allServicesData.categories ?? [];
+      for (const c of categories.filter((category) => category.slug !== 'kids')) {
+        const services = c.services ?? [];
+        const deduped = Array.from(new Map(services.map((svc) => [svc.id, svc])).values());
         map[c.slug] = deduped;
       }
       setServicesByCategory(map);
@@ -247,7 +236,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     setSelectedServices((prev) => prev.filter((s) => s.catalog_service_id !== catalogServiceId));
   }, [canRemoveSkill, profileLoaded, isInstructorLive, selectedServices.length]);
 
-  const toggleServiceSelection = (svc: CatalogService) => {
+  const toggleServiceSelection = (svc: CategoryServiceDetail) => {
     setSelectedServices((prev) => {
       const exists = prev.some((s) => s.catalog_service_id === svc.id);
       if (exists) {
@@ -361,8 +350,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const msg = await res.json().catch(() => ({} as Record<string, unknown>));
-        throw new Error((msg as { detail?: string }).detail || 'Failed to save');
+        const msg = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+        throw new Error(msg.detail || msg.message || 'Failed to save');
       }
       setError('');
     } catch (e: unknown) {

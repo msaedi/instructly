@@ -92,6 +92,7 @@ export function useMessageThread({
   const lastHistoryAppliedRef = useRef<string | null>(null);
   const lastSeenTimestampRef = useRef<Map<string, number>>(new Map());
   const staleThreadsRef = useRef<Set<string>>(new Set());
+  const sendInFlightRef = useRef(false);
 
   // Refs for current state access in callbacks
   const messagesByThreadRef = useRef<Record<string, MessageWithAttachments[]>>({});
@@ -422,131 +423,150 @@ export function useMessageThread({
 
     const shouldUpdateVisibleThread = switchingFromCompose || targetThreadId === selectedChat;
 
-    // Create optimistic message
-    const optimisticId = `local-${Date.now()}`;
-    const optimistic: MessageWithAttachments = {
-      id: optimisticId,
-      text: trimmed,
-      sender: 'instructor',
-      timestamp: 'Just now',
-      delivery: { status: 'sending' },
-      isArchived: false,
-      createdAt: new Date().toISOString(),
-      senderId: currentUserId,
-    };
-
-    // Add attachments if any
-    if (hasAttachments) {
-      const attachmentPayload: MessageAttachment[] = pendingAttachments.map((file) => ({
-        name: file.name,
-        type: file.type,
-        dataUrl: '',
-      }));
-      optimistic.attachments = attachmentPayload;
-    }
-
-    // Update local state optimistically
-    const existingThread = messagesByThreadRef.current[targetThreadId] || [];
-    const updatedThread = [...existingThread, optimistic];
-
-    setMessagesByThread((prev) => ({ ...prev, [targetThreadId]: updatedThread }));
-    if (shouldUpdateVisibleThread) {
-      setThreadMessages(updatedThread);
-    }
-
-    // Update conversation list
-    setConversations((prev) => {
-      let found = false;
-      const mapped = prev.map((c) => {
-        if (c.id !== targetThreadId) return c;
-        found = true;
-        return {
-          ...c,
-          lastMessage: trimmed || (hasAttachments ? `Sent ${pendingAttachments.length} attachment(s)` : c.lastMessage),
-          timestamp: 'Just now',
-          unread: 0,
-          latestMessageAt: Date.now(),
-        };
-      });
-
-      const nextList = found
-        ? mapped
-        : [
-            ...mapped,
-            {
-              id: targetThreadId,
-              name: composeRecipient?.name ?? 'Conversation',
-              lastMessage: trimmed,
-              timestamp: 'Just now',
-              unread: 0,
-              avatar: composeRecipient?.avatar ?? '??',
-              type: 'student' as const,
-              bookingIds: composeRecipient?.bookingIds ?? [],
-              primaryBookingId: composeRecipient?.primaryBookingId ?? null,
-              studentId: composeRecipient?.studentId ?? null,
-              instructorId: composeRecipient?.instructorId ?? currentUserId,
-              latestMessageAt: Date.now(),
-              latestMessageId: optimisticId,
-            },
-          ];
-
-      return nextList.sort((a, b) => b.latestMessageAt - a.latestMessageAt);
-    });
-
-    // Send to server
-    let resolvedServerId: string | undefined;
-    let deliveredAtFromBackend: string | null = null;
-    const optimisticTimestamp = new Date().getTime();
-    updateLastSeenTimestamp(targetThreadId, optimisticTimestamp);
+    if (sendInFlightRef.current) return;
+    sendInFlightRef.current = true;
 
     try {
-      const composedForServer =
-        trimmed ||
-        (hasAttachments
-          ? pendingAttachments.map((file) => `[Attachment] ${file.name}`).join("\n")
-          : "");
-      const res = await sendConversationMessage(
-        targetThreadId,
-        composedForServer,
-        getPrimaryBookingId(targetThreadId) || undefined
-      );
-      resolvedServerId = res?.id ?? undefined;
-      deliveredAtFromBackend = null;
-    } catch (error) {
-      logger.warn('Failed to persist instructor message', { error });
+      // Create optimistic message
+      const optimisticId = `local-${Date.now()}`;
+      const optimistic: MessageWithAttachments = {
+        id: optimisticId,
+        text: trimmed,
+        sender: 'instructor',
+        timestamp: 'Just now',
+        delivery: { status: 'sending' },
+        isArchived: false,
+        createdAt: new Date().toISOString(),
+        senderId: currentUserId,
+      };
+
+      // Add attachments if any
+      if (hasAttachments) {
+        const attachmentPayload: MessageAttachment[] = pendingAttachments.map((file) => ({
+          name: file.name,
+          type: file.type,
+          dataUrl: '',
+        }));
+        optimistic.attachments = attachmentPayload;
+      }
+
+      // Update local state optimistically
+      const existingThread = messagesByThreadRef.current[targetThreadId] || [];
+      const updatedThread = [...existingThread, optimistic];
+
+      setMessagesByThread((prev) => ({ ...prev, [targetThreadId]: updatedThread }));
+      if (shouldUpdateVisibleThread) {
+        setThreadMessages(updatedThread);
+      }
+
+      // Update conversation list
+      setConversations((prev) => {
+        let found = false;
+        const mapped = prev.map((c) => {
+          if (c.id !== targetThreadId) return c;
+          found = true;
+          return {
+            ...c,
+            lastMessage:
+              trimmed ||
+              (hasAttachments ? `Sent ${pendingAttachments.length} attachment(s)` : c.lastMessage),
+            timestamp: 'Just now',
+            unread: 0,
+            latestMessageAt: Date.now(),
+          };
+        });
+
+        const nextList = found
+          ? mapped
+          : [
+              ...mapped,
+              {
+                id: targetThreadId,
+                name: composeRecipient?.name ?? 'Conversation',
+                lastMessage: trimmed,
+                timestamp: 'Just now',
+                unread: 0,
+                avatar: composeRecipient?.avatar ?? '??',
+                type: 'student' as const,
+                bookingIds: composeRecipient?.bookingIds ?? [],
+                primaryBookingId: composeRecipient?.primaryBookingId ?? null,
+                studentId: composeRecipient?.studentId ?? null,
+                instructorId: composeRecipient?.instructorId ?? currentUserId,
+                latestMessageAt: Date.now(),
+                latestMessageId: optimisticId,
+              },
+            ];
+
+        return nextList.sort((a, b) => b.latestMessageAt - a.latestMessageAt);
+      });
+
+      // Send to server
+      let resolvedServerId: string | undefined;
+      let deliveredAtFromBackend: string | null = null;
+      const optimisticTimestamp = new Date().getTime();
+      updateLastSeenTimestamp(targetThreadId, optimisticTimestamp);
+
+      try {
+        const composedForServer =
+          trimmed ||
+          (hasAttachments
+            ? pendingAttachments.map((file) => `[Attachment] ${file.name}`).join("\n")
+            : "");
+        const res = await sendConversationMessage(
+          targetThreadId,
+          composedForServer,
+          getPrimaryBookingId(targetThreadId) || undefined
+        );
+        resolvedServerId = res?.id ?? undefined;
+        deliveredAtFromBackend = null;
+      } catch (error) {
+        logger.warn('Failed to persist instructor message', { error });
+      }
+
+      // Update with delivered status
+      const deliveredAtIso = new Date().toISOString();
+      const deliveredAt = new Date(deliveredAtIso).toLocaleTimeString([], {
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+      const deliveredMessage: MessageWithAttachments = {
+        ...optimistic,
+        id: resolvedServerId ?? optimisticId,
+        delivery: { status: 'delivered', timeLabel: deliveredAt },
+        // Add delivered_at field (use backend value if available, otherwise now)
+        delivered_at: deliveredAtFromBackend ?? deliveredAtIso,
+      };
+
+      const applyDeliveryUpdate = (collection: MessageWithAttachments[]): MessageWithAttachments[] => {
+        if (!collection || collection.length === 0) return [deliveredMessage];
+        const hasMatch = collection.some(
+          (m) => m.id === optimisticId || (resolvedServerId && m.id === resolvedServerId)
+        );
+        if (!hasMatch) return [...collection, deliveredMessage];
+        return collection.map((m): MessageWithAttachments =>
+          m.id === optimisticId || (resolvedServerId && m.id === resolvedServerId)
+            ? {
+                ...m,
+                id: deliveredMessage.id,
+                delivery: deliveredMessage.delivery,
+                delivered_at: deliveredMessage.delivered_at,
+              }
+            : m
+        );
+      };
+
+      if (shouldUpdateVisibleThread) {
+        setThreadMessages((prev) => applyDeliveryUpdate(prev));
+      }
+      setMessagesByThread((prev) => ({
+        ...prev,
+        [targetThreadId]: applyDeliveryUpdate(prev[targetThreadId] || []),
+      }));
+
+      onSuccess(targetThreadId, switchingFromCompose);
+    } finally {
+      sendInFlightRef.current = false;
     }
-
-    // Update with delivered status
-    const deliveredAtIso = new Date().toISOString();
-    const deliveredAt = new Date(deliveredAtIso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    const deliveredMessage: MessageWithAttachments = {
-      ...optimistic,
-      id: resolvedServerId ?? optimisticId,
-      delivery: { status: 'delivered', timeLabel: deliveredAt },
-      // Add delivered_at field (use backend value if available, otherwise now)
-      delivered_at: deliveredAtFromBackend ?? deliveredAtIso,
-    };
-
-    const applyDeliveryUpdate = (collection: MessageWithAttachments[]): MessageWithAttachments[] => {
-      if (!collection || collection.length === 0) return [deliveredMessage];
-      const hasMatch = collection.some((m) => m.id === optimisticId || (resolvedServerId && m.id === resolvedServerId));
-      if (!hasMatch) return [...collection, deliveredMessage];
-      return collection.map((m): MessageWithAttachments =>
-        m.id === optimisticId || (resolvedServerId && m.id === resolvedServerId)
-          ? { ...m, id: deliveredMessage.id, delivery: deliveredMessage.delivery, delivered_at: deliveredMessage.delivered_at }
-          : m
-      );
-    };
-
-    if (shouldUpdateVisibleThread) {
-      setThreadMessages((prev) => applyDeliveryUpdate(prev));
-    }
-    setMessagesByThread((prev) => ({
-      ...prev,
-      [targetThreadId]: applyDeliveryUpdate(prev[targetThreadId] || []),
-    }));
-
-    onSuccess(targetThreadId, switchingFromCompose);
   }, [currentUserId, setConversations, updateLastSeenTimestamp]);
 
   // Archive conversation - moves all active messages to archived

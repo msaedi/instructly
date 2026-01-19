@@ -22,12 +22,16 @@ logger = logging.getLogger(__name__)
 
 
 def _derive_fallback_key() -> bytes:
-    secret = ""
+    from app.core.constants import BRAND_NAME
+
+    seed = None
     try:
-        secret = settings.secret_key.get_secret_value()
+        seed = settings.secret_key.get_secret_value()
     except Exception:
-        secret = "local-default-secret"
-    digest = hashlib.sha256(secret.encode("utf-8")).digest()
+        seed = None
+    if not seed:
+        seed = f"{BRAND_NAME}-fallback"
+    digest = hashlib.sha256(seed.encode("utf-8")).digest()
     return base64.urlsafe_b64encode(digest)
 
 
@@ -198,6 +202,7 @@ class TwoFactorAuthService(BaseService):
                             # repo-pattern-ignore: commit handled by BaseService.transaction context manager
                         return True
                 except Exception:
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                     continue
         return False
 

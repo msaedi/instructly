@@ -1,4 +1,10 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(head:*)",
+      "Bash(comm:*)"
+    ]
+  },
   "enabledPlugins": {
     "commit-commands@claude-plugins-official": true,
     "feature-dev@claude-plugins-official": true,

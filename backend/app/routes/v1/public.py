@@ -202,7 +202,8 @@ def create_guest_session(
     return GuestSessionResponse(guest_id=guest_id)
 
 
-@router.post("/logout")
+# openapi-exempt: 204 No Content - no response body
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 def public_logout(response_obj: Response, request: Request) -> Response:
     """Clear known session cookies. Public to support cross-origin preview logout.
 
@@ -359,7 +360,7 @@ async def get_instructor_public_availability(
                 # Generate ETag for cached response
                 response_json = response_data.model_dump_json(exclude_none=True)
                 etag_data = f"{instructor_id}:{start_date}:{end_date}:{response_json}"
-                etag_hash = hashlib.md5(etag_data.encode()).hexdigest()
+                etag_hash = hashlib.md5(etag_data.encode(), usedforsecurity=False).hexdigest()
                 etag = f'W/"{etag_hash}"'
 
                 # Check If-None-Match for 304 response
@@ -554,7 +555,11 @@ async def get_instructor_public_availability(
             response_data.earliest_available_date = earliest_date
 
     # At this point, we have freshly computed response_data (cache miss path)
-    assert response_data is not None
+    if response_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to build availability response",
+        )
 
     # Use model_dump_json with exclude_none to keep responses clean
     response_json = response_data.model_dump_json(exclude_none=True)
@@ -562,7 +567,7 @@ async def get_instructor_public_availability(
     # Generate ETag based on response content
     # Include instructor_id, date range, and response data in the hash
     etag_data = f"{instructor_id}:{start_date}:{end_date}:{response_json}"
-    etag_hash = hashlib.md5(etag_data.encode()).hexdigest()
+    etag_hash = hashlib.md5(etag_data.encode(), usedforsecurity=False).hexdigest()
     etag = f'W/"{etag_hash}"'  # Weak ETag as content may vary slightly
 
     # Check If-None-Match header for conditional requests
@@ -747,7 +752,6 @@ async def send_referral_invites(
             try:
                 error_details.append(ReferralSendError(email=to_email, error=str(e)))
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
     logger.info(f"[Referrals] Completed: sent={sent} failed={failures}")
     return ReferralSendResponse(status="ok", sent=sent, failed=failures, errors=error_details)

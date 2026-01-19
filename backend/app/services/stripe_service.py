@@ -143,7 +143,7 @@ class StripeService(BaseService):
                     stripe.verify_ssl_certs = True
                 except Exception:
                     # Non-fatal if client customization isn't available
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                 self.stripe_configured = True
                 self.logger.info("Stripe service configured successfully")
             else:
@@ -542,7 +542,7 @@ class StripeService(BaseService):
             try:
                 booking_service.invalidate_booking_cache(booking)
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             try:
                 service_name = "Lesson"
                 if booking.instructor_service and booking.instructor_service.name:
@@ -556,14 +556,12 @@ class StripeService(BaseService):
                     start_time=booking.start_time,
                 )
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
             if not was_confirmed:
                 try:
                     booking_service.send_booking_notifications_after_confirmation(booking.id)
                 except Exception:
-                    pass
-
+                    logger.debug("Non-fatal error ignored", exc_info=True)
         client_secret = (
             payment_result.get("client_secret")
             if payment_result.get("status") in ["requires_action", "requires_confirmation"]
@@ -1175,8 +1173,8 @@ class StripeService(BaseService):
                     review_tip_repo=tip_repo,
                 )
             except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
                 continue
-
             instructor = booking.instructor
             instructor_name = "Instructor"
             if instructor and instructor.last_name:
@@ -1285,8 +1283,7 @@ class StripeService(BaseService):
                     },
                 )
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
             self.logger.info(
                 "Issued top-up transfer",
                 extra={
@@ -1860,8 +1857,8 @@ class StripeService(BaseService):
                         ):
                             latest = s
                 except Exception:
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                     continue
-
             if not latest:
                 return {"status": "not_found"}
 
@@ -2069,8 +2066,7 @@ class StripeService(BaseService):
                     },
                 )
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
             self.logger.info(
                 f"Created Stripe Express account {stripe_account.id} for instructor {instructor_profile_id}"
             )
@@ -2273,8 +2269,7 @@ class StripeService(BaseService):
                     account_record.onboarding_completed = computed_completed
                 except Exception:
                     # Non-fatal if persistence fails; return live-computed status
-                    pass
-
+                    logger.debug("Non-fatal error ignored", exc_info=True)
             return {
                 "has_account": True,
                 "onboarding_completed": computed_completed,
@@ -2381,18 +2376,16 @@ class StripeService(BaseService):
                             "metadata_applied_credit_cents": metadata_applied_credit_cents,
                         }
                         self.logger.debug("stripe.pi.preview_parity", parity_snapshot)
-                        assert (
-                            metadata_student_pay_cents == ctx.student_pay_cents
-                        ), "PaymentIntent amount mismatch preview student pay"
-                        assert (
-                            metadata_base_price_cents == ctx.base_price_cents
-                        ), "PaymentIntent base price mismatch preview"
-                        assert (
-                            metadata_student_fee_cents == ctx.student_fee_cents
-                        ), "PaymentIntent student fee mismatch preview"
-                        assert (
-                            metadata_applied_credit_cents == ctx.applied_credit_cents
-                        ), "PaymentIntent credit mismatch preview"
+                        if metadata_student_pay_cents != ctx.student_pay_cents:
+                            raise ServiceException(
+                                "PaymentIntent amount mismatch preview student pay"
+                            )
+                        if metadata_base_price_cents != ctx.base_price_cents:
+                            raise ServiceException("PaymentIntent base price mismatch preview")
+                        if metadata_student_fee_cents != ctx.student_fee_cents:
+                            raise ServiceException("PaymentIntent student fee mismatch preview")
+                        if metadata_applied_credit_cents != ctx.applied_credit_cents:
+                            raise ServiceException("PaymentIntent credit mismatch preview")
             else:
                 if amount_cents is None:
                     raise ServiceException(
@@ -2544,8 +2537,7 @@ class StripeService(BaseService):
                         )
             except Exception:
                 # Repository might not have helper; ignore non-critical persistence issues
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return result
         except stripe.StripeError as e:
             self.logger.error(f"Stripe error creating manual authorization: {str(e)}")
@@ -2678,14 +2670,12 @@ class StripeService(BaseService):
                                 except (ValueError, TypeError):
                                     pass
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
             # Update stored payment status if present
             try:
                 self.payment_repository.update_payment_status(payment_intent_id, pi.status)
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
             if amount_received is None:
                 amount_received = getattr(pi, "amount_received", None)
                 if amount_received is None and hasattr(pi, "get"):
@@ -2756,8 +2746,7 @@ class StripeService(BaseService):
                             except (ValueError, TypeError):
                                 pass
         except Exception:
-            pass
-
+            logger.debug("Non-fatal error ignored", exc_info=True)
         if amount_received is None:
             amount_received = getattr(pi, "amount_received", None)
             if amount_received is None and hasattr(pi, "get"):
@@ -2839,8 +2828,7 @@ class StripeService(BaseService):
                     )
             except Exception:
                 # Do not fail the main flow for metrics issues
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return {"reversal": reversal}
         except stripe.StripeError as e:
             self.logger.error(f"Stripe error reversing transfer: {str(e)}")
@@ -2861,7 +2849,7 @@ class StripeService(BaseService):
             try:
                 self.payment_repository.update_payment_status(payment_intent_id, pi.status)
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return {"payment_intent": pi}
         except stripe.StripeError as e:
             self.logger.error(f"Stripe error canceling payment intent: {str(e)}")
@@ -2975,8 +2963,7 @@ class StripeService(BaseService):
             try:
                 self.payment_repository.update_payment_status(payment_intent_id, "refunded")
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
             self.logger.info(
                 f"Refund created for PI {payment_intent_id}: "
                 f"refund_id={refund.id}, amount={refund.amount}, "
@@ -3091,7 +3078,7 @@ class StripeService(BaseService):
                                 },
                             )
                         except Exception:
-                            pass
+                            logger.debug("Non-fatal error ignored", exc_info=True)
                         booking.payment_status = PaymentStatus.AUTHORIZED.value
                         booking.auth_attempted_at = datetime.now(timezone.utc)
                         booking.auth_failure_count = 0
@@ -3155,7 +3142,7 @@ class StripeService(BaseService):
                                     payment_record.stripe_payment_intent_id, stripe_intent.status
                                 )
                             except Exception:
-                                pass
+                                logger.debug("Non-fatal error ignored", exc_info=True)
                             booking.payment_status = PaymentStatus.AUTHORIZED.value
                             booking.auth_attempted_at = now
                             booking.auth_failure_count = 0
@@ -3188,8 +3175,7 @@ class StripeService(BaseService):
                                 },
                             )
                         except Exception:
-                            pass
-
+                            logger.debug("Non-fatal error ignored", exc_info=True)
             immediate_failed = immediate_auth and (
                 stripe_intent is None
                 or stripe_intent.status not in {"requires_capture", "succeeded"}
@@ -3200,8 +3186,7 @@ class StripeService(BaseService):
 
                     check_immediate_auth_timeout.apply_async(args=[booking_id], countdown=30 * 60)
                 except Exception:
-                    pass
-
+                    logger.debug("Non-fatal error ignored", exc_info=True)
             if immediate_auth:
                 requires_action = stripe_intent is not None and stripe_intent.status in [
                     "requires_action",
@@ -3697,7 +3682,7 @@ class StripeService(BaseService):
                     # If we had stored mapping transfer->booking, we would look it up. Fallback: log only.
                     self.logger.info(f"Transfer {transfer_id} reversed (amount={amount})")
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                 return True
 
             return False
@@ -3891,8 +3876,7 @@ class StripeService(BaseService):
                             },
                         )
                     except Exception:
-                        pass
-
+                        logger.debug("Non-fatal error ignored", exc_info=True)
                 try:
                     self.payment_repository.create_payment_event(
                         booking_id=booking.id,
@@ -3907,8 +3891,7 @@ class StripeService(BaseService):
                         },
                     )
                 except Exception:
-                    pass
-
+                    logger.debug("Non-fatal error ignored", exc_info=True)
         return True
 
     def _handle_dispute_closed(self, event: Dict[str, Any]) -> bool:
@@ -4001,7 +3984,7 @@ class StripeService(BaseService):
                                 },
                             )
                         except Exception:
-                            pass
+                            logger.debug("Non-fatal error ignored", exc_info=True)
                     credit_service.unfreeze_credits_for_booking(
                         booking_id=booking.id, use_transaction=False
                     )
@@ -4043,7 +4026,7 @@ class StripeService(BaseService):
                                 },
                             )
                         except Exception:
-                            pass
+                            logger.debug("Non-fatal error ignored", exc_info=True)
                     user_repo = RepositoryFactory.create_base_repository(self.db, User)
                     user = user_repo.get_by_id(booking.student_id)
                     if user:
@@ -4064,8 +4047,7 @@ class StripeService(BaseService):
                         },
                     )
                 except Exception:
-                    pass
-
+                    logger.debug("Non-fatal error ignored", exc_info=True)
         return True
 
     def _handle_payout_webhook(self, event: Dict[str, Any]) -> bool:
@@ -4240,7 +4222,7 @@ class StripeService(BaseService):
                         identity_verification_session_id=obj.get("id"),
                     )
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                 return True
 
             return True

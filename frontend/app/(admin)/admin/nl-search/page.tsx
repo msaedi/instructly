@@ -19,6 +19,7 @@ import Link from 'next/link';
 import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import type { components } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
 import { fetchWithAuth } from '@/lib/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -27,170 +28,14 @@ import { PlacesAutocompleteInput, type PlaceSuggestion } from '@/components/form
 import { withApiBase } from '@/lib/apiBase';
 
 // Types
-interface ModelOption {
-  id: string;
-  name: string;
-  description: string;
-}
-
-interface SearchConfig {
-  parsing_model: string;
-  parsing_timeout_ms: number;
-  embedding_model: string;
-  embedding_timeout_ms: number;
-  location_model: string;
-  location_timeout_ms: number;
-  search_budget_ms: number;
-  high_load_budget_ms: number;
-  high_load_threshold: number;
-  uncached_concurrency: number;
-  openai_max_retries: number;
-  current_in_flight_requests: number;
-  available_parsing_models: ModelOption[];
-  available_embedding_models: ModelOption[];
-}
-
-type StageStatus = 'success' | 'skipped' | 'timeout' | 'error' | 'cache_hit' | 'miss' | 'cancelled';
-
-interface PipelineStage {
-  name: string;
-  duration_ms: number;
-  status: StageStatus;
-  details?: Record<string, unknown>;
-}
-
-interface LocationTierResult {
-  tier: number;
-  attempted: boolean;
-  status: StageStatus;
-  duration_ms: number;
-  result?: string | null;
-  confidence?: number | null;
-  details?: string | null;
-}
-
-interface BudgetInfo {
-  initial_ms: number;
-  remaining_ms: number;
-  over_budget: boolean;
-  skipped_operations: string[];
-  degradation_level: string;
-}
-
-interface LocationResolutionInfo {
-  query: string;
-  resolved_name?: string | null;
-  resolved_regions?: string[] | null;
-  successful_tier?: number | null;
-  tiers: LocationTierResult[];
-}
-
-interface SearchDiagnostics {
-  total_latency_ms: number;
-  pipeline_stages: PipelineStage[];
-  budget: BudgetInfo;
-  location_resolution?: LocationResolutionInfo | null;
-  initial_candidates: number;
-  after_text_search: number;
-  after_vector_search: number;
-  after_location_filter: number;
-  after_price_filter: number;
-  after_availability_filter: number;
-  final_results: number;
-  cache_hit: boolean;
-  parsing_mode: string;
-  embedding_used: boolean;
-  vector_search_used: boolean;
-}
-
-interface InstructorInfo {
-  id: string;
-  first_name: string;
-  last_initial: string;
-  profile_picture_url: string | null;
-  bio_snippet: string | null;
-  verified: boolean;
-  years_experience: number | null;
-}
-
-interface RatingSummary {
-  average: number | null;
-  count: number;
-}
-
-interface ServiceMatch {
-  service_id: string;
-  service_catalog_id: string;
-  name: string;
-  description: string | null;
-  price_per_hour: number;
-  relevance_score: number;
-}
-
-interface SearchResult {
-  instructor_id: string;
-  instructor: InstructorInfo;
-  rating: RatingSummary;
-  coverage_areas: string[];
-  best_match: ServiceMatch;
-  other_matches: ServiceMatch[];
-  total_matching_services: number;
-  relevance_score: number;
-  distance_km?: number | null;
-  distance_mi?: number | null;
-}
-
-interface ParsedQuery {
-  service_query: string;
-  location: string | null;
-  max_price: number | null;
-  date: string | null;
-  time_after: string | null;
-  time_before?: string | null;
-  audience_hint: string | null;
-  skill_level: string | null;
-  urgency: string | null;
-  lesson_type?: string | null;
-  use_user_location?: boolean;
-}
-
-interface SearchMeta {
-  query: string;
-  corrected_query?: string | null;
-  parsed: ParsedQuery;
-  total_results: number;
-  limit: number;
-  latency_ms: number;
-  cache_hit: boolean;
-  degraded: boolean;
-  degradation_reasons: string[];
-  skipped_operations?: string[];
-  parsing_mode: string;
-  filters_applied?: string[];
-  soft_filtering_used?: boolean;
-  filter_stats?: FilterStats | null;
-  soft_filter_message?: string | null;
-  location_resolved?: string | null;
-  location_not_found?: boolean;
-  requires_auth?: boolean;
-  requires_address?: boolean;
-  location_message?: string | null;
-  diagnostics?: SearchDiagnostics | null;
-}
-
-interface SearchResponse {
-  results: SearchResult[];
-  meta: SearchMeta;
-}
-
-interface FilterStats {
-  initial_candidates: number;
-  after_price?: number;
-  after_location?: number;
-  after_availability?: number;
-  after_soft_filtering?: number;
-  final_candidates: number;
-}
+type SearchConfig = components['schemas']['AdminSearchConfigResponse'];
+type SearchConfigUpdate = components['schemas']['AdminSearchConfigUpdate'];
+type StageStatus = components['schemas']['StageStatus'];
+type SearchDiagnostics = components['schemas']['SearchDiagnostics'];
+type SearchResult = components['schemas']['NLSearchResultItem'];
+type SearchMeta = components['schemas']['NLSearchMeta'];
+type SearchResponse = components['schemas']['NLSearchResponse'];
+type PlaceDetails = components['schemas']['PlaceDetails'];
 
 // API functions
 async function fetchConfig(): Promise<SearchConfig> {
@@ -199,7 +44,7 @@ async function fetchConfig(): Promise<SearchConfig> {
   return res.json() as Promise<SearchConfig>;
 }
 
-async function updateConfig(config: Partial<SearchConfig>): Promise<SearchConfig> {
+async function updateConfig(config: SearchConfigUpdate): Promise<SearchConfig> {
   const res = await fetchWithAuth('/api/v1/admin/search-config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -314,7 +159,7 @@ export default function NLSearchAdminPage() {
       if (!res.ok) {
         throw new Error('Failed to fetch place details');
       }
-      const details = (await res.json()) as { latitude: number; longitude: number; formatted_address: string };
+      const details = (await res.json()) as PlaceDetails;
       setTestLocation({
         lat: details.latitude,
         lng: details.longitude,
@@ -909,7 +754,9 @@ function TestingOverrides({
 // Diagnostics Panel Component
 function DiagnosticsPanel({ meta }: { meta: SearchMeta }) {
   const latencyStatus = meta.latency_ms < 200 ? 'good' : meta.latency_ms < 500 ? 'warning' : 'error';
-  const parsedTime = formatParsedTimeWindow(meta.parsed.time_after, meta.parsed.time_before);
+  const parsedTime = formatParsedTimeWindow(meta.parsed.time_after ?? null, meta.parsed.time_before ?? null);
+  const degradationReasons = meta.degradation_reasons ?? [];
+  const skippedOperations = meta.skipped_operations ?? [];
 
   return (
     <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
@@ -934,10 +781,10 @@ function DiagnosticsPanel({ meta }: { meta: SearchMeta }) {
         <div className="p-3 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg flex items-center gap-2">
           <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
           <div className="text-sm text-amber-800 dark:text-amber-200">
-            <div>Degraded mode: {meta.degradation_reasons.join(', ')}</div>
-            {meta.skipped_operations && meta.skipped_operations.length > 0 && (
+            <div>Degraded mode: {degradationReasons.join(', ')}</div>
+            {skippedOperations.length > 0 && (
               <div className="text-xs text-amber-700 dark:text-amber-300">
-                Skipped: {meta.skipped_operations.join(', ')}
+                Skipped: {skippedOperations.join(', ')}
               </div>
             )}
           </div>
@@ -948,15 +795,15 @@ function DiagnosticsPanel({ meta }: { meta: SearchMeta }) {
       <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
         <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Parsed Query</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-          <ParsedField label="Service" value={meta.parsed.service_query} />
-          <ParsedField label="Location" value={meta.parsed.location} />
+          <ParsedField label="Service" value={meta.parsed.service_query ?? null} />
+          <ParsedField label="Location" value={meta.parsed.location ?? null} />
           <ParsedField label="Resolved Location" value={meta.location_resolved ?? null} />
           <ParsedField label="Max Price" value={meta.parsed.max_price ? `$${meta.parsed.max_price}` : null} />
-          <ParsedField label="Date" value={meta.parsed.date} />
+          <ParsedField label="Date" value={meta.parsed.date ?? null} />
           <ParsedField label="Time" value={parsedTime} />
-          <ParsedField label="Audience" value={meta.parsed.audience_hint} />
-          <ParsedField label="Skill Level" value={meta.parsed.skill_level} />
-          <ParsedField label="Urgency" value={meta.parsed.urgency} />
+          <ParsedField label="Audience" value={meta.parsed.audience_hint ?? null} />
+          <ParsedField label="Skill Level" value={meta.parsed.skill_level ?? null} />
+          <ParsedField label="Urgency" value={meta.parsed.urgency ?? null} />
           <ParsedField label="Lesson Type" value={meta.parsed.lesson_type ?? null} />
           <ParsedField label="Near Me" value={meta.parsed.use_user_location ? 'Yes' : null} />
         </div>
@@ -972,20 +819,20 @@ function DiagnosticsPanel({ meta }: { meta: SearchMeta }) {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <FunnelChip label="Initial" value={meta.filter_stats.initial_candidates} color="blue" />
-            {meta.filter_stats.after_price !== undefined && (
-              <FunnelChip label="After Price" value={meta.filter_stats.after_price} color="green" />
+            <FunnelChip label="Initial" value={meta.filter_stats['initial_candidates']} color="blue" />
+            {meta.filter_stats['after_price'] !== undefined && (
+              <FunnelChip label="After Price" value={meta.filter_stats['after_price']} color="green" />
             )}
-            {meta.filter_stats.after_location !== undefined && (
-              <FunnelChip label="After Location" value={meta.filter_stats.after_location} color="yellow" />
+            {meta.filter_stats['after_location'] !== undefined && (
+              <FunnelChip label="After Location" value={meta.filter_stats['after_location']} color="yellow" />
             )}
-            {meta.filter_stats.after_availability !== undefined && (
-              <FunnelChip label="After Availability" value={meta.filter_stats.after_availability} color="purple" />
+            {meta.filter_stats['after_availability'] !== undefined && (
+              <FunnelChip label="After Availability" value={meta.filter_stats['after_availability']} color="purple" />
             )}
-            {meta.filter_stats.after_soft_filtering !== undefined && (
-              <FunnelChip label="After Soft" value={meta.filter_stats.after_soft_filtering} color="orange" />
+            {meta.filter_stats['after_soft_filtering'] !== undefined && (
+              <FunnelChip label="After Soft" value={meta.filter_stats['after_soft_filtering']} color="orange" />
             )}
-            <FunnelChip label="Final" value={meta.filter_stats.final_candidates} color="emerald" />
+            <FunnelChip label="Final" value={meta.filter_stats['final_candidates']} color="emerald" />
           </div>
         </div>
       )}
@@ -994,8 +841,9 @@ function DiagnosticsPanel({ meta }: { meta: SearchMeta }) {
 }
 
 function PipelineTimeline({ diagnostics }: { diagnostics: SearchDiagnostics }) {
+  const pipelineStages = diagnostics.pipeline_stages ?? [];
   const maxDuration = Math.max(
-    ...diagnostics.pipeline_stages.map((stage) => stage.duration_ms),
+    ...pipelineStages.map((stage) => stage.duration_ms),
     1,
   );
 
@@ -1044,7 +892,7 @@ function PipelineTimeline({ diagnostics }: { diagnostics: SearchDiagnostics }) {
       </div>
 
       <div className="space-y-3">
-        {diagnostics.pipeline_stages.map((stage) => (
+        {pipelineStages.map((stage) => (
           <div key={stage.name} className="space-y-1">
             <div className="flex justify-between text-sm">
               <span className="font-medium capitalize text-gray-700 dark:text-gray-200">
@@ -1079,7 +927,7 @@ function PipelineTimeline({ diagnostics }: { diagnostics: SearchDiagnostics }) {
           </h3>
           <div className="grid grid-cols-5 gap-2">
             {[1, 2, 3, 4, 5].map((tier) => {
-              const tierResult = location.tiers.find((t) => t.tier === tier);
+              const tierResult = (location.tiers ?? []).find((t) => t.tier === tier);
               const isSuccessful = location.successful_tier === tier;
               const status = tierResult?.status ?? 'skipped';
               return (
@@ -1157,9 +1005,9 @@ function PipelineTimeline({ diagnostics }: { diagnostics: SearchDiagnostics }) {
           </span>
           <span>{diagnostics.budget.initial_ms}ms</span>
         </div>
-        {diagnostics.budget.skipped_operations.length > 0 && (
+        {(diagnostics.budget.skipped_operations ?? []).length > 0 && (
           <div className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-            Skipped: {diagnostics.budget.skipped_operations.join(', ')}
+            Skipped: {(diagnostics.budget.skipped_operations ?? []).join(', ')}
           </div>
         )}
         <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -1305,7 +1153,9 @@ function ResultsPanel({ results, totalResults }: { results: SearchResult[]; tota
 // Result Card Component
 function ResultCard({ result }: { result: SearchResult }) {
   const [showDetails, setShowDetails] = useState(false);
-  const { instructor, best_match, rating, coverage_areas, relevance_score } = result;
+  const { instructor, best_match, rating, relevance_score } = result;
+  const coverageAreas = result.coverage_areas ?? [];
+  const otherMatches = result.other_matches ?? [];
 
   return (
     <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors">
@@ -1371,11 +1221,11 @@ function ResultCard({ result }: { result: SearchResult }) {
             </div>
           </div>
 
-          {coverage_areas.length > 0 && (
+          {coverageAreas.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Coverage Areas</h4>
               <div className="flex flex-wrap gap-1">
-                {coverage_areas.map((area) => (
+                {coverageAreas.map((area) => (
                   <span key={area} className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 rounded">
                     {area}
                   </span>
@@ -1384,11 +1234,11 @@ function ResultCard({ result }: { result: SearchResult }) {
             </div>
           )}
 
-          {result.other_matches.length > 0 && (
+          {otherMatches.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Other Matching Services</h4>
               <div className="space-y-1">
-                {result.other_matches.map((match) => (
+                {otherMatches.map((match) => (
                   <div key={match.service_id} className="text-xs text-gray-500 dark:text-gray-400">
                     {match.name} - ${match.price_per_hour}/hr ({(match.relevance_score * 100).toFixed(0)}% match)
                   </div>

@@ -2,7 +2,7 @@
 """Unit tests for Redis Pub/Sub manager."""
 
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -187,3 +187,35 @@ class TestGetStats:
         assert stats["initialized"] is True
         assert stats["publish_count"] == 1
         assert stats["error_count"] == 1
+
+
+class TestSubscribe:
+    """Tests for deprecated subscribe behavior."""
+
+    @pytest.mark.asyncio
+    async def test_subscribe_requires_initialization(
+        self, pubsub_manager: RedisPubSubManager
+    ) -> None:
+        with pytest.warns(DeprecationWarning):
+            with pytest.raises(RuntimeError):
+                async with pubsub_manager.subscribe("01USER"):
+                    pass
+
+    @pytest.mark.asyncio
+    async def test_subscribe_unsubscribes_on_exit(
+        self, pubsub_manager: RedisPubSubManager, mock_redis: AsyncMock
+    ) -> None:
+        pubsub = AsyncMock()
+        pubsub.subscribe = AsyncMock()
+        pubsub.unsubscribe = AsyncMock()
+        pubsub.aclose = AsyncMock()
+        mock_redis.pubsub = Mock(return_value=pubsub)
+        await pubsub_manager.initialize(mock_redis)
+
+        with pytest.warns(DeprecationWarning):
+            async with pubsub_manager.subscribe("01USER") as subscriber:
+                assert subscriber is pubsub
+
+        pubsub.subscribe.assert_awaited_once_with("user:01USER")
+        pubsub.unsubscribe.assert_awaited_once_with("user:01USER")
+        pubsub.aclose.assert_awaited_once()

@@ -3,6 +3,7 @@ types-pytz~=2025.2
 types-dateparser>=1.2.0
 celery-types==0.23.0
 pytest-cov>=5,<6
+pytest-timeout==2.3.1
 resend
 mypy==1.19.1
 hypothesis>=6.0.0

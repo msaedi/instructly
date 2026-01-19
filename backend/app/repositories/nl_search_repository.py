@@ -33,7 +33,11 @@ class PriceThresholdRepository(BaseRepository[PriceThreshold]):
         query = self.db.query(PriceThreshold)
         if region_code:
             query = query.filter(PriceThreshold.region_code == region_code)
-        result = query.limit(200).all()
+        result = (
+            query.order_by(PriceThreshold.created_at.desc(), PriceThreshold.id.desc())
+            .limit(200)
+            .all()
+        )
         return cast(List[PriceThreshold], result)
 
     def build_threshold_cache(

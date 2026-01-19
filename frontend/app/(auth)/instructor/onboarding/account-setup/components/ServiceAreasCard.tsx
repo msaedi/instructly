@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronDown, MapPin } from 'lucide-react';
-import type { MutableRefObject, ReactNode } from 'react';
+import { useMemo, type MutableRefObject, type ReactNode } from 'react';
 import type { ServiceAreaItem } from '@/features/instructor-profile/types';
 
 type ServiceAreasCardProps = {
@@ -75,9 +75,24 @@ export function ServiceAreasCard({
     </div>
   );
 
-  const searchHits = nycBoroughs
-    .flatMap((borough) => boroughNeighborhoods[borough] || [])
-    .filter((n) => (n['name'] || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase()));
+  const searchHits = useMemo(() => {
+    const query = globalNeighborhoodFilter.trim().toLowerCase();
+    if (!query) return [];
+    const seen = new Set<string>();
+    const results: ServiceAreaItem[] = [];
+    const matches = nycBoroughs
+      .flatMap((borough) => boroughNeighborhoods[borough] || [])
+      .filter((n) => (n['name'] || '').toLowerCase().includes(query));
+
+    for (const match of matches) {
+      const nid = match.neighborhood_id;
+      if (!nid || seen.has(nid)) continue;
+      seen.add(nid);
+      results.push(match);
+    }
+
+    return results;
+  }, [nycBoroughs, boroughNeighborhoods, globalNeighborhoodFilter]);
 
   return (
     <section className="bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6 dark:bg-gray-900/70 dark:border-gray-800/80">
@@ -115,7 +130,7 @@ export function ServiceAreasCard({
               <div className="text-sm text-gray-700 dark:text-gray-300 mb-2">Results</div>
               <div className="flex flex-wrap gap-2">
                 {searchHits.map((n) => {
-                  const nid = n['neighborhood_id'] || (n as Record<string, unknown>)['id'] as string;
+                  const nid = n.neighborhood_id;
                   if (!nid) return null;
                   const checked = selectedNeighborhoods.has(nid);
                   return (
@@ -223,11 +238,11 @@ export function ServiceAreasCard({
                       {isAccordionOpen && (
                         <div className="px-3 pb-3 mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto overflow-x-hidden scrollbar-hide">
                           {(list || []).map((n) => {
-                            const nid = n['neighborhood_id'] || (n as Record<string, unknown>)['id'] as string;
+                            const nid = n.neighborhood_id;
                             if (!nid) return null;
                             const checked = selectedNeighborhoods.has(nid);
                             const label = formatNeighborhoodName(n['name'] || String(nid));
-                            const regionCode = String(n.code || n.ntacode || idToItem[nid]?.ntacode || nid);
+                            const regionCode = String(n.ntacode || idToItem[nid]?.ntacode || nid);
                             return (
                               <button
                                 key={`${borough}-${nid}`}

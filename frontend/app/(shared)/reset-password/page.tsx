@@ -16,11 +16,11 @@ import { Lock, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
 import { fetchAPI } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import type { PasswordResetConfirm } from '@/types/user';
+import type { ApiErrorResponse, PasswordResetVerifyResponse } from '@/features/shared/api/types';
 import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
 
 interface PasswordValidations { minLength: boolean; hasUppercase: boolean; hasNumber: boolean; }
-interface TokenValidationResponse { valid: boolean; email?: string; error?: string; }
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -41,7 +41,7 @@ function ResetPasswordForm() {
     if (!token) { setIsVerifying(false); return; }
     try {
       const response = await fetchAPI(`/api/v1/password-reset/verify/${token}`);
-      const data: TokenValidationResponse = await response.json();
+      const data: PasswordResetVerifyResponse = await response.json();
       if (data.valid) { setTokenValid(true); }
       else { setError('This reset link is invalid or has expired.'); }
     } catch {
@@ -61,7 +61,13 @@ function ResetPasswordForm() {
     try {
       const resetData: PasswordResetConfirm = { token: token!, new_password: password, password_confirm: confirmPassword };
       const response = await fetchAPI('/api/v1/password-reset/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: resetData.token, new_password: resetData.new_password }) });
-      if (!response.ok) { const data = await response.json(); if (response.status === 400 && data.detail?.includes('expired')) { throw new Error('This reset link has expired. Please request a new one.'); } throw new Error(data.detail || 'Failed to reset password'); }
+      if (!response.ok) {
+        const data = (await response.json()) as ApiErrorResponse;
+        if (response.status === 400 && data.detail?.includes('expired')) {
+          throw new Error('This reset link has expired. Please request a new one.');
+        }
+        throw new Error(data.detail || data.message || 'Failed to reset password');
+      }
       setRequestStatus(RequestStatus.SUCCESS); setIsSuccess(true);
     } catch (err) { setError(getErrorMessage(err)); setRequestStatus(RequestStatus.ERROR); }
   };

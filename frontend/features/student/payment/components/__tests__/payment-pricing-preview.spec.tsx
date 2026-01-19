@@ -2,6 +2,7 @@ import React from 'react';
 import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { fetchPricingPreview, fetchPricingPreviewQuote } from '@/lib/api/pricing';
+import type { PricingPreviewResponse } from '@/lib/api/pricing';
 import { paymentService } from '@/services/api/payments';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { PaymentSection } from '../PaymentSection';
@@ -86,6 +87,20 @@ const baseBookingData: BookingPayment & {
   },
 };
 
+const buildPricingPreview = (overrides: Partial<PricingPreviewResponse>): PricingPreviewResponse => ({
+  base_price_cents: 0,
+  student_fee_cents: 0,
+  instructor_platform_fee_cents: 0,
+  credit_applied_cents: 0,
+  student_pay_cents: 0,
+  application_fee_cents: 0,
+  top_up_transfer_cents: 0,
+  instructor_tier_pct: 0,
+  target_instructor_payout_cents: 0,
+  line_items: [],
+  ...overrides,
+});
+
 const renderPaymentSection = (overrides: Partial<typeof baseBookingData> = {}) =>
   renderWithQueryClient(
     <PaymentSection
@@ -110,19 +125,20 @@ describe('PaymentSection pricing preview integration', () => {
   });
 
   it('renders server line items for bookings with an id', async () => {
-    fetchPricingPreviewMock.mockResolvedValue({
-      base_price_cents: 7500,
-      student_fee_cents: 900,
-      instructor_platform_fee_cents: 0,
-      credit_applied_cents: 0,
-      student_pay_cents: 8400,
-      application_fee_cents: 0,
-      top_up_transfer_cents: 0,
-      instructor_tier_pct: null,
-      line_items: [
-        { label: 'Service & Support fee (12%)', amount_cents: 900 },
-      ],
-    });
+    fetchPricingPreviewMock.mockResolvedValue(
+      buildPricingPreview({
+        base_price_cents: 7500,
+        student_fee_cents: 900,
+        instructor_platform_fee_cents: 0,
+        credit_applied_cents: 0,
+        student_pay_cents: 8400,
+        application_fee_cents: 0,
+        top_up_transfer_cents: 0,
+        instructor_tier_pct: 0,
+        target_instructor_payout_cents: 7500,
+        line_items: [{ label: 'Service & Support fee (12%)', amount_cents: 900 }],
+      })
+    );
 
     renderPaymentSection();
 
@@ -146,19 +162,20 @@ describe('PaymentSection pricing preview integration', () => {
     fetchPricingPreviewMock.mockImplementation(() => {
       throw new Error('fetchPricingPreview should not be called');
     });
-    fetchPricingPreviewQuoteMock.mockResolvedValue({
-      base_price_cents: 8800,
-      student_fee_cents: 1056,
-      instructor_platform_fee_cents: 0,
-      credit_applied_cents: 0,
-      student_pay_cents: 9856,
-      application_fee_cents: 0,
-      top_up_transfer_cents: 0,
-      instructor_tier_pct: null,
-      line_items: [
-        { label: 'Service & Support fee (12%)', amount_cents: 1056 },
-      ],
-    });
+    fetchPricingPreviewQuoteMock.mockResolvedValue(
+      buildPricingPreview({
+        base_price_cents: 8800,
+        student_fee_cents: 1056,
+        instructor_platform_fee_cents: 0,
+        credit_applied_cents: 0,
+        student_pay_cents: 9856,
+        application_fee_cents: 0,
+        top_up_transfer_cents: 0,
+        instructor_tier_pct: 0,
+        target_instructor_payout_cents: 8800,
+        line_items: [{ label: 'Service & Support fee (12%)', amount_cents: 1056 }],
+      })
+    );
 
     renderPaymentSection({
       bookingId: '',
@@ -202,35 +219,39 @@ describe('PaymentSection pricing preview integration', () => {
 
     fetchPricingPreviewMock.mockImplementation((_bookingId, creditCents = 0) => {
       if (creditCents === 0) {
-        return Promise.resolve({
-          base_price_cents: 10000,
-          student_fee_cents: 1200,
-          instructor_platform_fee_cents: 0,
-          credit_applied_cents: 0,
-          student_pay_cents: 11200,
-          application_fee_cents: 0,
-          top_up_transfer_cents: 0,
-          instructor_tier_pct: null,
-          line_items: [
-            { label: 'Service & Support fee (12%)', amount_cents: 1200 },
-          ],
-        });
+        return Promise.resolve(
+          buildPricingPreview({
+            base_price_cents: 10000,
+            student_fee_cents: 1200,
+            instructor_platform_fee_cents: 0,
+            credit_applied_cents: 0,
+            student_pay_cents: 11200,
+            application_fee_cents: 0,
+            top_up_transfer_cents: 0,
+            instructor_tier_pct: 0,
+            target_instructor_payout_cents: 10000,
+            line_items: [{ label: 'Service & Support fee (12%)', amount_cents: 1200 }],
+          })
+        );
       }
       if (creditCents === 2000) {
-        return Promise.resolve({
-          base_price_cents: 10000,
-          student_fee_cents: 1200,
-          instructor_platform_fee_cents: 0,
-          credit_applied_cents: 2000,
-          student_pay_cents: 9200,
-          application_fee_cents: 0,
-          top_up_transfer_cents: 0,
-          instructor_tier_pct: null,
-          line_items: [
-            { label: 'Service & Support fee (12%)', amount_cents: 1200 },
-            { label: 'Credit', amount_cents: -2000 },
-          ],
-        });
+        return Promise.resolve(
+          buildPricingPreview({
+            base_price_cents: 10000,
+            student_fee_cents: 1200,
+            instructor_platform_fee_cents: 0,
+            credit_applied_cents: 2000,
+            student_pay_cents: 9200,
+            application_fee_cents: 0,
+            top_up_transfer_cents: 0,
+            instructor_tier_pct: 0,
+            target_instructor_payout_cents: 8000,
+            line_items: [
+              { label: 'Service & Support fee (12%)', amount_cents: 1200 },
+              { label: 'Credit', amount_cents: -2000 },
+            ],
+          })
+        );
       }
       if (creditCents === 11200) {
         return Promise.reject({

@@ -1,38 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchWithAuth, API_ENDPOINTS, getConnectStatus } from '@/lib/api';
+import type { AddressListResponse, ServiceAreasResponse, components } from '@/features/shared/api/types';
 import type { OnboardingStepKey, OnboardingStepStatus } from './OnboardingProgressHeader';
 
 export type OnboardingStepStatuses = Record<OnboardingStepKey, OnboardingStepStatus>;
 
-type ProfileData = {
-  id?: string;
-  bio?: string;
-  services?: unknown[];
-  identity_verified_at?: string;
-  identity_verification_session_id?: string;
-  bgc_status?: string;
-  background_check_status?: string;
-  is_live?: boolean;
-  is_founding_instructor?: boolean;
-  current_tier_pct?: number | null;
-};
-
-type UserData = {
-  first_name?: string;
-  last_name?: string;
-  zip_code?: string;
-  postal_code?: string;
-  has_profile_picture?: boolean;
-  profile_picture_version?: number;
-};
-
-type ConnectStatus = {
-  has_account: boolean;
-  onboarding_completed: boolean;
-  charges_enabled: boolean;
-  payouts_enabled: boolean;
-  details_submitted: boolean;
-};
+type ProfileData = components['schemas']['InstructorProfileResponse'];
+type UserData = components['schemas']['AuthUserResponse'];
+type ConnectStatus = components['schemas']['OnboardingStatusResponse'];
+type ServiceAreaItem = components['schemas']['ServiceAreaItem'];
+type BackgroundCheckStatusResponse = components['schemas']['BackgroundCheckStatusResponse'];
 
 /**
  * Unified hook to evaluate onboarding step completion status.
@@ -51,7 +28,7 @@ export function useOnboardingStepStatus(options?: { skip?: boolean }) {
   const [rawData, setRawData] = useState<{
     profile: ProfileData | null;
     user: UserData | null;
-    serviceAreas: unknown[] | null;
+    serviceAreas: ServiceAreaItem[] | null;
     connectStatus: ConnectStatus | null;
     bgcStatus: string | null;
   }>({
@@ -75,14 +52,14 @@ export function useOnboardingStepStatus(options?: { skip?: boolean }) {
         getConnectStatus().catch(() => null),
       ]);
 
-      const user: UserData | null = meRes?.ok ? await meRes.json() : null;
-      const profile: ProfileData | null = profRes?.ok ? await profRes.json() : null;
+      const user: UserData | null = meRes?.ok ? ((await meRes.json()) as UserData) : null;
+      const profile: ProfileData | null = profRes?.ok ? ((await profRes.json()) as ProfileData) : null;
       let bgcStatus: string | null = null;
       if (profile?.id) {
         try {
           const bgcRes = await fetchWithAuth(`/api/v1/instructors/${profile.id}/bgc/status`);
           if (bgcRes.ok) {
-            const bgcData = await bgcRes.json();
+            const bgcData = (await bgcRes.json()) as BackgroundCheckStatusResponse;
             const statusValue = bgcData?.status;
             if (typeof statusValue === 'string') {
               bgcStatus = statusValue.toLowerCase();
@@ -92,24 +69,25 @@ export function useOnboardingStepStatus(options?: { skip?: boolean }) {
           // Swallow background check status errors; fall back to profile fields if present
         }
       }
-      const areasData = areasRes?.ok ? await areasRes.json() : { items: [] };
+      const areasData = areasRes?.ok ? ((await areasRes.json()) as ServiceAreasResponse) : null;
       const serviceAreas = Array.isArray(areasData?.items) ? areasData.items : [];
 
       // Get postal code from default address or user
       let postalCode = '';
       try {
         if (addrsRes?.ok) {
-          const list = await addrsRes.json();
-          const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
-          postalCode = String((def as Record<string, unknown>)?.['postal_code'] || '').trim();
+          const list = (await addrsRes.json()) as AddressListResponse;
+          const def = list.items.find((a) => a.is_default) || list.items[0];
+          postalCode = String(def?.postal_code || '').trim();
         }
       } catch { /* ignore */ }
       if (!postalCode && user) {
-        postalCode = String(user.zip_code || user.postal_code || '').trim();
+        postalCode = String(user.zip_code || '').trim();
       }
 
       // Store raw data for consumers that need it
-      const bgcRaw = profile?.bgc_status || profile?.background_check_status || '';
+      const profileFields = profile as Record<string, unknown>;
+      const bgcRaw = profileFields['bgc_status'] || profileFields['background_check_status'] || '';
       if (!bgcStatus) {
         bgcStatus = typeof bgcRaw === 'string' ? bgcRaw.toLowerCase() : null;
       }
@@ -176,7 +154,7 @@ export function useOnboardingStepStatus(options?: { skip?: boolean }) {
 export function canInstructorGoLive(rawData: {
   profile: ProfileData | null;
   user: UserData | null;
-  serviceAreas: unknown[] | null;
+  serviceAreas: ServiceAreaItem[] | null;
   connectStatus: ConnectStatus | null;
   bgcStatus: string | null;
 }): { canGoLive: boolean; missing: string[] } {

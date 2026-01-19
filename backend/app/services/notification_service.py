@@ -44,7 +44,7 @@ from ..services.sms_templates import (
     PAYMENT_FAILED,
     SECURITY_2FA_CHANGED,
     SECURITY_NEW_DEVICE_LOGIN,
-    SECURITY_PASSWORD_CHANGED,
+    SECURITY_PW_CHANGED,
     SMSTemplate,
     render_sms,
 )
@@ -1415,14 +1415,14 @@ class NotificationService(BaseService):
 
         try:
             html_content = self.template_service.render_template(
-                TemplateRegistry.SECURITY_PASSWORD_CHANGED,
+                TemplateRegistry.SECURITY_PW_CHANGED,
                 context,
             )
             self.email_service.send_email(
                 to_email=user.email,
                 subject="Your InstaInstru password was changed",
                 html_content=html_content,
-                template=TemplateRegistry.SECURITY_PASSWORD_CHANGED,
+                template=TemplateRegistry.SECURITY_PW_CHANGED,
             )
             self.logger.info("Password change email sent to %s", user.email)
         except Exception as exc:
@@ -1433,7 +1433,7 @@ class NotificationService(BaseService):
             reset_url = f"{settings.frontend_url}/forgot-password"
             try:
                 sms_message = render_sms(
-                    SECURITY_PASSWORD_CHANGED,
+                    SECURITY_PW_CHANGED,
                     reset_url=reset_url,
                 )
             except Exception as exc:

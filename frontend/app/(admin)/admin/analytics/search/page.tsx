@@ -24,6 +24,8 @@ export default function SearchAnalyticsDashboard() {
   const token = null;
 
   const { data, loading, error, refetch, dateRange, setDateRange } = useAnalyticsData(token);
+  const guestConversion = data.summary?.conversions?.['guest_sessions'] as { conversion_rate?: number } | undefined;
+  const guestConversionRate = guestConversion?.conversion_rate ?? null;
 
   // Show loading while checking auth
   if (authLoading) {
@@ -113,7 +115,7 @@ export default function SearchAnalyticsDashboard() {
                       </div>
                       <div className="p-4 text-sm space-y-2">
                         <div>Most searched: {at(data.popularSearches || [], 0)?.query ?? 'n/a'} ({at(data.popularSearches || [], 0)?.search_count ?? 0})</div>
-                        <div>Guest→User CVR: {data.summary.conversions?.guest_sessions?.conversion_rate ? (data.summary.conversions.guest_sessions.conversion_rate * 100).toFixed(1) + '%' : 'n/a'}</div>
+                        <div>Guest→User CVR: {guestConversionRate !== null ? `${(guestConversionRate * 100).toFixed(1)}%` : 'n/a'}</div>
                         <div>Zero-result rate: {data.summary.performance?.zero_result_rate ? (data.summary.performance.zero_result_rate * 100).toFixed(1) + '%' : 'n/a'}</div>
                       </div>
                     </div>
@@ -128,10 +130,10 @@ export default function SearchAnalyticsDashboard() {
                   {at(data.popularSearches, 0)?.search_count} searches)
                 </li>
               )}
-              {data.summary.conversions?.guest_sessions?.conversion_rate && (
+              {guestConversionRate !== null && (
                 <li>
                   • Guest to user conversion rate:{' '}
-                  {(data.summary.conversions.guest_sessions.conversion_rate * 100).toFixed(1)}%
+                  {(guestConversionRate * 100).toFixed(1)}%
                 </li>
               )}
               {data.summary.performance?.zero_result_rate && (

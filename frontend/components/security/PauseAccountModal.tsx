@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { fetchWithAuth } from '@/lib/api';
+import type { ApiErrorResponse } from '@/features/shared/api/types';
 
 export default function PauseAccountModal({ onClose, onPaused }: { onClose: () => void; onPaused: () => void }) {
   const [loading, setLoading] = useState(false);
@@ -13,8 +14,8 @@ export default function PauseAccountModal({ onClose, onPaused }: { onClose: () =
       const res = await fetchWithAuth('/api/v1/account/suspend', { method: 'POST' });
       if (res.ok) { onPaused(); return; }
       if (res.status === 409) {
-        const body = await res.json().catch(() => ({} as Record<string, unknown>));
-        setError(typeof body?.detail === 'string' ? body.detail : 'Cannot pause while future bookings exist.');
+        const body = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+        setError(body.detail || body.message || 'Cannot pause while future bookings exist.');
       } else {
         setError('Failed to pause account. Please try again.');
       }

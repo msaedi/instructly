@@ -6,6 +6,7 @@ Health check endpoints for monitoring and load balancer probes.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 import os
 
 from fastapi import APIRouter, Request, Response
@@ -14,6 +15,8 @@ from app.core.config import settings
 from app.core.constants import API_VERSION, BRAND_NAME
 from app.middleware.rate_limiter import RateLimitKeyType, rate_limit
 from app.schemas.main_responses import HealthLiteResponse, HealthResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["health"])
 
@@ -28,7 +31,7 @@ def _apply_health_headers(response: Response) -> None:
         if site_mode == "local" and bool(getattr(settings, "is_testing", False)):
             response.headers["X-Testing"] = "1"
     except Exception:
-        pass
+        logger.debug("Non-fatal error ignored", exc_info=True)
 
 
 def _health_payload() -> HealthResponse:

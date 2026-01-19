@@ -125,8 +125,8 @@ export default function ValidationPreviewModal({
               <div>
                 <span className="font-medium">Changes:</span>
                 <span className="ml-2">
-                  +{summary.estimated_changes.slots_added} / -
-                  {summary.estimated_changes.slots_removed}
+                  +{summary.estimated_changes['slots_added']} / -
+                  {summary.estimated_changes['slots_removed']}
                 </span>
               </div>
             </div>
@@ -173,7 +173,7 @@ export default function ValidationPreviewModal({
                             <div className="text-xs text-gray-600 mt-1">
                               Conflicts with booking(s):{' '}
                               {detail.conflicts_with
-                                .map((c) => `${c.start_time} - ${c.end_time}`)
+                                .map((c) => `${c['start_time']} - ${c['end_time']}`)
                                 .join(', ')}
                             </div>
                           )}

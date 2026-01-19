@@ -21,14 +21,14 @@ def test_referral_invite_template_renders(template_service):
 
 def test_password_reset_templates_render(template_service):
     html_reset = template_service.render_template(
-        TemplateRegistry.AUTH_PASSWORD_RESET,
+        TemplateRegistry.AUTH_PW_RESET,
         context={"reset_url": "https://instainstru.com/reset/XYZ", "user_name": "Alex"},
     )
     assert "Alex" in html_reset
     assert "reset/XYZ" in html_reset
 
     html_confirm = template_service.render_template(
-        TemplateRegistry.AUTH_PASSWORD_RESET_CONFIRMATION,
+        TemplateRegistry.AUTH_PW_RESET_CONFIRMATION,
         context={"user_name": "Alex"},
     )
     assert "Password" in html_confirm

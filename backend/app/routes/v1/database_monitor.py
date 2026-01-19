@@ -17,6 +17,7 @@ from app.database import get_db_pool_status
 from app.dependencies.permissions import require_permission
 from app.models.user import User
 from app.schemas.database_monitor_responses import (
+    DatabaseHealthMetrics,
     DatabaseHealthResponse,
     DatabasePoolStatusResponse,
     DatabaseStatsResponse,
@@ -182,10 +183,10 @@ async def database_stats(
             status="connected",
             pool=pool_status.pool,
             configuration=pool_status.configuration,
-            health={
-                "status": pool_status.status,
-                "usage_percent": pool_status.pool["usage_percent"],
-            },
+            health=DatabaseHealthMetrics(
+                status=pool_status.status,
+                usage_percent=pool_status.pool.usage_percent,
+            ),
         )
     except Exception as e:
         logger.error(f"Failed to get database stats: {e}")

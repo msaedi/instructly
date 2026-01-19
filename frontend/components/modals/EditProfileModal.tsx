@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { X, Plus, Trash2, DollarSign, ChevronDown, MapPin, BookOpen } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
+import type { CategoryServiceDetail, ServiceCategory } from '@/features/shared/api/types';
 import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/queries/useServices';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import Modal from '@/components/Modal';
@@ -16,12 +16,19 @@ import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteIn
 import { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { buildProfileUpdateBody } from '@/lib/profileSchemaDebug';
-import type { ServiceAreaNeighborhood } from '@/types/instructor';
+import type { InstructorProfile, ServiceAreaNeighborhood } from '@/types/instructor';
 import { SelectedNeighborhoodChips, type SelectedNeighborhood } from '@/features/shared/components/SelectedNeighborhoodChips';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } from '@/lib/pricing/platformFees';
 import { evaluatePriceFloorViolations, FloorViolation, formatCents } from '@/lib/pricing/priceFloors';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
+import type { ApiErrorResponse, components } from '@/features/shared/api/types';
+
+type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
+type AuthUserResponse = components['schemas']['AuthUserResponse'];
+type AddressListResponse = components['schemas']['AddressListResponse'];
+type AddressResponse = components['schemas']['AddressResponse'];
+type NeighborhoodsListResponse = components['schemas']['NeighborhoodsListResponse'];
 type EditableService = {
   service_catalog_id?: string;
   service_catalog_name?: string | null;
@@ -38,11 +45,7 @@ type EditableService = {
 };
 
 // Simple address type for profile editing
-interface AddressItem {
-  id: string;
-  postal_code?: string;
-  is_default?: boolean;
-}
+type AddressItem = AddressResponse;
 
 interface ServiceUpdateItem {
   service_catalog_id: string;
@@ -57,11 +60,6 @@ interface ServiceUpdateItem {
 
 interface ProfileServiceUpdatePayload {
   services: ServiceUpdateItem[];
-}
-
-interface ApiErrorResponse {
-  detail?: string;
-  message?: string;
 }
 
 type PreferredTeachingLocationInput = {
@@ -98,7 +96,7 @@ interface EditProfileModalProps {
   /** Prefilled preferred public spaces */
   preferredPublic?: PreferredPublicSpaceInput[];
   /** Pre-fetched instructor profile to avoid duplicate API calls */
-  instructorProfile?: Record<string, unknown> | null;
+  instructorProfile?: InstructorProfileResponse | InstructorProfile | null;
   /** Callback when areas variant saves */
   onSave?: (payload: {
     neighborhoods: SelectedNeighborhood[];
@@ -213,6 +211,21 @@ export default function EditProfileModal({
   const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
   const [openBoroughs, setOpenBoroughs] = useState<Set<string>>(new Set());
   const [globalNeighborhoodFilter, setGlobalNeighborhoodFilter] = useState('');
+  const globalNeighborhoodMatches = useMemo(() => {
+    const query = globalNeighborhoodFilter.trim().toLowerCase();
+    if (!query) return [];
+    const seen = new Set<string>();
+    const matches = NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
+      .filter((n) => (n.name || '').toLowerCase().includes(query));
+    const results: ServiceAreaItem[] = [];
+    for (const match of matches) {
+      const nid = match.neighborhood_id || match.id;
+      if (!nid || seen.has(nid)) continue;
+      seen.add(nid);
+      results.push(match);
+    }
+    return results;
+  }, [NYC_BOROUGHS, boroughNeighborhoods, globalNeighborhoodFilter]);
   // Preferred locations (teaching address and public spaces) — UI-only like onboarding
   const [preferredAddress, setPreferredAddress] = useState('');
   const [teachingPlaces, setTeachingPlaces] = useState<PreferredTeachingLocationInput[]>([]);
@@ -240,7 +253,7 @@ export default function EditProfileModal({
     location_types: Array<'in-person' | 'online'>;
   };
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
-  const [servicesByCategory, setServicesByCategory] = useState<Record<string, CatalogService[]>>({});
+  const [servicesByCategory, setServicesByCategory] = useState<Record<string, CategoryServiceDetail[]>>({});
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   const [svcLoading, setSvcLoading] = useState(false);
@@ -297,15 +310,18 @@ export default function EditProfileModal({
 
   const fetchProfile = useCallback(async () => {
     try {
-      let data: Record<string, unknown>;
+      let data: InstructorProfileResponse;
 
       // Use pre-fetched profile or hook data if available (avoids duplicate API call)
-      if (instructorProfile) {
+      const profileOverride = instructorProfile
+        ? (instructorProfile as unknown as InstructorProfileResponse)
+        : null;
+      if (profileOverride) {
         logger.info('Using pre-fetched instructor profile for editing');
-        data = instructorProfile;
+        data = profileOverride;
       } else if (instructorProfileFromHook) {
         logger.info('Using React Query hook data for editing');
-        data = instructorProfileFromHook as unknown as Record<string, unknown>;
+        data = instructorProfileFromHook as unknown as InstructorProfileResponse;
       } else {
         logger.info('Fetching instructor profile for editing');
         const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
@@ -314,20 +330,20 @@ export default function EditProfileModal({
           throw new Error('Failed to fetch profile');
         }
 
-        data = await response.json();
+        data = (await response.json()) as InstructorProfileResponse;
       }
 
-      const neighborhoodsRaw = Array.isArray(data?.['service_area_neighborhoods'])
-        ? (data['service_area_neighborhoods'] as ServiceAreaItem[])
+      const neighborhoodsRaw = Array.isArray(data.service_area_neighborhoods)
+        ? data.service_area_neighborhoods
         : [];
       const neighborhoods = neighborhoodsRaw.reduce<ServiceAreaNeighborhood[]>((acc, item) => {
-        const neighborhoodId = item.neighborhood_id || item.id;
+        const neighborhoodId = item.neighborhood_id;
         if (!neighborhoodId) {
           return acc;
         }
         acc.push({
           neighborhood_id: neighborhoodId,
-          ntacode: item.ntacode ?? item.code ?? null,
+          ntacode: item.ntacode ?? null,
           name: item.name ?? null,
           borough: item.borough ?? null,
         });
@@ -335,10 +351,8 @@ export default function EditProfileModal({
       }, []);
 
       const serviceAreaSource = {
-        service_area_summary: (data?.['service_area_summary'] as string | null | undefined) ?? null,
-        service_area_boroughs: Array.isArray(data?.['service_area_boroughs'])
-          ? (data['service_area_boroughs'] as string[])
-          : [],
+        service_area_summary: data.service_area_summary ?? null,
+        service_area_boroughs: data.service_area_boroughs ?? [],
         service_area_neighborhoods: neighborhoods,
       };
       const boroughSelection = getServiceAreaBoroughs(serviceAreaSource);
@@ -349,30 +363,34 @@ export default function EditProfileModal({
       try {
         const me = await fetchWithAuth(API_ENDPOINTS.ME);
         if (me.ok) {
-          const u = await me.json();
+          const u = (await me.json()) as AuthUserResponse;
           firstName = u.first_name || '';
           lastName = u.last_name || '';
         }
-      } catch {}
+      } catch (err) {
+        logger.warn('Failed to fetch user profile data', err);
+      }
 
       // Fetch default address postal code
       let postalCode = '';
       try {
         const addrRes = await fetchWithAuth('/api/v1/addresses/me');
         if (addrRes.ok) {
-          const list = await addrRes.json();
+          const list = (await addrRes.json()) as AddressListResponse;
           const items = list.items || [];
           const def = items.find((a: AddressItem) => a.is_default) || (items.length > 0 ? items[0] : null);
           postalCode = def?.postal_code || '';
         }
-      } catch {}
+      } catch (err) {
+        logger.warn('Failed to fetch default address', err);
+      }
 
-      const normalizedServices = await normalizeInstructorServices(data['services'] as unknown[]);
+      const normalizedServices = await normalizeInstructorServices(data.services ?? []);
 
       setProfileData({
-        bio: (data['bio'] as string) || '',
+        bio: data.bio || '',
         service_area_boroughs: boroughSelection,
-        years_experience: (data['years_experience'] as number) || 0,
+        years_experience: data.years_experience || 0,
         services: normalizedServices,
         first_name: firstName,
         last_name: lastName,
@@ -522,9 +540,10 @@ export default function EditProfileModal({
   useEffect(() => {
     if (!(isOpen && variant === 'services')) return;
     if (allServicesData) {
-      const map: Record<string, CatalogService[]> = {};
-      for (const c of allServicesData.categories.filter((cat: { slug: string; services: unknown[] }) => cat.slug !== 'kids')) {
-        map[c.slug] = c.services;
+      const map: Record<string, CategoryServiceDetail[]> = {};
+      const categories = allServicesData.categories ?? [];
+      for (const c of categories.filter((cat) => cat.slug !== 'kids')) {
+        map[c.slug] = c.services ?? [];
       }
       setServicesByCategory(map);
     }
@@ -577,7 +596,7 @@ export default function EditProfileModal({
       const url = `${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}/api/v1/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
       const r = await fetch(url);
       if (r.ok) {
-        const data = await r.json();
+        const data = (await r.json()) as NeighborhoodsListResponse;
         const list = (data.items || []) as ServiceAreaItem[];
         setBoroughNeighborhoods((prev) => ({ ...prev, [borough]: list }));
         setIdToItem((prev) => {
@@ -590,7 +609,9 @@ export default function EditProfileModal({
         });
         return list;
       }
-    } catch {}
+    } catch (err) {
+      logger.warn('Failed to load borough neighborhoods', { borough, err });
+    }
     return boroughNeighborhoods[borough] || [];
   }, [boroughNeighborhoods]);
 
@@ -856,13 +877,15 @@ export default function EditProfileModal({
             last_name: profileData.last_name?.trim() || '',
           }),
         });
-      } catch {}
+      } catch (err) {
+        logger.warn('Failed to update user name', err);
+      }
 
       // Update default address postal code
       try {
         const addrRes = await fetchWithAuth('/api/v1/addresses/me');
         if (addrRes.ok) {
-          const list = await addrRes.json();
+          const list = (await addrRes.json()) as AddressListResponse;
           const items = (list.items || []) as AddressItem[];
           const def = items.find((a) => a.is_default) || (items.length > 0 ? items[0] : null);
           const newZip = (profileData.postal_code || '').trim();
@@ -882,7 +905,9 @@ export default function EditProfileModal({
             });
           }
         }
-      } catch {}
+      } catch (err) {
+        logger.warn('Failed to update postal code', err);
+      }
 
       // Ensure at least one service area (temporary guard while modal transitions)
       if (profileData.service_area_boroughs.length === 0) {
@@ -907,7 +932,7 @@ export default function EditProfileModal({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = (await response.json()) as ApiErrorResponse;
         throw new Error(errorData.detail || 'Failed to update profile');
       }
 
@@ -976,7 +1001,11 @@ export default function EditProfileModal({
     const updatedServices = [...profileData.services];
     const serviceToUpdate = updatedServices[index];
     if (!serviceToUpdate) return;
-    updatedServices[index] = { ...serviceToUpdate, [field]: value };
+    const nextValue =
+      field === 'hourly_rate' && typeof value === 'number' && Number.isNaN(value)
+        ? 0
+        : value;
+    updatedServices[index] = { ...serviceToUpdate, [field]: nextValue };
     setProfileData({ ...profileData, services: updatedServices });
   };
 
@@ -1017,12 +1046,14 @@ export default function EditProfileModal({
             last_name: profileData.last_name?.trim() || '',
           }),
         });
-      } catch {}
+      } catch (err) {
+        logger.warn('Failed to update user name in about section', err);
+      }
 
       try {
         const addrRes = await fetchWithAuth('/api/v1/addresses/me');
         if (addrRes.ok) {
-          const list = await addrRes.json();
+          const list = (await addrRes.json()) as AddressListResponse;
           const items = (list.items || []) as AddressItem[];
           const def = items.find((a) => a.is_default) || (items.length > 0 ? items[0] : null);
           const newZip = (profileData.postal_code || '').trim();
@@ -1042,7 +1073,9 @@ export default function EditProfileModal({
             });
           }
         }
-      } catch {}
+      } catch (err) {
+        logger.warn('Failed to update postal code in about section', err);
+      }
 
       // Persist bio and years of experience along with existing services/areas
       const payload = buildProfileUpdateBody(profileData, {
@@ -1057,7 +1090,7 @@ export default function EditProfileModal({
         body: JSON.stringify(payload),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({} as Record<string, unknown>));
+        const errorData = (await response.json().catch(() => ({}))) as ApiErrorResponse;
         throw new Error(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to update profile');
       }
       onSuccess();
@@ -1234,9 +1267,13 @@ export default function EditProfileModal({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none
                          focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500 no-spinner"
                 value={profileData.years_experience}
-                onChange={(e) =>
-                  setProfileData({ ...profileData, years_experience: parseInt(e.target.value) })
-                }
+                onChange={(e) => {
+                  const parsed = parseInt(e.target.value, 10);
+                  setProfileData({
+                    ...profileData,
+                    years_experience: Number.isNaN(parsed) ? 0 : parsed,
+                  });
+                }}
                 min="0"
                 onKeyDown={(e) => {
                   if (['e', 'E', '.', '-', '+'].includes(e.key)) {
@@ -1307,15 +1344,15 @@ export default function EditProfileModal({
                   <div className="rounded-lg border border-gray-200 bg-white p-3 mb-3">
                     <div className="text-sm text-gray-700 mb-2">Results</div>
                     <div className="flex flex-wrap gap-2">
-                      {NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
-                        .filter((n) => (n.name || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase()))
-                        .map((n) => {
+                      {globalNeighborhoodMatches
+                        .slice(0, 200)
+                        .map((n, index) => {
                           const nid = n.neighborhood_id || n.id;
                           if (!nid) return null;
                           const checked = selectedNeighborhoods.has(nid);
                           return (
                             <button
-                              key={`global-${nid}`}
+                              key={`global-${nid}-${index}`}
                               type="button"
                               onClick={() => toggleNeighborhood(nid)}
                               aria-pressed={checked}
@@ -1328,11 +1365,9 @@ export default function EditProfileModal({
                             </button>
                           );
                         })
-                        .filter(Boolean)
-                        .slice(0, 200)}
-                      {NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
-                        .filter((n) => (n.name || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase())).length === 0 && (
-                          <div className="text-sm text-gray-500">No matches found</div>
+                        .filter(Boolean)}
+                      {globalNeighborhoodMatches.length === 0 && (
+                        <div className="text-sm text-gray-500">No matches found</div>
                       )}
                     </div>
                   </div>

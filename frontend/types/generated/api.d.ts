@@ -497,6 +497,86 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/auth-blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Auth Issues
+         * @description List accounts with auth issues (blocked or approaching lockout).
+         *
+         *     Requires ACCESS_MONITORING permission.
+         *
+         *     Returns accounts that are:
+         *     - Locked out (after 5+ failed attempts)
+         *     - Rate limited (minute or hour)
+         *     - Require CAPTCHA (after 3+ failures)
+         *     - Approaching lockout (3+ failures)
+         */
+        get: operations["list_auth_issues_api_v1_admin_auth_blocks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth-blocks/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Summary Stats
+         * @description Get summary statistics for auth blocks.
+         *
+         *     Requires ACCESS_MONITORING permission.
+         */
+        get: operations["get_summary_stats_api_v1_admin_auth_blocks_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth-blocks/{email}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Account State
+         * @description Get detailed auth state for a specific account.
+         *
+         *     Requires ACCESS_MONITORING permission.
+         */
+        get: operations["get_account_state_api_v1_admin_auth_blocks__email__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Clear Account Blocks
+         * @description Clear auth blocks for an account.
+         *
+         *     Requires MANAGE_USERS permission.
+         *
+         *     If no types specified, clears ALL blocks for the account.
+         */
+        delete: operations["clear_account_blocks_api_v1_admin_auth_blocks__email__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/background-checks/cases": {
         parameters: {
             query?: never;
@@ -959,6 +1039,142 @@ export type paths = {
         get: operations["admin_instructor_detail_api_v1_admin_instructors__instructor_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Manual Alias */
+        post: operations["create_manual_alias_api_v1_admin_location_learning_aliases_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/aliases/{alias_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Learned Alias */
+        post: operations["approve_learned_alias_api_v1_admin_location_learning_aliases__alias_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/aliases/{alias_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject Learned Alias */
+        post: operations["reject_learned_alias_api_v1_admin_location_learning_aliases__alias_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/pending-aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Pending Learned Aliases */
+        get: operations["list_pending_learned_aliases_api_v1_admin_location_learning_pending_aliases_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/process": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Process Location Learning */
+        post: operations["process_location_learning_api_v1_admin_location_learning_process_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/regions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Regions */
+        get: operations["list_regions_api_v1_admin_location_learning_regions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/unresolved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Unresolved Location Queries */
+        get: operations["list_unresolved_location_queries_api_v1_admin_location_learning_unresolved_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/location-learning/unresolved/{query_normalized}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dismiss Unresolved Query */
+        post: operations["dismiss_unresolved_query_api_v1_admin_location_learning_unresolved__query_normalized__dismiss_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2682,6 +2898,86 @@ export type paths = {
          *         Updated booking information
          */
         post: operations["dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instructor-referrals/founding-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Founding Status
+         * @description Public endpoint to check founding phase status.
+         */
+        get: operations["get_founding_status_api_v1_instructor_referrals_founding_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instructor-referrals/popup-data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Popup Data
+         * @description Get data for the referral popup shown after go-live.
+         */
+        get: operations["get_popup_data_api_v1_instructor_referrals_popup_data_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instructor-referrals/referred": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Referred Instructors
+         * @description Get list of instructors referred by the current user.
+         */
+        get: operations["get_referred_instructors_api_v1_instructor_referrals_referred_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instructor-referrals/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Referral Stats
+         * @description Get current instructor's referral stats.
+         */
+        get: operations["get_referral_stats_api_v1_instructor_referrals_stats_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5741,6 +6037,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sse/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Sse Token
+         * @description Exchange a long-lived session for a short-lived SSE token.
+         */
+        post: operations["get_sse_token_api_v1_sse_token_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/students/badges": {
         parameters: {
             query?: never;
@@ -6211,10 +6527,7 @@ export type components = {
             confirmed_at?: string | null;
             /** Hold Until */
             hold_until?: string | null;
-            /** Progress Snapshot */
-            progress_snapshot?: {
-                [key: string]: unknown;
-            } | null;
+            progress_snapshot?: components["schemas"]["BadgeProgressView"] | null;
             /** Revoked At */
             revoked_at?: string | null;
             /** Status */
@@ -6515,6 +6828,169 @@ export type components = {
             /** Updated At */
             updated_at?: string | null;
         };
+        /** AdminLocationLearningAliasActionResponse */
+        AdminLocationLearningAliasActionResponse: {
+            /** Alias Id */
+            alias_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "rejected";
+        };
+        /** AdminLocationLearningClickCount */
+        AdminLocationLearningClickCount: {
+            /** Count */
+            count: number;
+            /** Region Boundary Id */
+            region_boundary_id: string;
+            /** Region Name */
+            region_name?: string | null;
+        };
+        /**
+         * AdminLocationLearningCreateAliasRequest
+         * @description Create a manual location alias mapping.
+         */
+        AdminLocationLearningCreateAliasRequest: {
+            /**
+             * Alias
+             * @description Alias text to map
+             */
+            alias: string;
+            /**
+             * Alias Type
+             * @description Classification for this alias (abbreviation|colloquial|landmark|typo)
+             * @default landmark
+             */
+            alias_type: string | null;
+            /**
+             * Candidate Region Ids
+             * @description If provided (len>=2), create an ambiguous alias requiring clarification
+             */
+            candidate_region_ids?: string[] | null;
+            /**
+             * Region Boundary Id
+             * @description RegionBoundary id to map to (single-resolution alias)
+             */
+            region_boundary_id?: string | null;
+        };
+        /** AdminLocationLearningCreateAliasResponse */
+        AdminLocationLearningCreateAliasResponse: {
+            /** Alias Id */
+            alias_id: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "created";
+        };
+        /** AdminLocationLearningDismissQueryResponse */
+        AdminLocationLearningDismissQueryResponse: {
+            /** Query Normalized */
+            query_normalized: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "dismissed";
+        };
+        /** AdminLocationLearningLearnedAliasItem */
+        AdminLocationLearningLearnedAliasItem: {
+            /** Alias Normalized */
+            alias_normalized: string;
+            /** Confidence */
+            confidence: number;
+            /** Confirmations */
+            confirmations: number;
+            /** Region Boundary Id */
+            region_boundary_id: string;
+            /** Status */
+            status: string;
+        };
+        /** AdminLocationLearningPendingAliasItem */
+        AdminLocationLearningPendingAliasItem: {
+            /** Alias Normalized */
+            alias_normalized: string;
+            /** Confidence */
+            confidence: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Region Boundary Id */
+            region_boundary_id?: string | null;
+            /** Region Name */
+            region_name?: string | null;
+            /** Status */
+            status: string;
+            /** User Count */
+            user_count: number;
+        };
+        /** AdminLocationLearningPendingAliasesResponse */
+        AdminLocationLearningPendingAliasesResponse: {
+            /** Aliases */
+            aliases: components["schemas"]["AdminLocationLearningPendingAliasItem"][];
+        };
+        /** AdminLocationLearningProcessResponse */
+        AdminLocationLearningProcessResponse: {
+            /** Learned */
+            learned: components["schemas"]["AdminLocationLearningLearnedAliasItem"][];
+            /** Learned Count */
+            learned_count: number;
+        };
+        /** AdminLocationLearningRegionItem */
+        AdminLocationLearningRegionItem: {
+            /** Borough */
+            borough?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** AdminLocationLearningRegionsResponse */
+        AdminLocationLearningRegionsResponse: {
+            /** Regions */
+            regions: components["schemas"]["AdminLocationLearningRegionItem"][];
+        };
+        /** AdminLocationLearningUnresolvedQueriesResponse */
+        AdminLocationLearningUnresolvedQueriesResponse: {
+            /** Queries */
+            queries: components["schemas"]["AdminLocationLearningUnresolvedQueryItem"][];
+            /** Total */
+            total: number;
+        };
+        /** AdminLocationLearningUnresolvedQueryItem */
+        AdminLocationLearningUnresolvedQueryItem: {
+            /** Click Count */
+            click_count: number;
+            /** Clicks */
+            clicks: components["schemas"]["AdminLocationLearningClickCount"][];
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /** Id */
+            id: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Query Normalized */
+            query_normalized: string;
+            /** Sample Original Queries */
+            sample_original_queries: string[];
+            /** Search Count */
+            search_count: number;
+            /** Status */
+            status: string;
+            /** Unique User Count */
+            unique_user_count: number;
+        };
         /**
          * AdminNoShowResolution
          * @enum {string}
@@ -6799,11 +7275,9 @@ export type components = {
             created_at: string;
             /**
              * Details
-             * @description Additional alert details
+             * @description Type-specific alert details
              */
-            details?: {
-                [key: string]: unknown;
-            } | null;
+            details?: (components["schemas"]["ExtremelySlowQueryDetails"] | components["schemas"]["ExtremelySlowRequestDetails"] | components["schemas"]["HighDbPoolUsageDetails"] | components["schemas"]["HighMemoryUsageDetails"] | components["schemas"]["LowCacheHitRateDetails"]) | null;
             /**
              * Email Sent
              * @description Whether email notification was sent
@@ -7165,17 +7639,54 @@ export type components = {
             total: number;
         };
         /**
+         * AvailabilityCacheMetrics
+         * @description Detailed availability cache metrics.
+         */
+        AvailabilityCacheMetrics: {
+            /**
+             * Cache Efficiency
+             * @description Cache efficiency rating
+             * @default unknown
+             */
+            cache_efficiency: string;
+            /**
+             * Hit Rate
+             * @description Cache hit rate percentage
+             * @default 0.0%
+             */
+            hit_rate: string;
+            /**
+             * Hits
+             * @description Cache hits
+             * @default 0
+             */
+            hits: number;
+            /**
+             * Invalidations
+             * @description Cache invalidations
+             * @default 0
+             */
+            invalidations: number;
+            /**
+             * Misses
+             * @description Cache misses
+             * @default 0
+             */
+            misses: number;
+            /**
+             * Total Requests
+             * @description Total cache requests
+             * @default 0
+             */
+            total_requests: number;
+        };
+        /**
          * AvailabilityCacheMetricsResponse
          * @description Availability-specific cache metrics response.
          */
         AvailabilityCacheMetricsResponse: {
-            /**
-             * Availability Cache Metrics
-             * @description Availability cache metrics
-             */
-            availability_cache_metrics: {
-                [key: string]: unknown;
-            };
+            /** @description Availability cache metrics */
+            availability_cache_metrics: components["schemas"]["AvailabilityCacheMetrics"];
             /**
              * Cache Tiers Info
              * @description Cache tier configuration
@@ -7238,18 +7749,62 @@ export type components = {
         AvailabilityCheckResponse: {
             /** Available */
             available: boolean;
-            /** Conflicts With */
-            conflicts_with?: {
-                [key: string]: unknown;
-            }[] | null;
+            /**
+             * Conflicts With
+             * @description List of conflicting bookings if any
+             */
+            conflicts_with?: components["schemas"]["ConflictingBookingInfo"][] | null;
             /** Min Advance Hours */
             min_advance_hours?: number | null;
             /** Reason */
             reason?: string | null;
-            /** Time Info */
-            time_info?: {
-                [key: string]: unknown;
-            } | null;
+            /** @description Time slot information for the availability check */
+            time_info?: components["schemas"]["TimeSlotInfo"] | null;
+        };
+        /**
+         * AvailabilityConflictInfo
+         * @description Information about a booking that conflicts with an availability operation.
+         */
+        AvailabilityConflictInfo: {
+            /**
+             * Booking Id
+             * @description ID of conflicting booking
+             */
+            booking_id?: string | null;
+            /**
+             * End Time
+             * @description End time of conflict
+             */
+            end_time?: string | null;
+            /**
+             * Start Time
+             * @description Start time of conflict
+             */
+            start_time?: string | null;
+        };
+        /**
+         * AvailabilityMetrics
+         * @description Availability-specific cache metrics.
+         */
+        AvailabilityMetrics: {
+            /**
+             * Availability Hit Rate
+             * @description Availability cache hit rate
+             * @default 0.0%
+             */
+            availability_hit_rate: string;
+            /**
+             * Availability Invalidations
+             * @description Availability cache invalidations
+             * @default 0
+             */
+            availability_invalidations: number;
+            /**
+             * Availability Total Requests
+             * @description Total availability requests
+             * @default 0
+             */
+            availability_total_requests: number;
         };
         /**
          * AvailabilityWindowResponse
@@ -7659,6 +8214,36 @@ export type components = {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * BasicCacheStats
+         * @description Basic cache statistics.
+         */
+        BasicCacheStats: {
+            /**
+             * Errors
+             * @description Cache errors
+             * @default 0
+             */
+            errors: number;
+            /**
+             * Hit Rate
+             * @description Cache hit rate percentage
+             * @default 0.0%
+             */
+            hit_rate: string;
+            /**
+             * Hits
+             * @description Cache hits
+             * @default 0
+             */
+            hits: number;
+            /**
+             * Misses
+             * @description Cache misses
+             * @default 0
+             */
+            misses: number;
+        };
         /** BetaMetricsSummaryResponse */
         BetaMetricsSummaryResponse: {
             /** Invites Errors 24H */
@@ -7729,6 +8314,30 @@ export type components = {
             /** Reason */
             reason?: string | null;
         };
+        /**
+         * BlockedAccount
+         * @description Blocked account information.
+         */
+        BlockedAccount: {
+            blocks: components["schemas"]["BlocksState"];
+            /** Email */
+            email: string;
+            /**
+             * Failure Count
+             * @default 0
+             */
+            failure_count: number;
+        };
+        /**
+         * BlocksState
+         * @description All block states for an account.
+         */
+        BlocksState: {
+            captcha_required?: components["schemas"]["CaptchaState"] | null;
+            lockout?: components["schemas"]["LockoutState"] | null;
+            rate_limit_hour?: components["schemas"]["RateLimitState"] | null;
+            rate_limit_minute?: components["schemas"]["RateLimitState"] | null;
+        };
         /** Body_dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post */
         Body_dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post: {
             /** Reason */
@@ -7775,15 +8384,69 @@ export type components = {
             /** Response Text */
             response_text: string;
         };
+        /**
+         * BookedSlotItem
+         * @description Individual booked slot with booking details for calendar display.
+         */
+        BookedSlotItem: {
+            /**
+             * Booking Id
+             * @description ULID of the booking
+             */
+            booking_id: string;
+            /**
+             * Date
+             * @description ISO date string (YYYY-MM-DD)
+             */
+            date: string;
+            /**
+             * Duration Minutes
+             * @description Duration of the booking in minutes
+             */
+            duration_minutes: number;
+            /**
+             * End Time
+             * @description ISO time string (HH:MM:SS)
+             */
+            end_time: string;
+            /**
+             * Location Type
+             * @description Location type (neutral, student, instructor)
+             */
+            location_type: string;
+            /**
+             * Service Area Short
+             * @description Abbreviated service area
+             */
+            service_area_short: string;
+            /**
+             * Service Name
+             * @description Name of the service booked
+             */
+            service_name: string;
+            /**
+             * Start Time
+             * @description ISO time string (HH:MM:SS)
+             */
+            start_time: string;
+            /**
+             * Student First Name
+             * @description Student's first name
+             */
+            student_first_name: string;
+            /**
+             * Student Last Initial
+             * @description Student's last name initial
+             */
+            student_last_initial: string;
+        };
         /** BookedSlotsResponse */
         BookedSlotsResponse: {
             /**
              * Booked Slots
              * @description List of booked slots with booking details
              */
-            booked_slots: {
-                [key: string]: unknown;
-            }[];
+            booked_slots: components["schemas"]["BookedSlotItem"][];
             /**
              * Week End
              * Format: date
@@ -8322,6 +8985,17 @@ export type components = {
              */
             skipped_operations?: string[];
         };
+        /**
+         * BuildResponseStageDetails
+         * @description Details for build_response pipeline stage.
+         */
+        BuildResponseStageDetails: {
+            /**
+             * Result Count
+             * @description Number of results in final response
+             */
+            result_count: number;
+        };
         /** BulkUpdateResponse */
         BulkUpdateResponse: {
             /** Failed */
@@ -8332,6 +9006,64 @@ export type components = {
             skipped: number;
             /** Successful */
             successful: number;
+        };
+        /**
+         * Burst1StageDetails
+         * @description Details for burst1 pipeline stage (pre-OpenAI batch).
+         */
+        Burst1StageDetails: {
+            /**
+             * Location Tier
+             * @description Location resolution tier used
+             */
+            location_tier?: number | null;
+            /**
+             * Region Lookup Loaded
+             * @description Whether region lookup was loaded
+             */
+            region_lookup_loaded: boolean;
+            /**
+             * Text Candidates
+             * @description Number of text search candidates
+             */
+            text_candidates: number;
+        };
+        /**
+         * Burst2StageDetails
+         * @description Details for burst2 pipeline stage (post-OpenAI batch).
+         */
+        Burst2StageDetails: {
+            /**
+             * Filter Failed
+             * @description Whether filtering failed
+             */
+            filter_failed: boolean;
+            /**
+             * Ranking Failed
+             * @description Whether ranking failed
+             */
+            ranking_failed: boolean;
+            /**
+             * Total Candidates
+             * @description Total candidates after retrieval
+             */
+            total_candidates: number;
+            /**
+             * Vector Search Used
+             * @description Whether vector search was used
+             */
+            vector_search_used: boolean;
+        };
+        /**
+         * CacheCheckStageDetails
+         * @description Details for cache_check pipeline stage.
+         */
+        CacheCheckStageDetails: {
+            /**
+             * Latency Ms
+             * @description Cache check latency in milliseconds
+             */
+            latency_ms: number;
         };
         /**
          * CacheHealthStatus
@@ -8369,13 +9101,8 @@ export type components = {
          * @description Detailed cache metrics response.
          */
         CacheMetricsResponse: {
-            /**
-             * Availability Metrics
-             * @description Availability-specific cache metrics
-             */
-            availability_metrics: {
-                [key: string]: unknown;
-            };
+            /** @description Availability-specific cache metrics */
+            availability_metrics: components["schemas"]["AvailabilityMetrics"];
             /**
              * Errors
              * @description Cache errors
@@ -8484,6 +9211,14 @@ export type components = {
         };
         /** CandidateTopServicesResponse */
         CandidateTopServicesResponse: components["schemas"]["CandidateTopService"][];
+        /**
+         * CaptchaState
+         * @description CAPTCHA requirement state.
+         */
+        CaptchaState: {
+            /** Active */
+            active: boolean;
+        };
         /**
          * CatalogServiceMinimalResponse
          * @description Minimal catalog service response for pills/lists.
@@ -8626,6 +9361,26 @@ export type components = {
             /** Subtitle */
             subtitle?: string | null;
         };
+        /**
+         * CeleryQueuesData
+         * @description Celery queue status data.
+         */
+        CeleryQueuesData: {
+            /** Queues */
+            queues?: {
+                [key: string]: number;
+            };
+            /**
+             * Status
+             * @default unknown
+             */
+            status: string;
+            /**
+             * Total Pending
+             * @default 0
+             */
+            total_pending: number;
+        };
         /** CheckoutApplyRequest */
         CheckoutApplyRequest: {
             /** Order Id */
@@ -8674,6 +9429,38 @@ export type components = {
              * @description Whether payment was successful
              */
             success: boolean;
+        };
+        /**
+         * ClearBlocksRequest
+         * @description Request to clear auth blocks.
+         */
+        ClearBlocksRequest: {
+            /**
+             * Reason
+             * @description Reason for clearing blocks (for audit)
+             */
+            reason?: string | null;
+            /**
+             * Types
+             * @description Block types to clear: lockout, rate_limit, captcha, failures. If not specified, clears all.
+             */
+            types?: string[] | null;
+        };
+        /**
+         * ClearBlocksResponse
+         * @description Response after clearing blocks.
+         */
+        ClearBlocksResponse: {
+            /** Cleared */
+            cleared: string[];
+            /** Cleared At */
+            cleared_at: string;
+            /** Cleared By */
+            cleared_by: string;
+            /** Email */
+            email: string;
+            /** Reason */
+            reason?: string | null;
         };
         /** CodebaseCategoryStats */
         CodebaseCategoryStats: {
@@ -8756,6 +9543,27 @@ export type components = {
             total_lines: number;
             /** Total Lines With Blanks */
             total_lines_with_blanks: number;
+        };
+        /**
+         * ConflictingBookingInfo
+         * @description Information about a conflicting booking.
+         */
+        ConflictingBookingInfo: {
+            /**
+             * Booking Id
+             * @description ID of the conflicting booking
+             */
+            booking_id?: string | null;
+            /**
+             * End Time
+             * @description End time of conflict (HH:MM:SS)
+             */
+            end_time?: string | null;
+            /**
+             * Start Time
+             * @description Start time of conflict (HH:MM:SS)
+             */
+            start_time?: string | null;
         };
         /**
          * ConsentPayload
@@ -8861,6 +9669,16 @@ export type components = {
              * @description Most common first search query
              */
             most_common_first_search: string;
+        };
+        /**
+         * ConversionMetrics
+         * @description Combined conversion metrics.
+         */
+        ConversionMetrics: {
+            /** @description Conversion behavior metrics */
+            conversion_behavior: components["schemas"]["ConversionBehavior"];
+            /** @description Guest session metrics */
+            guest_sessions: components["schemas"]["GuestConversionMetrics"];
         };
         /**
          * ConversionMetricsResponse
@@ -9083,6 +9901,42 @@ export type components = {
             status: string;
         };
         /**
+         * DatabaseDashboardMetrics
+         * @description Database metrics for monitoring dashboard.
+         */
+        DatabaseDashboardMetrics: {
+            /**
+             * Average Pool Usage Percent
+             * @description Average pool usage percentage
+             * @default 0
+             */
+            average_pool_usage_percent: number;
+            /** @description Connection pool status */
+            pool: components["schemas"]["DatabasePoolStatus"];
+            /**
+             * Slow Queries Count
+             * @description Number of slow queries
+             * @default 0
+             */
+            slow_queries_count: number;
+        };
+        /**
+         * DatabaseHealthMetrics
+         * @description Database health metrics.
+         */
+        DatabaseHealthMetrics: {
+            /**
+             * Status
+             * @description Health status
+             */
+            status: string;
+            /**
+             * Usage Percent
+             * @description Pool usage percentage
+             */
+            usage_percent: number;
+        };
+        /**
          * DatabaseHealthResponse
          * @description Response for database health check endpoint.
          */
@@ -9097,50 +9951,148 @@ export type components = {
              * @description Health check message
              */
             message: string;
-            /**
-             * Pool Status
-             * @description Connection pool status
-             */
-            pool_status?: {
-                [key: string]: unknown;
-            } | null;
+            /** @description Connection pool status */
+            pool_status?: components["schemas"]["DatabasePoolMetrics"] | null;
             /**
              * Status
              * @description Health status (healthy/unhealthy)
              */
             status: string;
         };
-        /** DatabasePoolStatusResponse */
+        /**
+         * DatabasePoolConfiguration
+         * @description SQLAlchemy pool configuration.
+         */
+        DatabasePoolConfiguration: {
+            /**
+             * Max Overflow
+             * @description Maximum overflow connections
+             */
+            max_overflow: number;
+            /**
+             * Pool Size
+             * @description Base pool size
+             */
+            pool_size: number;
+            /**
+             * Recycle
+             * @description Connection recycle time seconds
+             */
+            recycle?: number | null;
+            /**
+             * Timeout
+             * @description Connection timeout seconds
+             */
+            timeout?: number | null;
+        };
+        /**
+         * DatabasePoolMetrics
+         * @description Database connection pool metrics.
+         */
+        DatabasePoolMetrics: {
+            /**
+             * Checked In
+             * @description Available connections
+             */
+            checked_in: number;
+            /**
+             * Checked Out
+             * @description Active connections
+             */
+            checked_out: number;
+            /**
+             * Max Size
+             * @description Maximum pool size
+             */
+            max_size: number;
+            /**
+             * Overflow
+             * @description Overflow connections
+             */
+            overflow: number;
+            /**
+             * Size
+             * @description Base pool size
+             */
+            size: number;
+            /**
+             * Total
+             * @description Total connections (size + overflow)
+             */
+            total: number;
+            /**
+             * Usage Percent
+             * @description Pool usage percentage
+             */
+            usage_percent: number;
+        };
+        /**
+         * DatabasePoolStatus
+         * @description Database connection pool status.
+         */
+        DatabasePoolStatus: {
+            /**
+             * Checked In
+             * @description Available connections
+             */
+            checked_in: number;
+            /**
+             * Checked Out
+             * @description Active connections
+             */
+            checked_out: number;
+            /**
+             * Overflow
+             * @description Overflow connections
+             */
+            overflow: number;
+            /**
+             * Pool Size
+             * @description Total pool size
+             */
+            pool_size: number;
+            /**
+             * Usage Percent
+             * @description Pool usage percentage
+             */
+            usage_percent: number;
+        };
+        /**
+         * DatabasePoolStatusResponse
+         * @description Response for database pool status endpoint.
+         */
         DatabasePoolStatusResponse: {
-            /** Configuration */
-            configuration: {
-                [key: string]: unknown;
-            };
-            /** Pool */
-            pool: {
-                [key: string]: unknown;
-            };
-            /** Recommendations */
-            recommendations: {
-                [key: string]: unknown;
-            };
+            configuration: components["schemas"]["DatabasePoolConfiguration"];
+            pool: components["schemas"]["DatabasePoolMetrics"];
+            recommendations: components["schemas"]["DatabaseRecommendations"];
             /** Status */
             status: string;
         };
-        /** DatabaseStatsResponse */
+        /**
+         * DatabaseRecommendations
+         * @description Database pool recommendations.
+         */
+        DatabaseRecommendations: {
+            /**
+             * Current Load
+             * @description Current load level
+             * @enum {string}
+             */
+            current_load: "low" | "normal" | "high";
+            /**
+             * Increase Pool Size
+             * @description Whether pool size should be increased
+             */
+            increase_pool_size: boolean;
+        };
+        /**
+         * DatabaseStatsResponse
+         * @description Response for database statistics endpoint.
+         */
         DatabaseStatsResponse: {
-            /** Configuration */
-            configuration: {
-                [key: string]: unknown;
-            };
-            /** Health */
-            health: {
-                [key: string]: unknown;
-            };
-            /** Pool */
-            pool: {
-                [key: string]: unknown;
-            };
+            configuration: components["schemas"]["DatabasePoolConfiguration"];
+            health: components["schemas"]["DatabaseHealthMetrics"];
+            pool: components["schemas"]["DatabasePoolMetrics"];
             /** Status */
             status: string;
         };
@@ -9198,6 +10150,34 @@ export type components = {
             message: string;
             /** Window Id */
             window_id: string;
+        };
+        /**
+         * DeviceContext
+         * @description Device information for analytics.
+         */
+        DeviceContext: {
+            /** Browser */
+            browser?: string | null;
+            /** Connection Effective Type */
+            connection_effective_type?: string | null;
+            /** Connection Type */
+            connection_type?: string | null;
+            /** Device Type */
+            device_type?: string | null;
+            /** Language */
+            language?: string | null;
+            /** Os */
+            os?: string | null;
+            /** Screen Height */
+            screen_height?: number | null;
+            /** Screen Resolution */
+            screen_resolution?: string | null;
+            /** Screen Width */
+            screen_width?: number | null;
+            /** Timezone */
+            timezone?: string | null;
+            /** Viewport Size */
+            viewport_size?: string | null;
         };
         /**
          * EarningsExportRequest
@@ -9293,6 +10273,22 @@ export type components = {
              */
             content: string;
         };
+        /**
+         * EmbeddingStageDetails
+         * @description Details for embedding pipeline stage.
+         */
+        EmbeddingStageDetails: {
+            /**
+             * Reason
+             * @description Skip/error reason if any
+             */
+            reason?: string | null;
+            /**
+             * Used
+             * @description Whether embedding was actually used
+             */
+            used: boolean;
+        };
         /** ExistingReviewIdsResponse */
         ExistingReviewIdsResponse: string[];
         /**
@@ -9331,13 +10327,8 @@ export type components = {
          * @description Extended cache statistics.
          */
         ExtendedCacheStats: {
-            /**
-             * Basic Stats
-             * @description Basic cache statistics
-             */
-            basic_stats: {
-                [key: string]: unknown;
-            };
+            /** @description Basic cache statistics */
+            basic_stats: components["schemas"]["BasicCacheStats"];
             /**
              * Key Patterns
              * @description Cache key pattern counts
@@ -9352,6 +10343,68 @@ export type components = {
             redis_info?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /**
+         * ExtremelySlowQueryDetails
+         * @description Details for extremely slow database queries.
+         */
+        ExtremelySlowQueryDetails: {
+            /**
+             * @description Alert type discriminator (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            alert_type: "extremely_slow_query";
+            /**
+             * Duration Ms
+             * @description Query duration in milliseconds
+             */
+            duration_ms: number;
+            /**
+             * Full Query
+             * @description Full query text (only for queries > 2000ms)
+             */
+            full_query?: string | null;
+            /**
+             * Query Preview
+             * @description First 200 chars of the query
+             */
+            query_preview: string;
+        };
+        /**
+         * ExtremelySlowRequestDetails
+         * @description Details for extremely slow HTTP requests.
+         */
+        ExtremelySlowRequestDetails: {
+            /**
+             * @description Alert type discriminator (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            alert_type: "extremely_slow_request";
+            /**
+             * Client
+             * @description Client IP address
+             */
+            client: string;
+            /**
+             * Duration Ms
+             * @description Request duration in milliseconds
+             */
+            duration_ms: number;
+            /**
+             * Method
+             * @description HTTP method (GET, POST, etc.)
+             */
+            method: string;
+            /**
+             * Path
+             * @description Request path
+             */
+            path: string;
+            /**
+             * Status Code
+             * @description HTTP response status code
+             */
+            status_code: number;
         };
         /**
          * FavoriteResponse
@@ -9474,6 +10527,20 @@ export type components = {
             count: number;
             /** Remaining */
             remaining: number;
+        };
+        /**
+         * FoundingStatusResponse
+         * @description Public founding phase status.
+         */
+        FoundingStatusResponse: {
+            /** Is Founding Phase */
+            is_founding_phase: boolean;
+            /** Spots Filled */
+            spots_filled: number;
+            /** Spots Remaining */
+            spots_remaining: number;
+            /** Total Founding Spots */
+            total_founding_spots: number;
         };
         /**
          * GatedPingResponse
@@ -9645,6 +10712,64 @@ export type components = {
              * @description API version
              */
             version: string;
+        };
+        /**
+         * HighDbPoolUsageDetails
+         * @description Details for high database connection pool usage.
+         */
+        HighDbPoolUsageDetails: {
+            /**
+             * @description Alert type discriminator (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            alert_type: "high_db_pool_usage";
+            /**
+             * Checked Out
+             * @description Number of checked out connections
+             */
+            checked_out?: number | null;
+            /**
+             * Total Possible
+             * @description Total possible connections
+             */
+            total_possible?: number | null;
+            /**
+             * Usage Percent
+             * @description Pool usage percentage
+             */
+            usage_percent?: number | null;
+        };
+        /**
+         * HighMemoryUsageDetails
+         * @description Details for high memory usage alerts.
+         */
+        HighMemoryUsageDetails: {
+            /**
+             * @description Alert type discriminator (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            alert_type: "high_memory_usage";
+            /**
+             * Memory Mb
+             * @description Memory usage in MB
+             */
+            memory_mb?: number | null;
+            /**
+             * Percent
+             * @description Memory usage percentage
+             */
+            percent?: number | null;
+        };
+        /**
+         * HydrateStageDetails
+         * @description Details for hydrate pipeline stage.
+         */
+        HydrateStageDetails: {
+            /**
+             * Result Count
+             * @description Number of results after hydration
+             */
+            result_count: number;
         };
         /** IdentityRefreshResponse */
         IdentityRefreshResponse: {
@@ -9941,18 +11066,100 @@ export type components = {
             /** Years Experience */
             years_experience?: number | null;
         };
-        /** InstructorRatingsResponse */
+        /**
+         * InstructorRatingsResponse
+         * @description Instructor rating statistics with overall and per-service breakdown.
+         */
         InstructorRatingsResponse: {
-            /** By Service */
-            by_service?: {
-                [key: string]: unknown;
-            }[];
+            /**
+             * By Service
+             * @description Per-service rating breakdown
+             */
+            by_service?: components["schemas"]["ServiceRatingStats"][];
             /** Confidence Level */
             confidence_level: string;
-            /** Overall */
-            overall: {
-                [key: string]: unknown;
-            };
+            /** @description Overall rating statistics */
+            overall: components["schemas"]["OverallRatingStats"];
+        };
+        /**
+         * InstructorSearchResult
+         * @description Instructor in search results.
+         */
+        InstructorSearchResult: {
+            /** Average Rating */
+            average_rating?: number | null;
+            /** Bio */
+            bio?: string | null;
+            /**
+             * Favorited Count
+             * @default 0
+             */
+            favorited_count: number;
+            /** First Name */
+            first_name: string;
+            /**
+             * Has Profile Picture
+             * @default false
+             */
+            has_profile_picture: boolean;
+            /** Id */
+            id: string;
+            /** Is Favorited */
+            is_favorited?: boolean | null;
+            /**
+             * Is Live
+             * @default false
+             */
+            is_live: boolean;
+            /** Last Initial */
+            last_initial: string;
+            /**
+             * Profile Picture Version
+             * @default 0
+             */
+            profile_picture_version: number;
+            /**
+             * Review Count
+             * @default 0
+             */
+            review_count: number;
+            /** Service Area Boroughs */
+            service_area_boroughs?: string[];
+            /** Service Area Summary */
+            service_area_summary?: string | null;
+            /** Services */
+            services?: components["schemas"]["InstructorSearchResultService"][];
+            /** Teaches Adults */
+            teaches_adults?: boolean | null;
+            /** Teaches Kids */
+            teaches_kids?: boolean | null;
+            /** User Id */
+            user_id: string;
+            /** Years Experience */
+            years_experience?: number | null;
+        };
+        /**
+         * InstructorSearchResultService
+         * @description Service offering in search results.
+         */
+        InstructorSearchResultService: {
+            /** Catalog Service Id */
+            catalog_service_id: string;
+            /** Custom Description */
+            custom_description?: string | null;
+            /** Duration Options */
+            duration_options?: number[];
+            /** Hourly Rate */
+            hourly_rate: number;
+            /** Id */
+            id: string;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
         };
         /**
          * InstructorServiceCreate
@@ -10265,6 +11472,18 @@ export type components = {
             label: string;
         };
         /**
+         * ListAuthIssuesResponse
+         * @description Response for listing accounts with auth issues.
+         */
+        ListAuthIssuesResponse: {
+            /** Accounts */
+            accounts: components["schemas"]["BlockedAccount"][];
+            /** Scanned At */
+            scanned_at: string;
+            /** Total */
+            total: number;
+        };
+        /**
          * LiveAlertItem
          * @description Simplified alert item for live view.
          */
@@ -10343,6 +11562,22 @@ export type components = {
             tiers?: components["schemas"]["LocationTierResult"][];
         };
         /**
+         * LocationResolutionStageDetails
+         * @description Details for location_resolution pipeline stage.
+         */
+        LocationResolutionStageDetails: {
+            /**
+             * Resolved
+             * @description Whether location was successfully resolved
+             */
+            resolved: boolean;
+            /**
+             * Tier
+             * @description Resolution tier that succeeded
+             */
+            tier?: number | null;
+        };
+        /**
          * LocationTierResult
          * @description Result of a location resolution tier attempt.
          */
@@ -10380,6 +11615,24 @@ export type components = {
              */
             tier: number;
         };
+        /**
+         * LockoutState
+         * @description Lockout block state.
+         */
+        LockoutState: {
+            /** Active */
+            active: boolean;
+            /**
+             * Level
+             * @default
+             */
+            level: string;
+            /**
+             * Ttl Seconds
+             * @default 0
+             */
+            ttl_seconds: number;
+        };
         /** LoginResponse */
         LoginResponse: {
             /** Access Token */
@@ -10393,6 +11646,27 @@ export type components = {
             temp_token?: string | null;
             /** Token Type */
             token_type?: string | null;
+        };
+        /**
+         * LowCacheHitRateDetails
+         * @description Details for low cache hit rate alerts.
+         */
+        LowCacheHitRateDetails: {
+            /**
+             * @description Alert type discriminator (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            alert_type: "low_cache_hit_rate";
+            /**
+             * Hit Rate
+             * @description Current cache hit rate
+             */
+            hit_rate?: number | null;
+            /**
+             * Target
+             * @description Target cache hit rate
+             */
+            target?: number | null;
         };
         /**
          * MarkMessagesReadRequest
@@ -10554,13 +11828,8 @@ export type components = {
             alerts: components["schemas"]["AlertInfo"][];
             /** @description Cache health status */
             cache: components["schemas"]["CacheHealthStatus"];
-            /**
-             * Database
-             * @description Database metrics and pool status
-             */
-            database: {
-                [key: string]: unknown;
-            };
+            /** @description Database metrics and pool status */
+            database: components["schemas"]["DatabaseDashboardMetrics"];
             /** @description System memory metrics */
             memory: components["schemas"]["MemoryMetrics"];
             /**
@@ -10941,6 +12210,26 @@ export type components = {
             /** Unread Count */
             unread_count: number;
         };
+        /**
+         * ObservabilityCandidate
+         * @description Search candidate for observability tracking.
+         */
+        ObservabilityCandidate: {
+            /** Id */
+            id?: string | null;
+            /** Lexical Score */
+            lexical_score?: number | null;
+            /** Position */
+            position?: number | null;
+            /** Score */
+            score?: number | null;
+            /** Service Catalog Id */
+            service_catalog_id?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Vector Score */
+            vector_score?: number | null;
+        };
         /** OnboardingResponse */
         OnboardingResponse: {
             /**
@@ -11012,6 +12301,27 @@ export type components = {
              * @enum {string}
              */
             status: "success" | "failed" | "skipped";
+        };
+        /**
+         * OverallRatingStats
+         * @description Overall rating statistics computed using Dirichlet smoothing.
+         */
+        OverallRatingStats: {
+            /**
+             * Display Rating
+             * @description Display-formatted rating (e.g., '4.5★') or None if below threshold
+             */
+            display_rating?: string | null;
+            /**
+             * Rating
+             * @description Computed rating (Dirichlet-smoothed)
+             */
+            rating: number;
+            /**
+             * Total Reviews
+             * @description Total number of reviews
+             */
+            total_reviews: number;
         };
         /** OverridePayload */
         OverridePayload: {
@@ -11125,6 +12435,17 @@ export type components = {
              * @description Total number of items
              */
             total: number;
+        };
+        /**
+         * ParseStageDetails
+         * @description Details for parse pipeline stage.
+         */
+        ParseStageDetails: {
+            /**
+             * Mode
+             * @description Parsing mode used (regex/llm)
+             */
+            mode: string;
         };
         /**
          * ParsedQueryInfo
@@ -11449,6 +12770,44 @@ export type components = {
             status: string;
         };
         /**
+         * PerformanceCacheStats
+         * @description Cache statistics for performance metrics.
+         */
+        PerformanceCacheStats: {
+            /**
+             * Hit Rate
+             * @description Cache hit rate percentage
+             * @default 0.0%
+             */
+            hit_rate: string;
+            /**
+             * Hits
+             * @description Cache hits
+             * @default 0
+             */
+            hits: number;
+            /**
+             * Misses
+             * @description Cache misses
+             * @default 0
+             */
+            misses: number;
+        };
+        /**
+         * PerformanceDatabaseMetrics
+         * @description Database metrics for performance monitoring.
+         */
+        PerformanceDatabaseMetrics: {
+            /**
+             * Active Connections
+             * @description Active database connections
+             * @default 0
+             */
+            active_connections: number;
+            /** @description Connection pool status */
+            pool_status: components["schemas"]["DatabasePoolStatus"];
+        };
+        /**
          * PerformanceMetrics
          * @description Search performance metrics.
          */
@@ -11478,22 +12837,12 @@ export type components = {
             availability_service: components["schemas"]["ServiceMetrics"];
             /** @description Booking service metrics */
             booking_service: components["schemas"]["ServiceMetrics"];
-            /**
-             * Cache
-             * @description Cache statistics
-             */
-            cache: {
-                [key: string]: unknown;
-            };
+            /** @description Cache statistics */
+            cache: components["schemas"]["PerformanceCacheStats"];
             /** @description Conflict checker metrics */
             conflict_checker: components["schemas"]["ServiceMetrics"];
-            /**
-             * Database
-             * @description Database connection metrics
-             */
-            database: {
-                [key: string]: unknown;
-            };
+            /** @description Database connection metrics */
+            database: components["schemas"]["PerformanceDatabaseMetrics"];
             /**
              * System
              * @description System resource metrics
@@ -11571,11 +12920,9 @@ export type components = {
         PipelineStage: {
             /**
              * Details
-             * @description Stage details
+             * @description Type-specific stage details
              */
-            details?: {
-                [key: string]: unknown;
-            } | null;
+            details?: components["schemas"]["CacheCheckStageDetails"] | components["schemas"]["Burst1StageDetails"] | components["schemas"]["ParseStageDetails"] | components["schemas"]["EmbeddingStageDetails"] | components["schemas"]["LocationResolutionStageDetails"] | components["schemas"]["Burst2StageDetails"] | components["schemas"]["HydrateStageDetails"] | components["schemas"]["BuildResponseStageDetails"] | components["schemas"]["SkippedStageDetails"] | null;
             /**
              * Duration Ms
              * @description Stage duration in ms
@@ -11724,6 +13071,22 @@ export type components = {
          * @description Popular searches response.
          */
         PopularSearchesResponse: components["schemas"]["PopularSearch"][];
+        /**
+         * PopupDataResponse
+         * @description Data for the one-time referral popup after go-live.
+         */
+        PopupDataResponse: {
+            /** Bonus Amount Cents */
+            bonus_amount_cents: number;
+            /** Founding Spots Remaining */
+            founding_spots_remaining: number;
+            /** Is Founding Phase */
+            is_founding_phase: boolean;
+            /** Referral Code */
+            referral_code: string;
+            /** Referral Link */
+            referral_link: string;
+        };
         /**
          * PreferenceResponse
          * @description Single preference response.
@@ -11962,15 +13325,46 @@ export type components = {
             /** Top Up Transfer Cents */
             top_up_transfer_cents: number;
         };
+        /**
+         * PrivacyStatistics
+         * @description Privacy and retention statistics returned by get_privacy_statistics.
+         */
+        PrivacyStatistics: {
+            /**
+             * Active Users
+             * @description Number of active users
+             */
+            active_users: number;
+            /**
+             * Search Event Records
+             * @description Number of search event records
+             */
+            search_event_records: number;
+            /**
+             * Search Events Eligible For Deletion
+             * @description Search events eligible for deletion based on retention policy
+             */
+            search_events_eligible_for_deletion?: number | null;
+            /**
+             * Search History Records
+             * @description Number of search history records
+             */
+            search_history_records: number;
+            /**
+             * Total Bookings
+             * @description Total number of bookings
+             */
+            total_bookings: number;
+            /**
+             * Total Users
+             * @description Total number of users
+             */
+            total_users: number;
+        };
         /** PrivacyStatisticsResponse */
         PrivacyStatisticsResponse: {
-            /**
-             * Statistics
-             * @description Privacy and retention statistics
-             */
-            statistics: {
-                [key: string]: unknown;
-            };
+            /** @description Privacy and retention statistics */
+            statistics: components["schemas"]["PrivacyStatistics"];
             /**
              * Status
              * @description Status of the request
@@ -12014,6 +13408,41 @@ export type components = {
             ok: boolean;
             /** Url */
             url?: string | null;
+        };
+        /**
+         * PublicAvailabilitySummaryEntry
+         * @description Summary of availability for a single date.
+         */
+        PublicAvailabilitySummaryEntry: {
+            /**
+             * Afternoon Available
+             * @description Afternoon availability
+             * @default false
+             */
+            afternoon_available: boolean;
+            /**
+             * Date
+             * @description Date in YYYY-MM-DD format
+             */
+            date: string;
+            /**
+             * Evening Available
+             * @description Evening availability
+             * @default false
+             */
+            evening_available: boolean;
+            /**
+             * Morning Available
+             * @description Morning availability
+             * @default false
+             */
+            morning_available: boolean;
+            /**
+             * Total Hours
+             * @description Total available hours
+             * @default 0
+             */
+            total_hours: number;
         };
         /** PublicConfigResponse */
         PublicConfigResponse: {
@@ -12069,9 +13498,7 @@ export type components = {
              * @description Summary of availability by date - only in summary detail
              */
             availability_summary?: {
-                [key: string]: {
-                    [key: string]: unknown;
-                };
+                [key: string]: components["schemas"]["PublicAvailabilitySummaryEntry"];
             } | null;
             /**
              * Detail Level
@@ -12227,6 +13654,26 @@ export type components = {
             status: string;
         };
         /**
+         * RateLimitState
+         * @description Rate limit block state.
+         */
+        RateLimitState: {
+            /** Active */
+            active: boolean;
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /** Limit */
+            limit: number;
+            /**
+             * Ttl Seconds
+             * @default 0
+             */
+            ttl_seconds: number;
+        };
+        /**
          * RateLimitStats
          * @description Rate limit statistics.
          */
@@ -12242,9 +13689,7 @@ export type components = {
              * Top Limited Clients
              * @description Top rate-limited clients
              */
-            top_limited_clients: {
-                [key: string]: unknown;
-            }[];
+            top_limited_clients: components["schemas"]["RateLimitedClient"][];
             /**
              * Total Keys
              * @description Total rate limit keys in Redis
@@ -12271,6 +13716,27 @@ export type components = {
              * @description Request timestamp
              */
             timestamp: string;
+        };
+        /**
+         * RateLimitedClient
+         * @description Rate-limited client information.
+         */
+        RateLimitedClient: {
+            /**
+             * Count
+             * @description Request count
+             */
+            count: number;
+            /**
+             * Endpoint
+             * @description Most rate-limited endpoint
+             */
+            endpoint: string;
+            /**
+             * Key
+             * @description Client identifier key
+             */
+            key: string;
         };
         /**
          * RatingSummary
@@ -12368,19 +13834,122 @@ export type components = {
              */
             total: number;
         };
-        /** RedisCeleryQueuesResponse */
-        RedisCeleryQueuesResponse: {
-            /** Queues */
-            queues: {
-                [key: string]: unknown;
-            };
+        /**
+         * RedisActiveConnections
+         * @description Active Redis connection counts.
+         */
+        RedisActiveConnections: {
+            /**
+             * Local Redis
+             * @default 0
+             */
+            local_redis: number;
+            /**
+             * Upstash
+             * @default 0
+             */
+            upstash: number;
         };
-        /** RedisConnectionAuditResponse */
+        /**
+         * RedisCeleryQueuesResponse
+         * @description Response for Redis Celery queues.
+         */
+        RedisCeleryQueuesResponse: {
+            queues: components["schemas"]["CeleryQueuesData"];
+        };
+        /**
+         * RedisClientStats
+         * @description Redis client statistics.
+         */
+        RedisClientStats: {
+            /**
+             * Blocked Clients
+             * @default 0
+             */
+            blocked_clients: number;
+            /**
+             * Connected Clients
+             * @default 0
+             */
+            connected_clients: number;
+        };
+        /**
+         * RedisConnectionAuditData
+         * @description Redis connection audit data.
+         */
+        RedisConnectionAuditData: {
+            active_connections?: components["schemas"]["RedisActiveConnections"];
+            /** Api Cache */
+            api_cache: string;
+            /** Celery Broker */
+            celery_broker: string;
+            /** Environment Variables */
+            environment_variables?: {
+                [key: string]: string;
+            };
+            /**
+             * Migration Status
+             * @default unknown
+             */
+            migration_status: string;
+            /**
+             * Recommendation
+             * @default
+             */
+            recommendation: string;
+            /** Service Connections */
+            service_connections?: {
+                [key: string]: components["schemas"]["RedisServiceConnection"];
+            };
+            /**
+             * Upstash Detected
+             * @default false
+             */
+            upstash_detected: boolean;
+        };
+        /**
+         * RedisConnectionAuditResponse
+         * @description Response for Redis connection audit.
+         */
         RedisConnectionAuditResponse: {
             /** Connections */
-            connections: {
-                [key: string]: unknown;
-            }[];
+            connections: components["schemas"]["RedisConnectionAuditData"][];
+        };
+        /**
+         * RedisConnectionStats
+         * @description Redis connection statistics.
+         */
+        RedisConnectionStats: {
+            /**
+             * Evicted Keys
+             * @default 0
+             */
+            evicted_keys: number;
+            /**
+             * Expired Keys
+             * @default 0
+             */
+            expired_keys: number;
+            /**
+             * Instantaneous Ops Per Sec
+             * @default 0
+             */
+            instantaneous_ops_per_sec: number;
+            /**
+             * Rejected Connections
+             * @default 0
+             */
+            rejected_connections: number;
+            /**
+             * Total Commands Processed
+             * @default 0
+             */
+            total_commands_processed: number;
+            /**
+             * Total Connections Received
+             * @default 0
+             */
+            total_connections_received: number;
         };
         /** RedisFlushQueuesResponse */
         RedisFlushQueuesResponse: {
@@ -12410,12 +13979,112 @@ export type components = {
              */
             status: string;
         };
-        /** RedisStatsResponse */
-        RedisStatsResponse: {
-            /** Stats */
-            stats: {
-                [key: string]: unknown;
+        /**
+         * RedisMemoryInfo
+         * @description Redis memory metrics.
+         */
+        RedisMemoryInfo: {
+            /**
+             * Maxmemory Human
+             * @default N/A
+             */
+            maxmemory_human: string;
+            /**
+             * Mem Fragmentation Ratio
+             * @default 0
+             */
+            mem_fragmentation_ratio: number;
+            /**
+             * Used Memory Human
+             * @default N/A
+             */
+            used_memory_human: string;
+            /**
+             * Used Memory Peak Human
+             * @default N/A
+             */
+            used_memory_peak_human: string;
+            /**
+             * Used Memory Rss Human
+             * @default N/A
+             */
+            used_memory_rss_human: string;
+        };
+        /**
+         * RedisOperationMetrics
+         * @description Redis operation rate metrics.
+         */
+        RedisOperationMetrics: {
+            /**
+             * Current Ops Per Sec
+             * @default 0
+             */
+            current_ops_per_sec: number;
+            /**
+             * Estimated Daily Ops
+             * @default 0
+             */
+            estimated_daily_ops: number;
+            /**
+             * Estimated Monthly Ops
+             * @default 0
+             */
+            estimated_monthly_ops: number;
+        };
+        /**
+         * RedisServerInfo
+         * @description Redis server information.
+         */
+        RedisServerInfo: {
+            /**
+             * Redis Version
+             * @default unknown
+             */
+            redis_version: string;
+            /**
+             * Uptime In Days
+             * @default 0
+             */
+            uptime_in_days: number;
+        };
+        /**
+         * RedisServiceConnection
+         * @description Redis connection info for a service.
+         */
+        RedisServiceConnection: {
+            /** Host */
+            host: string;
+            /** Type */
+            type: string;
+            /** Url */
+            url: string;
+        };
+        /**
+         * RedisStatsData
+         * @description Complete Redis statistics data.
+         */
+        RedisStatsData: {
+            /** Celery */
+            celery?: {
+                [key: string]: number;
             };
+            clients?: components["schemas"]["RedisClientStats"];
+            memory?: components["schemas"]["RedisMemoryInfo"];
+            operations?: components["schemas"]["RedisOperationMetrics"];
+            server?: components["schemas"]["RedisServerInfo"];
+            stats?: components["schemas"]["RedisConnectionStats"];
+            /**
+             * Status
+             * @default unknown
+             */
+            status: string;
+        };
+        /**
+         * RedisStatsResponse
+         * @description Response for Redis statistics.
+         */
+        RedisStatsResponse: {
+            stats: components["schemas"]["RedisStatsData"];
         };
         /**
          * RedisTestResponse
@@ -12561,6 +14230,67 @@ export type components = {
             status: string;
         };
         /**
+         * ReferralStatsResponse
+         * @description Stats for instructor's referral activity.
+         */
+        ReferralStatsResponse: {
+            /** Completed Payouts */
+            completed_payouts: number;
+            /** Current Bonus Cents */
+            current_bonus_cents: number;
+            /** Founding Spots Remaining */
+            founding_spots_remaining: number;
+            /** Is Founding Phase */
+            is_founding_phase: boolean;
+            /** Pending Payouts */
+            pending_payouts: number;
+            /** Referral Code */
+            referral_code: string;
+            /** Referral Link */
+            referral_link: string;
+            /** Total Earned Cents */
+            total_earned_cents: number;
+            /** Total Referred */
+            total_referred: number;
+        };
+        /**
+         * ReferredInstructorInfo
+         * @description Info about an instructor this user referred.
+         */
+        ReferredInstructorInfo: {
+            /** First Lesson Completed At */
+            first_lesson_completed_at?: string | null;
+            /** First Name */
+            first_name: string;
+            /** Id */
+            id: string;
+            /** Is Live */
+            is_live: boolean;
+            /** Last Initial */
+            last_initial: string;
+            /** Payout Amount Cents */
+            payout_amount_cents?: number | null;
+            /** Payout Status */
+            payout_status: string;
+            /**
+             * Referred At
+             * Format: date-time
+             */
+            referred_at: string;
+            /** Went Live At */
+            went_live_at?: string | null;
+        };
+        /**
+         * ReferredInstructorsResponse
+         * @description List of instructors referred by current user.
+         */
+        ReferredInstructorsResponse: {
+            /** Instructors */
+            instructors: components["schemas"]["ReferredInstructorInfo"][];
+            /** Total Count */
+            total_count: number;
+        };
+        /**
          * RequestMetrics
          * @description Request processing metrics.
          */
@@ -12632,18 +14362,31 @@ export type components = {
              * @description Human-readable message
              */
             message: string;
-            /**
-             * Stats
-             * @description Statistics of retention policy application
-             */
-            stats: {
-                [key: string]: unknown;
-            };
+            /** @description Statistics of retention policy application */
+            stats: components["schemas"]["RetentionStats"];
             /**
              * Status
              * @description Status of the retention policy application
              */
             status: string;
+        };
+        /**
+         * RetentionStats
+         * @description Statistics from applying retention policies.
+         */
+        RetentionStats: {
+            /**
+             * Old Bookings Anonymized
+             * @description Number of old bookings anonymized
+             * @default 0
+             */
+            old_bookings_anonymized: number;
+            /**
+             * Search Events Deleted
+             * @description Number of search events deleted
+             * @default 0
+             */
+            search_events_deleted: number;
         };
         /**
          * RetryPaymentResponse
@@ -12795,17 +14538,33 @@ export type components = {
             set_as_default: boolean;
         };
         /**
+         * ScheduleItem
+         * @description Individual schedule item for availability creation.
+         */
+        ScheduleItem: {
+            /**
+             * Date
+             * @description ISO date string (YYYY-MM-DD)
+             */
+            date: string;
+            /**
+             * End Time
+             * @description End time (HH:MM or HH:MM:SS)
+             */
+            end_time: string;
+            /**
+             * Start Time
+             * @description Start time (HH:MM or HH:MM:SS)
+             */
+            start_time: string;
+        };
+        /**
          * SearchAnalyticsSummaryResponse
          * @description Comprehensive search analytics summary.
          */
         SearchAnalyticsSummaryResponse: {
-            /**
-             * Conversions
-             * @description Conversion metrics
-             */
-            conversions: {
-                [key: string]: unknown;
-            };
+            /** @description Conversion metrics */
+            conversions: components["schemas"]["ConversionMetrics"];
             /** @description Date range for analytics */
             date_range: components["schemas"]["DateRange"];
             /** @description Search performance metrics */
@@ -12941,6 +14700,22 @@ export type components = {
             parsing_timeout_ms?: number | null;
         };
         /**
+         * SearchContext
+         * @description Context about where the search originated.
+         */
+        SearchContext: {
+            /** Page Origin */
+            page_origin?: string | null;
+            /** Referrer */
+            referrer?: string | null;
+            /** Session Search Count */
+            session_search_count?: number | null;
+            /** Viewport Height */
+            viewport_height?: number | null;
+            /** Viewport Width */
+            viewport_width?: number | null;
+        };
+        /**
          * SearchDiagnostics
          * @description Full diagnostics for admin tooling.
          */
@@ -13042,6 +14817,24 @@ export type components = {
             zero_result_rate: number;
         };
         /**
+         * SearchFiltersApplied
+         * @description Filters applied to instructor search.
+         */
+        SearchFiltersApplied: {
+            /** Age Group */
+            age_group?: string | null;
+            /** Max Price */
+            max_price?: number | null;
+            /** Min Price */
+            min_price?: number | null;
+            /** Search */
+            search?: string | null;
+            /** Service Area Boroughs */
+            service_area_boroughs?: string[] | null;
+            /** Service Catalog Id */
+            service_catalog_id?: string | null;
+        };
+        /**
          * SearchHealthCache
          * @description Cache health status.
          */
@@ -13105,13 +14898,8 @@ export type components = {
          * @description Schema for creating search history.
          */
         SearchHistoryCreate: {
-            /**
-             * Device Context
-             * @description Device context from frontend including screen size, connection type, etc.
-             */
-            device_context?: {
-                [key: string]: unknown;
-            } | null;
+            /** @description Device context from frontend including screen size, connection type, etc. */
+            device_context?: components["schemas"]["DeviceContext"] | null;
             /**
              * Guest Session Id
              * @description UUID for guest session tracking
@@ -13121,21 +14909,14 @@ export type components = {
              * Observability Candidates
              * @description Optional top-N candidate objects for observability. Each item may include: position, service_catalog_id (or id), score, vector_score, lexical_score, source.
              */
-            observability_candidates?: {
-                [key: string]: unknown;
-            }[] | null;
+            observability_candidates?: components["schemas"]["ObservabilityCandidate"][] | null;
             /**
              * Results Count
              * @description Number of results returned
              */
             results_count?: number | null;
-            /**
-             * Search Context
-             * @description Additional context like page origin, viewport size, etc.
-             */
-            search_context?: {
-                [key: string]: unknown;
-            } | null;
+            /** @description Additional context like page origin, viewport size, etc. */
+            search_context?: components["schemas"]["SearchContext"] | null;
             /**
              * Search Query
              * @description The search query string
@@ -13265,6 +15046,27 @@ export type components = {
              * @description Rate of zero-result searches
              */
             zero_result_rate: number;
+        };
+        /**
+         * SearchPagination
+         * @description Pagination metadata for search results.
+         */
+        SearchPagination: {
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /**
+             * Limit
+             * @default 100
+             */
+            limit: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
         };
         /**
          * SearchPerformanceResponse
@@ -13575,6 +15377,32 @@ export type components = {
             total_operations: number;
         };
         /**
+         * ServiceRatingStats
+         * @description Per-service rating statistics.
+         */
+        ServiceRatingStats: {
+            /**
+             * Display Rating
+             * @description Display-formatted rating or None if below threshold
+             */
+            display_rating?: string | null;
+            /**
+             * Instructor Service Id
+             * @description ID of the instructor's service offering
+             */
+            instructor_service_id: string;
+            /**
+             * Rating
+             * @description Computed rating or None if below min_reviews threshold
+             */
+            rating?: number | null;
+            /**
+             * Review Count
+             * @description Number of reviews for this service
+             */
+            review_count: number;
+        };
+        /**
          * ServiceResponse
          * @description Schema for service responses.
          *
@@ -13666,14 +15494,8 @@ export type components = {
              * @default 0
              */
             active_instructors: number;
-            /** Filters Applied */
-            filters_applied?: {
-                [key: string]: unknown;
-            };
-            /** Pagination */
-            pagination?: {
-                [key: string]: unknown;
-            };
+            filters_applied?: components["schemas"]["SearchFiltersApplied"];
+            pagination?: components["schemas"]["SearchPagination"];
             /**
              * Total Matches
              * @default 0
@@ -13686,9 +15508,7 @@ export type components = {
          */
         ServiceSearchResponse: {
             /** Instructors */
-            instructors?: {
-                [key: string]: unknown;
-            }[];
+            instructors?: components["schemas"]["InstructorSearchResult"][];
             metadata: components["schemas"]["ServiceSearchMetadata"];
             /** Query */
             query: string;
@@ -13716,6 +15536,17 @@ export type components = {
             public_url?: string | null;
             /** Upload Url */
             upload_url: string;
+        };
+        /**
+         * SkippedStageDetails
+         * @description Details for skipped pipeline stages.
+         */
+        SkippedStageDetails: {
+            /**
+             * Reason
+             * @description Reason the stage was skipped
+             */
+            reason: string;
         };
         /**
          * SlotOperation
@@ -13848,6 +15679,13 @@ export type components = {
              */
             start_time: string;
         };
+        /** SseTokenResponse */
+        SseTokenResponse: {
+            /** Expires In S */
+            expires_in_s: number;
+            /** Token */
+            token: string;
+        };
         /**
          * StageStatus
          * @description Status for pipeline stages and location tiers.
@@ -13866,10 +15704,7 @@ export type components = {
             earned: boolean;
             /** Name */
             name: string;
-            /** Progress */
-            progress?: components["schemas"]["BadgeProgressView"] | {
-                [key: string]: unknown;
-            } | null;
+            progress?: components["schemas"]["BadgeProgressView"] | null;
             /** Slug */
             slug: string;
             /** Status */
@@ -13940,6 +15775,32 @@ export type components = {
              * @default true
              */
             success: boolean;
+        };
+        /**
+         * SummaryStats
+         * @description Summary statistics for auth blocks.
+         */
+        SummaryStats: {
+            /**
+             * Captcha Required
+             * @default 0
+             */
+            captcha_required: number;
+            /**
+             * Locked Out
+             * @default 0
+             */
+            locked_out: number;
+            /**
+             * Rate Limited
+             * @default 0
+             */
+            rate_limited: number;
+            /**
+             * Total Blocked
+             * @default 0
+             */
+            total_blocked: number;
         };
         /** TFADisableRequest */
         TFADisableRequest: {
@@ -14044,6 +15905,32 @@ export type components = {
             /**
              * Start Time
              * Format: time
+             */
+            start_time: string;
+        };
+        /**
+         * TimeSlotInfo
+         * @description Time slot information for availability checks.
+         */
+        TimeSlotInfo: {
+            /**
+             * Date
+             * @description ISO date string (YYYY-MM-DD)
+             */
+            date: string;
+            /**
+             * End Time
+             * @description ISO time string (HH:MM:SS)
+             */
+            end_time: string;
+            /**
+             * Instructor Id
+             * @description Instructor ID
+             */
+            instructor_id: string;
+            /**
+             * Start Time
+             * @description ISO time string (HH:MM:SS)
              */
             start_time: string;
         };
@@ -14383,10 +16270,7 @@ export type components = {
             is_active: boolean | null;
             /** Last Name */
             last_name: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            } | null;
+            metadata?: components["schemas"]["UserRegistrationMetadata"] | null;
             /** Password */
             password: string;
             /** Phone */
@@ -14453,6 +16337,24 @@ export type components = {
             password: string;
         };
         /**
+         * UserRegistrationMetadata
+         * @description Metadata provided during user registration.
+         */
+        UserRegistrationMetadata: {
+            /** Campaign */
+            campaign?: string | null;
+            /** Invite Code */
+            invite_code?: string | null;
+            /** Marketing Tag */
+            marketing_tag?: string | null;
+            /** Referral Code */
+            referral_code?: string | null;
+            /** Referral Source */
+            referral_source?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
          * UserSummary
          * @description Minimal user info for conversation list.
          */
@@ -14514,10 +16416,11 @@ export type components = {
         ValidationSlotDetail: {
             /** Action */
             action: string;
-            /** Conflicts With */
-            conflicts_with?: {
-                [key: string]: unknown;
-            }[] | null;
+            /**
+             * Conflicts With
+             * @description Bookings that conflict with this operation
+             */
+            conflicts_with?: components["schemas"]["AvailabilityConflictInfo"][] | null;
             /** Date */
             date?: string | null;
             /** End Time */
@@ -14663,10 +16566,11 @@ export type components = {
              * @default false
              */
             override: boolean;
-            /** Schedule */
-            schedule: {
-                [key: string]: unknown;
-            }[];
+            /**
+             * Schedule
+             * @description List of schedule items with date, start_time, and end_time
+             */
+            schedule: components["schemas"]["ScheduleItem"][];
             /**
              * Version
              * @description Deprecated alias for base_version (optimistic concurrency token)
@@ -15551,6 +17455,154 @@ export interface operations {
             };
         };
     };
+    list_auth_issues_api_v1_admin_auth_blocks_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by block type: lockout, rate_limit, captcha */
+                type?: string | null;
+                /** @description Search by email (partial match) */
+                email?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAuthIssuesResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_summary_stats_api_v1_admin_auth_blocks_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SummaryStats"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_account_state_api_v1_admin_auth_blocks__email__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                email: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockedAccount"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_account_blocks_api_v1_admin_auth_blocks__email__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                email: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ClearBlocksRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClearBlocksResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     bgc_cases_api_v1_admin_background_checks_cases_get: {
         parameters: {
             query?: {
@@ -16343,6 +18395,245 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminInstructorDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_manual_alias_api_v1_admin_location_learning_aliases_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminLocationLearningCreateAliasRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningCreateAliasResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_learned_alias_api_v1_admin_location_learning_aliases__alias_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alias_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningAliasActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_learned_alias_api_v1_admin_location_learning_aliases__alias_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alias_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningAliasActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_pending_learned_aliases_api_v1_admin_location_learning_pending_aliases_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningPendingAliasesResponse"];
+                };
+            };
+        };
+    };
+    process_location_learning_api_v1_admin_location_learning_process_post: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningProcessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_regions_api_v1_admin_location_learning_regions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningRegionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_unresolved_location_queries_api_v1_admin_location_learning_unresolved_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningUnresolvedQueriesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_unresolved_query_api_v1_admin_location_learning_unresolved__query_normalized__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                query_normalized: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLocationLearningDismissQueryResponse"];
                 };
             };
             /** @description Validation Error */
@@ -18948,6 +21239,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_founding_status_api_v1_instructor_referrals_founding_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoundingStatusResponse"];
+                };
+            };
+        };
+    };
+    get_popup_data_api_v1_instructor_referrals_popup_data_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PopupDataResponse"];
+                };
+            };
+        };
+    };
+    get_referred_instructors_api_v1_instructor_referrals_referred_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferredInstructorsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_referral_stats_api_v1_instructor_referrals_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralStatsResponse"];
                 };
             };
         };
@@ -22361,13 +24744,11 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": unknown;
-                };
+                content?: never;
             };
         };
     };
@@ -22519,7 +24900,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description VAPID public key for push notifications */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22527,6 +24908,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["VapidPublicKeyResponse"];
                 };
+            };
+            /** @description Push notifications not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -23754,6 +26142,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sse_token_api_v1_sse_token_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SseTokenResponse"];
                 };
             };
         };

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 from typing import Any, Iterable, Optional
 
 from .ratings_config import DEFAULT_RATINGS_CONFIG, RatingsConfig
+
+logger = logging.getLogger(__name__)
 
 
 def compute_simple_shrinkage(
@@ -66,8 +69,7 @@ def compute_dirichlet_rating(
             if count_before > 1:
                 w *= config.duplicate_rater_secondary_weight
         except Exception:
-            pass
-
+            logger.debug("Non-fatal error ignored", exc_info=True)
         k = max(1, min(5, int(getattr(r, rating_attr))))
         weights[k - 1] += w
         total_effective += w

@@ -147,10 +147,10 @@ describe('Search Tracking', () => {
       expect(body.search_type).toBe('natural_language');
       expect(body.results_count).toBe(5);
       expect(body.search_context).toMatchObject({
-        page: '/test',
-        viewport: '1920x1080',
-        page_view_count: 1,
-        session_duration: 30,
+        page_origin: '/test',
+        viewport_width: 1920,
+        viewport_height: 1080,
+        session_search_count: 1,
       });
       expect(body.device_context).toMatchObject({
         device_type: 'desktop',
@@ -187,8 +187,7 @@ describe('Search Tracking', () => {
       expect(body.search_query).toBe('Music lessons');
       expect(body.search_type).toBe('category');
       expect(body.results_count).toBe(null);
-      expect(body.search_context.page_view_count).toBe(1);
-      expect(body.search_context.session_duration).toBe(30);
+      expect(body.search_context.session_search_count).toBe(1);
       expect(body.device_context.device_type).toBe('desktop');
       expect(body.device_context.connection_type).toBe('wifi');
     });

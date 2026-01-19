@@ -182,8 +182,9 @@ export default function HomePage() {
   // Process the cached data into the format the component expects
   const categoryServices = topServicesData ? (() => {
     const servicesMap: Record<string, TopServiceSummary[]> = {};
-    topServicesData.categories.forEach((category) => {
-      servicesMap[category.slug] = category.services;
+    const categories = topServicesData.categories ?? [];
+    categories.forEach((category) => {
+      servicesMap[category.slug] = category.services ?? [];
     });
     return servicesMap;
   })() : {};

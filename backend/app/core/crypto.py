@@ -16,7 +16,7 @@ _FERNET_INSTANCE: Optional[Fernet] = None
 _FERNET_KEY: Optional[str] = None
 _AES_KEY: Optional[bytes] = None
 
-_TOKEN_PREFIX = "v1:"
+_ENVELOPE_PREFIX = "v1:"
 _NONCE_LEN = 12
 
 
@@ -119,7 +119,7 @@ def decrypt_str(token: str) -> str:
     """Decrypt a Fernet token when configured; return original otherwise."""
 
     cipher = _fernet()
-    if cipher is None or token == "":
+    if cipher is None or not token:
         return token
 
     try:
@@ -143,23 +143,23 @@ def encrypt_report_token(plain: str) -> str:
     ciphertext = cipher.encrypt(nonce, plain.encode("utf-8"), associated_data=None)
     payload = nonce + ciphertext
     encoded = _b64u_encode(payload)
-    return f"{_TOKEN_PREFIX}{encoded}"
+    return f"{_ENVELOPE_PREFIX}{encoded}"
 
 
 def decrypt_report_token(token: str) -> str:
     """Decrypt AES-GCM report identifiers; fallback to legacy/plaintext."""
 
-    if token == "":
+    if not token:
         return token
 
     cipher = _aesgcm()
     if cipher is None:
         return token
 
-    if not token.startswith(_TOKEN_PREFIX):
+    if not token.startswith(_ENVELOPE_PREFIX):
         return token
 
-    payload_b64 = token[len(_TOKEN_PREFIX) :]
+    payload_b64 = token[len(_ENVELOPE_PREFIX) :]
 
     try:
         payload = _b64u_decode(payload_b64)

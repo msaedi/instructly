@@ -4,132 +4,62 @@
 
 import { logger } from '@/lib/logger';
 import { withApiBase } from '@/lib/apiBase';
+import type {
+  CodebaseCategoryStats,
+  CodebaseSection,
+  CodebaseMetricsResponse,
+  CodebaseHistoryEntry,
+  CodebaseHistoryResponse,
+  DailySearchTrend,
+  PopularSearch,
+  SearchReferrer,
+  ZeroResultQueryItem,
+  SearchTrendsResponse,
+  PopularSearchesResponse,
+  SearchReferrersResponse,
+  SearchAnalyticsSummaryResponse,
+  ConversionMetricsResponse,
+  SearchPerformanceResponse,
+  CandidateSummaryResponse,
+  CandidateCategoryTrend,
+  CandidateCategoryTrendsResponse,
+  CandidateTopService,
+  CandidateTopServicesResponse,
+  CandidateServiceQuery,
+  CandidateServiceQueriesResponse,
+  CandidateScoreDistributionResponse,
+} from '@/features/shared/api/types';
 
 function apiBaseUrl(): string {
   return withApiBase('/').replace(/\/$/, '');
 }
 
-// Codebase metrics types
-export interface CodebaseCategoryStats {
-  files: number;
-  lines: number;
-}
+// Re-export types for consumers
+export type {
+  CodebaseCategoryStats,
+  CodebaseSection,
+  CodebaseMetricsResponse,
+  CodebaseHistoryEntry,
+  PopularSearch,
+  SearchReferrer,
+  CandidateCategoryTrend,
+  CandidateTopService,
+  CandidateServiceQuery,
+};
 
-export interface CodebaseSection {
-  total_files: number;
-  total_lines: number;
-  total_lines_with_blanks: number;
-  categories: Record<string, CodebaseCategoryStats>;
-  largest_files: Array<{
-    path: string;
-    lines: number;
-    lines_with_blanks: number;
-    size_kb: number;
-  }>;
-}
-
-export interface GitStats {
-  total_commits: number;
-  unique_contributors: number;
-  first_commit: string;
-  last_commit: string;
-  current_branch: string;
-}
-
-export interface CodebaseMetricsResponse {
-  timestamp: string;
-  backend: CodebaseSection;
-  frontend: CodebaseSection;
-  git: GitStats;
-  summary: {
-    total_lines: number;
-    total_files: number;
-  };
-}
-
-export interface CodebaseHistoryEntry {
-  timestamp: string;
-  total_lines: number;
-  total_files: number;
-  backend_lines: number;
-  frontend_lines: number;
-  git_commits: number;
-}
-
-// Search analytics types
-export interface SearchTrend {
-  date: string;
-  total_searches: number;
-  unique_users: number;
-  unique_guests: number;
-}
-
-export interface PopularSearch {
-  query: string;
-  search_count: number;
-  unique_users: number;
-  average_results: number;
-}
-
-export interface SearchReferrer {
-  page: string;
-  search_count: number;
-  unique_sessions: number;
-  search_types: string[];
-}
-
-export interface ZeroResultSearch {
-  query: string;
-  count: number;
-  last_searched: string;
-}
+// Type aliases for backwards compatibility
+export type SearchTrend = DailySearchTrend;
+export type ZeroResultSearch = ZeroResultQueryItem;
+export type SearchAnalyticsSummary = SearchAnalyticsSummaryResponse;
+export type ConversionMetrics = ConversionMetricsResponse;
+export type SearchPerformance = SearchPerformanceResponse;
+export type CandidateSummary = CandidateSummaryResponse;
 
 export interface ServicePillPerformance {
   service_name: string;
   clicks: number;
   unique_users: number;
   conversion_rate: number;
-}
-
-export interface SearchAnalyticsSummary {
-  date_range: {
-    start: string;
-    end: string;
-    days: number;
-  };
-  totals: {
-    total_searches: number;
-    unique_users: number;
-    unique_guests: number;
-    total_users: number;
-    deleted_searches: number;
-    deletion_rate: number;
-  };
-  users: {
-    authenticated: number;
-    guests: number;
-    converted_guests: number;
-    user_percentage: number;
-    guest_percentage: number;
-  };
-  search_types: Record<string, { count: number; percentage: number }>;
-  conversions: {
-    guest_sessions: {
-      total: number;
-      converted: number;
-      conversion_rate: number;
-    };
-    conversion_behavior: {
-      avg_searches_before_conversion: number;
-      avg_days_to_conversion: number;
-      most_common_first_search: string;
-    };
-  };
-  performance: {
-    avg_results_per_search: number;
-    zero_result_rate: number;
-    most_effective_type: string;
-  };
 }
 
 export interface UserSearchBehavior {
@@ -159,75 +89,6 @@ export interface UserSearchBehavior {
   };
 }
 
-export interface ConversionMetrics {
-  period: {
-    start: string;
-    end: string;
-    days: number;
-  };
-  guest_sessions: {
-    total: number;
-    converted: number;
-    conversion_rate: number;
-  };
-  conversion_behavior: {
-    avg_searches_before_conversion: number;
-    avg_days_to_conversion: number;
-    most_common_first_search: string;
-  };
-  guest_engagement: {
-    avg_searches_per_session: number;
-    engaged_sessions: number;
-    engagement_rate: number;
-  };
-}
-
-export interface SearchPerformance {
-  result_distribution: {
-    zero_results: number;
-    '1_5_results': number;
-    '6_10_results': number;
-    over_10_results: number;
-  };
-  effectiveness: {
-    avg_results_per_search: number;
-    median_results: number;
-    searches_with_results: number;
-    zero_result_rate: number;
-  };
-  problematic_queries: Array<{
-    query: string;
-    count: number;
-    avg_results: number;
-  }>;
-}
-
-// Candidates analytics types
-export interface CandidateSummary {
-  total_candidates: number;
-  events_with_candidates: number;
-  avg_candidates_per_event: number;
-  zero_result_events_with_candidates: number;
-  source_breakdown: Record<string, number>;
-}
-
-export interface CandidateCategoryTrend {
-  date: string;
-  category: string;
-  count: number;
-}
-
-export interface CandidateTopService {
-  service_catalog_id: string;
-  service_name: string;
-  category_name: string;
-  candidate_count: number;
-  avg_score: number;
-  avg_position: number;
-  active_instructors: number;
-  opportunity_score: number;
-}
-
 // Shared fetch helper
 async function fetchWithAuth<T>(endpoint: string, _token: string | null | undefined): Promise<T> {
   const base = apiBaseUrl();
@@ -248,7 +109,7 @@ async function fetchWithAuth<T>(endpoint: string, _token: string | null | undefi
     throw new Error(msg);
   }
 
-  const json = await response.json();
+  const json = (await response.json()) as T;
   logger.debug('Analytics API success', { endpoint, status: response.status });
   return json;
 }
@@ -256,23 +117,23 @@ async function fetchWithAuth<T>(endpoint: string, _token: string | null | undefi
 // Client
 export const analyticsApi = {
   // Search analytics
-  async getSearchTrends(token: string, days: number = 30): Promise<SearchTrend[]> {
-    return fetchWithAuth<SearchTrend[]>(`/api/v1/analytics/search/search-trends?days=${days}`, token);
+  async getSearchTrends(token: string, days: number = 30): Promise<SearchTrendsResponse> {
+    return fetchWithAuth<SearchTrendsResponse>(`/api/v1/analytics/search/search-trends?days=${days}`, token);
   },
 
   async getPopularSearches(
     token: string,
     days: number = 30,
     limit: number = 20
-  ): Promise<PopularSearch[]> {
-    return fetchWithAuth<PopularSearch[]>(
+  ): Promise<PopularSearchesResponse> {
+    return fetchWithAuth<PopularSearchesResponse>(
       `/api/v1/analytics/search/popular-searches?days=${days}&limit=${limit}`,
       token
     );
   },
 
-  async getSearchReferrers(token: string, days: number = 30): Promise<SearchReferrer[]> {
-    return fetchWithAuth<SearchReferrer[]>(`/api/v1/analytics/search/referrers?days=${days}`, token);
+  async getSearchReferrers(token: string, days: number = 30): Promise<SearchReferrersResponse> {
+    return fetchWithAuth<SearchReferrersResponse>(`/api/v1/analytics/search/referrers?days=${days}`, token);
   },
 
   async getZeroResultSearches(
@@ -328,15 +189,15 @@ export const analyticsApi = {
     return fetchWithAuth<CandidateSummary>(`/api/v1/analytics/search/candidates/summary?days=${days}`, token);
   }
   ,
-  async getCandidateCategoryTrends(token: string, days: number = 30): Promise<CandidateCategoryTrend[]> {
-    return fetchWithAuth<CandidateCategoryTrend[]>(
+  async getCandidateCategoryTrends(token: string, days: number = 30): Promise<CandidateCategoryTrendsResponse> {
+    return fetchWithAuth<CandidateCategoryTrendsResponse>(
       `/api/v1/analytics/search/candidates/category-trends?days=${days}`,
       token
     );
   }
   ,
-  async getCandidateTopServices(token: string, days: number = 30, limit: number = 20): Promise<CandidateTopService[]> {
-    return fetchWithAuth<CandidateTopService[]>(
+  async getCandidateTopServices(token: string, days: number = 30, limit: number = 20): Promise<CandidateTopServicesResponse> {
+    return fetchWithAuth<CandidateTopServicesResponse>(
       `/api/v1/analytics/search/candidates/top-services?days=${days}&limit=${limit}`,
       token
     );
@@ -347,8 +208,8 @@ export const analyticsApi = {
     service_catalog_id: string,
     days: number = 30,
     limit: number = 50
-  ): Promise<Array<{ searched_at: string; search_query: string; results_count: number | null; position: number; score: number | null; source: string | null }>> {
-    return fetchWithAuth(
+  ): Promise<CandidateServiceQueriesResponse> {
+    return fetchWithAuth<CandidateServiceQueriesResponse>(
       `/api/v1/analytics/search/candidates/queries?service_catalog_id=${service_catalog_id}&days=${days}&limit=${limit}`,
       token
     );
@@ -356,8 +217,11 @@ export const analyticsApi = {
   async getCandidateScoreDistribution(
     token: string,
     days: number = 30
-  ): Promise<{ gte_0_90: number; gte_0_80_lt_0_90: number; gte_0_70_lt_0_80: number; lt_0_70: number }> {
-    return fetchWithAuth(`/api/v1/analytics/search/candidates/score-distribution?days=${days}`, token);
+  ): Promise<CandidateScoreDistributionResponse> {
+    return fetchWithAuth<CandidateScoreDistributionResponse>(
+      `/api/v1/analytics/search/candidates/score-distribution?days=${days}`,
+      token
+    );
   },
 
   async getServicePillPerformance(
@@ -377,7 +241,7 @@ export const analyticsApi = {
   async getCodebaseMetrics(token: string): Promise<CodebaseMetricsResponse> {
     return fetchWithAuth<CodebaseMetricsResponse>('/api/v1/analytics/codebase/metrics', token);
   },
-  async getCodebaseHistory(token: string): Promise<{ items: CodebaseHistoryEntry[] }> {
-    return fetchWithAuth<{ items: CodebaseHistoryEntry[] }>('/api/v1/analytics/codebase/history', token);
+  async getCodebaseHistory(token: string): Promise<CodebaseHistoryResponse> {
+    return fetchWithAuth<CodebaseHistoryResponse>('/api/v1/analytics/codebase/history', token);
   },
 };

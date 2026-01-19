@@ -9,6 +9,9 @@ import { logger } from '@/lib/logger';
 import type { ProfileFormState, ServiceAreaItem } from '@/features/instructor-profile/types';
 import { ServiceAreasCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/ServiceAreasCard';
 import { BioCard } from '@/app/(auth)/instructor/onboarding/account-setup/components/BioCard';
+import type { components } from '@/features/shared/api/types';
+
+type NeighborhoodsListResponse = components['schemas']['NeighborhoodsListResponse'];
 
 const WEBHOOK_URL = 'https://instainstru.app.n8n.cloud/webhook/instructor-lead';
 
@@ -113,13 +116,35 @@ export default function InstructorApplyPage() {
       const url = withApiBase(`/api/v1/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`);
       const response = await fetch(url, { credentials: 'include' });
       if (response.ok) {
-        const data = await response.json();
-        const list = (data.items || []) as ServiceAreaItem[];
+        const data = (await response.json()) as NeighborhoodsListResponse;
+        const list = (data.items ?? []).flatMap((raw) => {
+          const record = raw as Record<string, unknown>;
+          const neighborhoodId =
+            typeof record['neighborhood_id'] === 'string'
+              ? (record['neighborhood_id'] as string)
+              : typeof record['id'] === 'string'
+              ? (record['id'] as string)
+              : '';
+          if (!neighborhoodId) return [];
+          return [
+            {
+              neighborhood_id: neighborhoodId,
+              ntacode:
+                typeof record['ntacode'] === 'string'
+                  ? (record['ntacode'] as string)
+                  : typeof record['code'] === 'string'
+                  ? (record['code'] as string)
+                  : null,
+              name: typeof record['name'] === 'string' ? (record['name'] as string) : null,
+              borough: record['borough'] ?? null,
+            } as ServiceAreaItem,
+          ];
+        });
         setBoroughNeighborhoods((prev) => ({ ...prev, [borough]: list }));
         setIdToItem((prev) => {
           const next = { ...prev } as Record<string, ServiceAreaItem>;
           for (const item of list) {
-            const id = item.neighborhood_id || item.id;
+            const id = item.neighborhood_id;
             if (id) next[id] = item;
           }
           return next;
@@ -175,7 +200,7 @@ export default function InstructorApplyPage() {
       return;
     }
     const list = itemsOverride || (await loadBoroughNeighborhoods(borough));
-    const first = list[0]?.neighborhood_id || list[0]?.id;
+    const first = list[0]?.neighborhood_id;
     if (first) {
       setSelectedNeighborhoods(new Set([first]));
     }

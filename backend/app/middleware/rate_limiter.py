@@ -45,7 +45,7 @@ class RateLimitAlgorithm(Enum):
     """Rate limiting algorithms."""
 
     SLIDING_WINDOW = "sliding_window"
-    TOKEN_BUCKET = "token_bucket"
+    BUCKET = "token_bucket"
     FIXED_WINDOW = "fixed_window"
 
 
@@ -80,7 +80,7 @@ class RateLimiter:
         """
         # Hash long identifiers to keep keys reasonable
         if len(identifier) > 32:
-            identifier = hashlib.md5(identifier.encode()).hexdigest()[:16]
+            identifier = hashlib.md5(identifier.encode(), usedforsecurity=False).hexdigest()[:16]
 
         return f"rate_limit:{window_name}:{identifier}"
 
@@ -333,6 +333,11 @@ def rate_limit(
                     break
             if not request:
                 request = kwargs.get("request")
+            if request is not None and not isinstance(request, Request):
+                request = next(
+                    (value for value in kwargs.values() if isinstance(value, Request)),
+                    None,
+                )
 
             if not request:
                 # Can't rate limit without request, just call function
@@ -435,7 +440,7 @@ def rate_limit(
         try:
             wrapper.__signature__ = inspect.signature(func)
         except Exception:
-            pass
+            logger.debug("Non-fatal error ignored", exc_info=True)
         return cast(F, wrapper)
 
     return decorator

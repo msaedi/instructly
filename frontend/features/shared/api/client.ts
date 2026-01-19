@@ -10,12 +10,21 @@ import { getSessionId, refreshSession } from '@/lib/sessionTracking';
 import { withApiBase } from '@/lib/apiBase';
 import { NEXT_PUBLIC_APP_URL as APP_URL } from '@/lib/env';
 import type {
+  ApiErrorResponse,
+  AllServicesWithInstructorsResponse,
+  BookingCreate,
   components,
+  CatalogService as ApiCatalogService,
+  CatalogServiceMinimal,
   NaturalLanguageSearchResponse as GenNaturalLanguageSearchResponse,
   Booking,
   BookingStatus,
+  SearchHistoryResponse,
+  ServiceCategory as ApiServiceCategory,
+  TopCategoryItem as ApiTopCategoryItem,
+  TopCategoryServiceItem as ApiTopCategoryServiceItem,
+  TopServicesPerCategoryResponse as ApiTopServicesPerCategoryResponse,
 } from '@/features/shared/api/types';
-import type { CatalogServiceMinimal } from '@/features/shared/api/types';
 
 // Type aliases for generated types
 // Keep generated type imports for future use
@@ -195,9 +204,9 @@ export async function cleanFetch<T>(
     const retryAfterHeader = response.headers.get('Retry-After');
     const retryAfterSeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : undefined;
 
-    let data: unknown = null;
+    let data: ApiErrorResponse | T | null = null;
     try {
-      data = await response.json();
+      data = (await response.json()) as ApiErrorResponse | T;
     } catch {
       data = null;
     }
@@ -214,7 +223,7 @@ export async function cleanFetch<T>(
         } as ApiResponse<T> & { retryAfterSeconds?: number };
       }
 
-      const detailValue = (data as Record<string, unknown>)?.['detail'];
+      const detailValue = (data as ApiErrorResponse | null)?.detail;
       const errorValue =
         detailValue !== undefined && detailValue !== null
           ? typeof detailValue === 'string'
@@ -246,7 +255,7 @@ export async function getPlaceDetails(params: {
   place_id: string;
   provider?: string;
   signal?: AbortSignal;
-}): Promise<ApiResponse<Record<string, unknown>>> {
+}): Promise<ApiResponse<components['schemas']['PlaceDetails']>> {
   const { place_id, provider, signal } = params;
   const searchParams = new URLSearchParams({ place_id });
   if (provider) {
@@ -258,7 +267,10 @@ export async function getPlaceDetails(params: {
     options.signal = signal;
   }
 
-  return cleanFetch<Record<string, unknown>>(`/api/v1/addresses/places/details?${searchParams.toString()}`, options);
+  return cleanFetch<components['schemas']['PlaceDetails']>(
+    `/api/v1/addresses/places/details?${searchParams.toString()}`,
+    options
+  );
 }
 
 /**
@@ -294,91 +306,7 @@ async function authFetch<T>(endpoint: string, options: FetchOptions = {}): Promi
 /**
  * Natural language search response type
  */
-export interface NaturalLanguageSearchResponse {
-  query?: string;
-  parsed: {
-    original_query: string;
-    cleaned_query: string;
-    service_query?: string;
-    price: {
-      max?: number;
-      min?: number;
-    };
-    time: {
-      date?: string;
-      time_of_day?: string;
-    };
-    location: {
-      area?: string;
-      type?: string;
-    };
-    level: {
-      skill_level?: string;
-    };
-    constraints?: {
-      max_price?: number;
-      date?: string;
-      location?: string;
-    };
-  };
-  results: Array<{
-    service: {
-      id: string;
-      category_id: number;
-      category_name: string;
-      category_slug: string;
-      name: string;
-      slug: string;
-      description: string;
-      search_terms: string[];
-      actual_min_price: number;
-      actual_max_price: number;
-      display_order: number;
-      related_services: unknown[];
-      online_capable: boolean;
-      requires_certification: boolean;
-      is_active: boolean;
-      is_offered: boolean;
-      instructor_count: number;
-      relevance_score: number;
-      demand_score: number;
-      is_trending: boolean;
-    };
-    instructor: {
-      id: string;
-      first_name: string;
-      last_initial: string;  // Privacy protected
-      bio: string;
-      years_experience: number;
-      service_area_summary?: string | null;
-      service_area_boroughs?: string[];
-      service_area_neighborhoods?: Array<{
-        neighborhood_id: string;
-        ntacode?: string | null;
-        name?: string | null;
-        borough?: string | null;
-      }>;
-    };
-    offering: {
-      id: string;
-      hourly_rate: number;
-      experience_level: string;
-      description: string;
-      duration_options: number[];
-      equipment_required: string[];
-      levels_taught: string[];
-      age_groups: string[];
-      location_types: string[];
-      max_distance_miles: number;
-    };
-    match_score: number;
-  }>;
-  total_found: number;
-  search_metadata?: {
-    search_time_ms: number;
-    embedding_time_ms: number;
-  };
-}
+export type NaturalLanguageSearchResponse = GenNaturalLanguageSearchResponse;
 
 /**
  * Public API client for student features
@@ -386,53 +314,11 @@ export interface NaturalLanguageSearchResponse {
 /**
  * Service catalog API types
  */
-export interface ServiceCategory {
-  id: string;
-  name: string;
-  slug: string;
-  subtitle: string;
-  description: string;
-  display_order: number;
-  icon_name?: string;
-}
-
-export interface CatalogService {
-  id: string;
-  category_id: string;
-  name: string;
-  slug: string;
-  description: string;
-  search_terms: string[];
-  display_order: number;
-  online_capable: boolean;
-  requires_certification: boolean;
-  is_active: boolean;
-  actual_min_price?: number;
-  actual_max_price?: number;
-  instructor_count?: number;
-}
-
-export interface TopServiceSummary {
-  id: string;
-  name: string;
-  slug: string;
-  demand_score: number;
-  active_instructors: number;
-  is_trending: boolean;
-  display_order: number;
-}
-
-export interface CategoryWithTopServices {
-  id: string;
-  name: string;
-  slug: string;
-  icon_name?: string;
-  services: TopServiceSummary[];
-}
-
-export interface TopServicesResponse {
-  categories: CategoryWithTopServices[];
-}
+export type ServiceCategory = ApiServiceCategory;
+export type CatalogService = ApiCatalogService;
+export type TopServiceSummary = ApiTopCategoryServiceItem;
+export type CategoryWithTopServices = ApiTopCategoryItem;
+export type TopServicesResponse = ApiTopServicesPerCategoryResponse;
 
 const SEARCH_HISTORY_API_BASE = '/api/v1/search-history';
 
@@ -456,18 +342,7 @@ export const publicApi = {
    * For guests, pass X-Guest-Session-ID header
    */
   async getRecentSearches(limit: number = 3) {
-    return unifiedFetch<
-      Array<{
-        id: number;
-        search_query: string;
-        search_type: string;
-        results_count: number | null;
-        created_at: string;
-        first_searched_at: string;
-        last_searched_at: string;
-        search_count: number;
-      }>
-    >(SEARCH_HISTORY_API_BASE, {
+    return unifiedFetch<SearchHistoryResponse[]>(SEARCH_HISTORY_API_BASE, {
       params: { limit },
     });
   },
@@ -695,32 +570,7 @@ export const publicApi = {
    * Returns all categories with all their services and active instructor counts
    */
   async getAllServicesWithInstructors() {
-    return cleanFetch<{
-      categories: Array<{
-        id: string;
-        name: string;
-        slug: string;
-        subtitle: string;
-        description: string;
-        icon_name?: string;
-        services: Array<
-          CatalogService & {
-            active_instructors: number;
-            instructor_count: number;
-            demand_score: number;
-            is_trending: boolean;
-            actual_min_price?: number;
-            actual_max_price?: number;
-          }
-        >;
-      }>;
-      metadata: {
-        total_categories: number;
-        total_services: number;
-        cached_for_seconds: number;
-        updated_at: string;
-      };
-    }>('/api/v1/services/catalog/all-with-instructors');
+    return cleanFetch<AllServicesWithInstructorsResponse>('/api/v1/services/catalog/all-with-instructors');
   },
 
   /**
@@ -735,18 +585,7 @@ export const publicApi = {
 /**
  * Booking type definitions
  */
-export interface CreateBookingRequest {
-  instructor_id: string;
-  instructor_service_id: string; // Changed from service_id to match backend BookingCreate schema
-  booking_date: string; // ISO date string (YYYY-MM-DD)
-  start_time: string; // HH:MM format
-  end_time: string; // HH:MM format
-  selected_duration: number; // Duration in minutes
-  timezone?: string; // Optional IANA timezone for booking times
-  student_note?: string;
-  meeting_location?: string;
-  location_type?: 'student_home' | 'instructor_location' | 'neutral' | 'remote' | 'in_person';
-}
+export type CreateBookingRequest = BookingCreate;
 
 // Re-export generated Booking type for tests that import from this module
 export type { Booking } from '@/features/shared/api/types';

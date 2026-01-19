@@ -988,7 +988,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             try:
                 event.created_at = datetime.now(timezone.utc)
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             self.db.add(event)
             self.db.flush()
             return event
@@ -1178,8 +1178,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 if booking and getattr(booking, "credits_reserved_cents", None):
                     return max(0, int(booking.credits_reserved_cents or 0))
             except Exception:
-                pass
-
+                logger.debug("Non-fatal error ignored", exc_info=True)
             credit_use_events = (
                 self.db.query(PaymentEvent)
                 .filter(

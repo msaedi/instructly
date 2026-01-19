@@ -3,11 +3,28 @@ from ._strict_base import StrictModel
 """Response models for availability endpoints."""
 
 from datetime import date
-from typing import Any, Dict, List
+from typing import Dict, List
 
 from pydantic import ConfigDict, Field, RootModel
 
 from .availability_window import TimeRange
+
+
+class BookedSlotItem(StrictModel):
+    """Individual booked slot with booking details for calendar display."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    booking_id: str = Field(description="ULID of the booking")
+    date: str = Field(description="ISO date string (YYYY-MM-DD)")
+    start_time: str = Field(description="ISO time string (HH:MM:SS)")
+    end_time: str = Field(description="ISO time string (HH:MM:SS)")
+    student_first_name: str = Field(description="Student's first name")
+    student_last_initial: str = Field(description="Student's last name initial")
+    service_name: str = Field(description="Name of the service booked")
+    service_area_short: str = Field(description="Abbreviated service area")
+    duration_minutes: int = Field(description="Duration of the booking in minutes")
+    location_type: str = Field(description="Location type (neutral, student, instructor)")
 
 
 class WeekAvailabilityUpdateResponse(StrictModel):
@@ -72,7 +89,7 @@ class BookedSlotsResponse(StrictModel):
 
     week_start: date
     week_end: date
-    booked_slots: List[Dict[str, Any]] = Field(
+    booked_slots: List[BookedSlotItem] = Field(
         description="List of booked slots with booking details"
     )
 

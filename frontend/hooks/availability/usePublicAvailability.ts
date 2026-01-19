@@ -7,27 +7,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import type { PublicInstructorAvailability, PublicTimeSlot } from '@/features/shared/api/types';
 
-interface TimeSlot {
-  start_time: string;
-  end_time: string;
-}
-
-interface DayAvailability {
-  date: string;
-  available_slots: TimeSlot[];
-  is_blackout: boolean;
-}
-
-interface PublicAvailability {
-  instructor_id: string;
-  instructor_first_name: string | null;
-  instructor_last_initial: string | null;
-  availability_by_date: Record<string, DayAvailability>;
-  timezone: string;
-  total_available_slots: number;
-  earliest_available_date: string | null;
-}
+type PublicAvailability = PublicInstructorAvailability;
 
 export function usePublicAvailability(instructorId: string, startDate?: Date) {
   const [availability, setAvailability] = useState<PublicAvailability | null>(null);
@@ -64,7 +46,7 @@ export function usePublicAvailability(instructorId: string, startDate?: Date) {
         throw new Error('Failed to fetch availability');
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as PublicInstructorAvailability;
       setAvailability(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -80,16 +62,17 @@ export function usePublicAvailability(instructorId: string, startDate?: Date) {
   const getAvailableDates = (): string[] => {
     if (!availability) return [];
 
-    return Object.entries(availability.availability_by_date)
-      .filter(([_, day]) => !day.is_blackout && day.available_slots.length > 0)
+    const byDate = availability.availability_by_date ?? {};
+    return Object.entries(byDate)
+      .filter(([_, day]) => !day.is_blackout && (day.available_slots ?? []).length > 0)
       .map(([date]) => date);
   };
 
-  const getSlotsForDate = (date: string): TimeSlot[] => {
+  const getSlotsForDate = (date: string): PublicTimeSlot[] => {
     if (!availability) return [];
 
-    const dayInfo = availability.availability_by_date[date];
-    return dayInfo?.available_slots || [];
+    const dayInfo = availability.availability_by_date?.[date];
+    return dayInfo?.available_slots ?? [];
   };
 
   const refresh = () => {

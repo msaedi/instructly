@@ -557,6 +557,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
             return cast(
                 Optional[SearchHistory],
                 self.db.query(SearchHistory)
+                .populate_existing()
                 .filter(
                     and_(
                         SearchHistory.user_id == user_id,
@@ -570,6 +571,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
             return cast(
                 Optional[SearchHistory],
                 self.db.query(SearchHistory)
+                .populate_existing()
                 .filter(
                     and_(
                         SearchHistory.guest_session_id == guest_session_id,

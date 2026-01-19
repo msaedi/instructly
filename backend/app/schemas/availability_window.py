@@ -8,12 +8,36 @@ Slots exist = available. That's it.
 """
 
 import datetime
+import logging
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ._strict_base import StrictModel, StrictRequestModel
 from .base import StandardizedModel
+
+logger = logging.getLogger(__name__)
+
+
+class ScheduleItem(StrictModel):
+    """Individual schedule item for availability creation."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    date: str = Field(description="ISO date string (YYYY-MM-DD)")
+    start_time: str = Field(description="Start time (HH:MM or HH:MM:SS)")
+    end_time: str = Field(description="End time (HH:MM or HH:MM:SS)")
+
+
+class AvailabilityConflictInfo(StrictModel):
+    """Information about a booking that conflicts with an availability operation."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    booking_id: Optional[str] = Field(default=None, description="ID of conflicting booking")
+    start_time: Optional[str] = Field(default=None, description="Start time of conflict")
+    end_time: Optional[str] = Field(default=None, description="End time of conflict")
+
 
 # Type aliases for clarity
 DateType = datetime.date
@@ -166,9 +190,9 @@ class WeekSpecificScheduleCreate(StrictRequestModel):
 
     model_config = StrictRequestModel.model_config
 
-    schedule: List[
-        Dict[str, Any]
-    ]  # Each item: {"date": "2025-07-15", "start_time": "09:00", "end_time": "10:00"}
+    schedule: List[ScheduleItem] = Field(
+        description="List of schedule items with date, start_time, and end_time"
+    )
     clear_existing: bool = Field(
         default=True,
         description="Whether to clear existing entries for the week before saving",
@@ -196,17 +220,6 @@ class WeekSpecificScheduleCreate(StrictRequestModel):
         """Ensure week start is a Monday if provided."""
         if v and v.weekday() != 0:
             raise ValueError("Week start must be a Monday")
-        return v
-
-    @field_validator("schedule")
-    @classmethod
-    def validate_schedule_items(cls, v: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Validate each schedule item has required fields."""
-        for item in v:
-            if not isinstance(item, dict):
-                raise ValueError("Schedule items must be dictionaries")
-            if "date" not in item or "start_time" not in item or "end_time" not in item:
-                raise ValueError("Each schedule item must have date, start_time, and end_time")
         return v
 
 
@@ -363,7 +376,9 @@ class ValidationSlotDetail(BaseModel):
     end_time: Optional[TimeType] = None
     slot_id: Optional[str] = None
     reason: Optional[str] = None
-    conflicts_with: Optional[List[Dict[str, Any]]] = None
+    conflicts_with: Optional[List[AvailabilityConflictInfo]] = Field(
+        default=None, description="Bookings that conflict with this operation"
+    )
 
 
 class ValidationSummary(BaseModel):
@@ -402,4 +417,4 @@ try:
     WeekSpecificScheduleCreate.model_rebuild(force=True)
     ValidateWeekRequest.model_rebuild(force=True)
 except Exception:  # pragma: no cover - defensive initialization
-    pass
+    logger.debug("Failed to rebuild availability schemas", exc_info=True)

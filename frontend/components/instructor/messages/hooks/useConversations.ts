@@ -11,7 +11,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
 import { withApiBase } from '@/lib/apiBase';
 import type { ConversationEntry } from '../types';
-import type { ConversationListItem } from '@/types/conversation';
+import type { ConversationListItem, ConversationListResponse } from '@/types/conversation';
+import type { components } from '@/features/shared/api/types';
 import { getInitials, formatRelativeTimestamp } from '../utils';
 
 export type UseConversationsOptions = {
@@ -75,7 +76,7 @@ async function fetchConversations(stateFilter?: string | null): Promise<{
     throw new Error(`Failed to fetch conversations: ${response.status}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as ConversationListResponse;
 
   // Calculate unread counts from the response
   const totalUnread = data.conversations?.reduce(
@@ -273,7 +274,7 @@ export function useUpdateConversationState() {
         throw new Error('Failed to update conversation state');
       }
 
-      return response.json();
+      return (await response.json()) as components['schemas']['UpdateConversationStateResponse'];
     },
     onSuccess: () => {
       // Invalidate all conversation-related queries

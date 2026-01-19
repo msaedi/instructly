@@ -14,6 +14,9 @@ import { bgcConsent, type BGCConsentPayload, type BGCStatus } from '@/lib/api/bg
 import { DISCLOSURE_VERSION } from '@/config/constants';
 import { OnboardingProgressHeader, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingStepStatus } from '@/features/instructor-onboarding/useOnboardingStepStatus';
+import type { components } from '@/features/shared/api/types';
+
+type IdentityRefreshResponse = components['schemas']['IdentityRefreshResponse'];
 
 export default function Step4Verification() {
   const router = useRouter();
@@ -122,7 +125,7 @@ export default function Step4Verification() {
         const res = await fetchWithAuth(API_ENDPOINTS.STRIPE_IDENTITY_REFRESH, { method: 'POST' });
         if (!active) return;
         if (res.ok) {
-          const data = await res.json();
+          const data = (await res.json()) as IdentityRefreshResponse;
           await refreshStepStatus();
           if (data?.verified) {
             toast.success('Identity check complete', {

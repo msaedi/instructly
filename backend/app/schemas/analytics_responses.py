@@ -7,7 +7,7 @@ These schemas ensure consistent response formats for all analytics
 and reporting endpoints.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
@@ -238,6 +238,26 @@ class PerformanceMetrics(BaseModel):
     )
 
 
+class ConversionMetrics(BaseModel):
+    """Combined conversion metrics."""
+
+    guest_sessions: GuestConversionMetrics = Field(description="Guest session metrics")
+    conversion_behavior: ConversionBehavior = Field(description="Conversion behavior metrics")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "guest_sessions": {"total": 800, "converted": 50, "conversion_rate": 6.25},
+                "conversion_behavior": {
+                    "avg_searches_before_conversion": 3.5,
+                    "avg_days_to_conversion": 2.3,
+                    "most_common_first_search": "yoga classes",
+                },
+            }
+        }
+    )
+
+
 class SearchAnalyticsSummaryResponse(StrictModel):
     """Comprehensive search analytics summary."""
 
@@ -245,7 +265,7 @@ class SearchAnalyticsSummaryResponse(StrictModel):
     totals: SearchTotals = Field(description="Search totals and metrics")
     users: UserBreakdown = Field(description="User breakdown by type")
     search_types: Dict[str, SearchTypeMetrics] = Field(description="Breakdown by search type")
-    conversions: Dict[str, Any] = Field(description="Conversion metrics")
+    conversions: ConversionMetrics = Field(description="Conversion metrics")
     performance: PerformanceMetrics = Field(description="Search performance metrics")
 
     model_config = ConfigDict(

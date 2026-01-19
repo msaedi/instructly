@@ -9,7 +9,7 @@ import {
 } from '@/features/shared/api/notificationPreferences';
 
 type PreferenceCategory = keyof PreferencesByCategory;
-type PreferenceChannel = keyof NotificationPreferenceChannels;
+type PreferenceChannel = Extract<keyof NotificationPreferenceChannels, string>;
 
 type UpdatePreferencePayload = {
   category: PreferenceCategory;

@@ -41,7 +41,7 @@ class UserRepository(BaseRepository[User]):
         try:
             self.db.execute(text("SET LOCAL statement_timeout = '5s'"))
         except Exception:
-            pass
+            logger.debug("Non-fatal error ignored", exc_info=True)
 
     # ==========================================
     # Basic Lookups (10+ violations fixed)

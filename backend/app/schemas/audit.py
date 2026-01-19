@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, ConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class AuditLogView(BaseModel):
@@ -40,4 +43,4 @@ try:
     AuditLogView.model_rebuild()
     AuditLogListResponse.model_rebuild()
 except Exception:
-    pass
+    logger.debug("Non-fatal error ignored", exc_info=True)

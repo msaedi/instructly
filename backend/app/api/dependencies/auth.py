@@ -66,7 +66,7 @@ def _preview_bypass(request: Request, user: User | None) -> bool:
         if "webhook" in path_l:
             return False
     except Exception:
-        pass
+        logger.debug("Non-fatal error ignored", exc_info=True)
     # Prefer staff session/claim when available
     if getattr(user, "is_staff", False):
         try:
@@ -87,7 +87,7 @@ def _preview_bypass(request: Request, user: User | None) -> bool:
             )
             prometheus_metrics.inc_preview_bypass("session")
         except Exception:
-            pass
+            logger.debug("Non-fatal error ignored", exc_info=True)
         return True
     # Optional header path (only if explicitly allowed) – must come from preview origins
     if settings.allow_preview_header and _from_preview_origin(request):
@@ -118,7 +118,7 @@ def _preview_bypass(request: Request, user: User | None) -> bool:
                 )
                 prometheus_metrics.inc_preview_bypass("header")
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return True
     return False
 
@@ -136,7 +136,7 @@ def _testing_bypass(request: Request | None) -> bool:
         if request and request.headers.get("x-enforce-beta-checks") == "1":
             return False
     except Exception:
-        pass
+        logger.debug("Non-fatal error ignored", exc_info=True)
     return bool(getattr(settings, "is_testing", False))
 
 
@@ -242,8 +242,7 @@ async def get_current_user(
                     return create_transient_user(imp_data)
     except Exception:
         # Non-fatal: continue with actual user
-        pass
-
+        logger.debug("Non-fatal error ignored", exc_info=True)
     return user
 
 

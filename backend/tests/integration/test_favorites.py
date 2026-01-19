@@ -11,7 +11,6 @@ Tests the complete favorites feature including:
 
 from unittest.mock import patch
 
-from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
@@ -161,18 +160,20 @@ def test_instructor_with_student_role(test_password: str, db: Session) -> User:
 
 
 @pytest.fixture
-def auth_headers_student(client: TestClient, test_student: User, test_password: str) -> dict:
+def auth_headers_student(test_student: User) -> dict:
     """Get auth headers for student."""
-    response = client.post("/api/v1/auth/login", data={"username": test_student.email, "password": test_password})
-    token = response.json()["access_token"]
+    from app.auth import create_access_token
+
+    token = create_access_token(data={"sub": test_student.email})
     return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
-def auth_headers_instructor(client: TestClient, test_instructor: User, test_password: str) -> dict:
+def auth_headers_instructor(test_instructor: User) -> dict:
     """Get auth headers for instructor."""
-    response = client.post("/api/v1/auth/login", data={"username": test_instructor.email, "password": test_password})
-    token = response.json()["access_token"]
+    from app.auth import create_access_token
+
+    token = create_access_token(data={"sub": test_instructor.email})
     return {"Authorization": f"Bearer {token}"}
 
 

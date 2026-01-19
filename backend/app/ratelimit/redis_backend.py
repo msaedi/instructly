@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from typing import Any
 import weakref
@@ -56,7 +57,7 @@ async def get_redis(**_kwargs: Any) -> AsyncRedis:
             try:
                 await client.aclose()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             raise RuntimeError("Redis unavailable") from exc
 
         _clients_by_loop[loop] = client
@@ -73,6 +74,8 @@ async def close_async_rate_limit_redis_client() -> None:
 
     try:
         await client.aclose()
+        with contextlib.suppress(BaseException):
+            await client.connection_pool.disconnect()
     finally:
         logger.info("[REDIS-RATELIMIT] Async Redis client closed")
 

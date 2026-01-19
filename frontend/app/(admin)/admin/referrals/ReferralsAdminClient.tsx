@@ -6,6 +6,7 @@ import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { withApiBase } from '@/lib/apiBase';
+import type { AdminReferralsHealth, AdminReferralsSummary } from '@/features/shared/api/types';
 import {
   AlertCircle,
   CheckCircle2,
@@ -15,24 +16,6 @@ import {
   ShieldAlert,
   Users,
 } from 'lucide-react';
-
-interface AdminReferralsHealth {
-  workers_alive: number;
-  workers: string[];
-  backlog_pending_due: number;
-  pending_total: number;
-  unlocked_total: number;
-  void_total: number;
-  last_run_age_s: number | null;
-}
-
-interface AdminReferralsSummary {
-  counts_by_status: Record<string, number>;
-  cap_utilization_percent: number;
-  top_referrers: { user_id: string; count: number; code: string | null }[];
-  clicks_24h: number;
-  attributions_24h: number;
-}
 
 const numberFormatter = new Intl.NumberFormat('en-US');
 const LAST_RUN_WARNING_SECONDS = 1800;

@@ -1,6 +1,9 @@
+import logging
 from typing import Optional
 
 from fastapi import Request
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_identity(req: Request) -> str:
@@ -17,8 +20,7 @@ def resolve_identity(req: Request) -> str:
         if user_id:
             return f"user:{user_id}"
     except Exception:
-        pass
-
+        logger.debug("Non-fatal error ignored", exc_info=True)
     client = getattr(req, "client", None)
     ip = getattr(client, "host", None) if client else None
     if not ip:

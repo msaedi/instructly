@@ -51,6 +51,7 @@ from ..repositories.availability_day_repository import AvailabilityDayRepository
 from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import (
     BlackoutDateCreate,
+    ScheduleItem,
     SpecificDateAvailabilityCreate,
     WeekSpecificScheduleCreate,
 )
@@ -252,7 +253,7 @@ class AvailabilityService(BaseService):
             monday = anchor - timedelta(days=anchor.weekday())
             ordered_days = [monday + timedelta(days=i) for i in range(7)]
             concat = b"".join(bits_by_day.get(day, new_empty_bits()) for day in ordered_days)
-        return hashlib.sha1(concat).hexdigest()
+        return hashlib.sha1(concat, usedforsecurity=False).hexdigest()
 
     @BaseService.measure_operation("get_week_bitmap_last_modified")
     def get_week_bitmap_last_modified(
@@ -404,8 +405,8 @@ class AvailabilityService(BaseService):
                 windows_created_count += len(new_windows) - len(old_windows)
 
             if perf_debug:
-                old_crc = hashlib.sha1(existing_bits).hexdigest()
-                new_crc = hashlib.sha1(desired_bits).hexdigest()
+                old_crc = hashlib.sha1(existing_bits, usedforsecurity=False).hexdigest()
+                new_crc = hashlib.sha1(desired_bits, usedforsecurity=False).hexdigest()
                 logger.debug(
                     "bitmap_write day=%s changed=%s old_crc=%s new_crc=%s override=%s allow_past=%s",
                     day.isoformat(),
@@ -1006,14 +1007,16 @@ class AvailabilityService(BaseService):
         self.cache_service.set_json(map_key, week_map, ttl=ttl_seconds)
 
     def _week_cache_keys(self, instructor_id: str, week_start: date) -> tuple[str, str]:
-        assert self.cache_service is not None
+        if self.cache_service is None:
+            raise RuntimeError("Cache service required for week cache keys")
         base_key = self.cache_service.key_builder.build(
             "availability", "week", instructor_id, week_start
         )
         return base_key, f"{base_key}:with_slots"
 
     def _week_cache_ttl_seconds(self, instructor_id: str, week_start: date) -> int:
-        assert self.cache_service is not None
+        if self.cache_service is None:
+            raise RuntimeError("Cache service required for week cache TTL calculation")
         today = get_user_today_by_id(instructor_id, self.db)
         tier = "hot" if week_start >= today else "warm"
         return self.cache_service.TTL_TIERS.get(tier, self.cache_service.TTL_TIERS["warm"])
@@ -2073,7 +2076,7 @@ class AvailabilityService(BaseService):
             return week_data.week_start
         elif week_data.schedule:
             # Get Monday from the first date in schedule
-            first_date = min(date.fromisoformat(slot["date"]) for slot in week_data.schedule)
+            first_date = min(date.fromisoformat(slot.date) for slot in week_data.schedule)
             return first_date - timedelta(days=first_date.weekday())
         else:
             # Fallback to current week in instructor's timezone
@@ -2081,7 +2084,7 @@ class AvailabilityService(BaseService):
             return instructor_today - timedelta(days=instructor_today.weekday())
 
     def _group_schedule_by_date(
-        self, schedule: list[dict[str, str]], instructor_id: str
+        self, schedule: list[ScheduleItem], instructor_id: str
     ) -> dict[date, list[ProcessedSlot]]:
         """Group schedule entries by date, normalizing overnight spans."""
 
@@ -2089,9 +2092,9 @@ class AvailabilityService(BaseService):
         instructor_today = get_user_today_by_id(instructor_id, self.db)
 
         for slot in schedule:
-            slot_date = date.fromisoformat(slot["date"])
-            start_time_obj = string_to_time(slot["start_time"])
-            end_time_obj = string_to_time(slot["end_time"])
+            slot_date = date.fromisoformat(slot.date)
+            start_time_obj = string_to_time(slot.start_time)
+            end_time_obj = string_to_time(slot.end_time)
 
             if not ALLOW_PAST and slot_date < instructor_today:
                 logger.warning(

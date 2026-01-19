@@ -201,11 +201,19 @@ export default function InstructorCard({
         }
         catalogPromise = (async () => {
           const response = await publicApi.getCatalogServices();
-          const data = response.data || [];
+          const data: ServiceCatalogItem[] = (response.data ?? []).map((service) => {
+            const { description, ...rest } = service;
+            return {
+              ...rest,
+              ...(typeof description === 'string' ? { description } : {}),
+            };
+          });
           catalogCache = data;
           return data;
         })();
-        const data = await catalogPromise;
+        const activePromise = catalogPromise;
+        if (!activePromise) return;
+        const data = await activePromise;
         setServiceCatalog(data);
       } catch (error) {
         logger.error('Failed to fetch service catalog', error as Error);

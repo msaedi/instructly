@@ -9,6 +9,7 @@ protected by admin role requirements.
 import base64
 import hashlib
 import hmac
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import SecretStr
@@ -46,6 +47,8 @@ from ...services.beta_service import BetaService
 from ...tasks.celery_app import celery_app
 from ...utils.invite_cookie import invite_cookie_name
 from ...utils.strict import model_filter
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["beta"])
 
@@ -169,6 +172,7 @@ def validate_invite(
     return payload
 
 
+# openapi-exempt: 204 No Content - no response body
 @router.get(
     "/invites/verified",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -236,12 +240,12 @@ def get_beta_metrics_summary(
                         try:
                             invites_sent_total += int(float(line.split(" ")[-1]))
                         except Exception:
-                            pass
+                            logger.debug("Non-fatal error ignored", exc_info=True)
                     elif 'status="error"' in line:
                         try:
                             invites_error_total += int(float(line.split(" ")[-1]))
                         except Exception:
-                            pass
+                            logger.debug("Non-fatal error ignored", exc_info=True)
             elif line.startswith("instainstru_beta_phase_header_total"):
                 # instainstru_beta_phase_header_total{phase="open_beta"} 123
                 try:
@@ -252,7 +256,7 @@ def get_beta_metrics_summary(
                             count = int(float(line.split(" ")[-1]))
                             phase_counts[val] = phase_counts.get(val, 0) + count
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
         return BetaMetricsSummaryResponse(
             invites_sent_24h=invites_sent_total,  # best-effort cumulative
             invites_errors_24h=invites_error_total,
@@ -363,8 +367,8 @@ def get_invite_batch_progress(
     total = int(meta.get("total", 0))
     sent = int(meta.get("sent", 0))
     failed = int(meta.get("failed", 0))
-    sent_items = meta.get("sent") or None
-    failed_items = meta.get("failed") or None
+    sent_items = meta.get("sent_items") if isinstance(meta.get("sent_items"), list) else None
+    failed_items = meta.get("failed_items") if isinstance(meta.get("failed_items"), list) else None
     return InviteBatchProgressResponse(
         task_id=task_id,
         state=state,

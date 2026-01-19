@@ -5,6 +5,7 @@ Uses mocks to avoid actual API calls.
 """
 import asyncio
 from datetime import date, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -132,6 +133,38 @@ class TestLLMParser:
         result = await llm_parser.parse("piano lessons", regex_result=regex_result)
 
         assert result.parsing_mode == "regex"
+
+    @pytest.mark.asyncio
+    async def test_parse_handles_generic_error(self, llm_parser: LLMParser) -> None:
+        regex_result = ParsedQuery(
+            original_query="piano lessons",
+            service_query="piano lessons",
+            parsing_mode="regex",
+        )
+        with patch.object(
+            llm_parser, "_call_llm", new_callable=AsyncMock
+        ) as mock_call:
+            mock_call.side_effect = RuntimeError("boom")
+            result = await llm_parser.parse("piano lessons", regex_result=regex_result)
+
+        assert result.parsing_mode == "regex"
+
+    @pytest.mark.asyncio
+    async def test_parse_uses_regex_when_missing(self, llm_parser: LLMParser) -> None:
+        regex_result = ParsedQuery(
+            original_query="piano lessons",
+            service_query="piano lessons",
+            parsing_mode="regex",
+        )
+        with patch.object(llm_parser, "_parse_regex_sync", return_value=regex_result) as mock_regex:
+            with patch.object(
+                llm_parser, "_call_llm", new_callable=AsyncMock
+            ) as mock_call:
+                mock_call.return_value = LLMParsedQuery(service_query="piano lessons")
+                result = await llm_parser.parse("piano lessons")
+
+        mock_regex.assert_called_once()
+        assert result.parsing_mode == "llm"
 
     @pytest.mark.asyncio
     async def test_typo_correction(self, llm_parser: LLMParser) -> None:
@@ -274,6 +307,95 @@ class TestLLMParser:
         assert kwargs.get("max_tokens") == 500
         assert "max_completion_tokens" not in kwargs
         assert kwargs.get("temperature") == 0
+
+    @pytest.mark.asyncio
+    async def test_make_api_call_raises_on_refusal(self, llm_parser: LLMParser) -> None:
+        message = Mock(parsed=LLMParsedQuery(service_query="piano"), refusal="nope")
+        response = Mock(choices=[Mock(message=message)])
+        parse_mock = AsyncMock(return_value=response)
+        llm_parser._client = Mock(
+            beta=Mock(chat=Mock(completions=Mock(parse=parse_mock)))  # type: ignore[arg-type]
+        )
+
+        with patch("app.services.search.llm_parser.get_search_config") as mock_config:
+            mock_config.return_value = Mock(parsing_model="gpt-4o-mini")
+            with pytest.raises(ValueError, match="refusal"):
+                await llm_parser._make_api_call("piano", "sys")
+
+    @pytest.mark.asyncio
+    async def test_make_api_call_raises_on_empty_parse(self, llm_parser: LLMParser) -> None:
+        message = Mock(parsed=None, refusal=None)
+        response = Mock(choices=[Mock(message=message)])
+        parse_mock = AsyncMock(return_value=response)
+        llm_parser._client = Mock(
+            beta=Mock(chat=Mock(completions=Mock(parse=parse_mock)))  # type: ignore[arg-type]
+        )
+
+        with patch("app.services.search.llm_parser.get_search_config") as mock_config:
+            mock_config.return_value = Mock(parsing_model="gpt-4o-mini")
+            with pytest.raises(ValueError, match="no parsed"):
+                await llm_parser._make_api_call("piano", "sys")
+
+    def test_client_recreates_on_retry_change(self, llm_parser: LLMParser) -> None:
+        client = Mock()
+        with patch("app.services.search.llm_parser.AsyncOpenAI", return_value=client) as mock_openai:
+            with patch("app.services.search.llm_parser.get_search_config") as mock_config:
+                mock_config.return_value = SimpleNamespace(max_retries=1)
+                assert llm_parser.client is client
+                mock_config.return_value = SimpleNamespace(max_retries=3)
+                assert llm_parser.client is client
+        assert mock_openai.call_count == 2
+
+    def test_client_coerces_invalid_retry_values(self, llm_parser: LLMParser) -> None:
+        client = Mock()
+        with patch("app.services.search.llm_parser.AsyncOpenAI", return_value=client) as mock_openai:
+            with patch("app.services.search.llm_parser.get_search_config") as mock_config:
+                mock_config.return_value = SimpleNamespace(max_retries="bad")
+                _ = llm_parser.client
+        _, kwargs = mock_openai.call_args
+        assert kwargs["max_retries"] == 2
+
+    @pytest.mark.asyncio
+    async def test_get_current_date_uses_user_timezone(self) -> None:
+        parser = LLMParser(user_id="user123")
+        target_date = date(2024, 1, 2)
+
+        async def _fake_to_thread(func, *args, **kwargs):
+            return func(*args, **kwargs)
+
+        session_ctx = Mock()
+        session_ctx.__enter__ = Mock(return_value=Mock())
+        session_ctx.__exit__ = Mock(return_value=None)
+
+        with patch("app.services.search.llm_parser.asyncio.to_thread", _fake_to_thread):
+            with patch("app.services.search.llm_parser.get_db_session", return_value=session_ctx):
+                with patch(
+                    "app.core.timezone_utils.get_user_today_by_id", return_value=target_date
+                ):
+                    assert await parser._get_current_date() == target_date
+
+    def test_merge_results_uses_regex_on_invalid_date_range(self, llm_parser: LLMParser) -> None:
+        regex_result = ParsedQuery(
+            original_query="query",
+            service_query="piano",
+            parsing_mode="regex",
+        )
+        regex_result.date_range_start = date.today()
+        regex_result.date_range_end = date.today() + timedelta(days=1)
+        llm_response = LLMParsedQuery(
+            service_query="piano",
+            date_range_start="invalid",
+            date_range_end="invalid",
+        )
+
+        result = llm_parser._merge_results(regex_result, llm_response, "query")
+        assert result.date_range_start == regex_result.date_range_start
+        assert result.date_range_end == regex_result.date_range_end
+
+    def test_validate_time_rejects_invalid_format(self, llm_parser: LLMParser) -> None:
+        assert llm_parser._validate_time("5pm") is None
+        assert llm_parser._validate_time("25:00") is None
+        assert llm_parser._validate_time("09:30") == "09:30"
 
 
 class TestHybridParse:
@@ -434,3 +556,37 @@ class TestModelConfiguration:
 
         for field in required_fields:
             assert field in schema["properties"]
+
+
+def test_merge_results_uses_llm_date_range(llm_parser: LLMParser) -> None:
+    regex_result = ParsedQuery(
+        original_query="query",
+        service_query="piano",
+        parsing_mode="regex",
+    )
+    llm_response = LLMParsedQuery(
+        service_query="piano",
+        date_range_start=date.today().isoformat(),
+        date_range_end=(date.today() + timedelta(days=1)).isoformat(),
+    )
+
+    result = llm_parser._merge_results(regex_result, llm_response, "query")
+    assert result.date_type == "range"
+
+
+@pytest.mark.asyncio
+async def test_get_current_date_defaults_to_nyc(monkeypatch) -> None:
+    parser = LLMParser()
+
+    class _DummyTZ:
+        pass
+
+    class _DummyDateTime:
+        @classmethod
+        def now(cls, tz=None):
+            return SimpleNamespace(date=lambda: date(2024, 2, 3))
+
+    monkeypatch.setattr("pytz.timezone", lambda *_args, **_kwargs: _DummyTZ())
+    monkeypatch.setattr("app.services.search.llm_parser.datetime.datetime", _DummyDateTime)
+
+    assert await parser._get_current_date() == date(2024, 2, 3)

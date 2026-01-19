@@ -12,6 +12,56 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ._strict_base import StrictModel
 
+# ============================================================================
+# Typed metrics models for monitoring responses
+# ============================================================================
+
+
+class BasicCacheStats(BaseModel):
+    """Basic cache statistics."""
+
+    hits: int = Field(default=0, description="Cache hits")
+    misses: int = Field(default=0, description="Cache misses")
+    errors: int = Field(default=0, description="Cache errors")
+    hit_rate: str = Field(default="0.0%", description="Cache hit rate percentage")
+
+
+class PerformanceCacheStats(BaseModel):
+    """Cache statistics for performance metrics."""
+
+    hits: int = Field(default=0, description="Cache hits")
+    misses: int = Field(default=0, description="Cache misses")
+    hit_rate: str = Field(default="0.0%", description="Cache hit rate percentage")
+
+
+class AvailabilityMetrics(BaseModel):
+    """Availability-specific cache metrics."""
+
+    availability_hit_rate: str = Field(default="0.0%", description="Availability cache hit rate")
+    availability_total_requests: int = Field(default=0, description="Total availability requests")
+    availability_invalidations: int = Field(
+        default=0, description="Availability cache invalidations"
+    )
+
+
+class AvailabilityCacheMetrics(BaseModel):
+    """Detailed availability cache metrics."""
+
+    hit_rate: str = Field(default="0.0%", description="Cache hit rate percentage")
+    total_requests: int = Field(default=0, description="Total cache requests")
+    hits: int = Field(default=0, description="Cache hits")
+    misses: int = Field(default=0, description="Cache misses")
+    invalidations: int = Field(default=0, description="Cache invalidations")
+    cache_efficiency: str = Field(default="unknown", description="Cache efficiency rating")
+
+
+class RateLimitedClient(BaseModel):
+    """Rate-limited client information."""
+
+    key: str = Field(description="Client identifier key")
+    count: int = Field(description="Request count")
+    endpoint: str = Field(description="Most rate-limited endpoint")
+
 
 class DatabasePoolStatus(BaseModel):
     """Database connection pool status."""
@@ -33,6 +83,23 @@ class DatabasePoolStatus(BaseModel):
             }
         }
     )
+
+
+class DatabaseDashboardMetrics(BaseModel):
+    """Database metrics for monitoring dashboard."""
+
+    average_pool_usage_percent: float = Field(
+        default=0.0, description="Average pool usage percentage"
+    )
+    slow_queries_count: int = Field(default=0, description="Number of slow queries")
+    pool: DatabasePoolStatus = Field(description="Connection pool status")
+
+
+class PerformanceDatabaseMetrics(BaseModel):
+    """Database metrics for performance monitoring."""
+
+    active_connections: int = Field(default=0, description="Active database connections")
+    pool_status: DatabasePoolStatus = Field(description="Connection pool status")
 
 
 class CacheHealthStatus(BaseModel):
@@ -128,7 +195,7 @@ class MonitoringDashboardResponse(StrictModel):
 
     status: str = Field(description="Overall system status")
     timestamp: datetime = Field(description="Dashboard snapshot timestamp")
-    database: Dict[str, Any] = Field(description="Database metrics and pool status")
+    database: DatabaseDashboardMetrics = Field(description="Database metrics and pool status")
     cache: CacheHealthStatus = Field(description="Cache health status")
     requests: RequestMetrics = Field(description="Request processing metrics")
     memory: MemoryMetrics = Field(description="System memory metrics")
@@ -267,7 +334,8 @@ class SlowRequestsResponse(StrictModel):
 class ExtendedCacheStats(BaseModel):
     """Extended cache statistics."""
 
-    basic_stats: Dict[str, Any] = Field(description="Basic cache statistics")
+    basic_stats: BasicCacheStats = Field(description="Basic cache statistics")
+    # redis_info remains Dict[str, Any] - external Redis server returns dynamic fields
     redis_info: Optional[Dict[str, Any]] = Field(
         default=None, description="Redis server information"
     )
@@ -332,9 +400,9 @@ class PerformanceMetricsResponse(StrictModel):
     availability_service: ServiceMetrics = Field(description="Availability service metrics")
     booking_service: ServiceMetrics = Field(description="Booking service metrics")
     conflict_checker: ServiceMetrics = Field(description="Conflict checker metrics")
-    cache: Dict[str, Any] = Field(description="Cache statistics")
+    cache: PerformanceCacheStats = Field(description="Cache statistics")
     system: Dict[str, float] = Field(description="System resource metrics")
-    database: Dict[str, Any] = Field(description="Database connection metrics")
+    database: PerformanceDatabaseMetrics = Field(description="Database connection metrics")
 
     model_config = ConfigDict(
         extra="forbid",
@@ -377,7 +445,10 @@ class CacheMetricsResponse(StrictModel):
     misses: int = Field(description="Cache misses")
     errors: int = Field(description="Cache errors")
     hit_rate: str = Field(description="Cache hit rate percentage")
-    availability_metrics: Dict[str, Any] = Field(description="Availability-specific cache metrics")
+    availability_metrics: AvailabilityMetrics = Field(
+        description="Availability-specific cache metrics"
+    )
+    # redis_info remains Dict[str, Any] - external Redis server returns dynamic fields
     redis_info: Optional[Dict[str, Any]] = Field(
         default=None, description="Redis server information"
     )
@@ -407,7 +478,9 @@ class CacheMetricsResponse(StrictModel):
 class AvailabilityCacheMetricsResponse(StrictModel):
     """Availability-specific cache metrics response."""
 
-    availability_cache_metrics: Dict[str, Any] = Field(description="Availability cache metrics")
+    availability_cache_metrics: AvailabilityCacheMetrics = Field(
+        description="Availability cache metrics"
+    )
     top_cached_keys_sample: List[str] = Field(description="Sample of top cached keys")
     recommendations: List[str] = Field(description="Performance recommendations")
     cache_tiers_info: Dict[str, str] = Field(description="Cache tier configuration")
@@ -445,7 +518,7 @@ class RateLimitStats(StrictModel):
 
     total_keys: int = Field(description="Total rate limit keys in Redis")
     breakdown_by_type: Dict[str, int] = Field(description="Breakdown by limit type")
-    top_limited_clients: List[Dict[str, Any]] = Field(description="Top rate-limited clients")
+    top_limited_clients: List[RateLimitedClient] = Field(description="Top rate-limited clients")
 
     model_config = ConfigDict(
         extra="forbid",

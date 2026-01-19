@@ -1,12 +1,30 @@
 // frontend/lib/api.ts
-import { WeekSchedule, WeekValidationResponse } from '@/types/availability';
-import { BookingPreview, UpcomingBooking } from '@/types/booking';
+import type {
+  BookingPreview,
+  ValidateWeekRequest,
+  WeekValidationResponse,
+  UpcomingBookingList,
+  ApiErrorResponse,
+  NYCZipCheckResponse,
+  IdentitySessionResponse,
+  CreateSignedUploadRequest,
+  SignedUploadResponse,
+  ProxyUploadResponse,
+  FinalizeProfilePicturePayload,
+  SuccessResponse,
+  UpcomingBookingResponse,
+  OnboardingStatusResponse,
+} from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
+import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { getApiBase, withApiBase } from '@/lib/apiBase';
 
 type FetchWithAuthOptions = RequestInit & {
   noCache?: boolean;
 };
+
+type WeekSchedule = ValidateWeekRequest['current_week'];
+type UpcomingBooking = UpcomingBookingResponse;
 
 /**
  * API Client for InstaInstru Platform
@@ -101,8 +119,7 @@ export const fetchWithAuth = async (endpoint: string, options: FetchWithAuthOpti
 
       // Try to get error details from response body
       try {
-        const errorBody: { detail?: string; message?: string; [key: string]: unknown } =
-          (await response.clone().json()) as { detail?: string; message?: string; [key: string]: unknown };
+        const errorBody = (await response.clone().json()) as ApiErrorResponse;
         // Downgrade 4xx (client/expected) to warn to avoid noisy console errors
         if (response.status >= 500) {
           logger.error('API error response body', undefined, {
@@ -280,19 +297,19 @@ export async function validateWeekChanges(
   });
 
   try {
+    const payload: ValidateWeekRequest = {
+      current_week: currentWeek,
+      saved_week: savedWeek,
+      week_start: formatDateForAPI(weekStart),
+    };
     const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_VALIDATE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        current_week: currentWeek,
-        saved_week: savedWeek,
-        week_start: weekStart.toISOString().split('T')[0],
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
-      const error: { detail?: string; message?: string; [key: string]: unknown } =
-        (await response.json()) as { detail?: string; message?: string; [key: string]: unknown };
+      const error = (await response.json()) as ApiErrorResponse;
       logger.error('Week validation failed', undefined, {
         status: response.status,
         error,
@@ -380,8 +397,7 @@ export async function getUpcomingBookings(limit: number = 5): Promise<UpcomingBo
       throw new Error('Failed to fetch upcoming bookings');
     }
 
-    const data: { items: UpcomingBooking[]; total: number } =
-      (await response.json()) as { items: UpcomingBooking[]; total: number };
+    const data = (await response.json()) as UpcomingBookingList;
     // Now always returns consistent paginated format
     logger.debug('Upcoming bookings fetched successfully', {
       count: data.items.length,
@@ -397,38 +413,33 @@ export async function getUpcomingBookings(limit: number = 5): Promise<UpcomingBo
 
 // ========== Onboarding helper API calls ==========
 
-export async function checkIsNYCZip(zip: string): Promise<{ is_nyc: boolean; borough?: string }> {
+export async function checkIsNYCZip(zip: string): Promise<NYCZipCheckResponse> {
   const res = await fetchAPI(`${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`);
   if (!res.ok) throw new Error('ZIP check failed');
-  return res.json();
+  return res.json() as Promise<NYCZipCheckResponse>;
 }
 
-export async function createStripeIdentitySession(): Promise<{ verification_session_id: string; client_secret: string }>{
+export async function createStripeIdentitySession(): Promise<IdentitySessionResponse> {
   const res = await fetchWithAuth(API_ENDPOINTS.STRIPE_IDENTITY_SESSION, { method: 'POST' });
   if (!res.ok) throw new Error(await getErrorMessage(res));
-  return res.json();
+  return res.json() as Promise<IdentitySessionResponse>;
 }
 
-export async function createSignedUpload(params: {
-  filename: string;
-  content_type: string;
-  size_bytes: number;
-  purpose: 'background_check' | 'profile_picture';
-}): Promise<{ upload_url: string; object_key: string; public_url?: string; headers: Record<string, string> }>{
+export async function createSignedUpload(params: CreateSignedUploadRequest): Promise<SignedUploadResponse> {
   const res = await fetchWithAuth(API_ENDPOINTS.R2_SIGNED_UPLOAD, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   });
   if (!res.ok) throw new Error(await getErrorMessage(res));
-  return res.json();
+  return res.json() as Promise<SignedUploadResponse>;
 }
 
 export async function proxyUploadToR2(params: {
   key: string;
   file: Blob;
   contentType: string;
-}): Promise<{ ok: boolean; url?: string | null }>{
+}): Promise<ProxyUploadResponse> {
   const formData = new FormData();
   formData.append('key', params.key);
   formData.append('content_type', params.contentType);
@@ -439,24 +450,26 @@ export async function proxyUploadToR2(params: {
     body: formData,
   });
   if (!res.ok) throw new Error(await getErrorMessage(res));
-  return res.json() as Promise<{ ok: boolean; url?: string | null }>;
+  return res.json() as Promise<ProxyUploadResponse>;
 }
 
-export async function finalizeProfilePicture(object_key: string): Promise<{ success: boolean; message: string }>{
+export async function finalizeProfilePicture(
+  object_key: string
+): Promise<SuccessResponse> {
+  const payload: FinalizeProfilePicturePayload = { object_key };
   const res = await fetchWithAuth(API_ENDPOINTS.PROFILE_PICTURE_FINALIZE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ object_key }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(await getErrorMessage(res));
-  return res.json();
+  return res.json() as Promise<SuccessResponse>;
 }
 
 export async function getProfilePictureUrl(
   userId: string,
   variant: 'original' | 'display' | 'thumb' = 'display',
-): Promise<{ success: boolean; message: string; data: { url: string; expires_at: string } | null }>
-{
+): Promise<SuccessResponse> {
   const endpoint = `${API_ENDPOINTS.PROFILE_PICTURE_URL(userId)}?variant=${variant}`;
   const url = withApiBase(endpoint);
 
@@ -474,11 +487,7 @@ export async function getProfilePictureUrl(
       return { success: false, message, data: null };
     }
 
-    return (await response.json()) as {
-      success: boolean;
-      message: string;
-      data: { url: string; expires_at: string } | null;
-    };
+    return (await response.json()) as SuccessResponse;
   } catch (error) {
     logger.warn('Profile picture fetch error', {
       userId,
@@ -492,16 +501,10 @@ export async function getProfilePictureUrl(
   }
 }
 
-export async function getConnectStatus(): Promise<{
-  has_account: boolean;
-  onboarding_completed: boolean;
-  charges_enabled: boolean;
-  payouts_enabled: boolean;
-  details_submitted: boolean;
-}> {
+export async function getConnectStatus(): Promise<OnboardingStatusResponse> {
   const res = await fetchWithAuth(API_ENDPOINTS.CONNECT_STATUS);
   if (!res.ok) throw new Error(await getErrorMessage(res));
-  return res.json();
+  return res.json() as Promise<OnboardingStatusResponse>;
 }
 
 /**
@@ -532,10 +535,7 @@ export function isAuthError(response: Response): boolean {
  */
 export async function getErrorMessage(response: Response): Promise<string> {
   try {
-    const data: { detail?: string; message?: string } = (await response.json()) as {
-      detail?: string;
-      message?: string;
-    };
+    const data = (await response.json()) as ApiErrorResponse;
     return data.detail || data.message || 'An error occurred';
   } catch {
     return `Error: ${response.statusText}`;

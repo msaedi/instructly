@@ -435,16 +435,16 @@ class QueryParser:
         weekday_match = WEEKDAY_PATTERN.search(query)
         if weekday_match:
             prefix = (weekday_match.group(1) or "").strip().lower() or None
-            weekday_token = (weekday_match.group(2) or "").strip().lower()
+            weekday_label = (weekday_match.group(2) or "").strip().lower()
 
             # Disambiguation: "sat prep" means the SAT exam, not Saturday.
-            if weekday_token == "sat":
+            if weekday_label == "sat":
                 remainder = query[weekday_match.end() :].lstrip()
                 next_word = remainder.split(" ", 1)[0].strip().lower() if remainder else ""
                 if next_word in {"prep", "preparation", "test", "exam", "tutor", "tutoring"}:
                     weekday_match = None
             if weekday_match:
-                target_weekday = WEEKDAYS.get(weekday_token)
+                target_weekday = WEEKDAYS.get(weekday_label)
                 if target_weekday is not None:
                     today = self._get_user_today()
                     days_ahead = (target_weekday - today.weekday()) % 7

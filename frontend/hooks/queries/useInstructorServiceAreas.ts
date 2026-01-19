@@ -2,16 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { fetchWithAuth } from '@/lib/api';
 import { CACHE_TIMES } from '@/lib/react-query/queryClient';
-
-type ServiceAreaItem = {
-  id?: string | number;
-  neighborhood_id?: string | number;
-  name?: string;
-};
-
-type ServiceAreasResponse = {
-  items?: ServiceAreaItem[];
-};
+import type { ServiceAreasResponse } from '@/features/shared/api/types';
 
 export function useInstructorServiceAreas(enabled: boolean) {
   return useQuery<ServiceAreasResponse>({

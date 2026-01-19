@@ -11,17 +11,25 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { withApiBase } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
-import type {
-  ConversationListResponse,
-  ConversationDetail,
-  ConversationMessage,
-  ConversationMessagesResponse,
-  CreateConversationResponse,
-  SendMessageResponse,
-  ConversationStateFilter,
-  ListConversationsParams,
-  GetMessagesParams,
-} from '@/types/conversation';
+import type { components, operations } from '@/features/shared/api/types';
+
+type ConversationList = components['schemas']['ConversationListResponse'];
+type ConversationDetails = components['schemas']['ConversationDetail'];
+type ConversationMessage = components['schemas']['MessageResponse'];
+type ConversationMessages = components['schemas']['MessagesResponse'];
+type CreateConversationResult = components['schemas']['CreateConversationResponse'];
+type CreateConversationPayload = components['schemas']['CreateConversationRequest'];
+type SendMessageResult = components['schemas']['SendMessageResponse'];
+type SendMessagePayload = components['schemas']['SendMessageRequest'];
+type TypingPayload = components['schemas']['TypingRequest'];
+type UpdateConversationStatePayload = components['schemas']['UpdateConversationStateRequest'];
+type ConversationStateFilter = components['schemas']['UpdateConversationStateRequest']['state'];
+type ListConversationsParams = NonNullable<
+  operations['list_conversations_api_v1_conversations_get']['parameters']['query']
+>;
+type GetMessagesParams = NonNullable<
+  operations['get_messages_api_v1_conversations__conversation_id__messages_get']['parameters']['query']
+>;
 
 // Query keys for React Query cache management
 export const conversationQueryKeys = {
@@ -52,7 +60,7 @@ const STALE_TIMES = {
  */
 export async function listConversations(
   params: ListConversationsParams = {}
-): Promise<ConversationListResponse> {
+): Promise<ConversationList> {
   const searchParams = new URLSearchParams();
 
   if (params.state) {
@@ -80,13 +88,13 @@ export async function listConversations(
     throw new Error(`Failed to list conversations: ${response.status}`);
   }
 
-  return response.json();
+  return response.json() as Promise<ConversationList>;
 }
 
 /**
  * Get details for a single conversation.
  */
-export async function getConversation(conversationId: string): Promise<ConversationDetail> {
+export async function getConversation(conversationId: string): Promise<ConversationDetails> {
   const response = await fetch(withApiBase(`/api/v1/conversations/${conversationId}`), {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
@@ -97,7 +105,7 @@ export async function getConversation(conversationId: string): Promise<Conversat
     throw new Error(`Failed to get conversation: ${response.status}`);
   }
 
-  return response.json();
+  return response.json() as Promise<ConversationDetails>;
 }
 
 /**
@@ -107,22 +115,24 @@ export async function getConversation(conversationId: string): Promise<Conversat
 export async function createConversation(
   instructorId: string,
   initialMessage?: string
-): Promise<CreateConversationResponse> {
+): Promise<CreateConversationResult> {
+  const payload: CreateConversationPayload = {
+    instructor_id: instructorId,
+    ...(initialMessage !== undefined ? { initial_message: initialMessage } : {}),
+  };
+
   const response = await fetch(withApiBase('/api/v1/conversations'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({
-      instructor_id: instructorId,
-      initial_message: initialMessage,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
     throw new Error(`Failed to create conversation: ${response.status}`);
   }
 
-  return response.json();
+  return response.json() as Promise<CreateConversationResult>;
 }
 
 /**
@@ -131,7 +141,7 @@ export async function createConversation(
 export async function getMessages(
   conversationId: string,
   params: GetMessagesParams = {}
-): Promise<ConversationMessagesResponse> {
+): Promise<ConversationMessages> {
   const searchParams = new URLSearchParams();
 
   if (params.limit) {
@@ -159,7 +169,7 @@ export async function getMessages(
     throw new Error(`Failed to get messages: ${response.status}`);
   }
 
-  return response.json();
+  return response.json() as Promise<ConversationMessages>;
 }
 
 /**
@@ -169,22 +179,24 @@ export async function sendMessage(
   conversationId: string,
   content: string,
   bookingId?: string
-): Promise<SendMessageResponse> {
+): Promise<SendMessageResult> {
+  const payload: SendMessagePayload = {
+    content,
+    ...(bookingId !== undefined ? { booking_id: bookingId } : {}),
+  };
+
   const response = await fetch(withApiBase(`/api/v1/conversations/${conversationId}/messages`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({
-      content,
-      booking_id: bookingId,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
     throw new Error(`Failed to send message: ${response.status}`);
   }
 
-  return response.json();
+  return response.json() as Promise<SendMessageResult>;
 }
 
 /**
@@ -194,11 +206,13 @@ export async function sendTypingIndicator(
   conversationId: string,
   isTyping: boolean = true
 ): Promise<void> {
+  const payload: TypingPayload = { is_typing: isTyping };
+
   await fetch(withApiBase(`/api/v1/conversations/${conversationId}/typing`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ is_typing: isTyping }),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -210,11 +224,13 @@ export async function updateConversationState(
   conversationId: string,
   state: ConversationStateFilter
 ): Promise<void> {
+  const payload: UpdateConversationStatePayload = { state };
+
   const response = await fetch(withApiBase(`/api/v1/conversations/${conversationId}/state`), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ state }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -311,7 +327,7 @@ export function useSendConversationMessage() {
         queryKey: conversationQueryKeys.messages(variables.conversationId),
       });
 
-      const previousMessages = queryClient.getQueriesData<ConversationMessagesResponse>({
+      const previousMessages = queryClient.getQueriesData<ConversationMessages>({
         queryKey: conversationQueryKeys.messages(variables.conversationId),
       });
 
@@ -332,7 +348,7 @@ export function useSendConversationMessage() {
         reactions: [],
       };
 
-      queryClient.setQueriesData<ConversationMessagesResponse>(
+      queryClient.setQueriesData<ConversationMessages>(
         { queryKey: conversationQueryKeys.messages(variables.conversationId) },
         (old) => {
           if (!old) return old;
@@ -400,14 +416,14 @@ export function useUpdateConversationState() {
     }) => updateConversationState(conversationId, state),
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: conversationQueryKeys.lists() });
-      const previousLists = queryClient.getQueriesData<ConversationListResponse>({
+      const previousLists = queryClient.getQueriesData<ConversationList>({
         queryKey: conversationQueryKeys.lists(),
       });
-      const previousDetail = queryClient.getQueryData<ConversationDetail>(
+      const previousDetail = queryClient.getQueryData<ConversationDetails>(
         conversationQueryKeys.detail(variables.conversationId)
       );
 
-      queryClient.setQueriesData<ConversationListResponse>(
+      queryClient.setQueriesData<ConversationList>(
         { queryKey: conversationQueryKeys.lists() },
         (oldData) => {
           if (!oldData) return oldData;
@@ -421,7 +437,7 @@ export function useUpdateConversationState() {
           };
         }
       );
-      queryClient.setQueryData<ConversationDetail>(
+      queryClient.setQueryData<ConversationDetails>(
         conversationQueryKeys.detail(variables.conversationId),
         (oldData) => {
           if (!oldData) return oldData;

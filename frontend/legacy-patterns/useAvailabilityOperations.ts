@@ -15,7 +15,6 @@ import {
   SlotOperation,
   WeekSchedule,
   ExistingSlot,
-  WeekValidationResponse,
   BulkUpdateRequest,
   BulkUpdateResponse,
   WeekDateInfo,
@@ -23,6 +22,7 @@ import {
 } from '@/types/availability';
 import { BookedSlotPreview } from '@/types/booking';
 import { fetchWithAuth, API_ENDPOINTS, validateWeekChanges } from '@/lib/api';
+import type { WeekValidationResponse } from '@/features/shared/api/types';
 import {
   generateAvailabilityOperations,
   validateOperations,

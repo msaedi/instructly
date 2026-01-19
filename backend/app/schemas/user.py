@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 import pytz
@@ -38,13 +38,23 @@ class UserBase(BaseModel):
         return v
 
 
+class UserRegistrationMetadata(BaseModel):
+    """Metadata provided during user registration."""
+
+    invite_code: Optional[str] = None
+    referral_code: Optional[str] = None
+    referral_source: Optional[str] = None
+    marketing_tag: Optional[str] = None
+    campaign: Optional[str] = None
+
+    model_config = ConfigDict(extra="allow")  # Allow additional keys for extensibility
+
+
 class UserCreate(StrictRequestModel, UserBase):
     password: str
     role: Optional[str] = None  # For backward compatibility during registration
     guest_session_id: Optional[str] = None  # For conversion on signup
-    metadata: Optional[
-        Dict[str, Any]
-    ] = None  # Optional client-provided metadata (e.g., invite_code)
+    metadata: Optional[UserRegistrationMetadata] = None  # Client-provided registration metadata
 
 
 class UserUpdate(StrictRequestModel):

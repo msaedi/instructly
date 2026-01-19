@@ -1,11 +1,39 @@
 # backend/app/schemas/review.py
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from pydantic import ConfigDict, Field, RootModel
 from pydantic.functional_validators import field_validator
 
 from ._strict_base import StrictModel, StrictRequestModel
+
+
+class OverallRatingStats(StrictModel):
+    """Overall rating statistics computed using Dirichlet smoothing."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    rating: float = Field(description="Computed rating (Dirichlet-smoothed)")
+    total_reviews: int = Field(description="Total number of reviews")
+    display_rating: Optional[str] = Field(
+        default=None,
+        description="Display-formatted rating (e.g., '4.5★') or None if below threshold",
+    )
+
+
+class ServiceRatingStats(StrictModel):
+    """Per-service rating statistics."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    instructor_service_id: str = Field(description="ID of the instructor's service offering")
+    rating: Optional[float] = Field(
+        default=None, description="Computed rating or None if below min_reviews threshold"
+    )
+    review_count: int = Field(description="Number of reviews for this service")
+    display_rating: Optional[str] = Field(
+        default=None, description="Display-formatted rating or None if below threshold"
+    )
 
 
 class ReviewSubmitRequest(StrictRequestModel):
@@ -48,9 +76,14 @@ class ReviewResponseModel(StrictModel):
 
 
 class InstructorRatingsResponse(StrictModel):
+    """Instructor rating statistics with overall and per-service breakdown."""
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    overall: Dict[str, Any]
-    by_service: List[Dict[str, Any]] = Field(default_factory=list)
+
+    overall: OverallRatingStats = Field(description="Overall rating statistics")
+    by_service: List[ServiceRatingStats] = Field(
+        default_factory=list, description="Per-service rating breakdown"
+    )
     confidence_level: str = Field(..., pattern="^(new|establishing|established|trusted)$")
 
 

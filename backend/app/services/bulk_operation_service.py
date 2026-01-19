@@ -505,7 +505,6 @@ class BulkOperationService(BaseService):
         from app.repositories.availability_day_repository import AvailabilityDayRepository
 
         bitmap_repo = AvailabilityDayRepository(self.db)
-        assert operation_date is not None
         existing_bits = bitmap_repo.get_day_bits(instructor_id, operation_date)
         if existing_bits and isinstance(existing_bits, (bytes, bytearray)):
             from app.utils.bitset import windows_from_bits
@@ -535,8 +534,6 @@ class BulkOperationService(BaseService):
             end_time = operation.end_time
             if operation_date is None or start_time is None or end_time is None:
                 raise ValueError("Missing date/start_time/end_time for slot operation")
-            assert start_time is not None and end_time is not None
-            assert operation_date is not None
             start_label = start_time.strftime("%H:%M")
             end_label = end_time.strftime("%H:%M")
             date_label = operation_date.isoformat()

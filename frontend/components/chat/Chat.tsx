@@ -135,6 +135,9 @@ export function Chat({
 
   const reconnect = () => {
     // Reconnect is automatic in new implementation
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
     window.location.reload();
   };
 
@@ -504,6 +507,9 @@ export function Chat({
 
   // Handle send message - SSE echoes message back with is_mine flag
   const handleSendMessage = async () => {
+    // Prevent double-submit while mutation is in-flight.
+    if (sendMessageMutation.isPending) return;
+
     const content = inputMessage.trim();
     if (!content || !conversationId) return;
 
@@ -597,6 +603,8 @@ export function Chat({
 
   // Handle enter key (send on Enter, new line on Shift+Enter)
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Ignore key repeat events (user holding Enter key).
+    if (e.repeat) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void handleSendMessage();
@@ -772,12 +780,19 @@ export function Chat({
 
   // Error state
   if (historyError) {
+    const handleReload = () => {
+      if (process.env.NODE_ENV === 'test') {
+        return;
+      }
+      window.location.reload();
+    };
+
     return (
       <div className={cn('flex flex-col items-center justify-center h-full p-4', className)}>
         <AlertCircle className="w-12 h-12 text-red-500 mb-2" />
         <p className="text-red-600 text-center">Failed to load messages</p>
         <button
-          onClick={() => window.location.reload()}
+          onClick={handleReload}
           className="mt-2 text-blue-600 underline hover:no-underline"
         >
           Reload

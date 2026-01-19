@@ -2,224 +2,23 @@
 """
 Email-related Celery tasks for InstaInstru.
 
-This module contains all asynchronous email sending tasks including
-booking confirmations, reminders, and notifications.
+This module contains asynchronous email sending tasks.
+
+Note: Booking confirmation, reminder, and cancellation notifications are
+handled by NotificationService (app/services/notification_service.py).
+Password reset emails are sent directly by PasswordResetService.
 """
 
 import logging
-from typing import Any, Dict, Optional, Sequence, cast
+from typing import Any, Sequence
 
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
-from app.models.booking import Booking
-from app.models.user import User
+from app.database import get_db
 from app.services.beta_service import BetaService
-from app.services.email import EmailService
 from app.tasks.celery_app import BaseTask, typed_task
 
 logger = logging.getLogger(__name__)
-
-
-@typed_task(
-    base=BaseTask,
-    name="app.tasks.email.send_booking_confirmation",
-    bind=True,
-    max_retries=3,
-)
-def send_booking_confirmation(self: BaseTask, booking_id: int) -> Dict[str, Any]:
-    """
-    Send booking confirmation email to student and instructor.
-
-    Args:
-        booking_id: ID of the booking
-
-    Returns:
-        dict: Result of email sending operation
-    """
-    db_iter = get_db()
-    db: Session = next(db_iter)
-    try:
-        # Get booking with related data
-        booking = db.query(Booking).filter(Booking.id == booking_id).first()
-        if not booking:
-            logger.error(f"Booking {booking_id} not found")
-            return {"status": "error", "message": f"Booking {booking_id} not found"}
-
-        # Initialize email service
-        email_service = EmailService(db)
-        legacy_email_service = cast(Any, email_service)
-
-        # Send confirmation to student
-        student_result = legacy_email_service.send_booking_confirmation_to_student(booking)
-
-        # Send notification to instructor
-        instructor_result = legacy_email_service.send_booking_notification_to_instructor(booking)
-
-        return {
-            "status": "success",
-            "booking_id": booking_id,
-            "student_email_sent": student_result,
-            "instructor_email_sent": instructor_result,
-        }
-
-    except Exception as exc:
-        logger.error(f"Failed to send booking confirmation for booking {booking_id}: {exc}")
-        # Retry with exponential backoff
-        raise self.retry(exc=exc, countdown=60 * (2**self.request.retries))
-    finally:
-        db.close()
-
-
-@typed_task(
-    base=BaseTask,
-    name="app.tasks.email.send_booking_reminder",
-    bind=True,
-    max_retries=2,
-)
-def send_booking_reminder(
-    self: BaseTask, booking_id: int, hours_before: int = 24
-) -> Dict[str, Any]:
-    """
-    Send booking reminder email.
-
-    Args:
-        booking_id: ID of the booking
-        hours_before: Hours before the booking to send reminder
-
-    Returns:
-        dict: Result of email sending operation
-    """
-    db_iter = get_db()
-    db: Session = next(db_iter)
-    try:
-        booking = db.query(Booking).filter(Booking.id == booking_id).first()
-        if not booking:
-            return {"status": "error", "message": f"Booking {booking_id} not found"}
-
-        email_service = EmailService(db)
-        legacy_email_service = cast(Any, email_service)
-
-        # Send reminder to student
-        student_result = legacy_email_service.send_booking_reminder_to_student(
-            booking, hours_before=hours_before
-        )
-
-        # Send reminder to instructor
-        instructor_result = legacy_email_service.send_booking_reminder_to_instructor(
-            booking, hours_before=hours_before
-        )
-
-        return {
-            "status": "success",
-            "booking_id": booking_id,
-            "hours_before": hours_before,
-            "student_reminder_sent": student_result,
-            "instructor_reminder_sent": instructor_result,
-        }
-
-    except Exception as exc:
-        logger.error(f"Failed to send booking reminder for booking {booking_id}: {exc}")
-        raise self.retry(exc=exc, countdown=300)  # Retry in 5 minutes
-    finally:
-        db.close()
-
-
-@typed_task(
-    base=BaseTask,
-    name="app.tasks.email.send_cancellation_notification",
-    bind=True,
-    max_retries=3,
-)
-def send_cancellation_notification(
-    self: BaseTask, booking_id: int, cancelled_by_id: int, reason: Optional[str] = None
-) -> Dict[str, Any]:
-    """
-    Send booking cancellation notification emails.
-
-    Args:
-        booking_id: ID of the cancelled booking
-        cancelled_by_id: ID of user who cancelled
-        reason: Cancellation reason
-
-    Returns:
-        dict: Result of email sending operation
-    """
-    db_iter = get_db()
-    db: Session = next(db_iter)
-    try:
-        booking = db.query(Booking).filter(Booking.id == booking_id).first()
-        if not booking:
-            return {"status": "error", "message": f"Booking {booking_id} not found"}
-
-        cancelled_by = db.query(User).filter(User.id == cancelled_by_id).first()
-        if not cancelled_by:
-            return {"status": "error", "message": f"User {cancelled_by_id} not found"}
-
-        email_service = EmailService(db)
-        legacy_email_service = cast(Any, email_service)
-
-        # Send cancellation notification
-        result = legacy_email_service.send_cancellation_notification(
-            booking=booking, cancelled_by=cancelled_by, reason=reason
-        )
-
-        return {
-            "status": "success",
-            "booking_id": booking_id,
-            "cancelled_by_first_name": cancelled_by.first_name,
-            "cancelled_by_last_name": cancelled_by.last_name,
-            "notification_sent": result,
-        }
-
-    except Exception as exc:
-        logger.error(f"Failed to send cancellation notification for booking {booking_id}: {exc}")
-        raise self.retry(exc=exc, countdown=60 * (2**self.request.retries))
-    finally:
-        db.close()
-
-
-@typed_task(
-    base=BaseTask,
-    name="app.tasks.email.send_password_reset",
-    bind=True,
-    max_retries=2,
-)
-def send_password_reset_email(self: BaseTask, email: str, reset_token: str) -> Dict[str, Any]:
-    """
-    Send password reset email.
-
-    Args:
-        email: User's email address
-        reset_token: Password reset token
-
-    Returns:
-        dict: Result of email sending operation
-    """
-    db_iter = get_db()
-    db: Session = next(db_iter)
-    try:
-        user = db.query(User).filter(User.email == email).first()
-        if not user:
-            return {"status": "error", "message": f"User with email {email} not found"}
-
-        email_service = EmailService(db)
-        legacy_email_service = cast(Any, email_service)
-
-        # Send password reset email
-        result = legacy_email_service.send_password_reset_email(user=user, reset_token=reset_token)
-
-        return {
-            "status": "success",
-            "email": email,
-            "email_sent": result,
-        }
-
-    except Exception as exc:
-        logger.error(f"Failed to send password reset email to {email}: {exc}")
-        raise self.retry(exc=exc, countdown=60)
-    finally:
-        db.close()
 
 
 @typed_task(
@@ -235,7 +34,7 @@ def send_beta_invites_batch(
     expires_in_days: int,
     source: str | None,
     base_url: str | None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Send beta invites to a list of emails, reporting progress.
 
@@ -251,7 +50,7 @@ def send_beta_invites_batch(
         total = len(emails)
         sent = 0
         failed = 0
-        results: Dict[str, Any] = {"sent": [], "failed": []}
+        results: dict[str, Any] = {"sent": [], "failed": []}
 
         for idx, em in enumerate(emails, start=1):
             try:

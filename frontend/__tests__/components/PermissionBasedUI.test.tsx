@@ -143,7 +143,7 @@ describe('Permission-Based UI Rendering', () => {
       permissions: [
         PermissionName.MANAGE_OWN_PROFILE,
         PermissionName.VIEW_OWN_BOOKINGS,
-        PermissionName.CHANGE_OWN_PASSWORD,
+        PermissionName.CHANGE_OWN_PW,
         PermissionName.DELETE_OWN_ACCOUNT,
         PermissionName.VIEW_OWN_SEARCH_HISTORY,
         PermissionName.VIEW_INSTRUCTORS,
@@ -209,7 +209,7 @@ describe('Permission-Based UI Rendering', () => {
         // Shared permissions
         PermissionName.MANAGE_OWN_PROFILE,
         PermissionName.VIEW_OWN_BOOKINGS,
-        PermissionName.CHANGE_OWN_PASSWORD,
+        PermissionName.CHANGE_OWN_PW,
         PermissionName.DELETE_OWN_ACCOUNT,
         PermissionName.VIEW_OWN_SEARCH_HISTORY,
         // Instructor-specific permissions
@@ -286,7 +286,7 @@ describe('Permission-Based UI Rendering', () => {
         // All permissions for admin
         PermissionName.MANAGE_OWN_PROFILE,
         PermissionName.VIEW_OWN_BOOKINGS,
-        PermissionName.CHANGE_OWN_PASSWORD,
+        PermissionName.CHANGE_OWN_PW,
         PermissionName.DELETE_OWN_ACCOUNT,
         PermissionName.VIEW_OWN_SEARCH_HISTORY,
         PermissionName.VIEW_INSTRUCTORS,

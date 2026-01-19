@@ -337,11 +337,12 @@ Add these secrets to your GitHub repository (Settings → Secrets → Actions):
 
 | Secret | Description | Example |
 |--------|-------------|---------|
-| `LOADTEST_BYPASS_TOKEN` | Rate limit bypass token | `ptAzQOSdhmbrWkSZQA9d9maD3vKjstx8Wfo3kb9ugIQ` |
+| `LOADTEST_BYPASS_TOKEN` | Rate limit bypass token | `<LOAD_TEST_TOKEN>` |
 | `LOADTEST_USERS` | Comma-separated test user emails | `sarah.chen@example.com,emma.johnson@example.com` |
 | `LOADTEST_PASSWORD` | Password for test users | `Test1234` |
 
-**Note**: If secrets are not set, the workflow uses default values from CLAUDE.md.
+**Note**: Store real tokens in GitHub Secrets/env vars only; never commit them.
+If secrets are not set, the workflow uses default values from CLAUDE.md.
 
 ### CI Smoke Test Configuration
 

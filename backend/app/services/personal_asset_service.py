@@ -63,10 +63,10 @@ def _is_r2_storage_configured() -> bool:
         getattr(settings, "r2_account_id", ""),
     ]
     try:
-        secret = settings.r2_secret_access_key.get_secret_value()
+        credential = settings.r2_secret_access_key.get_secret_value()
     except Exception:
-        secret = ""
-    required.append(secret)
+        credential = None
+    required.append(bool(credential))
     return all(required)
 
 
@@ -173,7 +173,7 @@ class PersonalAssetService(BaseService):
                 try:
                     profile_pic_url_cache_hits_total.labels(variant=variant).inc()
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                 cached_map = cast(dict[str, Any], cached)
                 return PresignedView(
                     url=str(cached_map.get("url", "")),
@@ -192,8 +192,7 @@ class PersonalAssetService(BaseService):
         try:
             profile_pic_url_cache_misses_total.labels(variant=variant).inc()
         except Exception:
-            pass
-
+            logger.debug("Non-fatal error ignored", exc_info=True)
         if cache:
             try:
                 cache.set(

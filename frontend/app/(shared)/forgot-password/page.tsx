@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { CheckCircle } from 'lucide-react';
 import { fetchAPI } from '@/lib/api';
 import { logger } from '@/lib/logger';
-import type { PasswordResetRequest } from '@/types/user';
+import type { ApiErrorResponse, PasswordResetRequest } from '@/features/shared/api/types';
 import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
 
@@ -50,10 +50,10 @@ export default function ForgotPasswordPage() {
       logger.timeEnd('passwordResetRequest');
 
       if (!response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as ApiErrorResponse;
         if (response.status === 404) throw new Error('No account found with this email address');
         if (response.status === 429) throw new Error('Too many reset attempts. Please try again later');
-        throw new Error(data.detail || 'Failed to send reset email');
+        throw new Error(data.detail || data.message || 'Failed to send reset email');
       }
 
       logger.info('Password reset email sent successfully', { email: trimmedEmail });

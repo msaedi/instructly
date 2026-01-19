@@ -20,6 +20,9 @@ import { withApiBase } from '@/lib/apiBase';
 import { SearchType } from '@/types/enums';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { AlertTriangle } from 'lucide-react';
+import type { components } from '@/features/shared/api/types';
+
+type CoverageFeatureCollectionResponse = components['schemas']['CoverageFeatureCollectionResponse'];
 
 const getServiceDisplayName = (service: Instructor['services'][number]): string => {
   const candidates: Array<unknown> = [
@@ -533,7 +536,7 @@ function SearchPageContent() {
           setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
           return;
         }
-        const data = await res.json();
+        const data = (await res.json()) as CoverageFeatureCollectionResponse;
         setCoverageGeoJSON(data);
       } catch {
         setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });

@@ -14,6 +14,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { BookedSlotPreview } from '@/types/booking';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
+import type { components } from '@/features/shared/api/types';
 // Local lightweight helpers to avoid legacy-patterns dependency
 function createBookedHoursMapLocal(booked: BookedSlotPreview[]): Map<string, true> {
   const map = new Map<string, true>();
@@ -173,8 +174,10 @@ export function useBookedSlots(
           throw new Error('Failed to fetch booked slots');
         }
 
-        const data = await response.json();
-        const slots = data.booked_slots;
+        const data = (await response.json()) as components['schemas']['BookedSlotsResponse'];
+        const slots = Array.isArray(data?.booked_slots)
+          ? (data.booked_slots as unknown as BookedSlotPreview[])
+          : [];
 
         logger.info('Fetched booked slots', {
           weekStart: weekStartStr,

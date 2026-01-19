@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..repositories.factory import RepositoryFactory
+from ..schemas.privacy import PrivacyStatistics, RetentionStats
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
@@ -246,7 +247,7 @@ class PrivacyService(BaseService):
                 try:
                     user.account_status = "deactivated"
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                 # Anonymize PII
                 user.email = f"deleted_{user.id}@deleted.com"
                 user.first_name = "Deleted"
@@ -255,12 +256,11 @@ class PrivacyService(BaseService):
                 try:
                     user.phone = None  # phone is nullable
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                 try:
                     user.zip_code = "00000"  # zip_code is non-nullable; use neutral placeholder
                 except Exception:
-                    pass
-
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                 # Delete instructor profile if exists
                 instructor = self.instructor_repository.get_by_user_id(user_id)
                 if instructor:
@@ -278,17 +278,15 @@ class PrivacyService(BaseService):
             raise
 
     @BaseService.measure_operation("apply_retention_policies")
-    def apply_retention_policies(self) -> dict[str, int]:
+    def apply_retention_policies(self) -> RetentionStats:
         """
         Apply data retention policies across all data types.
 
         Returns:
-            Dictionary with counts of affected records
+            RetentionStats with counts of affected records
         """
-        retention_stats: dict[str, int] = {
-            "search_events_deleted": 0,
-            "old_bookings_anonymized": 0,
-        }
+        search_events_deleted = 0
+        old_bookings_anonymized = 0
 
         try:
             # Delete old search events (keep aggregated data only)
@@ -296,9 +294,7 @@ class PrivacyService(BaseService):
                 cutoff_date = datetime.now(timezone.utc) - timedelta(
                     days=settings.search_event_retention_days
                 )
-                retention_stats[
-                    "search_events_deleted"
-                ] = self.search_event_repository.delete_old_events(cutoff_date)
+                search_events_deleted = self.search_event_repository.delete_old_events(cutoff_date)
 
             # Anonymize old bookings (keep for business records)
             if hasattr(settings, "booking_pii_retention_days"):
@@ -307,18 +303,22 @@ class PrivacyService(BaseService):
                 )
                 # Count old bookings that would be anonymized
                 # Note: Can't actually set student_id/instructor_id to NULL due to NOT NULL constraints
-                old_bookings_count = self.booking_repository.count_old_bookings(cutoff_date)
+                old_bookings_anonymized = self.booking_repository.count_old_bookings(cutoff_date)
 
                 # In a real implementation, you might:
                 # 1. Add an anonymization flag to bookings
                 # 2. Create a special "anonymous" user account
                 # 3. Or implement soft deletion with a different approach
-                retention_stats["old_bookings_anonymized"] = old_bookings_count
 
             # Note: AlertHistory is for system alerts, not user-specific data retention
 
             # repo-pattern-ignore: Transaction commit belongs in service layer
             self.db.commit()
+
+            retention_stats = RetentionStats(
+                search_events_deleted=search_events_deleted,
+                old_bookings_anonymized=old_bookings_anonymized,
+            )
             logger.info(f"Applied retention policies: {retention_stats}")
             return retention_stats
 
@@ -329,33 +329,29 @@ class PrivacyService(BaseService):
             raise
 
     @BaseService.measure_operation("get_privacy_statistics")
-    def get_privacy_statistics(self) -> dict[str, Any]:
+    def get_privacy_statistics(self) -> PrivacyStatistics:
         """
         Get statistics about data retention and privacy.
 
         Returns:
-            Dictionary with privacy-related statistics
+            PrivacyStatistics with privacy-related statistics
         """
-        stats: dict[str, Any] = {
-            "total_users": self.user_repository.count_all(),
-            "active_users": self.user_repository.count_active(),
-            "search_history_records": self.search_history_repository.count_all_searches(),
-            "search_event_records": self.search_event_repository.count_all_events(),
-            "total_bookings": self.booking_repository.count(),
-            # Note: All bookings have PII due to NOT NULL constraints on user IDs
-            # In a real implementation, you'd have an anonymization flag or similar
-        }
-
-        # Add retention policy information
+        # Count eligible for deletion if retention policy is configured
+        search_events_eligible: int | None = None
         if hasattr(settings, "search_event_retention_days"):
             cutoff_date = datetime.now(timezone.utc) - timedelta(
                 days=settings.search_event_retention_days
             )
-            stats[
-                "search_events_eligible_for_deletion"
-            ] = self.search_event_repository.count_old_events(cutoff_date)
+            search_events_eligible = self.search_event_repository.count_old_events(cutoff_date)
 
-        return stats
+        return PrivacyStatistics(
+            total_users=self.user_repository.count_all(),
+            active_users=self.user_repository.count_active(),
+            search_history_records=self.search_history_repository.count_all_searches(),
+            search_event_records=self.search_event_repository.count_all_events(),
+            total_bookings=self.booking_repository.count(),
+            search_events_eligible_for_deletion=search_events_eligible,
+        )
 
     @BaseService.measure_operation("anonymize_user")
     def anonymize_user(self, user_id: str) -> bool:

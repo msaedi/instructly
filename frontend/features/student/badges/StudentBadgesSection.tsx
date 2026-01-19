@@ -180,12 +180,29 @@ function BadgeGroup({
   );
 }
 
+type BadgeProgress = {
+  goal: number;
+  current: number;
+  percent: number;
+};
+
+const isBadgeProgress = (value: unknown): value is BadgeProgress => {
+  if (!value || typeof value !== 'object') return false;
+  const progress = value as Record<string, unknown>;
+  return (
+    typeof progress['goal'] === 'number' &&
+    typeof progress['current'] === 'number' &&
+    typeof progress['percent'] === 'number'
+  );
+};
+
 function BadgeTile({ badge, group }: { badge: StudentBadgeItem; group: BadgeGroup }) {
-  const hasProgress =
-    badge.progress && typeof badge.progress.percent === 'number' && badge.progress.goal > 0;
-  const progressPercent = hasProgress
-    ? Math.max(0, Math.min(100, Math.round(badge.progress!.percent)))
-    : null;
+  const progress = isBadgeProgress(badge.progress) ? badge.progress : null;
+  const progressPercent =
+    progress && progress.goal > 0
+      ? Math.max(0, Math.min(100, Math.round(progress.percent)))
+      : null;
+  const hasProgress = progressPercent !== null;
 
   const ariaLabelParts = [badge.name];
   if (badge.earned && badge.status === 'pending') {
@@ -249,7 +266,7 @@ function BadgeTile({ badge, group }: { badge: StudentBadgeItem; group: BadgeGrou
         <div className="mt-3" aria-label={`Progress ${progressPercent}%`}>
           <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
             <span>
-              {badge.progress!.current} / {badge.progress!.goal}
+            {progress?.current ?? 0} / {progress?.goal ?? 0}
             </span>
             <span>{progressPercent}%</span>
           </div>

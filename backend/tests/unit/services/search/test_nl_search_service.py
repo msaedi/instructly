@@ -16,17 +16,23 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from app.repositories.search_batch_repository import CachedAliasInfo, RegionInfo, RegionLookup
 from app.schemas.nl_search import (
     InstructorSummary,
     NLSearchResponse,
     NLSearchResultItem,
     RatingSummary,
     ServiceMatch,
+    StageStatus,
 )
 from app.services.search.filter_service import FilterResult
-from app.services.search.location_resolver import ResolvedLocation
+from app.services.search.location_resolver import ResolutionTier, ResolvedLocation
 from app.services.search.nl_search_service import (
+    TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD,
+    TEXT_SKIP_VECTOR_MIN_RESULTS,
+    TEXT_SKIP_VECTOR_SCORE_THRESHOLD,
     NLSearchService,
+    PipelineTimer,
     PostOpenAIData,
     PreOpenAIData,
     SearchMetrics,
@@ -904,3 +910,245 @@ class TestResponseCaching:
 
         # Should not raise
         await service._cache_response("piano", None, response, limit=20)
+
+
+class TestNLSearchServiceHelpers:
+    """Tests for helper utilities in the NL search pipeline."""
+
+    def test_pipeline_timer_end_stage_without_start(self) -> None:
+        timer = PipelineTimer()
+
+        timer.end_stage()
+        assert timer.stages == []
+
+        timer.start_stage("parse")
+        timer.end_stage(details={"ok": True})
+
+        assert timer.stages[0]["name"] == "parse"
+        assert timer.stages[0]["status"] == "success"
+        assert timer.stages[0]["details"] == {"ok": True}
+
+    def test_normalize_location_text_strips_wrappers_and_suffixes(self) -> None:
+        normalized = NLSearchService._normalize_location_text(" Near  Tribeca  Area ")
+        assert normalized == "tribeca"
+
+        normalized = NLSearchService._normalize_location_text("Upper East Side North")
+        assert normalized == "upper east side"
+
+    def test_record_pre_location_tiers_records_resolution(self) -> None:
+        timer = PipelineTimer()
+        location = ResolvedLocation.from_region(
+            region_id="region_1",
+            region_name="Tribeca",
+            borough="Manhattan",
+            tier=ResolutionTier.EXACT,
+            confidence=0.92,
+        )
+
+        NLSearchService._record_pre_location_tiers(timer, location)
+
+        assert len(timer.location_tiers) == 3
+        assert timer.location_tiers[0]["tier"] == 1
+        assert timer.location_tiers[0]["status"] == StageStatus.SUCCESS.value
+        assert timer.location_tiers[0]["details"] == "resolved"
+        assert timer.location_tiers[1]["status"] == StageStatus.MISS.value
+        assert timer.location_tiers[2]["status"] == StageStatus.MISS.value
+
+    def test_record_pre_location_tiers_handles_missing_location(self) -> None:
+        timer = PipelineTimer()
+
+        NLSearchService._record_pre_location_tiers(timer, None)
+
+        assert len(timer.location_tiers) == 3
+        assert {entry["status"] for entry in timer.location_tiers} == {
+            StageStatus.MISS.value
+        }
+
+    def test_compute_text_match_flags(self) -> None:
+        text_results = {
+            f"svc_{i}": (TEXT_SKIP_VECTOR_SCORE_THRESHOLD + 0.1, {})
+            for i in range(TEXT_SKIP_VECTOR_MIN_RESULTS)
+        }
+
+        best_score, require_text_match, skip_vector = NLSearchService._compute_text_match_flags(
+            "harpsichord baroque",
+            text_results,
+        )
+
+        assert best_score >= TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD
+        assert require_text_match is True
+        assert skip_vector is True
+
+        best_score, require_text_match, skip_vector = NLSearchService._compute_text_match_flags("", {})
+
+        assert best_score == 0.0
+        assert require_text_match is False
+        assert skip_vector is False
+
+    def test_resolve_cached_alias_ambiguous_and_resolved(self) -> None:
+        region_a = RegionInfo(region_id="reg_a", region_name="Tribeca", borough="Manhattan")
+        region_b = RegionInfo(region_id="reg_b", region_name="SoHo", borough="Manhattan")
+        lookup = RegionLookup(
+            region_names=[region_a.region_name, region_b.region_name],
+            by_name={},
+            by_id={region_a.region_id: region_a, region_b.region_id: region_b},
+            embeddings=[],
+        )
+
+        ambiguous = CachedAliasInfo(
+            confidence=0.77,
+            is_resolved=False,
+            is_ambiguous=True,
+            region_id=None,
+            candidate_region_ids=[region_a.region_id, region_b.region_id],
+        )
+        result = NLSearchService._resolve_cached_alias(ambiguous, lookup)
+
+        assert result is not None
+        assert result.requires_clarification is True
+        assert result.candidates is not None
+        assert len(result.candidates) == 2
+
+        resolved = CachedAliasInfo(
+            confidence=0.91,
+            is_resolved=True,
+            is_ambiguous=False,
+            region_id=region_a.region_id,
+            candidate_region_ids=[],
+        )
+        result = NLSearchService._resolve_cached_alias(resolved, lookup)
+
+        assert result is not None
+        assert result.resolved is True
+        assert result.region_name == "Tribeca"
+
+
+class _DummyTask:
+    def __init__(self, exc: Exception) -> None:
+        self._exc = exc
+        self.cancelled = False
+
+    def cancel(self) -> None:
+        self.cancelled = True
+
+    def __await__(self):
+        async def _raise() -> None:
+            raise self._exc
+
+        return _raise().__await__()
+
+
+class TestNLSearchServiceSearchFlow:
+    """Tests for edge cases in the async search flow."""
+
+    @pytest.mark.asyncio
+    async def test_search_cancels_embedding_task_on_pre_openai_error(
+        self, mock_search_cache: Mock, monkeypatch
+    ) -> None:
+        service = NLSearchService(search_cache=mock_search_cache)
+
+        async def _fail_to_thread(*_args, **_kwargs):
+            raise RuntimeError("pre-openai failed")
+
+        def _create_task(coro):
+            coro.close()
+            return _DummyTask(RuntimeError("embedding cancel failed"))
+
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service._increment_search_inflight",
+            AsyncMock(return_value=1),
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service._decrement_search_inflight",
+            AsyncMock(),
+        )
+        monkeypatch.setattr("app.services.search.nl_search_service.asyncio.to_thread", _fail_to_thread)
+        monkeypatch.setattr("app.services.search.nl_search_service.asyncio.create_task", _create_task)
+
+        with pytest.raises(RuntimeError, match="pre-openai failed"):
+            await service.search("guitar lessons", budget_ms=1000)
+
+    @pytest.mark.asyncio
+    async def test_search_skips_vector_search_when_budget_low(
+        self, mock_search_cache: Mock, monkeypatch
+    ) -> None:
+        service = NLSearchService(search_cache=mock_search_cache)
+
+        parsed_query = ParsedQuery(
+            original_query="guitar lessons",
+            service_query="guitar lessons",
+            location_text=None,
+            parsing_mode="regex",
+        )
+        pre_data = PreOpenAIData(
+            parsed_query=parsed_query,
+            parse_latency_ms=5,
+            text_results={},
+            text_latency_ms=3,
+            has_service_embeddings=True,
+            best_text_score=0.0,
+            require_text_match=False,
+            skip_vector=False,
+            region_lookup=None,
+            location_resolution=None,
+            location_normalized=None,
+            cached_alias_normalized=None,
+            fuzzy_score=None,
+            location_llm_candidates=[],
+        )
+        post_data = PostOpenAIData(
+            filter_result=FilterResult(
+                candidates=[],
+                total_before_filter=0,
+                total_after_filter=0,
+                filters_applied=[],
+                filter_stats={},
+            ),
+            ranking_result=RankingResult(results=[], total_results=0),
+            retrieval_candidates=[],
+            instructor_rows=[],
+            distance_meters={},
+            text_latency_ms=0,
+            vector_latency_ms=0,
+            filter_latency_ms=0,
+            rank_latency_ms=0,
+            vector_search_used=False,
+            total_candidates=0,
+            filter_failed=False,
+            ranking_failed=False,
+            skip_vector=True,
+        )
+
+        async def _call_to_thread(func, *args, **kwargs):
+            return func(*args, **kwargs)
+
+        def _create_task(coro):
+            coro.close()
+            return _DummyTask(RuntimeError("embedding cancel failed"))
+
+        call_states = iter([True, False])
+
+        def _can_afford_vector_search(_self):
+            return next(call_states)
+
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service._increment_search_inflight",
+            AsyncMock(return_value=1),
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service._decrement_search_inflight",
+            AsyncMock(),
+        )
+        monkeypatch.setattr(
+            "app.services.search.request_budget.RequestBudget.can_afford_vector_search",
+            _can_afford_vector_search,
+        )
+        monkeypatch.setattr("app.services.search.nl_search_service.asyncio.to_thread", _call_to_thread)
+        monkeypatch.setattr("app.services.search.nl_search_service.asyncio.create_task", _create_task)
+        monkeypatch.setattr(service, "_run_pre_openai_burst", Mock(return_value=pre_data))
+        monkeypatch.setattr(service, "_run_post_openai_burst", Mock(return_value=post_data))
+        monkeypatch.setattr(service, "_hydrate_instructor_results", AsyncMock(return_value=[]))
+
+        response = await service.search("guitar lessons", budget_ms=1000)
+
+        assert response.meta.total_results == 0

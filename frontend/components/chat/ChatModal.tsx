@@ -17,6 +17,7 @@ import { Chat } from './Chat';
 import { QueryErrorBoundary } from '@/components/errors/QueryErrorBoundary';
 import { cn } from '@/lib/utils';
 import { withApiBase } from '@/lib/apiBase';
+import type { CreateConversationResponse } from '@/types/conversation';
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -82,7 +83,7 @@ export function ChatModal({
       if (!response.ok) {
         throw new Error('Failed to get conversation');
       }
-      return response.json() as Promise<{ id: string; created: boolean }>;
+      return response.json() as Promise<CreateConversationResponse>;
     },
     enabled: !conversationId && !!instructorId,
     staleTime: Infinity,

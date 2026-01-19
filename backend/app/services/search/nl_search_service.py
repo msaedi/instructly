@@ -181,7 +181,7 @@ class PipelineTimer:
                 "name": name,
                 "duration_ms": max(0, int(duration_ms)),
                 "status": status,
-                "details": details or {},
+                "details": details if details else None,
             }
         )
 
@@ -2135,7 +2135,8 @@ class NLSearchService:
         if distance_meters is None:
             distance_meters = {}
 
-        assert instructor_rows is not None
+        if instructor_rows is None:
+            raise RuntimeError("Instructor hydration returned no rows")
         instructor_by_id: Dict[str, Dict[str, Any]] = {
             row["instructor_id"]: row for row in instructor_rows
         }

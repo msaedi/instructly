@@ -5,7 +5,7 @@ celery[redis]==5.6.2
 
 # Redis client
 redis==5.0.1
-hiredis==2.3.2  # C parser for improved performance
+hiredis==3.3.0  # C parser for improved performance
 
 # Additional Celery plugins
 celery-redbeat==2.3.3  # Redis-based beat scheduler (optional)
@@ -16,7 +16,7 @@ msgpack==1.1.2  # Alternative to JSON for better performance
 
 # Monitoring and metrics
 celery-prometheus-exporter==2.0.0  # Prometheus metrics
-celery-progress==0.3  # Progress tracking for long-running tasks
+celery-progress==0.5  # Progress tracking for long-running tasks
 
 # Task result storage alternatives (optional)
 # celery[mongodb]==5.3.4  # If using MongoDB as result backend

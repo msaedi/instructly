@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from contextlib import contextmanager
+import logging
 from time import perf_counter
 from typing import Any, DefaultDict, Iterator, cast
 
@@ -23,6 +24,8 @@ _totals: DefaultDict[str, int] = defaultdict(int)
 _errors: DefaultDict[str, int] = defaultdict(int)
 _chunk_sum: DefaultDict[str, float] = defaultdict(float)
 _chunk_count: DefaultDict[str, int] = defaultdict(int)
+
+logger = logging.getLogger(__name__)
 
 if _PROM_AVAILABLE:
     _TOTAL_COUNTER = Counter(
@@ -93,7 +96,7 @@ def render_text() -> str:
             output = generate_latest()
             return cast(bytes, output).decode("utf-8")
         except Exception:  # pragma: no cover - defensive fallback
-            pass
+            logger.debug("Failed to render Prometheus retention metrics", exc_info=True)
 
     lines: list[str] = []
     for table, count in sorted(_totals.items()):

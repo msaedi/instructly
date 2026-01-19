@@ -24,7 +24,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["push-v1"])
 
 
-@router.get("/vapid-public-key", response_model=VapidPublicKeyResponse)
+@router.get(
+    "/vapid-public-key",
+    response_model=VapidPublicKeyResponse,
+    responses={
+        200: {"description": "VAPID public key for push notifications"},
+        503: {"description": "Push notifications not configured"},
+    },
+)
 def get_vapid_public_key() -> VapidPublicKeyResponse:
     """
     Get the VAPID public key for push subscription.

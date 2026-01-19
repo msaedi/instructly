@@ -119,6 +119,7 @@ class ProductionStartup:
         logger.info("Warming up connection pools...")
 
         # Warm database pool
+        connections: list[Any] = []
         try:
             from sqlalchemy import text
 
@@ -126,22 +127,26 @@ class ProductionStartup:
 
             engine_obj = cast(Any, getattr(database_module, "engine"))
 
-            # Create multiple connections to fill pool
-            connections: list[Any] = []
             pool_size = int(os.getenv("DATABASE_POOL_SIZE", "5"))
 
             for i in range(min(pool_size, 3)):  # Warm up to 3 connections
                 conn = engine_obj.connect()
+                connections.append(conn)  # Track connection BEFORE executing
                 conn.execute(text("SELECT 1"))
-                connections.append(conn)
-
-            # Close connections to return to pool
-            for conn in connections:
-                conn.close()
 
             logger.info(f"✓ Warmed {len(connections)} database connections")
         except Exception as e:
             logger.warning(f"Failed to warm database connections: {e}")
+        finally:
+            # Always close any connections we created, even if warming failed
+            for conn in connections:
+                try:
+                    conn.close()
+                except Exception:
+                    logger.debug(
+                        "Failed to close warm-up database connection",
+                        exc_info=True,
+                    )
 
     @staticmethod
     async def _setup_monitoring() -> None:
@@ -165,7 +170,8 @@ class ProductionStartup:
         from app.monitoring.production_monitor import monitor
 
         summary: dict[str, Any] = monitor.get_performance_summary()
-        logger.info(f"Initial system state: {summary['memory']['rss_mb']}MB RSS")
+        memory_mb = summary.get("memory", {}).get("rss_mb", "unknown")
+        logger.info(f"Initial system state: {memory_mb}MB RSS")
 
 
 # Lazy imports for heavy dependencies

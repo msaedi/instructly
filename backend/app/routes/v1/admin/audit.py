@@ -2,6 +2,7 @@
 """Admin audit log routes (v1)."""
 
 from datetime import datetime
+import logging
 from time import monotonic
 from typing import Annotated
 
@@ -14,6 +15,8 @@ from app.api.dependencies.database import get_db
 from app.monitoring.prometheus_metrics import prometheus_metrics
 from app.repositories.factory import RepositoryFactory
 from app.schemas.audit import AuditLogListResponse, AuditLogView
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["admin-audit"])
 
@@ -67,6 +70,5 @@ async def list_audit_logs(
     try:
         prometheus_metrics.record_audit_read(duration)
     except Exception:
-        pass
-
+        logger.debug("Non-fatal error ignored", exc_info=True)
     return AuditLogListResponse(items=views, total=total, limit=limit, offset=offset)

@@ -81,6 +81,9 @@ SUCCESS_AVAILABILITY_SAVED = "Availability saved successfully"
 SUCCESS_AVAILABILITY_DELETED = "Availability deleted successfully"
 SUCCESS_PROFILE_UPDATED = "Profile updated successfully"
 
+# Auth scheme
+BEARER_SCHEME = "bearer"
+
 # Brand Configuration
 BRAND_NAME = "iNSTAiNSTRU"
 BRAND_TAGLINE = "Book Expert Instructors Instantly"

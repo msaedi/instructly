@@ -292,6 +292,7 @@ async def go_live(
     return InstructorProfileResponse.from_orm(profile)
 
 
+# openapi-exempt: 204 No Content - no response body
 @router.delete(
     "/me",
     status_code=status.HTTP_204_NO_CONTENT,

@@ -1,5 +1,3 @@
-import os
-
 from fastapi.testclient import TestClient
 import pytest
 
@@ -8,9 +6,9 @@ from app.main import fastapi_app as app
 from app.models.user import User
 
 
-def _set_env(site_mode: str, phase: str = "beta"):
-    os.environ["SITE_MODE"] = site_mode
-    os.environ["PHASE"] = phase
+def _set_env(monkeypatch: pytest.MonkeyPatch, site_mode: str, phase: str = "beta") -> None:
+    monkeypatch.setenv("SITE_MODE", site_mode, prepend=False)
+    monkeypatch.setenv("PHASE", phase, prepend=False)
 
 
 @pytest.fixture
@@ -26,7 +24,7 @@ def _auth_headers_for(user: User) -> dict[str, str]:
 
 class TestPreviewNoGates:
     def test_preview_bypasses_beta_for_bookings(self, monkeypatch, client: TestClient, test_student: User):
-        _set_env("preview", "beta")
+        _set_env(monkeypatch, "preview", "beta")
         headers = _auth_headers_for(test_student)
         r = client.get(
             "/api/v1/bookings/?exclude_future_confirmed=true&per_page=1&page=1",
@@ -36,7 +34,7 @@ class TestPreviewNoGates:
         assert r.status_code in (200, 204), r.text
 
     def test_preview_bypasses_beta_for_search(self, monkeypatch, client: TestClient, test_student: User):
-        _set_env("preview", "beta")
+        _set_env(monkeypatch, "preview", "beta")
         headers = _auth_headers_for(test_student)
         r = client.get("/api/v1/search", params={"q": "piano", "limit": 1}, headers=headers)
         assert r.status_code in (200, 204), r.text
@@ -44,7 +42,7 @@ class TestPreviewNoGates:
 
 class TestProdPhaseBehavior:
     def test_prod_beta_requires_beta_grant(self, monkeypatch, client: TestClient, test_student: User, db):
-        _set_env("prod", "beta")
+        _set_env(monkeypatch, "prod", "beta")
         # Ensure DB beta settings are in a gated phase
         try:
             from app.repositories.beta_repository import BetaSettingsRepository
@@ -67,7 +65,7 @@ class TestProdPhaseBehavior:
         assert r.status_code == 403
 
     def test_prod_open_allows_without_beta_grant(self, monkeypatch, client: TestClient, test_student: User, db):
-        _set_env("prod", "open")
+        _set_env(monkeypatch, "prod", "open")
         # Also toggle DB BetaSettings to open_beta if present
         try:
             from app.repositories.beta_repository import BetaSettingsRepository
@@ -89,14 +87,14 @@ class TestProdPhaseBehavior:
         assert r.status_code in (200, 204), r.text
 
     def test_prod_open_allows_search(self, monkeypatch, client: TestClient, test_student: User, db):
-        _set_env("prod", "open")
+        _set_env(monkeypatch, "prod", "open")
         headers = _auth_headers_for(test_student)
         r = client.get("/api/v1/search", params={"q": "piano", "limit": 1}, headers=headers)
         assert r.status_code in (200, 204), r.text
 
 
 def test_health_headers_reflect_mode_phase(monkeypatch, client: TestClient, db):
-    _set_env("preview", "beta")
+    _set_env(monkeypatch, "preview", "beta")
     res = client.get("/api/v1/health")
     assert res.status_code == 200
     assert res.headers.get("X-Site-Mode") == "preview"

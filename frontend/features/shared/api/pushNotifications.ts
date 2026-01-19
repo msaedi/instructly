@@ -1,22 +1,11 @@
 import { withApiBase } from '@/lib/apiBase';
+import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 
-export interface PushSubscriptionData {
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-  user_agent?: string;
-}
-
-export interface PushSubscriptionResponse {
-  id: string;
-  endpoint: string;
-  user_agent: string | null;
-  created_at: string;
-}
-
-interface VapidPublicKeyResponse {
-  public_key: string;
-}
+type PushSubscribeRequest = components['schemas']['PushSubscribeRequest'];
+type PushUnsubscribeRequest = components['schemas']['PushUnsubscribeRequest'];
+type PushSubscriptionResponse = components['schemas']['PushSubscriptionResponse'];
+type PushStatusResponse = components['schemas']['PushStatusResponse'];
+type VapidPublicKeyResponse = components['schemas']['VapidPublicKeyResponse'];
 
 const VAPID_KEY_PATH = '/api/v1/push/vapid-public-key';
 const SUBSCRIBE_PATH = '/api/v1/push/subscribe';
@@ -25,7 +14,7 @@ const SUBSCRIPTIONS_PATH = '/api/v1/push/subscriptions';
 
 async function parseErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
-    const payload = (await response.json()) as { detail?: string; message?: string };
+    const payload = (await response.json()) as ApiErrorResponse;
     return payload.detail ?? payload.message ?? fallback;
   } catch {
     return fallback;
@@ -62,8 +51,8 @@ export const pushNotificationApi = {
   /**
    * Subscribe to push notifications
    */
-  subscribe: async (subscription: PushSubscriptionData): Promise<void> => {
-    await requestJson<{ success: boolean }>(
+  subscribe: async (subscription: PushSubscribeRequest): Promise<void> => {
+    await requestJson<PushStatusResponse>(
       SUBSCRIBE_PATH,
       {
         method: 'POST',
@@ -78,12 +67,13 @@ export const pushNotificationApi = {
    * Unsubscribe from push notifications
    */
   unsubscribe: async (endpoint: string): Promise<void> => {
-    await requestJson<{ success: boolean }>(
+    const payload: PushUnsubscribeRequest = { endpoint };
+    await requestJson<PushStatusResponse>(
       UNSUBSCRIBE_PATH,
       {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint }),
+        body: JSON.stringify(payload),
       },
       'Failed to unsubscribe from push notifications'
     );

@@ -76,7 +76,7 @@ class UnresolvedLocationQueryRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
 
     def record_click(
         self,
@@ -142,7 +142,7 @@ class UnresolvedLocationQueryRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
 
     def list_pending(self, *, limit: int = 50) -> list[UnresolvedLocationQuery]:
         """List pending unresolved queries for admin review."""
@@ -161,7 +161,7 @@ class UnresolvedLocationQueryRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return []
 
     def get_by_normalized(self, query_normalized: str) -> Optional[UnresolvedLocationQuery]:
@@ -185,7 +185,7 @@ class UnresolvedLocationQueryRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return None
 
     def list_pending_with_evidence(
@@ -215,7 +215,7 @@ class UnresolvedLocationQueryRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return []
 
     def mark_manual_review(self, row: UnresolvedLocationQuery) -> None:
@@ -228,7 +228,7 @@ class UnresolvedLocationQueryRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
 
     def set_status(self, query_normalized: str, *, status: str) -> bool:
         """Update status for an unresolved query row (best-effort)."""
@@ -249,7 +249,7 @@ class UnresolvedLocationQueryRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return False
 
     def mark_resolved(
@@ -273,5 +273,5 @@ class UnresolvedLocationQueryRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return False

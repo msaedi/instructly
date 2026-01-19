@@ -13,8 +13,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re
-import subprocess
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -49,6 +48,7 @@ from ...schemas.codebase_metrics_responses import (
     CodebaseSection,
     GitStats,
 )
+from ...utils.codebase_metrics import collect_codebase_metrics
 
 router = APIRouter(
     tags=["analytics"],
@@ -74,41 +74,8 @@ def _get_project_root() -> Path:
 
 def _run_codebase_metrics_script(repo_root: Path) -> Dict[str, Any]:
     """Execute the metrics script with --json and return parsed output."""
-    backend_dir = repo_root / "backend"
-    script_path = backend_dir / "scripts" / "codebase_metrics.py"
-
-    if not script_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Metrics script not found at {script_path}",
-        )
-
     try:
-        # Ensure we run from the repo root so the script can auto-detect paths
-        result = subprocess.run(
-            ["python3", str(script_path), "--json", "--path", str(repo_root)],
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=False,
-        )
-
-        if result.returncode != 0:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Metrics process failed: {result.stderr.strip() or 'Unknown error'}",
-            )
-
-        try:
-            data = cast(Dict[str, Any], json.loads(result.stdout))
-        except json.JSONDecodeError as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Invalid JSON from metrics script: {str(e)}",
-            )
-
-        return data
+        return collect_codebase_metrics(repo_root)
     except HTTPException:
         raise
     except Exception as e:

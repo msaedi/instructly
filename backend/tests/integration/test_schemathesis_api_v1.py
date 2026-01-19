@@ -173,6 +173,14 @@ def _run_schemathesis_case(
         # - 404: Resource not found - Schemathesis sends random ULIDs that don't exist in the database
         # - 500: Database constraint violations from fuzzed data (FK, unique, check constraints) -
         #        these are internal errors but expected when fuzzing with completely random data
+        if (
+            response.status_code == 503
+            and case.path == "/api/v1/push/vapid-public-key"
+        ):
+            # Push keys are not configured in CI, so this endpoint returns 503.
+            # It's documented in OpenAPI but not a schema violation for these tests.
+            return
+
         if response.status_code in (204, 400, 401, 403, 404, 422, 500):
             # These are expected responses from fuzzing, not schema violations - consider it a pass
             return

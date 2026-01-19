@@ -21,6 +21,7 @@ except ModuleNotFoundError:
     if str(_REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(_REPO_ROOT))
 
+import asyncio
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 import importlib
@@ -29,6 +30,7 @@ import secrets
 import sys
 import threading
 from typing import Dict, List, Sequence, Tuple
+import weakref
 
 from fastapi.testclient import TestClient
 import pytest
@@ -88,6 +90,93 @@ def anyio_backend():
     """Force anyio-based tests to run under asyncio backend."""
     return "asyncio"
 
+
+@pytest.fixture
+def event_loop():
+    """Create an event loop for async tests and close Redis clients before teardown."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        yield loop
+    finally:
+        try:
+            from app.core.cache_redis import close_async_cache_redis_client
+
+            loop.run_until_complete(close_async_cache_redis_client())
+        except Exception:
+            pass
+        try:
+            from app.ratelimit.redis_backend import close_async_rate_limit_redis_client
+
+            loop.run_until_complete(close_async_rate_limit_redis_client())
+        except Exception:
+            pass
+        try:
+            from app.core.redis import close_async_redis_client
+
+            loop.run_until_complete(close_async_redis_client())
+        except Exception:
+            pass
+        loop.close()
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_asyncio_run(monkeypatch):
+    """Wrap asyncio.run to close async Redis clients created during ad-hoc loops."""
+    original_run = asyncio.run
+
+    def _run(coro):
+        async def _wrapper():
+            try:
+                return await coro
+            finally:
+                try:
+                    from app.core.cache_redis import close_async_cache_redis_client
+
+                    await close_async_cache_redis_client()
+                except Exception:
+                    pass
+                try:
+                    from app.ratelimit.redis_backend import close_async_rate_limit_redis_client
+
+                    await close_async_rate_limit_redis_client()
+                except Exception:
+                    pass
+                try:
+                    from app.core.redis import close_async_redis_client
+
+                    await close_async_redis_client()
+                except Exception:
+                    pass
+
+        return original_run(_wrapper())
+
+    monkeypatch.setattr(asyncio, "run", _run)
+    yield
+
+
+_test_clients: "weakref.WeakSet[TestClient]" = weakref.WeakSet()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _track_test_clients():
+    """Ensure TestClient instances are closed even when not used as a context manager."""
+    original_init = TestClient.__init__
+
+    def _init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        _test_clients.add(self)
+
+    TestClient.__init__ = _init
+    try:
+        yield
+    finally:
+        for client in list(_test_clients):
+            try:
+                client.close()
+            except Exception:
+                pass
+        TestClient.__init__ = original_init
 
 @pytest.fixture
 def isolate_settings_env(monkeypatch):
@@ -496,6 +585,8 @@ def ensure_outbox_table() -> None:
 def _prepare_database() -> None:
     """Ensure extensions, tables, and constraints exist for tests."""
     with test_engine.connect() as conn:
+        if conn.dialect.name != "sqlite":
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         conn.commit()
 
@@ -722,7 +813,7 @@ def _ensure_rbac_roles():
             PermissionName.MANAGE_OWN_PROFILE,
             PermissionName.VIEW_OWN_BOOKINGS,
             PermissionName.VIEW_OWN_SEARCH_HISTORY,
-            PermissionName.CHANGE_OWN_PASSWORD,
+            PermissionName.CHANGE_OWN_PW,
             PermissionName.DELETE_OWN_ACCOUNT,
             PermissionName.VIEW_INSTRUCTORS,
             PermissionName.VIEW_INSTRUCTOR_AVAILABILITY,
@@ -742,7 +833,7 @@ def _ensure_rbac_roles():
             PermissionName.MANAGE_OWN_PROFILE,
             PermissionName.VIEW_OWN_BOOKINGS,
             PermissionName.VIEW_OWN_SEARCH_HISTORY,
-            PermissionName.CHANGE_OWN_PASSWORD,
+            PermissionName.CHANGE_OWN_PW,
             PermissionName.DELETE_OWN_ACCOUNT,
             PermissionName.MANAGE_INSTRUCTOR_PROFILE,
             PermissionName.MANAGE_SERVICES,
@@ -849,6 +940,9 @@ def cleanup_test_database() -> None:
         cleanup_db.query(NotificationDelivery).delete()
         cleanup_db.query(EventOutbox).delete()
         cleanup_db.query(AuditLog).delete()
+        # Beta tables (BetaAccess has FK to BetaInvite.code, so delete Access first)
+        cleanup_db.query(BetaAccess).delete()
+        cleanup_db.query(BetaInvite).delete()
 
         cleanup_db.query(ServiceCatalog).filter(
             (ServiceCatalog.name.like("Test%"))
@@ -908,14 +1002,12 @@ def client(db: Session):
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[deps_get_db] = override_get_db
 
-    # Don't use context manager - create directly
-    test_client = TestClient(app)
-
-    yield test_client
+    # Use context manager so lifespan shutdown closes async clients (Redis, etc.).
+    with TestClient(app) as test_client:
+        yield test_client
 
     # Cleanup
     app.dependency_overrides.clear()
-    test_client.close()  # Explicitly close the client
 
 
 @pytest.fixture(autouse=True)
@@ -1765,7 +1857,6 @@ def sample_categories(db: Session) -> list[ServiceCategory]:
     """Create sample service categories for testing."""
     categories = [
         ServiceCategory(
-            id=1,
             name="Music",
             slug="music",
             subtitle="Instrument Voice Theory",
@@ -1773,7 +1864,6 @@ def sample_categories(db: Session) -> list[ServiceCategory]:
             display_order=1,
         ),
         ServiceCategory(
-            id=2,
             name="Sports & Fitness",
             slug="sports-fitness",
             subtitle="",
@@ -1781,7 +1871,6 @@ def sample_categories(db: Session) -> list[ServiceCategory]:
             display_order=2,
         ),
         ServiceCategory(
-            id=3,
             name="Language",
             slug="language",
             subtitle="Learn new languages",
@@ -1790,13 +1879,19 @@ def sample_categories(db: Session) -> list[ServiceCategory]:
         ),
     ]
 
+    persisted: list[ServiceCategory] = []
     for category in categories:
-        existing = db.query(ServiceCategory).filter(ServiceCategory.id == category.id).first()
-        if not existing:
+        existing = (
+            db.query(ServiceCategory).filter(ServiceCategory.slug == category.slug).first()
+        )
+        if existing:
+            persisted.append(existing)
+        else:
             db.add(category)
+            persisted.append(category)
 
     db.commit()
-    return categories
+    return persisted
 
 
 @pytest.fixture
@@ -1805,8 +1900,7 @@ def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory
     services = [
         # Music services
         ServiceCatalog(
-            id=101,
-            category_id=1,
+            category_id=sample_categories[0].id,
             name="Piano Lessons",
             slug="piano-lessons",
             description="Learn piano",
@@ -1817,8 +1911,7 @@ def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory
             is_active=True,
         ),
         ServiceCatalog(
-            id=102,
-            category_id=1,
+            category_id=sample_categories[0].id,
             name="Guitar Lessons",
             slug="guitar-lessons",
             description="Learn guitar",
@@ -1829,8 +1922,7 @@ def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory
             is_active=True,
         ),
         ServiceCatalog(
-            id=103,
-            category_id=1,
+            category_id=sample_categories[0].id,
             name="Violin Lessons",
             slug="violin-lessons",
             description="Learn violin",
@@ -1842,8 +1934,7 @@ def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory
         ),
         # Sports & Fitness services
         ServiceCatalog(
-            id=201,
-            category_id=2,
+            category_id=sample_categories[1].id,
             name="Yoga",
             slug="yoga",
             description="Yoga instruction",
@@ -1854,8 +1945,7 @@ def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory
             is_active=True,
         ),
         ServiceCatalog(
-            id=202,
-            category_id=2,
+            category_id=sample_categories[1].id,
             name="Personal Training",
             slug="personal-training",
             description="One-on-one fitness training",
@@ -1867,8 +1957,7 @@ def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory
         ),
         # Language services
         ServiceCatalog(
-            id=301,
-            category_id=3,
+            category_id=sample_categories[2].id,
             name="Spanish",
             slug="spanish",
             description="Learn Spanish",
@@ -1880,13 +1969,17 @@ def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory
         ),
     ]
 
+    persisted_services: list[ServiceCatalog] = []
     for service in services:
-        existing = db.query(ServiceCatalog).filter(ServiceCatalog.id == service.id).first()
-        if not existing:
+        existing = db.query(ServiceCatalog).filter(ServiceCatalog.slug == service.slug).first()
+        if existing:
+            persisted_services.append(existing)
+        else:
             db.add(service)
+            persisted_services.append(service)
 
     db.commit()
-    return services
+    return persisted_services
 
 
 @pytest.fixture

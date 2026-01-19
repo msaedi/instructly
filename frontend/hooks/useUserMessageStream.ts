@@ -13,6 +13,7 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { withApiBase } from '@/lib/apiBase';
 import { fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
+import type { SseTokenResponse } from '@/features/shared/api/types';
 import type {
   SSEEvent,
   ConversationHandlers,
@@ -288,7 +289,7 @@ export function useUserMessageStream() {
           return;
         }
         if (response.ok) {
-          const data = (await response.json()) as { token?: string };
+          const data = (await response.json()) as SseTokenResponse;
           if (data?.token) {
             sseUrl = `${baseUrl}?sse_token=${encodeURIComponent(data.token)}`;
           }

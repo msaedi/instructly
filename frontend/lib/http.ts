@@ -5,6 +5,7 @@
 import { logger } from '@/lib/logger';
 import { getApiBase } from '@/lib/apiBase';
 import { APP_URL } from '@/lib/publicEnv';
+import type { ApiErrorResponse } from '@/features/shared/api/types';
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export class ApiError extends Error {
@@ -109,8 +110,8 @@ export async function http<T = unknown>(method: HttpMethod, url: string, options
 
   if (!resp.ok) {
     const status = resp.status;
-    const errorData = data as Record<string, unknown>;
-    const message = errorData?.['detail'] as string || errorData?.['message'] as string || `HTTP ${status}`;
+    const errorData = data as ApiErrorResponse;
+    const message = errorData?.detail || errorData?.message || `HTTP ${status}`;
     if (status === 401 || status === 403 || status === 419) {
       throw new AuthError(message, status, data, resp.headers);
     }

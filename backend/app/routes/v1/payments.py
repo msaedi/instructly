@@ -547,7 +547,7 @@ async def create_checkout(
             if response_payload.success:
                 await set_cached(raw_key, response_payload.model_dump(), ttl_s=86400)
         except Exception:
-            pass
+            logger.debug("Non-fatal error ignored", exc_info=True)
         return response_payload
 
     except HTTPException:
@@ -600,6 +600,7 @@ async def get_instructor_earnings(
     )
 
 
+# openapi-exempt: file download (StreamingResponse) cannot have JSON response schema
 @router.post(
     "/earnings/export",
     response_model=None,
@@ -766,29 +767,29 @@ async def handle_stripe_webhook(
         # Try each configured secret until one works
         event = None
         _last_error = None
-        secret_type = None
+        webhook_kind = None
 
         for i, secret in enumerate(webhook_secrets):
             try:
                 event = stripe.Webhook.construct_event(payload, sig_header, secret)
                 # Determine which secret worked for logging
                 if i == 0 and settings.stripe_webhook_secret:
-                    secret_type = "local/CLI"
+                    webhook_kind = "local/CLI"
                 elif (
                     settings.stripe_webhook_secret_platform
                     and secret == settings.stripe_webhook_secret_platform.get_secret_value()
                 ):
-                    secret_type = "platform"
+                    webhook_kind = "platform"
                 elif (
                     settings.stripe_webhook_secret_connect
                     and secret == settings.stripe_webhook_secret_connect.get_secret_value()
                 ):
-                    secret_type = "connect"
+                    webhook_kind = "connect"
                 else:
-                    secret_type = f"secret #{i+1}"
+                    webhook_kind = f"secret #{i+1}"
 
                 logger.info(
-                    f"Webhook verified with {secret_type} secret for event: {event['type']}"
+                    f"Webhook verified with {webhook_kind} secret for event: {event['type']}"
                 )
                 break  # Success! Stop trying other secrets
             except stripe.error.SignatureVerificationError as e:
@@ -816,7 +817,7 @@ async def handle_stripe_webhook(
         response_payload = {
             "status": "success",
             "event_type": event.get("type", "unknown"),
-            "message": f"Event processed with {secret_type} secret",
+            "message": f"Event processed with {webhook_kind} secret",
         }
         return WebhookResponse(**model_filter(WebhookResponse, response_payload))
 

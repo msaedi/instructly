@@ -9,6 +9,7 @@
 import { logger } from '@/lib/logger';
 import { getSessionId, refreshSession, getAnalyticsContext } from '@/lib/sessionTracking';
 import { SearchType } from '@/types/enums';
+import type { components } from '@/features/shared/api/types';
 import { captureDeviceContext, formatDeviceContextForAnalytics } from '@/lib/deviceContext';
 
 import { withApiBase } from '@/lib/apiBase';
@@ -33,16 +34,10 @@ export interface SearchRecord {
   observability_candidates?: Array<Record<string, unknown>>;
 }
 
-export interface SearchHistoryItem {
-  id: string;
-  search_query: string;
-  search_type: SearchType;
-  results_count?: number | null;
-  first_searched_at?: string;
-  last_searched_at?: string;
-  search_count?: number;
-  guest_session_id?: string | null;
-}
+type SearchHistoryCreate = components['schemas']['SearchHistoryCreate'];
+export type SearchHistoryResponse = components['schemas']['SearchHistoryResponse'];
+export type SearchHistoryItem = SearchHistoryResponse;
+type SearchInteractionResponse = components['schemas']['SearchInteractionResponse'];
 
 /**
  * Ensure guest_id cookie exists by calling the session bootstrap endpoint once
@@ -208,8 +203,16 @@ export async function recordSearch(
     // Refresh session on search activity
     refreshSession();
 
-    // Get analytics context
-    const analyticsContext = getAnalyticsContext();
+    // Get analytics context and map to API SearchContext type
+    const rawAnalyticsContext = getAnalyticsContext();
+    const [viewportWidth, viewportHeight] = rawAnalyticsContext.viewport.split('x').map(Number);
+    const searchContext: SearchHistoryCreate['search_context'] = {
+      page_origin: rawAnalyticsContext.page,
+      viewport_width: viewportWidth || null,
+      viewport_height: viewportHeight || null,
+      referrer: typeof document !== 'undefined' ? document.referrer || null : null,
+      session_search_count: rawAnalyticsContext.page_view_count,
+    };
 
     // Capture device context
     const deviceContext = captureDeviceContext();
@@ -219,27 +222,20 @@ export async function recordSearch(
     logger.debug('Search tracking - device info', { deviceInfo });
 
     // Build payload with optional observability candidates if provided
-    const body: {
-      search_query: string;
-      search_type: SearchType;
-      results_count?: number | null;
-      search_context: { page: string; viewport: string; timestamp: string; page_view_count: number; session_duration: number };
-      device_context: Record<string, unknown>;
-      observability_candidates?: Array<Record<string, unknown>>;
-    } = {
+    const body: SearchHistoryCreate = {
       search_query: searchRecord.query,
       search_type: searchRecord.search_type,
       ...(searchRecord.results_count !== undefined && { results_count: searchRecord.results_count }),
-      search_context: analyticsContext,
+      search_context: searchContext,
       device_context: deviceInfo,
     };
     if (searchRecord.observability_candidates && searchRecord.observability_candidates.length > 0) {
       body.observability_candidates = searchRecord.observability_candidates;
     }
 
-    const data = (await httpPost(buildUrl(SEARCH_HISTORY_BASE_PATH), body, {
+    const data = await httpPost<SearchHistoryResponse>(buildUrl(SEARCH_HISTORY_BASE_PATH), body, {
       headers: getHeaders(isAuthenticated),
-    })) as unknown;
+    });
     logger.info('Search recorded successfully', { searchRecord, responseData: data });
 
     // Trigger update event for UI components
@@ -250,7 +246,7 @@ export async function recordSearch(
     }
 
     // Return the search event ID for interaction tracking
-    return (data as Record<string, unknown>)?.['search_event_id'] as number || null;
+    return data.search_event_id ? Number(data.search_event_id) : null;
   } catch (error) {
     logger.error('Error recording search', error as Error);
 
@@ -268,7 +264,7 @@ export async function recordSearch(
 export async function getRecentSearches(
   isAuthenticated: boolean,
   limit: number = 3
-): Promise<SearchHistoryItem[]> {
+): Promise<SearchHistoryResponse[]> {
   try {
     // Ensure guest identity exists if unauthenticated (backup in case bootstrap races)
     if (!isAuthenticated) {
@@ -277,10 +273,10 @@ export async function getRecentSearches(
         await ensureGuestOnce();
       }
     }
-    const data = (await httpGet(buildUrl(SEARCH_HISTORY_BASE_PATH), {
+    const data = await httpGet<SearchHistoryResponse[]>(buildUrl(SEARCH_HISTORY_BASE_PATH), {
       headers: getHeaders(isAuthenticated),
       query: { limit },
-    })) as SearchHistoryItem[];
+    });
     return data;
   } catch (error) {
     logger.error('Error fetching recent searches', error as Error);
@@ -293,7 +289,9 @@ export async function getRecentSearches(
           search_query: record.query,
           search_type: record.search_type,
           results_count: record.results_count ?? null,
+          first_searched_at: record.timestamp || new Date().toISOString(),
           last_searched_at: record.timestamp || new Date().toISOString(),
+          search_count: 1,
         }))
         .slice(0, limit);
     }
@@ -322,7 +320,7 @@ export async function trackSearchInteraction(
       isAuthenticated,
     });
 
-    await httpPost(
+    await httpPost<SearchInteractionResponse>(
       buildUrl(SEARCH_HISTORY_INTERACTION_PATH),
       {
         search_event_id: searchEventId,

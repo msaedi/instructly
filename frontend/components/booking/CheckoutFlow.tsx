@@ -37,6 +37,9 @@ import {
   formatServiceSupportTooltip,
 } from '@/lib/pricing/studentFee';
 import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/formatBookingTime';
+import type { ApiErrorResponse, components } from '@/features/shared/api/types';
+
+type CheckoutResponse = components['schemas']['CheckoutResponse'];
 
 const stripePromise = loadStripe(
   process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'] || ''
@@ -166,11 +169,11 @@ const PaymentForm: React.FC<{
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Payment failed');
+        const errorData = (await response.json()) as ApiErrorResponse;
+        throw new Error(errorData.detail || errorData.message || 'Payment failed');
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as CheckoutResponse;
 
       // Handle 3D Secure if required
       if (result.requires_action && result.client_secret) {

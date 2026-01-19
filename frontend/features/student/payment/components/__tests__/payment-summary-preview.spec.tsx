@@ -151,7 +151,8 @@ const buildPreview = (baseCents: number, feeCents: number, creditCents: number):
   student_pay_cents: baseCents + feeCents - creditCents,
   application_fee_cents: 0,
   top_up_transfer_cents: 0,
-  instructor_tier_pct: null,
+  instructor_tier_pct: 0,
+  target_instructor_payout_cents: baseCents,
   line_items: [
     { label: `Service & Support fee (12%)`, amount_cents: feeCents },
     ...(creditCents > 0 ? [{ label: 'Credit applied', amount_cents: -creditCents }] : []),
@@ -166,7 +167,8 @@ const PREVIEW_WITH_CREDIT: PricingPreviewResponse = {
   student_pay_cents: 20700,
   application_fee_cents: 0,
   top_up_transfer_cents: 0,
-  instructor_tier_pct: null,
+  instructor_tier_pct: 0,
+  target_instructor_payout_cents: 22500,
   line_items: [
     { label: 'Service & Support fee (12%)', amount_cents: 2700 },
     { label: 'Credit', amount_cents: -4500 },
@@ -248,17 +250,7 @@ describe('Payment summary integration with pricing preview', () => {
     fetchPricingPreviewMock.mockImplementation(() => {
       throw new Error('fetchPricingPreview should not be called');
     });
-    fetchPricingPreviewQuoteMock.mockResolvedValue({
-      base_price_cents: 7500,
-      student_fee_cents: 900,
-      instructor_platform_fee_cents: 0,
-      credit_applied_cents: 0,
-      student_pay_cents: 8400,
-      application_fee_cents: 0,
-      top_up_transfer_cents: 0,
-      instructor_tier_pct: null,
-      line_items: [{ label: 'Service & Support fee (12%)', amount_cents: 900 }],
-    });
+    fetchPricingPreviewQuoteMock.mockResolvedValue(buildPreview(7500, 900, 0));
 
     renderPaymentSectionForSummary({ bookingId: '' });
 
@@ -282,17 +274,7 @@ describe('Payment summary integration with pricing preview', () => {
     fetchPricingPreviewQuoteMock.mockImplementation(() => {
       throw new Error('fetchPricingPreviewQuote should not be called');
     });
-    fetchPricingPreviewMock.mockResolvedValue({
-      base_price_cents: 9100,
-      student_fee_cents: 1092,
-      instructor_platform_fee_cents: 0,
-      credit_applied_cents: 0,
-      student_pay_cents: 10192,
-      application_fee_cents: 0,
-      top_up_transfer_cents: 0,
-      instructor_tier_pct: null,
-      line_items: [{ label: 'Service & Support fee (12%)', amount_cents: 1092 }],
-    });
+    fetchPricingPreviewMock.mockResolvedValue(buildPreview(9100, 1092, 0));
 
     renderPaymentSectionForSummary();
 
@@ -509,6 +491,7 @@ describe('Payment summary preview', () => {
       application_fee_cents: 2100,
       top_up_transfer_cents: 0,
       instructor_tier_pct: 0.12,
+      target_instructor_payout_cents: 15000,
       line_items: [{ label: 'Service & Support fee (14%)', amount_cents: 2100 }],
     };
 

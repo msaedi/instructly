@@ -12,6 +12,22 @@
 
 import type { DayBits } from '@/lib/calendar/bitset';
 
+// Import types from generated OpenAPI shim
+import type {
+  BulkUpdateRequest as GeneratedBulkUpdateRequest,
+  BulkUpdateResponse as GeneratedBulkUpdateResponse,
+  WeekValidationResponse as GeneratedWeekValidationResponse,
+  ValidateWeekRequest as GeneratedValidateWeekRequest,
+  TimeSlot as GeneratedTimeSlot,
+} from '@/features/shared/api/types';
+
+// Re-export generated types for backwards compatibility
+export type BulkUpdateRequest = GeneratedBulkUpdateRequest;
+export type BulkUpdateResponse = GeneratedBulkUpdateResponse;
+export type WeekValidationResponse = GeneratedWeekValidationResponse;
+export type ValidateWeekRequest = GeneratedValidateWeekRequest;
+export type TimeSlot = GeneratedTimeSlot;
+
 /**
  * Possible actions for slot operations
  * - 'add': Create a new availability slot
@@ -71,31 +87,10 @@ export interface SlotOperation {
   slot_id?: string;
 }
 
-/**
- * Request payload for bulk updating availability slots
- *
- * @interface BulkUpdateRequest
- * @example
- * ```ts
- * const request: BulkUpdateRequest = {
- *   operations: [
- *     { action: 'add', date: '2025-06-15', start_time: '09:00:00', end_time: '10:00:00' },
- *     { action: 'remove', slot_id: '01J5TESTSLOT0000000000456' }
- *   ],
- *   validate_only: true // Preview changes without applying
- * };
- * ```
- */
-export interface BulkUpdateRequest {
-  /** Array of operations to perform */
-  operations: SlotOperation[];
-
-  /** If true, only validate without applying changes */
-  validate_only?: boolean;
-}
+// BulkUpdateRequest - now imported from shim (see top of file)
 
 /**
- * Result of a single slot operation
+ * Result of a single slot operation (frontend-specific, not in generated OpenAPI)
  *
  * @interface OperationResult
  */
@@ -116,36 +111,7 @@ export interface OperationResult {
   slot_id?: string;
 }
 
-/**
- * Response from bulk update operations
- *
- * @interface BulkUpdateResponse
- * @example
- * ```ts
- * const response: BulkUpdateResponse = {
- *   successful: 5,
- *   failed: 1,
- *   skipped: 0,
- *   results: [
- *     { operation_index: 0, action: 'add', status: 'success', slot_id: 789 },
- *     { operation_index: 1, action: 'remove', status: 'failed', reason: 'Slot has active booking' }
- *   ]
- * };
- * ```
- */
-export interface BulkUpdateResponse {
-  /** Number of successful operations */
-  successful: number;
-
-  /** Number of failed operations */
-  failed: number;
-
-  /** Number of skipped operations */
-  skipped: number;
-
-  /** Detailed results for each operation */
-  results: OperationResult[];
-}
+// BulkUpdateResponse - now imported from shim (see top of file)
 
 /**
  * Represents an existing availability slot from the database
@@ -175,6 +141,7 @@ export type WeekBits = Record<string, DayBits>;
 
 /**
  * Detailed information about a validation operation
+ * Note: Optional fields use `| null` to match generated OpenAPI types
  *
  * @interface ValidationSlotDetail
  */
@@ -186,29 +153,29 @@ export interface ValidationSlotDetail {
   action: string;
 
   /** Date for the operation (if applicable) */
-  date?: string;
+  date?: string | null;
 
   /** Start time for the operation (if applicable) */
-  start_time?: string;
+  start_time?: string | null;
 
   /** End time for the operation (if applicable) */
-  end_time?: string;
+  end_time?: string | null;
 
   /** Slot ID for the operation (if applicable) */
-  slot_id?: string;
+  slot_id?: string | null;
 
   /** Reason for validation failure */
-  reason?: string;
+  reason?: string | null;
 
   /** Bookings that conflict with this operation */
   conflicts_with?: Array<{
     /** ID of the conflicting booking */
-    booking_id: string;
+    booking_id?: string | null;
     /** Start time of the conflicting booking */
-    start_time: string;
+    start_time?: string | null;
     /** End time of the conflicting booking */
-    end_time: string;
-  }>;
+    end_time?: string | null;
+  }> | null;
 }
 
 /**
@@ -243,57 +210,8 @@ export interface ValidationSummary {
   };
 }
 
-/**
- * Response from week validation endpoint
- *
- * @interface WeekValidationResponse
- * @example
- * ```ts
- * const validation: WeekValidationResponse = {
- *   valid: false,
- *   summary: {
- *     total_operations: 10,
- *     valid_operations: 8,
- *     invalid_operations: 2,
- *     operations_by_type: { add: 5, remove: 3, update: 2 },
- *     has_conflicts: true,
- *     estimated_changes: {
- *       slots_added: 5,
- *       slots_removed: 2,
- *       conflicts: 1
- *     }
- *   },
- *   details: [...],
- *   warnings: ['Removing slot with upcoming booking']
- * };
- * ```
- */
-export interface WeekValidationResponse {
-  /** Whether all operations are valid */
-  valid: boolean;
-
-  /** Summary of validation results */
-  summary: ValidationSummary;
-
-  /** Detailed results for each operation */
-  details: ValidationSlotDetail[];
-
-  /** Warning messages for the user */
-  warnings: string[];
-}
-
-/**
- * Represents a single time slot within a day
- *
- * @interface TimeSlot
- */
-export interface TimeSlot {
-  /** Start time in HH:MM:SS format */
-  start_time: string;
-
-  /** End time in HH:MM:SS format */
-  end_time: string;
-}
+// WeekValidationResponse - now imported from shim (see top of file)
+// TimeSlot - now imported from shim (see top of file)
 
 /**
  * Represents a week's worth of availability
@@ -317,29 +235,7 @@ export interface WeekSchedule {
   [date: string]: TimeSlot[];
 }
 
-/**
- * Request payload for validating week changes
- *
- * @interface ValidateWeekRequest
- * @example
- * ```ts
- * const validateRequest: ValidateWeekRequest = {
- *   current_week: currentSchedule,  // Modified schedule from UI
- *   saved_week: savedSchedule,      // Original schedule from backend
- *   week_start: '2025-06-15'        // Monday of the week
- * };
- * ```
- */
-export interface ValidateWeekRequest {
-  /** The current week schedule (as modified in the UI) */
-  current_week: WeekSchedule;
-
-  /** The saved week schedule (from the backend) */
-  saved_week: WeekSchedule;
-
-  /** Start date of the week (ISO format: YYYY-MM-DD) */
-  week_start: string;
-}
+// ValidateWeekRequest - now imported from shim (see top of file)
 
 // ===== NEW TYPES FOR WORK STREAM #3 =====
 

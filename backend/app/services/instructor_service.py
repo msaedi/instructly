@@ -357,17 +357,18 @@ class InstructorService(BaseService):
                 services_data.append(service_dict)
 
             if services_data:
-                services = self.service_repository.bulk_create(services_data)
-            else:
-                services = []
+                self.service_repository.bulk_create(services_data)
 
             # Update user role
-            self.user_repository.update(user.id, role=RoleName.INSTRUCTOR)
+            from app.services.permission_service import PermissionService
+
+            permission_service = PermissionService(self.db)
+            permission_service.assign_role(user.id, RoleName.INSTRUCTOR)
 
             # Load user for response
             refreshed_user = self.user_repository.get_by_id(user.id)
             profile.user = refreshed_user or user
-            profile.instructor_services = services
+            self.db.expire(profile, ["instructor_services"])
 
         logger.info(f"Created instructor profile for user {user.id}")
 
@@ -443,8 +444,7 @@ class InstructorService(BaseService):
                                 if geocoded and getattr(geocoded, "city", None):
                                     city = geocoded.city
                         except Exception:
-                            pass
-
+                            logger.debug("Non-fatal error ignored", exc_info=True)
                         # Resolve skill names from catalog ids
                         skill_names: List[str] = []
                         try:
@@ -456,7 +456,7 @@ class InstructorService(BaseService):
                                     # Use lowercase for natural phrasing (e.g., 'yoga')
                                     skill_names.append(str(catalog_entry.name).strip().lower())
                         except Exception:
-                            pass
+                            logger.debug("Non-fatal error ignored", exc_info=True)
 
                         def _oxford_join(items: List[str]) -> str:
                             if not items:

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
+import type { components } from '@/features/shared/api/types';
 
 type AvatarVariant = 'original' | 'display' | 'thumb';
 type AvatarUrlMap = Record<string, string | null>;
@@ -200,8 +201,8 @@ const requestProfilePictureBatch = async (
     if (!response.ok) {
       throw new Error(`Avatar batch fetch failed (${response.status})`);
     }
-    const payload = (await response.json()) as { urls?: AvatarUrlMap };
-    const urls = payload.urls ?? {};
+    const payload = (await response.json()) as components['schemas']['ProfilePictureUrlsResponse'];
+    const urls = payload.urls;
     ids.forEach((id) => {
       if (!(id in urls)) {
         urls[id] = null;

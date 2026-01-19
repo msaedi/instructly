@@ -18,6 +18,12 @@ import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/us
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
 import { formatProblemMessages } from '@/lib/httpErrors';
+import type {
+  AddressListResponse,
+  ApiErrorResponse,
+  NeighborhoodsListResponse,
+  InstructorProfileResponse,
+} from '@/features/shared/api/types';
 import {
   debugProfilePayload,
   type InstructorUpdatePayload,
@@ -128,7 +134,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
     service_area_boroughs: [],
     years_experience: 0
   });
-  const [instructorMeta, setInstructorMeta] = useState<Record<string, unknown> | null>(null);
+  const [instructorMeta, setInstructorMeta] = useState<InstructorProfileResponse | null>(null);
   const handleProfileChange = useCallback((updates: Partial<ProfileFormState>) => {
     setProfile((prev) => ({ ...prev, ...updates }));
   }, []);
@@ -210,11 +216,10 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
       try {
         setLoading(true);
         // Use data from React Query hook instead of fetching
-        const data: Record<string, unknown> = instructorProfileFromHook
-          ? (instructorProfileFromHook as unknown as Record<string, unknown>)
-          : {};
+        const data = instructorProfileFromHook as unknown as InstructorProfileResponse;
         setInstructorMeta(data);
-        logger.debug('Prefill: /instructors/me from cache', { keys: Object.keys(data || {}) });
+        const record = (data ?? {}) as Record<string, unknown>;
+        logger.debug('Prefill: /instructors/me from cache', { keys: Object.keys(record || {}) });
 
         // Get user info for name fields from React Query hook (no API call needed)
         let firstName = '';
@@ -225,9 +230,9 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           lastName = userDataFromHook.last_name || '';
           userZip = userDataFromHook.zip_code || '';
           logger.debug('Prefill: /auth/me from cache', { first_name: firstName, last_name: lastName, id: userDataFromHook.id, zip_code: userZip });
-        } else if (data && data['user']) {
+        } else if (record['user']) {
           // Fallback to instructor payload's embedded user if available
-          const userObj = data['user'] as Record<string, unknown>;
+          const userObj = record['user'] as Record<string, unknown>;
           firstName = (userObj['first_name'] as string) || '';
           lastName = (userObj['last_name'] as string) || '';
           userZip = (userObj['zip_code'] as string) || '';
@@ -252,13 +257,13 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           ? (data['service_area_neighborhoods'] as ServiceAreaItem[])
           : [];
         const neighborhoods = neighborhoodsRaw.reduce<ServiceAreaNeighborhood[]>((acc, item) => {
-          const neighborhoodId = item.neighborhood_id || item.id;
+          const neighborhoodId = item.neighborhood_id;
           if (!neighborhoodId) {
             return acc;
           }
           acc.push({
             neighborhood_id: neighborhoodId,
-            ntacode: item.ntacode ?? item.code ?? null,
+            ntacode: item.ntacode ?? null,
             name: item.name ?? null,
             borough: item.borough ?? null,
           });
@@ -344,7 +349,9 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               return next;
             });
           }
-        } catch {}
+        } catch (err) {
+          logger.warn('Failed to prefill service areas', err);
+        }
 
         // Detect NYC from default address postal code using hook data
         try {
@@ -364,7 +371,9 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               }
             }
           }
-        } catch {}
+        } catch (err) {
+          logger.warn('Failed to check NYC zip', err);
+        }
       } catch (e) {
         logger.error('Failed to load profile', e);
         setError('Failed to load profile');
@@ -377,7 +386,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
 
   useEffect(() => {
     if (!isOnboarding || !instructorMeta || redirectingRef.current) return;
-    const isLive = Boolean(instructorMeta['is_live'] || instructorMeta['onboarding_completed']);
+    const isLive = Boolean(instructorMeta.is_live || instructorMeta.onboarding_completed_at);
     if (isLive) {
       redirectingRef.current = true;
       toast.success('Your profile is already live. Redirecting to your dashboard...');
@@ -440,21 +449,43 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
       const url = withApiBase(`/api/v1/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`);
       const r = await fetch(url, { credentials: 'include' });
       if (r.ok) {
-        const data = await r.json();
-        const list = (data.items || []) as ServiceAreaItem[];
+        const data = (await r.json()) as NeighborhoodsListResponse;
+        const list = (data.items ?? []).flatMap((raw) => {
+          const record = raw as Record<string, unknown>;
+          const neighborhoodId =
+            typeof record['neighborhood_id'] === 'string'
+              ? (record['neighborhood_id'] as string)
+              : typeof record['id'] === 'string'
+              ? (record['id'] as string)
+              : '';
+          if (!neighborhoodId) return [];
+          return [
+            {
+              neighborhood_id: neighborhoodId,
+              ntacode:
+                typeof record['ntacode'] === 'string'
+                  ? (record['ntacode'] as string)
+                  : typeof record['code'] === 'string'
+                  ? (record['code'] as string)
+                  : null,
+              name: typeof record['name'] === 'string' ? (record['name'] as string) : null,
+              borough: record['borough'] ?? null,
+            } as ServiceAreaItem,
+          ];
+        });
         setBoroughNeighborhoods((prev) => ({ ...prev, [borough]: list }));
-        // Update id->item map for display in the selection panel
         setIdToItem((prev) => {
           const next = { ...prev } as Record<string, ServiceAreaItem>;
           for (const it of list) {
-            const nid = it['neighborhood_id'] || (it as Record<string, unknown>)['id'] as string;
-            if (nid) next[nid] = it;
+            if (it.neighborhood_id) next[it.neighborhood_id] = it;
           }
           return next;
         });
         return list;
       }
-    } catch {}
+    } catch (err) {
+      logger.warn('Failed to load borough neighborhoods', { borough, err });
+    }
     return boroughNeighborhoods[borough] || [];
   }, [boroughNeighborhoods]);
 
@@ -552,7 +583,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
       if (!res.ok) {
         let message = `Request failed (${res.status})`;
         try {
-          const body = await res.json();
+          const body = (await res.json()) as ApiErrorResponse;
           const messages = formatProblemMessages(body);
           if (messages.length > 0) {
             message = messages.join('; ');
@@ -567,7 +598,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
 
       const deriveErrorMessage = async (resp: Response, fallback: string) => {
         try {
-          const body = await resp.clone().json();
+          const body = (await resp.clone().json()) as ApiErrorResponse;
           const messages = formatProblemMessages(body);
           if (messages.length > 0) {
             return messages.join('; ');
@@ -586,7 +617,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
       try {
         const addrRes = await fetchWithAuth('/api/v1/addresses/me');
         if (addrRes.ok) {
-          const list = await addrRes.json();
+          const list = (await addrRes.json()) as AddressListResponse;
           const items = (list.items || []) as Record<string, unknown>[];
           const def = items.find((a) => a['is_default']) || items[0];
           if (def) {
@@ -656,8 +687,8 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             inFlightRef: inFlightServiceAreasRef,
             setSaving: setSavingServiceAreas,
           });
-        } catch {
-          // Swallow here; page already reports via toast earlier
+        } catch (err) {
+          logger.warn('Failed to submit service areas during profile save', err);
         }
       }
 
@@ -689,7 +720,11 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         selectedNeighborhoods.size > 0 &&
         (hasProfilePicture || false)
       );
-      try { sessionStorage.setItem('onboarding_step1_complete', ok ? 'true' : 'false'); } catch {}
+      try {
+        sessionStorage.setItem('onboarding_step1_complete', ok ? 'true' : 'false');
+      } catch (err) {
+        logger.warn('Failed to persist onboarding progress', err);
+      }
       onStepStatusChange?.(ok ? 'done' : 'failed');
 
       if (redirectTo) {

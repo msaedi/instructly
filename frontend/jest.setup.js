@@ -28,6 +28,14 @@ Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
 });
 
+Object.defineProperty(HTMLFormElement.prototype, 'requestSubmit', {
+  configurable: true,
+  value: function requestSubmit() {
+    const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+    this.dispatchEvent(submitEvent);
+  },
+});
+
 // Reset all mocks before each test
 beforeEach(() => {
   jest.clearAllMocks();

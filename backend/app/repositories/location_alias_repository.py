@@ -34,7 +34,7 @@ class LocationAliasRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return False
 
     def get_by_id(self, alias_id: str) -> Optional[LocationAlias]:
@@ -47,7 +47,7 @@ class LocationAliasRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return None
 
     def update_status(self, alias_id: str, status: str) -> bool:
@@ -64,7 +64,7 @@ class LocationAliasRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return False
 
     def list_by_source_and_status(
@@ -98,5 +98,5 @@ class LocationAliasRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return []

@@ -234,7 +234,10 @@ class BaseService:
                                     error_type=error_type,
                                 )
                             except Exception:  # pragma: no cover - metrics failure
-                                pass
+                                logger.debug(
+                                    "Failed to record Prometheus service metrics",
+                                    exc_info=True,
+                                )
 
                 update_wrapper(wrapper, func)
                 return cast(FuncType, wrapper)
@@ -278,7 +281,10 @@ class BaseService:
                                 error_type=error_type,
                             )
                         except Exception:  # pragma: no cover - metrics failure
-                            pass
+                            logger.debug(
+                                "Failed to record Prometheus service metrics",
+                                exc_info=True,
+                            )
 
             update_wrapper(async_wrapper, func)
             return cast(FuncType, async_wrapper)
@@ -331,7 +337,7 @@ class BaseService:
                     )
                 except Exception:
                     # Don't let metrics collection break the operation
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
 
     @asynccontextmanager
     async def async_measure_operation_context(self, operation_name: str) -> AsyncIterator[None]:
@@ -366,7 +372,7 @@ class BaseService:
                         status=status,
                     )
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
 
     def invalidate_cache(self, *keys: str) -> None:
         """

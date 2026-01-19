@@ -1,4 +1,5 @@
 import type { ServiceAreaNeighborhood } from '@/types/instructor';
+export type { NYCZipCheckResponse as NYCZipCheck, ServiceAreaItem, ServiceAreasResponse } from '@/features/shared/api/types';
 
 export type ProfileFormState = {
   first_name: string;
@@ -21,14 +22,4 @@ export type ProfileFormState = {
   longitude?: number | null;
 };
 
-export type ServiceAreaItem = {
-  id: string;
-  neighborhood_id?: string;
-  ntacode?: string | null;
-  name?: string | null;
-  borough?: string | null;
-  code?: string | null;
-};
-
-export type ServiceAreasResponse = { items: ServiceAreaItem[]; total: number };
-export type NYCZipCheck = { is_nyc: boolean; borough?: string | null };
+// Service area response types are re-exported from the OpenAPI shim.

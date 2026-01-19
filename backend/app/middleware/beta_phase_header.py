@@ -138,7 +138,7 @@ class BetaPhaseHeaderMiddleware:
                 try:
                     PrometheusMetrics.inc_beta_phase_header(phase_value.decode("utf-8"))
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
             await send(message)
 
         await self.app(scope, receive, send_wrapper)

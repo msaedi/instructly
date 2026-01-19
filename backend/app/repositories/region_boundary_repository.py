@@ -5,10 +5,13 @@ without introducing a GeoAlchemy dependency in the app layer.
 """
 
 import json
+import logging
 from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 
 class RegionBoundaryRepository:
@@ -157,7 +160,7 @@ class RegionBoundaryRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return None
 
     # --- Listing and GeoJSON helpers ---
@@ -191,7 +194,7 @@ class RegionBoundaryRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return []
 
     def get_simplified_geojson_by_ids(
@@ -235,7 +238,7 @@ class RegionBoundaryRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return []
 
     def find_region_ids_by_partial_names(
@@ -265,7 +268,7 @@ class RegionBoundaryRepository:
                 try:
                     self.db.rollback()
                 except Exception:
-                    pass
+                    logger.debug("Non-fatal error ignored", exc_info=True)
         return result
 
     # --- Maintenance helpers (used by tests and admin flows) ---
@@ -293,7 +296,7 @@ class RegionBoundaryRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return 0
 
     def delete_by_region_code(self, region_code: str, region_type: str | None = None) -> int:
@@ -320,5 +323,5 @@ class RegionBoundaryRepository:
             try:
                 self.db.rollback()
             except Exception:
-                pass
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return 0

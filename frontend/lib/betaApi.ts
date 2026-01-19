@@ -2,24 +2,27 @@
 
 import { getErrorMessage } from '@/lib/api';
 import { withApiBase } from '@/lib/apiBase';
+import type {
+  BetaSettingsResponse,
+  BetaSettingsUpdateRequest,
+  PerformanceMetricsResponse,
+  BetaMetricsSummaryResponse,
+} from '@/features/shared/api/types';
 
-export interface BetaSettings {
-  beta_disabled: boolean;
-  beta_phase: string;
-  allow_signup_without_invite: boolean;
-}
+export type BetaSettings = BetaSettingsResponse;
+export type MetricsPerformanceResponse = PerformanceMetricsResponse;
 
-export async function getBetaSettings(): Promise<BetaSettings> {
+export async function getBetaSettings(): Promise<BetaSettingsResponse> {
   // Use toggleable base; rely on cookies for auth
   const res = await fetch(withApiBase('/api/v1/beta/settings'), {
     credentials: 'include',
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(await getErrorMessage(res));
-  return res.json();
+  return res.json() as Promise<BetaSettingsResponse>;
 }
 
-export async function updateBetaSettings(payload: BetaSettings): Promise<BetaSettings> {
+export async function updateBetaSettings(payload: BetaSettingsUpdateRequest): Promise<BetaSettingsResponse> {
   const res = await fetch(withApiBase('/api/v1/beta/settings'), {
     method: 'PUT',
     headers: {
@@ -30,42 +33,23 @@ export async function updateBetaSettings(payload: BetaSettings): Promise<BetaSet
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(await getErrorMessage(res));
-  return res.json();
+  return res.json() as Promise<BetaSettingsResponse>;
 }
 
-export interface MetricsPerformanceResponse {
-  availability_service?: Record<string, unknown>;
-  booking_service?: Record<string, unknown>;
-  conflict_checker?: Record<string, unknown>;
-  cache?: Record<string, unknown>;
-  system?: Record<string, unknown>;
-  database?: Record<string, unknown>;
-  // Optionally beta-related if backend adds it later
-  beta_service?: Record<string, unknown>;
-}
-
-export async function getPerformanceMetrics(): Promise<MetricsPerformanceResponse> {
+export async function getPerformanceMetrics(): Promise<PerformanceMetricsResponse> {
   const res = await fetch(withApiBase('/ops/performance'), {
     credentials: 'include',
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(await getErrorMessage(res));
-  return res.json();
+  return res.json() as Promise<PerformanceMetricsResponse>;
 }
 
-export interface MetricsSummaryResponse {
-  bookings_last_7d?: number;
-  students_total?: number;
-  earnings_last_7d?: number;
-  // Allow other backend-provided fields without strict typing
-  [key: string]: unknown;
-}
-
-export async function getMetricsSummary(): Promise<MetricsSummaryResponse> {
+export async function getMetricsSummary(): Promise<BetaMetricsSummaryResponse> {
   const res = await fetch(withApiBase('/api/v1/beta/metrics/summary'), {
     credentials: 'include',
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(await getErrorMessage(res));
-  return res.json();
+  return res.json() as Promise<BetaMetricsSummaryResponse>;
 }

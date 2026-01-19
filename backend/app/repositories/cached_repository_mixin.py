@@ -81,14 +81,17 @@ class CachedRepositoryMixin:
                 key_parts.append(arg.isoformat())
             else:
                 # Hash complex objects
-                arg_hash = hashlib.md5(str(arg).encode()).hexdigest()[:8]
+                arg_hash = hashlib.md5(str(arg).encode(), usedforsecurity=False).hexdigest()[:8]
                 key_parts.append(arg_hash)
 
         # Add keyword arguments
         if kwargs:
             sorted_kwargs = sorted(kwargs.items())
             kwargs_str = json.dumps(sorted_kwargs, default=str)
-            kwargs_hash = hashlib.md5(kwargs_str.encode()).hexdigest()[:8]
+            kwargs_hash = hashlib.md5(
+                kwargs_str.encode(),
+                usedforsecurity=False,
+            ).hexdigest()[:8]
             key_parts.append(f"kw_{kwargs_hash}")
 
         return ":".join(key_parts)

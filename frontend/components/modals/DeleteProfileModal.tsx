@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { AlertTriangle, Shield, Trash2 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
+import type { ApiErrorResponse } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
 
 /**
@@ -54,8 +55,8 @@ export default function DeleteProfileModal({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to delete profile');
+        const errorData = (await response.json()) as ApiErrorResponse;
+        throw new Error(errorData.detail || errorData.message || 'Failed to delete profile');
       }
 
       logger.info('Instructor profile deleted successfully');

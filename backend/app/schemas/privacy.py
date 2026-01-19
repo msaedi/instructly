@@ -3,11 +3,35 @@
 Pydantic schemas for privacy and GDPR compliance.
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ._strict_base import StrictModel, StrictRequestModel
+
+# ============================================================================
+# Typed models for privacy statistics
+# ============================================================================
+
+
+class PrivacyStatistics(BaseModel):
+    """Privacy and retention statistics returned by get_privacy_statistics."""
+
+    total_users: int = Field(description="Total number of users")
+    active_users: int = Field(description="Number of active users")
+    search_history_records: int = Field(description="Number of search history records")
+    search_event_records: int = Field(description="Number of search event records")
+    total_bookings: int = Field(description="Total number of bookings")
+    search_events_eligible_for_deletion: Optional[int] = Field(
+        default=None, description="Search events eligible for deletion based on retention policy"
+    )
+
+
+class RetentionStats(BaseModel):
+    """Statistics from applying retention policies."""
+
+    search_events_deleted: int = Field(default=0, description="Number of search events deleted")
+    old_bookings_anonymized: int = Field(default=0, description="Number of old bookings anonymized")
 
 
 class UserDataDeletionRequest(StrictRequestModel):
@@ -50,7 +74,7 @@ class PrivacyStatisticsResponse(StrictModel):
     """
 
     status: str = Field(description="Status of the request")
-    statistics: Dict[str, Any] = Field(description="Privacy and retention statistics")
+    statistics: PrivacyStatistics = Field(description="Privacy and retention statistics")
 
 
 class RetentionPolicyResponse(StrictModel):
@@ -61,4 +85,4 @@ class RetentionPolicyResponse(StrictModel):
 
     status: str = Field(description="Status of the retention policy application")
     message: str = Field(description="Human-readable message")
-    stats: Dict[str, Any] = Field(description="Statistics of retention policy application")
+    stats: RetentionStats = Field(description="Statistics of retention policy application")

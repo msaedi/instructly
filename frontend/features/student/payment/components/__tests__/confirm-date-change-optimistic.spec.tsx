@@ -175,6 +175,7 @@ const BASE_PREVIEW_WITH_CREDIT: PricingPreviewResponse = {
   base_price_cents: 22500,
   student_fee_cents: 2700,
   instructor_platform_fee_cents: 0,
+  target_instructor_payout_cents: 22500,
   credit_applied_cents: 4500,
   student_pay_cents: 20700,
   application_fee_cents: 0,

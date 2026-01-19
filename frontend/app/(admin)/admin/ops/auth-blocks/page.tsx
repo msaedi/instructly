@@ -19,58 +19,17 @@ import {
 } from 'lucide-react';
 import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import { fetchWithAuth } from '@/lib/api';
+import type {
+  AuthBlockedAccount,
+  AuthBlocksClearResponse,
+  AuthBlocksListResponse,
+  AuthBlocksSummaryStats,
+} from '@/features/shared/api/types';
 
-// Types
-interface LockoutState {
-  active: boolean;
-  ttl_seconds: number;
-  level: string;
-}
-
-interface RateLimitState {
-  active: boolean;
-  count: number;
-  limit: number;
-  ttl_seconds: number;
-}
-
-interface CaptchaState {
-  active: boolean;
-}
-
-interface BlocksState {
-  lockout: LockoutState | null;
-  rate_limit_minute: RateLimitState | null;
-  rate_limit_hour: RateLimitState | null;
-  captcha_required: CaptchaState | null;
-}
-
-interface BlockedAccount {
-  email: string;
-  blocks: BlocksState;
-  failure_count: number;
-}
-
-interface SummaryStats {
-  total_blocked: number;
-  locked_out: number;
-  rate_limited: number;
-  captcha_required: number;
-}
-
-interface ListAuthIssuesResponse {
-  accounts: BlockedAccount[];
-  total: number;
-  scanned_at: string;
-}
-
-interface ClearBlocksResponse {
-  email: string;
-  cleared: string[];
-  cleared_by: string;
-  cleared_at: string;
-  reason: string | null;
-}
+type BlockedAccount = AuthBlockedAccount;
+type SummaryStats = AuthBlocksSummaryStats;
+type ListAuthIssuesResponse = AuthBlocksListResponse;
+type ClearBlocksResponse = AuthBlocksClearResponse;
 
 // API functions
 async function fetchAuthIssues(

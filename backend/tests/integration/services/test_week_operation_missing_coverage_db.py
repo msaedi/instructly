@@ -504,3 +504,152 @@ class TestWeekOperationErrorHandling:
 
         # Should complete
         assert result is not None
+
+
+class TestWeekOperationHelperCoverage:
+    """Cover helper branches for week operation service."""
+
+    @pytest.mark.asyncio
+    async def test_copy_week_logs_audit_and_outbox_errors(
+        self,
+        db: Session,
+        test_instructor: User,
+    ) -> None:
+        service = WeekOperationService(db)
+        from_week = date(2025, 6, 16)
+        to_week = from_week + timedelta(weeks=1)
+        _seed_windows(db, test_instructor.id, {from_week: [("09:00:00", "10:00:00")]})
+
+        with patch.object(service, "_write_copy_audit", side_effect=Exception("audit")):
+            with patch.object(
+                service, "_enqueue_week_copy_event", side_effect=Exception("enqueue")
+            ):
+                result = await service.copy_week_availability(
+                    test_instructor.id, from_week, to_week
+                )
+
+        assert result["_metadata"]["windows_created"] >= 0
+
+    def test_deprecated_slot_methods_raise(self, db: Session, test_instructor: User) -> None:
+        service = WeekOperationService(db)
+        week_start = date(2025, 6, 16)
+
+        with pytest.raises(NotImplementedError):
+            service._clear_week_slots(test_instructor.id, [week_start])
+        with pytest.raises(NotImplementedError):
+            service._copy_slots_between_weeks(test_instructor.id, week_start, week_start)
+        with pytest.raises(NotImplementedError):
+            service._clear_date_range_slots(test_instructor.id, [week_start])
+        with pytest.raises(NotImplementedError):
+            service._apply_pattern_to_dates(test_instructor.id, {}, week_start, week_start)
+
+    def test_resolve_actor_payload_variants(self, db: Session) -> None:
+        service = WeekOperationService(db)
+
+        payload = service._resolve_actor_payload({"id": "actor", "role": "admin"})
+        assert payload == {"id": "actor", "role": "admin"}
+
+        class RoleObj:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+        class ActorObj:
+            def __init__(self) -> None:
+                self.id = "actor2"
+                self.roles = [RoleObj("manager")]
+
+        payload_roles = service._resolve_actor_payload(ActorObj())
+        assert payload_roles == {"id": "actor2", "role": "manager"}
+
+        class ActorNoRole:
+            def __init__(self) -> None:
+                self.id = "actor3"
+
+        payload_default = service._resolve_actor_payload(ActorNoRole())
+        assert payload_default == {"id": "actor3", "role": "instructor"}
+
+    def test_build_copy_audit_payload_includes_optional_fields(
+        self, db: Session, test_instructor: User
+    ) -> None:
+        service = WeekOperationService(db)
+        week_start = date(2025, 6, 16)
+        skipped = [week_start]
+        written = [week_start + timedelta(days=1)]
+
+        payload = service._build_copy_audit_payload(
+            test_instructor.id,
+            week_start,
+            source_week_start=week_start,
+            created=2,
+            deleted=1,
+            historical_copy=True,
+            skipped_dates=skipped,
+            written_dates=written,
+        )
+
+        assert payload.get("historical_copy") is True
+        assert payload.get("skipped_dates") == [week_start.isoformat()]
+        assert payload.get("written_dates") == [(week_start + timedelta(days=1)).isoformat()]
+
+    @pytest.mark.asyncio
+    async def test_apply_pattern_to_date_range_bitmap_no_dates(
+        self, db: Session, test_instructor: User
+    ) -> None:
+        service = WeekOperationService(db)
+
+        result = await service._apply_pattern_to_date_range_bitmap(
+            instructor_id=test_instructor.id,
+            from_week_start=date.today(),
+            start_date=date.today(),
+            end_date=date.today() - timedelta(days=1),
+        )
+
+        assert result["message"].startswith("No dates provided")
+
+    def test_extract_week_pattern_from_source(self, db: Session, test_instructor: User) -> None:
+        service = WeekOperationService(db)
+        week_start = date(2025, 6, 16)
+        _seed_windows(db, test_instructor.id, {week_start: [("09:00:00", "10:00:00")]})
+
+        pattern = service._extract_week_pattern_from_source(test_instructor.id, week_start)
+
+        assert isinstance(pattern, dict)
+
+    @pytest.mark.asyncio
+    async def test_warm_cache_for_affected_weeks_fallback(
+        self, db: Session, test_instructor: User
+    ) -> None:
+        mock_cache = Mock(spec=CacheService)
+        service = WeekOperationService(db, cache_service=mock_cache)
+
+        class DummyWarmer:
+            def __init__(self, _cache, _db):
+                self.cache = _cache
+                self.db = _db
+
+            async def warm_with_verification(self, *_args, **_kwargs):
+                return {}
+
+        with patch("app.services.cache_strategies.CacheWarmingStrategy", DummyWarmer):
+            await service._warm_cache_for_affected_weeks(
+                test_instructor.id,
+                date(2025, 6, 16),
+                date(2025, 6, 18),
+            )
+
+    def test_format_pattern_application_result(self, db: Session) -> None:
+        service = WeekOperationService(db)
+        start_date = date(2025, 6, 16)
+        end_date = date(2025, 6, 18)
+        all_dates = [start_date, start_date + timedelta(days=1)]
+
+        result = service._format_pattern_application_result(
+            all_dates,
+            dates_with_windows=1,
+            created_count=2,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        assert result["dates_processed"] == len(all_dates)
+        assert result["windows_created"] == 2

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookingPayment, PaymentMethod, PaymentCard, PAYMENT_STATUS } from '../types';
+import type { PaymentProcessResponse } from '@/features/shared/api/types';
 
 interface UsePaymentFlowProps {
   booking: BookingPayment;
@@ -44,10 +45,13 @@ export function usePaymentFlow({
   const [creditsToUse, setCreditsToUse] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const goToStep = useCallback((step: PaymentStep) => {
     setCurrentStep(step);
-    setError(null);
+    if (step !== PaymentStep.ERROR) {
+      setError(null);
+    }
   }, []);
 
   const selectPaymentMethod = useCallback(
@@ -93,20 +97,25 @@ export function usePaymentFlow({
         throw new Error('Payment processing failed');
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as PaymentProcessResponse;
 
-      // Update booking with payment info
-      booking.paymentStatus = PAYMENT_STATUS.AUTHORIZED;
-      booking.stripeIntentId = result.paymentIntentId;
+      const updatedBooking = {
+        ...booking,
+        paymentStatus: PAYMENT_STATUS.AUTHORIZED,
+        stripeIntentId: result.paymentIntentId,
+      };
 
       goToStep(PaymentStep.SUCCESS);
 
       if (onSuccess) {
-        onSuccess(booking.bookingId);
+        onSuccess(updatedBooking.bookingId);
       }
 
       // Redirect to dashboard after 3 seconds
-      setTimeout(() => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+      }
+      redirectTimeoutRef.current = setTimeout(() => {
         router.push('/student/lessons');
       }, 3000);
     } catch (err) {
@@ -129,6 +138,14 @@ export function usePaymentFlow({
     setCreditsToUse(0);
     setError(null);
     setIsProcessing(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+      }
+    };
   }, []);
 
   // Mock data - replace with actual data fetching

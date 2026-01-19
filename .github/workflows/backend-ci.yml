@@ -91,13 +91,31 @@ jobs:
         python -m pip install --upgrade pip
         pip install --no-cache-dir -r requirements.txt
         pip install --no-cache-dir -r requirements-dev.txt || true
-        pip install --no-cache-dir ruff mypy pytest-cov
+        pip install --no-cache-dir ruff mypy pytest-cov pytest-timeout
+
+    - name: Verify dependency compatibility
+      working-directory: backend
+      run: |
+        pip check
+        echo "All dependencies compatible"
 
     - name: Check disk usage (after backend deps)
       run: df -h
 
     - name: Ruff
       run: ruff check backend
+
+    - name: Check router sync (OpenAPI completeness)
+      working-directory: backend
+      run: python scripts/check_router_sync.py
+
+    - name: Check OpenAPI response schemas
+      working-directory: backend
+      run: python scripts/check_openapi_responses.py
+
+    - name: Audit untyped Dict[str,Any] (Phase 3 guardrail)
+      working-directory: backend
+      run: ./scripts/audit-untyped-dicts.sh --ci
 
     - name: Mypy strict (hard fail)
       run: bash tools/mypy_strict_gate.sh
@@ -162,7 +180,12 @@ jobs:
         TOTP_VALID_WINDOW: '1'
       run: |
         cd backend
-        pytest -q --cov=app --cov-report=xml
+        pytest tests/ \
+          --cov=app \
+          --cov-report=xml \
+          --cov-report=term-missing \
+          --cov-fail-under=92 \
+          --timeout=1800
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5
@@ -185,9 +208,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install bandit pip-audit
 
-    - name: Bandit
+    - name: Security scan (Bandit)
       working-directory: backend
-      run: bandit -r app/ -ll -x tests --skip B324
+      run: bandit -r app -f txt
 
     - name: pip-audit (project dependencies only)
       working-directory: backend

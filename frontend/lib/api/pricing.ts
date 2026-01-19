@@ -1,60 +1,17 @@
 import { fetchJson, ApiProblemError } from '@/lib/api/fetch';
 import { logger } from '@/lib/logger';
-import type { PriceFloorConfig } from '@/lib/pricing/priceFloors';
+import type {
+  PricingPreviewResponse,
+  PricingLineItem,
+  PricingTierConfig,
+  PricingConfig,
+  PricingPreviewQuotePayload,
+  PricingConfigResponse,
+} from '@/features/shared/api/types';
 
-export type PricingLineItem = {
-  label: string;
-  amount_cents: number;
-};
-
-export type PricingTierConfig = {
-  min: number;
-  max: number | null;
-  pct: number;
-};
-
-export type PricingConfig = {
-  student_fee_pct: number;
-  founding_instructor_rate_pct?: number;
-  founding_instructor_cap?: number;
-  founding_search_boost?: number;
-  instructor_tiers: PricingTierConfig[];
-  price_floor_cents: PriceFloorConfig;
-  tier_activity_window_days?: number;
-  tier_stepdown_max?: number;
-  tier_inactivity_reset_days?: number;
-  student_credit_cycle?: Record<string, number>;
-};
-
-export type PricingPreviewResponse = {
-  base_price_cents: number;
-  student_fee_cents: number;
-  instructor_platform_fee_cents: number;
-  credit_applied_cents: number;
-  student_pay_cents: number;
-  application_fee_cents: number;
-  top_up_transfer_cents: number;
-  instructor_tier_pct: number | null;
-  line_items: PricingLineItem[];
-};
-
-export type PricingPreviewQuotePayload = {
-  instructor_id: string;
-  instructor_service_id: string;
-  booking_date: string;
-  start_time: string;
-  selected_duration: number;
-  location_type: string;
-  meeting_location: string;
-  applied_credit_cents: number;
-};
+export type { PricingPreviewResponse, PricingLineItem, PricingTierConfig, PricingConfig, PricingPreviewQuotePayload };
 
 export type PricingPreviewQuotePayloadBase = Omit<PricingPreviewQuotePayload, 'applied_credit_cents'>;
-
-type PricingConfigResponse = {
-  config: PricingConfig;
-  updated_at: string | null;
-};
 
 export async function fetchPricingConfig(): Promise<PricingConfigResponse> {
   try {

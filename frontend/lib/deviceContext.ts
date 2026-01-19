@@ -271,7 +271,7 @@ export function formatDeviceContextForAnalytics(context: DeviceContext) {
 
     // Connection
     connection_type: context.connectionType || context.effectiveType || 'unknown', // fallback to effectiveType if connectionType unavailable
-    connection_effective_type: context.effectiveType, // effective speed (slow-2g, 2g, 3g, 4g)
+    connection_effective_type: context.effectiveType ?? null, // effective speed (slow-2g, 2g, 3g, 4g)
     connection_quality: getConnectionQuality(context),
     is_low_end: isLowEndDevice(context),
 

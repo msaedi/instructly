@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -25,6 +26,8 @@ from app.schemas.admin_location_learning_responses import (
     AdminLocationLearningUnresolvedQueryItem,
 )
 from app.services.search.alias_learning_service import AliasLearningService
+
+logger = logging.getLogger(__name__)
 
 
 class LocationLearningAdminService:
@@ -67,8 +70,8 @@ class LocationLearningAdminService:
                 try:
                     c_int = int(count or 0)
                 except Exception:
+                    logger.debug("Non-fatal error ignored", exc_info=True)
                     continue
-
                 rid = str(region_id)
                 items.append(
                     AdminLocationLearningClickCount(

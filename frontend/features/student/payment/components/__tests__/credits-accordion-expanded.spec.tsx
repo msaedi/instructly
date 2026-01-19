@@ -136,6 +136,7 @@ const buildPreview = (base: number, fee: number, credit: number): PricingPreview
   base_price_cents: base,
   student_fee_cents: fee,
   instructor_platform_fee_cents: 0,
+  target_instructor_payout_cents: base,
   credit_applied_cents: credit,
   student_pay_cents: base + fee - credit,
   application_fee_cents: 0,
@@ -228,7 +229,9 @@ describe('Credits accordion expansion & persistence', () => {
 
     const toggleAfterRefresh = await screen.findByRole('button', { name: /Available Credits/i });
     expect(toggleAfterRefresh).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryAllByText(/Using \$45\.00/i).length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(screen.queryAllByText(/Using \$45\.00/i).length).toBeGreaterThan(0);
+    });
     expect(JSON.parse(sessionStorage.getItem(STORAGE_KEY)!)).toMatchObject({
       lastCreditCents: 4500,
       explicitlyRemoved: false,

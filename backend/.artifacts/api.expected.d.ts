@@ -367,6 +367,54 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/auth-blocks": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_auth_issues_api_v1_admin_auth_blocks_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/auth-blocks/summary": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_summary_stats_api_v1_admin_auth_blocks_summary_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/auth-blocks/{email}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_account_state_api_v1_admin_auth_blocks__email__get"];
+ put?: never;
+ post?: never;
+ delete: operations["clear_account_blocks_api_v1_admin_auth_blocks__email__delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/background-checks/cases": {
  parameters: {
  query?: never;
@@ -761,6 +809,134 @@ export type paths = {
  get: operations["admin_instructor_detail_api_v1_admin_instructors__instructor_id__get"];
  put?: never;
  post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/aliases": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["create_manual_alias_api_v1_admin_location_learning_aliases_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/aliases/{alias_id}/approve": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["approve_learned_alias_api_v1_admin_location_learning_aliases__alias_id__approve_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/aliases/{alias_id}/reject": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["reject_learned_alias_api_v1_admin_location_learning_aliases__alias_id__reject_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/pending-aliases": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_pending_learned_aliases_api_v1_admin_location_learning_pending_aliases_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/process": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["process_location_learning_api_v1_admin_location_learning_process_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/regions": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_regions_api_v1_admin_location_learning_regions_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/unresolved": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_unresolved_location_queries_api_v1_admin_location_learning_unresolved_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/location-learning/unresolved/{query_normalized}/dismiss": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["dismiss_unresolved_query_api_v1_admin_location_learning_unresolved__query_normalized__dismiss_post"];
  delete?: never;
  options?: never;
  head?: never;
@@ -1945,6 +2121,70 @@ export type paths = {
  get?: never;
  put?: never;
  post: operations["dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructor-referrals/founding-status": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_founding_status_api_v1_instructor_referrals_founding_status_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructor-referrals/popup-data": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_popup_data_api_v1_instructor_referrals_popup_data_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructor-referrals/referred": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_referred_instructors_api_v1_instructor_referrals_referred_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructor-referrals/stats": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_referral_stats_api_v1_instructor_referrals_stats_get"];
+ put?: never;
+ post?: never;
  delete?: never;
  options?: never;
  head?: never;
@@ -3999,6 +4239,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/sse/token": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["get_sse_token_api_v1_sse_token_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/students/badges": {
  parameters: {
  query?: never;
@@ -4296,9 +4552,7 @@ export type components = {
  badge: components["schemas"]["AdminAwardBadgeSchema"];
  confirmed_at?: string | null;
  hold_until?: string | null;
- progress_snapshot?: {
- [key: string]: unknown;
- } | null;
+ progress_snapshot?: components["schemas"]["BadgeProgressView"] | null;
  revoked_at?: string | null;
  status: string;
  student: components["schemas"]["AdminAwardStudentSchema"];
@@ -4444,6 +4698,77 @@ export type components = {
  name: string;
  updated_at?: string | null;
  };
+ AdminLocationLearningAliasActionResponse: {
+ alias_id: string;
+ status: "approved" | "rejected";
+ };
+ AdminLocationLearningClickCount: {
+ count: number;
+ region_boundary_id: string;
+ region_name?: string | null;
+ };
+ AdminLocationLearningCreateAliasRequest: {
+ alias: string;
+ alias_type: string | null;
+ candidate_region_ids?: string[] | null;
+ region_boundary_id?: string | null;
+ };
+ AdminLocationLearningCreateAliasResponse: {
+ alias_id: string;
+ status: "created";
+ };
+ AdminLocationLearningDismissQueryResponse: {
+ query_normalized: string;
+ status: "dismissed";
+ };
+ AdminLocationLearningLearnedAliasItem: {
+ alias_normalized: string;
+ confidence: number;
+ confirmations: number;
+ region_boundary_id: string;
+ status: string;
+ };
+ AdminLocationLearningPendingAliasItem: {
+ alias_normalized: string;
+ confidence: number;
+ created_at: string;
+ id: string;
+ region_boundary_id?: string | null;
+ region_name?: string | null;
+ status: string;
+ user_count: number;
+ };
+ AdminLocationLearningPendingAliasesResponse: {
+ aliases: components["schemas"]["AdminLocationLearningPendingAliasItem"][];
+ };
+ AdminLocationLearningProcessResponse: {
+ learned: components["schemas"]["AdminLocationLearningLearnedAliasItem"][];
+ learned_count: number;
+ };
+ AdminLocationLearningRegionItem: {
+ borough?: string | null;
+ id: string;
+ name: string;
+ };
+ AdminLocationLearningRegionsResponse: {
+ regions: components["schemas"]["AdminLocationLearningRegionItem"][];
+ };
+ AdminLocationLearningUnresolvedQueriesResponse: {
+ queries: components["schemas"]["AdminLocationLearningUnresolvedQueryItem"][];
+ total: number;
+ };
+ AdminLocationLearningUnresolvedQueryItem: {
+ click_count: number;
+ clicks: components["schemas"]["AdminLocationLearningClickCount"][];
+ first_seen_at: string;
+ id: string;
+ last_seen_at: string;
+ query_normalized: string;
+ sample_original_queries: string[];
+ search_count: number;
+ status: string;
+ unique_user_count: number;
+ };
  AdminNoShowResolution: "confirmed_after_review" | "dispute_upheld" | "cancelled";
  AdminNoShowResolutionRequest: {
  admin_notes?: string | null;
@@ -4534,9 +4859,7 @@ export type components = {
  };
  AlertDetail: {
  created_at: string;
- details?: {
- [key: string]: unknown;
- } | null;
+ details?: (components["schemas"]["ExtremelySlowQueryDetails"] | components["schemas"]["ExtremelySlowRequestDetails"] | components["schemas"]["HighDbPoolUsageDetails"] | components["schemas"]["HighMemoryUsageDetails"] | components["schemas"]["LowCacheHitRateDetails"]) | null;
  email_sent: boolean;
  github_issue: boolean;
  id: string;
@@ -4657,10 +4980,16 @@ export type components = {
  items: components["schemas"]["PlaceSuggestion"][];
  total: number;
  };
- AvailabilityCacheMetricsResponse: {
- availability_cache_metrics: {
- [key: string]: unknown;
+ AvailabilityCacheMetrics: {
+ cache_efficiency: string;
+ hit_rate: string;
+ hits: number;
+ invalidations: number;
+ misses: number;
+ total_requests: number;
  };
+ AvailabilityCacheMetricsResponse: {
+ availability_cache_metrics: components["schemas"]["AvailabilityCacheMetrics"];
  cache_tiers_info: {
  [key: string]: string;
  };
@@ -4676,14 +5005,20 @@ export type components = {
  };
  AvailabilityCheckResponse: {
  available: boolean;
- conflicts_with?: {
- [key: string]: unknown;
- }[] | null;
+ conflicts_with?: components["schemas"]["ConflictingBookingInfo"][] | null;
  min_advance_hours?: number | null;
  reason?: string | null;
- time_info?: {
- [key: string]: unknown;
- } | null;
+ time_info?: components["schemas"]["TimeSlotInfo"] | null;
+ };
+ AvailabilityConflictInfo: {
+ booking_id?: string | null;
+ end_time?: string | null;
+ start_time?: string | null;
+ };
+ AvailabilityMetrics: {
+ availability_hit_rate: string;
+ availability_invalidations: number;
+ availability_total_requests: number;
  };
  AvailabilityWindowResponse: {
  end_time: string;
@@ -4858,6 +5193,12 @@ export type components = {
  } & {
  [key: string]: unknown;
  };
+ BasicCacheStats: {
+ errors: number;
+ hit_rate: string;
+ hits: number;
+ misses: number;
+ };
  BetaMetricsSummaryResponse: {
  invites_errors_24h: number;
  invites_sent_24h: number;
@@ -4886,6 +5227,17 @@ export type components = {
  instructor_id: string;
  reason?: string | null;
  };
+ BlockedAccount: {
+ blocks: components["schemas"]["BlocksState"];
+ email: string;
+ failure_count: number;
+ };
+ BlocksState: {
+ captcha_required?: components["schemas"]["CaptchaState"] | null;
+ lockout?: components["schemas"]["LockoutState"] | null;
+ rate_limit_hour?: components["schemas"]["RateLimitState"] | null;
+ rate_limit_minute?: components["schemas"]["RateLimitState"] | null;
+ };
  Body_dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post: {
  reason: string;
  };
@@ -4905,10 +5257,20 @@ export type components = {
  Body_respond_to_review_api_v1_reviews__review_id__respond_post: {
  response_text: string;
  };
+ BookedSlotItem: {
+ booking_id: string;
+ date: string;
+ duration_minutes: number;
+ end_time: string;
+ location_type: string;
+ service_area_short: string;
+ service_name: string;
+ start_time: string;
+ student_first_name: string;
+ student_last_initial: string;
+ };
  BookedSlotsResponse: {
- booked_slots: {
- [key: string]: unknown;
- }[];
+ booked_slots: components["schemas"]["BookedSlotItem"][];
  week_end: string;
  week_start: string;
  };
@@ -5107,11 +5469,28 @@ export type components = {
  remaining_ms: number;
  skipped_operations?: string[];
  };
+ BuildResponseStageDetails: {
+ result_count: number;
+ };
  BulkUpdateResponse: {
  failed: number;
  results: components["schemas"]["OperationResult"][];
  skipped: number;
  successful: number;
+ };
+ Burst1StageDetails: {
+ location_tier?: number | null;
+ region_lookup_loaded: boolean;
+ text_candidates: number;
+ };
+ Burst2StageDetails: {
+ filter_failed: boolean;
+ ranking_failed: boolean;
+ total_candidates: number;
+ vector_search_used: boolean;
+ };
+ CacheCheckStageDetails: {
+ latency_ms: number;
  };
  CacheHealthStatus: {
  errors: number;
@@ -5121,9 +5500,7 @@ export type components = {
  total_requests: number;
  };
  CacheMetricsResponse: {
- availability_metrics: {
- [key: string]: unknown;
- };
+ availability_metrics: components["schemas"]["AvailabilityMetrics"];
  errors: number;
  hit_rate: string;
  hits: number;
@@ -5174,6 +5551,9 @@ export type components = {
  service_name: string;
  };
  CandidateTopServicesResponse: components["schemas"]["CandidateTopService"][];
+ CaptchaState: {
+ active: boolean;
+ };
  CatalogServiceMinimalResponse: {
  id: string;
  name: string;
@@ -5230,6 +5610,13 @@ export type components = {
  slug: string;
  subtitle?: string | null;
  };
+ CeleryQueuesData: {
+ queues?: {
+ [key: string]: number;
+ };
+ status: string;
+ total_pending: number;
+ };
  CheckoutApplyRequest: {
  order_id: string;
  };
@@ -5244,6 +5631,17 @@ export type components = {
  requires_action: boolean;
  status: string;
  success: boolean;
+ };
+ ClearBlocksRequest: {
+ reason?: string | null;
+ types?: string[] | null;
+ };
+ ClearBlocksResponse: {
+ cleared: string[];
+ cleared_at: string;
+ cleared_by: string;
+ email: string;
+ reason?: string | null;
  };
  CodebaseCategoryStats: {
  files: number;
@@ -5292,6 +5690,11 @@ export type components = {
  total_lines: number;
  total_lines_with_blanks: number;
  };
+ ConflictingBookingInfo: {
+ booking_id?: string | null;
+ end_time?: string | null;
+ start_time?: string | null;
+ };
  ConsentPayload: {
  consent_version: string;
  disclosure_version: string;
@@ -5326,6 +5729,10 @@ export type components = {
  avg_days_to_conversion: number;
  avg_searches_before_conversion: number;
  most_common_first_search: string;
+ };
+ ConversionMetrics: {
+ conversion_behavior: components["schemas"]["ConversionBehavior"];
+ guest_sessions: components["schemas"]["GuestConversionMetrics"];
  };
  ConversionMetricsResponse: {
  conversion_behavior: components["schemas"]["ConversionBehavior"];
@@ -5395,36 +5802,57 @@ export type components = {
  message: string;
  status: string;
  };
+ DatabaseDashboardMetrics: {
+ average_pool_usage_percent: number;
+ pool: components["schemas"]["DatabasePoolStatus"];
+ slow_queries_count: number;
+ };
+ DatabaseHealthMetrics: {
+ status: string;
+ usage_percent: number;
+ };
  DatabaseHealthResponse: {
  error?: string | null;
  message: string;
- pool_status?: {
- [key: string]: unknown;
- } | null;
+ pool_status?: components["schemas"]["DatabasePoolMetrics"] | null;
  status: string;
+ };
+ DatabasePoolConfiguration: {
+ max_overflow: number;
+ pool_size: number;
+ recycle?: number | null;
+ timeout?: number | null;
+ };
+ DatabasePoolMetrics: {
+ checked_in: number;
+ checked_out: number;
+ max_size: number;
+ overflow: number;
+ size: number;
+ total: number;
+ usage_percent: number;
+ };
+ DatabasePoolStatus: {
+ checked_in: number;
+ checked_out: number;
+ overflow: number;
+ pool_size: number;
+ usage_percent: number;
  };
  DatabasePoolStatusResponse: {
- configuration: {
- [key: string]: unknown;
- };
- pool: {
- [key: string]: unknown;
- };
- recommendations: {
- [key: string]: unknown;
- };
+ configuration: components["schemas"]["DatabasePoolConfiguration"];
+ pool: components["schemas"]["DatabasePoolMetrics"];
+ recommendations: components["schemas"]["DatabaseRecommendations"];
  status: string;
  };
+ DatabaseRecommendations: {
+ current_load: "low" | "normal" | "high";
+ increase_pool_size: boolean;
+ };
  DatabaseStatsResponse: {
- configuration: {
- [key: string]: unknown;
- };
- health: {
- [key: string]: unknown;
- };
- pool: {
- [key: string]: unknown;
- };
+ configuration: components["schemas"]["DatabasePoolConfiguration"];
+ health: components["schemas"]["DatabaseHealthMetrics"];
+ pool: components["schemas"]["DatabasePoolMetrics"];
  status: string;
  };
  DateRange: {
@@ -5443,6 +5871,19 @@ export type components = {
  DeleteWindowResponse: {
  message: string;
  window_id: string;
+ };
+ DeviceContext: {
+ browser?: string | null;
+ connection_effective_type?: string | null;
+ connection_type?: string | null;
+ device_type?: string | null;
+ language?: string | null;
+ os?: string | null;
+ screen_height?: number | null;
+ screen_resolution?: string | null;
+ screen_width?: number | null;
+ timezone?: string | null;
+ viewport_size?: string | null;
  };
  EarningsExportRequest: {
  end_date?: string | null;
@@ -5466,6 +5907,10 @@ export type components = {
  EditMessageRequest: {
  content: string;
  };
+ EmbeddingStageDetails: {
+ reason?: string | null;
+ used: boolean;
+ };
  ExistingReviewIdsResponse: string[];
  ExportAnalyticsResponse: {
  download_url?: string | null;
@@ -5475,15 +5920,27 @@ export type components = {
  user: string;
  };
  ExtendedCacheStats: {
- basic_stats: {
- [key: string]: unknown;
- };
+ basic_stats: components["schemas"]["BasicCacheStats"];
  key_patterns?: {
  [key: string]: number;
  } | null;
  redis_info?: {
  [key: string]: unknown;
  } | null;
+ };
+ ExtremelySlowQueryDetails: {
+ alert_type: "extremely_slow_query";
+ duration_ms: number;
+ full_query?: string | null;
+ query_preview: string;
+ };
+ ExtremelySlowRequestDetails: {
+ alert_type: "extremely_slow_request";
+ client: string;
+ duration_ms: number;
+ method: string;
+ path: string;
+ status_code: number;
  };
  FavoriteResponse: {
  already_favorited?: boolean | null;
@@ -5518,6 +5975,12 @@ export type components = {
  cap: number;
  count: number;
  remaining: number;
+ };
+ FoundingStatusResponse: {
+ is_founding_phase: boolean;
+ spots_filled: number;
+ spots_remaining: number;
+ total_founding_spots: number;
  };
  GatedPingResponse: {
  ok: boolean;
@@ -5569,6 +6032,20 @@ export type components = {
  status: string;
  timestamp: string;
  version: string;
+ };
+ HighDbPoolUsageDetails: {
+ alert_type: "high_db_pool_usage";
+ checked_out?: number | null;
+ total_possible?: number | null;
+ usage_percent?: number | null;
+ };
+ HighMemoryUsageDetails: {
+ alert_type: "high_memory_usage";
+ memory_mb?: number | null;
+ percent?: number | null;
+ };
+ HydrateStageDetails: {
+ result_count: number;
  };
  IdentityRefreshResponse: {
  status: string;
@@ -5649,13 +6126,38 @@ export type components = {
  years_experience?: number | null;
  };
  InstructorRatingsResponse: {
- by_service?: {
- [key: string]: unknown;
- }[];
+ by_service?: components["schemas"]["ServiceRatingStats"][];
  confidence_level: string;
- overall: {
- [key: string]: unknown;
+ overall: components["schemas"]["OverallRatingStats"];
  };
+ InstructorSearchResult: {
+ average_rating?: number | null;
+ bio?: string | null;
+ favorited_count: number;
+ first_name: string;
+ has_profile_picture: boolean;
+ id: string;
+ is_favorited?: boolean | null;
+ is_live: boolean;
+ last_initial: string;
+ profile_picture_version: number;
+ review_count: number;
+ service_area_boroughs?: string[];
+ service_area_summary?: string | null;
+ services?: components["schemas"]["InstructorSearchResultService"][];
+ teaches_adults?: boolean | null;
+ teaches_kids?: boolean | null;
+ user_id: string;
+ years_experience?: number | null;
+ };
+ InstructorSearchResultService: {
+ catalog_service_id: string;
+ custom_description?: string | null;
+ duration_options?: number[];
+ hourly_rate: number;
+ id: string;
+ is_active: boolean;
+ name: string;
  };
  InstructorServiceCreate: {
  catalog_service_id: string;
@@ -5769,6 +6271,11 @@ export type components = {
  amount_cents: number;
  label: string;
  };
+ ListAuthIssuesResponse: {
+ accounts: components["schemas"]["BlockedAccount"][];
+ scanned_at: string;
+ total: number;
+ };
  LiveAlertItem: {
  message: string;
  severity: string;
@@ -5787,6 +6294,10 @@ export type components = {
  successful_tier?: number | null;
  tiers?: components["schemas"]["LocationTierResult"][];
  };
+ LocationResolutionStageDetails: {
+ resolved: boolean;
+ tier?: number | null;
+ };
  LocationTierResult: {
  attempted: boolean;
  confidence?: number | null;
@@ -5796,11 +6307,21 @@ export type components = {
  status: components["schemas"]["StageStatus"];
  tier: number;
  };
+ LockoutState: {
+ active: boolean;
+ level: string;
+ ttl_seconds: number;
+ };
  LoginResponse: {
  access_token?: string | null;
  requires_2fa: boolean;
  temp_token?: string | null;
  token_type?: string | null;
+ };
+ LowCacheHitRateDetails: {
+ alert_type: "low_cache_hit_rate";
+ hit_rate?: number | null;
+ target?: number | null;
  };
  MarkMessagesReadRequest: {
  conversation_id?: string | null;
@@ -5851,9 +6372,7 @@ export type components = {
  MonitoringDashboardResponse: {
  alerts: components["schemas"]["AlertInfo"][];
  cache: components["schemas"]["CacheHealthStatus"];
- database: {
- [key: string]: unknown;
- };
+ database: components["schemas"]["DatabaseDashboardMetrics"];
  memory: components["schemas"]["MemoryMetrics"];
  recommendations: components["schemas"]["PerformanceRecommendation"][];
  requests: components["schemas"]["RequestMetrics"];
@@ -5970,6 +6489,15 @@ export type components = {
  NotificationUnreadCountResponse: {
  unread_count: number;
  };
+ ObservabilityCandidate: {
+ id?: string | null;
+ lexical_score?: number | null;
+ position?: number | null;
+ score?: number | null;
+ service_catalog_id?: string | null;
+ source?: string | null;
+ vector_score?: number | null;
+ };
  OnboardingResponse: {
  account_id: string;
  already_onboarded: boolean;
@@ -5989,6 +6517,11 @@ export type components = {
  reason?: string | null;
  slot_id?: string | null;
  status: "success" | "failed" | "skipped";
+ };
+ OverallRatingStats: {
+ display_rating?: string | null;
+ rating: number;
+ total_reviews: number;
  };
  OverridePayload: {
  action: "approve" | "reject";
@@ -6016,6 +6549,9 @@ export type components = {
  page: number;
  per_page: number;
  total: number;
+ };
+ ParseStageDetails: {
+ mode: string;
  };
  ParsedQueryInfo: {
  audience_hint?: string | null;
@@ -6112,6 +6648,15 @@ export type components = {
  id: string;
  status: string;
  };
+ PerformanceCacheStats: {
+ hit_rate: string;
+ hits: number;
+ misses: number;
+ };
+ PerformanceDatabaseMetrics: {
+ active_connections: number;
+ pool_status: components["schemas"]["DatabasePoolStatus"];
+ };
  PerformanceMetrics: {
  avg_results_per_search: number;
  most_effective_type: string;
@@ -6120,13 +6665,9 @@ export type components = {
  PerformanceMetricsResponse: {
  availability_service: components["schemas"]["ServiceMetrics"];
  booking_service: components["schemas"]["ServiceMetrics"];
- cache: {
- [key: string]: unknown;
- };
+ cache: components["schemas"]["PerformanceCacheStats"];
  conflict_checker: components["schemas"]["ServiceMetrics"];
- database: {
- [key: string]: unknown;
- };
+ database: components["schemas"]["PerformanceDatabaseMetrics"];
  system: {
  [key: string]: number;
  };
@@ -6152,9 +6693,7 @@ export type components = {
  verified: boolean;
  };
  PipelineStage: {
- details?: {
- [key: string]: unknown;
- } | null;
+ details?: components["schemas"]["CacheCheckStageDetails"] | components["schemas"]["Burst1StageDetails"] | components["schemas"]["ParseStageDetails"] | components["schemas"]["EmbeddingStageDetails"] | components["schemas"]["LocationResolutionStageDetails"] | components["schemas"]["Burst2StageDetails"] | components["schemas"]["HydrateStageDetails"] | components["schemas"]["BuildResponseStageDetails"] | components["schemas"]["SkippedStageDetails"] | null;
  duration_ms: number;
  name: string;
  status: components["schemas"]["StageStatus"];
@@ -6201,6 +6740,13 @@ export type components = {
  unique_users: number;
  };
  PopularSearchesResponse: components["schemas"]["PopularSearch"][];
+ PopupDataResponse: {
+ bonus_amount_cents: number;
+ founding_spots_remaining: number;
+ is_founding_phase: boolean;
+ referral_code: string;
+ referral_link: string;
+ };
  PreferenceResponse: {
  category: string;
  channel: string;
@@ -6301,10 +6847,16 @@ export type components = {
  target_instructor_payout_cents: number;
  top_up_transfer_cents: number;
  };
- PrivacyStatisticsResponse: {
- statistics: {
- [key: string]: unknown;
+ PrivacyStatistics: {
+ active_users: number;
+ search_event_records: number;
+ search_events_eligible_for_deletion?: number | null;
+ search_history_records: number;
+ total_bookings: number;
+ total_users: number;
  };
+ PrivacyStatisticsResponse: {
+ statistics: components["schemas"]["PrivacyStatistics"];
  status: string;
  };
  ProblematicQuery: {
@@ -6321,6 +6873,13 @@ export type components = {
  ok: boolean;
  url?: string | null;
  };
+ PublicAvailabilitySummaryEntry: {
+ afternoon_available: boolean;
+ date: string;
+ evening_available: boolean;
+ morning_available: boolean;
+ total_hours: number;
+ };
  PublicConfigResponse: {
  fees: components["schemas"]["PlatformFees"];
  updated_at?: string | null;
@@ -6335,9 +6894,7 @@ export type components = {
  [key: string]: components["schemas"]["PublicDayAvailability"];
  } | null;
  availability_summary?: {
- [key: string]: {
- [key: string]: unknown;
- };
+ [key: string]: components["schemas"]["PublicAvailabilitySummaryEntry"];
  } | null;
  detail_level: string;
  earliest_available_date?: string | null;
@@ -6378,19 +6935,28 @@ export type components = {
  pattern: string;
  status: string;
  };
+ RateLimitState: {
+ active: boolean;
+ count: number;
+ limit: number;
+ ttl_seconds: number;
+ };
  RateLimitStats: {
  breakdown_by_type: {
  [key: string]: number;
  };
- top_limited_clients: {
- [key: string]: unknown;
- }[];
+ top_limited_clients: components["schemas"]["RateLimitedClient"][];
  total_keys: number;
  };
  RateLimitTestResponse: {
  message: string;
  note: string;
  timestamp: string;
+ };
+ RateLimitedClient: {
+ count: number;
+ endpoint: string;
+ key: string;
  };
  RatingSummary: {
  average?: number | null;
@@ -6427,15 +6993,41 @@ export type components = {
  hours: number;
  total: number;
  };
- RedisCeleryQueuesResponse: {
- queues: {
- [key: string]: unknown;
+ RedisActiveConnections: {
+ local_redis: number;
+ upstash: number;
  };
+ RedisCeleryQueuesResponse: {
+ queues: components["schemas"]["CeleryQueuesData"];
+ };
+ RedisClientStats: {
+ blocked_clients: number;
+ connected_clients: number;
+ };
+ RedisConnectionAuditData: {
+ active_connections?: components["schemas"]["RedisActiveConnections"];
+ api_cache: string;
+ celery_broker: string;
+ environment_variables?: {
+ [key: string]: string;
+ };
+ migration_status: string;
+ recommendation: string;
+ service_connections?: {
+ [key: string]: components["schemas"]["RedisServiceConnection"];
+ };
+ upstash_detected: boolean;
  };
  RedisConnectionAuditResponse: {
- connections: {
- [key: string]: unknown;
- }[];
+ connections: components["schemas"]["RedisConnectionAuditData"][];
+ };
+ RedisConnectionStats: {
+ evicted_keys: number;
+ expired_keys: number;
+ instantaneous_ops_per_sec: number;
+ rejected_connections: number;
+ total_commands_processed: number;
+ total_connections_received: number;
  };
  RedisFlushQueuesResponse: {
  message: string;
@@ -6446,10 +7038,40 @@ export type components = {
  error?: string | null;
  status: string;
  };
- RedisStatsResponse: {
- stats: {
- [key: string]: unknown;
+ RedisMemoryInfo: {
+ maxmemory_human: string;
+ mem_fragmentation_ratio: number;
+ used_memory_human: string;
+ used_memory_peak_human: string;
+ used_memory_rss_human: string;
  };
+ RedisOperationMetrics: {
+ current_ops_per_sec: number;
+ estimated_daily_ops: number;
+ estimated_monthly_ops: number;
+ };
+ RedisServerInfo: {
+ redis_version: string;
+ uptime_in_days: number;
+ };
+ RedisServiceConnection: {
+ host: string;
+ type: string;
+ url: string;
+ };
+ RedisStatsData: {
+ celery?: {
+ [key: string]: number;
+ };
+ clients?: components["schemas"]["RedisClientStats"];
+ memory?: components["schemas"]["RedisMemoryInfo"];
+ operations?: components["schemas"]["RedisOperationMetrics"];
+ server?: components["schemas"]["RedisServerInfo"];
+ stats?: components["schemas"]["RedisConnectionStats"];
+ status: string;
+ };
+ RedisStatsResponse: {
+ stats: components["schemas"]["RedisStatsData"];
  };
  RedisTestResponse: {
  connected_clients: number | null;
@@ -6498,6 +7120,32 @@ export type components = {
  sent: number;
  status: string;
  };
+ ReferralStatsResponse: {
+ completed_payouts: number;
+ current_bonus_cents: number;
+ founding_spots_remaining: number;
+ is_founding_phase: boolean;
+ pending_payouts: number;
+ referral_code: string;
+ referral_link: string;
+ total_earned_cents: number;
+ total_referred: number;
+ };
+ ReferredInstructorInfo: {
+ first_lesson_completed_at?: string | null;
+ first_name: string;
+ id: string;
+ is_live: boolean;
+ last_initial: string;
+ payout_amount_cents?: number | null;
+ payout_status: string;
+ referred_at: string;
+ went_live_at?: string | null;
+ };
+ ReferredInstructorsResponse: {
+ instructors: components["schemas"]["ReferredInstructorInfo"][];
+ total_count: number;
+ };
  RequestMetrics: {
  active_count: number;
  average_response_time_ms: number;
@@ -6516,10 +7164,12 @@ export type components = {
  };
  RetentionPolicyResponse: {
  message: string;
- stats: {
- [key: string]: unknown;
- };
+ stats: components["schemas"]["RetentionStats"];
  status: string;
+ };
+ RetentionStats: {
+ old_bookings_anonymized: number;
+ search_events_deleted: number;
  };
  RetryPaymentResponse: {
  error?: string | null;
@@ -6581,10 +7231,13 @@ export type components = {
  payment_method_id: string;
  set_as_default: boolean;
  };
- SearchAnalyticsSummaryResponse: {
- conversions: {
- [key: string]: unknown;
+ ScheduleItem: {
+ date: string;
+ end_time: string;
+ start_time: string;
  };
+ SearchAnalyticsSummaryResponse: {
+ conversions: components["schemas"]["ConversionMetrics"];
  date_range: components["schemas"]["DateRange"];
  performance: components["schemas"]["PerformanceMetrics"];
  search_types: {
@@ -6621,6 +7274,13 @@ export type components = {
  parsing_model?: string | null;
  parsing_timeout_ms?: number | null;
  };
+ SearchContext: {
+ page_origin?: string | null;
+ referrer?: string | null;
+ session_search_count?: number | null;
+ viewport_height?: number | null;
+ viewport_width?: number | null;
+ };
  SearchDiagnostics: {
  after_availability_filter: number;
  after_location_filter: number;
@@ -6644,6 +7304,14 @@ export type components = {
  searches_with_results: number;
  zero_result_rate: number;
  };
+ SearchFiltersApplied: {
+ age_group?: string | null;
+ max_price?: number | null;
+ min_price?: number | null;
+ search?: string | null;
+ service_area_boroughs?: string[] | null;
+ service_catalog_id?: string | null;
+ };
  SearchHealthCache: {
  available: boolean;
  error?: string | null;
@@ -6662,17 +7330,11 @@ export type components = {
  status: string;
  };
  SearchHistoryCreate: {
- device_context?: {
- [key: string]: unknown;
- } | null;
+ device_context?: components["schemas"]["DeviceContext"] | null;
  guest_session_id?: string | null;
- observability_candidates?: {
- [key: string]: unknown;
- }[] | null;
+ observability_candidates?: components["schemas"]["ObservabilityCandidate"][] | null;
  results_count?: number | null;
- search_context?: {
- [key: string]: unknown;
- } | null;
+ search_context?: components["schemas"]["SearchContext"] | null;
  search_query: string;
  search_type: string;
  };
@@ -6702,6 +7364,11 @@ export type components = {
  p95_latency_ms: number;
  total_searches: number;
  zero_result_rate: number;
+ };
+ SearchPagination: {
+ count: number;
+ limit: number;
+ skip: number;
  };
  SearchPerformanceResponse: {
  effectiveness: components["schemas"]["SearchEffectiveness"];
@@ -6797,6 +7464,12 @@ export type components = {
  };
  total_operations: number;
  };
+ ServiceRatingStats: {
+ display_rating?: string | null;
+ instructor_service_id: string;
+ rating?: number | null;
+ review_count: number;
+ };
  ServiceResponse: {
  age_groups?: string[] | null;
  description?: string | null;
@@ -6817,18 +7490,12 @@ export type components = {
  };
  ServiceSearchMetadata: {
  active_instructors: number;
- filters_applied?: {
- [key: string]: unknown;
- };
- pagination?: {
- [key: string]: unknown;
- };
+ filters_applied?: components["schemas"]["SearchFiltersApplied"];
+ pagination?: components["schemas"]["SearchPagination"];
  total_matches: number;
  };
  ServiceSearchResponse: {
- instructors?: {
- [key: string]: unknown;
- }[];
+ instructors?: components["schemas"]["InstructorSearchResult"][];
  metadata: components["schemas"]["ServiceSearchMetadata"];
  query: string;
  search_type: "service";
@@ -6841,6 +7508,9 @@ export type components = {
  object_key: string;
  public_url?: string | null;
  upload_url: string;
+ };
+ SkippedStageDetails: {
+ reason: string;
  };
  SlotOperation: {
  action: "add" | "remove" | "update";
@@ -6875,6 +7545,10 @@ export type components = {
  specific_date: string;
  start_time: string;
  };
+ SseTokenResponse: {
+ expires_in_s: number;
+ token: string;
+ };
  StageStatus: "success" | "skipped" | "timeout" | "error" | "cache_hit" | "miss" | "cancelled";
  StudentBadgeView: {
  awarded_at?: string | null;
@@ -6882,9 +7556,7 @@ export type components = {
  description?: string | null;
  earned: boolean;
  name: string;
- progress?: components["schemas"]["BadgeProgressView"] | {
- [key: string]: unknown;
- } | null;
+ progress?: components["schemas"]["BadgeProgressView"] | null;
  slug: string;
  status?: string | null;
  };
@@ -6907,6 +7579,12 @@ export type components = {
  } | null;
  message: string;
  success: boolean;
+ };
+ SummaryStats: {
+ captcha_required: number;
+ locked_out: number;
+ rate_limited: number;
+ total_blocked: number;
  };
  TFADisableRequest: {
  current_password: string;
@@ -6951,6 +7629,12 @@ export type components = {
  };
  TimeSlot: {
  end_time: string;
+ start_time: string;
+ };
+ TimeSlotInfo: {
+ date: string;
+ end_time: string;
+ instructor_id: string;
  start_time: string;
  };
  TopCategoryItem: {
@@ -7053,9 +7737,7 @@ export type components = {
  guest_session_id?: string | null;
  is_active: boolean | null;
  last_name: string;
- metadata?: {
- [key: string]: unknown;
- } | null;
+ metadata?: components["schemas"]["UserRegistrationMetadata"] | null;
  password: string;
  phone?: string | null;
  role?: string | null;
@@ -7078,6 +7760,15 @@ export type components = {
  email: string;
  guest_session_id?: string | null;
  password: string;
+ };
+ UserRegistrationMetadata: {
+ campaign?: string | null;
+ invite_code?: string | null;
+ marketing_tag?: string | null;
+ referral_code?: string | null;
+ referral_source?: string | null;
+ } & {
+ [key: string]: unknown;
  };
  UserSummary: {
  first_name: string;
@@ -7108,9 +7799,7 @@ export type components = {
  };
  ValidationSlotDetail: {
  action: string;
- conflicts_with?: {
- [key: string]: unknown;
- }[] | null;
+ conflicts_with?: components["schemas"]["AvailabilityConflictInfo"][] | null;
  date?: string | null;
  end_time?: string | null;
  operation_index: number;
@@ -7163,9 +7852,7 @@ export type components = {
  base_version?: string | null;
  clear_existing: boolean;
  override: boolean;
- schedule: {
- [key: string]: unknown;
- }[];
+ schedule: components["schemas"]["ScheduleItem"][];
  version?: string | null;
  week_start?: string | null;
  };
@@ -7921,6 +8608,141 @@ export interface operations {
  };
  };
  };
+ list_auth_issues_api_v1_admin_auth_blocks_get: {
+ parameters: {
+ query?: {
+ type?: string | null;
+ email?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ListAuthIssuesResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_summary_stats_api_v1_admin_auth_blocks_summary_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SummaryStats"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ get_account_state_api_v1_admin_auth_blocks__email__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ email: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BlockedAccount"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ clear_account_blocks_api_v1_admin_auth_blocks__email__delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ email: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: {
+ content: {
+ "application/json": components["schemas"]["ClearBlocksRequest"] | null;
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ClearBlocksResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  bgc_cases_api_v1_admin_background_checks_cases_get: {
  parameters: {
  query?: {
@@ -8660,6 +9482,230 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AdminInstructorDetailResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ create_manual_alias_api_v1_admin_location_learning_aliases_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningCreateAliasRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningCreateAliasResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ approve_learned_alias_api_v1_admin_location_learning_aliases__alias_id__approve_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ alias_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningAliasActionResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ reject_learned_alias_api_v1_admin_location_learning_aliases__alias_id__reject_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ alias_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningAliasActionResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_pending_learned_aliases_api_v1_admin_location_learning_pending_aliases_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningPendingAliasesResponse"];
+ };
+ };
+ };
+ };
+ process_location_learning_api_v1_admin_location_learning_process_post: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningProcessResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_regions_api_v1_admin_location_learning_regions_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningRegionsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_unresolved_location_queries_api_v1_admin_location_learning_unresolved_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningUnresolvedQueriesResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ dismiss_unresolved_query_api_v1_admin_location_learning_unresolved__query_normalized__dismiss_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ query_normalized: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminLocationLearningDismissQueryResponse"];
  };
  };
  422: {
@@ -11068,6 +12114,93 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_founding_status_api_v1_instructor_referrals_founding_status_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["FoundingStatusResponse"];
+ };
+ };
+ };
+ };
+ get_popup_data_api_v1_instructor_referrals_popup_data_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PopupDataResponse"];
+ };
+ };
+ };
+ };
+ get_referred_instructors_api_v1_instructor_referrals_referred_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ offset?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ReferredInstructorsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_referral_stats_api_v1_instructor_referrals_stats_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ReferralStatsResponse"];
  };
  };
  };
@@ -14195,13 +15328,11 @@ export interface operations {
  };
  requestBody?: never;
  responses: {
- 200: {
+ 204: {
  headers: {
  [name: string]: unknown;
  };
- content: {
- "application/json": unknown;
- };
+ content?: never;
  };
  };
  };
@@ -14352,6 +15483,12 @@ export interface operations {
  content: {
  "application/json": components["schemas"]["VapidPublicKeyResponse"];
  };
+ };
+ 503: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
  };
  };
  };
@@ -15478,6 +16615,25 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_sse_token_api_v1_sse_token_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SseTokenResponse"];
  };
  };
  };

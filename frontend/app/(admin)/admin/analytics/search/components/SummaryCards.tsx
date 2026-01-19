@@ -57,7 +57,8 @@ function StatCard({ title, value, subtitle, icon, trend, loading }: StatCardProp
 export function SummaryCards({ summary, loading }: SummaryCardsProps) {
   const totalSearches = summary?.totals?.total_searches || 0;
   const uniqueUsers = summary?.totals?.total_users || 0;
-  const conversionRate = summary?.conversions?.guest_sessions?.conversion_rate || 0;
+  const guestConversion = summary?.conversions?.['guest_sessions'] as { conversion_rate?: number } | undefined;
+  const conversionRate = guestConversion?.conversion_rate ?? 0;
   const zeroResultRate = summary?.performance?.zero_result_rate || 0;
 
   return (

@@ -402,4 +402,4 @@ class AuthService(BaseService):
         try:
             self.db.close()
         except Exception:
-            pass  # Session may already be closed or in different state
+            self.logger.debug("Failed to close DB session during release_connection", exc_info=True)

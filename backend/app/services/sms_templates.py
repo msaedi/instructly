@@ -66,7 +66,7 @@ SECURITY_NEW_DEVICE_LOGIN = SMSTemplate(
     ),
 )
 
-SECURITY_PASSWORD_CHANGED = SMSTemplate(
+SECURITY_PW_CHANGED = SMSTemplate(
     category="system_updates",
     template=(
         "InstaInstru: Your password was just changed. If this wasn't you, reset it at "
@@ -111,7 +111,7 @@ __all__ = [
     "REVIEW_RESPONSE",
     "BOOKING_NEW_MESSAGE",
     "SECURITY_NEW_DEVICE_LOGIN",
-    "SECURITY_PASSWORD_CHANGED",
+    "SECURITY_PW_CHANGED",
     "SECURITY_2FA_CHANGED",
     "PAYMENT_FAILED",
     "render_sms",
