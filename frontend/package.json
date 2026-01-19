@@ -94,7 +94,7 @@
     "date-fns": "^4.1.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.562.0",
-    "motion": "^12.23.12",
+    "motion": "^12.27.0",
     "next": "16.1.1",
     "react": "^19.1.1",
     "react-dom": "^19.2.3",
