@@ -50,7 +50,7 @@ openai==2.14.0
 geopandas==1.1.2
 
 # Payments
-stripe==14.1.0
+stripe==14.2.0
 
 # Monitoring & Utilities
 prometheus-client==0.24.1
