@@ -23,4 +23,4 @@ celery-progress==0.5  # Progress tracking for long-running tasks
 # celery[cassandra]==5.3.4  # If using Cassandra as result backend
 
 # Development tools
-celery-types==0.23.0  # Type hints for Celery
+celery-types==0.24.0  # Type hints for Celery
