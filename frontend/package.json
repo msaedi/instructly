@@ -115,7 +115,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/jest": "^30.0.0",
     "@types/leaflet": "^1.9.21",
-    "@types/node": "^25.0.7",
+    "@types/node": "^25.0.9",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@typescript-eslint/parser": "^8.53.0",
