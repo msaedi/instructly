@@ -9,7 +9,7 @@ sse-starlette==3.1.1
 # Database
 SQLAlchemy==2.0.45
 psycopg2-binary==2.9.11
-alembic==1.17.2
+alembic==1.18.1
 pgvector==0.4.2
 
 # Validation & Serialization
@@ -26,8 +26,8 @@ pyotp==2.9.0
 qrcode==8.2
 
 # Async & Background Tasks
-celery==5.6.0
-redis==7.1.0
+celery==5.6.2
+redis==6.4.0
 broadcaster[redis]==0.3.1
 anyio==4.12.0
 
@@ -53,7 +53,7 @@ geopandas==1.1.2
 stripe==14.1.0
 
 # Monitoring & Utilities
-prometheus-client==0.24.0
+prometheus-client==0.24.1
 psutil==7.2.1
 python-ulid==3.1.0
 python-dotenv==1.2.1
