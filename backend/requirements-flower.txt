@@ -1,7 +1,7 @@
 # Minimal dependencies for the Flower monitoring container (no heavy backend deps)
 
 celery[redis]==5.6.2
-redis==5.0.1  # Keep aligned with backend/requirements-celery.txt
+redis==7.1.0  # Keep aligned with backend/requirements-celery.txt
 hiredis==3.3.0
 flower==2.0.1
 msgpack==1.1.2
