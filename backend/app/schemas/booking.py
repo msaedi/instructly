@@ -501,6 +501,25 @@ class BookingResponse(BookingBase):
     rescheduled_from: Optional["RescheduledFromInfo"] = None
     payment_summary: Optional[PaymentSummary] = None
 
+    @field_validator("rescheduled_from", mode="before")
+    @classmethod
+    def _validate_rescheduled_from(cls, v: Any) -> Any:
+        """
+        Normalize rescheduled_from to a dict before validation.
+
+        This mirrors payment_summary handling to avoid class identity mismatches
+        when app.schemas.booking gets reloaded in tests.
+        """
+        if v is None:
+            return None
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, BaseModel):
+            return v.model_dump()
+        if isinstance(v, Mapping):
+            return dict(v)
+        return v
+
     @field_validator("payment_summary", mode="before")
     @classmethod
     def _validate_payment_summary(cls, v: Any) -> Any:
