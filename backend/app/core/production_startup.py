@@ -143,7 +143,10 @@ class ProductionStartup:
                 try:
                     conn.close()
                 except Exception:
-                    pass  # Best effort cleanup
+                    logger.debug(
+                        "Failed to close warm-up database connection",
+                        exc_info=True,
+                    )
 
     @staticmethod
     async def _setup_monitoring() -> None:
