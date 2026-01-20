@@ -1047,7 +1047,10 @@ function PaymentConfirmationInner({
     });
   }, []);
 
-  const selectedModality = useMemo<NormalizedModality>(() => (isOnlineLesson ? 'remote' : 'in_person'), [isOnlineLesson]);
+  const selectedModality = useMemo<NormalizedModality>(
+    () => (isOnlineLesson ? 'online' : 'in_person'),
+    [isOnlineLesson],
+  );
   const inputsDisabled = !isTravelLocation || (hasSavedTravelLocation && !isEditingLocation);
   const instructorFirstName = useMemo(() => {
     const parts = booking.instructorName.split(' ').filter(Boolean);
@@ -1253,7 +1256,7 @@ function PaymentConfirmationInner({
 
   const clientFloorWarning = useMemo(() => {
     if (!clientFloorViolation) return null;
-    const modalityLabel = selectedModality === 'in_person' ? 'in-person' : 'remote';
+    const modalityLabel = selectedModality === 'in_person' ? 'in-person' : 'online';
     return `Minimum for ${modalityLabel} ${booking.duration}-minute private session is $${formatCents(clientFloorViolation.floorCents)} (current $${formatCents(clientFloorViolation.baseCents)}).`;
   }, [clientFloorViolation, booking.duration, selectedModality]);
 

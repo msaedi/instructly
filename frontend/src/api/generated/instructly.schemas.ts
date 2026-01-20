@@ -1990,7 +1990,12 @@ export type BookingCreateResponseLocationLng = number | null;
 
 export type BookingCreateResponseLocationPlaceId = string | null;
 
-export type BookingCreateResponseLocationType = string | null;
+export type BookingCreateResponseLocationType =
+  | 'student_location'
+  | 'instructor_location'
+  | 'online'
+  | 'neutral_location'
+  | null;
 
 export type BookingCreateResponseLockResolution = string | null;
 
@@ -2246,7 +2251,12 @@ export type BookingResponseLocationLng = number | null;
 
 export type BookingResponseLocationPlaceId = string | null;
 
-export type BookingResponseLocationType = string | null;
+export type BookingResponseLocationType =
+  | 'student_location'
+  | 'instructor_location'
+  | 'online'
+  | 'neutral_location'
+  | null;
 
 export type BookingResponseLockResolution = string | null;
 
@@ -4240,6 +4250,16 @@ export type InstructorServiceResponseCreatedAt = string | null;
 
 export type InstructorServiceResponseDescription = string | null;
 
+/**
+ * Legacy location types (in_person, online)
+ */
+export type InstructorServiceResponseLocationTypes = string[] | null;
+
+/**
+ * Human-readable name of the catalog service
+ */
+export type InstructorServiceResponseServiceCatalogName = string | null;
+
 export type InstructorServiceResponseUpdatedAt = string | null;
 
 /**
@@ -4254,10 +4274,14 @@ export interface InstructorServiceResponse {
   hourly_rate: number;
   id: string;
   is_active?: boolean;
+  /** Legacy location types (in_person, online) */
+  location_types?: InstructorServiceResponseLocationTypes;
   name: string;
   offers_at_location?: boolean;
   offers_online?: boolean;
   offers_travel?: boolean;
+  /** Human-readable name of the catalog service */
+  service_catalog_name?: InstructorServiceResponseServiceCatalogName;
   updated_at?: InstructorServiceResponseUpdatedAt;
 }
 

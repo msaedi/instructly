@@ -46,6 +46,14 @@ export enum BookingStatus {
   NO_SHOW = 'NO_SHOW',
 }
 
+export type BookingLocationType =
+  | 'student_location'
+  | 'instructor_location'
+  | 'online'
+  | 'neutral_location';
+
+export type ServiceLocationType = 'in_person' | 'online';
+
 export enum LocationType {
   STUDENT_LOCATION = 'student_location',
   INSTRUCTOR_LOCATION = 'instructor_location',
@@ -153,7 +161,7 @@ export interface BookingCreate {
   selected_duration: number;
   student_note?: string | null;
   meeting_location?: string | null;
-  location_type?: LocationType | null;
+  location_type?: BookingLocationType | null;
   location_address?: string | null;
   location_lat?: number | null;
   location_lng?: number | null;
@@ -184,7 +192,7 @@ export interface BookingBase {
   status: BookingStatus;
   service_area: string | null;
   meeting_location: string | null;
-  location_type: LocationType | null;
+  location_type: BookingLocationType | null;
   location_address: string | null;
   location_lat: number | null;
   location_lng: number | null;

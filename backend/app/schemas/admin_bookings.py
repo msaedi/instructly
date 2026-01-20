@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timezone
 from enum import Enum
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 from pydantic import Field, field_serializer
 
 from ._strict_base import StrictModel, StrictRequestModel
+from .common import LocationTypeLiteral
 
 
 def _serialize_utc_datetime(value: Optional[datetime]) -> Optional[str]:
@@ -98,14 +99,7 @@ class AdminBookingDetailResponse(StrictModel):
     lesson_timezone: Optional[str] = None
     instructor_timezone: Optional[str] = None
     student_timezone: Optional[str] = None
-    location_type: Optional[
-        Literal[
-            "student_location",
-            "instructor_location",
-            "online",
-            "neutral_location",
-        ]
-    ] = None
+    location_type: Optional[LocationTypeLiteral] = None
     meeting_location: Optional[str] = None
     student_note: Optional[str] = None
     instructor_note: Optional[str] = None

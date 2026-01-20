@@ -3,11 +3,12 @@ from ._strict_base import StrictModel
 """Response models for availability endpoints."""
 
 from datetime import date
-from typing import Dict, List, Literal
+from typing import Dict, List
 
 from pydantic import ConfigDict, Field, RootModel
 
 from .availability_window import TimeRange
+from .common import LocationTypeLiteral
 
 
 class BookedSlotItem(StrictModel):
@@ -15,12 +16,7 @@ class BookedSlotItem(StrictModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    location_type: Literal[
-        "student_location",
-        "instructor_location",
-        "online",
-        "neutral_location",
-    ] = Field(
+    location_type: LocationTypeLiteral = Field(
         description="Location type (student_location, instructor_location, online, neutral_location)"
     )
     booking_id: str = Field(description="ULID of the booking")

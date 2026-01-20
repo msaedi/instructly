@@ -87,7 +87,9 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       const violations = evaluatePriceFloorViolations({
         hourlyRate: Number(service.hourly_rate),
         durationOptions: service.duration_options ?? [60],
-        locationTypes: service.location_types?.length ? service.location_types : ['in_person'],
+        locationTypes: service.location_types?.length
+          ? service.location_types
+          : (['in_person'] as ServiceLocationType[]),
         floors: pricingFloors,
       });
       if (violations.length > 0) map.set(service.catalog_service_id, violations);

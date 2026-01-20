@@ -4696,8 +4696,12 @@ class BookingService(BaseService):
                 code="OUTSIDE_SERVICE_AREA",
             )
 
-    def _validate_location_capability(self, service: InstructorService, location_type: str) -> None:
+    def _validate_location_capability(
+        self, service: InstructorService, location_type: Optional[str]
+    ) -> None:
         """Validate that the instructor offers the requested location type."""
+        if not location_type:
+            location_type = "online"
         legacy_types = getattr(service, "location_types", None)
         if legacy_types is None:
             legacy_types = []

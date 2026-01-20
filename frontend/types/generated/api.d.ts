@@ -8681,7 +8681,7 @@ export type components = {
             /** Location Place Id */
             location_place_id?: string | null;
             /** Location Type */
-            location_type: string | null;
+            location_type: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
             /** Lock Resolution */
             lock_resolution?: string | null;
             /** Lock Resolved At */
@@ -8929,7 +8929,7 @@ export type components = {
             /** Location Place Id */
             location_place_id?: string | null;
             /** Location Type */
-            location_type: string | null;
+            location_type: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
             /** Lock Resolution */
             lock_resolution?: string | null;
             /** Lock Resolved At */
@@ -11333,6 +11333,11 @@ export type components = {
              * @default true
              */
             is_active: boolean;
+            /**
+             * Location Types
+             * @description Legacy location types (in_person, online)
+             */
+            location_types?: string[] | null;
             /** Name */
             name: string;
             /**
@@ -11350,6 +11355,11 @@ export type components = {
              * @default false
              */
             offers_travel: boolean;
+            /**
+             * Service Catalog Name
+             * @description Human-readable name of the catalog service
+             */
+            service_catalog_name?: string | null;
             /** Updated At */
             updated_at?: string | null;
         };

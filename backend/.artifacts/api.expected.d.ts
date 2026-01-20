@@ -5361,7 +5361,7 @@ export type components = {
  location_lat?: number | null;
  location_lng?: number | null;
  location_place_id?: string | null;
- location_type: string | null;
+ location_type: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
  lock_resolution?: string | null;
  lock_resolved_at?: string | null;
  locked_amount_cents?: number | null;
@@ -5459,7 +5459,7 @@ export type components = {
  location_lat?: number | null;
  location_lng?: number | null;
  location_place_id?: string | null;
- location_type: string | null;
+ location_type: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
  lock_resolution?: string | null;
  lock_resolved_at?: string | null;
  locked_amount_cents?: number | null;
@@ -6232,10 +6232,12 @@ export type components = {
  hourly_rate: number;
  id: string;
  is_active: boolean;
+ location_types?: string[] | null;
  name: string;
  offers_at_location: boolean;
  offers_online: boolean;
  offers_travel: boolean;
+ service_catalog_name?: string | null;
  updated_at?: string | null;
  };
  InstructorSummary: {

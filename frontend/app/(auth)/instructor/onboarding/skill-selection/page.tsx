@@ -76,7 +76,7 @@ function Step3SkillsPricingInner() {
       const violations = evaluatePriceFloorViolations({
         hourlyRate: Number(svc.hourly_rate),
         durationOptions: svc.duration_options ?? [60],
-        locationTypes: svc.location_types ?? ['in_person'],
+        locationTypes: svc.location_types ?? (['in_person'] as ServiceLocationType[]),
         floors: pricingFloors,
       });
       if (violations.length > 0) {

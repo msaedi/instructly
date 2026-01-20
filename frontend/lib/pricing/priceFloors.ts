@@ -1,14 +1,15 @@
 import { logger } from '@/lib/logger';
+import type { ServiceLocationType } from '@/types/instructor';
 
 export type PriceFloorConfig = {
   private_in_person: number;
   private_remote: number;
 };
 
-export type NormalizedModality = 'in_person' | 'remote';
+export type NormalizedModality = ServiceLocationType;
 
 export type FloorViolation = {
-  modalityLabel: 'in-person' | 'remote';
+  modalityLabel: 'in-person' | 'online';
   duration: number;
   floorCents: number;
   baseCents: number;
@@ -16,7 +17,7 @@ export type FloorViolation = {
 
 export function normalizeModality(label: string | undefined | null): NormalizedModality {
   const value = String(label ?? '').toLowerCase();
-  if (/online|remote|virtual/.test(value)) return 'remote';
+  if (/online|remote|virtual/.test(value)) return 'online';
   return 'in_person';
 }
 
@@ -65,7 +66,7 @@ export function hasFloorViolation(
 export function evaluatePriceFloorViolations(options: {
   hourlyRate: number;
   durationOptions: number[];
-  locationTypes: string[];
+  locationTypes: ReadonlyArray<ServiceLocationType>;
   floors: PriceFloorConfig;
 }): FloorViolation[] {
   const { hourlyRate, durationOptions, locationTypes, floors } = options;
@@ -86,7 +87,7 @@ export function evaluatePriceFloorViolations(options: {
       const baseCents = computeBasePriceCents(hourlyRate, duration);
       if (baseCents < floorCents) {
         violations.push({
-          modalityLabel: modality === 'in_person' ? 'in-person' : 'remote',
+          modalityLabel: modality === 'in_person' ? 'in-person' : 'online',
           duration,
           floorCents,
           baseCents,

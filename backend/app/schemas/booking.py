@@ -27,6 +27,7 @@ import pytz
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
 from ._strict_base import StrictModel, StrictRequestModel
+from .common import LocationTypeLiteral
 
 logger = logging.getLogger(__name__)
 
@@ -97,14 +98,10 @@ class BookingCreate(StrictRequestModel):
     meeting_location: Optional[str] = Field(
         None, description="Specific meeting location if applicable"
     )
-    location_type: Optional[
-        Literal[
-            "student_location",
-            "instructor_location",
-            "online",
-            "neutral_location",
-        ]
-    ] = Field("online", description="Type of meeting location")
+    location_type: Optional[LocationTypeLiteral] = Field(
+        "online",
+        description="Type of meeting location",
+    )
     location_address: Optional[str] = Field(
         None, description="Structured location address for in-person lessons"
     )
@@ -391,7 +388,7 @@ class BookingBase(StandardizedModel):
     # Location
     service_area: Optional[str]
     meeting_location: Optional[str]
-    location_type: Optional[str]
+    location_type: Optional[LocationTypeLiteral]
     location_address: Optional[str] = None
     location_lat: Optional[float] = None
     location_lng: Optional[float] = None

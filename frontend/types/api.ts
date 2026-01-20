@@ -1,6 +1,6 @@
 // frontend/types/api.ts
 
-import type { ServiceAreaNeighborhood, ServiceLocationType } from '@/types/instructor';
+import type { ServiceAreaNeighborhood } from '@/types/instructor';
 
 /**
  * API Type Definitions
@@ -11,6 +11,16 @@ import type { ServiceAreaNeighborhood, ServiceLocationType } from '@/types/instr
  *
  * @module api
  */
+
+// Booking location types (canonical)
+export type BookingLocationType =
+  | 'student_location'
+  | 'instructor_location'
+  | 'online'
+  | 'neutral_location';
+
+// Service location types (legacy capability indicator)
+export type ServiceLocationType = 'in_person' | 'online';
 
 /**
  * Generic API response wrapper
