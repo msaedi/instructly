@@ -595,7 +595,7 @@ class TestEnhancedModels:
             equipment_required=["Laptop", "Notebook"],
             levels_taught=["Beginner", "Intermediate", "Advanced"],
             age_groups=["16-18", "18+"],
-            location_types=["in-person", "online"],
+            location_types=["in_person", "online"],
             max_distance_miles=20,
             is_active=True,
         )
@@ -608,7 +608,7 @@ class TestEnhancedModels:
         assert saved.equipment_required == ["Laptop", "Notebook"]
         assert saved.levels_taught == ["Beginner", "Intermediate", "Advanced"]
         assert saved.age_groups == ["16-18", "18+"]
-        assert saved.location_types == ["in-person", "online"]
+        assert saved.location_types == ["in_person", "online"]
         assert saved.max_distance_miles == 20
 
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DollarSign, ChevronDown, Lightbulb } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
-import { hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
+import { hydrateCatalogNameById, displayServiceName, normalizeLocationTypes } from '@/lib/instructorServices';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } from '@/lib/pricing/platformFees';
 import { evaluatePriceFloorViolations, formatCents, type FloorViolation } from '@/lib/pricing/priceFloors';
@@ -12,6 +12,7 @@ import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/que
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import type { ApiErrorResponse, CategoryServiceDetail, InstructorProfileResponse, ServiceCategory } from '@/features/shared/api/types';
+import type { ServiceLocationType } from '@/types/instructor';
 
 type SelectedService = {
   catalog_service_id: string;
@@ -23,7 +24,7 @@ type SelectedService = {
   equipment?: string;
   levels_taught: Array<'beginner' | 'intermediate' | 'advanced'>;
   duration_options: number[];
-  location_types: Array<'in-person' | 'online'>;
+  location_types: ServiceLocationType[];
 };
 
 interface Props {
@@ -86,7 +87,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       const violations = evaluatePriceFloorViolations({
         hourlyRate: Number(service.hourly_rate),
         durationOptions: service.duration_options ?? [60],
-        locationTypes: service.location_types ?? ['in-person'],
+        locationTypes: service.location_types?.length ? service.location_types : ['in_person'],
         floors: pricingFloors,
       });
       if (violations.length > 0) map.set(service.catalog_service_id, violations);
@@ -145,6 +146,12 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       .map((svc: unknown) => {
         const s = svc as Record<string, unknown>;
         const catalogId = String(s['service_catalog_id'] || '');
+        const rawLocationTypes = Array.isArray(s['location_types'])
+          ? (s['location_types'] as unknown[])
+          : [];
+        const normalizedLocationTypes = rawLocationTypes.length
+          ? normalizeLocationTypes(rawLocationTypes)
+          : [];
         const serviceName = displayServiceName(
           {
             service_catalog_id: catalogId,
@@ -181,10 +188,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
             Array.isArray(s['duration_options']) && (s['duration_options'] as number[]).length
               ? (s['duration_options'] as number[])
               : [60],
-          location_types:
-            Array.isArray(s['location_types']) && (s['location_types'] as string[]).length
-              ? (s['location_types'] as Array<'in-person' | 'online'>)
-              : ['in-person'],
+          location_types: normalizedLocationTypes.length ? normalizedLocationTypes : ['in_person'],
         } as SelectedService;
       })
       .filter((svc: SelectedService) => svc.catalog_service_id);
@@ -265,7 +269,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
           equipment: '',
           levels_taught: ['beginner', 'intermediate', 'advanced'],
           duration_options: [60],
-          location_types: ['in-person'],
+          location_types: ['in_person'],
         },
       ];
     });
@@ -340,7 +344,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
               .filter(Boolean)?.length
               ? { equipment_required: service.equipment.split(',').map((v) => v.trim()).filter(Boolean) }
               : {}),
-            location_types: service.location_types?.length ? service.location_types : ['in-person'],
+            location_types: service.location_types?.length ? service.location_types : ['in_person'],
           })),
       };
 
@@ -558,13 +562,13 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                   <div className="bg-white rounded-lg p-3 border border-gray-200">
                     <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Location Type</label>
                     <div className="flex gap-1">
-                      {(['in-person', 'online'] as const).map((loc) => (
+                      {(['in_person', 'online'] as const).map((loc) => (
                         <button
                           key={loc}
                           onClick={() => setSelectedServices((prev) => prev.map((x, i) => {
                             if (i !== index) return x;
                             const has = x.location_types.includes(loc);
-                            const other = loc === 'in-person' ? 'online' : 'in-person';
+                            const other = loc === 'in_person' ? 'online' : 'in_person';
                             if (has && x.location_types.length === 1) return { ...x, location_types: [other] };
                             return { ...x, location_types: has ? x.location_types.filter((v) => v !== loc) : [...x.location_types, loc] };
                           }))}
@@ -573,7 +577,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                           }`}
                           type="button"
                         >
-                          {loc === 'in-person' ? 'In-Person' : 'Online'}
+                          {loc === 'in_person' ? 'In-Person' : 'Online'}
                         </button>
                       ))}
                     </div>

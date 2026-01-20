@@ -39,7 +39,7 @@ def _service_for(db: Session, instructor: User) -> InstructorService:
             service_catalog_id=catalog_id,
             hourly_rate=50.0,
             duration_options=[60],
-            location_types=['in-person'],
+            location_types=['in_person'],
             age_groups=['adults'],
             levels_taught=['beginner'],
             is_active=True,

@@ -19,7 +19,12 @@ import anyio
 from sqlalchemy.orm import Session
 
 from ..core.enums import RoleName
-from ..core.exceptions import BusinessRuleException, NotFoundException, ServiceException
+from ..core.exceptions import (
+    BusinessRuleException,
+    ForbiddenException,
+    NotFoundException,
+    ServiceException,
+)
 from ..models.instructor import InstructorPreferredPlace, InstructorProfile
 from ..models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from ..models.user import User
@@ -353,6 +358,7 @@ class InstructorService(BaseService):
             services_data = []
             for service_data in profile_data.services:
                 service_dict = service_data.model_dump()
+                self._apply_location_type_capabilities(service_dict, apply_defaults=True)
                 service_dict["instructor_profile_id"] = profile.id
                 services_data.append(service_dict)
 
@@ -483,7 +489,7 @@ class InstructorService(BaseService):
 
             # Handle service updates if provided
             if update_data.services is not None:
-                self._update_services(profile.id, update_data.services)
+                self._update_services(profile.id, user_id, update_data.services)
 
             # Replace preferred teaching locations if provided
             if update_data.preferred_teaching_locations is not None:
@@ -660,7 +666,137 @@ class InstructorService(BaseService):
                 f"Invalid service catalog IDs: {', '.join(map(str, invalid_ids))}"
             )
 
-    def _update_services(self, profile_id: str, services_data: List[ServiceCreate]) -> None:
+    def _resolve_location_types(self, service: Service) -> List[str]:
+        """Derive legacy location_types from capability flags with a safe fallback."""
+        offers_travel = bool(getattr(service, "offers_travel", False))
+        offers_at_location = bool(getattr(service, "offers_at_location", False))
+        offers_online = bool(getattr(service, "offers_online", False))
+
+        if offers_travel or offers_at_location or offers_online:
+            types: List[str] = []
+            if offers_travel or offers_at_location:
+                types.append("in_person")
+            if offers_online:
+                types.append("online")
+            return types
+
+        legacy = getattr(service, "location_types", None)
+        if not legacy:
+            return []
+
+        normalized: List[str] = []
+        for item in legacy:
+            value = str(item).strip().lower()
+            if value == "in-person":
+                value = "in_person"
+            if value in {"in_person", "online"} and value not in normalized:
+                normalized.append(value)
+        return normalized
+
+    def _apply_location_type_capabilities(
+        self, updates: Dict[str, Any], apply_defaults: bool = False
+    ) -> None:
+        """Translate legacy location_types updates into capability flags."""
+        location_types = updates.get("location_types")
+        if location_types is not None:
+            normalized = []
+            for item in location_types:
+                value = str(item).strip().lower()
+                if value == "in-person":
+                    value = "in_person"
+                normalized.append(value)
+
+            in_person = "in_person" in normalized
+            offers_online = "online" in normalized
+            updates.setdefault("offers_travel", in_person)
+            updates.setdefault("offers_at_location", in_person)
+            updates.setdefault("offers_online", offers_online)
+
+        if apply_defaults:
+            updates.setdefault("offers_travel", False)
+            updates.setdefault("offers_at_location", False)
+            updates.setdefault("offers_online", True)
+
+    @BaseService.measure_operation("get_instructor_teaching_locations")
+    def get_instructor_teaching_locations(
+        self, instructor_id: str
+    ) -> List[InstructorPreferredPlace]:
+        """Get teaching locations from instructor_preferred_places."""
+        return self.preferred_place_repository.list_for_instructor_and_kind(
+            instructor_id, "teaching_location"
+        )
+
+    @BaseService.measure_operation("validate_service_capabilities")
+    def validate_service_capabilities(self, service: Service, instructor_id: str) -> None:
+        """
+        Validate that capability requirements are met.
+
+        Raises BusinessRuleException when requirements are not satisfied.
+        """
+        if getattr(service, "offers_travel", False):
+            service_areas = self.service_area_repository.list_for_instructor(
+                instructor_id, active_only=True
+            )
+            if not service_areas:
+                raise BusinessRuleException(
+                    "Cannot enable travel - add at least one service area first",
+                    code="NO_SERVICE_AREAS",
+                )
+
+        if getattr(service, "offers_at_location", False):
+            teaching_locations = self.get_instructor_teaching_locations(instructor_id)
+            if not teaching_locations:
+                raise BusinessRuleException(
+                    "Cannot enable 'at my location' - add at least one teaching location first",
+                    code="NO_TEACHING_LOCATIONS",
+                )
+
+        if not any(
+            [
+                getattr(service, "offers_travel", False),
+                getattr(service, "offers_at_location", False),
+                getattr(service, "offers_online", False),
+            ]
+        ):
+            raise BusinessRuleException(
+                "Service must offer at least one location option",
+                code="NO_LOCATION_OPTIONS",
+            )
+
+    @BaseService.measure_operation("update_service_capabilities")
+    def update_service_capabilities(
+        self,
+        service_id: str,
+        instructor_id: str,
+        updates: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Update location capability flags for an instructor service."""
+        service = self.service_repository.get_by_id(service_id)
+        if not service:
+            raise NotFoundException("Service not found")
+
+        if not service.instructor_profile or service.instructor_profile.user_id != instructor_id:
+            raise ForbiddenException("Not your service")
+
+        if "offers_travel" in updates:
+            service.offers_travel = updates["offers_travel"]
+        if "offers_at_location" in updates:
+            service.offers_at_location = updates["offers_at_location"]
+        if "offers_online" in updates:
+            service.offers_online = updates["offers_online"]
+
+        with self.transaction():
+            self.validate_service_capabilities(service, instructor_id)
+
+        if self.cache_service:
+            self._invalidate_instructor_caches(instructor_id)
+        invalidate_on_service_change(service.id, "update")
+
+        return self._instructor_service_to_dict(service)
+
+    def _update_services(
+        self, profile_id: str, instructor_id: str, services_data: List[ServiceCreate]
+    ) -> None:
         """
         Update services with soft/hard delete logic.
 
@@ -695,18 +831,26 @@ class InstructorService(BaseService):
 
                 # Prepare updates
                 updates = service_data.model_dump()
+                self._apply_location_type_capabilities(updates)
 
                 # Reactivate if needed
                 if not existing_service.is_active:
                     updates["is_active"] = True
                     logger.info(f"Reactivated service: catalog_id {catalog_id}")
 
+                for key, value in updates.items():
+                    setattr(existing_service, key, value)
+                self.validate_service_capabilities(existing_service, instructor_id)
+
                 # Update service
                 self.service_repository.update(existing_service.id, **updates)
             else:
                 # Create new service
                 service_dict = service_data.model_dump()
+                self._apply_location_type_capabilities(service_dict, apply_defaults=True)
                 service_dict["instructor_profile_id"] = profile_id
+                service_candidate = Service(**service_dict)
+                self.validate_service_capabilities(service_candidate, instructor_id)
                 self.service_repository.create(**service_dict)
                 logger.info(f"Created new service: catalog_id {catalog_id}")
 
@@ -941,7 +1085,10 @@ class InstructorService(BaseService):
                     "age_groups": service.age_groups,
                     "levels_taught": service.levels_taught,
                     "equipment_required": service.equipment_required,
-                    "location_types": service.location_types,
+                    "offers_travel": getattr(service, "offers_travel", False),
+                    "offers_at_location": getattr(service, "offers_at_location", False),
+                    "offers_online": getattr(service, "offers_online", False),
+                    "location_types": self._resolve_location_types(service),
                     "duration_options": service.duration_options,
                     "is_active": service.is_active,
                 }
@@ -1157,6 +1304,10 @@ class InstructorService(BaseService):
             "hourly_rate": service.hourly_rate,
             "description": service.description or service.catalog_entry.description,
             "duration_options": service.duration_options,
+            "offers_travel": getattr(service, "offers_travel", False),
+            "offers_at_location": getattr(service, "offers_at_location", False),
+            "offers_online": getattr(service, "offers_online", False),
+            "location_types": self._resolve_location_types(service),
             "is_active": service.is_active,
             "created_at": service.created_at,
             "updated_at": service.updated_at,

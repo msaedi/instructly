@@ -679,9 +679,12 @@ class TestStudentDoubleBookingPrevention:
                 service_catalog_id=piano_catalog.id,
                 hourly_rate=100.0,
                 duration_options=[60],  # Add duration_options
+                offers_travel=True,
                 is_active=True,
             )
             db.add(piano_service)
+        piano_service.offers_travel = True
+        db.flush()
 
         # Add availability for both instructors using service-level week save
         availability_service = AvailabilityService(db)
@@ -847,9 +850,12 @@ class TestStudentDoubleBookingPrevention:
                 service_catalog_id=piano_catalog.id,
                 hourly_rate=100.0,
                 duration_options=[60],  # Add duration_options
+                offers_travel=True,
                 is_active=True,
             )
             db.add(piano_service)
+        piano_service.offers_travel = True
+        db.flush()
 
         # Add availability for both instructors using the service layer to avoid overlaps
         availability_service = AvailabilityService(db)

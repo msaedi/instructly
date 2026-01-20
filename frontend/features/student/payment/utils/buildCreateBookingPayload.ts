@@ -72,21 +72,43 @@ type NormalizedLocationType =
 
 function normalizeLocationType(
   modality: unknown,
+  locationTypeOverride: unknown,
   fallbackLocation: string | undefined,
 ): NormalizedLocationType {
-  const raw = typeof modality === 'string' ? modality.toLowerCase() : '';
-  if (raw.includes('remote') || raw.includes('online') || raw.includes('virtual')) {
-    return 'online';
+  const normalizeHint = (value: unknown): NormalizedLocationType | null => {
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const raw = value.toLowerCase().trim();
+    if (!raw) {
+      return null;
+    }
+    if (raw.includes('remote') || raw.includes('online') || raw.includes('virtual')) {
+      return 'online';
+    }
+    if (raw.includes('instructor') || raw.includes('studio')) {
+      return 'instructor_location';
+    }
+    if (raw.includes('neutral') || raw.includes('public')) {
+      return 'neutral_location';
+    }
+    if (raw.includes('student') || raw.includes('home') || raw.includes('in_person') || raw.includes('in-person')) {
+      return 'student_location';
+    }
+    return null;
+  };
+
+  const override = normalizeHint(locationTypeOverride);
+  if (override) {
+    return override;
   }
-  if (raw.includes('instructor') || raw.includes('studio')) {
-    return 'instructor_location';
+  const normalizedModality = normalizeHint(modality);
+  if (normalizedModality) {
+    return normalizedModality;
   }
-  if (raw.includes('neutral') || raw.includes('public')) {
-    return 'neutral_location';
-  }
-  const fallback = typeof fallbackLocation === 'string' ? fallbackLocation.toLowerCase() : '';
-  if (fallback.includes('remote') || fallback.includes('online') || fallback.includes('virtual')) {
-    return 'online';
+  const fallback = normalizeHint(fallbackLocation);
+  if (fallback) {
+    return fallback;
   }
   return 'student_location';
 }
@@ -115,7 +137,11 @@ export function buildCreateBookingPayload({
     booking.startTime,
     booking.endTime,
   );
-  const locationType = normalizeLocationType(metadata['modality'], booking.location);
+  const locationType = normalizeLocationType(
+    metadata['modality'],
+    metadata['location_type'],
+    booking.location,
+  );
   const addressFromMetadata =
     typeof metadata['location_address'] === 'string' ? metadata['location_address'] : undefined;
   const addressFromBooking =

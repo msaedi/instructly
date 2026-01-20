@@ -85,12 +85,31 @@ class InstructorServiceResponse(StrictModel):
     id: str
     catalog_service_id: str
     name: str
+    service_catalog_name: Optional[str] = Field(
+        default=None,
+        description="Human-readable name of the catalog service",
+    )
     category: str
     hourly_rate: float
     description: Optional[str] = None
     duration_options: List[int] = [60]
+    location_types: Optional[List[str]] = Field(
+        default=None,
+        description="Legacy location types (in_person, online)",
+    )
+    offers_travel: bool = False
+    offers_at_location: bool = False
+    offers_online: bool = True
     is_active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
+
+
+class InstructorServiceCapabilitiesUpdate(StrictRequestModel):
+    """Partial update for instructor service location capabilities."""
+
+    offers_travel: Optional[bool] = None
+    offers_at_location: Optional[bool] = None
+    offers_online: Optional[bool] = None

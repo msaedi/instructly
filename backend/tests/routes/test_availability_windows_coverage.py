@@ -271,7 +271,7 @@ async def test_get_week_booked_slots_success_and_errors(test_instructor):
                     "service_name": "Piano Lesson",
                     "service_area_short": "UES",
                     "duration_minutes": 60,
-                    "location_type": "student",
+                    "location_type": "student_location",
                 }
             ]
 

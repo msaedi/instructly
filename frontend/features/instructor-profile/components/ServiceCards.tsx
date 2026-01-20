@@ -66,13 +66,14 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
     if (!locationTypes.length) return '';
     const uniqueTypes = Array.from(new Set(locationTypes));
     const formatted = uniqueTypes.map((loc) => {
-      if (loc.includes('-')) {
-        return loc
+      const normalized = loc.replace(/_/g, '-');
+      if (normalized.includes('-')) {
+        return normalized
           .split('-')
           .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
           .join('-');
       }
-      return loc.charAt(0).toUpperCase() + loc.slice(1);
+      return normalized.charAt(0).toUpperCase() + normalized.slice(1);
     });
     return formatted.join(' · ');
   })();

@@ -323,13 +323,23 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
     const rawLocation = (updatedBookingData.location ?? bookingData.location ?? '').toString().trim();
     const meetingLocation = rawLocation || 'Student provided address';
-    const metadataModality = String(mergedMetadata['modality'] ?? '').trim().toLowerCase();
-    const normalizedMetadataModality =
-      metadataModality === 'student_home'
-        ? 'student_location'
-        : metadataModality === 'neutral'
-          ? 'neutral_location'
-          : metadataModality;
+    const normalizeLocationHint = (value: string) => {
+      const normalized = value.trim().toLowerCase();
+      if (!normalized) {
+        return '';
+      }
+      if (normalized === 'student_home') {
+        return 'student_location';
+      }
+      if (normalized === 'neutral') {
+        return 'neutral_location';
+      }
+      return normalized;
+    };
+
+    const metadataLocationType = normalizeLocationHint(String(mergedMetadata['location_type'] ?? ''));
+    const metadataModality = normalizeLocationHint(String(mergedMetadata['modality'] ?? ''));
+    const normalizedMetadataModality = metadataLocationType || metadataModality;
     const isRemoteMetadata =
       normalizedMetadataModality === 'remote' || normalizedMetadataModality === 'online';
     const isRemoteLocation = /online|remote|virtual/i.test(meetingLocation);

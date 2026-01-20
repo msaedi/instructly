@@ -281,7 +281,12 @@ export type AdminBookingDetailResponseInstructorTimezone = string | null;
 
 export type AdminBookingDetailResponseLessonTimezone = string | null;
 
-export type AdminBookingDetailResponseLocationType = string | null;
+export type AdminBookingDetailResponseLocationType =
+  | 'student_location'
+  | 'instructor_location'
+  | 'online'
+  | 'neutral_location'
+  | null;
 
 export type AdminBookingDetailResponseMeetingLocation = string | null;
 
@@ -1789,6 +1794,20 @@ export interface BodyRespondToReviewApiV1ReviewsReviewIdRespondPost {
 }
 
 /**
+ * Location type (student_location, instructor_location, online, neutral_location)
+ */
+export type BookedSlotItemLocationType =
+  (typeof BookedSlotItemLocationType)[keyof typeof BookedSlotItemLocationType];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const BookedSlotItemLocationType = {
+  student_location: 'student_location',
+  instructor_location: 'instructor_location',
+  online: 'online',
+  neutral_location: 'neutral_location',
+} as const;
+
+/**
  * Individual booked slot with booking details for calendar display.
  */
 export interface BookedSlotItem {
@@ -1801,7 +1820,7 @@ export interface BookedSlotItem {
   /** ISO time string (HH:MM:SS) */
   end_time: string;
   /** Location type (student_location, instructor_location, online, neutral_location) */
-  location_type: string;
+  location_type: BookedSlotItemLocationType;
   /** Abbreviated service area */
   service_area_short: string;
   /** Name of the service booked */
@@ -2115,6 +2134,17 @@ export type BookingPreviewResponseLocationLng = number | null;
 
 export type BookingPreviewResponseLocationPlaceId = string | null;
 
+export type BookingPreviewResponseLocationType =
+  (typeof BookingPreviewResponseLocationType)[keyof typeof BookingPreviewResponseLocationType];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const BookingPreviewResponseLocationType = {
+  student_location: 'student_location',
+  instructor_location: 'instructor_location',
+  online: 'online',
+  neutral_location: 'neutral_location',
+} as const;
+
 export type BookingPreviewResponseMeetingLocation = string | null;
 
 export type BookingPreviewResponseServiceArea = string | null;
@@ -2135,7 +2165,7 @@ export interface BookingPreviewResponse {
   location_lat?: BookingPreviewResponseLocationLat;
   location_lng?: BookingPreviewResponseLocationLng;
   location_place_id?: BookingPreviewResponseLocationPlaceId;
-  location_type: string;
+  location_type: BookingPreviewResponseLocationType;
   location_type_display: string;
   meeting_location: BookingPreviewResponseMeetingLocation;
   service_area: BookingPreviewResponseServiceArea;
@@ -4165,6 +4195,21 @@ export interface InstructorServiceAreaCheckResponse {
   is_covered: boolean;
 }
 
+export type InstructorServiceCapabilitiesUpdateOffersAtLocation = boolean | null;
+
+export type InstructorServiceCapabilitiesUpdateOffersOnline = boolean | null;
+
+export type InstructorServiceCapabilitiesUpdateOffersTravel = boolean | null;
+
+/**
+ * Partial update for instructor service location capabilities.
+ */
+export interface InstructorServiceCapabilitiesUpdate {
+  offers_at_location?: InstructorServiceCapabilitiesUpdateOffersAtLocation;
+  offers_online?: InstructorServiceCapabilitiesUpdateOffersOnline;
+  offers_travel?: InstructorServiceCapabilitiesUpdateOffersTravel;
+}
+
 /**
  * Custom description (optional)
  */
@@ -4210,6 +4255,9 @@ export interface InstructorServiceResponse {
   id: string;
   is_active?: boolean;
   name: string;
+  offers_at_location?: boolean;
+  offers_online?: boolean;
+  offers_travel?: boolean;
   updated_at?: InstructorServiceResponseUpdatedAt;
 }
 
@@ -5896,6 +5944,19 @@ export interface PricingConfigResponse {
   updated_at?: PricingConfigResponseUpdatedAt;
 }
 
+export type PricingPreviewInLocationType =
+  (typeof PricingPreviewInLocationType)[keyof typeof PricingPreviewInLocationType];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const PricingPreviewInLocationType = {
+  student_location: 'student_location',
+  instructor_location: 'instructor_location',
+  online: 'online',
+  neutral_location: 'neutral_location',
+} as const;
+
+export type PricingPreviewInMeetingLocation = string | null;
+
 export interface PricingPreviewIn {
   /** @minimum 0 */
   applied_credit_cents: number;
@@ -5908,10 +5969,8 @@ export interface PricingPreviewIn {
   instructor_id: string;
   /** @minLength 1 */
   instructor_service_id: string;
-  /** @minLength 1 */
-  location_type: string;
-  /** @minLength 1 */
-  meeting_location: string;
+  location_type: PricingPreviewInLocationType;
+  meeting_location?: PricingPreviewInMeetingLocation;
   /** */
   selected_duration: number;
   /**
@@ -7676,6 +7735,12 @@ export interface ServiceResponse {
   location_types?: ServiceResponseLocationTypes;
   /** Resolved name of the service from the catalog */
   name?: ServiceResponseName;
+  /** Whether the instructor offers lessons at their location for this service */
+  offers_at_location?: boolean;
+  /** Whether the instructor offers online lessons for this service */
+  offers_online?: boolean;
+  /** Whether the instructor travels to student locations for this service */
+  offers_travel?: boolean;
   /** Whether the catalog service supports online delivery */
   online_capable?: ServiceResponseOnlineCapable;
   requirements?: ServiceResponseRequirements;

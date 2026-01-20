@@ -4696,6 +4696,43 @@ class BookingService(BaseService):
                 code="OUTSIDE_SERVICE_AREA",
             )
 
+    def _validate_location_capability(self, service: InstructorService, location_type: str) -> None:
+        """Validate that the instructor offers the requested location type."""
+        legacy_types = getattr(service, "location_types", None)
+        if legacy_types is None:
+            legacy_types = []
+        elif isinstance(legacy_types, str):
+            legacy_types = [legacy_types]
+        elif not isinstance(legacy_types, (list, tuple, set)):
+            legacy_types = []
+        normalized = {str(item).strip().lower() for item in legacy_types}
+        in_person = "in_person" in normalized or "in-person" in normalized
+        legacy_online = "online" in normalized
+
+        offers_travel = bool(getattr(service, "offers_travel", False) or in_person)
+        offers_at_location = bool(getattr(service, "offers_at_location", False) or in_person)
+        offers_online_value = getattr(service, "offers_online", None)
+        offers_online = True if offers_online_value is None else bool(offers_online_value)
+        offers_online = bool(offers_online or legacy_online)
+
+        if location_type in ("student_location", "neutral_location") and not offers_travel:
+            raise ValidationException(
+                "This instructor doesn't travel for this service",
+                code="TRAVEL_NOT_OFFERED",
+            )
+
+        if location_type == "instructor_location" and not offers_at_location:
+            raise ValidationException(
+                "This instructor doesn't offer lessons at their location for this service",
+                code="AT_LOCATION_NOT_OFFERED",
+            )
+
+        if location_type == "online" and not offers_online:
+            raise ValidationException(
+                "This instructor doesn't offer online lessons for this service",
+                code="ONLINE_NOT_OFFERED",
+            )
+
     def _check_conflicts_and_rules(
         self,
         booking_data: BookingCreate,
@@ -4722,6 +4759,7 @@ class BookingService(BaseService):
         if booking_data.end_time is None:
             raise ValidationException("End time must be specified before conflict checks")
 
+        self._validate_location_capability(service, booking_data.location_type)
         self._validate_service_area(booking_data, booking_data.instructor_id)
 
         lesson_tz = self._resolve_lesson_timezone(booking_data, instructor_profile)

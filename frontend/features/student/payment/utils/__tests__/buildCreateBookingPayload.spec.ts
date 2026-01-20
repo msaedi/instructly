@@ -56,7 +56,7 @@ describe('buildCreateBookingPayload', () => {
         ...baseBooking,
         startTime: '09:30',
         duration: 45,
-        location: 'Studio',
+        location: '123 Main St',
         metadata: {},
       },
     });
@@ -65,6 +65,24 @@ describe('buildCreateBookingPayload', () => {
     expect(payload.end_time).toBe('10:15');
     expect(payload.selected_duration).toBe(45);
     expect(payload.location_type).toBe('student_location');
+  });
+
+  it('prefers metadata location_type over modality', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-6',
+      serviceId: 'svc-6',
+      bookingDate: '2025-10-10',
+      booking: {
+        ...baseBooking,
+        location: 'Central Park',
+        metadata: {
+          modality: 'in_person',
+          location_type: 'neutral_location',
+        },
+      },
+    });
+
+    expect(payload.location_type).toBe('neutral_location');
   });
 
   it('includes structured address fields when provided', () => {

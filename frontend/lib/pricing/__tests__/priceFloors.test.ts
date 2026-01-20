@@ -33,7 +33,7 @@ describe('priceFloors helpers', () => {
     const violations = evaluatePriceFloorViolations({
       hourlyRate: 60,
       durationOptions: [60, 45],
-      locationTypes: ['in-person'],
+      locationTypes: ['in_person'],
       floors: mockFloors,
     });
 

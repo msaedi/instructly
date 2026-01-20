@@ -3,7 +3,7 @@ from ._strict_base import StrictModel
 """Response models for availability endpoints."""
 
 from datetime import date
-from typing import Dict, List
+from typing import Dict, List, Literal
 
 from pydantic import ConfigDict, Field, RootModel
 
@@ -15,6 +15,14 @@ class BookedSlotItem(StrictModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
+    location_type: Literal[
+        "student_location",
+        "instructor_location",
+        "online",
+        "neutral_location",
+    ] = Field(
+        description="Location type (student_location, instructor_location, online, neutral_location)"
+    )
     booking_id: str = Field(description="ULID of the booking")
     date: str = Field(description="ISO date string (YYYY-MM-DD)")
     start_time: str = Field(description="ISO time string (HH:MM:SS)")
@@ -24,9 +32,6 @@ class BookedSlotItem(StrictModel):
     service_name: str = Field(description="Name of the service booked")
     service_area_short: str = Field(description="Abbreviated service area")
     duration_minutes: int = Field(description="Duration of the booking in minutes")
-    location_type: str = Field(
-        description="Location type (student_location, instructor_location, online, neutral_location)"
-    )
 
 
 class WeekAvailabilityUpdateResponse(StrictModel):

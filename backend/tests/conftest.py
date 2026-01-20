@@ -1406,6 +1406,7 @@ def test_instructor(db: Session, test_password: str) -> User:
             hourly_rate=hourly_rate,
             description=catalog_service.description,
             duration_options=duration_options,
+            offers_travel=True,
             is_active=True,
         )
         services.append(service)

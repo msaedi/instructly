@@ -201,17 +201,20 @@ def test_filter_by_lesson_type(db, test_instructor):
         .first()
     )
 
-    service.location_types = ["online"]
+    service.offers_online = True
+    service.offers_travel = False
+    service.offers_at_location = False
     db.flush()
     online = repo.filter_by_lesson_type([service.id], "online")
     assert service.id in online
 
-    service.location_types = None
+    service.offers_online = False
     db.flush()
     fallback = repo.filter_by_lesson_type([service.id], "online")
-    assert service.id in fallback
+    assert service.id not in fallback
 
-    service.location_types = ["in_person"]
+    service.offers_travel = True
+    service.offers_at_location = False
     db.flush()
     in_person = repo.filter_by_lesson_type([service.id], "in_person")
     assert service.id in in_person

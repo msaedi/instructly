@@ -8,12 +8,14 @@ import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import type { ApiErrorResponse, CategoryServiceDetail, ServiceCategory } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
+import { normalizeLocationTypes } from '@/lib/instructorServices';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { FloorViolation, evaluatePriceFloorViolations, formatCents } from '@/lib/pricing/priceFloors';
 import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } from '@/lib/pricing/platformFees';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingStepStatus } from '@/features/instructor-onboarding/useOnboardingStepStatus';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
+import type { ServiceLocationType } from '@/types/instructor';
 
 type AgeGroup = 'kids' | 'adults' | 'both';
 
@@ -26,7 +28,7 @@ type SelectedService = {
   equipment?: string; // comma-separated freeform for UI
   levels_taught: Array<'beginner' | 'intermediate' | 'advanced'>;
   duration_options: number[];
-  location_types: Array<'in-person' | 'online'>;
+  location_types: ServiceLocationType[];
 };
 
 function Step3SkillsPricingInner() {
@@ -74,7 +76,7 @@ function Step3SkillsPricingInner() {
       const violations = evaluatePriceFloorViolations({
         hourlyRate: Number(svc.hourly_rate),
         durationOptions: svc.duration_options ?? [60],
-        locationTypes: svc.location_types ?? ['in-person'],
+        locationTypes: svc.location_types ?? ['in_person'],
         floors: pricingFloors,
       });
       if (violations.length > 0) {
@@ -149,10 +151,13 @@ function Step3SkillsPricingInner() {
             ? service['levels_taught'] as string[]
             : ['beginner', 'intermediate', 'advanced'],
         duration_options: Array.isArray(service['duration_options']) && service['duration_options'].length ? service['duration_options'] as number[] : [60],
-        location_types:
-          Array.isArray(service['location_types']) && service['location_types'].length
-            ? service['location_types'] as string[]
-            : ['in-person'],
+        location_types: (() => {
+          const rawLocationTypes = Array.isArray(service['location_types'])
+            ? (service['location_types'] as unknown[])
+            : [];
+          const normalizedLocationTypes = normalizeLocationTypes(rawLocationTypes);
+          return normalizedLocationTypes.length ? normalizedLocationTypes : ['in_person'];
+        })(),
       };
     }).filter(Boolean) as SelectedService[];
     if (mapped.length) setSelected(mapped);
@@ -212,7 +217,7 @@ function Step3SkillsPricingInner() {
           equipment: '',
           levels_taught: ['beginner', 'intermediate', 'advanced'],
           duration_options: [60],
-          location_types: ['in-person'],
+          location_types: ['in_person'],
         },
       ]);
     }
@@ -293,7 +298,7 @@ function Step3SkillsPricingInner() {
                     .map((x) => x.trim())
                     .filter((x) => x.length > 0)
                 : undefined,
-            location_types: s.location_types && s.location_types.length ? s.location_types : ['in-person'],
+            location_types: s.location_types && s.location_types.length ? s.location_types : ['in_person'],
           })),
       };
       const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
@@ -643,7 +648,7 @@ function Step3SkillsPricingInner() {
                   <div className="bg-white rounded-lg p-3 border border-gray-200">
                     <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Location Type</label>
                     <div className="flex gap-1">
-                      {(['in-person', 'online'] as const).map((loc) => (
+                      {(['in_person', 'online'] as const).map((loc) => (
                         <button
                           key={loc}
                           onClick={() =>
@@ -652,7 +657,7 @@ function Step3SkillsPricingInner() {
                                 if (x.catalog_service_id !== s.catalog_service_id) return x;
 
                                 const hasLoc = x.location_types.includes(loc);
-                                const otherLoc = loc === 'in-person' ? 'online' : 'in-person';
+                                const otherLoc = loc === 'in_person' ? 'online' : 'in_person';
 
                                 // If this is the only location selected, switch to the other one
                                 if (hasLoc && x.location_types.length === 1) {
@@ -676,7 +681,7 @@ function Step3SkillsPricingInner() {
                           }`}
                           type="button"
                         >
-                          {loc === 'in-person' ? 'In-Person' : 'Online'}
+                          {loc === 'in_person' ? 'In-Person' : 'Online'}
                         </button>
                       ))}
                     </div>

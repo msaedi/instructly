@@ -34,6 +34,10 @@ jest.mock('@/hooks/usePlatformConfig', () => ({
 jest.mock('@/lib/instructorServices', () => ({
   hydrateCatalogNameById: jest.fn(),
   displayServiceName: ({ service_catalog_name }: { service_catalog_name?: string }) => service_catalog_name || 'Service',
+  normalizeLocationTypes: (values: unknown[]) =>
+    (Array.isArray(values) ? values : [])
+      .map((value) => String(value ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_'))
+      .filter((value) => value === 'in_person' || value === 'online'),
 }));
 
 jest.mock('@/lib/pricing/platformFees', () => ({
@@ -118,7 +122,7 @@ describe('SkillsPricingInline', () => {
     jest.useFakeTimers();
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     mockUseInstructorProfileMe.mockReturnValue({
-      data: { is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 30, duration_options: [60], location_types: ['in-person'] }] },
+      data: { is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 30, duration_options: [60], location_types: ['in_person'] }] },
     });
     mockUsePricingConfig.mockReturnValue({ config: { price_floor_cents: { private: { '60': 5000 } } } });
     mockEvaluateViolations.mockReturnValue([
@@ -141,7 +145,7 @@ describe('SkillsPricingInline', () => {
     jest.useFakeTimers();
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     mockUseInstructorProfileMe.mockReturnValue({
-      data: { is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 45, duration_options: [60], location_types: ['in-person'] }] },
+      data: { is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 45, duration_options: [60], location_types: ['in_person'] }] },
     });
 
     render(<SkillsPricingInline />);
@@ -182,7 +186,7 @@ describe('SkillsPricingInline', () => {
           hourly_rate: 50,
           age_groups: ['adults'],
           duration_options: [60],
-          location_types: ['in-person'],
+          location_types: ['in_person'],
         }],
       },
     });
@@ -212,7 +216,7 @@ describe('SkillsPricingInline', () => {
           hourly_rate: 50,
           age_groups: ['adults'],
           duration_options: [60],
-          location_types: ['in-person'],
+          location_types: ['in_person'],
         }],
       },
     });
@@ -241,7 +245,7 @@ describe('SkillsPricingInline', () => {
           hourly_rate: 50,
           age_groups: ['adults'],
           duration_options: [60],
-          location_types: ['in-person'],
+          location_types: ['in_person'],
           levels_taught: ['beginner', 'intermediate', 'advanced'],
         }],
       },
@@ -270,7 +274,7 @@ describe('SkillsPricingInline', () => {
           hourly_rate: 50,
           age_groups: ['adults'],
           duration_options: [60],
-          location_types: ['in-person'],
+          location_types: ['in_person'],
         }],
       },
     });
@@ -331,7 +335,7 @@ describe('SkillsPricingInline', () => {
           hourly_rate: 100,
           age_groups: ['adults'],
           duration_options: [60],
-          location_types: ['in-person'],
+          location_types: ['in_person'],
         }],
       },
     });
@@ -634,7 +638,7 @@ describe('SkillsPricingInline', () => {
           service_catalog_name: 'Piano Lesson',
           hourly_rate: 40,
           duration_options: [60],
-          location_types: ['in-person'],
+          location_types: ['in_person'],
         }],
       },
     });

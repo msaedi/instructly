@@ -12,6 +12,7 @@ type BookingForPayload = {
   metadata?: {
     serviceId?: string;
     modality?: string;
+    location_type?: string;
   };
 };
 
@@ -48,11 +49,18 @@ const modalityToLocationType: Record<string, PricingPreviewQuotePayloadBase['loc
 };
 
 const inferLocationType = (booking: BookingForPayload): PricingPreviewQuotePayloadBase['location_type'] => {
-  const modality = (booking.metadata?.modality ?? '').toLowerCase();
+  const metadata = booking.metadata ?? {};
+  const hintRaw =
+    typeof metadata['location_type'] === 'string'
+      ? metadata['location_type']
+      : typeof metadata['modality'] === 'string'
+        ? metadata['modality']
+        : '';
   const location = booking.location.toLowerCase();
 
-  if (modality) {
-    const mapped = modalityToLocationType[modality.replace(/\s+/g, '_')];
+  if (hintRaw) {
+    const normalized = hintRaw.toLowerCase().replace(/\s+/g, '_');
+    const mapped = modalityToLocationType[normalized];
     if (mapped) {
       return mapped;
     }

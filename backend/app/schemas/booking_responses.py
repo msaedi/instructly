@@ -2,7 +2,14 @@ from ._strict_base import StrictModel
 
 """Response models for booking endpoints."""
 
-from typing import Optional
+from typing import Literal, Optional
+
+LocationTypeLiteral = Literal[
+    "student_location",
+    "instructor_location",
+    "online",
+    "neutral_location",
+]
 
 
 class SendRemindersResponse(StrictModel):
@@ -26,7 +33,7 @@ class BookingPreviewResponse(StrictModel):
     start_time: str
     end_time: str
     duration_minutes: int
-    location_type: str
+    location_type: LocationTypeLiteral
     location_type_display: str
     meeting_location: Optional[str]
     location_address: Optional[str] = None

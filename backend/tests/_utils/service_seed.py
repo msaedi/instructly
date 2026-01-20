@@ -88,6 +88,24 @@ def ensure_instructor_service_for_tests(
     desired_durations.add(duration_minutes)
     service_fields["duration_options"] = sorted(desired_durations)
 
+    if "offers_travel" not in service_fields and "offers_at_location" not in service_fields:
+        location_types = service_fields.get("location_types")
+        if location_types:
+            normalized = []
+            for item in location_types:
+                value = str(item).strip().lower()
+                if value == "in-person":
+                    value = "in_person"
+                normalized.append(value)
+            in_person = "in_person" in normalized
+            service_fields.setdefault("offers_travel", in_person)
+            service_fields.setdefault("offers_at_location", in_person)
+            service_fields.setdefault("offers_online", "online" in normalized)
+        else:
+            service_fields.setdefault("offers_travel", False)
+            service_fields.setdefault("offers_at_location", False)
+            service_fields.setdefault("offers_online", True)
+
     profile_id = _resolve_instructor_profile_id(
         session,
         instructor_profile_id=instructor_profile_id,

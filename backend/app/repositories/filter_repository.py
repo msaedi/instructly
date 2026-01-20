@@ -549,9 +549,9 @@ class FilterRepository:
         """
         Filter services by lesson type (online or in-person).
 
-        The filter works by checking the location_types array in instructor_services.
-        - "online" lesson_type -> services with 'online' in location_types
-        - "in_person" lesson_type -> services with 'in_person' in location_types
+        The filter works by checking capability flags in instructor_services.
+        - "online" lesson_type -> services with offers_online
+        - "in_person" lesson_type -> services with offers_travel or offers_at_location
 
         Args:
             service_ids: List of instructor_service IDs to filter
@@ -562,13 +562,7 @@ class FilterRepository:
         """
         if not service_ids or lesson_type == "any":
             return service_ids
-
-        # Map lesson_type to the array value stored in location_types
-        if lesson_type == "online":
-            type_value = "online"
-        elif lesson_type == "in_person":
-            type_value = "in_person"
-        else:
+        if lesson_type not in {"online", "in_person"}:
             return service_ids
 
         query = text(
@@ -578,16 +572,10 @@ class FilterRepository:
             WHERE ins.id = ANY(:service_ids)
               AND ins.is_active = true
               AND (
-                  :type_value = ANY(ins.location_types)
+                  (:lesson_type = 'online' AND ins.offers_online = true)
                   OR (
-                      -- Fallback: if location_types is null/empty, check catalog's online_capable
-                      :lesson_type = 'online'
-                      AND (ins.location_types IS NULL OR array_length(ins.location_types, 1) IS NULL)
-                      AND EXISTS (
-                          SELECT 1 FROM service_catalog sc
-                          WHERE sc.id = ins.service_catalog_id
-                          AND sc.online_capable = true
-                      )
+                      :lesson_type = 'in_person'
+                      AND (ins.offers_travel = true OR ins.offers_at_location = true)
                   )
               )
             """
@@ -597,7 +585,6 @@ class FilterRepository:
             query,
             {
                 "service_ids": service_ids,
-                "type_value": type_value,
                 "lesson_type": lesson_type,
             },
         )

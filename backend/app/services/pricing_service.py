@@ -332,7 +332,18 @@ class PricingService(BaseService):
             if PricingService._meeting_location_indicates_remote(booking):
                 return "remote"
             return "in_person"
-        service_location_types = getattr(booking.instructor_service, "location_types", None)
+        service = getattr(booking, "instructor_service", None)
+        if service:
+            offers_online = bool(getattr(service, "offers_online", False))
+            offers_in_person = bool(getattr(service, "offers_travel", False)) or bool(
+                getattr(service, "offers_at_location", False)
+            )
+            if offers_online and not offers_in_person:
+                return "remote"
+            if offers_in_person:
+                return "in_person"
+
+        service_location_types = getattr(service, "location_types", None) if service else None
         if service_location_types and any(
             str(loc).lower() in {"online", "remote", "virtual"} for loc in service_location_types
         ):

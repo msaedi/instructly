@@ -40,6 +40,13 @@ import {
 
 type BookingWithMetadata = BookingPayment & { metadata?: Record<string, unknown> };
 
+type LocationType = 'student_location' | 'instructor_location' | 'online' | 'neutral_location';
+
+type TeachingLocation = {
+  address: string;
+  label?: string;
+};
+
 type ConflictKey = {
   studentId: string;
   instructorId: string;
@@ -90,6 +97,7 @@ const EMPTY_ADDRESS: AddressFields = {
 };
 
 const ADDRESS_PLACEHOLDER = 'Student provided address';
+const INSTRUCTOR_LOCATION_PLACEHOLDER = 'Instructor location';
 
 const formatFullAddress = ({ line1, city, state, postalCode }: AddressFields): string =>
   formatMeetingLocation(line1, city, state, postalCode);
@@ -143,7 +151,9 @@ function PaymentConfirmationInner({
   creditsAccordionExpanded,
   onCreditsAccordionToggle,
 }: PaymentConfirmationProps) {
-  const [isOnlineLesson, setIsOnlineLesson] = useState(false);
+  const [locationType, setLocationType] = useState<LocationType>('student_location');
+  const [lastInPersonLocationType, setLastInPersonLocationType] =
+    useState<LocationType>('student_location');
   const [hasLocationInitialized, setHasLocationInitialized] = useState(false);
   const [hasConflict, setHasConflict] = useState(false);
   const [conflictMessage, setConflictMessage] = useState<string>('');
@@ -160,11 +170,9 @@ function PaymentConfirmationInner({
   const isPricingPreviewLoading = pricingPreviewContext?.loading ?? false;
   const pricingPreviewError = pricingPreviewContext?.error ?? null;
   const [selectedSavedAddress, setSelectedSavedAddress] = useState<SavedAddress | null>(null);
-  const hasSavedLocation = Boolean(
-    selectedSavedAddress ||
-      (booking.location && booking.location !== '' && !/online|remote/i.test(String(booking.location)))
-  );
-  const [isEditingLocation, setIsEditingLocation] = useState(() => !hasSavedLocation);
+  const [teachingLocations, setTeachingLocations] = useState<TeachingLocation[]>([]);
+  const [selectedTeachingLocation, setSelectedTeachingLocation] = useState<TeachingLocation | null>(null);
+  const [isEditingLocation, setIsEditingLocation] = useState(true);
   const [addressFields, setAddressFields] = useState<AddressFields>(EMPTY_ADDRESS);
   const [addressCoords, setAddressCoords] = useState<AddressCoords>({
     lat: null,
@@ -178,14 +186,24 @@ function PaymentConfirmationInner({
   const addressDetailsAbortRef = useRef<AbortController | null>(null);
   const addressDetailsCacheRef = useRef<Map<string, AddressDetailsCacheEntry>>(new Map());
   const lastLocationRef = useRef('');
-  const serviceAreaLat = !isOnlineLesson ? addressCoords.lat ?? undefined : undefined;
-  const serviceAreaLng = !isOnlineLesson ? addressCoords.lng ?? undefined : undefined;
+  const initializedBookingIdRef = useRef<string | null>(null);
+  const isOnlineLesson = locationType === 'online';
+  const isTravelLocation = locationType === 'student_location' || locationType === 'neutral_location';
+  const hasSavedTravelLocation = Boolean(
+    selectedSavedAddress ||
+      (isTravelLocation &&
+        booking.location &&
+        booking.location !== '' &&
+        !/online|remote/i.test(String(booking.location)))
+  );
+  const serviceAreaLat = isTravelLocation ? addressCoords.lat ?? undefined : undefined;
+  const serviceAreaLng = isTravelLocation ? addressCoords.lng ?? undefined : undefined;
   const { data: serviceAreaCheck, isLoading: isCheckingServiceArea } = useServiceAreaCheck({
     instructorId: booking.instructorId,
     lat: serviceAreaLat,
     lng: serviceAreaLng,
   });
-  const isOutsideServiceArea = !isOnlineLesson && serviceAreaCheck?.is_covered === false;
+  const isOutsideServiceArea = isTravelLocation && serviceAreaCheck?.is_covered === false;
   const setAddressField = useCallback((updates: Partial<AddressFields>) => {
     setAddressFields((prev) => ({ ...prev, ...updates }));
     setAddressCoords({ lat: null, lng: null, placeId: null });
@@ -226,10 +244,12 @@ function PaymentConfirmationInner({
         return;
       }
       setSelectedSavedAddress(address);
-      setIsOnlineLesson(false);
+      if (!isTravelLocation) {
+        setLocationType('student_location');
+      }
       applySavedAddress(address);
     },
-    [applySavedAddress]
+    [applySavedAddress, isTravelLocation]
   );
 
   const handleEnterNewAddress = useCallback(() => {
@@ -241,9 +261,115 @@ function PaymentConfirmationInner({
     });
   }, []);
 
+  const handleSelectTeachingLocation = useCallback((location: TeachingLocation) => {
+    setSelectedTeachingLocation(location);
+    setIsEditingLocation(false);
+    setAddressDetailsError(null);
+  }, []);
+
+  const resolvedServiceId = useMemo(() => {
+    const metadataService = (booking as BookingWithMetadata).metadata?.['serviceId'];
+    if (metadataService !== null && metadataService !== undefined) {
+      return String(metadataService);
+    }
+    const bookingService = (booking as { serviceId?: unknown }).serviceId;
+    if (bookingService !== null && bookingService !== undefined) {
+      return String(bookingService);
+    }
+    if (typeof window !== 'undefined') {
+      const stored = window.sessionStorage?.getItem('serviceId');
+      if (stored && stored.trim().length > 0) {
+        return stored;
+      }
+    }
+    return null;
+  }, [booking]);
+
+  const selectedService = useMemo(() => {
+    if (resolvedServiceId) {
+      const match = instructorServices.find((service) => service.id === resolvedServiceId);
+      if (match) {
+        return match;
+      }
+    }
+    return instructorServices.length === 1 ? instructorServices[0] : null;
+  }, [instructorServices, resolvedServiceId]);
+
+  const availableLocationTypes = useMemo<LocationType[]>(() => {
+    const types: LocationType[] = [];
+    if (selectedService) {
+      const hasFlags =
+        typeof selectedService.offers_online === 'boolean' ||
+        typeof selectedService.offers_travel === 'boolean' ||
+        typeof selectedService.offers_at_location === 'boolean';
+
+      if (hasFlags) {
+        if (selectedService.offers_online) {
+          types.push('online');
+        }
+        if (selectedService.offers_at_location) {
+          types.push('instructor_location');
+        }
+        if (selectedService.offers_travel) {
+          types.push('student_location');
+          types.push('neutral_location');
+        }
+      } else if (Array.isArray(selectedService.location_types)) {
+        const normalized = selectedService.location_types
+          .map((value) => String(value).trim().toLowerCase())
+          .filter(Boolean);
+        if (normalized.some((value) => value.includes('online'))) {
+          types.push('online');
+        }
+        if (normalized.some((value) => value.includes('in_person') || value.includes('in-person'))) {
+          types.push('student_location');
+        }
+      }
+    }
+
+    if (types.length === 0) {
+      types.push('online', 'student_location');
+    }
+
+    return Array.from(new Set(types));
+  }, [selectedService]);
+
   useEffect(() => () => {
     addressDetailsAbortRef.current?.abort();
   }, []);
+
+  useEffect(() => {
+    if (locationType !== 'online') {
+      setLastInPersonLocationType(locationType);
+    }
+  }, [locationType]);
+
+  useEffect(() => {
+    if (availableLocationTypes.length === 0) {
+      return;
+    }
+    if (!availableLocationTypes.includes(locationType)) {
+      const fallback =
+        locationType === 'online'
+          ? availableLocationTypes[0]
+          : availableLocationTypes.find((type) => type !== 'online') ?? availableLocationTypes[0];
+      if (fallback) {
+        setLocationType(fallback);
+      }
+    }
+  }, [availableLocationTypes, locationType]);
+
+  useEffect(() => {
+    if (locationType !== 'instructor_location') {
+      return;
+    }
+    if (!selectedTeachingLocation && teachingLocations.length > 0) {
+      const [firstTeachingLocation] = teachingLocations;
+      if (firstTeachingLocation) {
+        setSelectedTeachingLocation(firstTeachingLocation);
+      }
+    }
+  }, [locationType, selectedTeachingLocation, teachingLocations]);
 
   const parseAddressComponents = useCallback(
     (
@@ -428,7 +554,7 @@ function PaymentConfirmationInner({
   }, []);
 
   const handleAddressSuggestionSelect = useCallback(async (suggestion: PlaceSuggestion) => {
-    if (!suggestion || isOnlineLesson) {
+    if (!suggestion || !isTravelLocation) {
       return;
     }
 
@@ -589,7 +715,7 @@ function PaymentConfirmationInner({
     setIsEditingLocation(false);
     lastLocationRef.current = '';
     addressDetailsAbortRef.current = null;
-  }, [fetchPlaceDetails, isOnlineLesson, parseAddressComponents, parseDescriptionFallback]);
+  }, [fetchPlaceDetails, isTravelLocation, parseAddressComponents, parseDescriptionFallback]);
 
   if (process.env.NODE_ENV !== 'production') {
     logger.info('PaymentConfirmation component rendered', {
@@ -602,7 +728,7 @@ function PaymentConfirmationInner({
   const hasSavedCard = !!cardLast4;
   const [isPaymentExpanded, setIsPaymentExpanded] = useState(!hasSavedCard);
   // Auto-collapse location if they have a saved address or it's online
-  const [isLocationExpanded, setIsLocationExpanded] = useState(!hasSavedLocation && !isOnlineLesson);
+  const [isLocationExpanded, setIsLocationExpanded] = useState(!hasSavedTravelLocation && !isOnlineLesson);
   const isLastMinute = booking.bookingType === BookingType.LAST_MINUTE;
   const creditsUsedCents = Math.max(0, Math.round(creditsUsed * 100));
 
@@ -922,7 +1048,34 @@ function PaymentConfirmationInner({
   }, []);
 
   const selectedModality = useMemo<NormalizedModality>(() => (isOnlineLesson ? 'remote' : 'in_person'), [isOnlineLesson]);
-  const inputsDisabled = isOnlineLesson || (hasSavedLocation && !isEditingLocation);
+  const inputsDisabled = !isTravelLocation || (hasSavedTravelLocation && !isEditingLocation);
+  const instructorFirstName = useMemo(() => {
+    const parts = booking.instructorName.split(' ').filter(Boolean);
+    return parts[0] || 'Instructor';
+  }, [booking.instructorName]);
+  const inPersonOptions = useMemo(
+    () => availableLocationTypes.filter((type) => type !== 'online'),
+    [availableLocationTypes],
+  );
+  const showOnlineOption = availableLocationTypes.includes('online');
+
+  const getLocationOptionLabel = useCallback(
+    (type: LocationType) => {
+      switch (type) {
+        case 'student_location':
+          return 'At your location';
+        case 'neutral_location':
+          return 'At a public location';
+        case 'instructor_location':
+          return `At ${instructorFirstName}'s location`;
+        case 'online':
+          return 'Online';
+        default:
+          return 'Location';
+      }
+    },
+    [instructorFirstName],
+  );
 
   const formattedAddress = useMemo(() => formatFullAddress(addressFields), [addressFields]);
 
@@ -934,8 +1087,14 @@ function PaymentConfirmationInner({
   }, [booking.location]);
 
   const resolvedMeetingLocation = useMemo(() => {
-    if (isOnlineLesson) {
+    if (locationType === 'online') {
       return 'Online';
+    }
+    if (locationType === 'instructor_location') {
+      if (selectedTeachingLocation?.address) {
+        return selectedTeachingLocation.address;
+      }
+      return fallbackNonOnlineLocation || INSTRUCTOR_LOCATION_PLACEHOLDER;
     }
     if (formattedAddress) {
       return formattedAddress;
@@ -944,30 +1103,43 @@ function PaymentConfirmationInner({
       return fallbackNonOnlineLocation;
     }
     return ADDRESS_PLACEHOLDER;
-  }, [isOnlineLesson, formattedAddress, fallbackNonOnlineLocation]);
+  }, [fallbackNonOnlineLocation, formattedAddress, locationType, selectedTeachingLocation]);
+
+  const handleLocationTypeChange = useCallback(
+    (nextType: LocationType) => {
+      addressDetailsAbortRef.current?.abort();
+      addressDetailsAbortRef.current = null;
+      setLocationType(nextType);
+      setIsLocationExpanded(true);
+      setAddressDetailsError(null);
+
+      if (nextType === 'online') {
+        setAddressCoords({ lat: null, lng: null, placeId: null });
+        setIsEditingLocation(false);
+      } else if (nextType === 'instructor_location') {
+        setIsEditingLocation(false);
+      } else if (selectedSavedAddress) {
+        applySavedAddress(selectedSavedAddress);
+      } else if (!hasSavedTravelLocation) {
+        setIsEditingLocation(true);
+      }
+
+      onClearFloorViolation?.();
+    },
+    [applySavedAddress, hasSavedTravelLocation, onClearFloorViolation, selectedSavedAddress]
+  );
 
   const handleOnlineToggleChange = (checked: boolean) => {
-    addressDetailsAbortRef.current?.abort();
-    addressDetailsAbortRef.current = null;
-    setIsOnlineLesson(checked);
-    if (checked) {
-      setAddressCoords({ lat: null, lng: null, placeId: null });
-    }
-    setIsLocationExpanded(true);
-    setAddressDetailsError(null);
-    if (checked) {
-      setIsEditingLocation(false);
-    } else if (selectedSavedAddress) {
-      applySavedAddress(selectedSavedAddress);
-    } else if (!hasSavedLocation) {
-      setIsEditingLocation(true);
-    }
-    onClearFloorViolation?.();
+    const fallbackType =
+      lastInPersonLocationType === 'online' ? 'student_location' : lastInPersonLocationType;
+    handleLocationTypeChange(checked ? 'online' : fallbackType);
   };
 
   const handleChangeLocationClick = () => {
     setIsLocationExpanded(true);
-    setIsOnlineLesson(false);
+    if (!isTravelLocation) {
+      setLocationType('student_location');
+    }
     setIsEditingLocation(true);
     setAddressDetailsError(null);
     onClearFloorViolation?.();
@@ -981,10 +1153,10 @@ function PaymentConfirmationInner({
       return;
     }
 
-    const modalityValue = isOnlineLesson ? 'remote' : 'in_person';
+    const modalityValue = locationType === 'online' ? 'remote' : 'in_person';
 
-    if (!isOnlineLesson && isEditingLocation) {
-      const cacheKey = `${modalityValue}|editing`;
+    if (isTravelLocation && isEditingLocation) {
+      const cacheKey = `${locationType}|editing`;
       if (lastLocationRef.current === cacheKey) {
         return;
       }
@@ -994,42 +1166,51 @@ function PaymentConfirmationInner({
         metadata: {
           ...(prev.metadata ?? {}),
           modality: modalityValue,
+          location_type: locationType,
         },
       }));
       return;
     }
 
-    const candidateLocation = modalityValue === 'remote'
-      ? 'Online'
-      : formattedAddress || fallbackNonOnlineLocation || '';
-    const cacheKey = `${modalityValue}|${candidateLocation || 'unset'}`;
+    let nextLocation = '';
+    let addressPayload: BookingPayment['address'] | null = null;
 
+    if (locationType === 'online') {
+      nextLocation = 'Online';
+    } else if (locationType === 'instructor_location') {
+      const instructorAddress = selectedTeachingLocation?.address ?? '';
+      nextLocation = instructorAddress || INSTRUCTOR_LOCATION_PLACEHOLDER;
+      addressPayload = nextLocation
+        ? {
+            fullAddress: nextLocation,
+          }
+        : null;
+    } else {
+      nextLocation = formattedAddress || fallbackNonOnlineLocation || '';
+      if (nextLocation) {
+        addressPayload = {
+          fullAddress: nextLocation,
+          ...(addressCoords.lat != null ? { lat: addressCoords.lat } : {}),
+          ...(addressCoords.lng != null ? { lng: addressCoords.lng } : {}),
+          ...(addressCoords.placeId ? { placeId: addressCoords.placeId } : {}),
+        };
+      }
+    }
+
+    const cacheKey = `${locationType}|${nextLocation || 'unset'}`;
     if (lastLocationRef.current === cacheKey) {
       return;
     }
     lastLocationRef.current = cacheKey;
 
     onBookingUpdate((prev) => {
-      const prevFallback = typeof prev.location === 'string' && prev.location && !/online|remote/i.test(prev.location)
-        ? prev.location
-        : '';
-      const nextLocation = modalityValue === 'remote'
-        ? 'Online'
-        : formattedAddress || prevFallback;
-      const addressPayload = modalityValue === 'remote'
-        ? null
-        : {
-            fullAddress: nextLocation,
-            ...(addressCoords.lat != null ? { lat: addressCoords.lat } : {}),
-            ...(addressCoords.lng != null ? { lng: addressCoords.lng } : {}),
-            ...(addressCoords.placeId ? { placeId: addressCoords.placeId } : {}),
-          };
       const nextBooking: BookingWithMetadata = {
         ...prev,
         location: nextLocation,
         metadata: {
           ...(prev.metadata ?? {}),
           modality: modalityValue,
+          location_type: locationType,
         },
       };
 
@@ -1041,15 +1222,17 @@ function PaymentConfirmationInner({
       return withoutAddress;
     });
   }, [
-    isOnlineLesson,
+    locationType,
     formattedAddress,
     fallbackNonOnlineLocation,
     onBookingUpdate,
     hasLocationInitialized,
     isEditingLocation,
+    isTravelLocation,
     addressCoords.lat,
     addressCoords.lng,
     addressCoords.placeId,
+    selectedTeachingLocation,
   ]);
   const hourlyRate = useMemo(() => {
     if (!Number.isFinite(booking.duration) || booking.duration <= 0) return 0;
@@ -1082,7 +1265,7 @@ function PaymentConfirmationInner({
     isFloorBlocking ||
     isPricingPreviewLoading ||
     isOutsideServiceArea ||
-    (isCheckingServiceArea && !isOnlineLesson);
+    (isCheckingServiceArea && isTravelLocation);
   const ctaLabel = useMemo(() => {
     if (isCheckingConflict) return 'Checking availability...';
     if (hasConflict) return 'You have a conflict at this time';
@@ -1124,17 +1307,60 @@ function PaymentConfirmationInner({
   }, [promoApplied]);
 
   useEffect(() => {
-    const modalityFromMetadata = (booking as unknown as { metadata?: Record<string, unknown> }).metadata?.['modality'];
+    const currentBookingId = booking.bookingId ?? '';
+    if (hasLocationInitialized && initializedBookingIdRef.current === currentBookingId) {
+      return;
+    }
+    initializedBookingIdRef.current = currentBookingId;
 
-    if (modalityFromMetadata === 'remote') {
-      setIsOnlineLesson(true);
-    } else if (modalityFromMetadata === 'in_person') {
-      setIsOnlineLesson(false);
-    } else if (typeof booking.location === 'string' && booking.location) {
-      setIsOnlineLesson(/online|remote/i.test(booking.location));
+    const metadata = (booking as BookingWithMetadata).metadata ?? {};
+    const normalizeLocationHint = (value: unknown): LocationType | null => {
+      if (typeof value !== 'string') {
+        return null;
+      }
+      const raw = value.trim().toLowerCase();
+      if (!raw) {
+        return null;
+      }
+      if (raw.includes('remote') || raw.includes('online') || raw.includes('virtual')) {
+        return 'online';
+      }
+      if (raw.includes('instructor') || raw.includes('studio')) {
+        return 'instructor_location';
+      }
+      if (raw.includes('neutral') || raw.includes('public')) {
+        return 'neutral_location';
+      }
+      if (raw.includes('student') || raw.includes('home') || raw.includes('in_person') || raw.includes('in-person')) {
+        return 'student_location';
+      }
+      return null;
+    };
+
+    const metadataLocationType = normalizeLocationHint(metadata['location_type']);
+    const metadataModality = normalizeLocationHint(metadata['modality']);
+    let nextLocationType = metadataLocationType ?? metadataModality;
+
+    if (!nextLocationType) {
+      if (typeof booking.location === 'string' && booking.location) {
+        nextLocationType = /online|remote|virtual/i.test(booking.location)
+          ? 'online'
+          : 'student_location';
+      } else {
+        nextLocationType = 'student_location';
+      }
     }
 
-    if (typeof booking.location === 'string' && booking.location && !/online|remote/i.test(booking.location)) {
+    setLocationType(nextLocationType);
+    if (nextLocationType !== 'online') {
+      setLastInPersonLocationType(nextLocationType);
+    }
+
+    if (nextLocationType === 'instructor_location') {
+      if (!selectedTeachingLocation && typeof booking.location === 'string' && booking.location) {
+        setSelectedTeachingLocation({ address: booking.location });
+      }
+    } else if (typeof booking.location === 'string' && booking.location && !/online|remote/i.test(booking.location)) {
       setAddressFields((prev) => {
         if (prev.line1 || prev.city || prev.state || prev.postalCode) {
           return prev;
@@ -1154,24 +1380,34 @@ function PaymentConfirmationInner({
       });
     }
 
+    if (!hasLocationInitialized) {
+      if (nextLocationType === 'student_location' || nextLocationType === 'neutral_location') {
+        const hasExistingLocation =
+          typeof booking.location === 'string' && booking.location && !/online|remote/i.test(booking.location);
+        setIsEditingLocation(!hasExistingLocation);
+      } else {
+        setIsEditingLocation(false);
+      }
+    }
+
     setHasLocationInitialized(true);
-  }, [booking, setAddressFields]);
+  }, [booking, hasLocationInitialized, selectedTeachingLocation, setAddressFields]);
 
   useEffect(() => {
-    if (isEditingLocation && !isOnlineLesson) {
+    if (isEditingLocation && isTravelLocation) {
       const raf = requestAnimationFrame(() => {
         addressLine1Ref.current?.focus();
       });
       return () => cancelAnimationFrame(raf);
     }
     return undefined;
-  }, [isEditingLocation, isOnlineLesson]);
+  }, [isEditingLocation, isTravelLocation]);
 
   useEffect(() => {
-    if (isOnlineLesson) {
+    if (!isTravelLocation) {
       setIsEditingLocation(false);
     }
-  }, [isOnlineLesson]);
+  }, [isTravelLocation]);
 
   useEffect(() => {
     if (!referralActive) {
@@ -1313,6 +1549,18 @@ function PaymentConfirmationInner({
             instructorId: booking.instructorId
           });
         }
+        const teaching = Array.isArray(data.preferred_teaching_locations)
+          ? data.preferred_teaching_locations
+              .map((location: { address?: string; label?: string }) => {
+                const address = String(location.address ?? '').trim();
+                return {
+                  address,
+                  ...(location.label ? { label: location.label } : {}),
+                };
+              })
+              .filter((location) => location.address.length > 0)
+          : [];
+        setTeachingLocations(teaching);
       } catch (error) {
         logger.error('Failed to fetch instructor profile', error);
       } finally {
@@ -1724,30 +1972,90 @@ function PaymentConfirmationInner({
 
           {isLocationExpanded && (
             <div className="mt-3 space-y-4">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="online-lesson"
-                  checked={isOnlineLesson}
-                  onChange={(e) => handleOnlineToggleChange(e.target.checked)}
-                  className="w-4 h-4 text-[#7E22CE] border-gray-300 rounded focus:ring-[#7E22CE]"
-                />
-                <label htmlFor="online-lesson" className="ml-2 text-sm font-medium text-gray-700">
-                  Online
-                </label>
-              </div>
+              {showOnlineOption && (
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="online-lesson"
+                    checked={isOnlineLesson}
+                    onChange={(e) => handleOnlineToggleChange(e.target.checked)}
+                    className="w-4 h-4 text-[#7E22CE] border-gray-300 rounded focus:ring-[#7E22CE]"
+                  />
+                  <label htmlFor="online-lesson" className="ml-2 text-sm font-medium text-gray-700">
+                    Online
+                  </label>
+                </div>
+              )}
 
-              {!isOnlineLesson && isEditingLocation && (
+              {!isOnlineLesson && inPersonOptions.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Choose a location</p>
+                  <div className="flex flex-wrap gap-2">
+                    {inPersonOptions.map((type) => {
+                      const isDisabled = type === 'instructor_location' && teachingLocations.length === 0;
+                      return (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => handleLocationTypeChange(type)}
+                          disabled={isDisabled}
+                          className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                            locationType === type
+                              ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
+                              : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                          } ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
+                        >
+                          {getLocationOptionLabel(type)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {!isOnlineLesson && locationType === 'instructor_location' && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Teaching location</p>
+                  {teachingLocations.length > 0 ? (
+                    <div className="space-y-2">
+                      {teachingLocations.map((location) => {
+                        const isSelected = selectedTeachingLocation?.address === location.address;
+                        return (
+                          <button
+                            key={`${location.address}-${location.label ?? ''}`}
+                            type="button"
+                            onClick={() => handleSelectTeachingLocation(location)}
+                            className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                              isSelected
+                                ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
+                                : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                            }`}
+                          >
+                            {location.label ? (
+                              <div className="font-medium">{location.label}</div>
+                            ) : null}
+                            <div className="text-xs text-gray-500">{location.address}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">No teaching locations available yet.</p>
+                  )}
+                </div>
+              )}
+
+              {isTravelLocation && isEditingLocation && (
                 <AddressSelector
                   instructorId={booking.instructorId}
-                  locationType="student_location"
+                  locationType={locationType}
                   selectedAddress={selectedSavedAddress}
                   onSelectAddress={handleSelectSavedAddress}
                   onEnterNewAddress={handleEnterNewAddress}
                 />
               )}
 
-              {hasSavedLocation && !isOnlineLesson && !isEditingLocation && (
+              {hasSavedTravelLocation && isTravelLocation && !isEditingLocation && (
                 <div className="bg-white p-3 rounded-lg border border-gray-200">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1851,7 +2159,7 @@ function PaymentConfirmationInner({
                 </div>
               </div>
 
-              {!isOnlineLesson && isOutsideServiceArea && !selectedSavedAddress && (
+              {isTravelLocation && isOutsideServiceArea && !selectedSavedAddress && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   <p className="font-medium">Location not covered</p>
                   <p>
@@ -1943,15 +2251,10 @@ function PaymentConfirmationInner({
             <div className="flex items-start text-sm">
               <MapPin size={16} className="mr-2 text-gray-500 mt-0.5" />
               <div>
-                {isOnlineLesson ? (
+                {locationType === 'online' ? (
                   <div>Online</div>
-                ) : booking.location ? (
-                  <div>{booking.location}</div>
                 ) : (
-                  <>
-                    <div>123 Main Street, Apt 4B</div>
-                    <div>New York, NY 10001</div>
-                  </>
+                  <div>{resolvedMeetingLocation}</div>
                 )}
               </div>
             </div>

@@ -10,6 +10,7 @@ import {
   fetchPricingPreview,
   fetchPricingPreviewQuote,
 } from '@/lib/api/pricing';
+import type { PricingPreviewQuotePayloadBase } from '@/lib/api/pricing';
 import { ApiProblemError } from '@/lib/api/fetch';
 
 // Mock dependencies
@@ -56,7 +57,7 @@ const mockPreviewResponse = {
   line_items: [],
 };
 
-const mockQuotePayload = {
+const mockQuotePayload: PricingPreviewQuotePayloadBase = {
   instructor_id: 'inst-123',
   instructor_service_id: 'svc-456',
   booking_date: '2025-02-01',
@@ -563,7 +564,7 @@ describe('usePricingPreviewController', () => {
       const invalidLocationPayload = {
         ...mockQuotePayload,
         location_type: 'invalid_type',
-      };
+      } as unknown as PricingPreviewQuotePayloadBase;
 
       renderHook(() =>
         usePricingPreviewController({
@@ -577,7 +578,7 @@ describe('usePricingPreviewController', () => {
     });
 
     it('accepts valid online location_type', async () => {
-      const remotePayload = {
+      const remotePayload: PricingPreviewQuotePayloadBase = {
         ...mockQuotePayload,
         location_type: 'online',
       };
@@ -595,7 +596,7 @@ describe('usePricingPreviewController', () => {
     });
 
     it('accepts valid student_location location_type', async () => {
-      const studentHomePayload = {
+      const studentHomePayload: PricingPreviewQuotePayloadBase = {
         ...mockQuotePayload,
         location_type: 'student_location',
       };

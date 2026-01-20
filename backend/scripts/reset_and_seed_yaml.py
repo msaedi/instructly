@@ -525,6 +525,9 @@ class DatabaseSeeder:
 
                     # Create instructor service linked to catalog (pre-generate ULID)
                     service_id = str(ulid.ULID())
+                    loc_types = [str(lt).strip().lower() for lt in (service_data.get("location_types") or [])]
+                    in_person = "in_person" in loc_types or "in-person" in loc_types
+                    offers_online = "online" in loc_types or not loc_types
                     service = InstructorService(
                         id=service_id,
                         instructor_profile_id=profile_id,
@@ -538,6 +541,9 @@ class DatabaseSeeder:
                         levels_taught=service_data.get("levels_taught"),
                         age_groups=normalized_groups or None,
                         location_types=service_data.get("location_types"),
+                        offers_travel=in_person,
+                        offers_at_location=in_person,
+                        offers_online=offers_online,
                         max_distance_miles=service_data.get("max_distance_miles"),
                         is_active=True,
                     )
@@ -754,8 +760,7 @@ class DatabaseSeeder:
                     start_dt = start_dt_naive.replace(tzinfo=timezone.utc)
                     end_dt = end_dt_naive.replace(tzinfo=timezone.utc)
 
-                    loc_types = [lt.lower() for lt in (service.location_types or [])]
-                    is_remote = any(lt in {"online", "remote", "virtual"} for lt in loc_types)
+                    is_remote = bool(getattr(service, "offers_online", False))
                     location_type = "online" if is_remote else "student_location"
                     meeting_location = "Online" if is_remote else "Student location"
 

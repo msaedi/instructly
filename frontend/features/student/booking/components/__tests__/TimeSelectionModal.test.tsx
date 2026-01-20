@@ -154,7 +154,7 @@ const mockService = {
   duration_options: [30, 60, 90] as number[],
   hourly_rate: 60,
   skill: 'Piano Lessons',
-  location_types: ['in-person'] as string[],
+  location_types: ['in_person'] as string[],
 };
 
 const mockInstructor = {
@@ -459,8 +459,8 @@ describe('TimeSelectionModal', () => {
       const instructorWithMultipleServices = {
         ...mockInstructor,
         services: [
-          { id: 'svc-1', duration_options: [30], hourly_rate: 40, skill: 'Piano', location_types: ['in-person'] },
-          { id: 'svc-2', duration_options: [60], hourly_rate: 80, skill: 'Guitar', location_types: ['in-person'] },
+          { id: 'svc-1', duration_options: [30], hourly_rate: 40, skill: 'Piano', location_types: ['in_person'] },
+          { id: 'svc-2', duration_options: [60], hourly_rate: 80, skill: 'Guitar', location_types: ['in_person'] },
         ],
       };
 

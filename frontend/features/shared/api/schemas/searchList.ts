@@ -17,7 +17,10 @@ export async function loadSearchListSchema() {
       is_active: z.boolean().optional(),
       levels_taught: z.array(z.string()).optional().default([]),
       age_groups: z.array(z.string()).optional().default([]),
-      location_types: z.array(z.string()).optional().default([]),
+      location_types: z.array(z.enum(['in_person', 'online'])).optional().default([]),
+      offers_travel: z.boolean().optional(),
+      offers_at_location: z.boolean().optional(),
+      offers_online: z.boolean().optional(),
     });
 
     const InstructorItem = z.object({

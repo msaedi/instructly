@@ -1,6 +1,6 @@
 // frontend/types/api.ts
 
-import type { ServiceAreaNeighborhood } from '@/types/instructor';
+import type { ServiceAreaNeighborhood, ServiceLocationType } from '@/types/instructor';
 
 /**
  * API Type Definitions
@@ -335,14 +335,20 @@ export interface Instructor {
     /** Skill levels taught */
     levels_taught?: string[];
     /** Available modalities */
-    location_types?: string[];
+    location_types?: ServiceLocationType[];
+    /** Instructor travels to student/public locations */
+    offers_travel?: boolean;
+    /** Instructor teaches at their location */
+    offers_at_location?: boolean;
+    /** Instructor offers online lessons */
+    offers_online?: boolean;
   }>;
 
   /** Additional context used by search highlighting */
   _matchedServiceContext?: {
     levels?: string[];
     age_groups?: string[];
-    location_types?: string[];
+    location_types?: ServiceLocationType[];
   };
   _matchedServiceCatalogId?: string | null;
 

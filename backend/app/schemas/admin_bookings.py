@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timezone
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import Field, field_serializer
 
@@ -98,7 +98,14 @@ class AdminBookingDetailResponse(StrictModel):
     lesson_timezone: Optional[str] = None
     instructor_timezone: Optional[str] = None
     student_timezone: Optional[str] = None
-    location_type: Optional[str] = None
+    location_type: Optional[
+        Literal[
+            "student_location",
+            "instructor_location",
+            "online",
+            "neutral_location",
+        ]
+    ] = None
     meeting_location: Optional[str] = None
     student_note: Optional[str] = None
     instructor_note: Optional[str] = None

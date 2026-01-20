@@ -23,11 +23,13 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, st
 
 from ...api.dependencies.auth import get_current_active_user
 from ...api.dependencies.services import get_instructor_service
+from ...core.exceptions import DomainException
 from ...models.user import User
 from ...schemas.service_catalog import (
     CatalogServiceMinimalResponse,
     CatalogServiceResponse,
     CategoryResponse,
+    InstructorServiceCapabilitiesUpdate,
     InstructorServiceCreate,
     InstructorServiceResponse,
 )
@@ -120,6 +122,33 @@ async def add_service_to_profile(
         elif "already offer" in str(e).lower():
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         raise
+
+
+@router.patch("/{service_id}/capabilities", response_model=InstructorServiceResponse)
+async def update_service_capabilities(
+    service_id: str,
+    capabilities: InstructorServiceCapabilitiesUpdate = Body(...),
+    current_user: User = Depends(get_current_active_user),
+    instructor_service: InstructorService = Depends(get_instructor_service),
+) -> InstructorServiceResponse:
+    """Update location capabilities for an instructor service."""
+    if not current_user.is_instructor:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only instructors can update services"
+        )
+
+    updates = capabilities.model_dump(exclude_unset=True)
+    try:
+        updated = await asyncio.to_thread(
+            instructor_service.update_service_capabilities,
+            service_id=service_id,
+            instructor_id=current_user.id,
+            updates=updates,
+        )
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
+
+    return InstructorServiceResponse(**updated)
 
 
 @router.get("/search", response_model=ServiceSearchResponse)

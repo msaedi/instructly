@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import type { InstructorProfile, InstructorService, ServiceAreaNeighborhood } from '@/types/instructor';
+import { normalizeLocationTypes } from '@/lib/instructorServices';
+import type { InstructorProfile, InstructorService, ServiceAreaNeighborhood, ServiceLocationType } from '@/types/instructor';
 import { useInstructor } from '@/src/api/services/instructors';
 
 type ServerInstructorProfileResult = {
@@ -14,7 +15,10 @@ type ServerInstructorProfileResult = {
     duration_options?: number[];
     hourly_rate?: number | string;
     description?: string | null;
-    location_types?: string[];
+    location_types?: ServiceLocationType[];
+    offers_travel?: boolean;
+    offers_at_location?: boolean;
+    offers_online?: boolean;
     levels_taught?: string[];
     age_groups?: string[];
     service_catalog_name?: string;
@@ -75,7 +79,22 @@ export function useInstructorProfile(instructorId: string) {
       }
 
       if (Array.isArray(svc.location_types) && svc.location_types.length) {
-        result.location_types = svc.location_types;
+        const normalized = normalizeLocationTypes(svc.location_types);
+        if (normalized.length) {
+          result.location_types = normalized;
+        }
+      }
+
+      if (typeof svc.offers_travel === 'boolean') {
+        result.offers_travel = svc.offers_travel;
+      }
+
+      if (typeof svc.offers_at_location === 'boolean') {
+        result.offers_at_location = svc.offers_at_location;
+      }
+
+      if (typeof svc.offers_online === 'boolean') {
+        result.offers_online = svc.offers_online;
       }
 
       if (Array.isArray(svc.levels_taught) && svc.levels_taught.length) {

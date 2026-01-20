@@ -35,6 +35,9 @@ def instructor_setup(db: Session, test_instructor: User):
     db.commit()
     service = db.query(Service).filter_by(instructor_profile_id=profile.id, is_active=True).first()
     assert service is not None, "Active instructor service not found"
+    service.offers_at_location = True
+    db.add(service)
+    db.commit()
     return instructor, profile, service
 
 
@@ -256,6 +259,7 @@ class TestBookingPaymentRoutes:
             service_catalog_id=catalog.id,
             hourly_rate=100.00,
             duration_options=[30, 60, 90],
+            offers_at_location=True,
             is_active=True,
         )
         db.add(service)

@@ -1,6 +1,6 @@
 import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
-import type { InstructorService } from '@/types/instructor';
+import type { InstructorService, ServiceLocationType } from '@/types/instructor';
 
 type CatalogSummary = { id: string; name: string };
 
@@ -35,6 +35,30 @@ export function displayServiceName(
 
 let catalogCache: CatalogSummary[] | null = null;
 let catalogPromise: Promise<CatalogSummary[]> | null = null;
+
+const normalizeLocationType = (value: unknown): ServiceLocationType | null => {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw) return null;
+  const normalized = raw.replace(/[\s-]+/g, '_');
+  if (normalized === 'online' || normalized === 'remote' || normalized === 'virtual') {
+    return 'online';
+  }
+  if (normalized === 'in_person' || normalized === 'inperson') {
+    return 'in_person';
+  }
+  return null;
+};
+
+export const normalizeLocationTypes = (values: unknown[]): ServiceLocationType[] => {
+  const normalized: ServiceLocationType[] = [];
+  values.forEach((value) => {
+    const mapped = normalizeLocationType(value);
+    if (mapped && !normalized.includes(mapped)) {
+      normalized.push(mapped);
+    }
+  });
+  return normalized;
+};
 
 function isPlaceholderLabel(value: string | undefined | null, fallbackId?: string): boolean {
   if (!value) return true;
@@ -149,7 +173,16 @@ export async function normalizeInstructorServices(services: unknown): Promise<UI
           ? { levels_taught: (record['levels_taught'] as unknown[]).map((lvl) => String(lvl)) }
           : {}),
         ...(Array.isArray(record['location_types']) && record['location_types'].length
-          ? { location_types: (record['location_types'] as unknown[]).map((loc) => String(loc)) }
+          ? { location_types: normalizeLocationTypes(record['location_types'] as unknown[]) }
+          : {}),
+        ...(typeof record['offers_travel'] === 'boolean'
+          ? { offers_travel: record['offers_travel'] as boolean }
+          : {}),
+        ...(typeof record['offers_at_location'] === 'boolean'
+          ? { offers_at_location: record['offers_at_location'] as boolean }
+          : {}),
+        ...(typeof record['offers_online'] === 'boolean'
+          ? { offers_online: record['offers_online'] as boolean }
           : {}),
       };
 

@@ -524,14 +524,16 @@ const findNextAvailableSlot = (
                   .map((lvl) => lvl.charAt(0).toUpperCase() + lvl.slice(1))
                   .join(' · ');
                 const locationLabel = locations
-                  .map((loc) =>
-                    loc.includes('-')
-                      ? loc
-                          .split('-')
-                          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-                          .join('-')
-                      : loc.charAt(0).toUpperCase() + loc.slice(1),
-                  )
+                  .map((loc) => {
+                    const normalized = loc.replace(/_/g, '-');
+                    if (normalized.includes('-')) {
+                      return normalized
+                        .split('-')
+                        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                        .join('-');
+                    }
+                    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+                  })
                   .join(' · ');
                 const showsKidsBadge = ageGroups.map((g) => g.toLowerCase()).includes('kids');
 

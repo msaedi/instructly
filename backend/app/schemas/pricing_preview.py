@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import List, TypedDict
+from typing import List, Literal, Optional, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class LineItem(BaseModel):
@@ -49,9 +49,21 @@ class PricingPreviewIn(BaseModel):
     booking_date: str = Field(min_length=1, pattern=r"^\d{4}-\d{2}-\d{2}$")
     start_time: str = Field(min_length=1, pattern=r"^\d{2}:\d{2}$")
     selected_duration: int = Field(gt=0)
-    location_type: str = Field(min_length=1)
-    meeting_location: str = Field(min_length=1)
+    location_type: Literal[
+        "student_location",
+        "instructor_location",
+        "online",
+        "neutral_location",
+    ]
+    meeting_location: Optional[str] = None
     applied_credit_cents: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_location_requirements(self) -> "PricingPreviewIn":
+        if self.location_type != "online":
+            if not (self.meeting_location or "").strip():
+                raise ValueError("meeting_location is required for non-online pricing previews")
+        return self
 
 
 __all__ = [

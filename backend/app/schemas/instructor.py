@@ -298,6 +298,18 @@ class ServiceResponse(ServiceBase):
         max_length=255,
         description="Human-readable name of the catalog service",
     )
+    offers_travel: bool = Field(
+        default=False,
+        description="Whether the instructor travels to student locations for this service",
+    )
+    offers_at_location: bool = Field(
+        default=False,
+        description="Whether the instructor offers lessons at their location for this service",
+    )
+    offers_online: bool = Field(
+        default=True,
+        description="Whether the instructor offers online lessons for this service",
+    )
     display_order: int | None = Field(
         default=None,
         description="Display order hint from the catalog (nullable)",

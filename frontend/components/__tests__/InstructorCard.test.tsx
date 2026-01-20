@@ -14,6 +14,7 @@ import { ApiProblemError } from '@/lib/api/fetch';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import type { Instructor } from '@/types/api';
+import type { ServiceLocationType } from '@/types/instructor';
 
 jest.mock('@/features/shared/hooks/useAuth', () => ({
   useAuth: jest.fn(),
@@ -727,7 +728,7 @@ describe('InstructorCard', () => {
             service_catalog_id: 'cat-1',
             hourly_rate: 60,
             duration_options: [60],
-            location_types: ['in-person', 'online'],
+            location_types: ['in_person', 'online'],
           },
         ],
       });
@@ -1014,7 +1015,7 @@ describe('InstructorCard', () => {
           service_catalog_id: 'cat-1',
           hourly_rate: 60,
           duration_options: [60],
-          location_types: ['online', '', 'in-home'],
+          location_types: ['online', '', 'in-home'] as unknown as ServiceLocationType[],
         }],
       });
 

@@ -101,6 +101,7 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
         instructor_profile_id=profile1.id,
         service_catalog_id=math_catalog.id,
         hourly_rate=50.0,
+        offers_travel=True,
         is_active=True,
     )
     db.add(math_service)
@@ -144,6 +145,7 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
         instructor_profile_id=profile2.id,
         service_catalog_id=piano_catalog.id,
         hourly_rate=75.0,
+        offers_online=True,
         is_active=True,
     )
     db.add(piano_service)

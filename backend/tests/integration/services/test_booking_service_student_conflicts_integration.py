@@ -140,6 +140,8 @@ class TestStudentConflictValidationIntegration:
             instructor_profile_id=profile.id,
             service_catalog_id=math_catalog.id,
             hourly_rate=60.0,
+            offers_travel=True,
+            offers_online=True,
             is_active=True,
         )
         db.add(service)
@@ -211,6 +213,8 @@ class TestStudentConflictValidationIntegration:
             instructor_profile_id=profile.id,
             service_catalog_id=piano_catalog.id,
             hourly_rate=80.0,
+            offers_travel=True,
+            offers_online=True,
             is_active=True,
         )
         db.add(service)

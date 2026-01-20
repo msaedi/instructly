@@ -92,7 +92,7 @@ describe('useInstructorProfile', () => {
             hourly_rate: '75.00',
             duration_options: [30, 60, 90],
             description: 'Learn piano',
-            location_types: ['in-person', 'online'],
+            location_types: ['in_person', 'online'],
             levels_taught: ['beginner', 'intermediate'],
             age_groups: ['kids', 'adults'],
           },
@@ -116,7 +116,7 @@ describe('useInstructorProfile', () => {
     expect(service?.hourly_rate).toBe(75);
     expect(service?.duration_options).toEqual([30, 60, 90]);
     expect(service?.description).toBe('Learn piano');
-    expect(service?.location_types).toEqual(['in-person', 'online']);
+    expect(service?.location_types).toEqual(['in_person', 'online']);
     expect(service?.levels_taught).toEqual(['beginner', 'intermediate']);
     expect(service?.age_groups).toEqual(['kids', 'adults']);
   });

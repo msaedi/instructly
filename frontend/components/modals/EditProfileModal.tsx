@@ -13,10 +13,10 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
-import { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
+import { normalizeInstructorServices, normalizeLocationTypes, hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { buildProfileUpdateBody } from '@/lib/profileSchemaDebug';
-import type { InstructorProfile, ServiceAreaNeighborhood } from '@/types/instructor';
+import type { InstructorProfile, ServiceAreaNeighborhood, ServiceLocationType } from '@/types/instructor';
 import { SelectedNeighborhoodChips, type SelectedNeighborhood } from '@/features/shared/components/SelectedNeighborhoodChips';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } from '@/lib/pricing/platformFees';
@@ -40,7 +40,7 @@ type EditableService = {
   age_groups?: string[] | null;
   levels_taught?: string[] | null;
   equipment_required?: string[] | null;
-  location_types?: string[] | null;
+  location_types?: ServiceLocationType[] | null;
   duration_options?: number[] | null;
 };
 
@@ -55,7 +55,7 @@ interface ServiceUpdateItem {
   duration_options: number[];
   levels_taught: string[];
   equipment_required?: string[];
-  location_types: string[];
+  location_types: ServiceLocationType[];
 }
 
 interface ProfileServiceUpdatePayload {
@@ -250,7 +250,7 @@ export default function EditProfileModal({
     equipment?: string;
     levels_taught: Array<'beginner' | 'intermediate' | 'advanced'>;
     duration_options: number[];
-    location_types: Array<'in-person' | 'online'>;
+    location_types: ServiceLocationType[];
   };
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [servicesByCategory, setServicesByCategory] = useState<Record<string, CategoryServiceDetail[]>>({});
@@ -297,7 +297,7 @@ export default function EditProfileModal({
       const violations = evaluatePriceFloorViolations({
         hourlyRate: Number(service.hourly_rate),
         durationOptions: service.duration_options ?? [60],
-        locationTypes: service.location_types ?? ['in-person'],
+        locationTypes: service.location_types ?? ['in_person'],
         floors: pricingFloors,
       });
       if (violations.length > 0) {
@@ -584,7 +584,11 @@ export default function EditProfileModal({
             ? s['levels_taught'] as Array<'beginner' | 'intermediate' | 'advanced'>
             : ['beginner', 'intermediate', 'advanced'],
         duration_options: Array.isArray(s['duration_options']) && s['duration_options'].length ? s['duration_options'] as number[] : [60],
-        location_types: Array.isArray(s['location_types']) && s['location_types'].length ? s['location_types'] as Array<'in-person' | 'online'> : ['in-person'],
+        location_types: (() => {
+          const rawLocationTypes = Array.isArray(s['location_types']) ? (s['location_types'] as unknown[]) : [];
+          const normalizedLocationTypes = normalizeLocationTypes(rawLocationTypes);
+          return normalizedLocationTypes.length ? normalizedLocationTypes : ['in_person'];
+        })(),
       };
     });
     if (mapped.length) setSelectedServices(mapped);
@@ -801,7 +805,7 @@ export default function EditProfileModal({
                     .filter(Boolean),
                 }
               : {}),
-            location_types: service.location_types?.length ? service.location_types : ['in-person'],
+            location_types: service.location_types?.length ? service.location_types : ['in_person'],
           })),
       };
 
@@ -1849,7 +1853,7 @@ export default function EditProfileModal({
                                         equipment: '',
                                         levels_taught: ['beginner', 'intermediate', 'advanced'],
                                         duration_options: [60],
-                                        location_types: ['in-person'],
+                                        location_types: ['in_person'],
                                       },
                                     ];
                                   });
@@ -1916,7 +1920,7 @@ export default function EditProfileModal({
                                             equipment: '',
                                             levels_taught: ['beginner', 'intermediate', 'advanced'],
                                             duration_options: [60],
-                                            location_types: ['in-person'],
+                                            location_types: ['in_person'],
                                           },
                                         ];
                                       });
@@ -2058,13 +2062,13 @@ export default function EditProfileModal({
                             <div className="bg-white rounded-lg p-3 border border-gray-200">
                               <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Location Type</label>
                               <div className="flex gap-1">
-                                {(['in-person', 'online'] as const).map((loc) => (
+                                {(['in_person', 'online'] as const).map((loc) => (
                                   <button
                                     key={loc}
                                     onClick={() => setSelectedServices((prev) => prev.map((x) => {
                                       if (x.catalog_service_id !== s.catalog_service_id) return x;
                                       const has = x.location_types.includes(loc);
-                                      const other = loc === 'in-person' ? 'online' : 'in-person';
+                                      const other = loc === 'in_person' ? 'online' : 'in_person';
                                       if (has && x.location_types.length === 1) return { ...x, location_types: [other] };
                                       return { ...x, location_types: has ? x.location_types.filter((v) => v !== loc) : [...x.location_types, loc] };
                                     }))}
@@ -2075,7 +2079,7 @@ export default function EditProfileModal({
                                     }`}
                                     type="button"
                                   >
-                                    {loc === 'in-person' ? 'In-Person' : 'Online'}
+                                    {loc === 'in_person' ? 'In-Person' : 'Online'}
                                   </button>
                                 ))}
                               </div>

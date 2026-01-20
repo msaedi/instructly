@@ -126,15 +126,20 @@ const extractBasePayload = (
     meeting_location,
   } = payload;
 
-  return {
+  const base: PricingPreviewQuotePayloadBase = {
     instructor_id,
     instructor_service_id,
     booking_date,
     start_time,
     selected_duration,
     location_type,
-    meeting_location,
   };
+
+  if (meeting_location !== undefined) {
+    base.meeting_location = meeting_location;
+  }
+
+  return base;
 };
 
 export function usePricingPreviewController({

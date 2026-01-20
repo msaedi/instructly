@@ -6057,6 +6057,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/services/{service_id}/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Service Capabilities
+         * @description Update location capabilities for an instructor service.
+         */
+        patch: operations["update_service_capabilities_api_v1_services__service_id__capabilities_patch"];
+        trace?: never;
+    };
     "/api/v1/sse/token": {
         parameters: {
             query?: never;
@@ -6591,7 +6611,7 @@ export type components = {
             /** Lesson Timezone */
             lesson_timezone?: string | null;
             /** Location Type */
-            location_type?: string | null;
+            location_type?: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
             /** Meeting Location */
             meeting_location?: string | null;
             payment: components["schemas"]["AdminBookingPaymentInfo"];
@@ -8432,8 +8452,9 @@ export type components = {
             /**
              * Location Type
              * @description Location type (student_location, instructor_location, online, neutral_location)
+             * @enum {string}
              */
-            location_type: string;
+            location_type: "student_location" | "instructor_location" | "online" | "neutral_location";
             /**
              * Service Area Short
              * @description Abbreviated service area
@@ -8772,8 +8793,11 @@ export type components = {
             location_lng?: number | null;
             /** Location Place Id */
             location_place_id?: string | null;
-            /** Location Type */
-            location_type: string;
+            /**
+             * Location Type
+             * @enum {string}
+             */
+            location_type: "student_location" | "instructor_location" | "online" | "neutral_location";
             /** Location Type Display */
             location_type_display: string;
             /** Meeting Location */
@@ -11243,6 +11267,18 @@ export type components = {
             is_covered: boolean;
         };
         /**
+         * InstructorServiceCapabilitiesUpdate
+         * @description Partial update for instructor service location capabilities.
+         */
+        InstructorServiceCapabilitiesUpdate: {
+            /** Offers At Location */
+            offers_at_location?: boolean | null;
+            /** Offers Online */
+            offers_online?: boolean | null;
+            /** Offers Travel */
+            offers_travel?: boolean | null;
+        };
+        /**
          * InstructorServiceCreate
          * @description Create instructor service from catalog.
          */
@@ -11299,6 +11335,21 @@ export type components = {
             is_active: boolean;
             /** Name */
             name: string;
+            /**
+             * Offers At Location
+             * @default false
+             */
+            offers_at_location: boolean;
+            /**
+             * Offers Online
+             * @default true
+             */
+            offers_online: boolean;
+            /**
+             * Offers Travel
+             * @default false
+             */
+            offers_travel: boolean;
             /** Updated At */
             updated_at?: string | null;
         };
@@ -13374,10 +13425,13 @@ export type components = {
             instructor_id: string;
             /** Instructor Service Id */
             instructor_service_id: string;
-            /** Location Type */
-            location_type: string;
+            /**
+             * Location Type
+             * @enum {string}
+             */
+            location_type: "student_location" | "instructor_location" | "online" | "neutral_location";
             /** Meeting Location */
-            meeting_location: string;
+            meeting_location?: string | null;
             /** Selected Duration */
             selected_duration: number;
             /** Start Time */
@@ -15558,6 +15612,24 @@ export type components = {
              * @description Resolved name of the service from the catalog
              */
             name?: string | null;
+            /**
+             * Offers At Location
+             * @description Whether the instructor offers lessons at their location for this service
+             * @default false
+             */
+            offers_at_location: boolean;
+            /**
+             * Offers Online
+             * @description Whether the instructor offers online lessons for this service
+             * @default true
+             */
+            offers_online: boolean;
+            /**
+             * Offers Travel
+             * @description Whether the instructor travels to student locations for this service
+             * @default false
+             */
+            offers_travel: boolean;
             /**
              * Online Capable
              * @description Whether the catalog service supports online delivery
@@ -26281,6 +26353,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_service_capabilities_api_v1_services__service_id__capabilities_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstructorServiceCapabilitiesUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstructorServiceResponse"];
                 };
             };
             /** @description Validation Error */

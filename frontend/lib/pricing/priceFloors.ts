@@ -76,7 +76,7 @@ export function evaluatePriceFloorViolations(options: {
   if (!durations.length) return [];
 
   const modalities = Array.from(
-    new Set((locationTypes.length ? locationTypes : ['in-person']).map((label) => normalizeModality(label)))
+    new Set((locationTypes.length ? locationTypes : ['in_person']).map((label) => normalizeModality(label)))
   );
 
   const violations: FloorViolation[] = [];

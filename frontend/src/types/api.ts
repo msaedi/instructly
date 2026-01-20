@@ -153,7 +153,7 @@ export interface BookingCreate {
   selected_duration: number;
   student_note?: string | null;
   meeting_location?: string | null;
-  location_type?: string | null;
+  location_type?: LocationType | null;
   location_address?: string | null;
   location_lat?: number | null;
   location_lng?: number | null;
@@ -184,7 +184,7 @@ export interface BookingBase {
   status: BookingStatus;
   service_area: string | null;
   meeting_location: string | null;
-  location_type: string | null;
+  location_type: LocationType | null;
   location_address: string | null;
   location_lat: number | null;
   location_lng: number | null;

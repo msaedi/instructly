@@ -29,6 +29,7 @@ import type {
   GetCatalogServicesApiV1ServicesCatalogGetParams,
   GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams,
   HTTPValidationError,
+  InstructorServiceCapabilitiesUpdate,
   InstructorServiceCreate,
   InstructorServiceResponse,
   SearchServicesApiV1ServicesSearchGetParams,
@@ -1103,3 +1104,91 @@ export function useSearchServicesApiV1ServicesSearchGet<
 
   return query;
 }
+
+/**
+ * Update location capabilities for an instructor service.
+ * @summary Update Service Capabilities
+ */
+export const updateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatch = (
+  serviceId: string,
+  instructorServiceCapabilitiesUpdate: InstructorServiceCapabilitiesUpdate
+) => {
+  return customFetch<InstructorServiceResponse>({
+    url: `/api/v1/services/${serviceId}/capabilities`,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    data: instructorServiceCapabilitiesUpdate,
+  });
+};
+
+export const getUpdateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatch>>,
+    TError,
+    { serviceId: string; data: InstructorServiceCapabilitiesUpdate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatch>>,
+  TError,
+  { serviceId: string; data: InstructorServiceCapabilitiesUpdate },
+  TContext
+> => {
+  const mutationKey = ['updateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatch'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatch>>,
+    { serviceId: string; data: InstructorServiceCapabilitiesUpdate }
+  > = (props) => {
+    const { serviceId, data } = props ?? {};
+
+    return updateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatch(serviceId, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatchMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof updateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatch>>
+  >;
+export type UpdateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatchMutationBody =
+  InstructorServiceCapabilitiesUpdate;
+export type UpdateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatchMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Update Service Capabilities
+ */
+export const useUpdateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatch = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatch>>,
+      TError,
+      { serviceId: string; data: InstructorServiceCapabilitiesUpdate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatch>>,
+  TError,
+  { serviceId: string; data: InstructorServiceCapabilitiesUpdate },
+  TContext
+> => {
+  const mutationOptions =
+    getUpdateServiceCapabilitiesApiV1ServicesServiceIdCapabilitiesPatchMutationOptions(options);
+
+  return useMutation(mutationOptions, queryClient);
+};
