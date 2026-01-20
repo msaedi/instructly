@@ -43,8 +43,12 @@ type BookingWithMetadata = BookingPayment & { metadata?: Record<string, unknown>
 type LocationType = 'student_location' | 'instructor_location' | 'online' | 'neutral_location';
 
 type TeachingLocation = {
+  id?: string;
   address: string;
   label?: string;
+  lat?: number;
+  lng?: number;
+  placeId?: string;
 };
 
 type ConflictKey = {
@@ -297,28 +301,21 @@ function PaymentConfirmationInner({
 
   const availableLocationTypes = useMemo<LocationType[]>(() => {
     const types: LocationType[] = [];
-    if (selectedService) {
-      const hasFlags =
-        typeof selectedService.offers_online === 'boolean' ||
-        typeof selectedService.offers_travel === 'boolean' ||
-        typeof selectedService.offers_at_location === 'boolean';
-
-      if (hasFlags) {
-        if (selectedService.offers_online) {
-          types.push('online');
-        }
-        if (selectedService.offers_at_location) {
-          types.push('instructor_location');
-        }
-        if (selectedService.offers_travel) {
-          types.push('student_location');
-          types.push('neutral_location');
-        }
-      }
+    if (!selectedService) {
+      return types;
     }
-
+    if (selectedService.offers_online) {
+      types.push('online');
+    }
+    if (selectedService.offers_travel) {
+      types.push('student_location');
+      types.push('neutral_location');
+    }
+    if (selectedService.offers_at_location && teachingLocations.length > 0) {
+      types.push('instructor_location');
+    }
     return Array.from(new Set(types));
-  }, [selectedService]);
+  }, [selectedService, teachingLocations.length]);
 
   useEffect(() => () => {
     addressDetailsAbortRef.current?.abort();
@@ -1047,6 +1044,7 @@ function PaymentConfirmationInner({
     [availableLocationTypes],
   );
   const showOnlineOption = availableLocationTypes.includes('online');
+  const singleTeachingLocation = teachingLocations.length === 1 ? teachingLocations[0] : null;
 
   const getLocationOptionLabel = useCallback(
     (type: LocationType) => {
@@ -1172,6 +1170,13 @@ function PaymentConfirmationInner({
       addressPayload = nextLocation
         ? {
             fullAddress: nextLocation,
+            ...(typeof selectedTeachingLocation?.lat === 'number'
+              ? { lat: selectedTeachingLocation.lat }
+              : {}),
+            ...(typeof selectedTeachingLocation?.lng === 'number'
+              ? { lng: selectedTeachingLocation.lng }
+              : {}),
+            ...(selectedTeachingLocation?.placeId ? { placeId: selectedTeachingLocation.placeId } : {}),
           }
         : null;
     } else {
@@ -1264,6 +1269,7 @@ function PaymentConfirmationInner({
   }, [isCheckingConflict, hasConflict, isFloorBlocking, isPricingPreviewLoading]);
 
   const creditsAccordionPanelId = useId();
+  const teachingLocationGroupName = useId();
   const isCreditsExpandedControlled = typeof creditsAccordionExpanded === 'boolean';
   const [internalCreditsExpanded, setInternalCreditsExpanded] = useState(() => derivedAppliedCreditCents > 0);
 
@@ -1538,16 +1544,51 @@ function PaymentConfirmationInner({
             instructorId: booking.instructorId
           });
         }
-        const teaching = Array.isArray(data.preferred_teaching_locations)
+        const teaching: TeachingLocation[] = Array.isArray(data.preferred_teaching_locations)
           ? data.preferred_teaching_locations
-              .map((location: { address?: string; label?: string }) => {
-                const address = String(location.address ?? '').trim();
+              .map((location: Record<string, unknown>, index: number): TeachingLocation | null => {
+                const address = String(location['address'] ?? '').trim();
+                if (!address) {
+                  return null;
+                }
+                const labelValue = location['label'];
+                const label = typeof labelValue === 'string' ? labelValue : undefined;
+                const latValue = location['lat'];
+                const latitudeValue = location['latitude'];
+                const lat =
+                  typeof latValue === 'number'
+                    ? latValue
+                    : typeof latitudeValue === 'number'
+                      ? latitudeValue
+                      : undefined;
+                const lngValue = location['lng'];
+                const longitudeValue = location['longitude'];
+                const lng =
+                  typeof lngValue === 'number'
+                    ? lngValue
+                    : typeof longitudeValue === 'number'
+                      ? longitudeValue
+                      : undefined;
+                const placeIdValue = location['place_id'];
+                const placeIdCamelValue = location['placeId'];
+                const placeId =
+                  typeof placeIdValue === 'string'
+                    ? placeIdValue
+                    : typeof placeIdCamelValue === 'string'
+                      ? placeIdCamelValue
+                      : undefined;
+                const idValue = location['id'];
+                const id = typeof idValue === 'string' ? idValue : `${address}-${index}`;
                 return {
+                  id,
                   address,
-                  ...(location.label ? { label: location.label } : {}),
+                  ...(label ? { label } : {}),
+                  ...(typeof lat === 'number' ? { lat } : {}),
+                  ...(typeof lng === 'number' ? { lng } : {}),
+                  ...(placeId ? { placeId } : {}),
                 };
               })
-              .filter((location) => location.address.length > 0)
+              .filter((location): location is TeachingLocation => Boolean(location))
           : [];
         setTeachingLocations(teaching);
       } catch (error) {
@@ -1980,24 +2021,20 @@ function PaymentConfirmationInner({
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">Choose a location</p>
                   <div className="flex flex-wrap gap-2">
-                    {inPersonOptions.map((type) => {
-                      const isDisabled = type === 'instructor_location' && teachingLocations.length === 0;
-                      return (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => handleLocationTypeChange(type)}
-                          disabled={isDisabled}
-                          className={`rounded-full border px-3 py-1 text-sm transition-colors ${
-                            locationType === type
-                              ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
-                              : 'border-gray-200 text-gray-700 hover:border-gray-300'
-                          } ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
-                        >
-                          {getLocationOptionLabel(type)}
-                        </button>
-                      );
-                    })}
+                    {inPersonOptions.map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => handleLocationTypeChange(type)}
+                        className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                          locationType === type
+                            ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
+                            : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        {getLocationOptionLabel(type)}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -2005,31 +2042,55 @@ function PaymentConfirmationInner({
               {!isOnlineLesson && locationType === 'instructor_location' && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">Teaching location</p>
-                  {teachingLocations.length > 0 ? (
+                  {teachingLocations.length === 0 ? (
+                    <p className="text-sm text-gray-500">No teaching locations available yet.</p>
+                  ) : singleTeachingLocation ? (
+                    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
+                      <p className="text-gray-600">
+                        Your lesson will be at {instructorFirstName}&apos;s location:
+                      </p>
+                      {singleTeachingLocation.label ? (
+                        <p className="font-medium text-gray-700">{singleTeachingLocation.label}</p>
+                      ) : null}
+                      <p className="font-medium text-gray-700">{singleTeachingLocation.address}</p>
+                    </div>
+                  ) : (
                     <div className="space-y-2">
-                      {teachingLocations.map((location) => {
-                        const isSelected = selectedTeachingLocation?.address === location.address;
+                      {teachingLocations.map((location, index) => {
+                        const locationId = String(location.id ?? `${location.address}-${index}`);
+                        const optionId = `${teachingLocationGroupName}-${locationId}`;
+                        const isSelected =
+                          selectedTeachingLocation?.id && location.id
+                            ? selectedTeachingLocation.id === location.id
+                            : selectedTeachingLocation?.address === location.address;
                         return (
-                          <button
-                            key={`${location.address}-${location.label ?? ''}`}
-                            type="button"
-                            onClick={() => handleSelectTeachingLocation(location)}
-                            className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                          <label
+                            key={locationId}
+                            htmlFor={optionId}
+                            className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
                               isSelected
                                 ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
                                 : 'border-gray-200 text-gray-700 hover:border-gray-300'
                             }`}
                           >
-                            {location.label ? (
-                              <div className="font-medium">{location.label}</div>
-                            ) : null}
-                            <div className="text-xs text-gray-500">{location.address}</div>
-                          </button>
+                            <input
+                              id={optionId}
+                              type="radio"
+                              name={teachingLocationGroupName}
+                              checked={isSelected}
+                              onChange={() => handleSelectTeachingLocation(location)}
+                              className="mt-1 h-4 w-4 text-[#7E22CE] border-gray-300 focus:ring-[#7E22CE]"
+                            />
+                            <span>
+                              {location.label ? (
+                                <span className="block font-medium">{location.label}</span>
+                              ) : null}
+                              <span className="block text-xs text-gray-500">{location.address}</span>
+                            </span>
+                          </label>
                         );
                       })}
                     </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">No teaching locations available yet.</p>
                   )}
                 </div>
               )}
@@ -2411,16 +2472,17 @@ function PaymentConfirmationInner({
                   skill: service.skill || '',
                   hourly_rate: service.hourly_rate,
                   duration_options: service.duration_options || [30, 60, 90],
-                  ...(Array.isArray(service.location_types)
-                    ? { location_types: service.location_types }
-                    : {}),
+                  location_types: [
+                    ...(service.offers_travel || service.offers_at_location ? ['in_person'] : []),
+                    ...(service.offers_online ? ['online'] : []),
+                  ],
                 }))
               : [{
                   id: sessionStorage.getItem('serviceId') || '',
                   skill: booking.lessonType,
                   hourly_rate: booking.basePrice / (booking.duration / 60),
                   duration_options: [30, 60, 90], // fallback to standard durations
-                  location_types: ['online'],
+                  location_types: [locationType === 'online' ? 'online' : 'in_person'],
                 }]
           }}
           initialDate={bookingDateLocal ?? (booking.date ?? null)}
