@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { normalizeLocationTypes } from '@/lib/instructorServices';
 import type { InstructorProfile, InstructorService, ServiceAreaNeighborhood, ServiceLocationType } from '@/types/instructor';
 import { useInstructor } from '@/src/api/services/instructors';
 
@@ -79,10 +78,7 @@ export function useInstructorProfile(instructorId: string) {
       }
 
       if (Array.isArray(svc.location_types) && svc.location_types.length) {
-        const normalized = normalizeLocationTypes(svc.location_types);
-        if (normalized.length) {
-          result.location_types = normalized;
-        }
+        result.location_types = svc.location_types;
       }
 
       if (typeof svc.offers_travel === 'boolean') {

@@ -667,55 +667,39 @@ class InstructorService(BaseService):
             )
 
     def _resolve_location_types(self, service: Service) -> List[str]:
-        """Derive legacy location_types from capability flags with a safe fallback."""
+        """Derive location_types from capability flags."""
         offers_travel = bool(getattr(service, "offers_travel", False))
         offers_at_location = bool(getattr(service, "offers_at_location", False))
         offers_online = bool(getattr(service, "offers_online", False))
 
-        if offers_travel or offers_at_location or offers_online:
-            types: List[str] = []
-            if offers_travel or offers_at_location:
-                types.append("in_person")
-            if offers_online:
-                types.append("online")
-            return types
-
-        legacy = getattr(service, "location_types", None)
-        if not legacy:
-            return []
-
-        normalized: List[str] = []
-        for item in legacy:
-            value = str(item).strip().lower()
-            if value == "in-person":
-                value = "in_person"
-            if value in {"in_person", "online"} and value not in normalized:
-                normalized.append(value)
-        return normalized
+        types: List[str] = []
+        if offers_travel or offers_at_location:
+            types.append("in_person")
+        if offers_online:
+            types.append("online")
+        return types
 
     def _apply_location_type_capabilities(
         self, updates: Dict[str, Any], apply_defaults: bool = False
     ) -> None:
-        """Translate legacy location_types updates into capability flags."""
-        location_types = updates.get("location_types")
-        if location_types is not None:
-            normalized = []
-            for item in location_types:
-                value = str(item).strip().lower()
-                if value == "in-person":
-                    value = "in_person"
-                normalized.append(value)
-
-            in_person = "in_person" in normalized
-            offers_online = "online" in normalized
-            updates.setdefault("offers_travel", in_person)
-            updates.setdefault("offers_at_location", in_person)
-            updates.setdefault("offers_online", offers_online)
+        """Normalize capability flags and compute location_types."""
+        updates.pop("location_types", None)
+        for key in ("offers_travel", "offers_at_location", "offers_online"):
+            if key in updates and updates[key] is None:
+                updates.pop(key, None)
 
         if apply_defaults:
             updates.setdefault("offers_travel", False)
             updates.setdefault("offers_at_location", False)
             updates.setdefault("offers_online", True)
+
+        if any(key in updates for key in ("offers_travel", "offers_at_location", "offers_online")):
+            types: List[str] = []
+            if updates.get("offers_travel") or updates.get("offers_at_location"):
+                types.append("in_person")
+            if updates.get("offers_online"):
+                types.append("online")
+            updates["location_types"] = types
 
     @BaseService.measure_operation("get_instructor_teaching_locations")
     def get_instructor_teaching_locations(
@@ -784,6 +768,7 @@ class InstructorService(BaseService):
             service.offers_at_location = updates["offers_at_location"]
         if "offers_online" in updates:
             service.offers_online = updates["offers_online"]
+        service.location_types = self._resolve_location_types(service)
 
         with self.transaction():
             self.validate_service_capabilities(service, instructor_id)

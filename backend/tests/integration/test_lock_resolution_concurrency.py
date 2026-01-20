@@ -63,6 +63,9 @@ def _create_instructor_with_service(db: Session) -> tuple[User, InstructorProfil
         service_catalog_id=svc_cat.id,
         hourly_rate=120.00,
         duration_options=[60],
+        offers_travel=True,
+        offers_at_location=True,
+        offers_online=True,
         is_active=True,
     )
     db.add(svc)

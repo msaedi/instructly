@@ -551,7 +551,11 @@ class TestPaymentTasks:
         booking.hourly_rate = Decimal("120.00")
         booking.duration_minutes = 60
         booking.location_type = "student_location"
-        booking.instructor_service = MagicMock(location_types=None)
+        booking.instructor_service = MagicMock(
+            offers_online=False,
+            offers_travel=True,
+            offers_at_location=False,
+        )
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_customer_by_user_id.return_value = MagicMock(stripe_customer_id="cus_789")

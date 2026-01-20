@@ -152,12 +152,18 @@ class TestAutoBioGeneration:
 
         update_data.services = [
             ServiceCreate(
+                offers_travel=False,
+                offers_at_location=False,
+                offers_online=True,
                 service_catalog_id="cat-yoga",
                 hourly_rate=60.0,
                 description="Yoga sessions",
                 duration_options=[60],
             ),
             ServiceCreate(
+                offers_travel=False,
+                offers_at_location=False,
+                offers_online=True,
                 service_catalog_id="cat-pilates",
                 hourly_rate=65.0,
                 description="Pilates sessions",

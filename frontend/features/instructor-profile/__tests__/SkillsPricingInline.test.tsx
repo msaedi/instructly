@@ -14,6 +14,14 @@ jest.mock('@/lib/api', () => {
   return { ...actual, fetchWithAuth: jest.fn() };
 });
 
+jest.mock('@tanstack/react-query', () => {
+  const actual = jest.requireActual('@tanstack/react-query');
+  return {
+    ...actual,
+    useQueryClient: () => ({ invalidateQueries: jest.fn().mockResolvedValue(undefined) }),
+  };
+});
+
 jest.mock('@/hooks/queries/useServices', () => ({
   useServiceCategories: jest.fn(),
   useAllServicesWithInstructors: jest.fn(),
@@ -34,10 +42,6 @@ jest.mock('@/hooks/usePlatformConfig', () => ({
 jest.mock('@/lib/instructorServices', () => ({
   hydrateCatalogNameById: jest.fn(),
   displayServiceName: ({ service_catalog_name }: { service_catalog_name?: string }) => service_catalog_name || 'Service',
-  normalizeLocationTypes: (values: unknown[]) =>
-    (Array.isArray(values) ? values : [])
-      .map((value) => String(value ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_'))
-      .filter((value) => value === 'in_person' || value === 'online'),
 }));
 
 jest.mock('@/lib/pricing/platformFees', () => ({
@@ -109,7 +113,17 @@ describe('SkillsPricingInline', () => {
   it('blocks removal of the last skill for live instructors', async () => {
     const user = userEvent.setup();
     mockUseInstructorProfileMe.mockReturnValue({
-      data: { is_live: true, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60 }] },
+      data: {
+        is_live: true,
+        services: [
+          {
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+            offers_online: true,
+          },
+        ],
+      },
     });
 
     render(<SkillsPricingInline />);
@@ -122,7 +136,18 @@ describe('SkillsPricingInline', () => {
     jest.useFakeTimers();
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     mockUseInstructorProfileMe.mockReturnValue({
-      data: { is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 30, duration_options: [60], location_types: ['in_person'] }] },
+      data: {
+        is_live: false,
+        services: [
+          {
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 30,
+            duration_options: [60],
+            offers_travel: true,
+          },
+        ],
+      },
     });
     mockUsePricingConfig.mockReturnValue({ config: { price_floor_cents: { private: { '60': 5000 } } } });
     mockEvaluateViolations.mockReturnValue([
@@ -145,7 +170,18 @@ describe('SkillsPricingInline', () => {
     jest.useFakeTimers();
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     mockUseInstructorProfileMe.mockReturnValue({
-      data: { is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 45, duration_options: [60], location_types: ['in_person'] }] },
+      data: {
+        is_live: false,
+        services: [
+          {
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 45,
+            duration_options: [60],
+            offers_online: true,
+          },
+        ],
+      },
     });
 
     render(<SkillsPricingInline />);
@@ -186,7 +222,7 @@ describe('SkillsPricingInline', () => {
           hourly_rate: 50,
           age_groups: ['adults'],
           duration_options: [60],
-          location_types: ['in_person'],
+          offers_online: true,
         }],
       },
     });
@@ -216,19 +252,19 @@ describe('SkillsPricingInline', () => {
           hourly_rate: 50,
           age_groups: ['adults'],
           duration_options: [60],
-          location_types: ['in_person'],
+          offers_online: true,
         }],
       },
     });
 
     render(<SkillsPricingInline />);
 
-    // Find and click the Online button
-    const onlineButtons = screen.getAllByRole('button', { name: /online/i });
-    const onlineButton = onlineButtons.find((btn) => !btn.className?.includes('cursor-not-allowed'));
-    if (onlineButton) {
-      await user.click(onlineButton);
-    }
+    expect(screen.getByRole('checkbox', { name: /i travel to students/i })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /students come to me/i })).toBeInTheDocument();
+    const onlineCheckbox = screen.getByRole('checkbox', { name: /online lessons/i });
+    expect(onlineCheckbox).toBeChecked();
+    await user.click(onlineCheckbox);
+    expect(onlineCheckbox).not.toBeChecked();
 
     const pianoElements = screen.getAllByText(/piano/i);
     expect(pianoElements.length).toBeGreaterThan(0);
@@ -245,7 +281,7 @@ describe('SkillsPricingInline', () => {
           hourly_rate: 50,
           age_groups: ['adults'],
           duration_options: [60],
-          location_types: ['in_person'],
+          offers_online: true,
           levels_taught: ['beginner', 'intermediate', 'advanced'],
         }],
       },
@@ -274,7 +310,7 @@ describe('SkillsPricingInline', () => {
           hourly_rate: 50,
           age_groups: ['adults'],
           duration_options: [60],
-          location_types: ['in_person'],
+          offers_online: true,
         }],
       },
     });
@@ -335,7 +371,7 @@ describe('SkillsPricingInline', () => {
           hourly_rate: 100,
           age_groups: ['adults'],
           duration_options: [60],
-          location_types: ['in_person'],
+          offers_online: true,
         }],
       },
     });
@@ -358,6 +394,7 @@ describe('SkillsPricingInline', () => {
             service_catalog_id: 'svc-1',
             service_catalog_name: 'PropPiano',
             hourly_rate: 75,
+            offers_online: true,
           }],
         } as never}
       />
@@ -377,6 +414,7 @@ describe('SkillsPricingInline', () => {
           service_catalog_name: 'Piano',
           hourly_rate: 50,
           description: '',
+          offers_online: true,
         }],
       },
     });
@@ -399,6 +437,7 @@ describe('SkillsPricingInline', () => {
           service_catalog_name: 'Piano',
           hourly_rate: 50,
           equipment: '',
+          offers_online: true,
         }],
       },
     });
@@ -421,6 +460,7 @@ describe('SkillsPricingInline', () => {
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
           hourly_rate: 50,
+          offers_online: true,
         }],
       },
     });
@@ -467,6 +507,7 @@ describe('SkillsPricingInline', () => {
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
           hourly_rate: '', // Empty rate
+          offers_online: true,
         }],
       },
     });
@@ -511,6 +552,7 @@ describe('SkillsPricingInline', () => {
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
           hourly_rate: 100,
+          offers_online: true,
         }],
       },
     });
@@ -559,6 +601,7 @@ describe('SkillsPricingInline', () => {
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
           hourly_rate: 100,
+          offers_online: true,
         }],
       },
     });
@@ -578,6 +621,7 @@ describe('SkillsPricingInline', () => {
           service_catalog_name: 'Piano',
           hourly_rate: 50,
           equipment_required: ['Piano', 'Music stand', 'Metronome'],
+          offers_online: true,
         }],
       },
     });
@@ -597,6 +641,7 @@ describe('SkillsPricingInline', () => {
           service_catalog_name: 'Piano',
           hourly_rate: 50,
           age_groups: ['kids'],
+          offers_online: true,
         }],
       },
     });
@@ -613,9 +658,9 @@ describe('SkillsPricingInline', () => {
       data: {
         is_live: false,
         services: [
-          { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50 },
-          { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60 }, // Duplicate
-          { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 45 },
+          { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 50, offers_online: true },
+          { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60, offers_online: true }, // Duplicate
+          { service_catalog_id: 'svc-2', service_catalog_name: 'Guitar', hourly_rate: 45, offers_online: true },
         ],
       },
     });
@@ -638,7 +683,7 @@ describe('SkillsPricingInline', () => {
           service_catalog_name: 'Piano Lesson',
           hourly_rate: 40,
           duration_options: [60],
-          location_types: ['in_person'],
+          offers_travel: true,
         }],
       },
     });
@@ -702,6 +747,7 @@ describe('SkillsPricingInline', () => {
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
           hourly_rate: 50,
+          offers_online: true,
         }],
       },
     });
@@ -751,6 +797,7 @@ describe('SkillsPricingInline', () => {
           service_catalog_id: 'svc-1',
           name: 'Custom Piano', // Using name instead of service_catalog_name
           hourly_rate: 75,
+          offers_online: true,
         }],
       },
     });
@@ -766,8 +813,8 @@ describe('SkillsPricingInline', () => {
       data: {
         is_live: false,
         services: [
-          { service_catalog_id: '', service_catalog_name: 'Invalid', hourly_rate: 50 },
-          { service_catalog_id: 'svc-1', service_catalog_name: 'Valid Piano', hourly_rate: 60 },
+          { service_catalog_id: '', service_catalog_name: 'Invalid', hourly_rate: 50, offers_online: true },
+          { service_catalog_id: 'svc-1', service_catalog_name: 'Valid Piano', hourly_rate: 60, offers_online: true },
         ],
       },
     });
@@ -786,7 +833,12 @@ describe('SkillsPricingInline', () => {
 
       render(
         <SkillsPricingInline
-          instructorProfile={{ is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60 }] } as never}
+          instructorProfile={{
+            is_live: false,
+            services: [
+              { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60, offers_online: true },
+            ],
+          } as never}
         />
       );
 
@@ -797,7 +849,12 @@ describe('SkillsPricingInline', () => {
     it('allows toggling service selection when profile is loaded', async () => {
       const user = userEvent.setup();
       mockUseInstructorProfileMe.mockReturnValue({
-        data: { is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60 }] },
+        data: {
+          is_live: false,
+          services: [
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60, offers_online: true },
+          ],
+        },
       });
 
       render(<SkillsPricingInline />);
@@ -813,7 +870,12 @@ describe('SkillsPricingInline', () => {
       const user = userEvent.setup();
       // Profile loaded with is_live: true
       mockUseInstructorProfileMe.mockReturnValue({
-        data: { is_live: true, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60 }] },
+        data: {
+          is_live: true,
+          services: [
+            { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60, offers_online: true },
+          ],
+        },
       });
 
       render(<SkillsPricingInline />);
@@ -850,7 +912,12 @@ describe('SkillsPricingInline', () => {
 
       render(
         <SkillsPricingInline
-          instructorProfile={{ is_live: false, services: [{ service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60 }] } as never}
+          instructorProfile={{
+            is_live: false,
+            services: [
+              { service_catalog_id: 'svc-1', service_catalog_name: 'Piano', hourly_rate: 60, offers_online: true },
+            ],
+          } as never}
         />
       );
 
@@ -869,6 +936,7 @@ describe('SkillsPricingInline', () => {
             service_catalog_name: 'Piano',
             hourly_rate: 60,
             duration_options: [], // Empty array should default to [60]
+            offers_online: true,
           }],
         },
       });
@@ -888,6 +956,9 @@ describe('SkillsPricingInline', () => {
         const body = JSON.parse(callArgs[1].body);
         // Should have default duration of [60]
         expect(body.services[0].duration_options).toEqual([60]);
+        expect(body.services[0].offers_online).toBe(true);
+        expect(body.services[0].offers_travel).toBe(false);
+        expect(body.services[0].offers_at_location).toBe(false);
       });
 
       jest.useRealTimers();
@@ -904,6 +975,7 @@ describe('SkillsPricingInline', () => {
             service_catalog_name: 'Piano',
             hourly_rate: 60,
             equipment: 'keyboard, stand',
+            offers_online: true,
           }],
         },
       });
@@ -934,6 +1006,7 @@ describe('SkillsPricingInline', () => {
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
             hourly_rate: 60,
+            offers_online: true,
           }],
         },
       });
@@ -971,6 +1044,7 @@ describe('SkillsPricingInline', () => {
             service_catalog_id: 'svc-1',
             service_catalog_name: 'Piano',
             hourly_rate: '', // Empty rate
+            offers_online: true,
           }],
         },
       });

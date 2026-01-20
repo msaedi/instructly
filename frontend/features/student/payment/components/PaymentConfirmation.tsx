@@ -314,21 +314,7 @@ function PaymentConfirmationInner({
           types.push('student_location');
           types.push('neutral_location');
         }
-      } else if (Array.isArray(selectedService.location_types)) {
-        const normalized = selectedService.location_types
-          .map((value) => String(value).trim().toLowerCase())
-          .filter(Boolean);
-        if (normalized.some((value) => value.includes('online'))) {
-          types.push('online');
-        }
-        if (normalized.some((value) => value.includes('in_person') || value.includes('in-person'))) {
-          types.push('student_location');
-        }
       }
-    }
-
-    if (types.length === 0) {
-      types.push('online', 'student_location');
     }
 
     return Array.from(new Set(types));

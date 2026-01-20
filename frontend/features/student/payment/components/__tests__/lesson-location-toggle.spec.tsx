@@ -23,6 +23,23 @@ jest.mock('@/lib/apiBase', () => ({
   withApiBase: (path: string) => path,
 }));
 
+jest.mock('@/src/api/services/instructors', () => ({
+  fetchInstructorProfile: jest.fn().mockResolvedValue({
+    services: [
+      {
+        id: 'svc-1',
+        skill: 'Math',
+        hourly_rate: 80,
+        duration_options: [60],
+        offers_online: true,
+        offers_travel: true,
+        offers_at_location: false,
+      },
+    ],
+    preferred_teaching_locations: [],
+  }),
+}));
+
 jest.mock('@/features/shared/api/schemas/instructorProfile', () => ({
   loadInstructorProfileSchema: jest.fn().mockResolvedValue({ services: [] }),
 }));
@@ -89,9 +106,31 @@ describe('Lesson Location toggle', () => {
           ? input.href
           : (input as { url?: string }).url ?? '';
 
+      if (url.includes('/api/v1/instructors/')) {
+        return Promise.resolve({
+          ok: true,
+          headers: { get: () => 'application/json' },
+          json: async () => ({
+            services: [
+              {
+                id: 'svc-1',
+                skill: 'Math',
+                hourly_rate: 80,
+                duration_options: [60],
+                offers_online: true,
+                offers_travel: true,
+                offers_at_location: false,
+              },
+            ],
+            preferred_teaching_locations: [],
+          }),
+        } as unknown as Response);
+      }
+
       if (url.includes('/api/v1/addresses/places/autocomplete')) {
         return Promise.resolve({
           ok: true,
+          headers: { get: () => 'application/json' },
           json: async () => ({
             items: [
               {
@@ -109,6 +148,7 @@ describe('Lesson Location toggle', () => {
         expect(url).toContain('provider=google');
         return Promise.resolve({
           ok: true,
+          headers: { get: () => 'application/json' },
           json: async () => ({
             result: {
               address: {
@@ -126,6 +166,7 @@ describe('Lesson Location toggle', () => {
 
       return Promise.resolve({
         ok: true,
+        headers: { get: () => 'application/json' },
         json: async () => ({}),
       } as unknown as Response);
     });
@@ -157,7 +198,7 @@ describe('Lesson Location toggle', () => {
     await flushConflicts();
     await waitFor(() => expect(onBookingUpdate).toHaveBeenCalled());
     await waitFor(() => expect(latestBooking.metadata?.modality).toBe('remote'));
-    expect(screen.getByLabelText(/Online/i)).toBeChecked();
+    expect(await screen.findByLabelText(/Online/i)).toBeChecked();
     expect(latestBooking.location).toBe('Online');
     const addressInput = getLessonAddressInput();
     expect(addressInput).toBeDisabled();
@@ -186,7 +227,7 @@ describe('Lesson Location toggle', () => {
     );
 
     await flushConflicts();
-    const onlineToggle = screen.getByLabelText(/Online/i);
+    const onlineToggle = await screen.findByLabelText(/Online/i);
     await waitFor(() => expect(onlineToggle).toBeChecked());
 
     fireEvent.click(onlineToggle);

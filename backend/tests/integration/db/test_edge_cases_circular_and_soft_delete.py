@@ -360,6 +360,9 @@ class TestSoftDeleteEdgeCases:
             bio="Updated bio",
             services=[
                 ServiceCreate(
+                    offers_travel=False,
+                    offers_at_location=False,
+                    offers_online=True,
                     service_catalog_id=s.service_catalog_id, hourly_rate=s.hourly_rate, description=s.description
                 )
                 for s in updated_services
@@ -420,6 +423,9 @@ class TestSoftDeleteEdgeCases:
             bio="Updated bio",
             services=[
                 ServiceCreate(
+                    offers_travel=False,
+                    offers_at_location=False,
+                    offers_online=True,
                     service_catalog_id=s.service_catalog_id, hourly_rate=s.hourly_rate, description=s.description
                 )
                 for s in updated_services
@@ -480,6 +486,9 @@ class TestSoftDeleteEdgeCases:
             bio="Updated bio",
             services=[
                 ServiceCreate(
+                    offers_travel=False,
+                    offers_at_location=False,
+                    offers_online=True,
                     service_catalog_id=s.service_catalog_id, hourly_rate=s.hourly_rate, description=s.description
                 )
                 for s in existing_services
@@ -600,6 +609,9 @@ class TestSoftDeleteEdgeCases:
             bio="Updated bio",
             services=[
                 ServiceCreate(
+                    offers_travel=False,
+                    offers_at_location=False,
+                    offers_online=True,
                     service_catalog_id=original_catalog_id,  # Same catalog service
                     hourly_rate=80.0,  # Updated rate
                     description="Reactivated service",

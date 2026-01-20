@@ -163,7 +163,9 @@ def test_stripe_preview_amount_parity_e2e():
                 service_catalog_id=catalog_service.id,
                 hourly_rate=80.0,
                 duration_options=[60],
-                location_types=["online"],
+                offers_online=True,
+                offers_travel=False,
+                offers_at_location=False,
                 is_active=True,
             )
             session.add(instructor_service)

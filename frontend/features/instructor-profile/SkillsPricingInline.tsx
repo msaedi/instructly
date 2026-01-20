@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { DollarSign, ChevronDown, Lightbulb } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
-import { hydrateCatalogNameById, displayServiceName, normalizeLocationTypes } from '@/lib/instructorServices';
+import { hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } from '@/lib/pricing/platformFees';
 import { evaluatePriceFloorViolations, formatCents, type FloorViolation } from '@/lib/pricing/priceFloors';
@@ -13,6 +14,7 @@ import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import type { ApiErrorResponse, CategoryServiceDetail, InstructorProfileResponse, ServiceCategory } from '@/features/shared/api/types';
 import type { ServiceLocationType } from '@/types/instructor';
+import { queryKeys } from '@/src/api/queryKeys';
 
 type SelectedService = {
   catalog_service_id: string;
@@ -24,7 +26,30 @@ type SelectedService = {
   equipment?: string;
   levels_taught: Array<'beginner' | 'intermediate' | 'advanced'>;
   duration_options: number[];
-  location_types: ServiceLocationType[];
+  offers_travel: boolean;
+  offers_at_location: boolean;
+  offers_online: boolean;
+};
+
+type ServiceCapabilities = Pick<
+  SelectedService,
+  'offers_travel' | 'offers_at_location' | 'offers_online'
+>;
+
+const hasAnyLocationOption = (service: ServiceCapabilities) =>
+  service.offers_travel || service.offers_at_location || service.offers_online;
+
+const locationTypesFromCapabilities = (
+  service: ServiceCapabilities
+): ServiceLocationType[] => {
+  const types: ServiceLocationType[] = [];
+  if (service.offers_travel || service.offers_at_location) {
+    types.push('in_person');
+  }
+  if (service.offers_online) {
+    types.push('online');
+  }
+  return types;
 };
 
 interface Props {
@@ -38,6 +63,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   const [servicesByCategory, setServicesByCategory] = useState<Record<string, CategoryServiceDetail[]>>({});
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
+  const queryClient = useQueryClient();
   const [svcLoading, setSvcLoading] = useState(false);
   const [svcSaving, setSvcSaving] = useState(false);
   const [error, setError] = useState('');
@@ -53,6 +79,30 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   const { data: allServicesData, isLoading: allServicesLoading } = useAllServicesWithInstructors();
   // Use React Query hook for instructor profile when prop not provided (prevents duplicate API calls)
   const { data: profileFromHook } = useInstructorProfileMe(!instructorProfile);
+  const profileData = instructorProfile ?? profileFromHook;
+  const hasServiceAreas = useMemo(() => {
+    if (!profileData) return false;
+    const neighborhoods = Array.isArray(profileData.service_area_neighborhoods)
+      ? profileData.service_area_neighborhoods
+      : [];
+    const boroughs = Array.isArray(profileData.service_area_boroughs)
+      ? profileData.service_area_boroughs
+      : [];
+    const summary =
+      typeof profileData.service_area_summary === 'string'
+        ? profileData.service_area_summary
+        : '';
+    return (
+      neighborhoods.length > 0 || boroughs.length > 0 || summary.trim().length > 0
+    );
+  }, [profileData]);
+  const hasTeachingLocations = useMemo(() => {
+    if (!profileData) return false;
+    const teaching = Array.isArray(profileData.preferred_teaching_locations)
+      ? profileData.preferred_teaching_locations
+      : [];
+    return teaching.length > 0;
+  }, [profileData]);
   const [skillsFilter, setSkillsFilter] = useState('');
   const [requestedSkill, setRequestedSkill] = useState('');
   const [requestSubmitting, setRequestSubmitting] = useState(false);
@@ -80,16 +130,34 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   const instructorTakeHomePct = useMemo(() => resolveTakeHomePct(platformFeeRate), [platformFeeRate]);
   const platformFeeLabel = useMemo(() => formatPlatformFeeLabel(platformFeeRate), [platformFeeRate]);
 
+  const resolveCapabilitiesFromService = useCallback((service: Record<string, unknown>): ServiceCapabilities => {
+    return {
+      offers_travel: service['offers_travel'] === true,
+      offers_at_location: service['offers_at_location'] === true,
+      offers_online: service['offers_online'] === true,
+    };
+  }, []);
+
+  const defaultCapabilities = (): ServiceCapabilities => {
+    const defaultTravel = hasServiceAreas;
+    const defaultAtLocation = hasTeachingLocations;
+    return {
+      offers_travel: defaultTravel,
+      offers_at_location: defaultAtLocation,
+      offers_online: !defaultTravel && !defaultAtLocation,
+    };
+  };
+
   const serviceFloorViolations = useMemo(() => {
     const map = new Map<string, FloorViolation[]>();
     if (!pricingFloors) return map;
     selectedServices.forEach((service) => {
+      const locationTypes = locationTypesFromCapabilities(service);
+      if (!locationTypes.length) return;
       const violations = evaluatePriceFloorViolations({
         hourlyRate: Number(service.hourly_rate),
         durationOptions: service.duration_options ?? [60],
-        locationTypes: service.location_types?.length
-          ? service.location_types
-          : (['in_person'] as ServiceLocationType[]),
+        locationTypes,
         floors: pricingFloors,
       });
       if (violations.length > 0) map.set(service.catalog_service_id, violations);
@@ -147,13 +215,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     const mapped: SelectedService[] = (me['services'] as unknown[] || [])
       .map((svc: unknown) => {
         const s = svc as Record<string, unknown>;
+        const capabilities = resolveCapabilitiesFromService(s);
         const catalogId = String(s['service_catalog_id'] || '');
-        const rawLocationTypes = Array.isArray(s['location_types'])
-          ? (s['location_types'] as unknown[])
-          : [];
-        const normalizedLocationTypes = rawLocationTypes.length
-          ? normalizeLocationTypes(rawLocationTypes)
-          : [];
         const serviceName = displayServiceName(
           {
             service_catalog_id: catalogId,
@@ -190,7 +253,9 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
             Array.isArray(s['duration_options']) && (s['duration_options'] as number[]).length
               ? (s['duration_options'] as number[])
               : [60],
-          location_types: normalizedLocationTypes.length ? normalizedLocationTypes : ['in_person'],
+          offers_travel: capabilities.offers_travel,
+          offers_at_location: capabilities.offers_at_location,
+          offers_online: capabilities.offers_online,
         } as SelectedService;
       })
       .filter((svc: SelectedService) => svc.catalog_service_id);
@@ -206,7 +271,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       );
       setSelectedServices(deduped);
     }
-  }, [instructorProfile, profileFromHook]);
+  }, [instructorProfile, profileFromHook, resolveCapabilitiesFromService]);
 
   const toggleCategory = (slug: string) => {
     setCollapsed((prev) => ({ ...prev, [slug]: !prev[slug] }));
@@ -271,7 +336,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
           equipment: '',
           levels_taught: ['beginner', 'intermediate', 'advanced'],
           duration_options: [60],
-          location_types: ['in_person'],
+          ...defaultCapabilities(),
         },
       ];
     });
@@ -330,6 +395,12 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
         }
       }
 
+      if (selectedServices.some((service) => !hasAnyLocationOption(service))) {
+        setError('Select at least one location option for each skill.');
+        setSvcSaving(false);
+        return;
+      }
+
       const payload = {
         services: selectedServices
           .filter((service) => service.hourly_rate.trim() !== '')
@@ -346,7 +417,9 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
               .filter(Boolean)?.length
               ? { equipment_required: service.equipment.split(',').map((v) => v.trim()).filter(Boolean) }
               : {}),
-            location_types: service.location_types?.length ? service.location_types : ['in_person'],
+            offers_travel: service.offers_travel,
+            offers_at_location: service.offers_at_location,
+            offers_online: service.offers_online,
           })),
       };
 
@@ -359,6 +432,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
         const msg = (await res.json().catch(() => ({}))) as ApiErrorResponse;
         throw new Error(msg.detail || msg.message || 'Failed to save');
       }
+      await queryClient.invalidateQueries({ queryKey: queryKeys.instructors.me });
       setError('');
     } catch (e: unknown) {
       logger.error('Failed to save services', e);
@@ -366,7 +440,14 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     } finally {
       setSvcSaving(false);
     }
-  }, [profileLoaded, isInstructorLive, pricingFloors, selectedServices, serviceFloorViolations]);
+  }, [
+    profileLoaded,
+    isInstructorLive,
+    pricingFloors,
+    queryClient,
+    selectedServices,
+    serviceFloorViolations,
+  ]);
 
   useEffect(() => {
     if (initialLoadRef.current) {
@@ -562,27 +643,80 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                     </div>
                   </div>
                   <div className="bg-white rounded-lg p-3 border border-gray-200">
-                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Location Type</label>
-                    <div className="flex gap-1">
-                      {(['in_person', 'online'] as const).map((loc) => (
-                        <button
-                          key={loc}
-                          onClick={() => setSelectedServices((prev) => prev.map((x, i) => {
-                            if (i !== index) return x;
-                            const has = x.location_types.includes(loc);
-                            const other = loc === 'in_person' ? 'online' : 'in_person';
-                            if (has && x.location_types.length === 1) return { ...x, location_types: [other] };
-                            return { ...x, location_types: has ? x.location_types.filter((v) => v !== loc) : [...x.location_types, loc] };
-                          }))}
-                          className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                            s.location_types.includes(loc) ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                          type="button"
-                        >
-                          {loc === 'in_person' ? 'In-Person' : 'Online'}
-                        </button>
-                      ))}
+                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">
+                      How do you offer this skill?
+                    </label>
+                    <div className="space-y-3">
+                      <label className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={s.offers_travel}
+                          onChange={(e) =>
+                            setSelectedServices((prev) =>
+                              prev.map((x, i) =>
+                                i === index ? { ...x, offers_travel: e.target.checked } : x
+                              )
+                            )
+                          }
+                          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#7E22CE]"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">I travel to students</p>
+                          <p className="text-xs text-gray-500">(Within your service areas)</p>
+                          {s.offers_travel && !hasServiceAreas && (
+                            <p className="text-xs text-red-600">
+                              Add service areas in your profile to enable this option
+                            </p>
+                          )}
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={s.offers_at_location}
+                          onChange={(e) =>
+                            setSelectedServices((prev) =>
+                              prev.map((x, i) =>
+                                i === index ? { ...x, offers_at_location: e.target.checked } : x
+                              )
+                            )
+                          }
+                          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#7E22CE]"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Students come to me</p>
+                          <p className="text-xs text-gray-500">(At your teaching location)</p>
+                          {s.offers_at_location && !hasTeachingLocations && (
+                            <p className="text-xs text-red-600">
+                              Add a teaching location in your profile to enable this option
+                            </p>
+                          )}
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={s.offers_online}
+                          onChange={(e) =>
+                            setSelectedServices((prev) =>
+                              prev.map((x, i) =>
+                                i === index ? { ...x, offers_online: e.target.checked } : x
+                              )
+                            )
+                          }
+                          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#7E22CE]"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Online lessons</p>
+                          <p className="text-xs text-gray-500">(Video call)</p>
+                        </div>
+                      </label>
                     </div>
+                    {!hasAnyLocationOption(s) && (
+                      <p className="text-xs text-red-600 mt-2">
+                        Select at least one location option for this skill.
+                      </p>
+                    )}
                   </div>
                 </div>
 

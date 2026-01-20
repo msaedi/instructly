@@ -13,7 +13,7 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
-import { normalizeInstructorServices, normalizeLocationTypes, hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
+import { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { buildProfileUpdateBody } from '@/lib/profileSchemaDebug';
 import type { InstructorProfile, ServiceAreaNeighborhood, ServiceLocationType } from '@/types/instructor';
@@ -40,7 +40,9 @@ type EditableService = {
   age_groups?: string[] | null;
   levels_taught?: string[] | null;
   equipment_required?: string[] | null;
-  location_types?: ServiceLocationType[] | null;
+  offers_travel?: boolean | null;
+  offers_at_location?: boolean | null;
+  offers_online?: boolean | null;
   duration_options?: number[] | null;
 };
 
@@ -55,12 +57,36 @@ interface ServiceUpdateItem {
   duration_options: number[];
   levels_taught: string[];
   equipment_required?: string[];
-  location_types: ServiceLocationType[];
+  offers_travel: boolean;
+  offers_at_location: boolean;
+  offers_online: boolean;
 }
 
 interface ProfileServiceUpdatePayload {
   services: ServiceUpdateItem[];
 }
+
+type ServiceCapabilities = {
+  offers_travel: boolean;
+  offers_at_location: boolean;
+  offers_online: boolean;
+};
+
+const hasAnyLocationOption = (service: ServiceCapabilities) =>
+  service.offers_travel || service.offers_at_location || service.offers_online;
+
+const locationTypesFromCapabilities = (
+  service: ServiceCapabilities
+): ServiceLocationType[] => {
+  const types: ServiceLocationType[] = [];
+  if (service.offers_travel || service.offers_at_location) {
+    types.push('in_person');
+  }
+  if (service.offers_online) {
+    types.push('online');
+  }
+  return types;
+};
 
 type PreferredTeachingLocationInput = {
   address: string;
@@ -250,7 +276,9 @@ export default function EditProfileModal({
     equipment?: string;
     levels_taught: Array<'beginner' | 'intermediate' | 'advanced'>;
     duration_options: number[];
-    location_types: ServiceLocationType[];
+    offers_travel: boolean;
+    offers_at_location: boolean;
+    offers_online: boolean;
   };
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [servicesByCategory, setServicesByCategory] = useState<Record<string, CategoryServiceDetail[]>>({});
@@ -266,11 +294,37 @@ export default function EditProfileModal({
   // Use React Query hook for instructor profile (prevents duplicate API calls when variant is 'services')
   const { data: instructorProfileFromHook } = useInstructorProfileMe(isOpen && variant === 'services');
 
+  const profileRecord = useMemo(
+    () => (instructorProfile ?? instructorProfileFromHook) as Record<string, unknown> | null,
+    [instructorProfile, instructorProfileFromHook]
+  );
+  const hasServiceAreas = useMemo(() => {
+    if (!profileRecord) return false;
+    const neighborhoods = Array.isArray(profileRecord['service_area_neighborhoods'])
+      ? (profileRecord['service_area_neighborhoods'] as unknown[])
+      : [];
+    const boroughs = Array.isArray(profileRecord['service_area_boroughs'])
+      ? (profileRecord['service_area_boroughs'] as unknown[])
+      : [];
+    const summary =
+      typeof profileRecord['service_area_summary'] === 'string'
+        ? (profileRecord['service_area_summary'] as string)
+        : '';
+    return neighborhoods.length > 0 || boroughs.length > 0 || summary.trim().length > 0;
+  }, [profileRecord]);
+  const hasTeachingLocations = useMemo(() => {
+    if (!profileRecord) return false;
+    const teaching = Array.isArray(profileRecord['preferred_teaching_locations'])
+      ? (profileRecord['preferred_teaching_locations'] as unknown[])
+      : [];
+    return teaching.length > 0;
+  }, [profileRecord]);
+
   const { config: pricingConfig } = usePricingConfig();
   const { fees } = usePlatformFees();
   const pricingFloors = pricingConfig?.price_floor_cents ?? null;
   const profileFeeContext = useMemo(() => {
-    const record = (instructorProfile ?? instructorProfileFromHook) as Record<string, unknown> | null;
+    const record = profileRecord;
     const currentTierRaw = record?.['current_tier_pct'];
     const currentTierPct =
       typeof currentTierRaw === 'number' && Number.isFinite(currentTierRaw) ? currentTierRaw : null;
@@ -278,7 +332,7 @@ export default function EditProfileModal({
       isFoundingInstructor: Boolean(record?.['is_founding_instructor']),
       currentTierPct,
     };
-  }, [instructorProfile, instructorProfileFromHook]);
+  }, [profileRecord]);
   const platformFeeRate = useMemo(
     () =>
       resolvePlatformFeeRate({
@@ -290,14 +344,25 @@ export default function EditProfileModal({
   );
   const instructorTakeHomePct = useMemo(() => resolveTakeHomePct(platformFeeRate), [platformFeeRate]);
   const platformFeeLabel = useMemo(() => formatPlatformFeeLabel(platformFeeRate), [platformFeeRate]);
+  const defaultCapabilities = useCallback((): ServiceCapabilities => {
+    const defaultTravel = hasServiceAreas;
+    const defaultAtLocation = hasTeachingLocations;
+    return {
+      offers_travel: defaultTravel,
+      offers_at_location: defaultAtLocation,
+      offers_online: !defaultTravel && !defaultAtLocation,
+    };
+  }, [hasServiceAreas, hasTeachingLocations]);
   const serviceFloorViolations = useMemo(() => {
     const map = new Map<string, FloorViolation[]>();
     if (!pricingFloors) return map;
     selectedServices.forEach((service) => {
+      const locationTypes = locationTypesFromCapabilities(service);
+      if (!locationTypes.length) return;
       const violations = evaluatePriceFloorViolations({
         hourlyRate: Number(service.hourly_rate),
         durationOptions: service.duration_options ?? [60],
-        locationTypes: service.location_types ?? (['in_person'] as ServiceLocationType[]),
+        locationTypes,
         floors: pricingFloors,
       });
       if (violations.length > 0) {
@@ -584,11 +649,9 @@ export default function EditProfileModal({
             ? s['levels_taught'] as Array<'beginner' | 'intermediate' | 'advanced'>
             : ['beginner', 'intermediate', 'advanced'],
         duration_options: Array.isArray(s['duration_options']) && s['duration_options'].length ? s['duration_options'] as number[] : [60],
-        location_types: (() => {
-          const rawLocationTypes = Array.isArray(s['location_types']) ? (s['location_types'] as unknown[]) : [];
-          const normalizedLocationTypes = normalizeLocationTypes(rawLocationTypes);
-          return normalizedLocationTypes.length ? normalizedLocationTypes : ['in_person'];
-        })(),
+        offers_travel: s['offers_travel'] === true,
+        offers_at_location: s['offers_at_location'] === true,
+        offers_online: s['offers_online'] === true,
       };
     });
     if (mapped.length) setSelectedServices(mapped);
@@ -784,6 +847,11 @@ export default function EditProfileModal({
           return;
         }
       }
+      if (selectedServices.some((service) => !hasAnyLocationOption(service))) {
+        setError('Select at least one location option for each skill.');
+        setSvcSaving(false);
+        return;
+      }
       const payload: ProfileServiceUpdatePayload = {
         services: selectedServices
           .filter((service) => service.hourly_rate.trim() !== '')
@@ -805,7 +873,9 @@ export default function EditProfileModal({
                     .filter(Boolean),
                 }
               : {}),
-            location_types: service.location_types?.length ? service.location_types : ['in_person'],
+            offers_travel: service.offers_travel,
+            offers_at_location: service.offers_at_location,
+            offers_online: service.offers_online,
           })),
       };
 
@@ -1853,7 +1923,7 @@ export default function EditProfileModal({
                                         equipment: '',
                                         levels_taught: ['beginner', 'intermediate', 'advanced'],
                                         duration_options: [60],
-                                        location_types: ['in_person'],
+                                        ...defaultCapabilities(),
                                       },
                                     ];
                                   });
@@ -1920,7 +1990,7 @@ export default function EditProfileModal({
                                             equipment: '',
                                             levels_taught: ['beginner', 'intermediate', 'advanced'],
                                             duration_options: [60],
-                                            location_types: ['in_person'],
+                                            ...defaultCapabilities(),
                                           },
                                         ];
                                       });
@@ -2060,29 +2130,86 @@ export default function EditProfileModal({
                               </div>
                             </div>
                             <div className="bg-white rounded-lg p-3 border border-gray-200">
-                              <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Location Type</label>
-                              <div className="flex gap-1">
-                                {(['in_person', 'online'] as const).map((loc) => (
-                                  <button
-                                    key={loc}
-                                    onClick={() => setSelectedServices((prev) => prev.map((x) => {
-                                      if (x.catalog_service_id !== s.catalog_service_id) return x;
-                                      const has = x.location_types.includes(loc);
-                                      const other = loc === 'in_person' ? 'online' : 'in_person';
-                                      if (has && x.location_types.length === 1) return { ...x, location_types: [other] };
-                                      return { ...x, location_types: has ? x.location_types.filter((v) => v !== loc) : [...x.location_types, loc] };
-                                    }))}
-                                    className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                                      s.location_types.includes(loc)
-                                        ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
-                                    type="button"
-                                  >
-                                    {loc === 'in_person' ? 'In-Person' : 'Online'}
-                                  </button>
-                                ))}
+                              <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">
+                                How do you offer this skill?
+                              </label>
+                              <div className="space-y-3">
+                                <label className="flex items-start gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={s.offers_travel}
+                                    onChange={(e) =>
+                                      setSelectedServices((prev) =>
+                                        prev.map((x) =>
+                                          x.catalog_service_id === s.catalog_service_id
+                                            ? { ...x, offers_travel: e.target.checked }
+                                            : x
+                                        )
+                                      )
+                                    }
+                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#7E22CE]"
+                                  />
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-700">I travel to students</p>
+                                    <p className="text-xs text-gray-500">(Within your service areas)</p>
+                                    {s.offers_travel && !hasServiceAreas && (
+                                      <p className="text-xs text-red-600">
+                                        Add service areas in your profile to enable this option
+                                      </p>
+                                    )}
+                                  </div>
+                                </label>
+                                <label className="flex items-start gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={s.offers_at_location}
+                                    onChange={(e) =>
+                                      setSelectedServices((prev) =>
+                                        prev.map((x) =>
+                                          x.catalog_service_id === s.catalog_service_id
+                                            ? { ...x, offers_at_location: e.target.checked }
+                                            : x
+                                        )
+                                      )
+                                    }
+                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#7E22CE]"
+                                  />
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-700">Students come to me</p>
+                                    <p className="text-xs text-gray-500">(At your teaching location)</p>
+                                    {s.offers_at_location && !hasTeachingLocations && (
+                                      <p className="text-xs text-red-600">
+                                        Add a teaching location in your profile to enable this option
+                                      </p>
+                                    )}
+                                  </div>
+                                </label>
+                                <label className="flex items-start gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={s.offers_online}
+                                    onChange={(e) =>
+                                      setSelectedServices((prev) =>
+                                        prev.map((x) =>
+                                          x.catalog_service_id === s.catalog_service_id
+                                            ? { ...x, offers_online: e.target.checked }
+                                            : x
+                                        )
+                                      )
+                                    }
+                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#7E22CE]"
+                                  />
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-700">Online lessons</p>
+                                    <p className="text-xs text-gray-500">(Video call)</p>
+                                  </div>
+                                </label>
                               </div>
+                              {!hasAnyLocationOption(s) && (
+                                <p className="text-xs text-red-600 mt-2">
+                                  Select at least one location option for this skill.
+                                </p>
+                              )}
                             </div>
                           </div>
 

@@ -4702,22 +4702,9 @@ class BookingService(BaseService):
         """Validate that the instructor offers the requested location type."""
         if not location_type:
             location_type = "online"
-        legacy_types = getattr(service, "location_types", None)
-        if legacy_types is None:
-            legacy_types = []
-        elif isinstance(legacy_types, str):
-            legacy_types = [legacy_types]
-        elif not isinstance(legacy_types, (list, tuple, set)):
-            legacy_types = []
-        normalized = {str(item).strip().lower() for item in legacy_types}
-        in_person = "in_person" in normalized or "in-person" in normalized
-        legacy_online = "online" in normalized
-
-        offers_travel = bool(getattr(service, "offers_travel", False) or in_person)
-        offers_at_location = bool(getattr(service, "offers_at_location", False) or in_person)
-        offers_online_value = getattr(service, "offers_online", None)
-        offers_online = True if offers_online_value is None else bool(offers_online_value)
-        offers_online = bool(offers_online or legacy_online)
+        offers_travel = bool(getattr(service, "offers_travel", False))
+        offers_at_location = bool(getattr(service, "offers_at_location", False))
+        offers_online = bool(getattr(service, "offers_online", False))
 
         if location_type in ("student_location", "neutral_location") and not offers_travel:
             raise ValidationException(

@@ -60,10 +60,6 @@ jest.mock('@/lib/instructorServices', () => ({
       }))
     )
   ),
-  normalizeLocationTypes: (values: unknown[]) =>
-    (Array.isArray(values) ? values : [])
-      .map((value) => String(value ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_'))
-      .filter((value) => value === 'in_person' || value === 'online'),
   hydrateCatalogNameById: jest.fn((id) => (id ? id : undefined)),
   displayServiceName: jest.fn((service) => {
     const name = service?.service_catalog_name ?? service?.name ?? service?.skill ?? 'Service';
@@ -171,7 +167,9 @@ const mockInstructorProfile = {
       hourly_rate: 60,
       age_groups: ['adults'],
       levels_taught: ['beginner'],
-      location_types: ['in_person'],
+      offers_travel: true,
+      offers_at_location: false,
+      offers_online: false,
       duration_options: [60],
     },
   ],
@@ -1624,7 +1622,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 100,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in_person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -2377,7 +2377,9 @@ describe('EditProfileModal', () => {
             duration_options: [60],
             levels_taught: ['beginner'],
             equipment: '',
-            location_types: ['in_person'],
+            offers_travel: true,
+            offers_at_location: false,
+            offers_online: false,
           },
         ],
       };
@@ -3518,7 +3520,9 @@ describe('EditProfileModal', () => {
             hourly_rate: 50,
             age_groups: ['adults'],
             levels_taught: ['beginner'],
-            location_types: ['in_person'],
+            offers_travel: true,
+            offers_at_location: false,
+            offers_online: false,
             duration_options: [60],
           }],
         },
@@ -3735,7 +3739,9 @@ describe('EditProfileModal', () => {
             hourly_rate: 75,
             age_groups: ['adults'],
             levels_taught: ['beginner', 'intermediate'],
-            location_types: ['in_person'],
+            offers_travel: true,
+            offers_at_location: false,
+            offers_online: false,
             duration_options: [60],
           }],
         },
@@ -3842,10 +3848,9 @@ describe('EditProfileModal', () => {
         expect(screen.getByText('Your selected skills')).toBeInTheDocument();
       });
 
-      // Find Online button in location type section
-      const onlineButtons = screen.queryAllByRole('button', { name: /online/i });
-      if (onlineButtons.length > 0) {
-        await user.click(onlineButtons[0] as HTMLElement);
+      const onlineOptions = screen.queryAllByRole('checkbox', { name: /online lessons/i });
+      if (onlineOptions.length > 0) {
+        await user.click(onlineOptions[0] as HTMLElement);
       }
     });
 
@@ -4784,7 +4789,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 30,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in_person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -4986,7 +4993,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 50,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in_person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -5103,7 +5112,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 50,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in_person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -5396,7 +5407,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 50,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in_person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -5505,7 +5518,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 60,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in_person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -5584,7 +5599,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 45,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in_person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -5713,7 +5730,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 40,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in_person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -5850,7 +5869,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 75,
               age_groups: ['adults'],
               levels_taught: ['beginner', 'intermediate'],
-              location_types: ['in_person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [30, 60, 90],
               equipment: 'drum sticks, practice pad',
               description: 'Learn drums',

@@ -15453,6 +15453,21 @@ export type components = {
              * @description Where lessons are offered. Allowed: 'in_person', 'online'
              */
             location_types?: string[] | null;
+            /**
+             * Offers At Location
+             * @description Whether the instructor offers lessons at their location for this service
+             */
+            offers_at_location?: boolean | null;
+            /**
+             * Offers Online
+             * @description Whether the instructor offers online lessons for this service
+             */
+            offers_online?: boolean | null;
+            /**
+             * Offers Travel
+             * @description Whether the instructor travels to student locations for this service
+             */
+            offers_travel?: boolean | null;
             /** Requirements */
             requirements?: string | null;
             /**

@@ -7570,6 +7570,21 @@ export type ServiceCreateLevelsTaught = string[] | null;
  */
 export type ServiceCreateLocationTypes = string[] | null;
 
+/**
+ * Whether the instructor offers lessons at their location for this service
+ */
+export type ServiceCreateOffersAtLocation = boolean | null;
+
+/**
+ * Whether the instructor offers online lessons for this service
+ */
+export type ServiceCreateOffersOnline = boolean | null;
+
+/**
+ * Whether the instructor travels to student locations for this service
+ */
+export type ServiceCreateOffersTravel = boolean | null;
+
 export type ServiceCreateRequirements = string | null;
 
 /**
@@ -7592,6 +7607,12 @@ export interface ServiceCreate {
   levels_taught?: ServiceCreateLevelsTaught;
   /** Where lessons are offered. Allowed: 'in_person', 'online' */
   location_types?: ServiceCreateLocationTypes;
+  /** Whether the instructor offers lessons at their location for this service */
+  offers_at_location?: ServiceCreateOffersAtLocation;
+  /** Whether the instructor offers online lessons for this service */
+  offers_online?: ServiceCreateOffersOnline;
+  /** Whether the instructor travels to student locations for this service */
+  offers_travel?: ServiceCreateOffersTravel;
   requirements?: ServiceCreateRequirements;
   /** ID of the service from catalog */
   service_catalog_id: string;

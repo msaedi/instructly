@@ -17,10 +17,6 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => ({
 
 jest.mock('@/lib/instructorServices', () => ({
   normalizeInstructorServices: jest.fn(async () => []),
-  normalizeLocationTypes: (values: unknown[]) =>
-    (Array.isArray(values) ? values : [])
-      .map((value) => String(value ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_'))
-      .filter((value) => value === 'in_person' || value === 'online'),
   hydrateCatalogNameById: jest.fn(),
   displayServiceName: jest.fn(),
 }));

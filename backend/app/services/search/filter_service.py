@@ -414,7 +414,7 @@ class FilterService:
         """
         Apply lesson type filter (online vs in-person).
 
-        Uses the FilterRepository to check instructor_services.location_types.
+        Uses the FilterRepository to check instructor_services capability flags.
 
         Args:
             candidates: Current candidate list

@@ -184,6 +184,18 @@ class ServiceBase(StandardizedModel):
         default=None,
         description="Where lessons are offered. Allowed: 'in_person', 'online'",
     )
+    offers_travel: Optional[bool] = Field(
+        default=None,
+        description="Whether the instructor travels to student locations for this service",
+    )
+    offers_at_location: Optional[bool] = Field(
+        default=None,
+        description="Whether the instructor offers lessons at their location for this service",
+    )
+    offers_online: Optional[bool] = Field(
+        default=None,
+        description="Whether the instructor offers online lessons for this service",
+    )
     duration_options: List[int] = Field(
         default=[60],
         description="Available duration options for this service in minutes",

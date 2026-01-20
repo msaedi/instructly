@@ -7507,6 +7507,9 @@ export type components = {
  hourly_rate: number | string;
  levels_taught?: string[] | null;
  location_types?: string[] | null;
+ offers_at_location?: boolean | null;
+ offers_online?: boolean | null;
+ offers_travel?: boolean | null;
  requirements?: string | null;
  service_catalog_id: string;
  };

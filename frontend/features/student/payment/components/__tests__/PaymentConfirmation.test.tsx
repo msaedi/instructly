@@ -138,7 +138,20 @@ describe('PaymentConfirmation', () => {
     });
 
     fetchBookingsListMock.mockResolvedValue({ items: [] });
-    fetchInstructorProfileMock.mockResolvedValue({ services: [] });
+    fetchInstructorProfileMock.mockResolvedValue({
+      services: [
+        {
+          id: 'svc-1',
+          skill: 'Piano',
+          hourly_rate: 100,
+          duration_options: [60],
+          offers_online: true,
+          offers_travel: true,
+          offers_at_location: false,
+        },
+      ],
+      preferred_teaching_locations: [],
+    });
     getPlaceDetailsMock.mockResolvedValue({ data: null, error: null });
   });
 
@@ -390,7 +403,7 @@ describe('PaymentConfirmation', () => {
       // Expand location section
       fireEvent.click(screen.getByText('Lesson Location'));
 
-      expect(screen.getByLabelText('Online')).toBeInTheDocument();
+      expect(await screen.findByLabelText('Online')).toBeInTheDocument();
     });
 
     it('toggles online lesson when checkbox clicked', async () => {
@@ -401,7 +414,7 @@ describe('PaymentConfirmation', () => {
       // Expand location section
       fireEvent.click(screen.getByText('Lesson Location'));
 
-      const checkbox = screen.getByLabelText('Online');
+      const checkbox = await screen.findByLabelText('Online');
       await user.click(checkbox);
 
       expect(checkbox).toBeChecked();
@@ -643,7 +656,8 @@ describe('PaymentConfirmation', () => {
 
       // Expand location and toggle online
       fireEvent.click(screen.getByText('Lesson Location'));
-      await user.click(screen.getByLabelText('Online'));
+      const onlineCheckbox = await screen.findByLabelText('Online');
+      await user.click(onlineCheckbox);
 
       expect(onClearFloorViolation).toHaveBeenCalled();
     });
@@ -709,7 +723,15 @@ describe('PaymentConfirmation', () => {
 
       fetchInstructorProfileMock.mockResolvedValue({
         services: [
-          { id: 'svc-1', skill: 'Piano', hourly_rate: 100, duration_options: [30, 60, 90] },
+          {
+            id: 'svc-1',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [30, 60, 90],
+            offers_online: true,
+            offers_travel: false,
+            offers_at_location: false,
+          },
         ],
       });
 
@@ -730,7 +752,15 @@ describe('PaymentConfirmation', () => {
 
       fetchInstructorProfileMock.mockResolvedValue({
         services: [
-          { id: 'svc-1', skill: 'Piano', hourly_rate: 100, duration_options: [30, 60, 90] },
+          {
+            id: 'svc-1',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [30, 60, 90],
+            offers_online: true,
+            offers_travel: false,
+            offers_at_location: false,
+          },
         ],
       });
 
@@ -821,12 +851,11 @@ describe('PaymentConfirmation', () => {
       );
 
       // Wait for component to initialize
-      await waitFor(() => {
-        expect(screen.getByLabelText('Online')).toBeInTheDocument();
-      });
+      expect(await screen.findByLabelText('Online')).toBeInTheDocument();
 
       // Toggle online
-      await user.click(screen.getByLabelText('Online'));
+      const onlineCheckbox = await screen.findByLabelText('Online');
+      await user.click(onlineCheckbox);
 
       // onBookingUpdate is called during initialization and on changes
       await waitFor(() => {
@@ -2190,7 +2219,8 @@ describe('PaymentConfirmation', () => {
       fireEvent.click(screen.getByText('Lesson Location'));
 
       // Toggle online checkbox
-      await user.click(screen.getByLabelText('Online'));
+      const onlineCheckbox = await screen.findByLabelText('Online');
+      await user.click(onlineCheckbox);
 
       // onBookingUpdate should be called
       await waitFor(() => {
@@ -2219,7 +2249,8 @@ describe('PaymentConfirmation', () => {
       fireEvent.click(screen.getByText('Lesson Location'));
 
       // Toggle online checkbox
-      await user.click(screen.getByLabelText('Online'));
+      const onlineCheckbox = await screen.findByLabelText('Online');
+      await user.click(onlineCheckbox);
 
       await waitFor(() => {
         const checkbox = screen.getByLabelText('Online');
@@ -2234,8 +2265,24 @@ describe('PaymentConfirmation', () => {
 
       fetchInstructorProfileMock.mockResolvedValue({
         services: [
-          { id: 'svc-1', skill: 'Piano', hourly_rate: 100, duration_options: [30, 60, 90] },
-          { id: 'svc-2', skill: 'Guitar', hourly_rate: 80, duration_options: [30, 60] },
+          {
+            id: 'svc-1',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [30, 60, 90],
+            offers_online: true,
+            offers_travel: false,
+            offers_at_location: false,
+          },
+          {
+            id: 'svc-2',
+            skill: 'Guitar',
+            hourly_rate: 80,
+            duration_options: [30, 60],
+            offers_online: true,
+            offers_travel: false,
+            offers_at_location: false,
+          },
         ],
       });
 

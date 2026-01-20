@@ -221,11 +221,15 @@ def test_pricing_service_detects_remote_by_meeting_location(
     assert exc.value.details.get("required_floor_cents") == 6000
 
 
-def test_resolve_modality_prefers_service_location_types():
+def test_resolve_modality_prefers_service_flags():
     booking = SimpleNamespace(
         location_type="",
         meeting_location="",
-        instructor_service=SimpleNamespace(location_types=["ONLINE"]),
+        instructor_service=SimpleNamespace(
+            offers_online=True,
+            offers_travel=False,
+            offers_at_location=False,
+        ),
     )
 
     assert PricingService._resolve_modality(booking) == "remote"
@@ -235,7 +239,11 @@ def test_resolve_modality_falls_back_to_meeting_location():
     booking = SimpleNamespace(
         location_type="unknown",
         meeting_location="Zoom online session",
-        instructor_service=SimpleNamespace(location_types=[]),
+        instructor_service=SimpleNamespace(
+            offers_online=False,
+            offers_travel=False,
+            offers_at_location=False,
+        ),
     )
 
     assert PricingService._resolve_modality(booking) == "remote"
@@ -245,7 +253,11 @@ def test_resolve_modality_defaults_to_in_person():
     booking = SimpleNamespace(
         location_type="",
         meeting_location="",
-        instructor_service=SimpleNamespace(location_types=None),
+        instructor_service=SimpleNamespace(
+            offers_online=False,
+            offers_travel=False,
+            offers_at_location=False,
+        ),
     )
 
     assert PricingService._resolve_modality(booking) == "in_person"
