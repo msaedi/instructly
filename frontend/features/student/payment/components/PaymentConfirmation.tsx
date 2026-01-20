@@ -51,6 +51,15 @@ type TeachingLocation = {
   placeId?: string;
 };
 
+type PublicSpace = {
+  id?: string;
+  address: string;
+  label?: string;
+  lat?: number;
+  lng?: number;
+  placeId?: string;
+};
+
 type ConflictKey = {
   studentId: string;
   instructorId: string;
@@ -176,6 +185,8 @@ function PaymentConfirmationInner({
   const [selectedSavedAddress, setSelectedSavedAddress] = useState<SavedAddress | null>(null);
   const [teachingLocations, setTeachingLocations] = useState<TeachingLocation[]>([]);
   const [selectedTeachingLocation, setSelectedTeachingLocation] = useState<TeachingLocation | null>(null);
+  const [publicSpaces, setPublicSpaces] = useState<PublicSpace[]>([]);
+  const [selectedPublicSpace, setSelectedPublicSpace] = useState<PublicSpace | null>(null);
   const [isEditingLocation, setIsEditingLocation] = useState(true);
   const [addressFields, setAddressFields] = useState<AddressFields>(EMPTY_ADDRESS);
   const [addressCoords, setAddressCoords] = useState<AddressCoords>({
@@ -193,6 +204,8 @@ function PaymentConfirmationInner({
   const initializedBookingIdRef = useRef<string | null>(null);
   const isOnlineLesson = locationType === 'online';
   const isTravelLocation = locationType === 'student_location' || locationType === 'neutral_location';
+  const isPublicSpaceSelection = locationType === 'neutral_location' && Boolean(selectedPublicSpace);
+  const shouldCheckServiceArea = isTravelLocation && !isPublicSpaceSelection;
   const hasSavedTravelLocation = Boolean(
     selectedSavedAddress ||
       (isTravelLocation &&
@@ -200,18 +213,19 @@ function PaymentConfirmationInner({
         booking.location !== '' &&
         !/online|remote/i.test(String(booking.location)))
   );
-  const serviceAreaLat = isTravelLocation ? addressCoords.lat ?? undefined : undefined;
-  const serviceAreaLng = isTravelLocation ? addressCoords.lng ?? undefined : undefined;
+  const serviceAreaLat = shouldCheckServiceArea ? addressCoords.lat ?? undefined : undefined;
+  const serviceAreaLng = shouldCheckServiceArea ? addressCoords.lng ?? undefined : undefined;
   const { data: serviceAreaCheck, isLoading: isCheckingServiceArea } = useServiceAreaCheck({
     instructorId: booking.instructorId,
     lat: serviceAreaLat,
     lng: serviceAreaLng,
   });
-  const isOutsideServiceArea = isTravelLocation && serviceAreaCheck?.is_covered === false;
+  const isOutsideServiceArea = shouldCheckServiceArea && serviceAreaCheck?.is_covered === false;
   const setAddressField = useCallback((updates: Partial<AddressFields>) => {
     setAddressFields((prev) => ({ ...prev, ...updates }));
     setAddressCoords({ lat: null, lng: null, placeId: null });
     setSelectedSavedAddress(null);
+    setSelectedPublicSpace(null);
   }, []);
 
   const buildSavedAddressLine1 = useCallback((address: SavedAddress): string => {
@@ -237,6 +251,7 @@ function PaymentConfirmationInner({
       setAddressDetailsError(null);
       setIsEditingLocation(false);
       lastLocationRef.current = '';
+      setSelectedPublicSpace(null);
     },
     [buildSavedAddressLine1]
   );
@@ -247,6 +262,7 @@ function PaymentConfirmationInner({
         setSelectedSavedAddress(null);
         return;
       }
+      setSelectedPublicSpace(null);
       setSelectedSavedAddress(address);
       if (!isTravelLocation) {
         setLocationType('student_location');
@@ -258,6 +274,7 @@ function PaymentConfirmationInner({
 
   const handleEnterNewAddress = useCallback(() => {
     setSelectedSavedAddress(null);
+    setSelectedPublicSpace(null);
     setIsEditingLocation(true);
     setAddressDetailsError(null);
     requestAnimationFrame(() => {
@@ -268,6 +285,19 @@ function PaymentConfirmationInner({
   const handleSelectTeachingLocation = useCallback((location: TeachingLocation) => {
     setSelectedTeachingLocation(location);
     setIsEditingLocation(false);
+    setAddressDetailsError(null);
+  }, []);
+
+  const handleSelectPublicSpace = useCallback((space: PublicSpace) => {
+    setSelectedPublicSpace(space);
+    setSelectedSavedAddress(null);
+    setIsEditingLocation(false);
+    setAddressDetailsError(null);
+  }, []);
+
+  const handleUseCustomPublicLocation = useCallback(() => {
+    setSelectedPublicSpace(null);
+    setIsEditingLocation(true);
     setAddressDetailsError(null);
   }, []);
 
@@ -1034,7 +1064,8 @@ function PaymentConfirmationInner({
     () => (isOnlineLesson ? 'online' : 'in_person'),
     [isOnlineLesson],
   );
-  const inputsDisabled = !isTravelLocation || (hasSavedTravelLocation && !isEditingLocation);
+  const inputsDisabled =
+    !isTravelLocation || isPublicSpaceSelection || (hasSavedTravelLocation && !isEditingLocation);
   const instructorFirstName = useMemo(() => {
     const parts = booking.instructorName.split(' ').filter(Boolean);
     return parts[0] || 'Instructor';
@@ -1044,6 +1075,8 @@ function PaymentConfirmationInner({
     [availableLocationTypes],
   );
   const showOnlineOption = availableLocationTypes.includes('online');
+  const showCustomLocationInputs = !isPublicSpaceSelection;
+  const publicSpaceGroupName = useId();
   const singleTeachingLocation = teachingLocations.length === 1 ? teachingLocations[0] : null;
 
   const getLocationOptionLabel = useCallback(
@@ -1083,6 +1116,9 @@ function PaymentConfirmationInner({
       }
       return fallbackNonOnlineLocation || INSTRUCTOR_LOCATION_PLACEHOLDER;
     }
+    if (locationType === 'neutral_location' && selectedPublicSpace?.address) {
+      return selectedPublicSpace.address;
+    }
     if (formattedAddress) {
       return formattedAddress;
     }
@@ -1090,7 +1126,13 @@ function PaymentConfirmationInner({
       return fallbackNonOnlineLocation;
     }
     return ADDRESS_PLACEHOLDER;
-  }, [fallbackNonOnlineLocation, formattedAddress, locationType, selectedTeachingLocation]);
+  }, [
+    fallbackNonOnlineLocation,
+    formattedAddress,
+    locationType,
+    selectedPublicSpace,
+    selectedTeachingLocation,
+  ]);
 
   const handleLocationTypeChange = useCallback(
     (nextType: LocationType) => {
@@ -1110,6 +1152,9 @@ function PaymentConfirmationInner({
       } else if (!hasSavedTravelLocation) {
         setIsEditingLocation(true);
       }
+      if (nextType !== 'neutral_location') {
+        setSelectedPublicSpace(null);
+      }
 
       onClearFloorViolation?.();
     },
@@ -1127,6 +1172,7 @@ function PaymentConfirmationInner({
     if (!isTravelLocation) {
       setLocationType('student_location');
     }
+    setSelectedPublicSpace(null);
     setIsEditingLocation(true);
     setAddressDetailsError(null);
     onClearFloorViolation?.();
@@ -1179,6 +1225,16 @@ function PaymentConfirmationInner({
             ...(selectedTeachingLocation?.placeId ? { placeId: selectedTeachingLocation.placeId } : {}),
           }
         : null;
+    } else if (locationType === 'neutral_location' && selectedPublicSpace) {
+      nextLocation = selectedPublicSpace.address;
+      addressPayload = nextLocation
+        ? {
+            fullAddress: nextLocation,
+            ...(typeof selectedPublicSpace.lat === 'number' ? { lat: selectedPublicSpace.lat } : {}),
+            ...(typeof selectedPublicSpace.lng === 'number' ? { lng: selectedPublicSpace.lng } : {}),
+            ...(selectedPublicSpace.placeId ? { placeId: selectedPublicSpace.placeId } : {}),
+          }
+        : null;
     } else {
       nextLocation = formattedAddress || fallbackNonOnlineLocation || '';
       if (nextLocation) {
@@ -1227,6 +1283,7 @@ function PaymentConfirmationInner({
     addressCoords.lng,
     addressCoords.placeId,
     selectedTeachingLocation,
+    selectedPublicSpace,
   ]);
   const hourlyRate = useMemo(() => {
     if (!Number.isFinite(booking.duration) || booking.duration <= 0) return 0;
@@ -1259,7 +1316,7 @@ function PaymentConfirmationInner({
     isFloorBlocking ||
     isPricingPreviewLoading ||
     isOutsideServiceArea ||
-    (isCheckingServiceArea && isTravelLocation);
+    (isCheckingServiceArea && shouldCheckServiceArea);
   const ctaLabel = useMemo(() => {
     if (isCheckingConflict) return 'Checking availability...';
     if (hasConflict) return 'You have a conflict at this time';
@@ -1591,6 +1648,53 @@ function PaymentConfirmationInner({
               .filter((location): location is TeachingLocation => Boolean(location))
           : [];
         setTeachingLocations(teaching);
+        const spaces: PublicSpace[] = Array.isArray(data.preferred_public_spaces)
+          ? data.preferred_public_spaces
+              .map((space: Record<string, unknown>, index: number): PublicSpace | null => {
+                const address = String(space['address'] ?? '').trim();
+                if (!address) {
+                  return null;
+                }
+                const labelValue = space['label'];
+                const label = typeof labelValue === 'string' ? labelValue : undefined;
+                const latValue = space['lat'];
+                const latitudeValue = space['latitude'];
+                const lat =
+                  typeof latValue === 'number'
+                    ? latValue
+                    : typeof latitudeValue === 'number'
+                      ? latitudeValue
+                      : undefined;
+                const lngValue = space['lng'];
+                const longitudeValue = space['longitude'];
+                const lng =
+                  typeof lngValue === 'number'
+                    ? lngValue
+                    : typeof longitudeValue === 'number'
+                      ? longitudeValue
+                      : undefined;
+                const placeIdValue = space['place_id'];
+                const placeIdCamelValue = space['placeId'];
+                const placeId =
+                  typeof placeIdValue === 'string'
+                    ? placeIdValue
+                    : typeof placeIdCamelValue === 'string'
+                      ? placeIdCamelValue
+                      : undefined;
+                const idValue = space['id'];
+                const id = typeof idValue === 'string' ? idValue : `${address}-${index}`;
+                return {
+                  id,
+                  address,
+                  ...(label ? { label } : {}),
+                  ...(typeof lat === 'number' ? { lat } : {}),
+                  ...(typeof lng === 'number' ? { lng } : {}),
+                  ...(placeId ? { placeId } : {}),
+                };
+              })
+              .filter((space): space is PublicSpace => Boolean(space))
+          : [];
+        setPublicSpaces(spaces);
       } catch (error) {
         logger.error('Failed to fetch instructor profile', error);
       } finally {
@@ -2095,17 +2199,79 @@ function PaymentConfirmationInner({
                 </div>
               )}
 
-              {isTravelLocation && isEditingLocation && (
+              {!isOnlineLesson && locationType === 'neutral_location' && publicSpaces.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">
+                    {instructorFirstName}&apos;s suggested spots
+                  </p>
+                  <div className="space-y-2">
+                    {publicSpaces.map((space, index) => {
+                      const spaceId = String(space.id ?? `${space.address}-${index}`);
+                      const optionId = `${publicSpaceGroupName}-${spaceId}`;
+                      const isSelected =
+                        selectedPublicSpace?.id && space.id
+                          ? selectedPublicSpace.id === space.id
+                          : selectedPublicSpace?.address === space.address;
+                      return (
+                        <label
+                          key={spaceId}
+                          htmlFor={optionId}
+                          className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                            isSelected
+                              ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
+                              : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                          }`}
+                        >
+                          <input
+                            id={optionId}
+                            type="radio"
+                            name={publicSpaceGroupName}
+                            checked={isSelected}
+                            onChange={() => handleSelectPublicSpace(space)}
+                            className="mt-1 h-4 w-4 text-[#7E22CE] border-gray-300 focus:ring-[#7E22CE]"
+                          />
+                          <span>
+                            {space.label ? (
+                              <span className="block font-medium">{space.label}</span>
+                            ) : null}
+                            <span className="block text-xs text-gray-500">{space.address}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {isPublicSpaceSelection ? (
+                    <button
+                      type="button"
+                      onClick={handleUseCustomPublicLocation}
+                      className="text-sm text-[#7E22CE] hover:text-[#7E22CE]"
+                    >
+                      Use your own location
+                    </button>
+                  ) : null}
+                </div>
+              )}
+
+              {!isOnlineLesson &&
+                locationType === 'neutral_location' &&
+                publicSpaces.length > 0 &&
+                !isPublicSpaceSelection && (
+                  <div className="border-t border-gray-200 pt-3">
+                    <p className="text-sm font-medium text-gray-700">Or choose your own location</p>
+                  </div>
+                )}
+
+              {showCustomLocationInputs && isEditingLocation && (
                 <AddressSelector
                   instructorId={booking.instructorId}
-                  locationType={locationType}
+                  locationType={locationType === 'neutral_location' ? 'neutral_location' : 'student_location'}
                   selectedAddress={selectedSavedAddress}
                   onSelectAddress={handleSelectSavedAddress}
                   onEnterNewAddress={handleEnterNewAddress}
                 />
               )}
 
-              {hasSavedTravelLocation && isTravelLocation && !isEditingLocation && (
+              {showCustomLocationInputs && hasSavedTravelLocation && !isEditingLocation && (
                 <div className="bg-white p-3 rounded-lg border border-gray-200">
                   <div className="flex items-center justify-between">
                     <div>
@@ -2123,91 +2289,93 @@ function PaymentConfirmationInner({
                 </div>
               )}
 
-              <div className={`space-y-3 ${inputsDisabled ? 'opacity-50' : ''}`}>
-                <PlacesAutocompleteInput
-                  ref={addressLine1Ref}
-                  value={addressFields.line1}
-                  onValueChange={(next) => {
-                    setAddressField({ line1: next });
-                    setIsEditingLocation(true);
-                    setAddressDetailsError(null);
-                  }}
-                  onSelectSuggestion={(suggestion: PlaceSuggestion) => {
-                    void handleAddressSuggestionSelect(suggestion);
-                  }}
-                  placeholder={ADDRESS_PLACEHOLDER}
-                  disabled={inputsDisabled}
-                  autoComplete="off"
-                  suggestionScope="global"
-                  containerClassName="w-full"
-                  inputClassName={`rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder-gray-400 transition-colors ${
-                    inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
-                  }`}
-                  style={{ outline: 'none' }}
-                  inputProps={{ 'data-testid': 'addr-street', 'aria-label': 'Street address' }}
-                />
-                {addressDetailsError && (
-                  <p className="text-xs text-red-600" role="alert">
-                    {addressDetailsError}
-                  </p>
-                )}
-
-                <div className="grid grid-cols-6 gap-3">
-                  <input
-                    type="text"
-                    placeholder="City"
-                    aria-label="City"
-                    data-testid="addr-city"
-                    disabled={inputsDisabled}
-                    value={addressFields.city}
-                    onChange={(e) => {
-                      setAddressField({ city: e.target.value });
+              {showCustomLocationInputs && (
+                <div className={`space-y-3 ${inputsDisabled ? 'opacity-50' : ''}`}>
+                  <PlacesAutocompleteInput
+                    ref={addressLine1Ref}
+                    value={addressFields.line1}
+                    onValueChange={(next) => {
+                      setAddressField({ line1: next });
                       setIsEditingLocation(true);
                       setAddressDetailsError(null);
                     }}
-                    className={`col-span-3 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                      inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
-                    }`}
-                    style={{ outline: 'none' }}
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="State"
-                    aria-label="State"
-                    data-testid="addr-state"
-                    disabled={inputsDisabled}
-                    value={addressFields.state}
-                    onChange={(e) => {
-                      setAddressField({ state: e.target.value });
-                      setIsEditingLocation(true);
-                      setAddressDetailsError(null);
+                    onSelectSuggestion={(suggestion: PlaceSuggestion) => {
+                      void handleAddressSuggestionSelect(suggestion);
                     }}
-                    className={`col-span-1 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                      inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
-                    }`}
-                    style={{ outline: 'none' }}
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="ZIP Code"
-                    aria-label="ZIP code"
-                    data-testid="addr-zip"
+                    placeholder={ADDRESS_PLACEHOLDER}
                     disabled={inputsDisabled}
-                    value={addressFields.postalCode}
-                    onChange={(e) => {
-                      setAddressField({ postalCode: e.target.value });
-                      setIsEditingLocation(true);
-                      setAddressDetailsError(null);
-                    }}
-                    className={`col-span-2 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                    autoComplete="off"
+                    suggestionScope="global"
+                    containerClassName="w-full"
+                    inputClassName={`rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder-gray-400 transition-colors ${
                       inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
                     }`}
                     style={{ outline: 'none' }}
+                    inputProps={{ 'data-testid': 'addr-street', 'aria-label': 'Street address' }}
                   />
+                  {addressDetailsError && (
+                    <p className="text-xs text-red-600" role="alert">
+                      {addressDetailsError}
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-6 gap-3">
+                    <input
+                      type="text"
+                      placeholder="City"
+                      aria-label="City"
+                      data-testid="addr-city"
+                      disabled={inputsDisabled}
+                      value={addressFields.city}
+                      onChange={(e) => {
+                        setAddressField({ city: e.target.value });
+                        setIsEditingLocation(true);
+                        setAddressDetailsError(null);
+                      }}
+                      className={`col-span-3 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                        inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                      }`}
+                      style={{ outline: 'none' }}
+                    />
+
+                    <input
+                      type="text"
+                      placeholder="State"
+                      aria-label="State"
+                      data-testid="addr-state"
+                      disabled={inputsDisabled}
+                      value={addressFields.state}
+                      onChange={(e) => {
+                        setAddressField({ state: e.target.value });
+                        setIsEditingLocation(true);
+                        setAddressDetailsError(null);
+                      }}
+                      className={`col-span-1 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                        inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                      }`}
+                      style={{ outline: 'none' }}
+                    />
+
+                    <input
+                      type="text"
+                      placeholder="ZIP Code"
+                      aria-label="ZIP code"
+                      data-testid="addr-zip"
+                      disabled={inputsDisabled}
+                      value={addressFields.postalCode}
+                      onChange={(e) => {
+                        setAddressField({ postalCode: e.target.value });
+                        setIsEditingLocation(true);
+                        setAddressDetailsError(null);
+                      }}
+                      className={`col-span-2 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                        inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                      }`}
+                      style={{ outline: 'none' }}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {isTravelLocation && isOutsideServiceArea && !selectedSavedAddress && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">

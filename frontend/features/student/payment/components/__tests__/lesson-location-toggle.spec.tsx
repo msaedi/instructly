@@ -3,6 +3,8 @@ import { render, fireEvent, waitFor, screen, act } from '@testing-library/react'
 import PaymentConfirmation from '../PaymentConfirmation';
 import { PaymentMethod, PAYMENT_STATUS, type PaymentStatus } from '../../types';
 import { BookingType } from '@/features/shared/types/booking';
+import { fetchInstructorProfile } from '@/src/api/services/instructors';
+import { useServiceAreaCheck } from '@/hooks/useServiceAreaCheck';
 
 jest.mock('@/lib/pricing/usePricingFloors', () => ({
   usePricingFloors: () => ({ floors: null, config: { student_fee_pct: 0.12 }, isLoading: false, error: null }),
@@ -88,6 +90,8 @@ function createBooking(overrides: Partial<BookingWithMetadata> = {}): BookingWit
 
 describe('Lesson Location toggle', () => {
   let fetchMock: jest.SpyInstance;
+  const fetchInstructorProfileMock = fetchInstructorProfile as jest.Mock;
+  const useServiceAreaCheckMock = useServiceAreaCheck as jest.Mock;
   const flushConflicts = async () => {
     await act(async () => {
       jest.advanceTimersByTime(300);
@@ -99,6 +103,22 @@ describe('Lesson Location toggle', () => {
 
   beforeEach(() => {
     jest.useFakeTimers();
+    fetchInstructorProfileMock.mockResolvedValue({
+      services: [
+        {
+          id: 'svc-1',
+          skill: 'Math',
+          hourly_rate: 80,
+          duration_options: [60],
+          offers_online: true,
+          offers_travel: true,
+          offers_at_location: false,
+        },
+      ],
+      preferred_teaching_locations: [],
+      preferred_public_spaces: [],
+    });
+    useServiceAreaCheckMock.mockReturnValue({ data: null, isLoading: false });
     fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = typeof input === 'string'
         ? input
@@ -123,6 +143,7 @@ describe('Lesson Location toggle', () => {
               },
             ],
             preferred_teaching_locations: [],
+            preferred_public_spaces: [],
           }),
         } as unknown as Response);
       }
@@ -266,6 +287,72 @@ describe('Lesson Location toggle', () => {
     await waitFor(() =>
       expect(screen.getAllByText('225 Cherry St, Brooklyn, NY 11201')[0]).toBeInTheDocument(),
     );
+  });
+
+  it('uses suggested public spaces and skips service area warnings until custom location', async () => {
+    const booking = createBooking({ location: '', metadata: {} });
+    let latestBooking = { ...booking };
+    const onBookingUpdate = jest.fn((updater: (prev: BookingWithMetadata) => BookingWithMetadata) => {
+      latestBooking = updater({ ...latestBooking });
+    });
+
+    useServiceAreaCheckMock.mockReturnValue({ data: { is_covered: false }, isLoading: false });
+    fetchInstructorProfileMock.mockResolvedValueOnce({
+      services: [
+        {
+          id: 'svc-1',
+          skill: 'Math',
+          hourly_rate: 80,
+          duration_options: [60],
+          offers_online: true,
+          offers_travel: true,
+          offers_at_location: false,
+        },
+      ],
+      preferred_teaching_locations: [],
+      preferred_public_spaces: [
+        {
+          id: 'space-1',
+          label: 'Bryant Park',
+          address: 'Bryant Park, New York, NY',
+          lat: 40.7536,
+          lng: -73.9832,
+          place_id: 'place_park',
+        },
+      ],
+    });
+
+    render(
+      <PaymentConfirmation
+        booking={booking}
+        paymentMethod={PaymentMethod.CREDIT_CARD}
+        onConfirm={jest.fn()}
+        onBack={jest.fn()}
+        onBookingUpdate={onBookingUpdate}
+      />
+    );
+
+    await flushConflicts();
+    await waitFor(() => expect(fetchInstructorProfileMock).toHaveBeenCalled());
+    if (!screen.queryByLabelText('Online')) {
+      fireEvent.click(screen.getByText('Lesson Location'));
+    }
+    await waitFor(() => expect(screen.getByText('At a public location')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('At a public location'));
+
+    const suggestion = await screen.findByText('Bryant Park');
+    fireEvent.click(suggestion);
+
+    await waitFor(() => {
+      expect(latestBooking.location).toBe('Bryant Park, New York, NY');
+    });
+    expect(screen.queryByTestId('addr-street')).not.toBeInTheDocument();
+    expect(screen.queryByText('Location not covered')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Use your own location'));
+
+    expect(screen.getByTestId('addr-street')).toBeInTheDocument();
+    expect(screen.getByText('Location not covered')).toBeInTheDocument();
   });
 
   it('Change button enables editing of a saved location and focuses the address field', async () => {
