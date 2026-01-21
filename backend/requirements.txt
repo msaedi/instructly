@@ -29,7 +29,7 @@ qrcode==8.2
 celery==5.6.2
 redis==6.4.0
 broadcaster[redis]==0.3.1
-anyio==4.12.0
+anyio==4.12.1
 
 # HTTP Client
 httpx==0.28.1
@@ -44,13 +44,13 @@ twilio>=8.0.0
 # Search & NLP
 symspellpy==6.9.0
 dateparser>=1.2.0
-openai==2.14.0
+openai==2.15.0
 
 # Geospatial
 geopandas==1.1.2
 
 # Payments
-stripe==14.1.0
+stripe==14.2.0
 
 # Monitoring & Utilities
 prometheus-client==0.24.1
@@ -59,7 +59,7 @@ python-ulid==3.1.0
 python-dotenv==1.2.1
 PyYAML==6.0.3
 user-agents==2.2.0
-pillow==12.0.0
+pillow==12.1.0
 filelock>=3.20.3
 urllib3>=2.6.3
 virtualenv>=20.36.1
@@ -78,4 +78,4 @@ matplotlib==3.10.8
 networkx==3.6.1
 hiredis==3.3.0
 numpy==2.4.0
-pytest-timeout==2.3.1
+pytest-timeout==2.4.0
