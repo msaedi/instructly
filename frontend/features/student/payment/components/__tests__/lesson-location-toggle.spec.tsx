@@ -219,15 +219,14 @@ describe('Lesson Location toggle', () => {
     await flushConflicts();
     await waitFor(() => expect(onBookingUpdate).toHaveBeenCalled());
     await waitFor(() => expect(latestBooking.metadata?.modality).toBe('remote'));
-    expect(await screen.findByLabelText(/Online/i)).toBeChecked();
+    if (!screen.queryByText(/How do you want to take this lesson/i)) {
+      fireEvent.click(screen.getByText('Lesson Location'));
+    }
+    const onlineOption = await screen.findByRole('button', { name: /online/i });
+    expect(onlineOption).toHaveAttribute('aria-pressed', 'true');
     expect(latestBooking.location).toBe('Online');
-    const addressInput = getLessonAddressInput();
-    expect(addressInput).toBeDisabled();
-    expect(addressInput).toBeVisible();
-    expect(addressInput).toHaveValue('');
-    const cityInput = screen.getByTestId('addr-city');
-    expect(cityInput).toBeDisabled();
-    expect(cityInput).toBeVisible();
+    expect(screen.queryByTestId('addr-street')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('addr-city')).not.toBeInTheDocument();
   });
 
   it('allows switching to an address and updates booking metadata/location', async () => {
@@ -248,12 +247,16 @@ describe('Lesson Location toggle', () => {
     );
 
     await flushConflicts();
-    const onlineToggle = await screen.findByLabelText(/Online/i);
-    await waitFor(() => expect(onlineToggle).toBeChecked());
+    if (!screen.queryByText(/How do you want to take this lesson/i)) {
+      fireEvent.click(screen.getByText('Lesson Location'));
+    }
+    const onlineOption = await screen.findByRole('button', { name: /online/i });
+    await waitFor(() => expect(onlineOption).toHaveAttribute('aria-pressed', 'true'));
 
-    fireEvent.click(onlineToggle);
+    const inPersonOption = await screen.findByRole('button', { name: /in person/i });
+    fireEvent.click(inPersonOption);
 
-    await waitFor(() => expect(onlineToggle).not.toBeChecked());
+    await waitFor(() => expect(onlineOption).toHaveAttribute('aria-pressed', 'false'));
 
     const addressInput = getLessonAddressInput();
     expect(addressInput).not.toBeDisabled();
@@ -334,11 +337,11 @@ describe('Lesson Location toggle', () => {
 
     await flushConflicts();
     await waitFor(() => expect(fetchInstructorProfileMock).toHaveBeenCalled());
-    if (!screen.queryByLabelText('Online')) {
+    if (!screen.queryByText(/How do you want to take this lesson/i)) {
       fireEvent.click(screen.getByText('Lesson Location'));
     }
-    await waitFor(() => expect(screen.getByText('At a public location')).toBeInTheDocument());
-    fireEvent.click(screen.getByText('At a public location'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /in person/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /in person/i }));
 
     const suggestion = await screen.findByText('Bryant Park');
     fireEvent.click(suggestion);
@@ -388,5 +391,48 @@ describe('Lesson Location toggle', () => {
     await waitFor(() => expect(addressInput).not.toBeDisabled());
     await waitFor(() => expect(document.activeElement).toBe(addressInput));
     expect(latestBooking.metadata?.modality).toBe('in_person');
+  });
+
+  it('shows multiple teaching locations when instructor location is selected', async () => {
+    const booking = createBooking({ location: '', metadata: {} });
+
+    fetchInstructorProfileMock.mockResolvedValueOnce({
+      services: [
+        {
+          id: 'svc-1',
+          skill: 'Math',
+          hourly_rate: 80,
+          duration_options: [60],
+          offers_online: true,
+          offers_travel: false,
+          offers_at_location: true,
+        },
+      ],
+      preferred_teaching_locations: [
+        { id: 'loc-1', label: 'Downtown Studio', address: '123 Studio Lane' },
+        { id: 'loc-2', label: 'Uptown Studio', address: '456 Studio Way' },
+      ],
+      preferred_public_spaces: [],
+    });
+
+    render(
+      <PaymentConfirmation
+        booking={booking}
+        paymentMethod={PaymentMethod.CREDIT_CARD}
+        onConfirm={jest.fn()}
+        onBack={jest.fn()}
+      />
+    );
+
+    await flushConflicts();
+    if (!screen.queryByText(/How do you want to take this lesson/i)) {
+      fireEvent.click(screen.getByText('Lesson Location'));
+    }
+
+    const instructorOption = await screen.findByRole('button', { name: /at lee's location/i });
+    fireEvent.click(instructorOption);
+
+    expect(await screen.findByText('Downtown Studio')).toBeInTheDocument();
+    expect(screen.getByText('Uptown Studio')).toBeInTheDocument();
   });
 });

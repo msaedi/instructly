@@ -397,16 +397,16 @@ describe('PaymentConfirmation', () => {
       expect(screen.getByText('Lesson Location')).toBeInTheDocument();
     });
 
-    it('shows online toggle checkbox', async () => {
+    it('shows online location option', async () => {
       await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Expand location section
       fireEvent.click(screen.getByText('Lesson Location'));
 
-      expect(await screen.findByLabelText('Online')).toBeInTheDocument();
+      expect(await screen.findByRole('button', { name: /online/i })).toBeInTheDocument();
     });
 
-    it('toggles online lesson when checkbox clicked', async () => {
+    it('toggles online lesson when option clicked', async () => {
       const user = setupUser();
 
       await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
@@ -414,10 +414,11 @@ describe('PaymentConfirmation', () => {
       // Expand location section
       fireEvent.click(screen.getByText('Lesson Location'));
 
-      const checkbox = await screen.findByLabelText('Online');
-      await user.click(checkbox);
+      const onlineOption = await screen.findByRole('button', { name: /online/i });
+      await user.click(onlineOption);
 
-      expect(checkbox).toBeChecked();
+      expect(onlineOption).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByText(/online lesson via video call/i)).toBeInTheDocument();
     });
 
     it('shows address inputs when not online', async () => {
@@ -656,8 +657,8 @@ describe('PaymentConfirmation', () => {
 
       // Expand location and toggle online
       fireEvent.click(screen.getByText('Lesson Location'));
-      const onlineCheckbox = await screen.findByLabelText('Online');
-      await user.click(onlineCheckbox);
+      const onlineOption = await screen.findByRole('button', { name: /online/i });
+      await user.click(onlineOption);
 
       expect(onClearFloorViolation).toHaveBeenCalled();
     });
@@ -851,11 +852,11 @@ describe('PaymentConfirmation', () => {
       );
 
       // Wait for component to initialize
-      expect(await screen.findByLabelText('Online')).toBeInTheDocument();
+      expect(await screen.findByRole('button', { name: /online/i })).toBeInTheDocument();
 
       // Toggle online
-      const onlineCheckbox = await screen.findByLabelText('Online');
-      await user.click(onlineCheckbox);
+      const onlineOption = await screen.findByRole('button', { name: /online/i });
+      await user.click(onlineOption);
 
       // onBookingUpdate is called during initialization and on changes
       await waitFor(() => {
@@ -929,8 +930,11 @@ describe('PaymentConfirmation', () => {
       // (Online location doesn't count as "saved location")
       // Wait for useEffect to parse the location and set isOnlineLesson = true
       await waitFor(() => {
-        const checkbox = screen.getByLabelText('Online');
-        expect(checkbox).toBeChecked();
+        if (!screen.queryByText(/How do you want to take this lesson/i)) {
+          fireEvent.click(screen.getByText('Lesson Location'));
+        }
+        const onlineOption = screen.getByRole('button', { name: /online/i });
+        expect(onlineOption).toHaveAttribute('aria-pressed', 'true');
       }, { timeout: 2000 });
     });
 
@@ -943,8 +947,11 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={remoteBooking} />);
 
       await waitFor(() => {
-        const checkbox = screen.getByLabelText('Online');
-        expect(checkbox).toBeChecked();
+        if (!screen.queryByText(/How do you want to take this lesson/i)) {
+          fireEvent.click(screen.getByText('Lesson Location'));
+        }
+        const onlineOption = screen.getByRole('button', { name: /online/i });
+        expect(onlineOption).toHaveAttribute('aria-pressed', 'true');
       }, { timeout: 2000 });
     });
 
@@ -2218,9 +2225,9 @@ describe('PaymentConfirmation', () => {
       // Expand location section
       fireEvent.click(screen.getByText('Lesson Location'));
 
-      // Toggle online checkbox
-      const onlineCheckbox = await screen.findByLabelText('Online');
-      await user.click(onlineCheckbox);
+      // Toggle online option
+      const onlineOption = await screen.findByRole('button', { name: /online/i });
+      await user.click(onlineOption);
 
       // onBookingUpdate should be called
       await waitFor(() => {
@@ -2248,13 +2255,13 @@ describe('PaymentConfirmation', () => {
       // Expand location section
       fireEvent.click(screen.getByText('Lesson Location'));
 
-      // Toggle online checkbox
-      const onlineCheckbox = await screen.findByLabelText('Online');
-      await user.click(onlineCheckbox);
+      // Toggle online option
+      const onlineOption = await screen.findByRole('button', { name: /online/i });
+      await user.click(onlineOption);
 
       await waitFor(() => {
-        const checkbox = screen.getByLabelText('Online');
-        expect(checkbox).toBeChecked();
+        const option = screen.getByRole('button', { name: /online/i });
+        expect(option).toHaveAttribute('aria-pressed', 'true');
       });
     });
   });
@@ -2872,8 +2879,11 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithRemoteMetadata as BookingPayment} />);
 
       await waitFor(() => {
-        const checkbox = screen.getByLabelText('Online');
-        expect(checkbox).toBeChecked();
+        if (!screen.queryByText(/How do you want to take this lesson/i)) {
+          fireEvent.click(screen.getByText('Lesson Location'));
+        }
+        const option = screen.getByRole('button', { name: /online/i });
+        expect(option).toHaveAttribute('aria-pressed', 'true');
       });
     });
 
@@ -2891,8 +2901,8 @@ describe('PaymentConfirmation', () => {
       fireEvent.click(screen.getByText('Lesson Location'));
 
       await waitFor(() => {
-        const checkbox = screen.getByLabelText('Online');
-        expect(checkbox).not.toBeChecked();
+        const option = screen.getByRole('button', { name: /online/i });
+        expect(option).toHaveAttribute('aria-pressed', 'false');
       });
     });
   });
@@ -3215,8 +3225,11 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={onlineBooking} />);
 
       await waitFor(() => {
-        const checkbox = screen.getByLabelText('Online');
-        expect(checkbox).toBeChecked();
+        if (!screen.queryByText(/How do you want to take this lesson/i)) {
+          fireEvent.click(screen.getByText('Lesson Location'));
+        }
+        const option = screen.getByRole('button', { name: /online/i });
+        expect(option).toHaveAttribute('aria-pressed', 'true');
       });
     });
 
@@ -3241,8 +3254,11 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={remoteBooking} />);
 
       await waitFor(() => {
-        const checkbox = screen.getByLabelText('Online');
-        expect(checkbox).toBeChecked();
+        if (!screen.queryByText(/How do you want to take this lesson/i)) {
+          fireEvent.click(screen.getByText('Lesson Location'));
+        }
+        const option = screen.getByRole('button', { name: /online/i });
+        expect(option).toHaveAttribute('aria-pressed', 'true');
       });
     });
   });

@@ -120,8 +120,8 @@ describe('PaymentConfirmation price floor handling', () => {
     const submitButton = screen.getByRole('button', { name: /Price must meet minimum/i });
     expect(submitButton).toBeDisabled();
 
-    const onlineToggle = await screen.findByLabelText(/Online/i);
-    fireEvent.click(onlineToggle);
+    const onlineOption = await screen.findByRole('button', { name: /online/i });
+    fireEvent.click(onlineOption);
 
     await waitFor(() => {
       expect(

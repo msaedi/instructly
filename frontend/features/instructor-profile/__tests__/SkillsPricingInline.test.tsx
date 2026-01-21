@@ -259,12 +259,12 @@ describe('SkillsPricingInline', () => {
 
     render(<SkillsPricingInline />);
 
-    expect(screen.getByRole('checkbox', { name: /i travel to students/i })).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: /students come to me/i })).toBeInTheDocument();
-    const onlineCheckbox = screen.getByRole('checkbox', { name: /online lessons/i });
-    expect(onlineCheckbox).toBeChecked();
-    await user.click(onlineCheckbox);
-    expect(onlineCheckbox).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: /i travel to students/i })).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: /students come to me/i })).toBeInTheDocument();
+    const onlineSwitch = screen.getByRole('switch', { name: /online lessons/i });
+    expect(onlineSwitch).toHaveAttribute('aria-checked', 'true');
+    await user.click(onlineSwitch);
+    expect(onlineSwitch).toHaveAttribute('aria-checked', 'false');
 
     const pianoElements = screen.getAllByText(/piano/i);
     expect(pianoElements.length).toBeGreaterThan(0);

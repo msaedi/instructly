@@ -3848,7 +3848,7 @@ describe('EditProfileModal', () => {
         expect(screen.getByText('Your selected skills')).toBeInTheDocument();
       });
 
-      const onlineOptions = screen.queryAllByRole('checkbox', { name: /online lessons/i });
+      const onlineOptions = screen.queryAllByRole('switch', { name: /online lessons/i });
       if (onlineOptions.length > 0) {
         await user.click(onlineOptions[0] as HTMLElement);
       }

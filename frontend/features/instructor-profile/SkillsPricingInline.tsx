@@ -15,6 +15,7 @@ import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import type { ApiErrorResponse, CategoryServiceDetail, InstructorProfileResponse, ServiceCategory } from '@/features/shared/api/types';
 import type { ServiceLocationType } from '@/types/instructor';
 import { queryKeys } from '@/src/api/queryKeys';
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 
 type SelectedService = {
   catalog_service_id: string;
@@ -38,6 +39,10 @@ type ServiceCapabilities = Pick<
 
 const hasAnyLocationOption = (service: ServiceCapabilities) =>
   service.offers_travel || service.offers_at_location || service.offers_online;
+
+const isLocationCapabilityError = (message: string) =>
+  message.includes("Cannot enable travel") ||
+  message.includes("Cannot enable 'at my location'");
 
 const locationTypesFromCapabilities = (
   service: ServiceCapabilities
@@ -436,7 +441,12 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       setError('');
     } catch (e: unknown) {
       logger.error('Failed to save services', e);
-      setError(e instanceof Error ? e.message : 'Failed to save');
+      const message = e instanceof Error ? e.message : 'Failed to save';
+      if (isLocationCapabilityError(message)) {
+        setError('');
+        return;
+      }
+      setError(message);
     } finally {
       setSvcSaving(false);
     }
@@ -471,9 +481,11 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     };
   }, [selectedServices, handleSave]);
 
+  const showError = Boolean(error) && !isLocationCapabilityError(error);
+
   return (
     <div className={className}>
-      {error && (
+      {showError && (
         <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</div>
       )}
       {svcLoading ? (
@@ -647,70 +659,102 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                       How do you offer this skill?
                     </label>
                     <div className="space-y-3">
-                      <label className="flex items-start gap-2">
-                        <input
-                          type="checkbox"
-                          checked={s.offers_travel}
-                          onChange={(e) =>
-                            setSelectedServices((prev) =>
-                              prev.map((x, i) =>
-                                i === index ? { ...x, offers_travel: e.target.checked } : x
-                              )
-                            )
-                          }
-                          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#7E22CE]"
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">I travel to students</p>
-                          <p className="text-xs text-gray-500">(Within your service areas)</p>
-                          {s.offers_travel && !hasServiceAreas && (
-                            <p className="text-xs text-red-600">
-                              Add service areas in your profile to enable this option
-                            </p>
-                          )}
-                        </div>
-                      </label>
-                      <label className="flex items-start gap-2">
-                        <input
-                          type="checkbox"
-                          checked={s.offers_at_location}
-                          onChange={(e) =>
-                            setSelectedServices((prev) =>
-                              prev.map((x, i) =>
-                                i === index ? { ...x, offers_at_location: e.target.checked } : x
-                              )
-                            )
-                          }
-                          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#7E22CE]"
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">Students come to me</p>
-                          <p className="text-xs text-gray-500">(At your teaching location)</p>
-                          {s.offers_at_location && !hasTeachingLocations && (
-                            <p className="text-xs text-red-600">
-                              Add a teaching location in your profile to enable this option
-                            </p>
-                          )}
-                        </div>
-                      </label>
-                      <label className="flex items-start gap-2">
-                        <input
-                          type="checkbox"
-                          checked={s.offers_online}
-                          onChange={(e) =>
-                            setSelectedServices((prev) =>
-                              prev.map((x, i) =>
-                                i === index ? { ...x, offers_online: e.target.checked } : x
-                              )
-                            )
-                          }
-                          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#7E22CE]"
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">Online lessons</p>
-                          <p className="text-xs text-gray-500">(Video call)</p>
-                        </div>
-                      </label>
+                      {(() => {
+                        const travelDisabled = !hasServiceAreas;
+                        const travelMessage = travelDisabled
+                          ? s.offers_travel
+                            ? 'You need at least one service area to offer travel lessons'
+                            : 'Add service areas in your profile to enable this option'
+                          : null;
+                        const atLocationDisabled = !hasTeachingLocations;
+                        const atLocationMessage = atLocationDisabled
+                          ? s.offers_at_location
+                            ? 'You need at least one teaching location to offer at-location lessons'
+                            : 'Add a teaching location in your profile to enable this option'
+                          : null;
+
+                        return (
+                          <>
+                            <div
+                              className={`rounded-md border border-gray-200 p-3 ${
+                                travelDisabled ? 'opacity-60 cursor-not-allowed' : ''
+                              }`}
+                              title={travelMessage ?? undefined}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-700">I travel to students</p>
+                                  <p className="text-xs text-gray-500">(Within your service areas)</p>
+                                </div>
+                                <ToggleSwitch
+                                  checked={s.offers_travel}
+                                  onChange={() =>
+                                    setSelectedServices((prev) =>
+                                      prev.map((x, i) =>
+                                        i === index ? { ...x, offers_travel: !x.offers_travel } : x
+                                      )
+                                    )
+                                  }
+                                  disabled={travelDisabled}
+                                  ariaLabel="I travel to students"
+                                  {...(travelMessage ? { title: travelMessage } : {})}
+                                />
+                              </div>
+                              {travelMessage && (
+                                <p className="mt-1 text-xs text-gray-500">{travelMessage}</p>
+                              )}
+                            </div>
+                            <div
+                              className={`rounded-md border border-gray-200 p-3 ${
+                                atLocationDisabled ? 'opacity-60 cursor-not-allowed' : ''
+                              }`}
+                              title={atLocationMessage ?? undefined}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-700">Students come to me</p>
+                                  <p className="text-xs text-gray-500">(At your teaching location)</p>
+                                </div>
+                                <ToggleSwitch
+                                  checked={s.offers_at_location}
+                                  onChange={() =>
+                                    setSelectedServices((prev) =>
+                                      prev.map((x, i) =>
+                                        i === index ? { ...x, offers_at_location: !x.offers_at_location } : x
+                                      )
+                                    )
+                                  }
+                                  disabled={atLocationDisabled}
+                                  ariaLabel="Students come to me"
+                                  {...(atLocationMessage ? { title: atLocationMessage } : {})}
+                                />
+                              </div>
+                              {atLocationMessage && (
+                                <p className="mt-1 text-xs text-gray-500">{atLocationMessage}</p>
+                              )}
+                            </div>
+                            <div className="rounded-md border border-gray-200 p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-700">Online lessons</p>
+                                  <p className="text-xs text-gray-500">(Video call)</p>
+                                </div>
+                                <ToggleSwitch
+                                  checked={s.offers_online}
+                                  onChange={() =>
+                                    setSelectedServices((prev) =>
+                                      prev.map((x, i) =>
+                                        i === index ? { ...x, offers_online: !x.offers_online } : x
+                                      )
+                                    )
+                                  }
+                                  ariaLabel="Online lessons"
+                                />
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                     {!hasAnyLocationOption(s) && (
                       <p className="text-xs text-red-600 mt-2">

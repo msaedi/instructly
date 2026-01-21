@@ -97,7 +97,7 @@ const renderConfirmation = async (services: Record<string, unknown>[]) => {
   await flushTimers();
   await waitFor(() => expect(mockFetchInstructorProfile).toHaveBeenCalled());
 
-  if (!screen.queryByLabelText('Online')) {
+  if (!screen.queryByText(/How do you want to take this lesson/i)) {
     fireEvent.click(screen.getByText('Lesson Location'));
   }
 };
@@ -118,10 +118,9 @@ describe('Location options based on capabilities', () => {
       { id: 'svc-1', offers_online: true, offers_travel: false, offers_at_location: false },
     ]);
 
-    expect(screen.getByLabelText('Online')).toBeInTheDocument();
-    expect(screen.queryByText('At your location')).not.toBeInTheDocument();
-    expect(screen.queryByText('At a public location')).not.toBeInTheDocument();
-    expect(screen.queryByText("At Lee's location")).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /online/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /in person/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /at lee's location/i })).not.toBeInTheDocument();
   });
 
   it('shows all options when all capabilities true', async () => {
@@ -129,15 +128,9 @@ describe('Location options based on capabilities', () => {
       { id: 'svc-1', offers_online: true, offers_travel: true, offers_at_location: true },
     ]);
 
-    await waitFor(() => expect(screen.getByLabelText('Online')).toBeChecked());
-    fireEvent.click(screen.getByLabelText('Online'));
-
-    await waitFor(() => {
-      expect(screen.getByLabelText('Online')).not.toBeChecked();
-      expect(screen.getByText('At your location')).toBeInTheDocument();
-      expect(screen.getByText('At a public location')).toBeInTheDocument();
-      expect(screen.getByText("At Lee's location")).toBeInTheDocument();
-    });
+    expect(screen.getByRole('button', { name: /online/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /in person/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /at lee's location/i })).toBeInTheDocument();
   });
 
   it('hides student_location when offers_travel=false', async () => {
@@ -145,15 +138,9 @@ describe('Location options based on capabilities', () => {
       { id: 'svc-1', offers_online: true, offers_travel: false, offers_at_location: true },
     ]);
 
-    await waitFor(() => expect(screen.getByLabelText('Online')).toBeChecked());
-    fireEvent.click(screen.getByLabelText('Online'));
-
-    await waitFor(() => {
-      expect(screen.getByLabelText('Online')).not.toBeChecked();
-      expect(screen.queryByText('At your location')).not.toBeInTheDocument();
-      expect(screen.queryByText('At a public location')).not.toBeInTheDocument();
-      expect(screen.getByText("At Lee's location")).toBeInTheDocument();
-    });
+    expect(screen.getByRole('button', { name: /online/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /in person/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /at lee's location/i })).toBeInTheDocument();
   });
 
   it('hides instructor_location when offers_at_location=false', async () => {
@@ -161,14 +148,8 @@ describe('Location options based on capabilities', () => {
       { id: 'svc-1', offers_online: true, offers_travel: true, offers_at_location: false },
     ]);
 
-    await waitFor(() => expect(screen.getByLabelText('Online')).toBeChecked());
-    fireEvent.click(screen.getByLabelText('Online'));
-
-    await waitFor(() => {
-      expect(screen.getByLabelText('Online')).not.toBeChecked();
-      expect(screen.getByText('At your location')).toBeInTheDocument();
-      expect(screen.getByText('At a public location')).toBeInTheDocument();
-      expect(screen.queryByText("At Lee's location")).not.toBeInTheDocument();
-    });
+    expect(screen.getByRole('button', { name: /online/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /in person/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /at lee's location/i })).not.toBeInTheDocument();
   });
 });

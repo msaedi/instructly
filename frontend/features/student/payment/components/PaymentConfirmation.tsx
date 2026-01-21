@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback, useId } from 'react';
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, Info } from 'lucide-react';
+import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, Info, Home, Video } from 'lucide-react';
 import { BookingPayment, PaymentMethod } from '../types';
 import { BookingType } from '@/features/shared/types/booking';
 import { format } from 'date-fns';
@@ -264,17 +264,16 @@ function PaymentConfirmationInner({
       }
       setSelectedPublicSpace(null);
       setSelectedSavedAddress(address);
-      if (!isTravelLocation) {
-        setLocationType('student_location');
-      }
+      setLocationType('student_location');
       applySavedAddress(address);
     },
-    [applySavedAddress, isTravelLocation]
+    [applySavedAddress]
   );
 
   const handleEnterNewAddress = useCallback(() => {
     setSelectedSavedAddress(null);
     setSelectedPublicSpace(null);
+    setLocationType('student_location');
     setIsEditingLocation(true);
     setAddressDetailsError(null);
     requestAnimationFrame(() => {
@@ -291,12 +290,14 @@ function PaymentConfirmationInner({
   const handleSelectPublicSpace = useCallback((space: PublicSpace) => {
     setSelectedPublicSpace(space);
     setSelectedSavedAddress(null);
+    setLocationType('neutral_location');
     setIsEditingLocation(false);
     setAddressDetailsError(null);
   }, []);
 
   const handleUseCustomPublicLocation = useCallback(() => {
     setSelectedPublicSpace(null);
+    setLocationType('student_location');
     setIsEditingLocation(true);
     setAddressDetailsError(null);
   }, []);
@@ -1064,38 +1065,28 @@ function PaymentConfirmationInner({
     () => (isOnlineLesson ? 'online' : 'in_person'),
     [isOnlineLesson],
   );
-  const inputsDisabled =
-    !isTravelLocation || isPublicSpaceSelection || (hasSavedTravelLocation && !isEditingLocation);
+  const inputsDisabled = isPublicSpaceSelection || (hasSavedTravelLocation && !isEditingLocation);
   const instructorFirstName = useMemo(() => {
     const parts = booking.instructorName.split(' ').filter(Boolean);
     return parts[0] || 'Instructor';
   }, [booking.instructorName]);
-  const inPersonOptions = useMemo(
-    () => availableLocationTypes.filter((type) => type !== 'online'),
-    [availableLocationTypes],
-  );
-  const showOnlineOption = availableLocationTypes.includes('online');
-  const showCustomLocationInputs = !isPublicSpaceSelection;
+  const showCustomLocationInputs = isTravelLocation && !isPublicSpaceSelection;
   const publicSpaceGroupName = useId();
   const singleTeachingLocation = teachingLocations.length === 1 ? teachingLocations[0] : null;
-
-  const getLocationOptionLabel = useCallback(
-    (type: LocationType) => {
-      switch (type) {
-        case 'student_location':
-          return 'At your location';
-        case 'neutral_location':
-          return 'At a public location';
-        case 'instructor_location':
-          return `At ${instructorFirstName}'s location`;
-        case 'online':
-          return 'Online';
-        default:
-          return 'Location';
-      }
-    },
-    [instructorFirstName],
+  const hasTravelOption = availableLocationTypes.some(
+    (type) => type === 'student_location' || type === 'neutral_location'
   );
+  const hasInstructorLocationOption = availableLocationTypes.includes('instructor_location');
+  const hasOnlineOption = availableLocationTypes.includes('online');
+  const travelFallbackType = useMemo<LocationType>(() => {
+    if (locationType === 'student_location' || locationType === 'neutral_location') {
+      return locationType;
+    }
+    if (lastInPersonLocationType === 'student_location' || lastInPersonLocationType === 'neutral_location') {
+      return lastInPersonLocationType;
+    }
+    return 'student_location';
+  }, [lastInPersonLocationType, locationType]);
 
   const formattedAddress = useMemo(() => formatFullAddress(addressFields), [addressFields]);
 
@@ -1161,12 +1152,6 @@ function PaymentConfirmationInner({
     [applySavedAddress, hasSavedTravelLocation, onClearFloorViolation, selectedSavedAddress]
   );
 
-  const handleOnlineToggleChange = (checked: boolean) => {
-    const fallbackType =
-      lastInPersonLocationType === 'online' ? 'student_location' : lastInPersonLocationType;
-    handleLocationTypeChange(checked ? 'online' : fallbackType);
-  };
-
   const handleChangeLocationClick = () => {
     setIsLocationExpanded(true);
     if (!isTravelLocation) {
@@ -1180,6 +1165,65 @@ function PaymentConfirmationInner({
       addressLine1Ref.current?.focus();
     });
   };
+
+  const locationOptionCards = useMemo(
+    () => {
+      const cards: Array<{
+        key: string;
+        label: string;
+        description: string;
+        icon: typeof MapPin;
+        selected: boolean;
+        onSelect: () => void;
+      }> = [];
+
+      if (hasTravelOption) {
+        cards.push({
+          key: 'travel',
+          label: 'In person',
+          description: 'At your location or a public spot',
+          icon: MapPin,
+          selected: isTravelLocation,
+          onSelect: () => handleLocationTypeChange(travelFallbackType),
+        });
+      }
+
+      if (hasInstructorLocationOption) {
+        cards.push({
+          key: 'instructor',
+          label: `At ${instructorFirstName}'s location`,
+          description: 'Studio or teaching location',
+          icon: Home,
+          selected: locationType === 'instructor_location',
+          onSelect: () => handleLocationTypeChange('instructor_location'),
+        });
+      }
+
+      if (hasOnlineOption) {
+        cards.push({
+          key: 'online',
+          label: 'Online',
+          description: 'Video call',
+          icon: Video,
+          selected: isOnlineLesson,
+          onSelect: () => handleLocationTypeChange('online'),
+        });
+      }
+
+      return cards;
+    },
+    [
+      handleLocationTypeChange,
+      hasInstructorLocationOption,
+      hasOnlineOption,
+      hasTravelOption,
+      instructorFirstName,
+      isOnlineLesson,
+      isTravelLocation,
+      locationType,
+      travelFallbackType,
+    ],
+  );
 
   useEffect(() => {
     if (!onBookingUpdate || !hasLocationInitialized) {
@@ -2105,45 +2149,49 @@ function PaymentConfirmationInner({
           </div>
 
           {isLocationExpanded && (
-            <div className="mt-3 space-y-4">
-              {showOnlineOption && (
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="online-lesson"
-                    checked={isOnlineLesson}
-                    onChange={(e) => handleOnlineToggleChange(e.target.checked)}
-                    className="w-4 h-4 text-[#7E22CE] border-gray-300 rounded focus:ring-[#7E22CE]"
-                  />
-                  <label htmlFor="online-lesson" className="ml-2 text-sm font-medium text-gray-700">
-                    Online
-                  </label>
-                </div>
-              )}
-
-              {!isOnlineLesson && inPersonOptions.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Choose a location</p>
-                  <div className="flex flex-wrap gap-2">
-                    {inPersonOptions.map((type) => (
+            <div className="mt-4 space-y-5">
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-gray-700">How do you want to take this lesson?</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {locationOptionCards.map((option) => {
+                    const Icon = option.icon;
+                    return (
                       <button
-                        key={type}
+                        key={option.key}
                         type="button"
-                        onClick={() => handleLocationTypeChange(type)}
-                        className={`rounded-full border px-3 py-1 text-sm transition-colors ${
-                          locationType === type
+                        onClick={option.onSelect}
+                        aria-pressed={option.selected}
+                        className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${
+                          option.selected
                             ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
                             : 'border-gray-200 text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        {getLocationOptionLabel(type)}
+                        <span
+                          className={`flex h-9 w-9 items-center justify-center rounded-full ${
+                            option.selected ? 'bg-purple-100 text-[#7E22CE]' : 'bg-gray-100 text-gray-500'
+                          }`}
+                        >
+                          <Icon className="h-4 w-4" aria-hidden="true" />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-semibold">{option.label}</span>
+                          <span className="block text-xs text-gray-500">{option.description}</span>
+                        </span>
                       </button>
-                    ))}
-                  </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {locationType === 'online' && (
+                <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-600">
+                  <p>This is an online lesson via video call.</p>
+                  <p className="text-xs text-gray-500">You&apos;ll receive a link before your session.</p>
                 </div>
               )}
 
-              {!isOnlineLesson && locationType === 'instructor_location' && (
+              {locationType === 'instructor_location' && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">Teaching location</p>
                   {teachingLocations.length === 0 ? (
@@ -2199,191 +2247,196 @@ function PaymentConfirmationInner({
                 </div>
               )}
 
-              {!isOnlineLesson && locationType === 'neutral_location' && publicSpaces.length > 0 && (
-                <div className="space-y-2">
+              {isTravelLocation && (
+                <div className="space-y-4">
                   <p className="text-sm font-medium text-gray-700">
-                    {instructorFirstName}&apos;s suggested spots
+                    Where should {instructorFirstName} meet you?
                   </p>
-                  <div className="space-y-2">
-                    {publicSpaces.map((space, index) => {
-                      const spaceId = String(space.id ?? `${space.address}-${index}`);
-                      const optionId = `${publicSpaceGroupName}-${spaceId}`;
-                      const isSelected =
-                        selectedPublicSpace?.id && space.id
-                          ? selectedPublicSpace.id === space.id
-                          : selectedPublicSpace?.address === space.address;
-                      return (
-                        <label
-                          key={spaceId}
-                          htmlFor={optionId}
-                          className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                            isSelected
-                              ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
-                              : 'border-gray-200 text-gray-700 hover:border-gray-300'
-                          }`}
+
+                  {publicSpaces.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-gray-700">
+                        {instructorFirstName}&apos;s suggested spots
+                      </p>
+                      <div className="space-y-2">
+                        {publicSpaces.map((space, index) => {
+                          const spaceId = String(space.id ?? `${space.address}-${index}`);
+                          const optionId = `${publicSpaceGroupName}-${spaceId}`;
+                          const isSelected =
+                            selectedPublicSpace?.id && space.id
+                              ? selectedPublicSpace.id === space.id
+                              : selectedPublicSpace?.address === space.address;
+                          return (
+                            <label
+                              key={spaceId}
+                              htmlFor={optionId}
+                              className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                                isSelected
+                                  ? 'border-[#7E22CE] bg-purple-50 text-[#7E22CE]'
+                                  : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                              }`}
+                            >
+                              <input
+                                id={optionId}
+                                type="radio"
+                                name={publicSpaceGroupName}
+                                checked={isSelected}
+                                onChange={() => handleSelectPublicSpace(space)}
+                                className="mt-1 h-4 w-4 text-[#7E22CE] border-gray-300 focus:ring-[#7E22CE]"
+                              />
+                              <span>
+                                {space.label ? (
+                                  <span className="block font-medium">{space.label}</span>
+                                ) : null}
+                                <span className="block text-xs text-gray-500">{space.address}</span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {isPublicSpaceSelection ? (
+                        <button
+                          type="button"
+                          onClick={handleUseCustomPublicLocation}
+                          className="text-sm text-[#7E22CE] hover:text-[#7E22CE]"
                         >
-                          <input
-                            id={optionId}
-                            type="radio"
-                            name={publicSpaceGroupName}
-                            checked={isSelected}
-                            onChange={() => handleSelectPublicSpace(space)}
-                            className="mt-1 h-4 w-4 text-[#7E22CE] border-gray-300 focus:ring-[#7E22CE]"
-                          />
-                          <span>
-                            {space.label ? (
-                              <span className="block font-medium">{space.label}</span>
-                            ) : null}
-                            <span className="block text-xs text-gray-500">{space.address}</span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  {isPublicSpaceSelection ? (
-                    <button
-                      type="button"
-                      onClick={handleUseCustomPublicLocation}
-                      className="text-sm text-[#7E22CE] hover:text-[#7E22CE]"
-                    >
-                      Use your own location
-                    </button>
-                  ) : null}
-                </div>
-              )}
-
-              {!isOnlineLesson &&
-                locationType === 'neutral_location' &&
-                publicSpaces.length > 0 &&
-                !isPublicSpaceSelection && (
-                  <div className="border-t border-gray-200 pt-3">
-                    <p className="text-sm font-medium text-gray-700">Or choose your own location</p>
-                  </div>
-                )}
-
-              {showCustomLocationInputs && isEditingLocation && (
-                <AddressSelector
-                  instructorId={booking.instructorId}
-                  locationType={locationType === 'neutral_location' ? 'neutral_location' : 'student_location'}
-                  selectedAddress={selectedSavedAddress}
-                  onSelectAddress={handleSelectSavedAddress}
-                  onEnterNewAddress={handleEnterNewAddress}
-                />
-              )}
-
-              {showCustomLocationInputs && hasSavedTravelLocation && !isEditingLocation && (
-                <div className="bg-white p-3 rounded-lg border border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-sm font-medium">{resolvedMeetingLocation}</span>
-                      <p className="text-xs text-gray-500 mt-1">Saved address</p>
+                          Use your own location
+                        </button>
+                      ) : null}
                     </div>
-                    <button
-                      type="button"
-                      className="text-sm text-[#7E22CE] hover:text-[#7E22CE]"
-                      onClick={handleChangeLocationClick}
-                    >
-                      Change
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {showCustomLocationInputs && (
-                <div className={`space-y-3 ${inputsDisabled ? 'opacity-50' : ''}`}>
-                  <PlacesAutocompleteInput
-                    ref={addressLine1Ref}
-                    value={addressFields.line1}
-                    onValueChange={(next) => {
-                      setAddressField({ line1: next });
-                      setIsEditingLocation(true);
-                      setAddressDetailsError(null);
-                    }}
-                    onSelectSuggestion={(suggestion: PlaceSuggestion) => {
-                      void handleAddressSuggestionSelect(suggestion);
-                    }}
-                    placeholder={ADDRESS_PLACEHOLDER}
-                    disabled={inputsDisabled}
-                    autoComplete="off"
-                    suggestionScope="global"
-                    containerClassName="w-full"
-                    inputClassName={`rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder-gray-400 transition-colors ${
-                      inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
-                    }`}
-                    style={{ outline: 'none' }}
-                    inputProps={{ 'data-testid': 'addr-street', 'aria-label': 'Street address' }}
-                  />
-                  {addressDetailsError && (
-                    <p className="text-xs text-red-600" role="alert">
-                      {addressDetailsError}
-                    </p>
                   )}
 
-                  <div className="grid grid-cols-6 gap-3">
-                    <input
-                      type="text"
-                      placeholder="City"
-                      aria-label="City"
-                      data-testid="addr-city"
-                      disabled={inputsDisabled}
-                      value={addressFields.city}
-                      onChange={(e) => {
-                        setAddressField({ city: e.target.value });
-                        setIsEditingLocation(true);
-                        setAddressDetailsError(null);
-                      }}
-                      className={`col-span-3 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                        inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
-                      }`}
-                      style={{ outline: 'none' }}
-                    />
+                  {publicSpaces.length > 0 && !isPublicSpaceSelection && (
+                    <div className="border-t border-gray-200 pt-3">
+                      <p className="text-sm font-medium text-gray-700">Or choose your own location</p>
+                    </div>
+                  )}
 
-                    <input
-                      type="text"
-                      placeholder="State"
-                      aria-label="State"
-                      data-testid="addr-state"
-                      disabled={inputsDisabled}
-                      value={addressFields.state}
-                      onChange={(e) => {
-                        setAddressField({ state: e.target.value });
-                        setIsEditingLocation(true);
-                        setAddressDetailsError(null);
-                      }}
-                      className={`col-span-1 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                        inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
-                      }`}
-                      style={{ outline: 'none' }}
+                  {showCustomLocationInputs && isEditingLocation && (
+                    <AddressSelector
+                      instructorId={booking.instructorId}
+                      locationType="student_location"
+                      selectedAddress={selectedSavedAddress}
+                      onSelectAddress={handleSelectSavedAddress}
+                      onEnterNewAddress={handleEnterNewAddress}
                     />
+                  )}
 
-                    <input
-                      type="text"
-                      placeholder="ZIP Code"
-                      aria-label="ZIP code"
-                      data-testid="addr-zip"
-                      disabled={inputsDisabled}
-                      value={addressFields.postalCode}
-                      onChange={(e) => {
-                        setAddressField({ postalCode: e.target.value });
-                        setIsEditingLocation(true);
-                        setAddressDetailsError(null);
-                      }}
-                      className={`col-span-2 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
-                        inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
-                      }`}
-                      style={{ outline: 'none' }}
-                    />
-                  </div>
-                </div>
-              )}
+                  {showCustomLocationInputs && hasSavedTravelLocation && !isEditingLocation && (
+                    <div className="bg-white p-3 rounded-lg border border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-sm font-medium">{resolvedMeetingLocation}</span>
+                          <p className="text-xs text-gray-500 mt-1">Saved address</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="text-sm text-[#7E22CE] hover:text-[#7E22CE]"
+                          onClick={handleChangeLocationClick}
+                        >
+                          Change
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-              {isTravelLocation && isOutsideServiceArea && !selectedSavedAddress && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  <p className="font-medium">Location not covered</p>
-                  <p>
-                    This instructor doesn&#39;t serve this address. Choose a different location or
-                    select online for a video lesson.
-                  </p>
+                  {showCustomLocationInputs && (
+                    <div className={`space-y-3 ${inputsDisabled ? 'opacity-50' : ''}`}>
+                      <PlacesAutocompleteInput
+                        ref={addressLine1Ref}
+                        value={addressFields.line1}
+                        onValueChange={(next) => {
+                          setAddressField({ line1: next });
+                          setIsEditingLocation(true);
+                          setAddressDetailsError(null);
+                        }}
+                        onSelectSuggestion={(suggestion: PlaceSuggestion) => {
+                          void handleAddressSuggestionSelect(suggestion);
+                        }}
+                        placeholder={ADDRESS_PLACEHOLDER}
+                        disabled={inputsDisabled}
+                        autoComplete="off"
+                        suggestionScope="global"
+                        containerClassName="w-full"
+                        inputClassName={`rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder-gray-400 transition-colors ${
+                          inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                        }`}
+                        style={{ outline: 'none' }}
+                        inputProps={{ 'data-testid': 'addr-street', 'aria-label': 'Street address' }}
+                      />
+                      {addressDetailsError && (
+                        <p className="text-xs text-red-600" role="alert">
+                          {addressDetailsError}
+                        </p>
+                      )}
+
+                      <div className="grid grid-cols-6 gap-3">
+                        <input
+                          type="text"
+                          placeholder="City"
+                          aria-label="City"
+                          data-testid="addr-city"
+                          disabled={inputsDisabled}
+                          value={addressFields.city}
+                          onChange={(e) => {
+                            setAddressField({ city: e.target.value });
+                            setIsEditingLocation(true);
+                            setAddressDetailsError(null);
+                          }}
+                          className={`col-span-3 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                            inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                          }`}
+                          style={{ outline: 'none' }}
+                        />
+
+                        <input
+                          type="text"
+                          placeholder="State"
+                          aria-label="State"
+                          data-testid="addr-state"
+                          disabled={inputsDisabled}
+                          value={addressFields.state}
+                          onChange={(e) => {
+                            setAddressField({ state: e.target.value });
+                            setIsEditingLocation(true);
+                            setAddressDetailsError(null);
+                          }}
+                          className={`col-span-1 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                            inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                          }`}
+                          style={{ outline: 'none' }}
+                        />
+
+                        <input
+                          type="text"
+                          placeholder="ZIP Code"
+                          aria-label="ZIP code"
+                          data-testid="addr-zip"
+                          disabled={inputsDisabled}
+                          value={addressFields.postalCode}
+                          onChange={(e) => {
+                            setAddressField({ postalCode: e.target.value });
+                            setIsEditingLocation(true);
+                            setAddressDetailsError(null);
+                          }}
+                          className={`col-span-2 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                            inputsDisabled ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                          }`}
+                          style={{ outline: 'none' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {isOutsideServiceArea && !selectedSavedAddress && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      <p className="font-medium">Location not covered</p>
+                      <p>
+                        This instructor doesn&#39;t serve this address. Choose a different location or
+                        select online for a video lesson.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
