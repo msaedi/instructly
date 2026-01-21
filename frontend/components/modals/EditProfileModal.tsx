@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { X, Plus, Trash2, DollarSign, ChevronDown, MapPin, BookOpen } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
@@ -24,6 +25,7 @@ import { evaluatePriceFloorViolations, FloorViolation, formatCents } from '@/lib
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 import { toast } from 'sonner';
+import { queryKeys } from '@/src/api/queryKeys';
 
 type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
 type AuthUserResponse = components['schemas']['AuthUserResponse'];
@@ -181,6 +183,7 @@ export default function EditProfileModal({
     hourly_rate: 50,
     description: '',
   });
+  const queryClient = useQueryClient();
 
   // Skills options (same as in become-instructor)
   const SKILLS_OPTIONS = [
@@ -798,6 +801,10 @@ export default function EditProfileModal({
           preferredTeaching: teachingPayload,
           preferredPublic: publicPayload,
         });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.instructors.me }),
+          queryClient.invalidateQueries({ queryKey: ['instructor', 'service-areas'] }),
+        ]);
         onSuccess();
         onClose();
         return;
@@ -826,6 +833,10 @@ export default function EditProfileModal({
         throw new Error(typeof message === 'string' ? message : 'Failed to save service areas');
       }
 
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.instructors.me }),
+        queryClient.invalidateQueries({ queryKey: ['instructor', 'service-areas'] }),
+      ]);
       onSuccess();
       onClose();
     } catch (err) {
@@ -835,7 +846,7 @@ export default function EditProfileModal({
     } finally {
       setSavingAreas(false);
     }
-  }, [onClose, onSave, onSuccess, publicPlaces, selectedNeighborhoodList, teachingPlaces]);
+  }, [onClose, onSave, onSuccess, publicPlaces, queryClient, selectedNeighborhoodList, teachingPlaces]);
 
   const handleServicesSave = useCallback(async () => {
     try {
