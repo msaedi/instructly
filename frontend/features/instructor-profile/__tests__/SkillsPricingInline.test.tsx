@@ -8,6 +8,7 @@ import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import { evaluatePriceFloorViolations } from '@/lib/pricing/priceFloors';
+import { toast } from 'sonner';
 
 jest.mock('@/lib/api', () => {
   const actual = jest.requireActual('@/lib/api');
@@ -59,6 +60,15 @@ jest.mock('@/lib/logger', () => ({
   logger: { debug: jest.fn(), warn: jest.fn(), error: jest.fn(), info: jest.fn() },
 }));
 
+jest.mock('sonner', () => ({
+  toast: {
+    error: jest.fn(),
+    success: jest.fn(),
+    info: jest.fn(),
+    warning: jest.fn(),
+  },
+}));
+
 const mockUseServiceCategories = useServiceCategories as jest.Mock;
 const mockUseAllServices = useAllServicesWithInstructors as jest.Mock;
 const mockUseInstructorProfileMe = useInstructorProfileMe as jest.Mock;
@@ -87,6 +97,10 @@ describe('SkillsPricingInline', () => {
     mockUsePlatformFees.mockReturnValue({ fees: {} });
     mockFetchWithAuth.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
     mockEvaluateViolations.mockReturnValue([]);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('renders a loading state when service data is loading', () => {
@@ -138,6 +152,7 @@ describe('SkillsPricingInline', () => {
     mockUseInstructorProfileMe.mockReturnValue({
       data: {
         is_live: false,
+        service_area_neighborhoods: ['n1'],
         services: [
           {
             service_catalog_id: 'svc-1',
@@ -196,6 +211,41 @@ describe('SkillsPricingInline', () => {
     jest.useRealTimers();
   });
 
+  it('blocks save when no capability is selected', async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    mockUseInstructorProfileMe.mockReturnValue({
+      data: {
+        is_live: false,
+        services: [
+          {
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_travel: false,
+            offers_at_location: false,
+            offers_online: false,
+          },
+        ],
+      },
+    });
+
+    render(<SkillsPricingInline />);
+
+    const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+    await user.clear(rateInput);
+    await user.type(rateInput, '65');
+    jest.advanceTimersByTime(1200);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        'Select at least one way to offer this skill (travel, at your studio, or online)'
+      );
+    });
+    expect(mockFetchWithAuth).not.toHaveBeenCalled();
+    jest.useRealTimers();
+  });
+
   it('handles skill requests', async () => {
     jest.useFakeTimers();
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
@@ -216,6 +266,7 @@ describe('SkillsPricingInline', () => {
     mockUseInstructorProfileMe.mockReturnValue({
       data: {
         is_live: false,
+        service_area_neighborhoods: ['n1'],
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
@@ -246,6 +297,7 @@ describe('SkillsPricingInline', () => {
     mockUseInstructorProfileMe.mockReturnValue({
       data: {
         is_live: false,
+        service_area_neighborhoods: ['n1'],
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
@@ -275,6 +327,7 @@ describe('SkillsPricingInline', () => {
     mockUseInstructorProfileMe.mockReturnValue({
       data: {
         is_live: false,
+        service_area_neighborhoods: ['n1'],
         services: [{
           service_catalog_id: 'svc-1',
           service_catalog_name: 'Piano',
@@ -675,18 +728,17 @@ describe('SkillsPricingInline', () => {
   it('displays correct error for price floor violation with modality info', async () => {
     jest.useFakeTimers();
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-    mockUseInstructorProfileMe.mockReturnValue({
-      data: {
-        is_live: false,
-        services: [{
-          service_catalog_id: 'svc-1',
-          service_catalog_name: 'Piano Lesson',
-          hourly_rate: 40,
-          duration_options: [60],
-          offers_travel: true,
-        }],
-      },
-    });
+    const profile = {
+      is_live: false,
+      service_area_neighborhoods: ['n1'],
+      services: [{
+        service_catalog_id: 'svc-1',
+        service_catalog_name: 'Piano Lesson',
+        hourly_rate: 40,
+        duration_options: [60],
+        offers_travel: true,
+      }],
+    };
     mockUsePricingConfig.mockReturnValue({
       config: { price_floor_cents: { private: { '60': 5000 } } },
     });
@@ -694,7 +746,7 @@ describe('SkillsPricingInline', () => {
       { duration: 60, modalityLabel: 'in-person', floorCents: 5000, baseCents: 4000 },
     ]);
 
-    render(<SkillsPricingInline />);
+    render(<SkillsPricingInline instructorProfile={profile as never} />);
 
     // Trigger autosave
     await user.clear(screen.getByPlaceholderText(/hourly rate/i));

@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from ...api.dependencies.auth import get_current_active_user
 from ...api.dependencies.services import get_cache_service_dep
+from ...core.exceptions import DomainException
 from ...database import get_db as get_session
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
@@ -386,7 +387,10 @@ def replace_my_service_areas(
     service: AddressService = Depends(get_address_service),
 ) -> ServiceAreasResponse:
     """Replace all service areas for the current instructor."""
-    service.replace_service_areas(current_user.id, payload.neighborhood_ids)
+    try:
+        service.replace_service_areas(current_user.id, payload.neighborhood_ids)
+    except DomainException as exc:
+        raise exc.to_http_exception()
     service_areas_raw = cast(
         Sequence[Mapping[str, Any]],
         service.list_service_areas(current_user.id),

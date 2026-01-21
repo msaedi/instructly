@@ -878,6 +878,19 @@ class InstructorService(BaseService):
     ) -> None:
         """Replace preferred place rows for a given instructor/kind atomically."""
 
+        if kind == "teaching_location" and not items:
+            profile = self.profile_repository.get_by_user_id(instructor_id)
+            if profile:
+                services = self.service_repository.find_by(
+                    instructor_profile_id=profile.id,
+                    is_active=True,
+                )
+                if any(getattr(service, "offers_at_location", False) for service in services):
+                    raise BusinessRuleException(
+                        "You can't remove your last teaching location while you offer lessons at your studio. "
+                        "Either add another location first, or disable 'Students come to me' on your skills."
+                    )
+
         normalized: list[tuple[str, Optional[str]]] = []
         seen_addresses: set[str] = set()
 

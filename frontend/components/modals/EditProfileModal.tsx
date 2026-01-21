@@ -9,7 +9,7 @@ import type { CategoryServiceDetail, ServiceCategory } from '@/features/shared/a
 import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/queries/useServices';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import Modal from '@/components/Modal';
-import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
+import { fetchWithAuth, API_ENDPOINTS, getErrorMessage } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
@@ -23,6 +23,7 @@ import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } fr
 import { evaluatePriceFloorViolations, FloorViolation, formatCents } from '@/lib/pricing/priceFloors';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
+import { toast } from 'sonner';
 
 type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
 type AuthUserResponse = components['schemas']['AuthUserResponse'];
@@ -802,13 +803,17 @@ export default function EditProfileModal({
         return;
       }
 
-      await fetchWithAuth('/api/v1/addresses/service-areas/me', {
+      const serviceAreasRes = await fetchWithAuth('/api/v1/addresses/service-areas/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ neighborhood_ids: neighborhoodIds }),
       });
+      if (serviceAreasRes.ok === false) {
+        const message = await getErrorMessage(serviceAreasRes);
+        throw new Error(typeof message === 'string' ? message : 'Failed to save service areas');
+      }
 
-      await fetchWithAuth('/instructors/me', {
+      const preferredPlacesRes = await fetchWithAuth('/instructors/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -816,12 +821,17 @@ export default function EditProfileModal({
           preferred_public_spaces: publicPayload,
         }),
       });
+      if (preferredPlacesRes.ok === false) {
+        const message = await getErrorMessage(preferredPlacesRes);
+        throw new Error(typeof message === 'string' ? message : 'Failed to save service areas');
+      }
 
       onSuccess();
       onClose();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save service areas';
       setError(message);
+      toast.error(message);
     } finally {
       setSavingAreas(false);
     }
@@ -1527,13 +1537,11 @@ export default function EditProfileModal({
                     );
                   })}
                 </div>
-                {/* Preferred Teaching Location */}
+                {/* Teaching Location */}
                 <div className="mt-6">
-                  <p className="text-gray-600 mt-1 mb-2">Preferred Teaching Location</p>
+                  <p className="text-gray-600 mt-1 mb-2">Where You Teach</p>
                   <p className="text-xs text-gray-600 mb-2 md:max-w-[28rem]">
-                    Add a studio, gym, or home address if you teach from a fixed
-                    <br />
-                    location.
+                    Add a studio, gym, or home address where students can come to you.
                   </p>
                 <div className="grid grid-cols-1 gap-3 items-start md:grid-cols-2">
                     <div className="flex items-center gap-2">

@@ -18,6 +18,7 @@ import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import type { ServiceLocationType } from '@/types/instructor';
 import { queryKeys } from '@/src/api/queryKeys';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
+import { toast } from 'sonner';
 
 type AgeGroup = 'kids' | 'adults' | 'both';
 
@@ -220,13 +221,40 @@ function Step3SkillsPricingInner() {
             ? service['levels_taught'] as string[]
             : ['beginner', 'intermediate', 'advanced'],
         duration_options: Array.isArray(service['duration_options']) && service['duration_options'].length ? service['duration_options'] as number[] : [60],
-        offers_travel: capabilities.offers_travel,
-        offers_at_location: capabilities.offers_at_location,
+        offers_travel: hasServiceAreas ? capabilities.offers_travel : false,
+        offers_at_location: hasTeachingLocations ? capabilities.offers_at_location : false,
         offers_online: capabilities.offers_online,
       };
     }).filter(Boolean) as SelectedService[];
     if (mapped.length) setSelected(mapped);
-  }, [isAuthenticated, user, rawData.profile?.services, resolveCapabilitiesFromService]);
+  }, [
+    hasServiceAreas,
+    hasTeachingLocations,
+    isAuthenticated,
+    rawData.profile?.services,
+    resolveCapabilitiesFromService,
+    user,
+  ]);
+
+  useEffect(() => {
+    if (hasServiceAreas && hasTeachingLocations) return;
+    setSelected((prev) => {
+      let mutated = false;
+      const next = prev.map((service) => {
+        let updated = service;
+        if (!hasServiceAreas && updated.offers_travel) {
+          updated = { ...updated, offers_travel: false };
+          mutated = true;
+        }
+        if (!hasTeachingLocations && updated.offers_at_location) {
+          updated = { ...updated, offers_at_location: false };
+          mutated = true;
+        }
+        return updated;
+      });
+      return mutated ? next : prev;
+    });
+  }, [hasServiceAreas, hasTeachingLocations]);
 
 
   useEffect(() => {
@@ -301,8 +329,15 @@ function Step3SkillsPricingInner() {
     try {
       setSaving(true);
       setError(null);
-      if (selected.some((svc) => !hasAnyLocationOption(svc))) {
-        setError('Select at least one location option for each skill.');
+      const hasInvalidCapabilities = selected.some((svc) =>
+        !hasAnyLocationOption({
+          offers_travel: hasServiceAreas ? svc.offers_travel : false,
+          offers_at_location: hasTeachingLocations ? svc.offers_at_location : false,
+          offers_online: svc.offers_online,
+        })
+      );
+      if (hasInvalidCapabilities) {
+        toast.error('Select at least one way to offer this skill (travel, at your studio, or online)');
         setSaving(false);
         return;
       }
@@ -368,8 +403,8 @@ function Step3SkillsPricingInner() {
                     .map((x) => x.trim())
                     .filter((x) => x.length > 0)
                 : undefined,
-            offers_travel: s.offers_travel,
-            offers_at_location: s.offers_at_location,
+            offers_travel: hasServiceAreas ? s.offers_travel : false,
+            offers_at_location: hasTeachingLocations ? s.offers_at_location : false,
             offers_online: s.offers_online,
           })),
       };
@@ -598,6 +633,13 @@ function Step3SkillsPricingInner() {
           <div className="grid gap-4">
             {selected.map((s) => {
               const violations = pricingFloors ? floorViolationsByService.get(s.catalog_service_id) ?? [] : [];
+              const effectiveOffersTravel = hasServiceAreas ? s.offers_travel : false;
+              const effectiveOffersAtLocation = hasTeachingLocations ? s.offers_at_location : false;
+              const effectiveCapabilities: ServiceCapabilities = {
+                offers_travel: effectiveOffersTravel,
+                offers_at_location: effectiveOffersAtLocation,
+                offers_online: s.offers_online,
+              };
               return (
                 <div key={s.catalog_service_id} className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow">
                 <div className="flex items-start justify-between mb-4">
@@ -731,15 +773,11 @@ function Step3SkillsPricingInner() {
                       {(() => {
                         const travelDisabled = !hasServiceAreas;
                         const travelMessage = travelDisabled
-                          ? s.offers_travel
-                            ? 'You need at least one service area to offer travel lessons'
-                            : 'Add service areas in your profile to enable this option'
+                          ? 'You need at least one service area to offer travel lessons'
                           : null;
                         const atLocationDisabled = !hasTeachingLocations;
                         const atLocationMessage = atLocationDisabled
-                          ? s.offers_at_location
-                            ? 'You need at least one teaching location to offer at-location lessons'
-                            : 'Add a teaching location in your profile to enable this option'
+                          ? 'You need at least one teaching location to offer studio lessons'
                           : null;
 
                         return (
@@ -756,7 +794,7 @@ function Step3SkillsPricingInner() {
                                   <p className="text-xs text-gray-500">(Within your service areas)</p>
                                 </div>
                                 <ToggleSwitch
-                                  checked={s.offers_travel}
+                                  checked={effectiveOffersTravel}
                                   onChange={() =>
                                     setSelected((prev) =>
                                       prev.map((x) =>
@@ -787,7 +825,7 @@ function Step3SkillsPricingInner() {
                                   <p className="text-xs text-gray-500">(At your teaching location)</p>
                                 </div>
                                 <ToggleSwitch
-                                  checked={s.offers_at_location}
+                                  checked={effectiveOffersAtLocation}
                                   onChange={() =>
                                     setSelected((prev) =>
                                       prev.map((x) =>
@@ -831,7 +869,7 @@ function Step3SkillsPricingInner() {
                         );
                       })()}
                     </div>
-                    {!hasAnyLocationOption(s) && (
+                    {!hasAnyLocationOption(effectiveCapabilities) && (
                       <p className="text-xs text-red-600 mt-2">
                         Select at least one location option for this skill.
                       </p>

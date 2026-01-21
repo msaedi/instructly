@@ -13,13 +13,17 @@ import type { ReactNode } from 'react';
 import type { SelectedNeighborhood } from '@/features/shared/components/SelectedNeighborhoodChips';
 
 // Mock dependencies
-jest.mock('@/lib/api', () => ({
-  fetchWithAuth: jest.fn(),
-  API_ENDPOINTS: {
-    INSTRUCTOR_PROFILE: '/api/v1/instructors/me',
-    ME: '/api/v1/users/me',
-  },
-}));
+jest.mock('@/lib/api', () => {
+  const actual = jest.requireActual('@/lib/api');
+  return {
+    ...actual,
+    fetchWithAuth: jest.fn(),
+    API_ENDPOINTS: {
+      INSTRUCTOR_PROFILE: '/api/v1/instructors/me',
+      ME: '/api/v1/users/me',
+    },
+  };
+});
 
 jest.mock('@/hooks/queries/useInstructorProfileMe', () => ({
   useInstructorProfileMe: jest.fn(),
@@ -76,6 +80,15 @@ jest.mock('@/lib/pricing/platformFees', () => ({
   formatPlatformFeeLabel: jest.fn(() => '15%'),
   resolvePlatformFeeRate: jest.fn(() => 0.15),
   resolveTakeHomePct: jest.fn(() => 0.85),
+}));
+
+jest.mock('sonner', () => ({
+  toast: {
+    error: jest.fn(),
+    success: jest.fn(),
+    info: jest.fn(),
+    warning: jest.fn(),
+  },
 }));
 
 jest.mock('@/lib/profileServiceAreas', () => ({
@@ -1335,7 +1348,9 @@ describe('EditProfileModal', () => {
 
       // Should have teaching locations section
       await waitFor(() => {
-        expect(screen.getByText(/preferred teaching location/i)).toBeInTheDocument();
+        expect(
+          screen.getByText((_, element) => element?.textContent === 'Where You Teach')
+        ).toBeInTheDocument();
       });
     });
 
@@ -2149,7 +2164,9 @@ describe('EditProfileModal', () => {
 
       // Should have teaching locations section
       await waitFor(() => {
-        expect(screen.getByText(/Preferred Teaching Location/i)).toBeInTheDocument();
+        expect(
+          screen.getByText((_, element) => element?.textContent === 'Where You Teach')
+        ).toBeInTheDocument();
       });
     });
 
@@ -2529,7 +2546,9 @@ describe('EditProfileModal', () => {
 
       // Should have add address functionality
       await waitFor(() => {
-        expect(screen.getByText(/Preferred Teaching Location/i)).toBeInTheDocument();
+        expect(
+          screen.getByText((_, element) => element?.textContent === 'Where You Teach')
+        ).toBeInTheDocument();
       });
     });
 
@@ -3441,6 +3460,42 @@ describe('EditProfileModal', () => {
           expect.stringContaining('service-areas/me'),
           expect.objectContaining({ method: 'PUT' })
         );
+      });
+    });
+
+    it('surfaces API errors for service areas', async () => {
+      const user = userEvent.setup();
+
+      fetchWithAuthMock.mockImplementation((url: string, options?: RequestInit) => {
+        if (url.includes('service-areas/me') && options?.method === 'PUT') {
+          return Promise.resolve({
+            ok: false,
+            json: () => Promise.resolve({ detail: 'Cannot remove your last service area' }),
+          });
+        }
+        if (url.includes('instructors/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockInstructorProfile),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      });
+
+      render(
+        <EditProfileModal {...defaultProps} variant="areas" />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      const saveButton = screen.getByRole('button', { name: /save/i });
+      await user.click(saveButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/cannot remove your last service area/i)).toBeInTheDocument();
       });
     });
 

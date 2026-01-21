@@ -688,7 +688,11 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             setSaving: setSavingServiceAreas,
           });
         } catch (err) {
+          const message = err instanceof Error ? err.message : 'Failed to save service areas';
           logger.warn('Failed to submit service areas during profile save', err);
+          setError(message);
+          toast.error(message);
+          return;
         }
       }
 

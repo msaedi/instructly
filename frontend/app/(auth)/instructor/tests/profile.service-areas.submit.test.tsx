@@ -10,7 +10,7 @@ describe('submitServiceAreasOnce', () => {
     let resolveFetch: (() => void) | undefined;
     const fetcher = jest.fn(() =>
       new Promise((resolve) => {
-        resolveFetch = () => resolve({});
+        resolveFetch = () => resolve({ ok: true });
       })
     );
 

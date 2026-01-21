@@ -16,6 +16,7 @@ import type { ApiErrorResponse, CategoryServiceDetail, InstructorProfileResponse
 import type { ServiceLocationType } from '@/types/instructor';
 import { queryKeys } from '@/src/api/queryKeys';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
+import { toast } from 'sonner';
 
 type SelectedService = {
   catalog_service_id: string;
@@ -258,8 +259,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
             Array.isArray(s['duration_options']) && (s['duration_options'] as number[]).length
               ? (s['duration_options'] as number[])
               : [60],
-          offers_travel: capabilities.offers_travel,
-          offers_at_location: capabilities.offers_at_location,
+          offers_travel: hasServiceAreas ? capabilities.offers_travel : false,
+          offers_at_location: hasTeachingLocations ? capabilities.offers_at_location : false,
           offers_online: capabilities.offers_online,
         } as SelectedService;
       })
@@ -276,7 +277,27 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       );
       setSelectedServices(deduped);
     }
-  }, [instructorProfile, profileFromHook, resolveCapabilitiesFromService]);
+  }, [hasServiceAreas, hasTeachingLocations, instructorProfile, profileFromHook, resolveCapabilitiesFromService]);
+
+  useEffect(() => {
+    if (hasServiceAreas && hasTeachingLocations) return;
+    setSelectedServices((prev) => {
+      let mutated = false;
+      const next = prev.map((service) => {
+        let updated = service;
+        if (!hasServiceAreas && updated.offers_travel) {
+          updated = { ...updated, offers_travel: false };
+          mutated = true;
+        }
+        if (!hasTeachingLocations && updated.offers_at_location) {
+          updated = { ...updated, offers_at_location: false };
+          mutated = true;
+        }
+        return updated;
+      });
+      return mutated ? next : prev;
+    });
+  }, [hasServiceAreas, hasTeachingLocations]);
 
   const toggleCategory = (slug: string) => {
     setCollapsed((prev) => ({ ...prev, [slug]: !prev[slug] }));
@@ -400,8 +421,17 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
         }
       }
 
-      if (selectedServices.some((service) => !hasAnyLocationOption(service))) {
-        setError('Select at least one location option for each skill.');
+      const hasInvalidCapabilities = selectedServices.some((service) =>
+        !hasAnyLocationOption({
+          offers_travel: hasServiceAreas ? service.offers_travel : false,
+          offers_at_location: hasTeachingLocations ? service.offers_at_location : false,
+          offers_online: service.offers_online,
+        })
+      );
+      if (hasInvalidCapabilities) {
+        toast.error(
+          'Select at least one way to offer this skill (travel, at your studio, or online)'
+        );
         setSvcSaving(false);
         return;
       }
@@ -422,8 +452,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
               .filter(Boolean)?.length
               ? { equipment_required: service.equipment.split(',').map((v) => v.trim()).filter(Boolean) }
               : {}),
-            offers_travel: service.offers_travel,
-            offers_at_location: service.offers_at_location,
+            offers_travel: hasServiceAreas ? service.offers_travel : false,
+            offers_at_location: hasTeachingLocations ? service.offers_at_location : false,
             offers_online: service.offers_online,
           })),
       };
@@ -451,6 +481,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       setSvcSaving(false);
     }
   }, [
+    hasServiceAreas,
+    hasTeachingLocations,
     profileLoaded,
     isInstructorLive,
     pricingFloors,
@@ -573,8 +605,20 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
 
           {/* Your selected skills (detailed cards) */}
           <div className="space-y-4">
-            {selectedServices.map((s, index) => (
-              <div key={`${s.catalog_service_id || s.name}-${index}`} className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            {selectedServices.map((s, index) => {
+              const effectiveOffersTravel = hasServiceAreas ? s.offers_travel : false;
+              const effectiveOffersAtLocation = hasTeachingLocations ? s.offers_at_location : false;
+              const effectiveCapabilities: ServiceCapabilities = {
+                offers_travel: effectiveOffersTravel,
+                offers_at_location: effectiveOffersAtLocation,
+                offers_online: s.offers_online,
+              };
+
+              return (
+                <div
+                  key={`${s.catalog_service_id || s.name}-${index}`}
+                  className="p-4 bg-gray-50 border border-gray-200 rounded-lg"
+                >
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <div className="text-base font-medium text-gray-900">{s.service_catalog_name ?? s.name ?? 'Service'}</div>
@@ -614,7 +658,6 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                         required
                       />
                     </div>
-                    <span className="text-sm text-gray-600">/hr</span>
                   </div>
                   {s.hourly_rate && Number(s.hourly_rate) > 0 && (
                     <div className="mt-2 text-xs text-gray-600">
@@ -662,15 +705,11 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                       {(() => {
                         const travelDisabled = !hasServiceAreas;
                         const travelMessage = travelDisabled
-                          ? s.offers_travel
-                            ? 'You need at least one service area to offer travel lessons'
-                            : 'Add service areas in your profile to enable this option'
+                          ? 'You need at least one service area to offer travel lessons'
                           : null;
                         const atLocationDisabled = !hasTeachingLocations;
                         const atLocationMessage = atLocationDisabled
-                          ? s.offers_at_location
-                            ? 'You need at least one teaching location to offer at-location lessons'
-                            : 'Add a teaching location in your profile to enable this option'
+                          ? 'You need at least one teaching location to offer studio lessons'
                           : null;
 
                         return (
@@ -687,7 +726,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                                   <p className="text-xs text-gray-500">(Within your service areas)</p>
                                 </div>
                                 <ToggleSwitch
-                                  checked={s.offers_travel}
+                                  checked={effectiveOffersTravel}
                                   onChange={() =>
                                     setSelectedServices((prev) =>
                                       prev.map((x, i) =>
@@ -716,7 +755,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                                   <p className="text-xs text-gray-500">(At your teaching location)</p>
                                 </div>
                                 <ToggleSwitch
-                                  checked={s.offers_at_location}
+                                  checked={effectiveOffersAtLocation}
                                   onChange={() =>
                                     setSelectedServices((prev) =>
                                       prev.map((x, i) =>
@@ -756,7 +795,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                         );
                       })()}
                     </div>
-                    {!hasAnyLocationOption(s) && (
+                    {!hasAnyLocationOption(effectiveCapabilities) && (
                       <p className="text-xs text-red-600 mt-2">
                         Select at least one location option for this skill.
                       </p>
@@ -829,7 +868,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
 
             {selectedServices.length === 0 && (
               <div className="text-center py-8 text-gray-500">
