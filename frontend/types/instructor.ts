@@ -97,8 +97,11 @@ export interface InstructorProfile {
 
   /** Preferred teaching locations configured by instructor */
   preferred_teaching_locations?: Array<{
-    address: string;
+    address?: string;
     label?: string;
+    approx_lat?: number;
+    approx_lng?: number;
+    neighborhood?: string;
   }>;
 
   /** Preferred public spaces configured by instructor */

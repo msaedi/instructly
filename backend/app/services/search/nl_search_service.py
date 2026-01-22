@@ -2159,6 +2159,7 @@ class NLSearchService:
                 verified=bool(profile.get("verified", False)),
                 is_founding_instructor=bool(profile.get("is_founding_instructor", False)),
                 years_experience=profile.get("years_experience"),
+                teaching_locations=profile.get("teaching_locations", []) or [],
             )
 
             rating_summary = RatingSummary(
@@ -2482,6 +2483,7 @@ class NLSearchService:
                 verified=bool(row.get("verified", False)),
                 is_founding_instructor=bool(row.get("is_founding_instructor", False)),
                 years_experience=row.get("years_experience"),
+                teaching_locations=row.get("teaching_locations", []) or [],
             )
 
             # Build rating summary

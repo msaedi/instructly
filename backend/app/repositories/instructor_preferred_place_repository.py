@@ -60,6 +60,9 @@ class InstructorPreferredPlaceRepository(BaseRepository[InstructorPreferredPlace
         place_id: str | None = None,
         lat: float | None = None,
         lng: float | None = None,
+        approx_lat: float | None = None,
+        approx_lng: float | None = None,
+        neighborhood: str | None = None,
     ) -> InstructorPreferredPlace:
         return self.create(
             instructor_id=instructor_id,
@@ -70,4 +73,7 @@ class InstructorPreferredPlaceRepository(BaseRepository[InstructorPreferredPlace
             place_id=place_id,
             lat=lat,
             lng=lng,
+            approx_lat=approx_lat,
+            approx_lng=approx_lng,
+            neighborhood=neighborhood,
         )

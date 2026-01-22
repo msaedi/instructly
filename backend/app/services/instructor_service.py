@@ -39,10 +39,12 @@ from ..schemas.instructor import (
     PreferredTeachingLocationIn,
     ServiceCreate,
 )
+from ..utils.location_privacy import jitter_coordinates
 from .base import BaseService
 from .cache_service import CacheServiceSyncAdapter
 from .config_service import ConfigService
 from .geocoding.factory import create_geocoding_provider
+from .location_enrichment import LocationEnrichmentService
 from .pricing_service import PricingService
 from .search.cache_invalidation import (
     invalidate_on_instructor_profile_change,
@@ -274,7 +276,11 @@ class InstructorService(BaseService):
         instructors = []
         for profile in profiles:
             # _profile_to_dict with include_inactive_services=False filters out inactive services
-            instructor_dict = self._profile_to_dict(profile, include_inactive_services=False)
+            instructor_dict = self._profile_to_dict(
+                profile,
+                include_inactive_services=False,
+                include_private_fields=False,
+            )
 
             # Only include instructors that have at least one active service after filtering
             if instructor_dict["services"]:
@@ -395,7 +401,7 @@ class InstructorService(BaseService):
         if not profile:
             return None
 
-        result = self._profile_to_dict(profile)
+        result = self._profile_to_dict(profile, include_private_fields=False)
 
         # Cache for 5 minutes (300 seconds)
         if self.cache_service:
@@ -878,6 +884,26 @@ class InstructorService(BaseService):
     ) -> None:
         """Replace preferred place rows for a given instructor/kind atomically."""
 
+        existing_places_by_address: dict[str, dict[str, Optional[Any]]] = {}
+        if kind == "teaching_location":
+            try:
+                existing_places = self.preferred_place_repository.list_for_instructor_and_kind(
+                    instructor_id, kind
+                )
+                for place in existing_places:
+                    address_key = str(place.address or "").strip().lower()
+                    if address_key:
+                        existing_places_by_address[address_key] = {
+                            "place_id": getattr(place, "place_id", None),
+                            "lat": getattr(place, "lat", None),
+                            "lng": getattr(place, "lng", None),
+                            "approx_lat": getattr(place, "approx_lat", None),
+                            "approx_lng": getattr(place, "approx_lng", None),
+                            "neighborhood": getattr(place, "neighborhood", None),
+                        }
+            except Exception:
+                logger.debug("Non-fatal error loading existing teaching locations", exc_info=True)
+
         if kind == "teaching_location" and not items:
             profile = self.profile_repository.get_by_user_id(instructor_id)
             if profile:
@@ -920,16 +946,96 @@ class InstructorService(BaseService):
         self.db.expire_all()
 
         for position, (address, label) in enumerate(normalized):
+            extra_fields: dict[str, Any] = {}
+            if kind == "teaching_location":
+                address_key = address.strip().lower()
+                existing_place = existing_places_by_address.get(address_key, {})
+
+                place_id: Optional[str] = cast(Optional[str], existing_place.get("place_id"))
+                lat: Optional[float] = cast(Optional[float], existing_place.get("lat"))
+                lng: Optional[float] = cast(Optional[float], existing_place.get("lng"))
+                approx_lat: Optional[float] = cast(
+                    Optional[float], existing_place.get("approx_lat")
+                )
+                approx_lng: Optional[float] = cast(
+                    Optional[float], existing_place.get("approx_lng")
+                )
+                neighborhood: Optional[str] = cast(
+                    Optional[str], existing_place.get("neighborhood")
+                )
+
+                if approx_lat is None or approx_lng is None:
+                    if lat is None or lng is None:
+                        try:
+                            provider = create_geocoding_provider()
+                            geocoded = anyio.run(provider.geocode, address)
+                            if geocoded:
+                                lat = geocoded.latitude
+                                lng = geocoded.longitude
+                                place_id = place_id or getattr(geocoded, "provider_id", None)
+                                if not neighborhood:
+                                    neighborhood = getattr(geocoded, "neighborhood", None) or None
+                                    if not neighborhood:
+                                        city = getattr(geocoded, "city", None)
+                                        state = getattr(geocoded, "state", None)
+                                        if city and state:
+                                            neighborhood = f"{city}, {state}"
+                                        elif city:
+                                            neighborhood = city
+                        except Exception:
+                            logger.debug(
+                                "Non-fatal geocoding error for teaching location",
+                                extra={"address": address},
+                                exc_info=True,
+                            )
+
+                    if lat is not None and lng is not None:
+                        approx_lat, approx_lng = jitter_coordinates(float(lat), float(lng))
+                        try:
+                            enrichment = LocationEnrichmentService(self.db).enrich(
+                                float(lat), float(lng)
+                            )
+                            enriched_neighborhood = enrichment.get("neighborhood")
+                            district = enrichment.get("district")
+                            if enriched_neighborhood:
+                                neighborhood = (
+                                    f"{enriched_neighborhood}, {district}"
+                                    if district and district not in enriched_neighborhood
+                                    else enriched_neighborhood
+                                )
+                            elif district and not neighborhood:
+                                neighborhood = district
+                            elif neighborhood and district and district not in neighborhood:
+                                neighborhood = f"{neighborhood}, {district}"
+                        except Exception:
+                            logger.debug(
+                                "Non-fatal location enrichment error for teaching location",
+                                exc_info=True,
+                            )
+
+                extra_fields = {
+                    "place_id": place_id,
+                    "lat": lat,
+                    "lng": lng,
+                    "approx_lat": approx_lat,
+                    "approx_lng": approx_lng,
+                    "neighborhood": neighborhood,
+                }
+
             self.preferred_place_repository.create_for_kind(
                 instructor_id=instructor_id,
                 kind=kind,
                 address=address,
                 label=label,
                 position=position,
+                **extra_fields,
             )
 
     def _profile_to_dict(
-        self, profile: InstructorProfile, include_inactive_services: bool = False
+        self,
+        profile: InstructorProfile,
+        include_inactive_services: bool = False,
+        include_private_fields: bool = True,
     ) -> Dict[str, Any]:
         """
         Convert instructor profile to dictionary.
@@ -979,9 +1085,17 @@ class InstructorService(BaseService):
             )
 
             for place in teaching_places:
-                teaching_entry: Dict[str, Any] = {"address": place.address}
+                teaching_entry: Dict[str, Any] = {}
+                if include_private_fields:
+                    teaching_entry["address"] = place.address
                 if place.label:
                     teaching_entry["label"] = place.label
+                if getattr(place, "approx_lat", None) is not None:
+                    teaching_entry["approx_lat"] = place.approx_lat
+                if getattr(place, "approx_lng", None) is not None:
+                    teaching_entry["approx_lng"] = place.approx_lng
+                if getattr(place, "neighborhood", None):
+                    teaching_entry["neighborhood"] = place.neighborhood
                 teaching_locations.append(teaching_entry)
 
             for place in public_places:
@@ -995,6 +1109,9 @@ class InstructorService(BaseService):
             service_area_records = list(profile.user.service_areas)
         else:
             service_area_records = self.service_area_repository.list_for_instructor(profile.user_id)
+        service_area_records = [
+            area for area in service_area_records if getattr(area, "is_active", True)
+        ]
         service_area_neighborhoods: list[dict[str, Any]] = []
         boroughs: set[str] = set()
 

@@ -305,6 +305,13 @@ export interface Instructor {
   /** Human-readable summary provided by backend */
   service_area_summary?: string | null;
 
+  /** Approximate studio locations for map pins */
+  teaching_locations?: Array<{
+    approx_lat: number;
+    approx_lng: number;
+    neighborhood?: string;
+  }>;
+
   /** Years of teaching experience */
   years_experience: number;
 

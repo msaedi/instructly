@@ -6247,8 +6247,14 @@ export type components = {
  is_founding_instructor: boolean;
  last_initial: string;
  profile_picture_url?: string | null;
+ teaching_locations?: components["schemas"]["InstructorTeachingLocationSummary"][];
  verified: boolean;
  years_experience?: number | null;
+ };
+ InstructorTeachingLocationSummary: {
+ approx_lat: number;
+ approx_lng: number;
+ neighborhood?: string | null;
  };
  InviteBatchAsyncStartResponse: {
  task_id: string;

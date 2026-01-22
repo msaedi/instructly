@@ -3411,6 +3411,18 @@ export interface InstructorServiceResponse {
 }
 
 /**
+ * Approximate teaching location data for public maps.
+ */
+export interface InstructorTeachingLocationSummary {
+  /** Approximate latitude */
+  approx_lat: number;
+  /** Approximate longitude */
+  approx_lng: number;
+  /** Neighborhood or city label */
+  neighborhood?: string | null;
+}
+
+/**
  * Embedded instructor info for search results.
  */
 export interface InstructorSummary {
@@ -3426,6 +3438,8 @@ export interface InstructorSummary {
   last_initial: string;
   /** Profile picture URL */
   profile_picture_url?: string | null;
+  /** Approximate teaching locations for studio pins */
+  teaching_locations?: InstructorTeachingLocationSummary[];
   /** Whether instructor is verified */
   verified?: boolean;
   /** Years of experience */

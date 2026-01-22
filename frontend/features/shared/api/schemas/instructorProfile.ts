@@ -2,8 +2,11 @@ export async function loadInstructorProfileSchema() {
   if (process.env.NODE_ENV !== 'production') {
     const { z } = await import('zod');
     const PreferredPlace = z.object({
-      address: z.string(),
+      address: z.string().optional(),
       label: z.string().optional().nullable(),
+      approx_lat: z.number().optional(),
+      approx_lng: z.number().optional(),
+      neighborhood: z.string().optional().nullable(),
     });
     const Service = z.object({
       id: z.string(),

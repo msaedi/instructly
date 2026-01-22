@@ -31,12 +31,20 @@ type FeatureCollection = {
   features: GeoJSONFeature[];
 };
 
+type LocationPin = {
+  lat: number;
+  lng: number;
+  label?: string;
+  instructorId?: string;
+};
+
 interface InstructorCoverageMapProps {
   featureCollection?: FeatureCollection | null;
   height?: number | string;
   showCoverage?: boolean;
   highlightInstructorId?: string | null;
   focusInstructorId?: string | null;
+  locationPins?: LocationPin[];
   onBoundsChange?: (bounds: L.LatLngBounds) => void;
   showSearchAreaButton?: boolean;
   onSearchArea?: () => void;
@@ -56,6 +64,7 @@ export default function InstructorCoverageMap({
   showCoverage = true,
   highlightInstructorId = null,
   focusInstructorId = null,
+  locationPins = [],
   onBoundsChange,
   showSearchAreaButton = false,
   onSearchArea,
@@ -153,9 +162,15 @@ export default function InstructorCoverageMap({
         ) : null}
 
         {/* Fit map to coverage on data change or when focusing on instructor */}
-        {showCoverage && fc && fc.features?.length ? (
-          <FitToCoverage featureCollection={fc} focusInstructorId={focusInstructorId} />
+        {(showCoverage && fc && fc.features?.length) || (locationPins && locationPins.length) ? (
+          <FitToCoverage
+            featureCollection={showCoverage ? fc : null}
+            focusInstructorId={focusInstructorId}
+            locationPins={locationPins}
+          />
         ) : null}
+
+        {locationPins && locationPins.length ? <MapPins locations={locationPins} /> : null}
 
         {/* Place custom controls top-right so they're always visible in stacked view */}
         <CustomControls />
@@ -172,7 +187,15 @@ export default function InstructorCoverageMap({
   );
 }
 
-function FitToCoverage({ featureCollection, focusInstructorId }: { featureCollection: FeatureCollection; focusInstructorId?: string | null }) {
+function FitToCoverage({
+  featureCollection,
+  focusInstructorId,
+  locationPins,
+}: {
+  featureCollection?: FeatureCollection | null;
+  focusInstructorId?: string | null;
+  locationPins?: LocationPin[];
+}) {
   const map = useMap();
   const hasInitiallyFitRef = useRef(false);
 
@@ -180,49 +203,123 @@ function FitToCoverage({ featureCollection, focusInstructorId }: { featureCollec
   useEffect(() => {
     if (!hasInitiallyFitRef.current && !focusInstructorId) {
       try {
-        const layer = L.geoJSON(featureCollection);
-        const bounds = layer.getBounds();
-        if (bounds.isValid()) {
+        let bounds: L.LatLngBounds | null = null;
+        if (featureCollection && featureCollection.features?.length) {
+          const layer = L.geoJSON(featureCollection);
+          const coverageBounds = layer.getBounds();
+          if (coverageBounds.isValid()) {
+            bounds = coverageBounds;
+          }
+          layer.remove();
+        }
+        if (Array.isArray(locationPins) && locationPins.length) {
+          const validPins = locationPins.filter(
+            (pin) => Number.isFinite(pin.lat) && Number.isFinite(pin.lng)
+          );
+          if (validPins.length) {
+            const pinBounds = L.latLngBounds(validPins.map((pin) => [pin.lat, pin.lng]));
+            bounds = bounds ? bounds.extend(pinBounds) : pinBounds;
+          }
+        }
+        if (bounds && bounds.isValid()) {
           map.fitBounds(bounds, {
             paddingTopLeft: [20, 20],
             paddingBottomRight: [20, 60]
           });
           hasInitiallyFitRef.current = true;
         }
-        layer.remove();
       } catch {}
     }
-  }, [featureCollection, map, focusInstructorId]);
+  }, [featureCollection, map, focusInstructorId, locationPins]);
 
   // Focus on specific instructor's coverage when clicked
   useEffect(() => {
-    if (focusInstructorId && featureCollection) {
+    if (focusInstructorId) {
       try {
         // Filter features for the specific instructor
-        const instructorFeatures = featureCollection.features.filter((feature) => {
-          const instructors = feature.properties?.instructors || [];
-          return instructors.includes(focusInstructorId);
-        });
+        if (featureCollection && featureCollection.features?.length) {
+          const instructorFeatures = featureCollection.features.filter((feature) => {
+            const instructors = feature.properties?.instructors || [];
+            return instructors.includes(focusInstructorId);
+          });
 
-        if (instructorFeatures.length > 0) {
-          const instructorFC: FeatureCollection = {
-            type: 'FeatureCollection',
-            features: instructorFeatures
-          };
-          const layer = L.geoJSON(instructorFC);
-          const bounds = layer.getBounds();
-          if (bounds.isValid()) {
-            map.flyToBounds(bounds, {
-              paddingTopLeft: [40, 40],
-              paddingBottomRight: [40, 80],
-              duration: 0.8
-            });
+          if (instructorFeatures.length > 0) {
+            const instructorFC: FeatureCollection = {
+              type: 'FeatureCollection',
+              features: instructorFeatures
+            };
+            const layer = L.geoJSON(instructorFC);
+            const bounds = layer.getBounds();
+            if (bounds.isValid()) {
+              map.flyToBounds(bounds, {
+                paddingTopLeft: [40, 40],
+                paddingBottomRight: [40, 80],
+                duration: 0.8
+              });
+              layer.remove();
+              return;
+            }
+            layer.remove();
           }
-          layer.remove();
+        }
+
+        if (Array.isArray(locationPins) && locationPins.length) {
+          const focusedPins = locationPins.filter(
+            (pin) => pin.instructorId === focusInstructorId
+          );
+          if (focusedPins.length) {
+            const bounds = L.latLngBounds(
+              focusedPins.map((pin) => [pin.lat, pin.lng])
+            );
+            if (bounds.isValid()) {
+              map.flyToBounds(bounds, {
+                paddingTopLeft: [40, 40],
+                paddingBottomRight: [40, 80],
+                duration: 0.8
+              });
+            }
+          }
         }
       } catch {}
     }
-  }, [focusInstructorId, featureCollection, map]);
+  }, [focusInstructorId, featureCollection, map, locationPins]);
+
+  return null;
+}
+
+function MapPins({ locations }: { locations: LocationPin[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!locations || locations.length === 0) {
+      return;
+    }
+
+    const pinSvg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="#7E22CE" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c-3.9 0-7 3.1-7 7 0 5.3 7 13 7 13s7-7.7 7-13c0-3.9-3.1-7-7-7z"/><circle cx="12" cy="9" r="2.5" fill="#ffffff" stroke="none"/></svg>';
+    const icon = L.divIcon({
+      html: pinSvg,
+      className: 'studio-pin',
+      iconSize: [28, 28],
+      iconAnchor: [14, 26],
+      popupAnchor: [0, -22],
+    });
+
+    const markers: L.Marker[] = [];
+    locations.forEach((loc) => {
+      if (!Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) return;
+      const marker = L.marker([loc.lat, loc.lng], { icon });
+      if (loc.label) {
+        marker.bindPopup(`<div>${loc.label}</div>`);
+      }
+      marker.addTo(map);
+      markers.push(marker);
+    });
+
+    return () => {
+      markers.forEach((marker) => marker.remove());
+    };
+  }, [map, locations]);
 
   return null;
 }

@@ -118,11 +118,12 @@ export function useInstructor(instructorId: string) {
  * }
  * ```
  */
-export function useInstructorCoverage(instructorId: string) {
+export function useInstructorCoverage(instructorId: string, options?: { enabled?: boolean }) {
   return useGetCoverageApiV1InstructorsInstructorIdCoverageGet(instructorId, {
     query: {
       queryKey: queryKeys.instructors.coverage(instructorId),
       staleTime: 1000 * 60 * 60, // 1 hour (coverage changes rarely)
+      ...(typeof options?.enabled === 'boolean' ? { enabled: options.enabled } : {}),
     },
   });
 }

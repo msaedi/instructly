@@ -11400,6 +11400,11 @@ export type components = {
              */
             profile_picture_url?: string | null;
             /**
+             * Teaching Locations
+             * @description Approximate teaching locations for studio pins
+             */
+            teaching_locations?: components["schemas"]["InstructorTeachingLocationSummary"][];
+            /**
              * Verified
              * @description Whether instructor is verified
              * @default false
@@ -11410,6 +11415,27 @@ export type components = {
              * @description Years of experience
              */
             years_experience?: number | null;
+        };
+        /**
+         * InstructorTeachingLocationSummary
+         * @description Approximate teaching location data for public maps.
+         */
+        InstructorTeachingLocationSummary: {
+            /**
+             * Approx Lat
+             * @description Approximate latitude
+             */
+            approx_lat: number;
+            /**
+             * Approx Lng
+             * @description Approximate longitude
+             */
+            approx_lng: number;
+            /**
+             * Neighborhood
+             * @description Neighborhood or city label
+             */
+            neighborhood?: string | null;
         };
         /** InviteBatchAsyncStartResponse */
         InviteBatchAsyncStartResponse: {

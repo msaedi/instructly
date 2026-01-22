@@ -1,7 +1,7 @@
 // frontend/app/(public)/search/page.tsx
 'use client';
 
-import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
+import { useEffect, useState, Suspense, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { publicApi } from '@/features/shared/api/client';
@@ -132,9 +132,9 @@ interface GeoJSONFeature {
     instructors?: string[];
   };
   geometry?: {
-    type: string;
-    coordinates: number[][][] | number[][][][];
-  };
+    type?: string;
+    coordinates?: unknown;
+  } | null;
 }
 
 // Helper to build query with filters appended
@@ -238,6 +238,67 @@ function SearchPageContent() {
   const [mapBounds, setMapBounds] = useState<unknown>(null);
   const [showSearchAreaButton, setShowSearchAreaButton] = useState(false);
   const [filteredInstructors, setFilteredInstructors] = useState<Instructor[]>([]);
+
+  const boundsContains = useCallback((bounds: unknown, lat: number, lng: number): boolean => {
+    if (!bounds || typeof bounds !== 'object' || !('contains' in bounds)) return false;
+    const contains = (bounds as { contains?: (coords: [number, number]) => boolean }).contains;
+    return typeof contains === 'function' ? contains([lat, lng]) : false;
+  }, []);
+
+  const featureHasPointInBounds = useCallback(
+    (feature: GeoJSONFeature, bounds: unknown): boolean => {
+      if (!feature.geometry || feature.geometry.type !== 'MultiPolygon') return false;
+      const coordinates = feature.geometry.coordinates;
+      if (!Array.isArray(coordinates)) return false;
+
+      for (const polygon of coordinates) {
+        if (!Array.isArray(polygon)) continue;
+        for (const ring of polygon) {
+          if (!Array.isArray(ring)) continue;
+          for (const coord of ring) {
+            if (!Array.isArray(coord) || coord.length < 2) continue;
+            const lng = coord[0];
+            const lat = coord[1];
+            if (typeof lat !== 'number' || typeof lng !== 'number') continue;
+            if (boundsContains(bounds, lat, lng)) return true;
+          }
+        }
+      }
+
+      return false;
+    },
+    [boundsContains]
+  );
+
+  const locationPins = useMemo(() => {
+    const pins: Array<{ lat: number; lng: number; label?: string; instructorId?: string }> = [];
+    for (const instructor of filteredInstructors) {
+      const locations = Array.isArray(instructor.teaching_locations)
+        ? instructor.teaching_locations
+        : [];
+      for (const loc of locations) {
+        const lat = loc.approx_lat;
+        const lng = loc.approx_lng;
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+        const label = typeof loc.neighborhood === 'string' ? loc.neighborhood.trim() : '';
+        if (label) {
+          pins.push({
+            lat,
+            lng,
+            label,
+            instructorId: instructor.user_id,
+          });
+        } else {
+          pins.push({
+            lat,
+            lng,
+            instructorId: instructor.user_id,
+          });
+        }
+      }
+    }
+    return pins;
+  }, [filteredInstructors]);
   const [nlSearchMeta, setNlSearchMeta] = useState<Record<string, unknown> | null>(null);
 
   // Filter state - read from URL params on mount
@@ -527,6 +588,24 @@ function SearchPageContent() {
               const coverageAreas = getArray(result, 'coverage_areas')
                 .filter((v): v is string => typeof v === 'string');
 
+              const teachingLocations = getArray(instructorInfo, 'teaching_locations')
+                .map((loc) => {
+                  if (!isRecord(loc)) return null;
+                  const approxLat = getNumber(loc, 'approx_lat', Number.NaN);
+                  const approxLng = getNumber(loc, 'approx_lng', Number.NaN);
+                  if (!Number.isFinite(approxLat) || !Number.isFinite(approxLng)) return null;
+                  const neighborhood = getString(loc, 'neighborhood', '').trim();
+                  return {
+                    approx_lat: approxLat,
+                    approx_lng: approxLng,
+                    ...(neighborhood ? { neighborhood } : {}),
+                  };
+                })
+                .filter(
+                  (loc): loc is { approx_lat: number; approx_lng: number; neighborhood?: string } =>
+                    loc !== null
+                );
+
               // Optional debug distance from searched location (populated when location was resolved)
               const distanceMiRaw = getNumber(result, 'distance_mi', Number.NaN);
               const distanceMi = Number.isFinite(distanceMiRaw) ? distanceMiRaw : null;
@@ -584,6 +663,7 @@ function SearchPageContent() {
                   borough: string | null;
                 }>,
                 years_experience: yearsExperience,
+                teaching_locations: teachingLocations,
                 user: {
                   first_name: firstName,
                   last_initial: lastInitial,
@@ -784,37 +864,50 @@ function SearchPageContent() {
 
   // Handle map bounds change
   const handleMapBoundsChange = useCallback((bounds: unknown) => {
-    if (!bounds || !coverageGeoJSON) return;
+    if (!bounds) return;
+
+    const coverageFeatures = isFeatureCollection(coverageGeoJSON)
+      ? coverageGeoJSON.features
+      : [];
+    const hasPinData = instructors.some(
+      (instructor) => Array.isArray(instructor.teaching_locations) && instructor.teaching_locations.length > 0
+    );
+    const hasCoverageData = coverageFeatures.length > 0;
+
+    if (!hasCoverageData && !hasPinData) {
+      setShowSearchAreaButton(false);
+      setMapBounds(bounds);
+      return;
+    }
 
     // Check if any instructors are outside the current bounds
     const instructorsInBounds = instructors.filter((instructor) => {
-      // Check if this instructor has any coverage in the current bounds
-      const instructorFeatures = (coverageGeoJSON as { features: GeoJSONFeature[] })?.features?.filter((feature: GeoJSONFeature) => {
-        const instructorsList = feature.properties?.instructors || [];
-        return instructorsList.includes(instructor.user_id);
-      });
+      let hasCoverageInBounds = false;
 
-      // Check if any of the instructor's features intersect with the map bounds
-      for (const feature of instructorFeatures) {
-        if (feature.geometry && feature.geometry.type === 'MultiPolygon') {
-          // Simple bounds check - if any part of the polygon is in view
-          for (const polygon of feature.geometry.coordinates) {
-            for (const ring of polygon) {
-              for (const coord of ring) {
-                if (Array.isArray(coord) && coord.length >= 2) {
-                  const lat = coord[1];
-                  const lng = coord[0];
-                  if (bounds && typeof bounds === 'object' && 'contains' in bounds && typeof bounds.contains === 'function' && bounds.contains([lat, lng])) {
-                    return true; // Instructor has coverage in view
-                  }
-                }
-              }
-            }
-          }
-        }
+      if (hasCoverageData) {
+        const instructorFeatures = coverageFeatures.filter((feature) => {
+          const rawInstructors = feature.properties?.['instructors'];
+          const instructorsList = Array.isArray(rawInstructors)
+            ? (rawInstructors as string[])
+            : [];
+          return instructorsList.includes(instructor.user_id);
+        });
+
+        hasCoverageInBounds = instructorFeatures.some((feature) =>
+          featureHasPointInBounds(feature, bounds)
+        );
       }
 
-      return false;
+      const hasStudioInBounds = Array.isArray(instructor.teaching_locations)
+        ? instructor.teaching_locations.some((loc) => {
+          const lat = loc.approx_lat;
+          const lng = loc.approx_lng;
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+          return boundsContains(bounds, lat, lng);
+        })
+        : false;
+
+      return hasCoverageInBounds || hasStudioInBounds;
     });
 
     // Show button if:
@@ -826,44 +919,62 @@ function SearchPageContent() {
 
     setShowSearchAreaButton(hasFilteredInstructors || (isShowingFilteredView && wouldShowDifferentResults));
     setMapBounds(bounds);
-  }, [instructors, filteredInstructors, coverageGeoJSON]);
+  }, [instructors, filteredInstructors, coverageGeoJSON, boundsContains, featureHasPointInBounds]);
 
   // Handle search area button click
   const handleSearchArea = useCallback(() => {
-    if (!mapBounds || !coverageGeoJSON) return;
+    if (!mapBounds) return;
+
+    const coverageFeatures = isFeatureCollection(coverageGeoJSON)
+      ? coverageGeoJSON.features
+      : [];
+    const hasPinData = instructors.some(
+      (instructor) => Array.isArray(instructor.teaching_locations) && instructor.teaching_locations.length > 0
+    );
+    const hasCoverageData = coverageFeatures.length > 0;
+
+    if (!hasCoverageData && !hasPinData) {
+      setFilteredInstructors(instructors);
+      setShowSearchAreaButton(false);
+      setFocusedInstructorId(null);
+      return;
+    }
 
     // Filter instructors based on current map bounds
     const instructorsInBounds = instructors.filter((instructor) => {
-      const instructorFeatures = (coverageGeoJSON as { features: GeoJSONFeature[] })?.features?.filter((feature: GeoJSONFeature) => {
-        const instructorsList = feature.properties?.instructors || [];
-        return instructorsList.includes(instructor.user_id);
-      });
+      let hasCoverageInBounds = false;
 
-      for (const feature of instructorFeatures) {
-        if (feature.geometry && feature.geometry.type === 'MultiPolygon') {
-          for (const polygon of feature.geometry.coordinates) {
-            for (const ring of polygon) {
-              for (const coord of ring) {
-                if (Array.isArray(coord) && coord.length >= 2) {
-                  const lat = coord[1];
-                  const lng = coord[0];
-                  if (mapBounds && typeof mapBounds === 'object' && 'contains' in mapBounds && typeof mapBounds.contains === 'function' && mapBounds.contains([lat, lng])) {
-                    return true;
-                  }
-                }
-              }
-            }
-          }
-        }
+      if (hasCoverageData) {
+        const instructorFeatures = coverageFeatures.filter((feature) => {
+          const rawInstructors = feature.properties?.['instructors'];
+          const instructorsList = Array.isArray(rawInstructors)
+            ? (rawInstructors as string[])
+            : [];
+          return instructorsList.includes(instructor.user_id);
+        });
+
+        hasCoverageInBounds = instructorFeatures.some((feature) =>
+          featureHasPointInBounds(feature, mapBounds)
+        );
       }
-      return false;
+
+      const hasStudioInBounds = Array.isArray(instructor.teaching_locations)
+        ? instructor.teaching_locations.some((loc) => {
+          const lat = loc.approx_lat;
+          const lng = loc.approx_lng;
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+          return boundsContains(mapBounds, lat, lng);
+        })
+        : false;
+
+      return hasCoverageInBounds || hasStudioInBounds;
     });
 
     setFilteredInstructors(instructorsInBounds);
     setShowSearchAreaButton(false);
     // Clear focused instructor after filtering
     setFocusedInstructorId(null);
-  }, [instructors, mapBounds, coverageGeoJSON]);
+  }, [instructors, mapBounds, coverageGeoJSON, boundsContains, featureHasPointInBounds]);
 
   // Track stacked layout (below xl) and compute available height so the page itself doesn't scroll
   useEffect(() => {
@@ -1449,6 +1560,7 @@ function SearchPageContent() {
                 showCoverage={true}
                 highlightInstructorId={hoveredInstructorId}
                 focusInstructorId={focusedInstructorId}
+                locationPins={locationPins}
                 onBoundsChange={handleMapBoundsChange}
                 showSearchAreaButton={showSearchAreaButton}
                 onSearchArea={handleSearchArea}

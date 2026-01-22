@@ -377,7 +377,8 @@ class RetrieverRepository:
                 ip.is_founding_instructor,
                 rs.avg_rating,
                 COALESCE(rs.review_count, 0) as review_count,
-                COALESCE(c.coverage_areas, ARRAY[]::text[]) as coverage_areas
+                COALESCE(c.coverage_areas, ARRAY[]::text[]) as coverage_areas,
+                COALESCE(tl.teaching_locations, '[]'::jsonb) as teaching_locations
             FROM instructor_profiles ip
             JOIN users u ON u.id = ip.user_id
             LEFT JOIN (
@@ -400,6 +401,22 @@ class RetrieverRepository:
                   AND isa.is_active = true
                 GROUP BY isa.instructor_id
             ) c ON c.instructor_id = ip.user_id
+            LEFT JOIN (
+                SELECT
+                    ipp.instructor_id,
+                    jsonb_agg(
+                        jsonb_build_object(
+                            'approx_lat', ipp.approx_lat,
+                            'approx_lng', ipp.approx_lng,
+                            'neighborhood', ipp.neighborhood
+                        )
+                        ORDER BY ipp.position
+                    ) FILTER (WHERE ipp.approx_lat IS NOT NULL AND ipp.approx_lng IS NOT NULL) as teaching_locations
+                FROM instructor_preferred_places ipp
+                WHERE ipp.instructor_id = ANY(:instructor_ids)
+                  AND ipp.kind = 'teaching_location'
+                GROUP BY ipp.instructor_id
+            ) tl ON tl.instructor_id = ip.user_id
             WHERE ip.user_id = ANY(:instructor_ids)
               AND ip.is_live = true
               AND ip.bgc_status = 'passed'
@@ -423,6 +440,9 @@ class RetrieverRepository:
                 "avg_rating": float(row.avg_rating) if row.avg_rating is not None else None,
                 "review_count": int(row.review_count or 0),
                 "coverage_areas": list(row.coverage_areas) if row.coverage_areas else [],
+                "teaching_locations": list(row.teaching_locations)
+                if row.teaching_locations
+                else [],
             }
             for row in result
         ]

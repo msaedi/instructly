@@ -125,16 +125,30 @@ class InstructorServiceAreaCheckResponse(StrictModel):
     coordinates: ServiceAreaCheckCoordinates
 
 
-class PreferredTeachingLocationOut(PreferredTeachingLocationIn):
+class PreferredTeachingLocationOut(BaseModel):
     """Preferred teaching location response payload."""
+
+    address: Optional[str] = None
+    label: Optional[str] = None
+    approx_lat: Optional[float] = None
+    approx_lng: Optional[float] = None
+    neighborhood: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
     @model_serializer
     def serialize(self) -> dict[str, Any]:
-        data: dict[str, Any] = {"address": self.address}
+        data: dict[str, Any] = {}
+        if self.address:
+            data["address"] = self.address
         if self.label is not None:
             data["label"] = self.label
+        if self.approx_lat is not None:
+            data["approx_lat"] = self.approx_lat
+        if self.approx_lng is not None:
+            data["approx_lng"] = self.approx_lng
+        if self.neighborhood:
+            data["neighborhood"] = self.neighborhood
         return data
 
 
@@ -536,7 +550,9 @@ class InstructorProfileResponse(InstructorProfileBase):
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def from_orm(cls, instructor_profile: Any) -> "InstructorProfileResponse":
+    def from_orm(
+        cls, instructor_profile: Any, *, include_private_fields: bool = True
+    ) -> "InstructorProfileResponse":
         """
         Create InstructorProfileResponse from ORM model with privacy protection.
 
@@ -564,12 +580,15 @@ class InstructorProfileResponse(InstructorProfileBase):
             )
 
             for place in teaching_sorted:
-                teaching_locations.append(
-                    PreferredTeachingLocationOut(
-                        address=getattr(place, "address", ""),
-                        label=getattr(place, "label", None),
-                    )
-                )
+                payload: dict[str, Any] = {
+                    "label": getattr(place, "label", None),
+                    "approx_lat": getattr(place, "approx_lat", None),
+                    "approx_lng": getattr(place, "approx_lng", None),
+                    "neighborhood": getattr(place, "neighborhood", None),
+                }
+                if include_private_fields:
+                    payload["address"] = getattr(place, "address", None)
+                teaching_locations.append(PreferredTeachingLocationOut(**payload))
 
             for place in public_sorted:
                 public_spaces.append(
@@ -614,6 +633,12 @@ class InstructorProfileResponse(InstructorProfileBase):
         if neighborhoods_source:
             for entry in neighborhoods_source:
                 if isinstance(entry, dict):
+                    if entry.get("is_active") is False:
+                        continue
+                else:
+                    if getattr(entry, "is_active", True) is False:
+                        continue
+                if isinstance(entry, dict):
                     neighborhood_id = entry.get("neighborhood_id") or entry.get("id")
                     ntacode = entry.get("ntacode") or entry.get("region_code")
                     name = entry.get("name") or entry.get("region_name")
@@ -644,6 +669,8 @@ class InstructorProfileResponse(InstructorProfileBase):
                 user_service_areas = getattr(instructor_profile.user, "service_areas", []) or []
 
             for area in user_service_areas:
+                if getattr(area, "is_active", True) is False:
+                    continue
                 neighborhood = getattr(area, "neighborhood", None)
                 neighborhood_id = getattr(area, "neighborhood_id", None)
                 if neighborhood is None:

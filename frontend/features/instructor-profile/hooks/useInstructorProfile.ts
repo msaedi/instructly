@@ -26,7 +26,13 @@ type ServerInstructorProfileResult = {
   service_area_boroughs?: string[];
   service_area_neighborhoods?: ServiceAreaNeighborhood[];
   service_area_summary?: string | null;
-  preferred_teaching_locations?: Array<{ address?: string; label?: string | null }>;
+  preferred_teaching_locations?: Array<{
+    address?: string | null;
+    label?: string | null;
+    approx_lat?: number | null;
+    approx_lng?: number | null;
+    neighborhood?: string | null;
+  }>;
   preferred_public_spaces?: Array<{ address?: string; label?: string | null }>;
   years_experience?: number;
   favorited_count?: number;
@@ -134,11 +140,44 @@ export function useInstructorProfile(instructorId: string) {
             .map((loc) => {
               if (!loc || typeof loc !== 'object') return null;
               const address = typeof loc.address === 'string' ? loc.address.trim() : '';
-              if (!address) return null;
               const labelRaw = typeof loc.label === 'string' ? loc.label.trim() : '';
-              return labelRaw ? { address, label: labelRaw } : { address };
+              const approxLat = typeof loc.approx_lat === 'number' ? loc.approx_lat : undefined;
+              const approxLng = typeof loc.approx_lng === 'number' ? loc.approx_lng : undefined;
+              const neighborhood = typeof loc.neighborhood === 'string' ? loc.neighborhood.trim() : '';
+
+              if (!address && !labelRaw && !Number.isFinite(approxLat) && !Number.isFinite(approxLng) && !neighborhood) {
+                return null;
+              }
+
+              const payload: {
+                address?: string;
+                label?: string;
+                approx_lat?: number;
+                approx_lng?: number;
+                neighborhood?: string;
+              } = {};
+              if (address) payload.address = address;
+              if (labelRaw) payload.label = labelRaw;
+              if (typeof approxLat === 'number' && Number.isFinite(approxLat)) {
+                payload.approx_lat = approxLat;
+              }
+              if (typeof approxLng === 'number' && Number.isFinite(approxLng)) {
+                payload.approx_lng = approxLng;
+              }
+              if (neighborhood) payload.neighborhood = neighborhood;
+              return payload;
             })
-            .filter((loc): loc is { address: string; label?: string } => loc !== null)
+            .filter(
+              (
+                loc
+              ): loc is {
+                address?: string;
+                label?: string;
+                approx_lat?: number;
+                approx_lng?: number;
+                neighborhood?: string;
+              } => loc !== null
+            )
         : [],
       preferred_public_spaces: Array.isArray(serverInst.preferred_public_spaces)
         ? serverInst.preferred_public_spaces

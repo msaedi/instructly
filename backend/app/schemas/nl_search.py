@@ -20,6 +20,14 @@ from pydantic import BaseModel, Field
 # =============================================================================
 
 
+class InstructorTeachingLocationSummary(BaseModel):
+    """Approximate teaching location data for public maps."""
+
+    approx_lat: float = Field(..., description="Approximate latitude")
+    approx_lng: float = Field(..., description="Approximate longitude")
+    neighborhood: Optional[str] = Field(None, description="Neighborhood or city label")
+
+
 class InstructorSummary(BaseModel):
     """Embedded instructor info for search results."""
 
@@ -31,6 +39,9 @@ class InstructorSummary(BaseModel):
     verified: bool = Field(False, description="Whether instructor is verified")
     is_founding_instructor: bool = Field(False, description="Founding instructor status")
     years_experience: Optional[int] = Field(None, description="Years of experience")
+    teaching_locations: List[InstructorTeachingLocationSummary] = Field(
+        default_factory=list, description="Approximate teaching locations for studio pins"
+    )
 
 
 class RatingSummary(BaseModel):
