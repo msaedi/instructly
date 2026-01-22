@@ -729,13 +729,17 @@ describe('InstructorCard', () => {
             hourly_rate: 60,
             duration_options: [60],
             location_types: ['in_person', 'online'],
+            offers_travel: true,
+            offers_online: true,
           },
         ],
       });
       renderWithProviders(<InstructorCard instructor={instructor} highlightServiceCatalogId="cat-1" />);
 
       await waitFor(() => {
-        expect(screen.getByText(/in-person.*online/i)).toBeInTheDocument();
+        expect(screen.getByText(/format:/i)).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /travels to you/i })).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /online/i })).toBeInTheDocument();
       });
     });
   });

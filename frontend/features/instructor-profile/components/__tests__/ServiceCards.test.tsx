@@ -43,6 +43,8 @@ describe('ServiceCards', () => {
       age_groups: ['kids'],
       levels_taught: ['advanced', 'beginner'],
       location_types: ['online', 'in_person'],
+      offers_travel: true,
+      offers_online: true,
       description: '',
     };
 
@@ -52,12 +54,9 @@ describe('ServiceCards', () => {
     expect(kidsBadge).toBeInTheDocument();
     expect(kidsBadge).not.toHaveClass('opacity-0');
     expect(screen.getByText((value) => value.includes('Levels:') && value.includes('Beginner') && value.includes('Advanced'))).toBeInTheDocument();
-    expect(
-      screen.getByText((value) => {
-        const lower = value.toLowerCase();
-        return lower.includes('format:') && lower.includes('in-person') && lower.includes('online');
-      })
-    ).toBeInTheDocument();
+    expect(screen.getByText(/format:/i)).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /travels to you/i })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /online/i })).toBeInTheDocument();
   });
 
   it('disables booking when the selected slot cannot fit the duration', () => {

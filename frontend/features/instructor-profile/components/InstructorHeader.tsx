@@ -9,7 +9,6 @@ import { favoritesApi } from '@/services/api/favorites';
 import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavoriteStatus';
 import { toast } from 'sonner';
 import type { InstructorProfile } from '@/types/instructor';
-import { MessageInstructorButton } from '@/components/instructor/MessageInstructorButton';
 import { FoundingBadge } from '@/components/ui/FoundingBadge';
 import { BGCBadge } from '@/components/ui/BGCBadge';
 
@@ -138,14 +137,6 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl lg:text-3xl font-bold text-[#7E22CE]" data-testid="instructor-profile-name">{displayName}</h1>
                 <div className="flex items-center gap-1.5">
-                  {/* Message Button */}
-                  <MessageInstructorButton
-                    instructorId={instructor.user_id}
-                    instructorName={displayName}
-                    variant="outline"
-                    size="sm"
-                    className="text-[#7E22CE] border-[#7E22CE] hover:bg-purple-50"
-                  />
                   <button
                     onClick={handleHeartClick}
                     disabled={isLoading}

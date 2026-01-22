@@ -51,32 +51,10 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
     return capitalized.join(' · ');
   })();
 
-  const rawLocations = (service as unknown as Record<string, unknown>)?.['location_types'];
-  const locationTypes = Array.isArray(rawLocations)
-    ? rawLocations
-        .map((loc) => (typeof loc === 'string' ? loc.trim().toLowerCase() : ''))
-        .filter((loc) => loc.length > 0)
-    : Array.isArray(service.location_types)
-      ? service.location_types
-          .map((loc) => (typeof loc === 'string' ? loc.trim().toLowerCase() : ''))
-          .filter((loc) => loc.length > 0)
-      : [];
-
-  const locationLabel = (() => {
-    if (!locationTypes.length) return '';
-    const uniqueTypes = Array.from(new Set(locationTypes));
-    const formatted = uniqueTypes.map((loc) => {
-      const normalized = loc.replace(/_/g, '-');
-      if (normalized.includes('-')) {
-        return normalized
-          .split('-')
-          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-          .join('-');
-      }
-      return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-    });
-    return formatted.join(' · ');
-  })();
+  const offersTravel = Boolean(service.offers_travel);
+  const offersAtLocation = Boolean(service.offers_at_location);
+  const offersOnline = Boolean(service.offers_online);
+  const hasFormat = offersTravel || offersAtLocation || offersOnline;
 
   const rawAgeGroups = (service as unknown as Record<string, unknown>)?.['age_groups'];
   const ageGroups = Array.isArray(rawAgeGroups)
@@ -149,13 +127,30 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
               ) : (
                 <span className="text-xs opacity-0">Levels placeholder</span>
               )}
-              {levelLabel && locationLabel ? (
+              {levelLabel && hasFormat ? (
                 <div className="w-10/12 h-px bg-gradient-to-r from-transparent via-[#7E22CE]/40 to-transparent" />
               ) : null}
-              {locationLabel ? (
+              {hasFormat ? (
                 <div className="flex items-center justify-center gap-2 text-sm text-gray-700 leading-tight">
                   <MonitorSmartphone className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
-                  <span>Format: {locationLabel}</span>
+                  <span>Format:</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    {offersTravel && (
+                      <span role="img" aria-label="Travels to you" title="Travels to you" className="cursor-help">
+                        🚗
+                      </span>
+                    )}
+                    {offersAtLocation && (
+                      <span role="img" aria-label="At their studio" title="At their studio" className="cursor-help">
+                        🏠
+                      </span>
+                    )}
+                    {offersOnline && (
+                      <span role="img" aria-label="Online" title="Online" className="cursor-help">
+                        💻
+                      </span>
+                    )}
+                  </span>
                 </div>
               ) : (
                 <span className="text-xs opacity-0">Format placeholder</span>

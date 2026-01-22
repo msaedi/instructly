@@ -486,7 +486,6 @@ const findNextAvailableSlot = (
                 })._matchedServiceContext;
                 const contextLevels = context?.levels ?? [];
                 const contextAgeGroups = context?.age_groups ?? [];
-                const contextLocations = context?.location_types ?? [];
 
                 const highlightService = highlightId
                   ? instructor.services.find(
@@ -494,17 +493,16 @@ const findNextAvailableSlot = (
                     )
                   : null;
 
+                const formatService = highlightService ?? instructor.services[0];
+                const offersTravel = Boolean(formatService?.offers_travel);
+                const offersAtLocation = Boolean(formatService?.offers_at_location);
+                const offersOnline = Boolean(formatService?.offers_online);
+                const hasFormat = offersTravel || offersAtLocation || offersOnline;
+
                 const derivedLevels = Array.isArray(highlightService?.levels_taught)
                   ? Array.from(
                       new Set(
                         highlightService!.levels_taught!.map((lvl) => String(lvl).trim().toLowerCase()).filter(Boolean),
-                      ),
-                    )
-                  : [];
-                const derivedLocations = Array.isArray(highlightService?.location_types)
-                  ? Array.from(
-                      new Set(
-                        highlightService!.location_types!.map((loc) => String(loc).trim().toLowerCase()).filter(Boolean),
                       ),
                     )
                   : [];
@@ -518,22 +516,9 @@ const findNextAvailableSlot = (
 
                 const levels = contextLevels.length ? contextLevels : derivedLevels;
                 const ageGroups = contextAgeGroups.length ? contextAgeGroups : derivedAgeGroups;
-                const locations = contextLocations.length ? contextLocations : derivedLocations;
 
                 const levelLabel = levels
                   .map((lvl) => lvl.charAt(0).toUpperCase() + lvl.slice(1))
-                  .join(' · ');
-                const locationLabel = locations
-                  .map((loc) => {
-                    const normalized = loc.replace(/_/g, '-');
-                    if (normalized.includes('-')) {
-                      return normalized
-                        .split('-')
-                        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-                        .join('-');
-                    }
-                    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-                  })
                   .join(' · ');
                 const showsKidsBadge = ageGroups.map((g) => g.toLowerCase()).includes('kids');
 
@@ -558,13 +543,29 @@ const findNextAvailableSlot = (
                     </div>
                   );
                 }
-                if (locationLabel) {
+                if (hasFormat) {
                   highlightRows.push(
                     <div className="flex items-center gap-2">
                       <MonitorSmartphone className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
                       <div>
                         <span className="font-semibold text-[#7E22CE]">Format:</span>{' '}
-                        <span>{locationLabel}</span>
+                        <span className="inline-flex items-center gap-1.5">
+                          {offersTravel && (
+                            <span role="img" aria-label="Travels to you" title="Travels to you" className="cursor-help">
+                              🚗
+                            </span>
+                          )}
+                          {offersAtLocation && (
+                            <span role="img" aria-label="At their studio" title="At their studio" className="cursor-help">
+                              🏠
+                            </span>
+                          )}
+                          {offersOnline && (
+                            <span role="img" aria-label="Online" title="Online" className="cursor-help">
+                              💻
+                            </span>
+                          )}
+                        </span>
                       </div>
                     </div>
                   );
