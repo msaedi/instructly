@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { publicApi } from '@/features/shared/api/client';
 import { validateWithZod } from '@/features/shared/api/validation';
@@ -19,8 +19,14 @@ import { recordSearch } from '@/lib/searchTracking';
 import { withApiBase } from '@/lib/apiBase';
 import { SearchType } from '@/types/enums';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ChevronDown, X, Calendar, SlidersHorizontal } from 'lucide-react';
 import type { components } from '@/features/shared/api/types';
+
+// Filter types
+type DateFilter = 'today' | 'this_week' | 'custom' | null;
+type TimeFilter = 'morning' | 'afternoon' | null;
+type LessonTypeFilter = 'online' | 'in_person' | null;
+type SortOption = 'recommended' | 'price_asc' | 'price_desc' | 'rating';
 
 type CoverageFeatureCollectionResponse = components['schemas']['CoverageFeatureCollectionResponse'];
 
@@ -131,9 +137,76 @@ interface GeoJSONFeature {
   };
 }
 
+// Helper to build query with filters appended
+const buildQueryWithFilters = (
+  baseQuery: string,
+  dateFilter: DateFilter,
+  timeFilter: TimeFilter,
+  lessonType: LessonTypeFilter,
+  minPrice: number | null,
+  maxPrice: number | null,
+  customDate: string | null
+): string => {
+  let query = baseQuery.trim();
+
+  // Remove existing filter keywords to avoid duplication
+  const filterPatterns = [
+    /\b(today|tomorrow|this week|next week)\b/gi,
+    /\b(morning|afternoon|evening)\b/gi,
+    /\b(online|in-person|in person|virtual)\b/gi,
+    /\bunder \$?\d+\b/gi,
+    /\babove \$?\d+\b/gi,
+    /\$\d+\s*-\s*\$?\d+/gi,
+  ];
+  for (const pattern of filterPatterns) {
+    query = query.replace(pattern, '').trim();
+  }
+  // Clean up extra spaces
+  query = query.replace(/\s+/g, ' ').trim();
+
+  // Append date filter
+  if (dateFilter === 'today') {
+    query = `${query} today`;
+  } else if (dateFilter === 'this_week') {
+    query = `${query} this week`;
+  } else if (dateFilter === 'custom' && customDate) {
+    // Format: "on January 25" - backend parser handles date expressions
+    const date = new Date(customDate);
+    const monthName = date.toLocaleDateString('en-US', { month: 'long' });
+    const day = date.getDate();
+    query = `${query} on ${monthName} ${day}`;
+  }
+
+  // Append time filter
+  if (timeFilter === 'morning') {
+    query = `${query} morning`;
+  } else if (timeFilter === 'afternoon') {
+    query = `${query} afternoon`;
+  }
+
+  // Append lesson type
+  if (lessonType === 'online') {
+    query = `${query} online`;
+  } else if (lessonType === 'in_person') {
+    query = `${query} in-person`;
+  }
+
+  // Append price filters
+  if (minPrice !== null && maxPrice !== null) {
+    query = `${query} $${minPrice}-$${maxPrice}`;
+  } else if (maxPrice !== null) {
+    query = `${query} under $${maxPrice}`;
+  } else if (minPrice !== null) {
+    query = `${query} above $${minPrice}`;
+  }
+
+  return query.trim();
+};
+
 function SearchPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const pathname = usePathname();
   const { setActivity } = useBackgroundConfig();
   const { isAuthenticated } = useAuth();
   const headerRef = useRef<HTMLDivElement | null>(null);
@@ -166,6 +239,155 @@ function SearchPageContent() {
   const [showSearchAreaButton, setShowSearchAreaButton] = useState(false);
   const [filteredInstructors, setFilteredInstructors] = useState<Instructor[]>([]);
   const [nlSearchMeta, setNlSearchMeta] = useState<Record<string, unknown> | null>(null);
+
+  // Filter state - read from URL params on mount
+  const dateFilterParam = searchParams.get('date') as DateFilter;
+  const timeFilterParam = searchParams.get('time') as TimeFilter;
+  const lessonTypeParam = searchParams.get('lesson_type') as LessonTypeFilter;
+  const minPriceParam = searchParams.get('min_price');
+  const maxPriceParam = searchParams.get('max_price');
+  const customDateParam = searchParams.get('custom_date');
+  const sortParam = (searchParams.get('sort') || 'recommended') as SortOption;
+
+  const [dateFilter, setDateFilter] = useState<DateFilter>(dateFilterParam);
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>(timeFilterParam);
+  const [lessonType, setLessonType] = useState<LessonTypeFilter>(lessonTypeParam);
+  const [minPrice, setMinPrice] = useState<number | null>(minPriceParam ? parseInt(minPriceParam, 10) : null);
+  const [maxPrice, setMaxPrice] = useState<number | null>(maxPriceParam ? parseInt(maxPriceParam, 10) : null);
+  const [customDate, setCustomDate] = useState<string | null>(customDateParam);
+  const [sortOption, setSortOption] = useState<SortOption>(sortParam);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const moreFiltersRef = useRef<HTMLDivElement>(null);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Update URL params when filters change
+  const updateFilters = useCallback((updates: {
+    date?: DateFilter;
+    time?: TimeFilter;
+    lesson_type?: LessonTypeFilter;
+    min_price?: number | null;
+    max_price?: number | null;
+    custom_date?: string | null;
+    sort?: SortOption;
+  }) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    // Handle date filter
+    if ('date' in updates) {
+      if (updates.date) {
+        params.set('date', updates.date);
+      } else {
+        params.delete('date');
+      }
+      setDateFilter(updates.date ?? null);
+    }
+
+    // Handle time filter
+    if ('time' in updates) {
+      if (updates.time) {
+        params.set('time', updates.time);
+      } else {
+        params.delete('time');
+      }
+      setTimeFilter(updates.time ?? null);
+    }
+
+    // Handle lesson type filter
+    if ('lesson_type' in updates) {
+      if (updates.lesson_type) {
+        params.set('lesson_type', updates.lesson_type);
+      } else {
+        params.delete('lesson_type');
+      }
+      setLessonType(updates.lesson_type ?? null);
+    }
+
+    // Handle min price
+    if ('min_price' in updates) {
+      if (updates.min_price !== null && updates.min_price !== undefined) {
+        params.set('min_price', String(updates.min_price));
+      } else {
+        params.delete('min_price');
+      }
+      setMinPrice(updates.min_price ?? null);
+    }
+
+    // Handle max price
+    if ('max_price' in updates) {
+      if (updates.max_price !== null && updates.max_price !== undefined) {
+        params.set('max_price', String(updates.max_price));
+      } else {
+        params.delete('max_price');
+      }
+      setMaxPrice(updates.max_price ?? null);
+    }
+
+    // Handle custom date
+    if ('custom_date' in updates) {
+      if (updates.custom_date) {
+        params.set('custom_date', updates.custom_date);
+      } else {
+        params.delete('custom_date');
+      }
+      setCustomDate(updates.custom_date ?? null);
+    }
+
+    // Handle sort
+    if ('sort' in updates) {
+      if (updates.sort && updates.sort !== 'recommended') {
+        params.set('sort', updates.sort);
+      } else {
+        params.delete('sort');
+      }
+      setSortOption(updates.sort ?? 'recommended');
+    }
+
+    const queryString = params.toString();
+    router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+  }, [searchParams, pathname, router]);
+
+  // Clear all filters
+  const clearAllFilters = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('date');
+    params.delete('time');
+    params.delete('lesson_type');
+    params.delete('min_price');
+    params.delete('max_price');
+    params.delete('custom_date');
+    params.delete('sort');
+
+    setDateFilter(null);
+    setTimeFilter(null);
+    setLessonType(null);
+    setMinPrice(null);
+    setMaxPrice(null);
+    setCustomDate(null);
+    setSortOption('recommended');
+
+    const queryString = params.toString();
+    router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+  }, [searchParams, pathname, router]);
+
+  // Check if any filters are active
+  const hasActiveFilters = dateFilter !== null || timeFilter !== null || lessonType !== null ||
+    minPrice !== null || maxPrice !== null;
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreFiltersRef.current && !moreFiltersRef.current.contains(event.target as Node)) {
+        setShowMoreFilters(false);
+      }
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target as Node)) {
+        setShowSortDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const RateLimitBanner = () =>
     rateLimit ? (
@@ -247,7 +469,17 @@ function SearchPageContent() {
       // Note: Observability tracking now uses instructor-level results directly
 
       if (query) {
-        const nlResponse = await publicApi.searchWithNaturalLanguage(query);
+        // Build the search query with filters appended
+        const searchQuery = buildQueryWithFilters(
+          query,
+          dateFilter,
+          timeFilter,
+          lessonType,
+          minPrice,
+          maxPrice,
+          customDate
+        );
+        const nlResponse = await publicApi.searchWithNaturalLanguage(searchQuery);
         if (nlResponse.error) {
           setNlSearchMeta(null);
           // If 429, client returns retryAfterSeconds – show rate limit banner instead of generic error
@@ -510,11 +742,11 @@ function SearchPageContent() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [query, category, serviceCatalogId, isAuthenticated, serviceNameFromUrl, fromSource, serviceName]);
+  }, [query, category, serviceCatalogId, isAuthenticated, serviceNameFromUrl, fromSource, serviceName, dateFilter, timeFilter, lessonType, minPrice, maxPrice, customDate]);
 
   useEffect(() => {
     void fetchResults(1, false);
-  }, [query, category, serviceCatalogId, availableNow, fetchResults]);
+  }, [query, category, serviceCatalogId, availableNow, fetchResults, dateFilter, timeFilter, lessonType, minPrice, maxPrice, customDate]);
 
   // Initialize filtered instructors when instructors change
   useEffect(() => {
@@ -807,32 +1039,270 @@ function SearchPageContent() {
           {/* Filter Bar - Extra compact on stacked view */}
           <div className={`px-6 ${isStacked ? 'pt-1 pb-1' : 'pt-0 md:pt-2 pb-1 md:pb-3'}`}>
             <div className={`bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 ${isStacked ? 'p-1' : 'p-1 md:p-4'}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex gap-1 md:gap-6 pr-1 md:pr-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex gap-1 md:gap-3 pr-1 md:pr-2 flex-wrap">
                   {/* Date filters group */}
                   <div className={`bg-gray-100 rounded-lg ${isStacked ? 'px-0.5 py-0.5' : 'px-0.5 py-0.5'} flex gap-0.5`}>
-                    <button className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} bg-white rounded-md font-medium cursor-pointer`}>Today</button>
-                    <button className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} text-gray-600 hover:bg-gray-50 rounded-md cursor-pointer`}>This Week</button>
-                    <button className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} text-gray-600 hover:bg-gray-50 rounded-md cursor-pointer`}>Choose Date</button>
+                    <button
+                      onClick={() => updateFilters({ date: dateFilter === 'today' ? null : 'today', custom_date: null })}
+                      className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} ${
+                        dateFilter === 'today'
+                          ? 'bg-[#7E22CE] text-white'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      } rounded-md font-medium cursor-pointer transition-colors`}
+                    >
+                      Today
+                    </button>
+                    <button
+                      onClick={() => updateFilters({ date: dateFilter === 'this_week' ? null : 'this_week', custom_date: null })}
+                      className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} ${
+                        dateFilter === 'this_week'
+                          ? 'bg-[#7E22CE] text-white'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      } rounded-md font-medium cursor-pointer transition-colors`}
+                    >
+                      This Week
+                    </button>
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowDatePicker(!showDatePicker)}
+                        className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} ${
+                          dateFilter === 'custom'
+                            ? 'bg-[#7E22CE] text-white'
+                            : 'text-gray-600 hover:bg-gray-50'
+                        } rounded-md font-medium cursor-pointer transition-colors flex items-center gap-1`}
+                      >
+                        <Calendar className="h-3 w-3" />
+                        {dateFilter === 'custom' && customDate
+                          ? new Date(customDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                          : 'Date'}
+                      </button>
+                      {showDatePicker && (
+                        <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 p-3 z-50">
+                          <input
+                            type="date"
+                            value={customDate || ''}
+                            min={new Date().toISOString().split('T')[0]}
+                            onChange={(e) => {
+                              const newDate = e.target.value;
+                              if (newDate) {
+                                updateFilters({ date: 'custom', custom_date: newDate });
+                              }
+                              setShowDatePicker(false);
+                            }}
+                            className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE] focus:border-transparent"
+                          />
+                          {dateFilter === 'custom' && (
+                            <button
+                              onClick={() => {
+                                updateFilters({ date: null, custom_date: null });
+                                setShowDatePicker(false);
+                              }}
+                              className="mt-2 text-xs text-gray-500 hover:text-gray-700"
+                            >
+                              Clear date
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Time filters group */}
                   <div className={`bg-gray-100 rounded-lg ${isStacked ? 'px-0.5 py-0.5' : 'px-0.5 py-0.5'} flex gap-0.5`}>
-                    <button className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} text-gray-600 hover:bg-gray-50 rounded-md cursor-pointer`}>Morning</button>
-                    <button className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} text-gray-600 hover:bg-gray-50 rounded-md cursor-pointer`}>Afternoon</button>
+                    <button
+                      onClick={() => updateFilters({ time: timeFilter === 'morning' ? null : 'morning' })}
+                      className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} ${
+                        timeFilter === 'morning'
+                          ? 'bg-[#7E22CE] text-white'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      } rounded-md font-medium cursor-pointer transition-colors`}
+                    >
+                      Morning
+                    </button>
+                    <button
+                      onClick={() => updateFilters({ time: timeFilter === 'afternoon' ? null : 'afternoon' })}
+                      className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} ${
+                        timeFilter === 'afternoon'
+                          ? 'bg-[#7E22CE] text-white'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      } rounded-md font-medium cursor-pointer transition-colors`}
+                    >
+                      Afternoon
+                    </button>
                   </div>
 
-                  {/* More Filters button */}
-                  <button className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer`}>More Filters</button>
+                  {/* More Filters dropdown */}
+                  <div className="relative" ref={moreFiltersRef}>
+                    <button
+                      onClick={() => setShowMoreFilters(!showMoreFilters)}
+                      className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} ${
+                        lessonType !== null || minPrice !== null || maxPrice !== null
+                          ? 'bg-[#7E22CE] text-white border-[#7E22CE]'
+                          : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      } border rounded-lg cursor-pointer flex items-center gap-1 transition-colors`}
+                    >
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                      <span>Filters</span>
+                      {(lessonType !== null || minPrice !== null || maxPrice !== null) && (
+                        <span className="bg-white text-[#7E22CE] text-xs rounded-full px-1.5 py-0.5 font-medium">
+                          {[lessonType, minPrice !== null || maxPrice !== null ? 'price' : null].filter(Boolean).length}
+                        </span>
+                      )}
+                    </button>
+
+                    {showMoreFilters && (
+                      <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-50 min-w-[280px]">
+                        {/* Price Range */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Price Range</label>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1">
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                                <input
+                                  type="number"
+                                  placeholder="Min"
+                                  value={minPrice ?? ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value ? parseInt(e.target.value, 10) : null;
+                                    setMinPrice(val);
+                                  }}
+                                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE] focus:border-transparent"
+                                />
+                              </div>
+                            </div>
+                            <span className="text-gray-400">-</span>
+                            <div className="flex-1">
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                                <input
+                                  type="number"
+                                  placeholder="Max"
+                                  value={maxPrice ?? ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value ? parseInt(e.target.value, 10) : null;
+                                    setMaxPrice(val);
+                                  }}
+                                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE] focus:border-transparent"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Lesson Type */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Lesson Type</label>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setLessonType(lessonType === 'online' ? null : 'online')}
+                              className={`flex-1 px-3 py-2 text-sm rounded-md border transition-colors ${
+                                lessonType === 'online'
+                                  ? 'bg-[#7E22CE] text-white border-[#7E22CE]'
+                                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              Online
+                            </button>
+                            <button
+                              onClick={() => setLessonType(lessonType === 'in_person' ? null : 'in_person')}
+                              className={`flex-1 px-3 py-2 text-sm rounded-md border transition-colors ${
+                                lessonType === 'in_person'
+                                  ? 'bg-[#7E22CE] text-white border-[#7E22CE]'
+                                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              In-Person
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-2 pt-2 border-t border-gray-100">
+                          <button
+                            onClick={() => {
+                              setMinPrice(null);
+                              setMaxPrice(null);
+                              setLessonType(null);
+                            }}
+                            className="flex-1 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-md transition-colors"
+                          >
+                            Clear
+                          </button>
+                          <button
+                            onClick={() => {
+                              updateFilters({
+                                min_price: minPrice,
+                                max_price: maxPrice,
+                                lesson_type: lessonType,
+                              });
+                              setShowMoreFilters(false);
+                            }}
+                            className="flex-1 px-3 py-2 text-sm bg-[#7E22CE] text-white rounded-md hover:bg-[#6B1D9E] transition-colors"
+                          >
+                            Apply
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Clear all filters button */}
+                  {hasActiveFilters && (
+                    <button
+                      onClick={clearAllFilters}
+                      className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-3 md:py-2 text-xs md:text-sm'} text-gray-500 hover:text-gray-700 flex items-center gap-1 cursor-pointer transition-colors`}
+                    >
+                      <X className="h-3 w-3" />
+                      <span className="hidden sm:inline">Clear</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Sort section */}
-                <div className={`flex items-center gap-1 ${isStacked ? 'ml-1' : 'ml-3 md:ml-4'}`}>
-                  <span className={`${isStacked ? 'text-xs' : 'text-xs md:text-sm'} text-gray-600 whitespace-nowrap`}>Sort by:</span>
-                  <button className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer`}>
-                    <span>Recommended</span>
-                    <span className="text-gray-500">▼</span>
-                  </button>
+                <div className={`flex items-center gap-1 ${isStacked ? 'ml-1' : 'ml-3 md:ml-4'}`} ref={sortDropdownRef}>
+                  <span className={`${isStacked ? 'text-xs hidden' : 'text-xs md:text-sm'} text-gray-600 whitespace-nowrap hidden sm:inline`}>Sort:</span>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowSortDropdown(!showSortDropdown)}
+                      className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer transition-colors`}
+                    >
+                      <span>
+                        {sortOption === 'recommended' && 'Recommended'}
+                        {sortOption === 'price_asc' && 'Price: Low'}
+                        {sortOption === 'price_desc' && 'Price: High'}
+                        {sortOption === 'rating' && 'Top Rated'}
+                      </span>
+                      <ChevronDown className={`h-3 w-3 text-gray-500 transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {showSortDropdown && (
+                      <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]">
+                        {[
+                          { value: 'recommended', label: 'Recommended' },
+                          { value: 'price_asc', label: 'Price: Low to High' },
+                          { value: 'price_desc', label: 'Price: High to Low' },
+                          { value: 'rating', label: 'Highest Rated' },
+                        ].map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => {
+                              updateFilters({ sort: option.value as SortOption });
+                              setShowSortDropdown(false);
+                            }}
+                            className={`w-full px-4 py-2 text-left text-sm transition-colors ${
+                              sortOption === option.value
+                                ? 'bg-purple-50 text-[#7E22CE] font-medium'
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

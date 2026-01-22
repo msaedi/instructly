@@ -121,7 +121,8 @@ async def _record_search_entry(
 
     user_agent = request.headers.get("User-Agent")
 
-    device_context = getattr(payload, "device_context", None)
+    search_context = payload.search_context.model_dump() if payload.search_context else None
+    device_context = payload.device_context.model_dump() if payload.device_context else None
 
     try:
         search_dict = {
@@ -129,7 +130,7 @@ async def _record_search_entry(
             "search_type": payload.search_type,
             "results_count": payload.results_count,
             "referrer": context.search_origin,
-            "context": getattr(payload, "search_context", None),
+            "context": search_context,
         }
 
         search = await search_service.record_search(
