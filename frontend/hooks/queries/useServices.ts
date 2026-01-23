@@ -5,6 +5,7 @@ import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi } from '@/features/shared/api/client';
 import type { ServiceCategory as ShimServiceCategory, ServiceSearchResponseWithPaging } from '@/features/shared/api/types';
 import type { CatalogService } from '@/features/shared/api/client';
+import type { ServiceCatalogItem } from '@/types/api';
 import { withApiBase } from '@/lib/apiBase';
 
 /**
@@ -92,6 +93,29 @@ export function useServicesByCategory(categorySlug: string, enabled: boolean = t
     enabled: enabled && !!categorySlug,
     staleTime: CACHE_TIMES.SLOW, // 15 minutes
     gcTime: CACHE_TIMES.SLOW * 2, // 30 minutes
+  });
+}
+
+/**
+ * Hook to fetch the full services catalog for reuse across the app
+ * (e.g. Instructor cards).
+ */
+export function useServicesCatalog() {
+  return useQuery<ServiceCatalogItem[]>({
+    queryKey: queryKeys.services.catalog,
+    queryFn: async () => {
+      const response = await publicApi.getCatalogServices();
+      const data = convertApiResponse(response);
+      return data.map((service) => {
+        const { description, ...rest } = service;
+        return {
+          ...rest,
+          ...(typeof description === 'string' ? { description } : {}),
+        };
+      });
+    },
+    staleTime: 1000 * 60 * 30, // 30 minutes
+    gcTime: 1000 * 60 * 60, // 1 hour
   });
 }
 

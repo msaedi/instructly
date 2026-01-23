@@ -51,6 +51,10 @@ jest.mock('@/src/api/services/reviews', () => ({
   useRecentReviews: () => ({ data: { reviews: [] }, isLoading: false }),
 }));
 
+jest.mock('@/hooks/queries/useServices', () => ({
+  useServicesCatalog: () => ({ data: [] }),
+}));
+
 jest.mock('@/services/api/favorites', () => ({
   favoritesApi: {
     check: jest.fn().mockResolvedValue({ is_favorited: false }),
@@ -70,12 +74,6 @@ jest.mock('@/lib/api/pricing', () => ({
   formatCentsToDisplay: jest.fn((amount: number) => `$${(amount / 100).toFixed(2)}`),
 }));
 
-jest.mock('@/features/shared/api/client', () => ({
-  publicApi: {
-    getCatalogServices: jest.fn().mockResolvedValue({ data: [] }),
-  },
-  protectedApi: {},
-}));
 
 const buildInstructor = (): Instructor => ({
   id: 'instructor-profile-1',

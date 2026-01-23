@@ -7527,6 +7527,9 @@ export type components = {
  ServiceMatch: {
  description?: string | null;
  name: string;
+ offers_at_location?: boolean | null;
+ offers_online?: boolean | null;
+ offers_travel?: boolean | null;
  price_per_hour: number;
  relevance_score: number;
  service_catalog_id: string;

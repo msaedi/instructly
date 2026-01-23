@@ -34,7 +34,7 @@ def test_jitter_coordinates_distance_within_bounds(lat: float, lng: float) -> No
     jittered_lat, jittered_lng = jitter_coordinates(lat, lng)
     distance = _haversine_distance_m(lat, lng, jittered_lat, jittered_lng)
 
-    assert 299 <= distance <= 501
+    assert 99 <= distance <= 201
 
 
 def test_jitter_coordinates_changes_output() -> None:

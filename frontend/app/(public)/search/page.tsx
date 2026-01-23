@@ -4,9 +4,6 @@
 import { useEffect, useState, Suspense, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { publicApi } from '@/features/shared/api/client';
-import { validateWithZod } from '@/features/shared/api/validation';
-import { loadSearchListSchema } from '@/features/shared/api/schemas/searchList';
 import InstructorCard from '@/components/InstructorCard';
 import dynamic from 'next/dynamic';
 const InstructorCoverageMap = dynamic(() => import('@/components/maps/InstructorCoverageMap'), { ssr: false });
@@ -19,8 +16,10 @@ import { recordSearch } from '@/lib/searchTracking';
 import { withApiBase } from '@/lib/apiBase';
 import { SearchType } from '@/types/enums';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import { useInstructorSearch } from '@/hooks/queries/useInstructorSearch';
+import { useInstructorCoverage } from '@/hooks/queries/useInstructorCoverage';
+import { usePublicAvailability } from '@/hooks/queries/usePublicAvailability';
 import { AlertTriangle, ChevronDown, X, Calendar, SlidersHorizontal } from 'lucide-react';
-import type { components } from '@/features/shared/api/types';
 
 // Filter types
 type DateFilter = 'today' | 'this_week' | 'custom' | null;
@@ -28,7 +27,6 @@ type TimeFilter = 'morning' | 'afternoon' | null;
 type LessonTypeFilter = 'online' | 'in_person' | null;
 type SortOption = 'recommended' | 'price_asc' | 'price_desc' | 'rating';
 
-type CoverageFeatureCollectionResponse = components['schemas']['CoverageFeatureCollectionResponse'];
 
 const getServiceDisplayName = (service: Instructor['services'][number]): string => {
   const candidates: Array<unknown> = [
@@ -123,19 +121,270 @@ const dedupeAndOrderServices = (
     .filter((svc): svc is Instructor['services'][number] => Boolean(svc));
 };
 
+const normalizeTeachingLocations = (
+  locations: readonly unknown[]
+): Array<{ approx_lat: number; approx_lng: number; neighborhood?: string }> => {
+  return locations
+    .map((loc) => {
+      if (!isRecord(loc)) return null;
+      const approxLat = getNumber(loc, 'approx_lat', Number.NaN);
+      const approxLng = getNumber(loc, 'approx_lng', Number.NaN);
+      if (!Number.isFinite(approxLat) || !Number.isFinite(approxLng)) return null;
+      const neighborhood = getString(loc, 'neighborhood', '').trim();
+      return {
+        approx_lat: approxLat,
+        approx_lng: approxLng,
+        ...(neighborhood ? { neighborhood } : {}),
+      };
+    })
+    .filter(
+      (loc): loc is { approx_lat: number; approx_lng: number; neighborhood?: string } =>
+        loc !== null
+    );
+};
+
+const getOptionalBoolean = (record: Record<string, unknown>, key: string): boolean | undefined => {
+  const value = record[key];
+  return typeof value === 'boolean' ? value : undefined;
+};
+
+type NormalizedSearchResult = {
+  instructors: Instructor[];
+  totalResults: number;
+  hasMore: boolean;
+  meta: Record<string, unknown> | null;
+};
+
+type NormalizeSearchInput =
+  | {
+      mode: 'nl';
+      results: unknown[];
+      meta?: unknown;
+    }
+  | {
+      mode: 'catalog';
+      results: unknown[];
+      total: number;
+      hasNext: boolean;
+      serviceCatalogId?: string | null;
+    };
+
+const normalizeSearchResults = (input: NormalizeSearchInput): NormalizedSearchResult => {
+  if (input.mode === 'nl') {
+    const instructors = input.results
+      .map((result: unknown) => {
+        if (!isRecord(result)) {
+          return null;
+        }
+
+        // Extract instructor-level data
+        const instructorId = getString(result, 'instructor_id', '');
+        const relevanceScore = getNumber(result, 'relevance_score', 0);
+
+        // Extract embedded instructor info
+        const instructorInfo = isRecord(result['instructor']) ? result['instructor'] : {};
+        const firstName = getString(instructorInfo, 'first_name', 'Instructor');
+        const lastInitial = getString(instructorInfo, 'last_initial', '');
+        const bioSnippet = getString(instructorInfo, 'bio_snippet', '');
+        const profilePictureUrl = getString(instructorInfo, 'profile_picture_url', '');
+        const verified = Boolean(instructorInfo['verified']);
+        const isFoundingInstructor = Boolean(instructorInfo['is_founding_instructor']);
+        const yearsExperience = getNumber(instructorInfo, 'years_experience', 0);
+
+        // Extract embedded rating info
+        const ratingInfo = isRecord(result['rating']) ? result['rating'] : {};
+        const avgRating = getNumber(ratingInfo, 'average', 0);
+        const reviewCount = getNumber(ratingInfo, 'count', 0);
+
+        // Extract coverage areas
+        const coverageAreas = getArray(result, 'coverage_areas').filter(
+          (v): v is string => typeof v === 'string'
+        );
+
+        const teachingLocations = getArray(instructorInfo, 'teaching_locations')
+          .map((loc) => {
+            if (!isRecord(loc)) return null;
+            const approxLat = getNumber(loc, 'approx_lat', Number.NaN);
+            const approxLng = getNumber(loc, 'approx_lng', Number.NaN);
+            if (!Number.isFinite(approxLat) || !Number.isFinite(approxLng)) return null;
+            const neighborhood = getString(loc, 'neighborhood', '').trim();
+            return {
+              approx_lat: approxLat,
+              approx_lng: approxLng,
+              ...(neighborhood ? { neighborhood } : {}),
+            };
+          })
+          .filter(
+            (loc): loc is { approx_lat: number; approx_lng: number; neighborhood?: string } =>
+              loc !== null
+          );
+
+        // Optional debug distance from searched location (populated when location was resolved)
+        const distanceMiRaw = getNumber(result, 'distance_mi', Number.NaN);
+        const distanceMi = Number.isFinite(distanceMiRaw) ? distanceMiRaw : null;
+        const distanceKmRaw = getNumber(result, 'distance_km', Number.NaN);
+        const distanceKm = Number.isFinite(distanceKmRaw) ? distanceKmRaw : null;
+
+        // Extract best matching service
+        const bestMatch = isRecord(result['best_match']) ? result['best_match'] : {};
+        const bestServiceId = getString(bestMatch, 'service_id', '');
+        const bestServiceCatalogId = getString(bestMatch, 'service_catalog_id', '');
+        const bestServiceName = getString(bestMatch, 'name', '');
+        const bestServiceDescription = getString(bestMatch, 'description', '');
+        const bestPricePerHour = getNumber(bestMatch, 'price_per_hour', 0);
+        const bestOffersTravel = getOptionalBoolean(bestMatch, 'offers_travel');
+        const bestOffersAtLocation = getOptionalBoolean(bestMatch, 'offers_at_location');
+        const bestOffersOnline = getOptionalBoolean(bestMatch, 'offers_online');
+
+        // Build services array from best_match + other_matches
+        const services: Instructor['services'] = [];
+
+        // Add best match as first service
+        services.push({
+          id: bestServiceId,
+          service_catalog_id: bestServiceCatalogId,
+          service_catalog_name: bestServiceName,
+          hourly_rate: bestPricePerHour,
+          description: bestServiceDescription,
+          duration_options: [60],
+          is_active: true,
+          ...(bestOffersTravel !== undefined ? { offers_travel: bestOffersTravel } : {}),
+          ...(bestOffersAtLocation !== undefined ? { offers_at_location: bestOffersAtLocation } : {}),
+          ...(bestOffersOnline !== undefined ? { offers_online: bestOffersOnline } : {}),
+        });
+
+        // Add other matches
+        const otherMatches = getArray(result, 'other_matches');
+        for (const match of otherMatches) {
+          if (!isRecord(match)) continue;
+          const matchOffersTravel = getOptionalBoolean(match, 'offers_travel');
+          const matchOffersAtLocation = getOptionalBoolean(match, 'offers_at_location');
+          const matchOffersOnline = getOptionalBoolean(match, 'offers_online');
+          services.push({
+            id: getString(match, 'service_id', ''),
+            service_catalog_id: getString(match, 'service_catalog_id', ''),
+            service_catalog_name: getString(match, 'name', ''),
+            hourly_rate: getNumber(match, 'price_per_hour', 0),
+            description: getString(match, 'description', ''),
+            duration_options: [60],
+            is_active: true,
+            ...(matchOffersTravel !== undefined ? { offers_travel: matchOffersTravel } : {}),
+            ...(matchOffersAtLocation !== undefined ? { offers_at_location: matchOffersAtLocation } : {}),
+            ...(matchOffersOnline !== undefined ? { offers_online: matchOffersOnline } : {}),
+          });
+        }
+
+        const mapped = {
+          id: instructorId,
+          user_id: instructorId,
+          bio: bioSnippet,
+          profile_picture_url: profilePictureUrl,
+          service_area_summary: coverageAreas.join(', '),
+          service_area_boroughs: coverageAreas,
+          service_area_neighborhoods: [] as Array<{
+            neighborhood_id: string;
+            ntacode: string | null;
+            name: string | null;
+            borough: string | null;
+          }>,
+          years_experience: yearsExperience,
+          teaching_locations: teachingLocations,
+          user: {
+            first_name: firstName,
+            last_initial: lastInitial,
+          },
+          is_founding_instructor: isFoundingInstructor,
+          is_live: true,
+          services,
+          verified,
+          rating: avgRating || undefined,
+          total_reviews: reviewCount,
+          distance_mi: distanceMi,
+          distance_km: distanceKm,
+          _matchedServiceContext: {
+            levels: [] as string[],
+            age_groups: [] as string[],
+            location_types: [] as string[],
+          },
+          relevance_score: relevanceScore,
+          _matchedServiceCatalogId: bestServiceCatalogId || null,
+        } as Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null };
+
+        return mapped;
+      })
+      .filter(
+        (
+          item:
+            | (Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null })
+            | null
+        ): item is Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null } =>
+          item !== null
+      );
+
+    const meta = isRecord(input.meta) ? input.meta : null;
+    const totalResults = meta ? getNumber(meta, 'total_results', instructors.length) : instructors.length;
+    return { instructors, totalResults, hasMore: false, meta };
+  }
+
+  const casted = input.results as unknown as Instructor[];
+  const instructors = casted.map((item) => {
+    const matchId = input.serviceCatalogId || null;
+    const teachingLocationsRaw = getArray(item, 'teaching_locations');
+    const preferredLocationsRaw = getArray(item, 'preferred_teaching_locations');
+    const teachingLocations = normalizeTeachingLocations(
+      teachingLocationsRaw.length ? teachingLocationsRaw : preferredLocationsRaw
+    );
+    const highlightedService = Array.isArray(item.services)
+      ? item.services.find(
+          (svc) =>
+            (svc.service_catalog_id || '').trim().toLowerCase() ===
+              (matchId || '').trim().toLowerCase()
+        ) || item.services[0]
+      : undefined;
+    const levels = Array.isArray(highlightedService?.levels_taught) ? highlightedService.levels_taught : [];
+    const ageGroups = Array.isArray(highlightedService?.age_groups) ? highlightedService.age_groups : [];
+    const locationTypes = Array.isArray(highlightedService?.location_types)
+      ? highlightedService.location_types
+      : [];
+    return {
+      ...item,
+      ...(teachingLocations.length ? { teaching_locations: teachingLocations } : {}),
+      _matchedServiceCatalogId: matchId,
+      _matchedServiceContext: {
+        levels,
+        age_groups: ageGroups,
+        location_types: locationTypes,
+      },
+    };
+  });
+
+  return {
+    instructors,
+    totalResults: input.total,
+    hasMore: input.hasNext,
+    meta: null,
+  };
+};
+
 // Note: Instructor profile hydration removed - backend now returns all embedded data
 // in NL search response (instructor info, ratings, coverage areas, services)
 
 // GeoJSON feature interface for coverage areas
 interface GeoJSONFeature {
+  type: 'Feature';
   properties?: {
     instructors?: string[];
   };
   geometry?: {
-    type?: string;
-    coordinates?: unknown;
+    type: string;
+    coordinates: unknown;
   } | null;
 }
+
+type MapFeatureCollection = {
+  type: 'FeatureCollection';
+  features: GeoJSONFeature[];
+};
 
 // Helper to build query with filters appended
 const buildQueryWithFilters = (
@@ -211,17 +460,19 @@ function SearchPageContent() {
   const { isAuthenticated } = useAuth();
   const headerRef = useRef<HTMLDivElement | null>(null);
   const lastSearchParamsRef = useRef<string>('');
+  const pagesLoadedRef = useRef<Set<number>>(new Set());
   const [stackedViewportHeight, setStackedViewportHeight] = useState<number | null>(null);
   const [isStacked, setIsStacked] = useState<boolean>(false);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_total, setTotal] = useState(0);
-  const [serviceName, setServiceName] = useState<string>('');
+  const isAuthenticatedRef = useRef(isAuthenticated);
+  useEffect(() => {
+    isAuthenticatedRef.current = isAuthenticated;
+  }, [isAuthenticated]);
   const [serviceSlug] = useState<string>('');
   const [rateLimit, setRateLimit] = useState<{ seconds: number } | null>(null);
   const [showTimeSelection, setShowTimeSelection] = useState(false);
@@ -233,16 +484,27 @@ function SearchPageContent() {
 
   const [hoveredInstructorId, setHoveredInstructorId] = useState<string | null>(null);
   const [focusedInstructorId, setFocusedInstructorId] = useState<string | null>(null);
-  const [coverageGeoJSON, setCoverageGeoJSON] = useState<unknown | null>(null);
   const [showScrollIndicator, setShowScrollIndicator] = useState(true);
   const [mapBounds, setMapBounds] = useState<unknown>(null);
   const [showSearchAreaButton, setShowSearchAreaButton] = useState(false);
   const [filteredInstructors, setFilteredInstructors] = useState<Instructor[]>([]);
 
   const boundsContains = useCallback((bounds: unknown, lat: number, lng: number): boolean => {
-    if (!bounds || typeof bounds !== 'object' || !('contains' in bounds)) return false;
-    const contains = (bounds as { contains?: (coords: [number, number]) => boolean }).contains;
-    return typeof contains === 'function' ? contains([lat, lng]) : false;
+    if (!bounds || typeof bounds !== 'object') return false;
+
+    const b = bounds as {
+      _southWest?: { lat: number; lng: number };
+      _northEast?: { lat: number; lng: number };
+    };
+
+    if (!b._southWest || !b._northEast) return false;
+
+    return (
+      lat >= b._southWest.lat &&
+      lat <= b._northEast.lat &&
+      lng >= b._southWest.lng &&
+      lng <= b._northEast.lng
+    );
   }, []);
 
   const featureHasPointInBounds = useCallback(
@@ -270,9 +532,67 @@ function SearchPageContent() {
     [boundsContains]
   );
 
+  const instructorCapabilities = useMemo(() => {
+    const map = new Map<string, { offersTravel: boolean; offersAtLocation: boolean; offersOnline: boolean }>();
+    for (const instructor of instructors) {
+      const instructorId = instructor.user_id || instructor.id;
+      if (!instructorId) continue;
+      const services = Array.isArray(instructor.services) ? instructor.services : [];
+      const offersTravel = services.some((svc) => svc.offers_travel === true);
+      const offersAtLocation = services.some((svc) => svc.offers_at_location === true);
+      const offersOnline = services.some((svc) => svc.offers_online === true);
+      map.set(instructorId, { offersTravel, offersAtLocation, offersOnline });
+    }
+    return map;
+  }, [instructors]);
+
+  const coverageIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (instructors || [])
+            .map((i) => i.user_id)
+            .filter((id): id is string => Boolean(id))
+        )
+      ),
+    [instructors]
+  );
+  const coverageQuery = useInstructorCoverage(coverageIds);
+  const emptyCoverage = useMemo(() => ({ type: 'FeatureCollection', features: [] }), []);
+  const coverageGeoJSON = coverageQuery.data ?? emptyCoverage;
+
+  const coverageFeatureCollection = useMemo<MapFeatureCollection | null>(() => {
+    if (!isFeatureCollection(coverageGeoJSON)) return null;
+    const features: GeoJSONFeature[] = [];
+    for (const feature of coverageGeoJSON.features) {
+      const instructorsList = getArray(feature.properties, 'instructors')
+        .map((id) => (typeof id === 'string' ? id : ''))
+        .filter(Boolean);
+      const filteredInstructors = instructorsList.filter(
+        (id) => instructorCapabilities.get(id)?.offersTravel
+      );
+      if (!filteredInstructors.length) continue;
+      features.push({
+        ...feature,
+        properties: {
+          ...(feature.properties || {}),
+          instructors: filteredInstructors,
+        },
+      });
+    }
+    return {
+      type: 'FeatureCollection',
+      features,
+    };
+  }, [coverageGeoJSON, instructorCapabilities]);
+
   const locationPins = useMemo(() => {
     const pins: Array<{ lat: number; lng: number; label?: string; instructorId?: string }> = [];
     for (const instructor of filteredInstructors) {
+      const instructorId = instructor.user_id || instructor.id;
+      if (!instructorId) continue;
+      const capabilities = instructorCapabilities.get(instructorId);
+      if (!capabilities?.offersAtLocation) continue;
       const locations = Array.isArray(instructor.teaching_locations)
         ? instructor.teaching_locations
         : [];
@@ -286,19 +606,19 @@ function SearchPageContent() {
             lat,
             lng,
             label,
-            instructorId: instructor.user_id,
+            instructorId,
           });
         } else {
           pins.push({
             lat,
             lng,
-            instructorId: instructor.user_id,
+            instructorId,
           });
         }
       }
     }
     return pins;
-  }, [filteredInstructors]);
+  }, [filteredInstructors, instructorCapabilities]);
   const [nlSearchMeta, setNlSearchMeta] = useState<Record<string, unknown> | null>(null);
 
   // Filter state - read from URL params on mount
@@ -461,12 +781,39 @@ function SearchPageContent() {
   const category = searchParams.get('category') || '';
   const serviceCatalogId = searchParams.get('service_catalog_id') || '';
   const serviceNameFromUrl = searchParams.get('service_name') || '';
-  const availableNow = searchParams.get('available_now') === 'true';
   const ageGroup = searchParams.get('age_group') || '';
   const fromSource = searchParams.get('from') || '';
   const softFilteringUsed = nlSearchMeta ? getBoolean(nlSearchMeta, 'soft_filtering_used', false) : false;
   const softFilterMessage = nlSearchMeta ? getString(nlSearchMeta, 'soft_filter_message', '') : '';
   const searchQueryId = nlSearchMeta ? getString(nlSearchMeta, 'search_query_id', '') : '';
+  const builtSearchQuery = useMemo(() => {
+    if (!query) return '';
+    return buildQueryWithFilters(
+      query,
+      dateFilter,
+      timeFilter,
+      lessonType,
+      minPrice,
+      maxPrice,
+      customDate
+    );
+  }, [query, dateFilter, timeFilter, lessonType, minPrice, maxPrice, customDate]);
+
+  const searchQueryEnabled = Boolean(builtSearchQuery || serviceCatalogId);
+  const {
+    data: searchResponse,
+    error: searchError,
+    isLoading: isSearchLoading,
+    isFetching: isSearchFetching,
+  } = useInstructorSearch({
+    searchQuery: builtSearchQuery,
+    serviceCatalogId,
+    page,
+    perPage: 20,
+    enabled: searchQueryEnabled,
+  });
+  const loading = searchQueryEnabled ? isSearchLoading : false;
+  const loadingMore = isSearchFetching && page > 1;
 
   const trackSearchClick = useCallback(
     (params: { serviceId: string; instructorId: string; position: number; action?: string }) => {
@@ -493,12 +840,25 @@ function SearchPageContent() {
 
   useEffect(() => {
     // reset page and list when search params change
-    setServiceName(serviceNameFromUrl);
     setPage(1);
     setInstructors([]);
     setHasMore(true);
     setNlSearchMeta(null);
-  }, [query, category, serviceCatalogId, serviceNameFromUrl]);
+    setError(null);
+    setRateLimit(null);
+    pagesLoadedRef.current = new Set();
+  }, [
+    query,
+    category,
+    serviceCatalogId,
+    serviceNameFromUrl,
+    dateFilter,
+    timeFilter,
+    lessonType,
+    minPrice,
+    maxPrice,
+    customDate,
+  ]);
 
   useEffect(() => {
     const activity = (query || category || '').trim();
@@ -510,352 +870,129 @@ function SearchPageContent() {
   }, [query, category, setActivity]);
 
   useEffect(() => {
-    if (serviceCatalogId && (serviceSlug || serviceName)) {
-      setActivity((serviceSlug || serviceName).toLowerCase());
+    if (!searchQueryEnabled) {
+      setError('Please search for a specific service or use natural language search');
+      setRateLimit(null);
+      return;
     }
-  }, [serviceCatalogId, serviceSlug, serviceName, setActivity]);
 
-  const fetchResults = useCallback(async (pageNum: number, append: boolean = false) => {
-    if (!append) {
-      setLoading(true);
+    if (!searchError) {
+      setError(null);
+      setRateLimit(null);
+      return;
+    }
+
+    setError(searchError.message || 'Failed to load search results');
+    const retryAfterSeconds = (searchError as { retryAfterSeconds?: number }).retryAfterSeconds;
+    const status = (searchError as { status?: number }).status;
+    if (typeof retryAfterSeconds === 'number') {
+      setRateLimit({ seconds: retryAfterSeconds });
+    } else if (status === 429) {
+      setRateLimit({ seconds: 0 });
     } else {
-      setLoadingMore(true);
+      setRateLimit(null);
     }
-    setError(null);
+  }, [searchError, searchQueryEnabled]);
 
-    try {
-      let response;
-      let instructorsData: Instructor[] = [];
-      let totalResults = 0;
-      // Note: Observability tracking now uses instructor-level results directly
+  useEffect(() => {
+    if (serviceCatalogId && (serviceSlug || serviceNameFromUrl)) {
+      setActivity((serviceSlug || serviceNameFromUrl).toLowerCase());
+    }
+  }, [serviceCatalogId, serviceSlug, serviceNameFromUrl, setActivity]);
 
-      if (query) {
-        // Build the search query with filters appended
-        const searchQuery = buildQueryWithFilters(
-          query,
-          dateFilter,
-          timeFilter,
-          lessonType,
-          minPrice,
-          maxPrice,
-          customDate
-        );
-        const nlResponse = await publicApi.searchWithNaturalLanguage(searchQuery);
-        if (nlResponse.error) {
-          setNlSearchMeta(null);
-          // If 429, client returns retryAfterSeconds – show rate limit banner instead of generic error
-          const secs = (nlResponse as unknown as { retryAfterSeconds?: number }).retryAfterSeconds;
-          if (typeof secs === 'number' && secs > 0) {
-            setRateLimit({ seconds: secs });
-            // Also set friendly copy in error area for test robustness/visibility
-            setError(`Our hamsters are sprinting. Give them ${secs}s.`);
-            return;
-          }
-          // Generic error (no Retry-After) — still show banner for UX consistency/tests
-          setRateLimit({ seconds: 0 });
-          setError('Our hamsters are sprinting. Please try again shortly.');
-          return;
-        } else if (nlResponse.data) {
-          // New instructor-level API: results are already deduplicated by instructor
-          // Each result has: instructor_id, instructor (embedded), rating, coverage_areas,
-          // best_match (service), other_matches (services), relevance_score
-          instructorsData = nlResponse.data.results.map(
-            (result: unknown) => {
-              if (!isRecord(result)) {
-                return null;
-              }
+  useEffect(() => {
+    if (!searchResponse) return;
 
-              // Extract instructor-level data
-              const instructorId = getString(result, 'instructor_id', '');
-              const relevanceScore = getNumber(result, 'relevance_score', 0);
+    const responsePage =
+      searchResponse.mode === 'catalog' && Number.isFinite(searchResponse.data.page)
+        ? searchResponse.data.page
+        : 1;
 
-              // Extract embedded instructor info
-              const instructorInfo = isRecord(result['instructor']) ? result['instructor'] : {};
-              const firstName = getString(instructorInfo, 'first_name', 'Instructor');
-              const lastInitial = getString(instructorInfo, 'last_initial', '');
-              const bioSnippet = getString(instructorInfo, 'bio_snippet', '');
-              const profilePictureUrl = getString(instructorInfo, 'profile_picture_url', '');
-              const verified = Boolean(instructorInfo['verified']);
-              const isFoundingInstructor = Boolean(instructorInfo['is_founding_instructor']);
-              const yearsExperience = getNumber(instructorInfo, 'years_experience', 0);
-
-              // Extract embedded rating info
-              const ratingInfo = isRecord(result['rating']) ? result['rating'] : {};
-              const avgRating = getNumber(ratingInfo, 'average', 0);
-              const reviewCount = getNumber(ratingInfo, 'count', 0);
-
-              // Extract coverage areas
-              const coverageAreas = getArray(result, 'coverage_areas')
-                .filter((v): v is string => typeof v === 'string');
-
-              const teachingLocations = getArray(instructorInfo, 'teaching_locations')
-                .map((loc) => {
-                  if (!isRecord(loc)) return null;
-                  const approxLat = getNumber(loc, 'approx_lat', Number.NaN);
-                  const approxLng = getNumber(loc, 'approx_lng', Number.NaN);
-                  if (!Number.isFinite(approxLat) || !Number.isFinite(approxLng)) return null;
-                  const neighborhood = getString(loc, 'neighborhood', '').trim();
-                  return {
-                    approx_lat: approxLat,
-                    approx_lng: approxLng,
-                    ...(neighborhood ? { neighborhood } : {}),
-                  };
-                })
-                .filter(
-                  (loc): loc is { approx_lat: number; approx_lng: number; neighborhood?: string } =>
-                    loc !== null
-                );
-
-              // Optional debug distance from searched location (populated when location was resolved)
-              const distanceMiRaw = getNumber(result, 'distance_mi', Number.NaN);
-              const distanceMi = Number.isFinite(distanceMiRaw) ? distanceMiRaw : null;
-              const distanceKmRaw = getNumber(result, 'distance_km', Number.NaN);
-              const distanceKm = Number.isFinite(distanceKmRaw) ? distanceKmRaw : null;
-
-              // Extract best matching service
-              const bestMatch = isRecord(result['best_match']) ? result['best_match'] : {};
-              const bestServiceId = getString(bestMatch, 'service_id', '');
-              const bestServiceCatalogId = getString(bestMatch, 'service_catalog_id', '');
-              const bestServiceName = getString(bestMatch, 'name', '');
-              const bestServiceDescription = getString(bestMatch, 'description', '');
-              const bestPricePerHour = getNumber(bestMatch, 'price_per_hour', 0);
-
-              // Build services array from best_match + other_matches
-              const services: Instructor['services'] = [];
-
-              // Add best match as first service
-              services.push({
-                id: bestServiceId,
-                service_catalog_id: bestServiceCatalogId,
-                service_catalog_name: bestServiceName,
-                hourly_rate: bestPricePerHour,
-                description: bestServiceDescription,
-                duration_options: [60],
-                is_active: true,
-              });
-
-              // Add other matches
-              const otherMatches = getArray(result, 'other_matches');
-              for (const match of otherMatches) {
-                if (!isRecord(match)) continue;
-                services.push({
-                  id: getString(match, 'service_id', ''),
-                  service_catalog_id: getString(match, 'service_catalog_id', ''),
-                  service_catalog_name: getString(match, 'name', ''),
-                  hourly_rate: getNumber(match, 'price_per_hour', 0),
-                  description: getString(match, 'description', ''),
-                  duration_options: [60],
-                  is_active: true,
-                });
-              }
-
-              const mapped = {
-                id: instructorId,
-                user_id: instructorId,
-                bio: bioSnippet,
-                profile_picture_url: profilePictureUrl,
-                service_area_summary: coverageAreas.join(', '),
-                service_area_boroughs: coverageAreas,
-                service_area_neighborhoods: [] as Array<{
-                  neighborhood_id: string;
-                  ntacode: string | null;
-                  name: string | null;
-                  borough: string | null;
-                }>,
-                years_experience: yearsExperience,
-                teaching_locations: teachingLocations,
-                user: {
-                  first_name: firstName,
-                  last_initial: lastInitial,
-                },
-                is_founding_instructor: isFoundingInstructor,
-                is_live: true,
-                services,
-                verified,
-                rating: avgRating || undefined,
-                total_reviews: reviewCount,
-                distance_mi: distanceMi,
-                distance_km: distanceKm,
-                _matchedServiceContext: {
-                  levels: [] as string[],
-                  age_groups: [] as string[],
-                  location_types: [] as string[],
-                },
-                relevance_score: relevanceScore,
-                _matchedServiceCatalogId: bestServiceCatalogId || null,
-              } as Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null };
-
-              return mapped;
-            }
-          ).filter((item: (Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null }) | null): item is Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null } => item !== null);
-
-          // Results are already sorted by relevance and deduplicated by backend
-          // Cast to expected response shape (types will be regenerated after MessageResponse fix)
-          const responseData = nlResponse.data as unknown as {
-            results: unknown[];
-            meta?: unknown;
-          };
-          const meta = isRecord(responseData.meta) ? responseData.meta : null;
-          setNlSearchMeta(meta);
-          totalResults = meta ? getNumber(meta, 'total_results', instructorsData.length) : instructorsData.length;
-          setHasMore(false);
-        }
-      } else if (serviceCatalogId) {
-        const apiParams = {
-          service_catalog_id: serviceCatalogId,
-          page: pageNum,
-          per_page: 20,
-        };
-        response = await publicApi.searchInstructors(apiParams);
-        if (response.error) {
-          setError(response.error);
-          return;
-        } else if (response.data) {
-          // Dev/test-only validation of the response shape
-          const validated = await validateWithZod<{
-            items: unknown[];
-            total: number;
-            page: number;
-            per_page: number;
-            has_next: boolean;
-            has_prev: boolean;
-          }>(loadSearchListSchema, response.data, { endpoint: 'GET /instructors' });
-          const casted = validated.items as unknown as Instructor[];
-          instructorsData = casted.map((item) => {
-            const matchId = serviceCatalogId || null;
-            const highlightedService = Array.isArray(item.services)
-              ? item.services.find((svc) => (svc.service_catalog_id || '').trim().toLowerCase() === (matchId || '').trim().toLowerCase()) || item.services[0]
-              : undefined;
-            const levels = Array.isArray(highlightedService?.levels_taught)
-              ? highlightedService.levels_taught
-              : [];
-            const ageGroups = Array.isArray(highlightedService?.age_groups)
-              ? highlightedService.age_groups
-              : [];
-            const locationTypes = Array.isArray(highlightedService?.location_types)
-              ? highlightedService.location_types
-              : [];
-            return {
-              ...item,
-              _matchedServiceCatalogId: matchId,
-              _matchedServiceContext: {
-                levels,
-                age_groups: ageGroups,
-                location_types: locationTypes,
-              },
-            };
+    const normalized =
+      searchResponse.mode === 'nl'
+        ? normalizeSearchResults({
+            mode: 'nl',
+            results: searchResponse.data.results,
+            meta: searchResponse.data.meta,
+          })
+        : normalizeSearchResults({
+            mode: 'catalog',
+            results: searchResponse.data.items,
+            total: searchResponse.data.total,
+            hasNext: searchResponse.data.has_next,
+            serviceCatalogId,
           });
-          totalResults = validated.total;
-          const totalPages = Math.ceil(totalResults / 20);
-          setHasMore(pageNum < totalPages);
-        }
-      } else {
-        setError('Please search for a specific service or use natural language search');
-        return;
-      }
 
-      // Backend now provides all embedded data, no hydration needed for NL search
-      // For serviceCatalogId search, data is already complete from searchInstructors
-      let finalResults = instructorsData;
+    let instructorsData: Instructor[] = normalized.instructors;
+    const totalResults = normalized.totalResults;
+    const nextHasMore = normalized.hasMore;
+    setNlSearchMeta(normalized.meta);
 
-      finalResults = finalResults.map((instructor) => {
-        const highlightId =
-          (instructor as { _matchedServiceCatalogId?: string | null })._matchedServiceCatalogId ?? null;
-        const services = Array.isArray(instructor.services) ? instructor.services : [];
-        const deduped = dedupeAndOrderServices(services, highlightId);
-        return {
-          ...instructor,
-          services: deduped,
-        };
-      });
+    let finalResults = instructorsData;
+    finalResults = finalResults.map((instructor) => {
+      const highlightId =
+        (instructor as { _matchedServiceCatalogId?: string | null })._matchedServiceCatalogId ?? null;
+      const services = Array.isArray(instructor.services) ? instructor.services : [];
+      const deduped = dedupeAndOrderServices(services, highlightId);
+      return {
+        ...instructor,
+        services: deduped,
+      };
+    });
 
-      if (append) {
-        setInstructors((prev) => [...prev, ...finalResults]);
-      } else {
-        setInstructors(finalResults);
-
-        // Track search only for initial loads, not pagination
-        if (pageNum === 1) {
-          // Create a unique key for the current search parameters
-          const searchKey = `${query || ''}-${serviceCatalogId || ''}-${category || ''}-${serviceNameFromUrl || ''}-${fromSource || ''}`;
-
-          // Only track if this is a different search than the last one
-          if (searchKey !== lastSearchParamsRef.current) {
-            lastSearchParamsRef.current = searchKey;
-
-            // Determine search type based on what parameters are present
-            let searchType: SearchType = SearchType.NATURAL_LANGUAGE;
-            let searchQuery = '';
-
-            if (query) {
-              // Check if this is from search history
-              if (fromSource === 'recent') {
-                searchType = SearchType.SEARCH_HISTORY;
-              } else {
-                searchType = SearchType.NATURAL_LANGUAGE;
-              }
-              searchQuery = query;
-            } else if (serviceCatalogId) {
-              searchType = SearchType.SERVICE_PILL;
-              searchQuery = serviceNameFromUrl || serviceName || `Service #${serviceCatalogId}`;
-            } else if (category) {
-              searchType = SearchType.CATEGORY;
-              searchQuery = category;
-            }
-
-            // Record the search for analytics
-            void recordSearch(
-              {
-                query: searchQuery,
-                search_type: searchType,
-                results_count: totalResults,
-              },
-              isAuthenticated
-            );
-          }
-        }
-      }
-      setTotal(totalResults);
-    } catch {
-      setError('Failed to load search results');
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
+    if (responsePage === 1) {
+      setInstructors(finalResults);
+    } else if (!pagesLoadedRef.current.has(responsePage)) {
+      setInstructors((prev) => [...prev, ...finalResults]);
     }
-  }, [query, category, serviceCatalogId, isAuthenticated, serviceNameFromUrl, fromSource, serviceName, dateFilter, timeFilter, lessonType, minPrice, maxPrice, customDate]);
+    pagesLoadedRef.current.add(responsePage);
 
-  useEffect(() => {
-    void fetchResults(1, false);
-  }, [query, category, serviceCatalogId, availableNow, fetchResults, dateFilter, timeFilter, lessonType, minPrice, maxPrice, customDate]);
+    setHasMore(nextHasMore);
+    setTotal(totalResults);
 
-  // Initialize filtered instructors when instructors change
-  useEffect(() => {
-    setFilteredInstructors(instructors);
-  }, [instructors]);
+    if (responsePage === 1) {
+      const searchKey = `${query || ''}-${serviceCatalogId || ''}-${category || ''}-${serviceNameFromUrl || ''}-${fromSource || ''}`;
 
-  useEffect(() => {
-    const fetchCoverage = async () => {
-      try {
-        const ids = Array.from(new Set((instructors || []).map((i) => i.user_id).filter(Boolean)));
-        if (!ids.length) {
-          setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
-          return;
+      if (searchKey !== lastSearchParamsRef.current) {
+        lastSearchParamsRef.current = searchKey;
+
+        let searchType: SearchType = SearchType.NATURAL_LANGUAGE;
+        let searchQueryValue = '';
+
+        if (query) {
+          if (fromSource === 'recent') {
+            searchType = SearchType.SEARCH_HISTORY;
+          } else {
+            searchType = SearchType.NATURAL_LANGUAGE;
+          }
+          searchQueryValue = query;
+        } else if (serviceCatalogId) {
+          searchType = SearchType.SERVICE_PILL;
+          searchQueryValue = serviceNameFromUrl || serviceSlug || `Service #${serviceCatalogId}`;
+        } else if (category) {
+          searchType = SearchType.CATEGORY;
+          searchQueryValue = category;
         }
-        const params = new URLSearchParams({ ids: ids.join(',') });
-        const coverageUrl = withApiBase(`/api/v1/addresses/coverage/bulk?${params.toString()}`);
-        const res = await fetch(coverageUrl, { credentials: 'include' });
-        if (!res.ok) {
-          setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
-          return;
-        }
-        const data = (await res.json()) as CoverageFeatureCollectionResponse;
-        setCoverageGeoJSON(data);
-      } catch {
-        setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
+
+        void recordSearch(
+          {
+            query: searchQueryValue,
+            search_type: searchType,
+            results_count: totalResults,
+          },
+          isAuthenticatedRef.current
+        );
       }
-    };
-    void fetchCoverage();
-  }, [instructors]);
+    }
+  }, [
+    searchResponse,
+    query,
+    category,
+    serviceCatalogId,
+    serviceNameFromUrl,
+    fromSource,
+    serviceSlug,
+  ]);
 
   // Initialize filtered instructors when instructors change
   useEffect(() => {
@@ -866,12 +1003,14 @@ function SearchPageContent() {
   const handleMapBoundsChange = useCallback((bounds: unknown) => {
     if (!bounds) return;
 
-    const coverageFeatures = isFeatureCollection(coverageGeoJSON)
-      ? coverageGeoJSON.features
-      : [];
-    const hasPinData = instructors.some(
-      (instructor) => Array.isArray(instructor.teaching_locations) && instructor.teaching_locations.length > 0
-    );
+    const coverageFeatures = coverageFeatureCollection?.features ?? [];
+    const hasPinData = instructors.some((instructor) => {
+      const instructorId = instructor.user_id || instructor.id;
+      if (!instructorId) return false;
+      const capabilities = instructorCapabilities.get(instructorId);
+      if (!capabilities?.offersAtLocation) return false;
+      return Array.isArray(instructor.teaching_locations) && instructor.teaching_locations.length > 0;
+    });
     const hasCoverageData = coverageFeatures.length > 0;
 
     if (!hasCoverageData && !hasPinData) {
@@ -885,12 +1024,13 @@ function SearchPageContent() {
       let hasCoverageInBounds = false;
 
       if (hasCoverageData) {
+        const instructorId = instructor.user_id || instructor.id;
         const instructorFeatures = coverageFeatures.filter((feature) => {
           const rawInstructors = feature.properties?.['instructors'];
           const instructorsList = Array.isArray(rawInstructors)
             ? (rawInstructors as string[])
             : [];
-          return instructorsList.includes(instructor.user_id);
+          return instructorId ? instructorsList.includes(instructorId) : false;
         });
 
         hasCoverageInBounds = instructorFeatures.some((feature) =>
@@ -898,7 +1038,9 @@ function SearchPageContent() {
         );
       }
 
-      const hasStudioInBounds = Array.isArray(instructor.teaching_locations)
+      const instructorId = instructor.user_id || instructor.id;
+      const capabilities = instructorId ? instructorCapabilities.get(instructorId) : null;
+      const hasStudioInBounds = capabilities?.offersAtLocation && Array.isArray(instructor.teaching_locations)
         ? instructor.teaching_locations.some((loc) => {
           const lat = loc.approx_lat;
           const lng = loc.approx_lng;
@@ -919,18 +1061,20 @@ function SearchPageContent() {
 
     setShowSearchAreaButton(hasFilteredInstructors || (isShowingFilteredView && wouldShowDifferentResults));
     setMapBounds(bounds);
-  }, [instructors, filteredInstructors, coverageGeoJSON, boundsContains, featureHasPointInBounds]);
+  }, [instructors, filteredInstructors, coverageFeatureCollection, instructorCapabilities, boundsContains, featureHasPointInBounds]);
 
   // Handle search area button click
   const handleSearchArea = useCallback(() => {
     if (!mapBounds) return;
 
-    const coverageFeatures = isFeatureCollection(coverageGeoJSON)
-      ? coverageGeoJSON.features
-      : [];
-    const hasPinData = instructors.some(
-      (instructor) => Array.isArray(instructor.teaching_locations) && instructor.teaching_locations.length > 0
-    );
+    const coverageFeatures = coverageFeatureCollection?.features ?? [];
+    const hasPinData = instructors.some((instructor) => {
+      const instructorId = instructor.user_id || instructor.id;
+      if (!instructorId) return false;
+      const capabilities = instructorCapabilities.get(instructorId);
+      if (!capabilities?.offersAtLocation) return false;
+      return Array.isArray(instructor.teaching_locations) && instructor.teaching_locations.length > 0;
+    });
     const hasCoverageData = coverageFeatures.length > 0;
 
     if (!hasCoverageData && !hasPinData) {
@@ -945,12 +1089,13 @@ function SearchPageContent() {
       let hasCoverageInBounds = false;
 
       if (hasCoverageData) {
+        const instructorId = instructor.user_id || instructor.id;
         const instructorFeatures = coverageFeatures.filter((feature) => {
           const rawInstructors = feature.properties?.['instructors'];
           const instructorsList = Array.isArray(rawInstructors)
             ? (rawInstructors as string[])
             : [];
-          return instructorsList.includes(instructor.user_id);
+          return instructorId ? instructorsList.includes(instructorId) : false;
         });
 
         hasCoverageInBounds = instructorFeatures.some((feature) =>
@@ -958,7 +1103,9 @@ function SearchPageContent() {
         );
       }
 
-      const hasStudioInBounds = Array.isArray(instructor.teaching_locations)
+      const instructorId = instructor.user_id || instructor.id;
+      const capabilities = instructorId ? instructorCapabilities.get(instructorId) : null;
+      const hasStudioInBounds = capabilities?.offersAtLocation && Array.isArray(instructor.teaching_locations)
         ? instructor.teaching_locations.some((loc) => {
           const lat = loc.approx_lat;
           const lng = loc.approx_lng;
@@ -974,7 +1121,7 @@ function SearchPageContent() {
     setShowSearchAreaButton(false);
     // Clear focused instructor after filtering
     setFocusedInstructorId(null);
-  }, [instructors, mapBounds, coverageGeoJSON, boundsContains, featureHasPointInBounds]);
+  }, [instructors, mapBounds, coverageFeatureCollection, instructorCapabilities, boundsContains, featureHasPointInBounds]);
 
   // Track stacked layout (below xl) and compute available height so the page itself doesn't scroll
   useEffect(() => {
@@ -1026,7 +1173,6 @@ function SearchPageContent() {
         if (entries[0]?.isIntersecting && hasMore && !loadingMore && !loading) {
           const nextPage = page + 1;
           setPage(nextPage);
-          void fetchResults(nextPage, true);
         }
       },
       { threshold: 0.1 }
@@ -1041,85 +1187,16 @@ function SearchPageContent() {
         observerRef.current.disconnect();
       }
     };
-  }, [hasMore, loadingMore, loading, page, fetchResults]);
+  }, [hasMore, loadingMore, loading, page]);
 
-  // Fetch next available slot for each instructor
-  interface InstructorAvailabilitySummary {
-    timezone?: string;
-    availabilityByDate: Record<
-      string,
-      {
-        available_slots: Array<{ start_time: string; end_time: string }>;
-        is_blackout?: boolean;
-      }
-    >;
-  }
-  const [availabilityByInstructor, setAvailabilityByInstructor] = useState<Record<string, InstructorAvailabilitySummary>>({});
-
-  useEffect(() => {
-    const formatDate = (d: Date) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const normalizeTime = (value?: string | null) => {
-      if (!value) return '00:00';
-      const [h = '0', m = '0'] = value.split(':');
-      return `${String(parseInt(h, 10) || 0).padStart(2, '0')}:${String(parseInt(m, 10) || 0).padStart(2, '0')}`;
-    };
-
-    const fetchAvailabilities = async () => {
-      try {
-        const updates: Record<string, InstructorAvailabilitySummary> = {};
-        const today = new Date();
-        const startDate = new Date(today);
-        const endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 14);
-
-        await Promise.all(
-          instructors.map(async (i) => {
-            try {
-              const { data, status } = await publicApi.getInstructorAvailability(i.user_id, {
-                start_date: formatDate(startDate),
-                end_date: formatDate(endDate),
-              });
-              if (!data || status !== 200) {
-                return;
-              }
-              const byDate = data.availability_by_date || {};
-              const normalizedEntries = Object.entries(byDate).reduce<
-                Record<string, { available_slots: Array<{ start_time: string; end_time: string }>; is_blackout?: boolean }>
-              >((acc, [date, day]) => {
-                if (!day) return acc;
-                acc[date] = {
-                  available_slots: (day.available_slots || []).map((slot) => ({
-                    start_time: normalizeTime(slot.start_time),
-                    end_time: normalizeTime(slot.end_time),
-                  })),
-                  is_blackout: day.is_blackout,
-                };
-                return acc;
-              }, {});
-
-              updates[i.user_id] = {
-                timezone: data.timezone ?? undefined,
-                availabilityByDate: normalizedEntries,
-              };
-            } catch {
-              // ignore errors for individual instructors
-            }
-          })
-        );
-
-        if (Object.keys(updates).length) {
-          setAvailabilityByInstructor((prev) => ({ ...prev, ...updates }));
-        }
-      } catch {
-        // ignore batch errors
-      }
-    };
-
-    if (instructors && instructors.length) {
-      void fetchAvailabilities();
-    }
-  }, [instructors]);
+  const availabilityIds = useMemo(
+    () =>
+      instructors
+        .map((instructor) => instructor.user_id)
+        .filter((id): id is string => Boolean(id)),
+    [instructors]
+  );
+  const availabilityByInstructor = usePublicAvailability(availabilityIds);
 
 
 
@@ -1461,12 +1538,7 @@ function SearchPageContent() {
                     const highlightServiceCatalogId =
                       (instructor as { _matchedServiceCatalogId?: string | null })._matchedServiceCatalogId ??
                       (serviceCatalogId || null);
-                    const enhancedInstructor = {
-                      ...instructor,
-                      rating: instructor.rating || 4.8,
-                      total_reviews: instructor.total_reviews || Math.floor(Math.random() * 100) + 20,
-                      verified: true,
-                    };
+                    const enhancedInstructor = { ...instructor };
 
                     const handleInteraction = (
                       interactionType: 'click' | 'hover' | 'bookmark' | 'view_profile' | 'contact' | 'book' = 'click'
@@ -1556,7 +1628,7 @@ function SearchPageContent() {
             <div className="bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 p-2 md:p-4 h-full">
               <InstructorCoverageMap
                 height="100%"
-                featureCollection={isFeatureCollection(coverageGeoJSON) ? coverageGeoJSON : null}
+                featureCollection={coverageFeatureCollection}
                 showCoverage={true}
                 highlightInstructorId={hoveredInstructorId}
                 focusInstructorId={focusedInstructorId}

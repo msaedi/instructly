@@ -68,6 +68,7 @@ async def get_service_categories(
 
 @router.get("/catalog", response_model=List[CatalogServiceResponse])
 async def get_catalog_services(
+    response: Response,
     category: Optional[str] = Query(None, description="Filter by category slug"),
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> List[CatalogServiceResponse]:
@@ -80,6 +81,7 @@ async def get_catalog_services(
         services = await asyncio.to_thread(
             instructor_service.get_available_catalog_services, category_slug=category
         )
+        response.headers["Cache-Control"] = "public, max-age=1800"
         return cast(List[CatalogServiceResponse], services)
     except Exception as e:
         if "not found" in str(e).lower():

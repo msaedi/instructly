@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import SearchResultsPage from '../page';
 
@@ -65,8 +66,24 @@ const mockPublicApi = jest.requireMock('@/features/shared/api/client').publicApi
   getInstructorAvailability: jest.Mock;
 };
 
+const createTestQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
 describe('Search results map pins', () => {
   beforeAll(() => {
+    if (!global.fetch) {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ type: 'FeatureCollection', features: [] }),
+      }) as unknown as typeof fetch;
+    }
+
     if (!window.matchMedia) {
       Object.defineProperty(window, 'matchMedia', {
         writable: true,
@@ -128,6 +145,7 @@ describe('Search results map pins', () => {
               name: 'Piano Lessons',
               description: '',
               price_per_hour: 60,
+              offers_at_location: true,
             },
             other_matches: [],
           },
@@ -144,7 +162,12 @@ describe('Search results map pins', () => {
   });
 
   it('passes teaching location pins to the map', async () => {
-    render(<SearchResultsPage />);
+    const queryClient = createTestQueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SearchResultsPage />
+      </QueryClientProvider>
+    );
 
     await waitFor(() => {
       expect(mockPublicApi.searchWithNaturalLanguage).toHaveBeenCalled();

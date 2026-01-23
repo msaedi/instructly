@@ -8,7 +8,7 @@ import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavo
 import { useSearchRatingQuery } from '@/hooks/queries/useRatings';
 import { useRecentReviews } from '@/src/api/services/reviews';
 import { favoritesApi } from '@/services/api/favorites';
-import { publicApi } from '@/features/shared/api/client';
+import { useServicesCatalog } from '@/hooks/queries/useServices';
 import { fetchPricingPreview } from '@/lib/api/pricing';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { useRouter } from 'next/navigation';
@@ -40,10 +40,8 @@ jest.mock('@/services/api/favorites', () => ({
   },
 }));
 
-jest.mock('@/features/shared/api/client', () => ({
-  publicApi: {
-    getCatalogServices: jest.fn(),
-  },
+jest.mock('@/hooks/queries/useServices', () => ({
+  useServicesCatalog: jest.fn(),
 }));
 
 // Mock the ApiProblemError class inline so instanceof checks work
@@ -108,7 +106,7 @@ const mockUseFavoriteStatus = useFavoriteStatus as jest.Mock;
 const mockUseSetFavoriteStatus = useSetFavoriteStatus as jest.Mock;
 const mockUseSearchRatingQuery = useSearchRatingQuery as jest.Mock;
 const mockUseRecentReviews = useRecentReviews as jest.Mock;
-const mockPublicApi = publicApi as jest.Mocked<typeof publicApi>;
+const mockUseServicesCatalog = useServicesCatalog as jest.Mock;
 const mockFavoritesApi = favoritesApi as jest.Mocked<typeof favoritesApi>;
 const mockFetchPricingPreview = fetchPricingPreview as jest.Mock;
 
@@ -151,11 +149,10 @@ describe('InstructorCard', () => {
     mockUseSetFavoriteStatus.mockReturnValue(mockSetFavoriteStatus);
     mockUseSearchRatingQuery.mockReturnValue({ data: null });
     mockUseRecentReviews.mockReturnValue({ data: null });
-    mockPublicApi.getCatalogServices.mockResolvedValue({
-      status: 200,
+    mockUseServicesCatalog.mockReturnValue({
       data: [
-        { id: 'cat-1', name: 'Piano', description: 'Piano lessons', category_id: 'music', search_terms: ['piano'], slug: 'piano', typical_duration_options: [60] },
-        { id: 'cat-2', name: 'Guitar', description: 'Guitar lessons', category_id: 'music', search_terms: ['guitar'], slug: 'guitar', typical_duration_options: [60] },
+        { id: 'cat-1', name: 'Piano', description: 'Piano lessons', category_id: 'music' },
+        { id: 'cat-2', name: 'Guitar', description: 'Guitar lessons', category_id: 'music' },
       ],
     });
     Object.defineProperty(window, 'sessionStorage', {
@@ -918,7 +915,7 @@ describe('InstructorCard', () => {
 
   describe('service catalog error handling', () => {
     it('handles failed service catalog fetch gracefully', async () => {
-      mockPublicApi.getCatalogServices.mockRejectedValue(new Error('Network error'));
+      mockUseServicesCatalog.mockReturnValue({ data: undefined, error: new Error('Network error') });
 
       const instructor = createInstructor();
       // Should not throw

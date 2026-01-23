@@ -197,14 +197,58 @@ function FitToCoverage({
   locationPins?: LocationPin[];
 }) {
   const map = useMap();
-  const hasInitiallyFitRef = useRef(false);
+  const hasCoverageFitRef = useRef(false);
+  const hasPinsFitRef = useRef(false);
+  const lastDataKeyRef = useRef<string | null>(null);
+
+  const dataKey = useMemo(() => {
+    const coverageIds = new Set<string>();
+    if (featureCollection?.features?.length) {
+      for (const feature of featureCollection.features) {
+        const instructors = Array.isArray(feature.properties?.instructors)
+          ? feature.properties?.instructors
+          : [];
+        for (const id of instructors) {
+          if (typeof id === 'string' && id) coverageIds.add(id);
+        }
+      }
+    }
+
+    const pinIds = new Set<string>();
+    if (Array.isArray(locationPins)) {
+      for (const pin of locationPins) {
+        if (pin.instructorId) pinIds.add(pin.instructorId);
+      }
+    }
+
+    const coverageKey = Array.from(coverageIds).sort().join(',');
+    const pinKey = Array.from(pinIds).sort().join(',');
+    return `c:${coverageKey}|p:${pinKey}`;
+  }, [featureCollection, locationPins]);
+
+  useEffect(() => {
+    if (lastDataKeyRef.current !== dataKey) {
+      hasCoverageFitRef.current = false;
+      hasPinsFitRef.current = false;
+      lastDataKeyRef.current = dataKey;
+    }
+  }, [dataKey]);
 
   // Initial fit to all coverage (only once)
   useEffect(() => {
-    if (!hasInitiallyFitRef.current && !focusInstructorId) {
+    if (!focusInstructorId) {
       try {
+        const hasCoverage = Boolean(featureCollection && featureCollection.features?.length);
+        const hasPins = Boolean(Array.isArray(locationPins) && locationPins.length);
+        if (!hasCoverage && !hasPins) return;
+
+        const shouldFitCoverage = hasCoverage && !hasCoverageFitRef.current;
+        const shouldFitPinsOnly = !hasCoverage && hasPins && !hasPinsFitRef.current;
+
+        if (!shouldFitCoverage && !shouldFitPinsOnly) return;
+
         let bounds: L.LatLngBounds | null = null;
-        if (featureCollection && featureCollection.features?.length) {
+        if (hasCoverage && featureCollection) {
           const layer = L.geoJSON(featureCollection);
           const coverageBounds = layer.getBounds();
           if (coverageBounds.isValid()) {
@@ -212,7 +256,7 @@ function FitToCoverage({
           }
           layer.remove();
         }
-        if (Array.isArray(locationPins) && locationPins.length) {
+        if (hasPins && Array.isArray(locationPins)) {
           const validPins = locationPins.filter(
             (pin) => Number.isFinite(pin.lat) && Number.isFinite(pin.lng)
           );
@@ -226,7 +270,8 @@ function FitToCoverage({
             paddingTopLeft: [20, 20],
             paddingBottomRight: [20, 60]
           });
-          hasInitiallyFitRef.current = true;
+          if (hasCoverage) hasCoverageFitRef.current = true;
+          if (hasPins) hasPinsFitRef.current = true;
         }
       } catch {}
     }
@@ -236,6 +281,8 @@ function FitToCoverage({
   useEffect(() => {
     if (focusInstructorId) {
       try {
+        let bounds: L.LatLngBounds | null = null;
+
         // Filter features for the specific instructor
         if (featureCollection && featureCollection.features?.length) {
           const instructorFeatures = featureCollection.features.filter((feature) => {
@@ -246,18 +293,12 @@ function FitToCoverage({
           if (instructorFeatures.length > 0) {
             const instructorFC: FeatureCollection = {
               type: 'FeatureCollection',
-              features: instructorFeatures
+              features: instructorFeatures,
             };
             const layer = L.geoJSON(instructorFC);
-            const bounds = layer.getBounds();
-            if (bounds.isValid()) {
-              map.flyToBounds(bounds, {
-                paddingTopLeft: [40, 40],
-                paddingBottomRight: [40, 80],
-                duration: 0.8
-              });
-              layer.remove();
-              return;
+            const coverageBounds = layer.getBounds();
+            if (coverageBounds.isValid()) {
+              bounds = coverageBounds;
             }
             layer.remove();
           }
@@ -268,17 +309,21 @@ function FitToCoverage({
             (pin) => pin.instructorId === focusInstructorId
           );
           if (focusedPins.length) {
-            const bounds = L.latLngBounds(
+            const pinBounds = L.latLngBounds(
               focusedPins.map((pin) => [pin.lat, pin.lng])
             );
-            if (bounds.isValid()) {
-              map.flyToBounds(bounds, {
-                paddingTopLeft: [40, 40],
-                paddingBottomRight: [40, 80],
-                duration: 0.8
-              });
+            if (pinBounds.isValid()) {
+              bounds = bounds ? bounds.extend(pinBounds) : pinBounds;
             }
           }
+        }
+
+        if (bounds && bounds.isValid()) {
+          map.flyToBounds(bounds, {
+            paddingTopLeft: [40, 40],
+            paddingBottomRight: [40, 80],
+            duration: 0.8,
+          });
         }
       } catch {}
     }

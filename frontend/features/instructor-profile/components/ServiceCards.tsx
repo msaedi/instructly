@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useId, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Layers, MonitorSmartphone } from 'lucide-react';
+import { Layers, MapPin, MonitorSmartphone } from 'lucide-react';
 import type { InstructorService } from '@/types/instructor';
 
 interface ServiceCardsProps {
@@ -140,8 +140,13 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
                       </span>
                     )}
                     {offersAtLocation && (
-                      <span role="img" aria-label="At their studio" title="At their studio" className="cursor-help">
-                        🏠
+                      <span
+                        role="img"
+                        aria-label="At their studio"
+                        title="At their studio"
+                        className="cursor-help inline-flex items-center"
+                      >
+                        <MapPin className="h-4 w-4 text-[#7E22CE]" aria-hidden="true" />
                       </span>
                     )}
                     {offersOnline && (

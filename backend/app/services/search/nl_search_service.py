@@ -2094,6 +2094,27 @@ class NLSearchService:
                 continue
             chosen_by_instructor[instructor_id] = chosen
 
+        service_ids: List[str] = []
+        for matches in chosen_by_instructor.values():
+            for match in matches:
+                if match.service_id:
+                    service_ids.append(match.service_id)
+        if service_ids:
+            service_ids = list(dict.fromkeys(service_ids))
+
+        service_data_by_id: Dict[str, Dict[str, Any]] = {}
+        if service_ids:
+
+            def _load_service_data() -> Dict[str, Dict[str, Any]]:
+                from app.repositories.retriever_repository import RetrieverRepository
+
+                with get_db_session() as db:
+                    retriever_repo = RetrieverRepository(db)
+                    rows = retriever_repo.get_services_by_ids(service_ids)
+                return {row["id"]: row for row in rows}
+
+            service_data_by_id = await asyncio.to_thread(_load_service_data)
+
         # Optional distance map (meters) for admin debugging when we have a location reference.
         distance_region_ids: Optional[List[str]] = None
         if location_resolution and location_resolution.region_id:
@@ -2169,6 +2190,7 @@ class NLSearchService:
                 count=int(profile.get("review_count", 0) or 0),
             )
 
+            best_meta = service_data_by_id.get(best_ranked.service_id, {})
             best_match = ServiceMatch(
                 service_id=best_ranked.service_id,
                 service_catalog_id=best_ranked.service_catalog_id,
@@ -2176,10 +2198,14 @@ class NLSearchService:
                 description=best_ranked.description,
                 price_per_hour=int(best_ranked.price_per_hour),
                 relevance_score=round(float(best_ranked.relevance_score), 3),
+                offers_travel=best_meta.get("offers_travel"),
+                offers_at_location=best_meta.get("offers_at_location"),
+                offers_online=best_meta.get("offers_online"),
             )
 
             other_matches: List[ServiceMatch] = []
             for other_ranked in chosen_for_instructor[1:]:
+                other_meta = service_data_by_id.get(other_ranked.service_id, {})
                 other_matches.append(
                     ServiceMatch(
                         service_id=other_ranked.service_id,
@@ -2188,6 +2214,9 @@ class NLSearchService:
                         description=other_ranked.description,
                         price_per_hour=int(other_ranked.price_per_hour),
                         relevance_score=round(float(other_ranked.relevance_score), 3),
+                        offers_travel=other_meta.get("offers_travel"),
+                        offers_at_location=other_meta.get("offers_at_location"),
+                        offers_online=other_meta.get("offers_online"),
                     )
                 )
 

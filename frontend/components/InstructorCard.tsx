@@ -4,10 +4,9 @@
 import { useRouter } from 'next/navigation';
 import { Star, Heart, Layers, MonitorSmartphone, Clock3, MapPin } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
-import { Instructor, ServiceCatalogItem } from '@/types/api';
+import { Instructor } from '@/types/api';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { publicApi } from '@/features/shared/api/client';
 import { ApiProblemError } from '@/lib/api/fetch';
 import {
   fetchPricingPreview,
@@ -18,19 +17,15 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { favoritesApi } from '@/services/api/favorites';
 import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavoriteStatus';
 import { useSearchRatingQuery } from '@/hooks/queries/useRatings';
+import { useServicesCatalog } from '@/hooks/queries/useServices';
 import { useRecentReviews } from '@/src/api/services/reviews';
 import { toast } from 'sonner';
-import { logger } from '@/lib/logger';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { timeToMinutes } from '@/lib/time';
 import { at } from '@/lib/ts/safe';
 import { MessageInstructorButton } from '@/components/instructor/MessageInstructorButton';
 import { FoundingBadge } from '@/components/ui/FoundingBadge';
 import { BGCBadge } from '@/components/ui/BGCBadge';
-
-// Simple in-module cache to avoid N duplicate catalog fetches (one per card)
-let catalogCache: ServiceCatalogItem[] | null = null;
-let catalogPromise: Promise<ServiceCatalogItem[]> | null = null;
 
 type AvailabilitySlot = {
   start_time: string;
@@ -134,7 +129,7 @@ export default function InstructorCard({
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
+  const { data: serviceCatalog = [] } = useServicesCatalog();
 
   // Use React Query hook for favorite status (prevents duplicate API calls)
   const { data: favoriteStatus } = useFavoriteStatus(instructor.user_id);
@@ -186,42 +181,6 @@ export default function InstructorCard({
   const recentReviews = recentReviewsData?.reviews ?? [];
   const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
   const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'NYC';
-  // Fetch service catalog on mount with simple de-duplication
-  useEffect(() => {
-    const fetchServiceCatalog = async () => {
-      try {
-        if (catalogCache) {
-          setServiceCatalog(catalogCache);
-          return;
-        }
-        if (catalogPromise) {
-          const data = await catalogPromise;
-          setServiceCatalog(data);
-          return;
-        }
-        catalogPromise = (async () => {
-          const response = await publicApi.getCatalogServices();
-          const data: ServiceCatalogItem[] = (response.data ?? []).map((service) => {
-            const { description, ...rest } = service;
-            return {
-              ...rest,
-              ...(typeof description === 'string' ? { description } : {}),
-            };
-          });
-          catalogCache = data;
-          return data;
-        })();
-        const activePromise = catalogPromise;
-        if (!activePromise) return;
-        const data = await activePromise;
-        setServiceCatalog(data);
-      } catch (error) {
-        logger.error('Failed to fetch service catalog', error as Error);
-      }
-    };
-    void fetchServiceCatalog();
-  }, []);
-
   // Favorite status is now handled by useFavoriteStatus hook (React Query)
   // Recent reviews are now handled by useRecentReviews hook (React Query)
 
@@ -556,8 +515,13 @@ const findNextAvailableSlot = (
                             </span>
                           )}
                           {offersAtLocation && (
-                            <span role="img" aria-label="At their studio" title="At their studio" className="cursor-help">
-                              🏠
+                            <span
+                              role="img"
+                              aria-label="At their studio"
+                              title="At their studio"
+                              className="cursor-help inline-flex items-center"
+                            >
+                              <MapPin className="h-4 w-4 text-[#7E22CE]" aria-hidden="true" />
                             </span>
                           )}
                           {offersOnline && (

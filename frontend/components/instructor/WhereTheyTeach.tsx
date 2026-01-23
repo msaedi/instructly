@@ -1,6 +1,8 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import dynamic from 'next/dynamic';
+import { MapPin } from 'lucide-react';
 
 const InstructorCoverageMap = dynamic(() => import('@/components/maps/InstructorCoverageMap'), { ssr: false });
 
@@ -40,17 +42,28 @@ export function WhereTheyTeach({
   const hasLessonOptions = offersTravel || offersAtLocation || offersOnline;
   const showMap = offersTravel || offersAtLocation;
   const studioLabel = studioPins[0]?.label;
-  const legendItems = [
-    offersTravel
-      ? { key: 'travel', icon: '🚗', label: 'Travels to you', aria: 'Travels to you' }
-      : null,
-    offersAtLocation
-      ? { key: 'studio', icon: '📍', label: 'At studio', aria: 'At studio' }
-      : null,
-    offersOnline
-      ? { key: 'online', icon: '💻', label: 'Online', aria: 'Online lessons' }
-      : null,
-  ].filter((item): item is { key: string; icon: string; label: string; aria: string } => item !== null);
+  const legendItems: Array<{ key: string; icon: ReactNode; label: string }> = [];
+  if (offersTravel) {
+    legendItems.push({
+      key: 'travel',
+      icon: <span role="img" aria-label="Travels to you">🚗</span>,
+      label: 'Travels to you',
+    });
+  }
+  if (offersAtLocation) {
+    legendItems.push({
+      key: 'studio',
+      icon: <MapPin className="h-4 w-4 text-[#7E22CE]" aria-hidden="true" />,
+      label: 'At studio',
+    });
+  }
+  if (offersOnline) {
+    legendItems.push({
+      key: 'online',
+      icon: <span role="img" aria-label="Online lessons">💻</span>,
+      label: 'Online',
+    });
+  }
 
   return (
     <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
@@ -74,7 +87,7 @@ export function WhereTheyTeach({
           <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-gray-700 dark:text-gray-200">
             {legendItems.map((item) => (
               <span key={item.key} className="flex items-center gap-1">
-                <span role="img" aria-label={item.aria}>{item.icon}</span>
+                {item.icon}
                 <span>{item.label}</span>
               </span>
             ))}

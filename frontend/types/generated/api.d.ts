@@ -15530,6 +15530,21 @@ export type components = {
              */
             name: string;
             /**
+             * Offers At Location
+             * @description Instructor teaches at their own location for this service
+             */
+            offers_at_location?: boolean | null;
+            /**
+             * Offers Online
+             * @description Instructor offers online lessons for this service
+             */
+            offers_online?: boolean | null;
+            /**
+             * Offers Travel
+             * @description Instructor travels to student for this service
+             */
+            offers_travel?: boolean | null;
+            /**
              * Price Per Hour
              * @description Hourly rate in dollars
              */

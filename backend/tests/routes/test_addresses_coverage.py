@@ -1,6 +1,6 @@
 import types
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 import pytest
 
 from app.routes.v1 import addresses as addresses_routes
@@ -286,6 +286,7 @@ def test_bulk_coverage_geojson_limit_and_empty(test_student):
 
     empty_result = addresses_routes.get_bulk_coverage_geojson.__wrapped__(
         ids="",
+        response=Response(),
         service=service,
     )
     assert empty_result.features == []
@@ -293,12 +294,14 @@ def test_bulk_coverage_geojson_limit_and_empty(test_student):
     ids = ",".join([f"id_{i}" for i in range(101)])
     addresses_routes.get_bulk_coverage_geojson.__wrapped__(
         ids=ids,
+        response=Response(),
         service=service,
     )
     assert len(service.coverage_ids) == 100
 
     addresses_routes.get_bulk_coverage_geojson.__wrapped__(
         ids="id_1,id_2",
+        response=Response(),
         service=service,
     )
     assert service.coverage_ids == ["id_1", "id_2"]

@@ -75,16 +75,34 @@ export function useRecentReviews(params: {
 }) {
   const { instructorId, instructorServiceId, limit = 10, page = 1, minRating, rating, withText } =
     params;
+  const queryParams: {
+    instructor_service_id?: string;
+    limit: number;
+    page: number;
+    min_rating?: number;
+    rating?: number;
+    with_text?: boolean;
+  } = { limit, page };
+
+  if (typeof instructorServiceId === 'string' && instructorServiceId.trim().length > 0) {
+    queryParams.instructor_service_id = instructorServiceId;
+  }
+
+  if (minRating !== undefined && minRating !== null) {
+    queryParams.min_rating = minRating;
+  }
+
+  if (rating !== undefined && rating !== null) {
+    queryParams.rating = rating;
+  }
+
+  if (withText === true) {
+    queryParams.with_text = true;
+  }
+
   return useGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet(
     instructorId,
-    {
-      instructor_service_id: instructorServiceId ?? null,
-      limit,
-      page,
-      min_rating: minRating ?? null,
-      rating: rating ?? null,
-      with_text: withText ?? null,
-    },
+    queryParams,
     {
       query: {
         enabled: !!instructorId,
@@ -109,9 +127,13 @@ export function useRecentReviews(params: {
  * ```
  */
 export function useSearchRating(instructorId: string, instructorServiceId?: string) {
+  const queryParams =
+    typeof instructorServiceId === 'string' && instructorServiceId.trim().length > 0
+      ? { instructor_service_id: instructorServiceId }
+      : undefined;
   return useGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet(
     instructorId,
-    { instructor_service_id: instructorServiceId ?? null },
+    queryParams,
     {
       query: {
         enabled: !!instructorId,

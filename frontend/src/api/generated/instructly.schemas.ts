@@ -4014,6 +4014,12 @@ export interface ServiceMatch {
   description?: string | null;
   /** Service name */
   name: string;
+  /** Instructor teaches at their own location for this service */
+  offers_at_location?: boolean | null;
+  /** Instructor offers online lessons for this service */
+  offers_online?: boolean | null;
+  /** Instructor travels to student for this service */
+  offers_travel?: boolean | null;
   /**
    * Hourly rate in dollars
    * @minimum 0

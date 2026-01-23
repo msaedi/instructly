@@ -9,6 +9,7 @@ import {
   useServicesInfiniteSearch,
   useProgressiveLoading,
   usePrefetchServices,
+  useServicesCatalog,
 } from '../useServices';
 import { publicApi } from '@/features/shared/api/client';
 
@@ -82,6 +83,23 @@ describe('useServices hooks', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(getCatalogServicesMock).toHaveBeenCalledWith('music');
     expect(result.current.data).toEqual([{ id: 'svc-1', name: 'Piano', slug: 'piano' }]);
+  });
+
+  it('loads full services catalog', async () => {
+    getCatalogServicesMock.mockResolvedValue({
+      data: [{ id: 'svc-1', name: 'Piano', category_id: 'music', description: 'Piano lessons' }],
+      status: 200,
+    });
+
+    const { result } = renderHook(() => useServicesCatalog(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual([
+      { id: 'svc-1', name: 'Piano', category_id: 'music', description: 'Piano lessons' },
+    ]);
+    expect(getCatalogServicesMock).toHaveBeenCalled();
   });
 
   it('does not fetch services by category when disabled', async () => {

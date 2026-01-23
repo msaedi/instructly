@@ -22,7 +22,7 @@ Endpoints:
 import logging
 from typing import Any, Dict, Mapping, Sequence, cast
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Response, status
 from fastapi.params import Path
 from sqlalchemy.orm import Session
 
@@ -403,7 +403,9 @@ def replace_my_service_areas(
 @router.get("/coverage/bulk", response_model=CoverageFeatureCollectionResponse)
 @rate_limit("10/minute", key_type=RateLimitKeyType.IP)
 def get_bulk_coverage_geojson(
-    ids: str, service: AddressService = Depends(get_address_service)
+    ids: str,
+    response: Response,
+    service: AddressService = Depends(get_address_service),
 ) -> CoverageFeatureCollectionResponse:
     """Return GeoJSON FeatureCollection of neighborhoods served by the given instructors.
 
@@ -412,10 +414,12 @@ def get_bulk_coverage_geojson(
     instructor_ids = [s.strip() for s in (ids or "").split(",") if s.strip()]
     # Basic validation and limit
     if not instructor_ids:
+        response.headers["Cache-Control"] = "public, max-age=600"
         return CoverageFeatureCollectionResponse(type="FeatureCollection", features=[])
     if len(instructor_ids) > 100:
         instructor_ids = instructor_ids[:100]
     geo = cast(Mapping[str, Any], service.get_coverage_geojson_for_instructors(instructor_ids))
+    response.headers["Cache-Control"] = "public, max-age=600"
     return CoverageFeatureCollectionResponse(
         type=geo.get("type", "FeatureCollection"), features=geo.get("features", [])
     )

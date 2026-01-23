@@ -62,6 +62,15 @@ class ServiceMatch(BaseModel):
     description: Optional[str] = Field(None, description="Service description")
     price_per_hour: int = Field(..., ge=0, description="Hourly rate in dollars")
     relevance_score: float = Field(..., ge=0, le=1, description="Semantic match score")
+    offers_travel: Optional[bool] = Field(
+        None, description="Instructor travels to student for this service"
+    )
+    offers_at_location: Optional[bool] = Field(
+        None, description="Instructor teaches at their own location for this service"
+    )
+    offers_online: Optional[bool] = Field(
+        None, description="Instructor offers online lessons for this service"
+    )
 
 
 class NLSearchResultItem(BaseModel):
