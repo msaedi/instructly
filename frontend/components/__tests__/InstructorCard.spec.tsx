@@ -44,7 +44,7 @@ jest.mock('@/hooks/useCreateConversation', () => ({
 }));
 
 jest.mock('@/hooks/queries/useRatings', () => ({
-  useSearchRatingQuery: () => ({ data: null }),
+  useInstructorRatingsQuery: () => ({ data: null }),
 }));
 
 jest.mock('@/src/api/services/reviews', () => ({

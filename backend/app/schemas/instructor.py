@@ -541,6 +541,9 @@ class InstructorProfileResponse(InstructorProfileBase):
     is_founding_instructor: bool = Field(
         default=False, description="Whether the instructor is a founding instructor"
     )
+    bgc_status: Optional[str] = Field(
+        default=None, description="Background check status for public display"
+    )
     preferred_teaching_locations: List[PreferredTeachingLocationOut] = Field(default_factory=list)
     preferred_public_spaces: List[PreferredPublicSpaceOut] = Field(default_factory=list)
     service_area_neighborhoods: List[ServiceAreaNeighborhoodOut] = Field(default_factory=list)
@@ -706,6 +709,8 @@ class InstructorProfileResponse(InstructorProfileBase):
             service_area_summary = None
 
         neighborhoods_output = [entry.model_dump(mode="python") for entry in neighborhoods_payload]
+        bgc_status_raw = getattr(instructor_profile, "bgc_status", None)
+        bgc_status = bgc_status_raw if isinstance(bgc_status_raw, str) else None
 
         return cls(
             id=instructor_profile.id,
@@ -728,6 +733,7 @@ class InstructorProfileResponse(InstructorProfileBase):
             onboarding_completed_at=getattr(instructor_profile, "onboarding_completed_at", None),
             is_live=getattr(instructor_profile, "is_live", False),
             is_founding_instructor=getattr(instructor_profile, "is_founding_instructor", False),
+            bgc_status=bgc_status,
             preferred_teaching_locations=teaching_locations,
             preferred_public_spaces=public_spaces,
             service_area_neighborhoods=neighborhoods_output,

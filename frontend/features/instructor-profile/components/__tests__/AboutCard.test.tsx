@@ -119,6 +119,7 @@ describe('AboutCard', () => {
       ...baseInstructor,
       is_live: false,
       bgc_status: null,
+      background_check_completed: false,
     } as InstructorProfile & { bgc_status: null };
 
     render(<AboutCard instructor={instructor} />);

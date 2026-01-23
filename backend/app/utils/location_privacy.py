@@ -14,7 +14,7 @@ def jitter_coordinates(
     min_meters: float = 25.0,
     max_meters: float = 50.0,
 ) -> Tuple[float, float]:
-    """Return coordinates offset by a random 100-200m jitter for privacy."""
+    """Return coordinates offset by a random 25-50m jitter for privacy."""
     distance = random.uniform(min_meters, max_meters)
     angle = random.uniform(0, 2 * math.pi)
 

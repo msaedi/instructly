@@ -16,7 +16,7 @@ import {
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { favoritesApi } from '@/services/api/favorites';
 import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavoriteStatus';
-import { useSearchRatingQuery } from '@/hooks/queries/useRatings';
+import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
 import { useServicesCatalog } from '@/hooks/queries/useServices';
 import { useRecentReviews } from '@/src/api/services/reviews';
 import { toast } from 'sonner';
@@ -160,18 +160,33 @@ export default function InstructorCard({
     () => Math.max(0, Math.round(appliedCreditCents ?? 0)),
     [appliedCreditCents]
   );
-  const primaryServiceId = instructor?.services?.[0]?.id;
-  const { data: searchRating } = useSearchRatingQuery(instructor.user_id, primaryServiceId);
-  const rating = typeof searchRating?.primary_rating === 'number' ? searchRating?.primary_rating : null;
-  const reviewCount = searchRating?.review_count || 0;
+  const { data: ratingsData } = useInstructorRatingsQuery(instructor.user_id);
+  const rating =
+    typeof ratingsData?.overall?.rating === 'number' ? ratingsData.overall.rating : null;
+  const reviewCount = ratingsData?.overall?.total_reviews ?? 0;
   const showRating = typeof rating === 'number' && reviewCount >= 3;
   const distanceMi = (instructor as { distance_mi?: number | null }).distance_mi;
   const showDistance = typeof distanceMi === 'number' && Number.isFinite(distanceMi);
   const showFoundingBadge = Boolean(instructor.is_founding_instructor);
-  const bgcStatusValue = (instructor as { bgc_status?: string | null }).bgc_status;
+  const bgcStatusValue =
+    (instructor as { bgc_status?: string | null }).bgc_status ??
+    (instructor as { background_check_status?: string | null }).background_check_status ??
+    null;
   const bgcStatus = typeof bgcStatusValue === 'string' ? bgcStatusValue.toLowerCase() : '';
   const isLive = Boolean((instructor as { is_live?: boolean }).is_live);
-  const showBGCBadge = isLive || bgcStatus === 'pending';
+  const backgroundCheckVerified =
+    isLive ||
+    bgcStatus === 'passed' ||
+    bgcStatus === 'clear' ||
+    bgcStatus === 'verified' ||
+    Boolean(
+      (instructor as { background_check_verified?: boolean | null }).background_check_verified
+    ) ||
+    Boolean(
+      (instructor as { background_check_completed?: boolean | null }).background_check_completed
+    );
+  const showBGCBadge = backgroundCheckVerified || bgcStatus === 'pending';
+  const resolvedBgcStatus = bgcStatusValue ?? (backgroundCheckVerified ? 'passed' : null);
 
   // Use React Query hook for recent reviews (prevents duplicate API calls)
   const { data: recentReviewsData } = useRecentReviews({
@@ -414,7 +429,7 @@ const findNextAvailableSlot = (
 
               {showBGCBadge ? (
                 <div className={showRating || showFoundingBadge ? 'mt-1' : ''}>
-                  <BGCBadge isLive={isLive} bgcStatus={bgcStatusValue ?? null} />
+                  <BGCBadge isLive={isLive} bgcStatus={resolvedBgcStatus} />
                 </div>
               ) : null}
 
@@ -454,7 +469,13 @@ const findNextAvailableSlot = (
 
                 const formatService = highlightService ?? instructor.services[0];
                 const offersTravel = Boolean(formatService?.offers_travel);
-                const offersAtLocation = Boolean(formatService?.offers_at_location);
+                const hasTeachingLocations =
+                  (Array.isArray((instructor as { teaching_locations?: unknown[] }).teaching_locations) &&
+                    (instructor as { teaching_locations?: unknown[] }).teaching_locations!.length > 0) ||
+                  (Array.isArray((instructor as { preferred_teaching_locations?: unknown[] }).preferred_teaching_locations) &&
+                    (instructor as { preferred_teaching_locations?: unknown[] }).preferred_teaching_locations!.length > 0);
+                const offersAtLocation =
+                  Boolean(formatService?.offers_at_location) && Boolean(hasTeachingLocations);
                 const offersOnline = Boolean(formatService?.offers_online);
                 const hasFormat = offersTravel || offersAtLocation || offersOnline;
 
@@ -771,11 +792,18 @@ const findNextAvailableSlot = (
               {recentReviews.map((r) => (
                 <div key={r.id} className="bg-gray-50 p-3 rounded-lg">
                   <div className="flex items-center mb-1">
-                    <div className="flex">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="h-4 w-4 text-yellow-500 fill-current" />
-                      ))}
-                    </div>
+                  <div className="flex">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`h-4 w-4 ${
+                          typeof r.rating === 'number' && star <= r.rating
+                            ? 'fill-yellow-400 text-yellow-400'
+                            : 'fill-gray-200 text-gray-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
                   </div>
                   {r.review_text && (
                     <p className="text-sm text-gray-700 italic line-clamp-3">{`"${r.review_text}"`}</p>

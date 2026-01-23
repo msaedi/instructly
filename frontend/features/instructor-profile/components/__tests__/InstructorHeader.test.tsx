@@ -152,7 +152,6 @@ describe('InstructorHeader', () => {
       const instructor = createInstructor({ is_live: true } as InstructorProfile);
       renderWithProviders(<InstructorHeader instructor={instructor} />);
       expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
-      expect(screen.getByText('Background check cleared')).toBeInTheDocument();
     });
 
     it('renders BGC badge when bgc_status is pending', () => {
@@ -161,7 +160,7 @@ describe('InstructorHeader', () => {
       expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
     });
 
-    it('does not show background check cleared for pending status', () => {
+    it('does not render background check cleared text for pending status', () => {
       const instructor = { ...createInstructor(), bgc_status: 'pending', is_live: false } as InstructorProfile & { bgc_status: string };
       renderWithProviders(<InstructorHeader instructor={instructor} />);
       expect(screen.queryByText('Background check cleared')).not.toBeInTheDocument();

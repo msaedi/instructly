@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import InstructorCard from '../InstructorCard';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavoriteStatus';
-import { useSearchRatingQuery } from '@/hooks/queries/useRatings';
+import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
 import { useRecentReviews } from '@/src/api/services/reviews';
 import { favoritesApi } from '@/services/api/favorites';
 import { useServicesCatalog } from '@/hooks/queries/useServices';
@@ -26,7 +26,7 @@ jest.mock('@/hooks/queries/useFavoriteStatus', () => ({
 }));
 
 jest.mock('@/hooks/queries/useRatings', () => ({
-  useSearchRatingQuery: jest.fn(),
+  useInstructorRatingsQuery: jest.fn(),
 }));
 
 jest.mock('@/src/api/services/reviews', () => ({
@@ -104,7 +104,7 @@ const mockUseAuth = useAuth as jest.Mock;
 const mockUseRouter = useRouter as jest.Mock;
 const mockUseFavoriteStatus = useFavoriteStatus as jest.Mock;
 const mockUseSetFavoriteStatus = useSetFavoriteStatus as jest.Mock;
-const mockUseSearchRatingQuery = useSearchRatingQuery as jest.Mock;
+const mockUseInstructorRatingsQuery = useInstructorRatingsQuery as jest.Mock;
 const mockUseRecentReviews = useRecentReviews as jest.Mock;
 const mockUseServicesCatalog = useServicesCatalog as jest.Mock;
 const mockFavoritesApi = favoritesApi as jest.Mocked<typeof favoritesApi>;
@@ -147,7 +147,7 @@ describe('InstructorCard', () => {
     mockUseAuth.mockReturnValue({ user: null });
     mockUseFavoriteStatus.mockReturnValue({ data: false });
     mockUseSetFavoriteStatus.mockReturnValue(mockSetFavoriteStatus);
-    mockUseSearchRatingQuery.mockReturnValue({ data: null });
+    mockUseInstructorRatingsQuery.mockReturnValue({ data: null });
     mockUseRecentReviews.mockReturnValue({ data: null });
     mockUseServicesCatalog.mockReturnValue({
       data: [
@@ -229,8 +229,8 @@ describe('InstructorCard', () => {
     });
 
     it('displays rating when reviewCount >= 3', async () => {
-      mockUseSearchRatingQuery.mockReturnValue({
-        data: { primary_rating: 4.5, review_count: 10 },
+      mockUseInstructorRatingsQuery.mockReturnValue({
+        data: { overall: { rating: 4.5, total_reviews: 10 } },
       });
       const instructor = createInstructor();
       renderWithProviders(<InstructorCard instructor={instructor} />);
@@ -239,8 +239,8 @@ describe('InstructorCard', () => {
     });
 
     it('hides rating when reviewCount < 3', async () => {
-      mockUseSearchRatingQuery.mockReturnValue({
-        data: { primary_rating: 5.0, review_count: 2 },
+      mockUseInstructorRatingsQuery.mockReturnValue({
+        data: { overall: { rating: 5.0, total_reviews: 2 } },
       });
       const instructor = createInstructor();
       renderWithProviders(<InstructorCard instructor={instructor} />);
@@ -443,8 +443,8 @@ describe('InstructorCard', () => {
     });
 
     it('navigates to reviews page when rating clicked', async () => {
-      mockUseSearchRatingQuery.mockReturnValue({
-        data: { primary_rating: 4.5, review_count: 10 },
+      mockUseInstructorRatingsQuery.mockReturnValue({
+        data: { overall: { rating: 4.5, total_reviews: 10 } },
       });
       const instructor = createInstructor();
       renderWithProviders(<InstructorCard instructor={instructor} />);
@@ -749,7 +749,9 @@ describe('InstructorCard', () => {
     });
 
     it('handles null rating gracefully', () => {
-      mockUseSearchRatingQuery.mockReturnValue({ data: { primary_rating: null, review_count: 5 } });
+      mockUseInstructorRatingsQuery.mockReturnValue({
+        data: { overall: { rating: null, total_reviews: 5 } },
+      });
       const instructor = createInstructor();
       renderWithProviders(<InstructorCard instructor={instructor} />);
       // Should not display rating when it's null

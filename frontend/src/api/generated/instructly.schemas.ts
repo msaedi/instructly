@@ -2934,6 +2934,8 @@ Student-facing endpoints will show only instructor last initial.
 export interface InstructorProfileResponse {
   background_check_object_key?: string | null;
   background_check_uploaded_at?: string | null;
+  /** Background check status for public display */
+  bgc_status?: string | null;
   /**
    * Instructor biography/description
    * @minLength 10

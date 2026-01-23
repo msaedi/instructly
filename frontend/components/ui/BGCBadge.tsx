@@ -10,8 +10,13 @@ interface BGCBadgeProps {
 export function BGCBadge({ isLive, bgcStatus, className }: BGCBadgeProps) {
   const normalizedStatus =
     typeof bgcStatus === 'string' ? bgcStatus.trim().toLowerCase() : '';
+  const isVerified =
+    isLive ||
+    normalizedStatus === 'passed' ||
+    normalizedStatus === 'clear' ||
+    normalizedStatus === 'verified';
 
-  if (isLive) {
+  if (isVerified) {
     return (
       <span
         className={cn(

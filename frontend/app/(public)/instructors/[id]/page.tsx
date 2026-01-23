@@ -172,7 +172,10 @@ function InstructorProfileContent() {
   const offersTravel = services.some((service) => service.offers_travel === true);
   const offersAtLocation = services.some((service) => service.offers_at_location === true);
   const offersOnline = services.some((service) => service.offers_online === true);
-  const shouldShowMap = offersTravel || offersAtLocation;
+  const hasTeachingLocations = Array.isArray(instructor?.preferred_teaching_locations)
+    ? instructor.preferred_teaching_locations.length > 0
+    : false;
+  const shouldShowMap = offersTravel || (offersAtLocation && hasTeachingLocations);
   const coverageInstructorId = instructor?.user_id || instructorId;
   const { data: coverage } = useInstructorCoverage(coverageInstructorId, {
     enabled: shouldShowMap && Boolean(coverageInstructorId),
@@ -452,13 +455,14 @@ function InstructorProfileContent() {
             <ServiceCards
               services={instructor.services}
               selectedSlot={activeSelectedSlot}
+              hasTeachingLocations={hasTeachingLocations}
               onBookService={(service, duration) => handleBookingClick(service, duration)}
             />
           </section>
 
           <WhereTheyTeach
             offersTravel={offersTravel}
-            offersAtLocation={offersAtLocation}
+            offersAtLocation={offersAtLocation && hasTeachingLocations}
             offersOnline={offersOnline}
             coverage={coverageCollection}
             studioPins={studioPins}
@@ -482,12 +486,13 @@ function InstructorProfileContent() {
               <ServiceCards
                 services={instructor.services}
                 selectedSlot={activeSelectedSlot}
+                hasTeachingLocations={hasTeachingLocations}
                 onBookService={(service, duration) => handleBookingClick(service, duration)}
               />
             </div>
             <WhereTheyTeach
               offersTravel={offersTravel}
-              offersAtLocation={offersAtLocation}
+              offersAtLocation={offersAtLocation && hasTeachingLocations}
               offersOnline={offersOnline}
               coverage={coverageCollection}
               studioPins={studioPins}

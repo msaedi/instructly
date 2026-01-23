@@ -40,6 +40,13 @@ type ServerInstructorProfileResult = {
   is_favorited?: unknown;
   has_profile_picture?: boolean;
   profile_picture_version?: number;
+  is_live?: boolean;
+  is_founding_instructor?: boolean;
+  bgc_status?: string | null;
+  background_check_status?: string | null;
+  background_check_verified?: boolean | null;
+  background_check_completed?: boolean | null;
+  bgc_completed_at?: string | null;
 };
 
 /**
@@ -128,6 +135,12 @@ export function useInstructorProfile(instructorId: string) {
       ? Number((serverInst as Record<string, unknown>)['profile_picture_version'])
       : undefined;
 
+    const bgcStatusRaw = typeof (serverInst as Record<string, unknown>)['bgc_status'] === 'string'
+      ? String((serverInst as Record<string, unknown>)['bgc_status'])
+      : typeof (serverInst as Record<string, unknown>)['background_check_status'] === 'string'
+        ? String((serverInst as Record<string, unknown>)['background_check_status'])
+        : undefined;
+
     const instructorProfile: InstructorProfile = {
       id: canonicalId,
       user_id: serverInst.user_id || canonicalId,
@@ -203,11 +216,25 @@ export function useInstructorProfile(instructorId: string) {
       ...(typeof topLevelProfilePictureVersion !== 'undefined' ? { profile_picture_version: topLevelProfilePictureVersion } : {}),
       services: mappedServices,
       favorited_count: serverInst.favorited_count || 0,
+      ...(typeof serverInst.is_live === 'boolean' && { is_live: serverInst.is_live }),
+      ...(typeof serverInst.is_founding_instructor === 'boolean' && {
+        is_founding_instructor: serverInst.is_founding_instructor,
+      }),
       // Only include optional properties when they have actual values
       ...(typeof (serverInst as Record<string, unknown>)['verified'] !== 'undefined' && { is_verified: Boolean((serverInst as Record<string, unknown>)['verified']) }),
       ...(typeof (serverInst as Record<string, unknown>)['is_favorited'] !== 'undefined' && { is_favorited: Boolean((serverInst as Record<string, unknown>)['is_favorited']) }),
-      ...(typeof (serverInst as Record<string, unknown>)['bgc_status'] === 'string' && {
-        bgc_status: String((serverInst as Record<string, unknown>)['bgc_status']),
+      ...(typeof bgcStatusRaw === 'string' && {
+        bgc_status: bgcStatusRaw,
+      }),
+      ...(typeof (serverInst as Record<string, unknown>)['background_check_verified'] === 'boolean' && {
+        background_check_completed: Boolean(
+          (serverInst as Record<string, unknown>)['background_check_verified']
+        ),
+      }),
+      ...(typeof (serverInst as Record<string, unknown>)['background_check_completed'] === 'boolean' && {
+        background_check_completed: Boolean(
+          (serverInst as Record<string, unknown>)['background_check_completed']
+        ),
       }),
       ...(typeof (serverInst as Record<string, unknown>)['bgc_completed_at'] === 'string' && {
         bgc_completed_at: String((serverInst as Record<string, unknown>)['bgc_completed_at']),

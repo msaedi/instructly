@@ -39,8 +39,10 @@ export function WhereTheyTeach({
   coverage = null,
   studioPins = [],
 }: WhereTheyTeachProps) {
-  const hasLessonOptions = offersTravel || offersAtLocation || offersOnline;
-  const showMap = offersTravel || offersAtLocation;
+  const hasStudios = Array.isArray(studioPins) && studioPins.length > 0;
+  const effectiveOffersAtLocation = offersAtLocation && hasStudios;
+  const hasLessonOptions = offersTravel || effectiveOffersAtLocation || offersOnline;
+  const showMap = offersTravel || effectiveOffersAtLocation;
   const studioLabel = studioPins[0]?.label;
   const legendItems: Array<{ key: string; icon: ReactNode; label: string }> = [];
   if (offersTravel) {
@@ -50,7 +52,7 @@ export function WhereTheyTeach({
       label: 'Travels to you',
     });
   }
-  if (offersAtLocation) {
+  if (effectiveOffersAtLocation) {
     legendItems.push({
       key: 'studio',
       icon: <MapPin className="h-4 w-4 text-[#7E22CE]" aria-hidden="true" />,
@@ -93,7 +95,7 @@ export function WhereTheyTeach({
             ))}
           </div>
 
-          {offersAtLocation && studioLabel ? (
+          {effectiveOffersAtLocation && studioLabel ? (
             <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
               Approximate studio area: {studioLabel}
             </div>

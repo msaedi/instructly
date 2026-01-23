@@ -9,6 +9,7 @@ interface ServiceCardsProps {
   selectedSlot?: { date: string; time: string; duration: number; availableDuration?: number } | null;
   onBookService?: (service: InstructorService, duration: number) => void;
   searchedService?: string; // To prioritize searched service
+  hasTeachingLocations?: boolean;
 }
 
 
@@ -19,9 +20,17 @@ interface ServiceCardItemProps {
   canBook: boolean;
   selectedSlot?: { date: string; time: string; duration: number; availableDuration?: number } | null;
   onBook: (duration: number) => void;
+  hasTeachingLocations: boolean;
 }
 
-function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: ServiceCardItemProps) {
+function ServiceCardItem({
+  service,
+  duration,
+  canBook,
+  selectedSlot,
+  onBook,
+  hasTeachingLocations,
+}: ServiceCardItemProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState(duration);
 
@@ -52,7 +61,7 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
   })();
 
   const offersTravel = Boolean(service.offers_travel);
-  const offersAtLocation = Boolean(service.offers_at_location);
+  const offersAtLocation = Boolean(service.offers_at_location) && hasTeachingLocations;
   const offersOnline = Boolean(service.offers_online);
   const hasFormat = offersTravel || offersAtLocation || offersOnline;
 
@@ -228,7 +237,13 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
   );
 }
 
-export function ServiceCards({ services, selectedSlot, onBookService, searchedService }: ServiceCardsProps) {
+export function ServiceCards({
+  services,
+  selectedSlot,
+  onBookService,
+  searchedService,
+  hasTeachingLocations = true,
+}: ServiceCardsProps) {
   if (!services || services.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -275,6 +290,7 @@ export function ServiceCards({ services, selectedSlot, onBookService, searchedSe
             duration={duration}
             canBook={canBook}
             {...(selectedSlot && { selectedSlot })}
+            hasTeachingLocations={hasTeachingLocations}
             onBook={(selectedDuration) => {
               if (onBookService && canBook) {
                 onBookService(service, selectedDuration);

@@ -11046,6 +11046,11 @@ export type components = {
             /** Background Check Uploaded At */
             background_check_uploaded_at?: string | null;
             /**
+             * Bgc Status
+             * @description Background check status for public display
+             */
+            bgc_status?: string | null;
+            /**
              * Bio
              * @description Instructor biography/description
              */

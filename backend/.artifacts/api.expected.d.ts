@@ -6140,6 +6140,7 @@ export type components = {
  InstructorProfileResponse: {
  background_check_object_key?: string | null;
  background_check_uploaded_at?: string | null;
+ bgc_status?: string | null;
  bio: string;
  buffer_time_minutes: number;
  created_at: string;

@@ -1,7 +1,7 @@
 import { Star } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useInstructorReviews } from '../hooks/useInstructorReviews';
+import { useRecentReviews } from '@/src/api/services/reviews';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 
@@ -28,7 +28,11 @@ function StarRating({ rating }: { rating: number }) {
 
 export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
   const router = useRouter();
-  const { data, isLoading, error } = useInstructorReviews(instructorId, 1, 12);
+  const { data, isLoading, error } = useRecentReviews({
+    instructorId,
+    page: 1,
+    limit: 12,
+  });
 
   if (isLoading) {
     return (
