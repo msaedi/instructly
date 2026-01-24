@@ -41,7 +41,9 @@ export function usePublicAvailability(instructorIds: string[]) {
     return { startDate: formatDate(start), endDate: formatDate(end) };
   }, []);
 
-  const results = useQueries({
+  // Use the combine option to create a stable return value
+  // The combine function only runs when the underlying query data changes
+  return useQueries({
     queries: ids.map((instructorId) => ({
       queryKey: ['availability', 'public', instructorId, startDate, endDate],
       staleTime: AVAILABILITY_STALE_TIME_MS,
@@ -77,16 +79,15 @@ export function usePublicAvailability(instructorIds: string[]) {
         };
       },
     })),
+    combine: (results) => {
+      const availabilityByInstructor: Record<string, InstructorAvailabilitySummary> = {};
+      results.forEach((result, index) => {
+        const data = result.data;
+        const instructorId = ids[index];
+        if (!instructorId || !data) return;
+        availabilityByInstructor[instructorId] = data;
+      });
+      return availabilityByInstructor;
+    },
   });
-
-  return useMemo(() => {
-    const availabilityByInstructor: Record<string, InstructorAvailabilitySummary> = {};
-    results.forEach((result, index) => {
-      const data = result.data;
-      const instructorId = ids[index];
-      if (!instructorId || !data) return;
-      availabilityByInstructor[instructorId] = data;
-    });
-    return availabilityByInstructor;
-  }, [ids, results]);
 }

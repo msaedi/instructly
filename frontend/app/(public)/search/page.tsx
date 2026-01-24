@@ -1,7 +1,8 @@
 // frontend/app/(public)/search/page.tsx
 'use client';
 
-import { useEffect, useState, Suspense, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useState, Suspense, useCallback, useRef, useMemo, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import InstructorCard from '@/components/InstructorCard';
@@ -16,16 +17,26 @@ import { recordSearch } from '@/lib/searchTracking';
 import { withApiBase } from '@/lib/apiBase';
 import { SearchType } from '@/types/enums';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import { useInstructorSearch } from '@/hooks/queries/useInstructorSearch';
+import { useInstructorSearchInfinite } from '@/hooks/queries/useInstructorSearch';
 import { useInstructorCoverage } from '@/hooks/queries/useInstructorCoverage';
-import { usePublicAvailability } from '@/hooks/queries/usePublicAvailability';
-import { AlertTriangle, ChevronDown, X, Calendar, SlidersHorizontal } from 'lucide-react';
+import { usePublicAvailability, type InstructorAvailabilitySummary } from '@/hooks/queries/usePublicAvailability';
+import { AlertTriangle, ChevronDown } from 'lucide-react';
+import { FilterBar } from '@/components/search/FilterBar';
+import { DEFAULT_FILTERS, type FilterState } from '@/components/search/filterTypes';
 
-// Filter types
-type DateFilter = 'today' | 'this_week' | 'custom' | null;
-type TimeFilter = 'morning' | 'afternoon' | null;
-type LessonTypeFilter = 'online' | 'in_person' | null;
 type SortOption = 'recommended' | 'price_asc' | 'price_desc' | 'rating';
+
+function RateLimitBanner({ rateLimit }: { rateLimit: { seconds: number } | null }) {
+  if (!rateLimit) return null;
+  return (
+    <div
+      data-testid="rate-limit-banner"
+      className="mb-4 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-900 px-3 py-2 text-sm"
+    >
+      Our hamsters are sprinting. Give them {rateLimit.seconds}s.
+    </div>
+  );
+}
 
 
 const getServiceDisplayName = (service: Instructor['services'][number]): string => {
@@ -386,16 +397,24 @@ type MapFeatureCollection = {
   features: GeoJSONFeature[];
 };
 
+const getInstructorMinRate = (instructor: Instructor): number | null => {
+  const services = Array.isArray(instructor.services) ? instructor.services : [];
+  const rates = services
+    .map((service) => service.hourly_rate)
+    .filter((rate): rate is number => Number.isFinite(rate));
+  if (rates.length === 0) return null;
+  return Math.min(...rates);
+};
+
+const compareNullableNumbers = (a: number | null, b: number | null, direction: 'asc' | 'desc') => {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return direction === 'asc' ? a - b : b - a;
+};
+
 // Helper to build query with filters appended
-const buildQueryWithFilters = (
-  baseQuery: string,
-  dateFilter: DateFilter,
-  timeFilter: TimeFilter,
-  lessonType: LessonTypeFilter,
-  minPrice: number | null,
-  maxPrice: number | null,
-  customDate: string | null
-): string => {
+const buildQueryWithFilters = (baseQuery: string, filters: FilterState): string => {
   let query = baseQuery.trim();
 
   // Remove existing filter keywords to avoid duplication
@@ -414,45 +433,99 @@ const buildQueryWithFilters = (
   query = query.replace(/\s+/g, ' ').trim();
 
   // Append date filter
-  if (dateFilter === 'today') {
-    query = `${query} today`;
-  } else if (dateFilter === 'this_week') {
-    query = `${query} this week`;
-  } else if (dateFilter === 'custom' && customDate) {
-    // Format: "on January 25" - backend parser handles date expressions
-    const date = new Date(customDate);
-    const monthName = date.toLocaleDateString('en-US', { month: 'long' });
-    const day = date.getDate();
-    query = `${query} on ${monthName} ${day}`;
+  if (filters.date) {
+    const date = new Date(filters.date);
+    if (!Number.isNaN(date.getTime())) {
+      const monthName = date.toLocaleDateString('en-US', { month: 'long' });
+      const day = date.getDate();
+      query = `${query} on ${monthName} ${day}`;
+    }
   }
 
-  // Append time filter
-  if (timeFilter === 'morning') {
-    query = `${query} morning`;
-  } else if (timeFilter === 'afternoon') {
-    query = `${query} afternoon`;
+  // Append time filters
+  if (filters.timeOfDay.length > 0) {
+    for (const time of filters.timeOfDay) {
+      query = `${query} ${time}`;
+    }
   }
 
-  // Append lesson type
-  if (lessonType === 'online') {
+  // Append location filter
+  if (filters.location === 'online') {
     query = `${query} online`;
-  } else if (lessonType === 'in_person') {
+  } else if (filters.location === 'travels' || filters.location === 'studio') {
     query = `${query} in-person`;
   }
 
   // Append price filters
-  if (minPrice !== null && maxPrice !== null) {
-    query = `${query} $${minPrice}-$${maxPrice}`;
-  } else if (maxPrice !== null) {
-    query = `${query} under $${maxPrice}`;
-  } else if (minPrice !== null) {
-    query = `${query} above $${minPrice}`;
+  if (filters.priceMin !== null && filters.priceMax !== null) {
+    query = `${query} $${filters.priceMin}-$${filters.priceMax}`;
+  } else if (filters.priceMax !== null) {
+    query = `${query} under $${filters.priceMax}`;
+  } else if (filters.priceMin !== null) {
+    query = `${query} above $${filters.priceMin}`;
   }
 
   return query.trim();
 };
 
-function SearchPageContent() {
+const TIME_OF_DAY_RANGES: Record<'morning' | 'afternoon' | 'evening', [number, number]> = {
+  morning: [6 * 60, 12 * 60],
+  afternoon: [12 * 60, 17 * 60],
+  evening: [17 * 60, 21 * 60],
+};
+
+const parseTimeToMinutes = (value?: string | null): number | null => {
+  if (!value) return null;
+  const [hoursRaw, minutesRaw] = value.split(':');
+  const hours = Number.parseInt(hoursRaw ?? '', 10);
+  const minutes = Number.parseInt(minutesRaw ?? '', 10);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+};
+
+const slotOverlapsRanges = (
+  slot: { start_time: string; end_time: string },
+  ranges: Array<[number, number]>
+): boolean => {
+  const start = parseTimeToMinutes(slot.start_time);
+  const end = parseTimeToMinutes(slot.end_time);
+  if (start === null || end === null) return false;
+  const normalizedEnd = end <= start ? 24 * 60 : end;
+  return ranges.some(([rangeStart, rangeEnd]) => start < rangeEnd && normalizedEnd > rangeStart);
+};
+
+const availabilityMatchesFilters = (
+  availability: InstructorAvailabilitySummary | undefined,
+  filters: FilterState
+): boolean => {
+  const hasDateFilter = Boolean(filters.date);
+  const hasTimeFilter = filters.timeOfDay.length > 0;
+  if (!hasDateFilter && !hasTimeFilter) return true;
+  if (!availability) return true;
+
+  const ranges = hasTimeFilter
+    ? filters.timeOfDay.map((rangeKey) => TIME_OF_DAY_RANGES[rangeKey])
+    : [];
+
+  if (filters.date) {
+    const day = availability.availabilityByDate?.[filters.date];
+    if (!day || day.is_blackout) return false;
+    if (!day.available_slots || day.available_slots.length === 0) return false;
+    if (ranges.length === 0) return true;
+    return day.available_slots.some((slot) => slotOverlapsRanges(slot, ranges));
+  }
+
+  const days = Object.values(availability.availabilityByDate || {});
+  if (days.length === 0) return false;
+  return days.some(
+    (day) =>
+      !day.is_blackout &&
+      Array.isArray(day.available_slots) &&
+      day.available_slots.some((slot) => slotOverlapsRanges(slot, ranges))
+  );
+};
+
+function SearchPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -460,21 +533,13 @@ function SearchPageContent() {
   const { isAuthenticated } = useAuth();
   const headerRef = useRef<HTMLDivElement | null>(null);
   const lastSearchParamsRef = useRef<string>('');
-  const pagesLoadedRef = useRef<Set<number>>(new Set());
   const [stackedViewportHeight, setStackedViewportHeight] = useState<number | null>(null);
   const [isStacked, setIsStacked] = useState<boolean>(false);
-  const [instructors, setInstructors] = useState<Instructor[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_total, setTotal] = useState(0);
   const isAuthenticatedRef = useRef(isAuthenticated);
   useEffect(() => {
     isAuthenticatedRef.current = isAuthenticated;
   }, [isAuthenticated]);
   const [serviceSlug] = useState<string>('');
-  const [rateLimit, setRateLimit] = useState<{ seconds: number } | null>(null);
   const [showTimeSelection, setShowTimeSelection] = useState(false);
   const [timeSelectionContext, setTimeSelectionContext] = useState<Record<string, unknown> | null>(null);
 
@@ -487,7 +552,7 @@ function SearchPageContent() {
   const [showScrollIndicator, setShowScrollIndicator] = useState(true);
   const [mapBounds, setMapBounds] = useState<unknown>(null);
   const [showSearchAreaButton, setShowSearchAreaButton] = useState(false);
-  const [filteredInstructors, setFilteredInstructors] = useState<Instructor[]>([]);
+  const [mapFilterIds, setMapFilterIds] = useState<string[] | null>(null);
 
   const boundsContains = useCallback((bounds: unknown, lat: number, lng: number): boolean => {
     if (!bounds || typeof bounds !== 'object') return false;
@@ -532,19 +597,377 @@ function SearchPageContent() {
     [boundsContains]
   );
 
+
+  const sortParam = (searchParams.get('sort') || 'recommended') as SortOption;
+  const [sortOption, setSortOption] = useState<SortOption>(sortParam);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
+  const sortMenuRef = useRef<HTMLDivElement | null>(null);
+  const [sortPosition, setSortPosition] = useState<{ top: number; left: number } | null>(null);
+  const isClient = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false
+  );
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+
+  const handleSortChange = useCallback((nextSort: SortOption) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextSort && nextSort !== 'recommended') {
+      params.set('sort', nextSort);
+    } else {
+      params.delete('sort');
+    }
+    setSortOption(nextSort);
+    const queryString = params.toString();
+    router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+  }, [searchParams, pathname, router]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const inButton = sortDropdownRef.current?.contains(target);
+      const inMenu = sortMenuRef.current?.contains(target);
+      if (!inButton && !inMenu) {
+        setShowSortDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSortToggle = useCallback(() => {
+    setShowSortDropdown((prev) => {
+      const next = !prev;
+      if (next && sortDropdownRef.current) {
+        const button = sortDropdownRef.current.querySelector('button');
+        if (button) {
+          const rect = button.getBoundingClientRect();
+          setSortPosition({
+            top: rect.bottom + 8,
+            left: rect.left,
+          });
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const query = searchParams.get('q') || '';
+  const category = searchParams.get('category') || '';
+  const serviceCatalogId = searchParams.get('service_catalog_id') || '';
+  const serviceNameFromUrl = searchParams.get('service_name') || '';
+  const ageGroup = searchParams.get('age_group') || '';
+  const fromSource = searchParams.get('from') || '';
+  const builtSearchQuery = useMemo(() => {
+    if (!query) return '';
+    return buildQueryWithFilters(query, filters);
+  }, [query, filters]);
+
+  const searchQueryEnabled = Boolean(builtSearchQuery || serviceCatalogId);
+  const {
+    data: searchResponse,
+    error: searchError,
+    isLoading: isSearchLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInstructorSearchInfinite({
+    searchQuery: builtSearchQuery,
+    serviceCatalogId,
+    perPage: 20,
+    enabled: searchQueryEnabled,
+  });
+  const loading = searchQueryEnabled ? isSearchLoading : false;
+  const loadingMore = isFetchingNextPage;
+
+  const { instructors, totalResults, nlSearchMeta } = useMemo(() => {
+    const pages = searchResponse?.pages ?? [];
+    if (!searchQueryEnabled || pages.length === 0) {
+      return { instructors: [], totalResults: 0, nlSearchMeta: null };
+    }
+
+    let total = 0;
+    let totalSet = false;
+    let meta: Record<string, unknown> | null = null;
+    const combined: Instructor[] = [];
+
+    pages.forEach((pageData) => {
+      const normalized =
+        pageData.mode === 'nl'
+          ? normalizeSearchResults({
+              mode: 'nl',
+              results: pageData.data.results,
+              meta: pageData.data.meta,
+            })
+          : normalizeSearchResults({
+              mode: 'catalog',
+              results: pageData.data.items,
+              total: pageData.data.total,
+              hasNext: pageData.data.has_next,
+              serviceCatalogId,
+            });
+
+      if (!totalSet) {
+        total = normalized.totalResults;
+        totalSet = true;
+      }
+      if (!meta && normalized.meta) {
+        meta = normalized.meta;
+      }
+
+      normalized.instructors.forEach((instructor) => {
+        const highlightId =
+          (instructor as { _matchedServiceCatalogId?: string | null })._matchedServiceCatalogId ?? null;
+        const services = Array.isArray(instructor.services) ? instructor.services : [];
+        const deduped = dedupeAndOrderServices(services, highlightId);
+        combined.push({
+          ...instructor,
+          services: deduped,
+        });
+      });
+    });
+
+    return {
+      instructors: combined,
+      totalResults: totalSet ? total : combined.length,
+      nlSearchMeta: meta,
+    };
+  }, [searchQueryEnabled, searchResponse, serviceCatalogId]);
+
+  const hasMore = Boolean(hasNextPage);
+
+  const softFilteringUsed = nlSearchMeta
+    ? getBoolean(nlSearchMeta, 'soft_filtering_used', false)
+    : false;
+  const softFilterMessage = nlSearchMeta
+    ? getString(nlSearchMeta, 'soft_filter_message', '')
+    : '';
+  const searchQueryId = nlSearchMeta ? getString(nlSearchMeta, 'search_query_id', '') : '';
+
+  const trackSearchClick = useCallback(
+    (params: { serviceId: string; instructorId: string; position: number; action?: string }) => {
+      if (!searchQueryId) return;
+      const { serviceId, instructorId, position, action = 'view' } = params;
+      if (!serviceId || !instructorId || !Number.isFinite(position) || position <= 0) return;
+
+      try {
+        const qs = new URLSearchParams({
+          search_query_id: searchQueryId,
+          service_id: serviceId,
+          instructor_id: instructorId,
+          position: String(position),
+          action,
+        });
+        const url = withApiBase(`/api/v1/search/click?${qs.toString()}`);
+        void fetch(url, { method: 'POST', credentials: 'include', keepalive: true });
+      } catch {
+        // best-effort: never block navigation
+      }
+    },
+    [searchQueryId]
+  );
+
+  useEffect(() => {
+    const activity = (query || category || '').trim();
+    if (activity) {
+      setActivity(activity);
+    } else {
+      setActivity(null);
+    }
+  }, [query, category, setActivity]);
+
+  const errorMessage = useMemo(() => {
+    if (!searchQueryEnabled) {
+      return 'Please search for a specific service or use natural language search';
+    }
+
+    if (!searchError) return null;
+    return searchError.message || 'Failed to load search results';
+  }, [searchError, searchQueryEnabled]);
+
+  const rateLimit = useMemo(() => {
+    if (!searchQueryEnabled || !searchError) return null;
+    const retryAfterSeconds = (searchError as { retryAfterSeconds?: number }).retryAfterSeconds;
+    const status = (searchError as { status?: number }).status;
+    if (typeof retryAfterSeconds === 'number') {
+      return { seconds: retryAfterSeconds };
+    }
+    if (status === 429) {
+      return { seconds: 0 };
+    }
+    return null;
+  }, [searchError, searchQueryEnabled]);
+
+  useEffect(() => {
+    if (serviceCatalogId && (serviceSlug || serviceNameFromUrl)) {
+      setActivity((serviceSlug || serviceNameFromUrl).toLowerCase());
+    }
+  }, [serviceCatalogId, serviceSlug, serviceNameFromUrl, setActivity]);
+
+  const searchKey = `${query || ''}-${serviceCatalogId || ''}-${category || ''}-${serviceNameFromUrl || ''}-${fromSource || ''}`;
+  const hasSearchResults = searchQueryEnabled && Boolean(searchResponse?.pages?.length);
+
+  useEffect(() => {
+    if (!hasSearchResults) return;
+    if (searchKey === lastSearchParamsRef.current) return;
+    lastSearchParamsRef.current = searchKey;
+
+    let searchType: SearchType = SearchType.NATURAL_LANGUAGE;
+    let searchQueryValue = '';
+
+    if (query) {
+      if (fromSource === 'recent') {
+        searchType = SearchType.SEARCH_HISTORY;
+      } else {
+        searchType = SearchType.NATURAL_LANGUAGE;
+      }
+      searchQueryValue = query;
+    } else if (serviceCatalogId) {
+      searchType = SearchType.SERVICE_PILL;
+      searchQueryValue = serviceNameFromUrl || serviceSlug || `Service #${serviceCatalogId}`;
+    } else if (category) {
+      searchType = SearchType.CATEGORY;
+      searchQueryValue = category;
+    }
+
+    void recordSearch(
+      {
+        query: searchQueryValue,
+        search_type: searchType,
+        results_count: totalResults,
+      },
+      isAuthenticatedRef.current
+    );
+  }, [
+    hasSearchResults,
+    searchKey,
+    query,
+    fromSource,
+    serviceCatalogId,
+    serviceNameFromUrl,
+    serviceSlug,
+    category,
+    totalResults,
+  ]);
+
+  const availabilityIds = useMemo(
+    () =>
+      instructors
+        .map((instructor) => instructor.user_id)
+        .filter((id): id is string => Boolean(id)),
+    [instructors]
+  );
+  const availabilityByInstructor = usePublicAvailability(availabilityIds);
+
+  const sidebarFilteredInstructors = useMemo(() => {
+    if (instructors.length === 0) return [];
+    return instructors.filter((instructor) => {
+      const services = Array.isArray(instructor.services) ? instructor.services : [];
+      const activeServices = services.filter((svc) => svc && svc.is_active !== false);
+
+      const offersTravel = activeServices.some((svc) => svc.offers_travel === true);
+      const offersAtLocation = activeServices.some((svc) => svc.offers_at_location === true);
+      const offersOnline = activeServices.some((svc) => svc.offers_online === true);
+
+      if (filters.location === 'online' && !offersOnline) return false;
+      if (filters.location === 'travels' && !offersTravel) return false;
+      if (filters.location === 'studio') {
+        const hasLocations =
+          Array.isArray(instructor.teaching_locations) && instructor.teaching_locations.length > 0;
+        if (!offersAtLocation || !hasLocations) return false;
+      }
+
+      if (filters.priceMin !== null || filters.priceMax !== null) {
+        const rates = activeServices
+          .map((svc) => svc.hourly_rate)
+          .filter((rate): rate is number => Number.isFinite(rate));
+        if (rates.length === 0) return false;
+        const matchesRate = rates.some((rate) => {
+          if (filters.priceMin !== null && rate < filters.priceMin) return false;
+          if (filters.priceMax !== null && rate > filters.priceMax) return false;
+          return true;
+        });
+        if (!matchesRate) return false;
+      }
+
+      if (filters.duration.length > 0) {
+        const durations = new Set<number>();
+        activeServices.forEach((svc) => {
+          if (!Array.isArray(svc.duration_options)) return;
+          svc.duration_options.forEach((duration) => {
+            if (Number.isFinite(duration)) durations.add(duration);
+          });
+        });
+        if (durations.size === 0) return false;
+        if (!filters.duration.some((duration) => durations.has(duration))) return false;
+      }
+
+      if (filters.level.length > 0) {
+        const levels = new Set<string>();
+        activeServices.forEach((svc) => {
+          if (!Array.isArray(svc.levels_taught)) return;
+          svc.levels_taught.forEach((level) => {
+            if (typeof level === 'string') levels.add(level.trim().toLowerCase());
+          });
+        });
+        const contextLevels = Array.isArray(instructor._matchedServiceContext?.levels)
+          ? instructor._matchedServiceContext?.levels
+          : [];
+        contextLevels.forEach((level) => {
+          if (typeof level === 'string') levels.add(level.trim().toLowerCase());
+        });
+        if (levels.size === 0) return false;
+        if (!filters.level.some((level) => levels.has(level))) return false;
+      }
+
+      if (filters.audience.length > 0) {
+        const audiences = new Set<string>();
+        activeServices.forEach((svc) => {
+          if (!Array.isArray(svc.age_groups)) return;
+          svc.age_groups.forEach((group) => {
+            if (typeof group === 'string') audiences.add(group.trim().toLowerCase());
+          });
+        });
+        const contextAudiences = Array.isArray(instructor._matchedServiceContext?.age_groups)
+          ? instructor._matchedServiceContext?.age_groups
+          : [];
+        contextAudiences.forEach((group) => {
+          if (typeof group === 'string') audiences.add(group.trim().toLowerCase());
+        });
+        if (audiences.size === 0) return false;
+        if (!filters.audience.some((group) => audiences.has(group))) return false;
+      }
+
+      if (filters.minRating !== 'any') {
+        const ratingValue = typeof instructor.rating === 'number' ? instructor.rating : 0;
+        const minRating = filters.minRating === '4.5' ? 4.5 : 4;
+        if (ratingValue < minRating) return false;
+      }
+
+      const instructorId = instructor.user_id || instructor.id;
+      const availability = instructorId ? availabilityByInstructor[instructorId] : undefined;
+      if (!availabilityMatchesFilters(availability, filters)) return false;
+
+      return true;
+    });
+  }, [availabilityByInstructor, filters, instructors]);
+
   const instructorCapabilities = useMemo(() => {
     const map = new Map<string, { offersTravel: boolean; offersAtLocation: boolean; offersOnline: boolean }>();
-    for (const instructor of instructors) {
+    for (const instructor of sidebarFilteredInstructors) {
       const instructorId = instructor.user_id || instructor.id;
       if (!instructorId) continue;
       const services = Array.isArray(instructor.services) ? instructor.services : [];
-      const offersTravel = services.some((svc) => svc.offers_travel === true);
-      const offersAtLocation = services.some((svc) => svc.offers_at_location === true);
-      const offersOnline = services.some((svc) => svc.offers_online === true);
+      const activeServices = services.filter((svc) => svc && svc.is_active !== false);
+      const offersTravel = activeServices.some((svc) => svc.offers_travel === true);
+      const offersAtLocation = activeServices.some((svc) => svc.offers_at_location === true);
+      const offersOnline = activeServices.some((svc) => svc.offers_online === true);
       map.set(instructorId, { offersTravel, offersAtLocation, offersOnline });
     }
     return map;
-  }, [instructors]);
+  }, [sidebarFilteredInstructors]);
 
   const coverageIds = useMemo(
     () =>
@@ -588,7 +1011,7 @@ function SearchPageContent() {
 
   const locationPins = useMemo(() => {
     const pins: Array<{ lat: number; lng: number; label?: string; instructorId?: string }> = [];
-    for (const instructor of filteredInstructors) {
+    for (const instructor of sidebarFilteredInstructors) {
       const instructorId = instructor.user_id || instructor.id;
       if (!instructorId) continue;
       const capabilities = instructorCapabilities.get(instructorId);
@@ -618,393 +1041,51 @@ function SearchPageContent() {
       }
     }
     return pins;
-  }, [filteredInstructors, instructorCapabilities]);
-  const [nlSearchMeta, setNlSearchMeta] = useState<Record<string, unknown> | null>(null);
+  }, [sidebarFilteredInstructors, instructorCapabilities]);
 
-  // Filter state - read from URL params on mount
-  const dateFilterParam = searchParams.get('date') as DateFilter;
-  const timeFilterParam = searchParams.get('time') as TimeFilter;
-  const lessonTypeParam = searchParams.get('lesson_type') as LessonTypeFilter;
-  const minPriceParam = searchParams.get('min_price');
-  const maxPriceParam = searchParams.get('max_price');
-  const customDateParam = searchParams.get('custom_date');
-  const sortParam = (searchParams.get('sort') || 'recommended') as SortOption;
-
-  const [dateFilter, setDateFilter] = useState<DateFilter>(dateFilterParam);
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>(timeFilterParam);
-  const [lessonType, setLessonType] = useState<LessonTypeFilter>(lessonTypeParam);
-  const [minPrice, setMinPrice] = useState<number | null>(minPriceParam ? parseInt(minPriceParam, 10) : null);
-  const [maxPrice, setMaxPrice] = useState<number | null>(maxPriceParam ? parseInt(maxPriceParam, 10) : null);
-  const [customDate, setCustomDate] = useState<string | null>(customDateParam);
-  const [sortOption, setSortOption] = useState<SortOption>(sortParam);
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
-  const [showSortDropdown, setShowSortDropdown] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const moreFiltersRef = useRef<HTMLDivElement>(null);
-  const sortDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Update URL params when filters change
-  const updateFilters = useCallback((updates: {
-    date?: DateFilter;
-    time?: TimeFilter;
-    lesson_type?: LessonTypeFilter;
-    min_price?: number | null;
-    max_price?: number | null;
-    custom_date?: string | null;
-    sort?: SortOption;
-  }) => {
-    const params = new URLSearchParams(searchParams.toString());
-
-    // Handle date filter
-    if ('date' in updates) {
-      if (updates.date) {
-        params.set('date', updates.date);
-      } else {
-        params.delete('date');
-      }
-      setDateFilter(updates.date ?? null);
-    }
-
-    // Handle time filter
-    if ('time' in updates) {
-      if (updates.time) {
-        params.set('time', updates.time);
-      } else {
-        params.delete('time');
-      }
-      setTimeFilter(updates.time ?? null);
-    }
-
-    // Handle lesson type filter
-    if ('lesson_type' in updates) {
-      if (updates.lesson_type) {
-        params.set('lesson_type', updates.lesson_type);
-      } else {
-        params.delete('lesson_type');
-      }
-      setLessonType(updates.lesson_type ?? null);
-    }
-
-    // Handle min price
-    if ('min_price' in updates) {
-      if (updates.min_price !== null && updates.min_price !== undefined) {
-        params.set('min_price', String(updates.min_price));
-      } else {
-        params.delete('min_price');
-      }
-      setMinPrice(updates.min_price ?? null);
-    }
-
-    // Handle max price
-    if ('max_price' in updates) {
-      if (updates.max_price !== null && updates.max_price !== undefined) {
-        params.set('max_price', String(updates.max_price));
-      } else {
-        params.delete('max_price');
-      }
-      setMaxPrice(updates.max_price ?? null);
-    }
-
-    // Handle custom date
-    if ('custom_date' in updates) {
-      if (updates.custom_date) {
-        params.set('custom_date', updates.custom_date);
-      } else {
-        params.delete('custom_date');
-      }
-      setCustomDate(updates.custom_date ?? null);
-    }
-
-    // Handle sort
-    if ('sort' in updates) {
-      if (updates.sort && updates.sort !== 'recommended') {
-        params.set('sort', updates.sort);
-      } else {
-        params.delete('sort');
-      }
-      setSortOption(updates.sort ?? 'recommended');
-    }
-
-    const queryString = params.toString();
-    router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
-  }, [searchParams, pathname, router]);
-
-  // Clear all filters
-  const clearAllFilters = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('date');
-    params.delete('time');
-    params.delete('lesson_type');
-    params.delete('min_price');
-    params.delete('max_price');
-    params.delete('custom_date');
-    params.delete('sort');
-
-    setDateFilter(null);
-    setTimeFilter(null);
-    setLessonType(null);
-    setMinPrice(null);
-    setMaxPrice(null);
-    setCustomDate(null);
-    setSortOption('recommended');
-
-    const queryString = params.toString();
-    router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
-  }, [searchParams, pathname, router]);
-
-  // Check if any filters are active
-  const hasActiveFilters = dateFilter !== null || timeFilter !== null || lessonType !== null ||
-    minPrice !== null || maxPrice !== null;
-
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (moreFiltersRef.current && !moreFiltersRef.current.contains(event.target as Node)) {
-        setShowMoreFilters(false);
-      }
-      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target as Node)) {
-        setShowSortDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const RateLimitBanner = () =>
-    rateLimit ? (
-      <div data-testid="rate-limit-banner" className="mb-4 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-900 px-3 py-2 text-sm">
-        Our hamsters are sprinting. Give them {rateLimit.seconds}s.
-      </div>
-    ) : null;
-
-  const query = searchParams.get('q') || '';
-  const category = searchParams.get('category') || '';
-  const serviceCatalogId = searchParams.get('service_catalog_id') || '';
-  const serviceNameFromUrl = searchParams.get('service_name') || '';
-  const ageGroup = searchParams.get('age_group') || '';
-  const fromSource = searchParams.get('from') || '';
-  const softFilteringUsed = nlSearchMeta ? getBoolean(nlSearchMeta, 'soft_filtering_used', false) : false;
-  const softFilterMessage = nlSearchMeta ? getString(nlSearchMeta, 'soft_filter_message', '') : '';
-  const searchQueryId = nlSearchMeta ? getString(nlSearchMeta, 'search_query_id', '') : '';
-  const builtSearchQuery = useMemo(() => {
-    if (!query) return '';
-    return buildQueryWithFilters(
-      query,
-      dateFilter,
-      timeFilter,
-      lessonType,
-      minPrice,
-      maxPrice,
-      customDate
-    );
-  }, [query, dateFilter, timeFilter, lessonType, minPrice, maxPrice, customDate]);
-
-  const searchQueryEnabled = Boolean(builtSearchQuery || serviceCatalogId);
-  const {
-    data: searchResponse,
-    error: searchError,
-    isLoading: isSearchLoading,
-    isFetching: isSearchFetching,
-  } = useInstructorSearch({
-    searchQuery: builtSearchQuery,
-    serviceCatalogId,
-    page,
-    perPage: 20,
-    enabled: searchQueryEnabled,
-  });
-  const loading = searchQueryEnabled ? isSearchLoading : false;
-  const loadingMore = isSearchFetching && page > 1;
-
-  const trackSearchClick = useCallback(
-    (params: { serviceId: string; instructorId: string; position: number; action?: string }) => {
-      if (!searchQueryId) return;
-      const { serviceId, instructorId, position, action = 'view' } = params;
-      if (!serviceId || !instructorId || !Number.isFinite(position) || position <= 0) return;
-
-      try {
-        const qs = new URLSearchParams({
-          search_query_id: searchQueryId,
-          service_id: serviceId,
-          instructor_id: instructorId,
-          position: String(position),
-          action,
-        });
-        const url = withApiBase(`/api/v1/search/click?${qs.toString()}`);
-        void fetch(url, { method: 'POST', credentials: 'include', keepalive: true });
-      } catch {
-        // best-effort: never block navigation
-      }
-    },
-    [searchQueryId]
-  );
-
-  useEffect(() => {
-    // reset page and list when search params change
-    setPage(1);
-    setInstructors([]);
-    setHasMore(true);
-    setNlSearchMeta(null);
-    setError(null);
-    setRateLimit(null);
-    pagesLoadedRef.current = new Set();
-  }, [
-    query,
-    category,
-    serviceCatalogId,
-    serviceNameFromUrl,
-    dateFilter,
-    timeFilter,
-    lessonType,
-    minPrice,
-    maxPrice,
-    customDate,
-  ]);
-
-  useEffect(() => {
-    const activity = (query || category || '').trim();
-    if (activity) {
-      setActivity(activity);
-    } else {
-      setActivity(null);
-    }
-  }, [query, category, setActivity]);
-
-  useEffect(() => {
-    if (!searchQueryEnabled) {
-      setError('Please search for a specific service or use natural language search');
-      setRateLimit(null);
-      return;
-    }
-
-    if (!searchError) {
-      setError(null);
-      setRateLimit(null);
-      return;
-    }
-
-    setError(searchError.message || 'Failed to load search results');
-    const retryAfterSeconds = (searchError as { retryAfterSeconds?: number }).retryAfterSeconds;
-    const status = (searchError as { status?: number }).status;
-    if (typeof retryAfterSeconds === 'number') {
-      setRateLimit({ seconds: retryAfterSeconds });
-    } else if (status === 429) {
-      setRateLimit({ seconds: 0 });
-    } else {
-      setRateLimit(null);
-    }
-  }, [searchError, searchQueryEnabled]);
-
-  useEffect(() => {
-    if (serviceCatalogId && (serviceSlug || serviceNameFromUrl)) {
-      setActivity((serviceSlug || serviceNameFromUrl).toLowerCase());
-    }
-  }, [serviceCatalogId, serviceSlug, serviceNameFromUrl, setActivity]);
-
-  useEffect(() => {
-    if (!searchResponse) return;
-
-    const responsePage =
-      searchResponse.mode === 'catalog' && Number.isFinite(searchResponse.data.page)
-        ? searchResponse.data.page
-        : 1;
-
-    const normalized =
-      searchResponse.mode === 'nl'
-        ? normalizeSearchResults({
-            mode: 'nl',
-            results: searchResponse.data.results,
-            meta: searchResponse.data.meta,
-          })
-        : normalizeSearchResults({
-            mode: 'catalog',
-            results: searchResponse.data.items,
-            total: searchResponse.data.total,
-            hasNext: searchResponse.data.has_next,
-            serviceCatalogId,
-          });
-
-    let instructorsData: Instructor[] = normalized.instructors;
-    const totalResults = normalized.totalResults;
-    const nextHasMore = normalized.hasMore;
-    setNlSearchMeta(normalized.meta);
-
-    let finalResults = instructorsData;
-    finalResults = finalResults.map((instructor) => {
-      const highlightId =
-        (instructor as { _matchedServiceCatalogId?: string | null })._matchedServiceCatalogId ?? null;
-      const services = Array.isArray(instructor.services) ? instructor.services : [];
-      const deduped = dedupeAndOrderServices(services, highlightId);
-      return {
-        ...instructor,
-        services: deduped,
-      };
+  const filteredInstructors = useMemo(() => {
+    if (!mapFilterIds || mapFilterIds.length === 0) return sidebarFilteredInstructors;
+    const idSet = new Set(mapFilterIds);
+    return sidebarFilteredInstructors.filter((instructor) => {
+      const instructorId = instructor.user_id || instructor.id;
+      return instructorId ? idSet.has(instructorId) : false;
     });
+  }, [mapFilterIds, sidebarFilteredInstructors]);
 
-    if (responsePage === 1) {
-      setInstructors(finalResults);
-    } else if (!pagesLoadedRef.current.has(responsePage)) {
-      setInstructors((prev) => [...prev, ...finalResults]);
+  const sortedInstructors = useMemo(() => {
+    if (sortOption === 'recommended') return filteredInstructors;
+    const sorted = [...filteredInstructors];
+    if (sortOption === 'price_asc') {
+      sorted.sort((a, b) =>
+        compareNullableNumbers(getInstructorMinRate(a), getInstructorMinRate(b), 'asc')
+      );
+      return sorted;
     }
-    pagesLoadedRef.current.add(responsePage);
-
-    setHasMore(nextHasMore);
-    setTotal(totalResults);
-
-    if (responsePage === 1) {
-      const searchKey = `${query || ''}-${serviceCatalogId || ''}-${category || ''}-${serviceNameFromUrl || ''}-${fromSource || ''}`;
-
-      if (searchKey !== lastSearchParamsRef.current) {
-        lastSearchParamsRef.current = searchKey;
-
-        let searchType: SearchType = SearchType.NATURAL_LANGUAGE;
-        let searchQueryValue = '';
-
-        if (query) {
-          if (fromSource === 'recent') {
-            searchType = SearchType.SEARCH_HISTORY;
-          } else {
-            searchType = SearchType.NATURAL_LANGUAGE;
-          }
-          searchQueryValue = query;
-        } else if (serviceCatalogId) {
-          searchType = SearchType.SERVICE_PILL;
-          searchQueryValue = serviceNameFromUrl || serviceSlug || `Service #${serviceCatalogId}`;
-        } else if (category) {
-          searchType = SearchType.CATEGORY;
-          searchQueryValue = category;
-        }
-
-        void recordSearch(
-          {
-            query: searchQueryValue,
-            search_type: searchType,
-            results_count: totalResults,
-          },
-          isAuthenticatedRef.current
-        );
-      }
+    if (sortOption === 'price_desc') {
+      sorted.sort((a, b) =>
+        compareNullableNumbers(getInstructorMinRate(a), getInstructorMinRate(b), 'desc')
+      );
+      return sorted;
     }
-  }, [
-    searchResponse,
-    query,
-    category,
-    serviceCatalogId,
-    serviceNameFromUrl,
-    fromSource,
-    serviceSlug,
-  ]);
-
-  // Initialize filtered instructors when instructors change
-  useEffect(() => {
-    setFilteredInstructors(instructors);
-  }, [instructors]);
+    if (sortOption === 'rating') {
+      sorted.sort((a, b) =>
+        compareNullableNumbers(
+          typeof a.rating === 'number' ? a.rating : null,
+          typeof b.rating === 'number' ? b.rating : null,
+          'desc'
+        )
+      );
+      return sorted;
+    }
+    return sorted;
+  }, [filteredInstructors, sortOption]);
 
   // Handle map bounds change
   const handleMapBoundsChange = useCallback((bounds: unknown) => {
     if (!bounds) return;
 
     const coverageFeatures = coverageFeatureCollection?.features ?? [];
-    const hasPinData = instructors.some((instructor) => {
+    const hasPinData = sidebarFilteredInstructors.some((instructor) => {
       const instructorId = instructor.user_id || instructor.id;
       if (!instructorId) return false;
       const capabilities = instructorCapabilities.get(instructorId);
@@ -1020,7 +1101,7 @@ function SearchPageContent() {
     }
 
     // Check if any instructors are outside the current bounds
-    const instructorsInBounds = instructors.filter((instructor) => {
+    const instructorsInBounds = sidebarFilteredInstructors.filter((instructor) => {
       let hasCoverageInBounds = false;
 
       if (hasCoverageData) {
@@ -1055,20 +1136,20 @@ function SearchPageContent() {
     // Show button if:
     // 1. Some instructors would be filtered out (zoomed in)
     // 2. OR we're currently showing a filtered view and more instructors could be shown (zoomed out)
-    const hasFilteredInstructors = instructorsInBounds.length < instructors.length;
-    const isShowingFilteredView = filteredInstructors.length < instructors.length;
+    const hasFilteredInstructors = instructorsInBounds.length < sidebarFilteredInstructors.length;
+    const isShowingFilteredView = filteredInstructors.length < sidebarFilteredInstructors.length;
     const wouldShowDifferentResults = instructorsInBounds.length !== filteredInstructors.length;
 
     setShowSearchAreaButton(hasFilteredInstructors || (isShowingFilteredView && wouldShowDifferentResults));
     setMapBounds(bounds);
-  }, [instructors, filteredInstructors, coverageFeatureCollection, instructorCapabilities, boundsContains, featureHasPointInBounds]);
+  }, [sidebarFilteredInstructors, filteredInstructors, coverageFeatureCollection, instructorCapabilities, boundsContains, featureHasPointInBounds]);
 
   // Handle search area button click
   const handleSearchArea = useCallback(() => {
     if (!mapBounds) return;
 
     const coverageFeatures = coverageFeatureCollection?.features ?? [];
-    const hasPinData = instructors.some((instructor) => {
+    const hasPinData = sidebarFilteredInstructors.some((instructor) => {
       const instructorId = instructor.user_id || instructor.id;
       if (!instructorId) return false;
       const capabilities = instructorCapabilities.get(instructorId);
@@ -1078,14 +1159,14 @@ function SearchPageContent() {
     const hasCoverageData = coverageFeatures.length > 0;
 
     if (!hasCoverageData && !hasPinData) {
-      setFilteredInstructors(instructors);
+      setMapFilterIds(null);
       setShowSearchAreaButton(false);
       setFocusedInstructorId(null);
       return;
     }
 
     // Filter instructors based on current map bounds
-    const instructorsInBounds = instructors.filter((instructor) => {
+    const instructorsInBounds = sidebarFilteredInstructors.filter((instructor) => {
       let hasCoverageInBounds = false;
 
       if (hasCoverageData) {
@@ -1117,11 +1198,14 @@ function SearchPageContent() {
       return hasCoverageInBounds || hasStudioInBounds;
     });
 
-    setFilteredInstructors(instructorsInBounds);
+    const nextIds = instructorsInBounds
+      .map((instructor) => instructor.user_id || instructor.id)
+      .filter((id): id is string => Boolean(id));
+    setMapFilterIds(nextIds);
     setShowSearchAreaButton(false);
     // Clear focused instructor after filtering
     setFocusedInstructorId(null);
-  }, [instructors, mapBounds, coverageFeatureCollection, instructorCapabilities, boundsContains, featureHasPointInBounds]);
+  }, [sidebarFilteredInstructors, mapBounds, coverageFeatureCollection, instructorCapabilities, boundsContains, featureHasPointInBounds]);
 
   // Track stacked layout (below xl) and compute available height so the page itself doesn't scroll
   useEffect(() => {
@@ -1171,8 +1255,7 @@ function SearchPageContent() {
     observerRef.current = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting && hasMore && !loadingMore && !loading) {
-          const nextPage = page + 1;
-          setPage(nextPage);
+          void fetchNextPage();
         }
       },
       { threshold: 0.1 }
@@ -1187,18 +1270,7 @@ function SearchPageContent() {
         observerRef.current.disconnect();
       }
     };
-  }, [hasMore, loadingMore, loading, page]);
-
-  const availabilityIds = useMemo(
-    () =>
-      instructors
-        .map((instructor) => instructor.user_id)
-        .filter((id): id is string => Boolean(id)),
-    [instructors]
-  );
-  const availabilityByInstructor = usePublicAvailability(availabilityIds);
-
-
+  }, [fetchNextPage, hasMore, loadingMore, loading]);
 
   return (
     <div className="min-h-screen">
@@ -1224,275 +1296,72 @@ function SearchPageContent() {
            } as React.CSSProperties : undefined}>
         {/* Left Side - Filter and Instructor Cards */}
         <div className="flex-1 overflow-visible order-1 xl:order-1">
-          {/* Filter Bar - Extra compact on stacked view */}
+          {/* Filter Bar */}
           <div className={`px-6 ${isStacked ? 'pt-1 pb-1' : 'pt-0 md:pt-2 pb-1 md:pb-3'}`}>
             <div className={`bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 ${isStacked ? 'p-1' : 'p-1 md:p-4'}`}>
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex gap-1 md:gap-3 pr-1 md:pr-2 flex-wrap">
-                  {/* Date filters group */}
-                  <div className={`bg-gray-100 rounded-lg ${isStacked ? 'px-0.5 py-0.5' : 'px-0.5 py-0.5'} flex gap-0.5`}>
-                    <button
-                      onClick={() => updateFilters({ date: dateFilter === 'today' ? null : 'today', custom_date: null })}
-                      className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} ${
-                        dateFilter === 'today'
-                          ? 'bg-[#7E22CE] text-white'
-                          : 'text-gray-600 hover:bg-gray-50'
-                      } rounded-md font-medium cursor-pointer transition-colors`}
-                    >
-                      Today
-                    </button>
-                    <button
-                      onClick={() => updateFilters({ date: dateFilter === 'this_week' ? null : 'this_week', custom_date: null })}
-                      className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} ${
-                        dateFilter === 'this_week'
-                          ? 'bg-[#7E22CE] text-white'
-                          : 'text-gray-600 hover:bg-gray-50'
-                      } rounded-md font-medium cursor-pointer transition-colors`}
-                    >
-                      This Week
-                    </button>
+              <FilterBar
+                filters={filters}
+                onFiltersChange={(nextFilters) => {
+                  setFilters(nextFilters);
+                  setMapFilterIds(null);
+                  setShowSearchAreaButton(false);
+                  setFocusedInstructorId(null);
+                }}
+                rightSlot={(
+                  <div className={`flex items-center gap-1 ${isStacked ? 'ml-1' : 'ml-3 md:ml-4'}`} ref={sortDropdownRef}>
+                    <span className={`${isStacked ? 'text-xs hidden' : 'text-xs md:text-sm'} text-gray-600 whitespace-nowrap hidden sm:inline`}>Sort:</span>
                     <div className="relative">
                       <button
-                        onClick={() => setShowDatePicker(!showDatePicker)}
-                        className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} ${
-                          dateFilter === 'custom'
-                            ? 'bg-[#7E22CE] text-white'
-                            : 'text-gray-600 hover:bg-gray-50'
-                        } rounded-md font-medium cursor-pointer transition-colors flex items-center gap-1`}
+                        type="button"
+                        onClick={handleSortToggle}
+                        className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer transition-colors`}
                       >
-                        <Calendar className="h-3 w-3" />
-                        {dateFilter === 'custom' && customDate
-                          ? new Date(customDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                          : 'Date'}
+                        <span>
+                          {sortOption === 'recommended' && 'Recommended'}
+                          {sortOption === 'price_asc' && 'Price: Low'}
+                          {sortOption === 'price_desc' && 'Price: High'}
+                          {sortOption === 'rating' && 'Top Rated'}
+                        </span>
+                        <ChevronDown className={`h-3 w-3 text-gray-500 transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} />
                       </button>
-                      {showDatePicker && (
-                        <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 p-3 z-50">
-                          <input
-                            type="date"
-                            value={customDate || ''}
-                            min={new Date().toISOString().split('T')[0]}
-                            onChange={(e) => {
-                              const newDate = e.target.value;
-                              if (newDate) {
-                                updateFilters({ date: 'custom', custom_date: newDate });
-                              }
-                              setShowDatePicker(false);
-                            }}
-                            className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE] focus:border-transparent"
-                          />
-                          {dateFilter === 'custom' && (
-                            <button
-                              onClick={() => {
-                                updateFilters({ date: null, custom_date: null });
-                                setShowDatePicker(false);
-                              }}
-                              className="mt-2 text-xs text-gray-500 hover:text-gray-700"
+
+                      {isClient && showSortDropdown && sortPosition
+                        ? createPortal(
+                            <div
+                              ref={sortMenuRef}
+                              className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[9999] min-w-[180px] w-auto"
+                              style={{ top: sortPosition.top, left: sortPosition.left }}
                             >
-                              Clear date
-                            </button>
-                          )}
-                        </div>
-                      )}
+                              {[
+                                { value: 'recommended', label: 'Recommended' },
+                                { value: 'price_asc', label: 'Price: Low to High' },
+                                { value: 'price_desc', label: 'Price: High to Low' },
+                                { value: 'rating', label: 'Highest Rated' },
+                              ].map((option) => (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  onClick={() => {
+                                    handleSortChange(option.value as SortOption);
+                                    setShowSortDropdown(false);
+                                  }}
+                                  className={`block w-full px-4 py-2 text-left text-sm whitespace-nowrap transition-colors ${
+                                    sortOption === option.value
+                                      ? 'bg-purple-50 text-[#7E22CE] font-medium'
+                                      : 'text-gray-700 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>,
+                            document.body
+                          )
+                        : null}
                     </div>
                   </div>
-
-                  {/* Time filters group */}
-                  <div className={`bg-gray-100 rounded-lg ${isStacked ? 'px-0.5 py-0.5' : 'px-0.5 py-0.5'} flex gap-0.5`}>
-                    <button
-                      onClick={() => updateFilters({ time: timeFilter === 'morning' ? null : 'morning' })}
-                      className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} ${
-                        timeFilter === 'morning'
-                          ? 'bg-[#7E22CE] text-white'
-                          : 'text-gray-600 hover:bg-gray-50'
-                      } rounded-md font-medium cursor-pointer transition-colors`}
-                    >
-                      Morning
-                    </button>
-                    <button
-                      onClick={() => updateFilters({ time: timeFilter === 'afternoon' ? null : 'afternoon' })}
-                      className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} ${
-                        timeFilter === 'afternoon'
-                          ? 'bg-[#7E22CE] text-white'
-                          : 'text-gray-600 hover:bg-gray-50'
-                      } rounded-md font-medium cursor-pointer transition-colors`}
-                    >
-                      Afternoon
-                    </button>
-                  </div>
-
-                  {/* More Filters dropdown */}
-                  <div className="relative" ref={moreFiltersRef}>
-                    <button
-                      onClick={() => setShowMoreFilters(!showMoreFilters)}
-                      className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} ${
-                        lessonType !== null || minPrice !== null || maxPrice !== null
-                          ? 'bg-[#7E22CE] text-white border-[#7E22CE]'
-                          : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                      } border rounded-lg cursor-pointer flex items-center gap-1 transition-colors`}
-                    >
-                      <SlidersHorizontal className="h-3.5 w-3.5" />
-                      <span>Filters</span>
-                      {(lessonType !== null || minPrice !== null || maxPrice !== null) && (
-                        <span className="bg-white text-[#7E22CE] text-xs rounded-full px-1.5 py-0.5 font-medium">
-                          {[lessonType, minPrice !== null || maxPrice !== null ? 'price' : null].filter(Boolean).length}
-                        </span>
-                      )}
-                    </button>
-
-                    {showMoreFilters && (
-                      <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-50 min-w-[280px]">
-                        {/* Price Range */}
-                        <div className="mb-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Price Range</label>
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1">
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                                <input
-                                  type="number"
-                                  placeholder="Min"
-                                  value={minPrice ?? ''}
-                                  onChange={(e) => {
-                                    const val = e.target.value ? parseInt(e.target.value, 10) : null;
-                                    setMinPrice(val);
-                                  }}
-                                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE] focus:border-transparent"
-                                />
-                              </div>
-                            </div>
-                            <span className="text-gray-400">-</span>
-                            <div className="flex-1">
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                                <input
-                                  type="number"
-                                  placeholder="Max"
-                                  value={maxPrice ?? ''}
-                                  onChange={(e) => {
-                                    const val = e.target.value ? parseInt(e.target.value, 10) : null;
-                                    setMaxPrice(val);
-                                  }}
-                                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE] focus:border-transparent"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Lesson Type */}
-                        <div className="mb-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Lesson Type</label>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => setLessonType(lessonType === 'online' ? null : 'online')}
-                              className={`flex-1 px-3 py-2 text-sm rounded-md border transition-colors ${
-                                lessonType === 'online'
-                                  ? 'bg-[#7E22CE] text-white border-[#7E22CE]'
-                                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                              }`}
-                            >
-                              Online
-                            </button>
-                            <button
-                              onClick={() => setLessonType(lessonType === 'in_person' ? null : 'in_person')}
-                              className={`flex-1 px-3 py-2 text-sm rounded-md border transition-colors ${
-                                lessonType === 'in_person'
-                                  ? 'bg-[#7E22CE] text-white border-[#7E22CE]'
-                                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                              }`}
-                            >
-                              In-Person
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex gap-2 pt-2 border-t border-gray-100">
-                          <button
-                            onClick={() => {
-                              setMinPrice(null);
-                              setMaxPrice(null);
-                              setLessonType(null);
-                            }}
-                            className="flex-1 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-md transition-colors"
-                          >
-                            Clear
-                          </button>
-                          <button
-                            onClick={() => {
-                              updateFilters({
-                                min_price: minPrice,
-                                max_price: maxPrice,
-                                lesson_type: lessonType,
-                              });
-                              setShowMoreFilters(false);
-                            }}
-                            className="flex-1 px-3 py-2 text-sm bg-[#7E22CE] text-white rounded-md hover:bg-[#6B1D9E] transition-colors"
-                          >
-                            Apply
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Clear all filters button */}
-                  {hasActiveFilters && (
-                    <button
-                      onClick={clearAllFilters}
-                      className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-3 md:py-2 text-xs md:text-sm'} text-gray-500 hover:text-gray-700 flex items-center gap-1 cursor-pointer transition-colors`}
-                    >
-                      <X className="h-3 w-3" />
-                      <span className="hidden sm:inline">Clear</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Sort section */}
-                <div className={`flex items-center gap-1 ${isStacked ? 'ml-1' : 'ml-3 md:ml-4'}`} ref={sortDropdownRef}>
-                  <span className={`${isStacked ? 'text-xs hidden' : 'text-xs md:text-sm'} text-gray-600 whitespace-nowrap hidden sm:inline`}>Sort:</span>
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowSortDropdown(!showSortDropdown)}
-                      className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer transition-colors`}
-                    >
-                      <span>
-                        {sortOption === 'recommended' && 'Recommended'}
-                        {sortOption === 'price_asc' && 'Price: Low'}
-                        {sortOption === 'price_desc' && 'Price: High'}
-                        {sortOption === 'rating' && 'Top Rated'}
-                      </span>
-                      <ChevronDown className={`h-3 w-3 text-gray-500 transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {showSortDropdown && (
-                      <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]">
-                        {[
-                          { value: 'recommended', label: 'Recommended' },
-                          { value: 'price_asc', label: 'Price: Low to High' },
-                          { value: 'price_desc', label: 'Price: High to Low' },
-                          { value: 'rating', label: 'Highest Rated' },
-                        ].map((option) => (
-                          <button
-                            key={option.value}
-                            onClick={() => {
-                              updateFilters({ sort: option.value as SortOption });
-                              setShowSortDropdown(false);
-                            }}
-                            className={`w-full px-4 py-2 text-left text-sm transition-colors ${
-                              sortOption === option.value
-                                ? 'bg-purple-50 text-[#7E22CE] font-medium'
-                                : 'text-gray-700 hover:bg-gray-50'
-                            }`}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+                )}
+              />
             </div>
           </div>
 
@@ -1500,7 +1369,7 @@ function SearchPageContent() {
           <div className="relative h-full overflow-hidden">
             <div ref={listRef} className={`overflow-y-auto px-6 py-2 md:py-6 h-full max-h-full xl:h-[calc(100vh-15rem)] ${isStacked ? 'snap-y snap-mandatory' : ''} overscroll-contain scrollbar-hide`} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               {/* Rate limit banner */}
-              <RateLimitBanner />
+              <RateLimitBanner rateLimit={rateLimit} />
 
             {/* Kids banner */}
             {ageGroup === 'kids' && (
@@ -1521,12 +1390,12 @@ function SearchPageContent() {
               <div className="flex justify-center items-center h-64">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#7E22CE]"></div>
               </div>
-            ) : error ? (
+            ) : errorMessage ? (
               <div className="text-center py-12">
-                <p className="text-red-600">{error}</p>
+                <p className="text-red-600">{errorMessage}</p>
                 <Link href="/" className="text-[#7E22CE] hover:underline mt-4 inline-block">Return to Home</Link>
               </div>
-            ) : filteredInstructors.length === 0 ? (
+            ) : sortedInstructors.length === 0 ? (
               <div className="text-center py-12" data-testid="no-results">
                 <p className="text-gray-600 text-lg mb-4">No instructors found matching your search.</p>
                 <Link href="/" className="text-[#7E22CE] hover:underline">Try a different search</Link>
@@ -1534,7 +1403,7 @@ function SearchPageContent() {
             ) : (
               <>
                 <div className={`flex flex-col ${isStacked ? 'gap-20' : 'gap-4 md:gap-6'}`}>
-                  {filteredInstructors.map((instructor, index) => {
+                  {sortedInstructors.map((instructor, index) => {
                     const highlightServiceCatalogId =
                       (instructor as { _matchedServiceCatalogId?: string | null })._matchedServiceCatalogId ??
                       (serviceCatalogId || null);
@@ -1596,11 +1465,11 @@ function SearchPageContent() {
                   </div>
                 )}
 
-                {filteredInstructors.length > 0 && filteredInstructors.length < instructors.length && (
+                {sortedInstructors.length > 0 && sortedInstructors.length < sidebarFilteredInstructors.length && (
                   <div className="mt-4 md:mt-8 text-center text-gray-600 py-4">
-                    {filteredInstructors.length === 1
+                    {sortedInstructors.length === 1
                       ? "1 instructor found in this area"
-                      : `Showing ${filteredInstructors.length} instructors in this area`}
+                      : `Showing ${sortedInstructors.length} instructors in this area`}
                   </div>
                 )}
               </>
@@ -1666,6 +1535,12 @@ function SearchPageContent() {
       )}
     </div>
   );
+}
+
+function SearchPageContent() {
+  const searchParams = useSearchParams();
+  const searchKey = searchParams.toString();
+  return <SearchPageInner key={searchKey} />;
 }
 
 export default function SearchResultsPage() {

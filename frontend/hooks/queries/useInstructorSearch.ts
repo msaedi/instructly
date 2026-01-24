@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
 import { publicApi, type NaturalLanguageSearchResponse } from '@/features/shared/api/client';
 import { validateWithZod } from '@/features/shared/api/validation';
@@ -29,6 +29,15 @@ export type InstructorSearchParams = {
   page?: number;
   perPage?: number;
   enabled?: boolean;
+};
+
+type InstructorSearchFetchParams = {
+  trimmedQuery: string;
+  serviceCatalogId: string;
+  page: number;
+  perPage: number;
+  hasSearchQuery: boolean;
+  hasCatalogId: boolean;
 };
 
 const toSearchError = (
@@ -69,59 +78,120 @@ export function useInstructorSearch(params: InstructorSearchParams) {
     }),
     enabled: queryEnabled,
     staleTime: CACHE_TIMES.FAST * 2, // 2 minutes
-    queryFn: async () => {
-      if (hasSearchQuery) {
-        const response = await publicApi.searchWithNaturalLanguage(trimmedQuery);
-        if (response.status === 429) {
-          const secs = (response as { retryAfterSeconds?: number }).retryAfterSeconds;
-          throw toSearchError(
-            response.error || 'Our hamsters are sprinting. Please try again shortly.',
-            response.status,
-            secs
-          );
-        }
-        if (response.error) {
-          throw toSearchError(response.error, response.status);
-        }
-        if (!response.data) {
-          throw toSearchError('No data in response', response.status);
-        }
-        return { mode: 'nl', data: response.data };
-      }
+    queryFn: () =>
+      fetchInstructorSearch({
+        trimmedQuery,
+        serviceCatalogId,
+        page,
+        perPage,
+        hasSearchQuery,
+        hasCatalogId,
+      }),
+  });
+}
 
-      if (hasCatalogId) {
-        const response = await publicApi.searchInstructors({
-          service_catalog_id: serviceCatalogId,
-          page,
-          per_page: perPage,
-        });
+export function useInstructorSearchInfinite(params: InstructorSearchParams) {
+  const {
+    searchQuery = '',
+    serviceCatalogId = '',
+    perPage = 20,
+    enabled = true,
+  } = params;
 
-        if (response.status === 429) {
-          const secs = (response as { retryAfterSeconds?: number }).retryAfterSeconds;
-          throw toSearchError(
-            response.error || 'Our hamsters are sprinting. Please try again shortly.',
-            response.status,
-            secs
-          );
-        }
+  const trimmedQuery = searchQuery.trim();
+  const hasSearchQuery = trimmedQuery.length > 0;
+  const hasCatalogId = Boolean(serviceCatalogId);
+  const queryEnabled = enabled && (hasSearchQuery || hasCatalogId);
 
-        if (response.error) {
-          throw toSearchError(response.error, response.status);
-        }
-        if (!response.data) {
-          throw toSearchError('No data in response', response.status);
-        }
-
-        const validated = await validateWithZod<CatalogSearchResponse>(
-          loadSearchListSchema,
-          response.data,
-          { endpoint: 'GET /instructors' }
-        );
-
-        return { mode: 'catalog', data: validated };
-      }
-
-      throw toSearchError('Missing search criteria');
+  return useInfiniteQuery<InstructorSearchResult, InstructorSearchError>({
+    queryKey: queryKeys.instructors.search({
+      query: trimmedQuery || undefined,
+      service_catalog_id: serviceCatalogId || undefined,
+      per_page: perPage,
+    }),
+    enabled: queryEnabled,
+    staleTime: CACHE_TIMES.FAST * 2, // 2 minutes
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      fetchInstructorSearch({
+        trimmedQuery,
+        serviceCatalogId,
+        page: typeof pageParam === 'number' ? pageParam : 1,
+        perPage,
+        hasSearchQuery,
+        hasCatalogId,
+      }),
+    getNextPageParam: (lastPage) => {
+      if (lastPage.mode !== 'catalog') return undefined;
+      if (!lastPage.data.has_next) return undefined;
+      const currentPage = Number.isFinite(lastPage.data.page) ? lastPage.data.page : 1;
+      return currentPage + 1;
     },
   });
 }
+
+const fetchInstructorSearch = async (
+  params: InstructorSearchFetchParams
+): Promise<InstructorSearchResult> => {
+  const {
+    trimmedQuery,
+    serviceCatalogId,
+    page,
+    perPage,
+    hasSearchQuery,
+    hasCatalogId,
+  } = params;
+
+  if (hasSearchQuery) {
+    const response = await publicApi.searchWithNaturalLanguage(trimmedQuery);
+    if (response.status === 429) {
+      const secs = (response as { retryAfterSeconds?: number }).retryAfterSeconds;
+      throw toSearchError(
+        response.error || 'Our hamsters are sprinting. Please try again shortly.',
+        response.status,
+        secs
+      );
+    }
+    if (response.error) {
+      throw toSearchError(response.error, response.status);
+    }
+    if (!response.data) {
+      throw toSearchError('No data in response', response.status);
+    }
+    return { mode: 'nl', data: response.data };
+  }
+
+  if (hasCatalogId) {
+    const response = await publicApi.searchInstructors({
+      service_catalog_id: serviceCatalogId,
+      page,
+      per_page: perPage,
+    });
+
+    if (response.status === 429) {
+      const secs = (response as { retryAfterSeconds?: number }).retryAfterSeconds;
+      throw toSearchError(
+        response.error || 'Our hamsters are sprinting. Please try again shortly.',
+        response.status,
+        secs
+      );
+    }
+
+    if (response.error) {
+      throw toSearchError(response.error, response.status);
+    }
+    if (!response.data) {
+      throw toSearchError('No data in response', response.status);
+    }
+
+    const validated = await validateWithZod<CatalogSearchResponse>(
+      loadSearchListSchema,
+      response.data,
+      { endpoint: 'GET /instructors' }
+    );
+
+    return { mode: 'catalog', data: validated };
+  }
+
+  throw toSearchError('Missing search criteria');
+};
