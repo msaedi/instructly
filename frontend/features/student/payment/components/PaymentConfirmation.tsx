@@ -10,6 +10,7 @@ import { getPlaceDetails } from '@/features/shared/api/client';
 import { fetchBookingsList } from '@/src/api/services/bookings';
 import { fetchInstructorProfile } from '@/src/api/services/instructors';
 import type { InstructorService } from '@/types/instructor';
+import type { LocationType } from '@/types/booking';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
 import { logger } from '@/lib/logger';
@@ -40,7 +41,7 @@ import {
 
 type BookingWithMetadata = BookingPayment & { metadata?: Record<string, unknown> };
 
-type LocationType = 'student_location' | 'instructor_location' | 'online' | 'neutral_location';
+// LocationType imported from @/types/booking
 
 type TeachingLocation = {
   id?: string;

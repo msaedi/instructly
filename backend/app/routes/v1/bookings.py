@@ -794,13 +794,34 @@ async def reschedule_booking(
                 else None
             )
             _location_type_raw = getattr(original, "location_type", None)
-            _location_type = (
-                _location_type_raw
-                if isinstance(_location_type_raw, str)
-                and _location_type_raw
-                in ["student_location", "instructor_location", "online", "neutral_location"]
-                else "online"
-            )
+            # Map legacy location_type values to canonical values
+            _LEGACY_LOCATION_TYPE_MAP = {
+                "student_home": "student_location",
+                "neutral": "neutral_location",
+                "instructor_studio": "instructor_location",
+                "in_person": "student_location",  # Default in-person to student location
+            }
+            _VALID_LOCATION_TYPES = {
+                "student_location",
+                "instructor_location",
+                "online",
+                "neutral_location",
+            }
+            if isinstance(_location_type_raw, str):
+                if _location_type_raw in _VALID_LOCATION_TYPES:
+                    _location_type = _location_type_raw
+                elif _location_type_raw in _LEGACY_LOCATION_TYPE_MAP:
+                    _location_type = _LEGACY_LOCATION_TYPE_MAP[_location_type_raw]
+                    logger.info(
+                        f"Mapped legacy location_type '{_location_type_raw}' to '{_location_type}'"
+                    )
+                else:
+                    logger.warning(
+                        f"Unknown location_type '{_location_type_raw}', defaulting to 'online'"
+                    )
+                    _location_type = "online"
+            else:
+                _location_type = "online"
             _location_address = _safe_str(getattr(original, "location_address", None))
             _location_lat = _safe_float(getattr(original, "location_lat", None))
             _location_lng = _safe_float(getattr(original, "location_lng", None))

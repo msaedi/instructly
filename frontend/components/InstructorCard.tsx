@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Star, Heart, Layers, MonitorSmartphone, Clock3, MapPin } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { Instructor } from '@/types/api';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiProblemError } from '@/lib/api/fetch';
 import {
@@ -116,7 +116,7 @@ interface InstructorCardProps {
   appliedCreditCents?: number;
   highlightServiceCatalogId?: string;
 }
-export default function InstructorCard({
+function InstructorCard({
   instructor,
   availabilityData,
   onViewProfile,
@@ -640,9 +640,7 @@ const findNextAvailableSlot = (
                 title={!user ? "Sign in to save this instructor" : isFavorited ? "Remove from favorites" : "Add to favorites"}
               >
                 <Heart
-                  className="h-5 w-5"
-                  fill={isFavorited ? '#ff0000' : 'none'}
-                  color={isFavorited ? '#ff0000' : '#666'}
+                  className={`h-5 w-5 ${isFavorited ? 'fill-red-500 text-red-500' : 'fill-none text-gray-500'}`}
                 />
               </button>
             </div>
@@ -820,3 +818,5 @@ const findNextAvailableSlot = (
     </div>
   );
 }
+
+export default memo(InstructorCard);

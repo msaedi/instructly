@@ -15,7 +15,7 @@ class EmailConfigService(BaseService):
         "monitoring": "iNSTAiNSTRU Alerts <alerts@instainstru.com>",
         "transactional": "iNSTAiNSTRU <hello@instainstru.com>",
         "booking": "iNSTAiNSTRU Bookings <bookings@instainstru.com>",
-        "password_reset": "iNSTAiNSTRU Security <security@instainstru.com>",
+        "security": "iNSTAiNSTRU Security <security@instainstru.com>",  # Used for password reset emails
         "default": "iNSTAiNSTRU <hello@instainstru.com>",
     }
 
@@ -40,4 +40,4 @@ class EmailConfigService(BaseService):
 
     def get_security_sender(self) -> str:  # no-metrics
         """Get security-specific sender (password resets, etc.)"""
-        return self.EMAIL_SENDERS["password_reset"]
+        return self.EMAIL_SENDERS["security"]
