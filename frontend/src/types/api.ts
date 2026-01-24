@@ -9,6 +9,13 @@
  */
 
 import type { ServiceAreaNeighborhood } from '@/types/instructor';
+import type { LocationType } from '@/types/booking';
+
+// Re-export location types from canonical sources
+export type { ServiceLocationType } from '@/types/instructor';
+
+// Booking location types - alias to LocationType for backward compatibility
+export type BookingLocationType = LocationType;
 
 // Re-export generated types from shim for backward compatibility
 export type {
@@ -46,15 +53,11 @@ export enum BookingStatus {
   NO_SHOW = 'NO_SHOW',
 }
 
-export type BookingLocationType =
-  | 'student_location'
-  | 'instructor_location'
-  | 'online'
-  | 'neutral_location';
+// Note: BookingLocationType and ServiceLocationType are now imported and re-exported above
+// from their canonical sources (@/types/booking and @/types/instructor)
 
-export type ServiceLocationType = 'in_person' | 'online';
-
-export enum LocationType {
+// Legacy LocationType enum - kept for backward compatibility with any code using enum values
+export enum LocationTypeEnum {
   STUDENT_LOCATION = 'student_location',
   INSTRUCTOR_LOCATION = 'instructor_location',
   ONLINE = 'online',

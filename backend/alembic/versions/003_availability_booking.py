@@ -276,6 +276,7 @@ def upgrade() -> None:
     op.create_index("idx_bookings_cancelled_by_id", "bookings", ["cancelled_by_id"])
     op.create_index("idx_bookings_rescheduled_from_id", "bookings", ["rescheduled_from_booking_id"])
     op.create_index("idx_bookings_rescheduled_to_id", "bookings", ["rescheduled_to_booking_id"])
+    op.create_index("idx_bookings_location_place_id", "bookings", ["location_place_id"])
     op.create_index(
         "ix_bookings_payment_status",
         "bookings",
@@ -783,6 +784,7 @@ def downgrade() -> None:
     op.drop_index("ix_bookings_locked_at", table_name="bookings")
     op.drop_index("ix_bookings_auth_scheduled_for", table_name="bookings")
     op.drop_index("ix_bookings_payment_status", table_name="bookings")
+    op.drop_index("idx_bookings_location_place_id", table_name="bookings")
     op.drop_index("idx_bookings_rescheduled_to_id", table_name="bookings")
     op.drop_index("idx_bookings_rescheduled_from_id", table_name="bookings")
     op.drop_index("idx_bookings_cancelled_by_id", table_name="bookings")

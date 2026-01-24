@@ -26,7 +26,7 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Re
 from fastapi.params import Path
 from sqlalchemy.orm import Session
 
-from ...api.dependencies.auth import get_current_active_user
+from ...api.dependencies.auth import get_current_active_user, require_beta_access
 from ...api.dependencies.services import get_cache_service_dep
 from ...core.exceptions import DomainException
 from ...database import get_db as get_session
@@ -218,7 +218,12 @@ def delete_my_address(
 
 
 # Instructor service areas
-@router.get("/service-areas/me", response_model=ServiceAreasResponse)
+@router.get(
+    "/service-areas/me",
+    response_model=ServiceAreasResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
+@rate_limit("30/minute", key_type=RateLimitKeyType.IP)
 def list_my_service_areas(
     current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
@@ -380,7 +385,12 @@ def place_details(place_id: str, provider: str | None = None) -> PlaceDetails:
     )
 
 
-@router.put("/service-areas/me", response_model=ServiceAreasResponse)
+@router.put(
+    "/service-areas/me",
+    response_model=ServiceAreasResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
+@rate_limit("30/minute", key_type=RateLimitKeyType.IP)
 def replace_my_service_areas(
     payload: ServiceAreasUpdateRequest,
     current_user: User = Depends(get_current_active_user),

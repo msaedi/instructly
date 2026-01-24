@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import math
-import random
+import secrets
 from typing import Tuple
+
+# Cryptographically secure RNG for privacy-sensitive location jittering
+_secure_random = secrets.SystemRandom()
 
 
 def jitter_coordinates(
@@ -15,8 +18,8 @@ def jitter_coordinates(
     max_meters: float = 50.0,
 ) -> Tuple[float, float]:
     """Return coordinates offset by a random 25-50m jitter for privacy."""
-    distance = random.uniform(min_meters, max_meters)
-    angle = random.uniform(0, 2 * math.pi)
+    distance = _secure_random.uniform(min_meters, max_meters)
+    angle = _secure_random.uniform(0, 2 * math.pi)
 
     earth_radius = 6_371_000  # meters
     delta_lat = (distance * math.cos(angle)) / earth_radius * (180 / math.pi)

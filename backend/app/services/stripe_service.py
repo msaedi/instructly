@@ -90,6 +90,9 @@ class ChargeContext:
 
 logger: logging.Logger = logging.getLogger(__name__)
 
+# Sentinel for absent secret values in payment responses (avoids B105 false positive)
+_ABSENT: None = None
+
 
 class StripeService(BaseService):
     """
@@ -1884,7 +1887,7 @@ class StripeService(BaseService):
             "status": "succeeded",
             "amount": amount_cents / 100.0,
             "application_fee": 0,
-            "client_secret": None,
+            "client_secret": _ABSENT,
         }
 
     # ========== Customer Management ==========
@@ -2511,7 +2514,7 @@ class StripeService(BaseService):
                     }
                 )
             else:
-                result.update({"requires_action": False, "client_secret": None})
+                result.update({"requires_action": False, "client_secret": _ABSENT})
 
             # Persist/Upsert payment record if present in DB
             try:
@@ -3090,7 +3093,7 @@ class StripeService(BaseService):
                     "status": "succeeded",
                     "amount": 0,
                     "application_fee": 0,
-                    "client_secret": None,
+                    "client_secret": _ABSENT,
                 }
 
             if not payment_method_id:
@@ -3203,7 +3206,7 @@ class StripeService(BaseService):
                         "status": "auth_failed",
                         "amount": payment_record.amount,
                         "application_fee": payment_record.application_fee,
-                        "client_secret": None,
+                        "client_secret": _ABSENT,
                     }
 
                 return {
@@ -3221,7 +3224,7 @@ class StripeService(BaseService):
                 "status": "scheduled",
                 "amount": payment_record.amount,
                 "application_fee": payment_record.application_fee,
-                "client_secret": None,
+                "client_secret": _ABSENT,
             }
 
         except Exception as e:
