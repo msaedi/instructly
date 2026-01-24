@@ -6,7 +6,9 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from ._strict_base import StrictModel
+from pydantic import EmailStr, Field
+
+from ._strict_base import StrictModel, StrictRequestModel
 
 
 class MCPActor(StrictModel):
@@ -156,3 +158,60 @@ class MCPInstructorDetailResponse(StrictModel):
     bgc: MCPInstructorBGC
     services: list[MCPInstructorService]
     stats: MCPInstructorStats
+
+
+class MCPInvitePreviewRequest(StrictRequestModel):
+    recipient_emails: list[EmailStr] = Field(..., min_length=1)
+    grant_founding_status: bool = Field(default=True)
+    expires_in_days: int = Field(default=14, ge=1, le=180)
+    message_note: Optional[str] = None
+
+
+class MCPInvitePreviewRecipient(StrictModel):
+    email: EmailStr
+    exists_in_system: bool
+    user_id: Optional[str] = None
+
+
+class MCPInvitePreview(StrictModel):
+    subject: str
+    expires_at: datetime
+    grants_founding: bool
+    founding_cap_remaining: int
+
+
+class MCPInvitePreviewData(StrictModel):
+    recipient_count: int
+    recipients: list[MCPInvitePreviewRecipient]
+    invite_preview: MCPInvitePreview
+    confirm_token: str
+    confirm_expires_at: datetime
+    warnings: list[str]
+
+
+class MCPInvitePreviewResponse(StrictModel):
+    meta: MCPMeta
+    data: MCPInvitePreviewData
+
+
+class MCPInviteSendRequest(StrictRequestModel):
+    confirm_token: str
+    idempotency_key: str
+
+
+class MCPInviteSendResult(StrictModel):
+    email: EmailStr
+    code: str
+    status: str
+
+
+class MCPInviteSendData(StrictModel):
+    sent_count: int
+    failed_count: int
+    invites: list[MCPInviteSendResult]
+    audit_id: str
+
+
+class MCPInviteSendResponse(StrictModel):
+    meta: MCPMeta
+    data: MCPInviteSendData

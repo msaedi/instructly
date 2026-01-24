@@ -150,6 +150,7 @@ from .routes.v1.admin import (
 from .routes.v1.admin.mcp import (
     founding as admin_mcp_founding_v1,
     instructors as admin_mcp_instructors_v1,
+    invites as admin_mcp_invites_v1,
 )
 from .schemas.main_responses import RootResponse
 from .services.background_check_workflow_service import (
@@ -1066,6 +1067,7 @@ api_v1.include_router(admin_bookings_v1.router, prefix="/admin")  # type: ignore
 api_v1.include_router(admin_refunds_v1.router, prefix="/admin/bookings")  # type: ignore[attr-defined]
 api_v1.include_router(admin_mcp_founding_v1.router, prefix="/admin/mcp/founding")  # type: ignore[attr-defined]
 api_v1.include_router(admin_mcp_instructors_v1.router, prefix="/admin/mcp/instructors")  # type: ignore[attr-defined]
+api_v1.include_router(admin_mcp_invites_v1.router, prefix="/admin/mcp/invites")  # type: ignore[attr-defined]
 # Phase 23 v1 webhooks router
 api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
 # Phase 24.5 v1 admin operations routers

@@ -1023,6 +1023,38 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/invites/preview": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["preview_invites_api_v1_admin_mcp_invites_preview_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/invites/send": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["send_invites_api_v1_admin_mcp_invites_send_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/referrals/config": {
  parameters: {
  query?: never;
@@ -6565,6 +6597,54 @@ export type components = {
  rating_count: number;
  response_rate?: number | null;
  };
+ MCPInvitePreview: {
+ expires_at: string;
+ founding_cap_remaining: number;
+ grants_founding: boolean;
+ subject: string;
+ };
+ MCPInvitePreviewData: {
+ confirm_expires_at: string;
+ confirm_token: string;
+ invite_preview: components["schemas"]["MCPInvitePreview"];
+ recipient_count: number;
+ recipients: components["schemas"]["MCPInvitePreviewRecipient"][];
+ warnings: string[];
+ };
+ MCPInvitePreviewRecipient: {
+ email: string;
+ exists_in_system: boolean;
+ user_id?: string | null;
+ };
+ MCPInvitePreviewRequest: {
+ expires_in_days: number;
+ grant_founding_status: boolean;
+ message_note?: string | null;
+ recipient_emails: string[];
+ };
+ MCPInvitePreviewResponse: {
+ data: components["schemas"]["MCPInvitePreviewData"];
+ meta: components["schemas"]["MCPMeta"];
+ };
+ MCPInviteSendData: {
+ audit_id: string;
+ failed_count: number;
+ invites: components["schemas"]["MCPInviteSendResult"][];
+ sent_count: number;
+ };
+ MCPInviteSendRequest: {
+ confirm_token: string;
+ idempotency_key: string;
+ };
+ MCPInviteSendResponse: {
+ data: components["schemas"]["MCPInviteSendData"];
+ meta: components["schemas"]["MCPMeta"];
+ };
+ MCPInviteSendResult: {
+ code: string;
+ email: string;
+ status: string;
+ };
  MCPMeta: {
  actor: components["schemas"]["MCPActor"];
  generated_at: string;
@@ -10154,6 +10234,70 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["MCPInstructorDetailResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ preview_invites_api_v1_admin_mcp_invites_preview_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["MCPInvitePreviewRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPInvitePreviewResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ send_invites_api_v1_admin_mcp_invites_send_post: {
+ parameters: {
+ query?: never;
+ header?: {
+ "Idempotency-Key"?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["MCPInviteSendRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPInviteSendResponse"];
  };
  };
  422: {

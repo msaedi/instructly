@@ -3778,6 +3778,68 @@ export interface MCPInstructorListResponse {
   next_cursor?: string | null;
 }
 
+export interface MCPInvitePreview {
+  expires_at: string;
+  founding_cap_remaining: number;
+  grants_founding: boolean;
+  subject: string;
+}
+
+export interface MCPInvitePreviewRecipient {
+  email: string;
+  exists_in_system: boolean;
+  user_id?: string | null;
+}
+
+export interface MCPInvitePreviewData {
+  confirm_expires_at: string;
+  confirm_token: string;
+  invite_preview: MCPInvitePreview;
+  recipient_count: number;
+  recipients: MCPInvitePreviewRecipient[];
+  warnings: string[];
+}
+
+export interface MCPInvitePreviewRequest {
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
+  expires_in_days?: number;
+  grant_founding_status?: boolean;
+  message_note?: string | null;
+  /** @minItems 1 */
+  recipient_emails: string[];
+}
+
+export interface MCPInvitePreviewResponse {
+  data: MCPInvitePreviewData;
+  meta: MCPMeta;
+}
+
+export interface MCPInviteSendResult {
+  code: string;
+  email: string;
+  status: string;
+}
+
+export interface MCPInviteSendData {
+  audit_id: string;
+  failed_count: number;
+  invites: MCPInviteSendResult[];
+  sent_count: number;
+}
+
+export interface MCPInviteSendRequest {
+  confirm_token: string;
+  idempotency_key: string;
+}
+
+export interface MCPInviteSendResponse {
+  data: MCPInviteSendData;
+  meta: MCPMeta;
+}
+
 export interface MCPServiceCoverageData {
   group_by: string;
   labels: string[];
