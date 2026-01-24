@@ -105,8 +105,12 @@ class BookingCreate(StrictRequestModel):
     location_address: Optional[str] = Field(
         None, description="Structured location address for in-person lessons"
     )
-    location_lat: Optional[float] = Field(None, description="Latitude for the lesson location")
-    location_lng: Optional[float] = Field(None, description="Longitude for the lesson location")
+    location_lat: Optional[float] = Field(
+        None, ge=-90.0, le=90.0, description="Latitude for the lesson location"
+    )
+    location_lng: Optional[float] = Field(
+        None, ge=-180.0, le=180.0, description="Longitude for the lesson location"
+    )
     location_place_id: Optional[str] = Field(None, description="Place ID for the lesson location")
 
     # Note: end_time is calculated from start_time + selected_duration
@@ -186,6 +190,11 @@ class BookingCreate(StrictRequestModel):
     @model_validator(mode="after")
     def validate_location_address(self) -> "BookingCreate":
         """Ensure non-online bookings include a structured address."""
+        # Guard: let field validator handle invalid types
+        valid_types = ("student_location", "instructor_location", "online", "neutral_location")
+        if self.location_type not in valid_types:
+            return self
+
         if self.location_type != "online":
             address = (self.location_address or self.meeting_location or "").strip()
             if not address:

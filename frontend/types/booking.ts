@@ -29,6 +29,15 @@ export type BookingCreate = GeneratedBookingCreate;
 // BookedSlotsResponse kept local - uses typed BookedSlotPreview with frontend LocationType
 
 // Frontend-only types (not in generated OpenAPI)
+/**
+ * Canonical location types for bookings.
+ * Must stay synchronized with backend LocationTypeLiteral in app/schemas/common.py
+ *
+ * - student_location: Instructor travels to student's location
+ * - instructor_location: Student goes to instructor's studio/location
+ * - online: Virtual lesson
+ * - neutral_location: Meet at agreed neutral location (park, library, etc.)
+ */
 export type LocationType =
   | 'student_location'
   | 'instructor_location'

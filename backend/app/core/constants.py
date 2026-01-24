@@ -100,3 +100,14 @@ API_VERSION = "1.0.0"
 # Rate limiting (for future implementation)
 MAX_REQUESTS_PER_MINUTE = 60
 MAX_REQUESTS_PER_HOUR = 1000
+
+# Location type constants for bookings
+# Canonical location types for lessons/bookings
+VALID_LOCATION_TYPES: frozenset[str] = frozenset(
+    {
+        "student_location",
+        "instructor_location",
+        "online",
+        "neutral_location",
+    }
+)

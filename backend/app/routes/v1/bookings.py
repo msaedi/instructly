@@ -37,6 +37,7 @@ from ...api.dependencies import get_booking_service, get_current_active_user
 from ...api.dependencies.auth import require_beta_phase_access
 from ...core.booking_lock import booking_lock
 from ...core.config import settings
+from ...core.constants import VALID_LOCATION_TYPES
 from ...core.enums import PermissionName
 from ...core.exceptions import DomainException, NotFoundException, ValidationException
 from ...dependencies.permissions import require_permission
@@ -794,32 +795,15 @@ async def reschedule_booking(
                 else None
             )
             _location_type_raw = getattr(original, "location_type", None)
-            # Map legacy location_type values to canonical values
-            _LEGACY_LOCATION_TYPE_MAP = {
-                "student_home": "student_location",
-                "neutral": "neutral_location",
-                "instructor_studio": "instructor_location",
-                "in_person": "student_location",  # Default in-person to student location
-            }
-            _VALID_LOCATION_TYPES = {
-                "student_location",
-                "instructor_location",
-                "online",
-                "neutral_location",
-            }
+            # Validate location_type is canonical (no legacy mapping - clean break)
             if isinstance(_location_type_raw, str):
-                if _location_type_raw in _VALID_LOCATION_TYPES:
+                if _location_type_raw in VALID_LOCATION_TYPES:
                     _location_type = _location_type_raw
-                elif _location_type_raw in _LEGACY_LOCATION_TYPE_MAP:
-                    _location_type = _LEGACY_LOCATION_TYPE_MAP[_location_type_raw]
-                    logger.info(
-                        f"Mapped legacy location_type '{_location_type_raw}' to '{_location_type}'"
-                    )
                 else:
-                    logger.warning(
-                        f"Unknown location_type '{_location_type_raw}', defaulting to 'online'"
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid location_type: '{_location_type_raw}'. Must be one of: {', '.join(sorted(VALID_LOCATION_TYPES))}",
                     )
-                    _location_type = "online"
             else:
                 _location_type = "online"
             _location_address = _safe_str(getattr(original, "location_address", None))
