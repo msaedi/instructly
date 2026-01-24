@@ -192,6 +192,12 @@ def seed_roles_and_permissions():
                     action="manage",
                 ),
                 Permission(
+                    name=PermissionName.MCP_ACCESS,
+                    description="Access MCP admin operations",
+                    resource="mcp",
+                    action="access",
+                ),
+                Permission(
                     name=PermissionName.VIEW_ALL_USERS, description="View all users", resource="users", action="view"
                 ),
                 Permission(

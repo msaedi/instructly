@@ -943,6 +943,38 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/founding/funnel": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_funnel_summary_api_v1_admin_mcp_founding_funnel_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/founding/stuck": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_stuck_instructors_api_v1_admin_mcp_founding_stuck_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/referrals/config": {
  parameters: {
  query?: never;
@@ -6393,6 +6425,60 @@ export type components = {
  hit_rate?: number | null;
  target?: number | null;
  };
+ MCPActor: {
+ email: string;
+ id: string;
+ };
+ MCPConversionRate: {
+ from_stage: string;
+ rate: number;
+ to_stage: string;
+ };
+ MCPFoundingCap: {
+ cap: number;
+ is_founding_phase: boolean;
+ remaining: number;
+ used: number;
+ };
+ MCPFunnelStage: {
+ count: number;
+ description: string;
+ stage: string;
+ };
+ MCPFunnelSummaryResponse: {
+ conversion_rates: components["schemas"]["MCPConversionRate"][];
+ founding_cap: components["schemas"]["MCPFoundingCap"];
+ meta: components["schemas"]["MCPMeta"];
+ stages: components["schemas"]["MCPFunnelStage"][];
+ time_window: components["schemas"]["MCPTimeWindow"];
+ };
+ MCPMeta: {
+ actor: components["schemas"]["MCPActor"];
+ generated_at: string;
+ request_id: string;
+ };
+ MCPStuckInstructor: {
+ current_stage: string;
+ days_in_stage: number;
+ email: string;
+ name: string;
+ occurred_at?: string | null;
+ user_id: string;
+ };
+ MCPStuckResponse: {
+ instructors: components["schemas"]["MCPStuckInstructor"][];
+ meta: components["schemas"]["MCPMeta"];
+ summary: components["schemas"]["MCPStuckSummary"][];
+ total_stuck: number;
+ };
+ MCPStuckSummary: {
+ stage: string;
+ stuck_count: number;
+ };
+ MCPTimeWindow: {
+ end?: string | null;
+ start?: string | null;
+ };
  MarkMessagesReadRequest: {
  conversation_id?: string | null;
  message_ids?: string[] | null;
@@ -9789,6 +9875,67 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AdminLocationLearningDismissQueryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_funnel_summary_api_v1_admin_mcp_founding_funnel_get: {
+ parameters: {
+ query?: {
+ start_date?: string | null;
+ end_date?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPFunnelSummaryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_stuck_instructors_api_v1_admin_mcp_founding_stuck_get: {
+ parameters: {
+ query?: {
+ stuck_days?: number;
+ stage?: string | null;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPStuckResponse"];
  };
  };
  422: {

@@ -149,6 +149,49 @@ def upgrade() -> None:
         "(is_live = FALSE) OR (bgc_status = 'passed')",
     )
 
+    # Create instructor lifecycle events table
+    op.create_table(
+        "instructor_lifecycle_events",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), nullable=False),
+        sa.Column("event_type", sa.String(length=32), nullable=False),
+        sa.Column(
+            "occurred_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column("metadata", json_type, nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint(
+            "event_type IN ('registered','profile_submitted','services_configured','bgc_initiated',"
+            "'bgc_completed','identity_verified','went_live','paused','reactivated')",
+            name="ck_instructor_lifecycle_event_type",
+        ),
+        comment="Append-only lifecycle events for instructor onboarding funnel",
+    )
+
+    op.create_index(
+        "idx_lifecycle_events_user_id", "instructor_lifecycle_events", ["user_id"]
+    )
+    op.create_index(
+        "idx_lifecycle_events_type_occurred",
+        "instructor_lifecycle_events",
+        ["event_type", "occurred_at"],
+    )
+    op.create_index(
+        "idx_lifecycle_events_occurred",
+        "instructor_lifecycle_events",
+        ["occurred_at"],
+    )
+
     # Create service categories table
     op.create_table(
         "service_categories",
@@ -421,6 +464,14 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Drop instructor system tables."""
     print("Dropping instructor system tables...")
+
+    op.drop_index("idx_lifecycle_events_occurred", table_name="instructor_lifecycle_events")
+    op.drop_index(
+        "idx_lifecycle_events_type_occurred",
+        table_name="instructor_lifecycle_events",
+    )
+    op.drop_index("idx_lifecycle_events_user_id", table_name="instructor_lifecycle_events")
+    op.drop_table("instructor_lifecycle_events")
 
     op.drop_index("ix_bgc_consent_instructor_id", table_name="bgc_consent")
     op.drop_table("bgc_consent")

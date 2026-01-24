@@ -60,6 +60,7 @@ class PermissionName(str, Enum):
     # Admin permissions
     ADMIN_READ = "admin:read"
     ADMIN_MANAGE = "admin:manage"
+    MCP_ACCESS = "mcp:access"
     VIEW_ALL_USERS = "view_all_users"
     MANAGE_USERS = "manage_users"
     VIEW_SYSTEM_ANALYTICS = "view_system_analytics"

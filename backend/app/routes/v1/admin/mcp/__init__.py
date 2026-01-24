@@ -1,0 +1,1 @@
+"""MCP admin routes package."""

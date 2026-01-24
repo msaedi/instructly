@@ -44,6 +44,7 @@ from .base import BaseService
 from .cache_service import CacheServiceSyncAdapter
 from .config_service import ConfigService
 from .geocoding.factory import create_geocoding_provider
+from .instructor_lifecycle_service import InstructorLifecycleService
 from .location_enrichment import LocationEnrichmentService
 from .pricing_service import PricingService
 from .search.cache_invalidation import (
@@ -493,9 +494,15 @@ class InstructorService(BaseService):
             if basic_updates:
                 self.profile_repository.update(profile.id, **basic_updates)
 
+            resolved_bio = basic_updates.get("bio", profile.bio)
+            resolved_years = basic_updates.get("years_experience", profile.years_experience)
+
+            services_configured_now = False
             # Handle service updates if provided
             if update_data.services is not None:
-                self._update_services(profile.id, user_id, update_data.services)
+                services_configured_now = self._update_services(
+                    profile.id, user_id, update_data.services
+                )
 
             # Replace preferred teaching locations if provided
             if update_data.preferred_teaching_locations is not None:
@@ -512,6 +519,15 @@ class InstructorService(BaseService):
                     kind="public_space",
                     items=update_data.preferred_public_spaces,
                 )
+
+            bio_value = str(resolved_bio or "").strip()
+            if bio_value and resolved_years is not None:
+                lifecycle_service = InstructorLifecycleService(self.db)
+                lifecycle_service.record_profile_submitted(profile.user_id)
+
+            if services_configured_now:
+                lifecycle_service = InstructorLifecycleService(self.db)
+                lifecycle_service.record_services_configured(profile.user_id)
 
         # Invalidate caches
         if self.cache_service:
@@ -641,6 +657,9 @@ class InstructorService(BaseService):
                 )
             else:
                 updated_profile = self.profile_repository.update(profile.id, is_live=True)
+
+            lifecycle_service = InstructorLifecycleService(self.db)
+            lifecycle_service.record_went_live(profile.user_id)
 
         if updated_profile is None:
             raise ServiceException("Failed to update instructor profile", code="update_failed")
@@ -787,7 +806,7 @@ class InstructorService(BaseService):
 
     def _update_services(
         self, profile_id: str, instructor_id: str, services_data: List[ServiceCreate]
-    ) -> None:
+    ) -> bool:
         """
         Update services with soft/hard delete logic.
 
@@ -802,6 +821,7 @@ class InstructorService(BaseService):
 
         # Get all existing services (including inactive)
         existing_services = self.service_repository.find_by(instructor_profile_id=profile_id)
+        had_active_services = any(service.is_active for service in existing_services)
 
         # Create lookup map by catalog ID
         services_by_catalog_id = {
@@ -875,6 +895,8 @@ class InstructorService(BaseService):
         # Update skills_configured based on whether services exist after update
         has_active_services = bool(services_data)
         self.profile_repository.update(profile_id, skills_configured=has_active_services)
+
+        return (not had_active_services) and has_active_services
 
     def _replace_preferred_places(
         self,

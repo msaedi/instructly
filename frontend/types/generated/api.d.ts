@@ -1181,6 +1181,50 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mcp/founding/funnel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Funnel Summary
+         * @description Get founding instructor funnel summary.
+         *
+         *     Returns stage counts, conversion rates, and founding cap status.
+         */
+        get: operations["get_funnel_summary_api_v1_admin_mcp_founding_funnel_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/founding/stuck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Stuck Instructors
+         * @description Get instructors stuck in onboarding.
+         *
+         *     Returns summary by stage and list of stuck instructors.
+         */
+        get: operations["get_stuck_instructors_api_v1_admin_mcp_founding_stuck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/referrals/config": {
         parameters: {
             query?: never;
@@ -11841,6 +11885,102 @@ export type components = {
              */
             target?: number | null;
         };
+        /** MCPActor */
+        MCPActor: {
+            /** Email */
+            email: string;
+            /** Id */
+            id: string;
+        };
+        /** MCPConversionRate */
+        MCPConversionRate: {
+            /** From Stage */
+            from_stage: string;
+            /** Rate */
+            rate: number;
+            /** To Stage */
+            to_stage: string;
+        };
+        /** MCPFoundingCap */
+        MCPFoundingCap: {
+            /** Cap */
+            cap: number;
+            /** Is Founding Phase */
+            is_founding_phase: boolean;
+            /** Remaining */
+            remaining: number;
+            /** Used */
+            used: number;
+        };
+        /** MCPFunnelStage */
+        MCPFunnelStage: {
+            /** Count */
+            count: number;
+            /** Description */
+            description: string;
+            /** Stage */
+            stage: string;
+        };
+        /** MCPFunnelSummaryResponse */
+        MCPFunnelSummaryResponse: {
+            /** Conversion Rates */
+            conversion_rates: components["schemas"]["MCPConversionRate"][];
+            founding_cap: components["schemas"]["MCPFoundingCap"];
+            meta: components["schemas"]["MCPMeta"];
+            /** Stages */
+            stages: components["schemas"]["MCPFunnelStage"][];
+            time_window: components["schemas"]["MCPTimeWindow"];
+        };
+        /** MCPMeta */
+        MCPMeta: {
+            actor: components["schemas"]["MCPActor"];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Request Id */
+            request_id: string;
+        };
+        /** MCPStuckInstructor */
+        MCPStuckInstructor: {
+            /** Current Stage */
+            current_stage: string;
+            /** Days In Stage */
+            days_in_stage: number;
+            /** Email */
+            email: string;
+            /** Name */
+            name: string;
+            /** Occurred At */
+            occurred_at?: string | null;
+            /** User Id */
+            user_id: string;
+        };
+        /** MCPStuckResponse */
+        MCPStuckResponse: {
+            /** Instructors */
+            instructors: components["schemas"]["MCPStuckInstructor"][];
+            meta: components["schemas"]["MCPMeta"];
+            /** Summary */
+            summary: components["schemas"]["MCPStuckSummary"][];
+            /** Total Stuck */
+            total_stuck: number;
+        };
+        /** MCPStuckSummary */
+        MCPStuckSummary: {
+            /** Stage */
+            stage: string;
+            /** Stuck Count */
+            stuck_count: number;
+        };
+        /** MCPTimeWindow */
+        MCPTimeWindow: {
+            /** End */
+            end?: string | null;
+            /** Start */
+            start?: string | null;
+        };
         /**
          * MarkMessagesReadRequest
          * @description Request to mark messages as read.
@@ -18874,6 +19014,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminLocationLearningDismissQueryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_funnel_summary_api_v1_admin_mcp_founding_funnel_get: {
+        parameters: {
+            query?: {
+                start_date?: string | null;
+                end_date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPFunnelSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_stuck_instructors_api_v1_admin_mcp_founding_stuck_get: {
+        parameters: {
+            query?: {
+                stuck_days?: number;
+                stage?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPStuckResponse"];
                 };
             };
             /** @description Validation Error */

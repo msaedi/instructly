@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from .conversation_repository import ConversationRepository
     from .credit_repository import CreditRepository
     from .event_outbox_repository import EventOutboxRepository
+    from .instructor_lifecycle_repository import InstructorLifecycleRepository
     from .instructor_preferred_place_repository import InstructorPreferredPlaceRepository
     from .instructor_profile_repository import InstructorProfileRepository
     from .message_repository import MessageRepository
@@ -168,6 +169,13 @@ class RepositoryFactory:
         from .instructor_preferred_place_repository import InstructorPreferredPlaceRepository
 
         return InstructorPreferredPlaceRepository(db)
+
+    @staticmethod
+    def create_instructor_lifecycle_repository(db: Session) -> "InstructorLifecycleRepository":
+        """Create repository for instructor lifecycle events."""
+        from .instructor_lifecycle_repository import InstructorLifecycleRepository
+
+        return InstructorLifecycleRepository(db)
 
     @staticmethod
     def create_instructor_service_area_repository(

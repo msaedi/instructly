@@ -3663,6 +3663,70 @@ export interface LoginResponse {
   token_type?: string | null;
 }
 
+export interface MCPActor {
+  email: string;
+  id: string;
+}
+
+export interface MCPConversionRate {
+  from_stage: string;
+  rate: number;
+  to_stage: string;
+}
+
+export interface MCPFoundingCap {
+  cap: number;
+  is_founding_phase: boolean;
+  remaining: number;
+  used: number;
+}
+
+export interface MCPFunnelStage {
+  count: number;
+  description: string;
+  stage: string;
+}
+
+export interface MCPMeta {
+  actor: MCPActor;
+  generated_at: string;
+  request_id: string;
+}
+
+export interface MCPTimeWindow {
+  end?: string | null;
+  start?: string | null;
+}
+
+export interface MCPFunnelSummaryResponse {
+  conversion_rates: MCPConversionRate[];
+  founding_cap: MCPFoundingCap;
+  meta: MCPMeta;
+  stages: MCPFunnelStage[];
+  time_window: MCPTimeWindow;
+}
+
+export interface MCPStuckInstructor {
+  current_stage: string;
+  days_in_stage: number;
+  email: string;
+  name: string;
+  occurred_at?: string | null;
+  user_id: string;
+}
+
+export interface MCPStuckSummary {
+  stage: string;
+  stuck_count: number;
+}
+
+export interface MCPStuckResponse {
+  instructors: MCPStuckInstructor[];
+  meta: MCPMeta;
+  summary: MCPStuckSummary[];
+  total_stuck: number;
+}
+
 /**
  * Request to mark messages as read.
  */
@@ -6912,6 +6976,25 @@ export type ListUnresolvedLocationQueriesApiV1AdminLocationLearningUnresolvedGet
   /**
    * @minimum 1
    * @maximum 500
+   */
+  limit?: number;
+};
+
+export type GetFunnelSummaryApiV1AdminMcpFoundingFunnelGetParams = {
+  start_date?: string | null;
+  end_date?: string | null;
+};
+
+export type GetStuckInstructorsApiV1AdminMcpFoundingStuckGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 90
+   */
+  stuck_days?: number;
+  stage?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 200
    */
   limit?: number;
 };
