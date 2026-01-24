@@ -86,7 +86,7 @@ class InstructorProfile(Base):
     years_experience = Column(Integer, nullable=True)
 
     # Booking preferences
-    min_advance_booking_hours = Column(Integer, nullable=False, default=24)
+    min_advance_booking_hours = Column(Integer, nullable=False, default=2)
     buffer_time_minutes = Column(Integer, nullable=False, default=0)
     current_tier_pct = Column(Numeric(5, 2), nullable=False, default=15.00, server_default="15.00")
     is_founding_instructor = Column(Boolean, default=False, nullable=False)

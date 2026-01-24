@@ -34,7 +34,6 @@ def upgrade() -> None:
         sa.Column("user_id", sa.String(26), nullable=False),
         sa.Column("bio", sa.Text(), nullable=True),
         sa.Column("years_experience", sa.Integer(), nullable=True),
-        sa.Column("travel_preferences", json_type, nullable=True),
         sa.Column("min_advance_booking_hours", sa.Integer(), nullable=False, server_default="2"),
         sa.Column("buffer_time_minutes", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("current_tier_pct", sa.Numeric(5, 2), nullable=False, server_default="15.00"),
