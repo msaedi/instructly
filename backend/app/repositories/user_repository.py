@@ -109,7 +109,7 @@ class UserRepository(BaseRepository[User]):
                 stmt = select(User).where(func.lower(User.email).in_(lowered))
             else:
                 stmt = select(User).where(User.email.in_(list(emails)))
-            return self.db.execute(stmt).scalars().all()
+            return cast(list[User], self.db.execute(stmt).scalars().all())
         except Exception as e:
             self.logger.error(f"Error listing users by emails: {str(e)}")
             return []

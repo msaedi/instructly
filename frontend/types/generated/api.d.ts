@@ -1310,6 +1310,57 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mcp/metrics/{metric_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Metric Definition */
+        get: operations["get_metric_definition_api_v1_admin_mcp_metrics__metric_name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/search/top-queries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Top Queries */
+        get: operations["get_top_queries_api_v1_admin_mcp_search_top_queries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/search/zero-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Zero Result Queries */
+        get: operations["get_zero_result_queries_api_v1_admin_mcp_search_zero_results_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/referrals/config": {
         parameters: {
             query?: never;
@@ -11986,6 +12037,19 @@ export type components = {
             /** To Stage */
             to_stage: string;
         };
+        /** MCPDateWindow */
+        MCPDateWindow: {
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+        };
         /** MCPFoundingCap */
         MCPFoundingCap: {
             /** Cap */
@@ -12245,6 +12309,24 @@ export type components = {
             /** Request Id */
             request_id: string;
         };
+        /** MCPMetricDefinition */
+        MCPMetricDefinition: {
+            /** Definition */
+            definition: string;
+            /** Metric */
+            metric: string;
+            /** Related Metrics */
+            related_metrics: string[];
+            /** Requirements */
+            requirements: string[];
+            /** Source Fields */
+            source_fields: string[];
+        };
+        /** MCPMetricResponse */
+        MCPMetricResponse: {
+            data: components["schemas"]["MCPMetricDefinition"];
+            meta: components["schemas"]["MCPMeta"];
+        };
         /** MCPServiceCoverageData */
         MCPServiceCoverageData: {
             /** Group By */
@@ -12301,6 +12383,52 @@ export type components = {
             end?: string | null;
             /** Start */
             start?: string | null;
+        };
+        /** MCPTopQueriesData */
+        MCPTopQueriesData: {
+            /** Queries */
+            queries: components["schemas"]["MCPTopQuery"][];
+            time_window: components["schemas"]["MCPDateWindow"];
+            /** Total Searches */
+            total_searches: number;
+        };
+        /** MCPTopQueriesResponse */
+        MCPTopQueriesResponse: {
+            data: components["schemas"]["MCPTopQueriesData"];
+            meta: components["schemas"]["MCPMeta"];
+        };
+        /** MCPTopQuery */
+        MCPTopQuery: {
+            /** Avg Results */
+            avg_results: number;
+            /** Conversion Rate */
+            conversion_rate: number;
+            /** Count */
+            count: number;
+            /** Query */
+            query: string;
+        };
+        /** MCPZeroResultQuery */
+        MCPZeroResultQuery: {
+            /** Count */
+            count: number;
+            /** Query */
+            query: string;
+        };
+        /** MCPZeroResultsData */
+        MCPZeroResultsData: {
+            /** Queries */
+            queries: components["schemas"]["MCPZeroResultQuery"][];
+            time_window: components["schemas"]["MCPDateWindow"];
+            /** Total Zero Result Searches */
+            total_zero_result_searches: number;
+            /** Zero Result Rate */
+            zero_result_rate: number;
+        };
+        /** MCPZeroResultsResponse */
+        MCPZeroResultsResponse: {
+            data: components["schemas"]["MCPZeroResultsData"];
+            meta: components["schemas"]["MCPMeta"];
         };
         /**
          * MarkMessagesReadRequest
@@ -19568,6 +19696,104 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MCPInviteSendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_metric_definition_api_v1_admin_mcp_metrics__metric_name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                metric_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPMetricResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_top_queries_api_v1_admin_mcp_search_top_queries_get: {
+        parameters: {
+            query?: {
+                start_date?: string | null;
+                end_date?: string | null;
+                limit?: number;
+                min_count?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPTopQueriesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_zero_result_queries_api_v1_admin_mcp_search_zero_results_get: {
+        parameters: {
+            query?: {
+                start_date?: string | null;
+                end_date?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPZeroResultsResponse"];
                 };
             };
             /** @description Validation Error */

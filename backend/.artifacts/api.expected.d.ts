@@ -1055,6 +1055,54 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/metrics/{metric_name}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_metric_definition_api_v1_admin_mcp_metrics__metric_name__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/search/top-queries": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_top_queries_api_v1_admin_mcp_search_top_queries_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/search/zero-results": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_zero_result_queries_api_v1_admin_mcp_search_zero_results_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/referrals/config": {
  parameters: {
  query?: never;
@@ -6514,6 +6562,10 @@ export type components = {
  rate: number;
  to_stage: string;
  };
+ MCPDateWindow: {
+ end: string;
+ start: string;
+ };
  MCPFoundingCap: {
  cap: number;
  is_founding_phase: boolean;
@@ -6650,6 +6702,17 @@ export type components = {
  generated_at: string;
  request_id: string;
  };
+ MCPMetricDefinition: {
+ definition: string;
+ metric: string;
+ related_metrics: string[];
+ requirements: string[];
+ source_fields: string[];
+ };
+ MCPMetricResponse: {
+ data: components["schemas"]["MCPMetricDefinition"];
+ meta: components["schemas"]["MCPMeta"];
+ };
  MCPServiceCoverageData: {
  group_by: string;
  labels: string[];
@@ -6682,6 +6745,35 @@ export type components = {
  MCPTimeWindow: {
  end?: string | null;
  start?: string | null;
+ };
+ MCPTopQueriesData: {
+ queries: components["schemas"]["MCPTopQuery"][];
+ time_window: components["schemas"]["MCPDateWindow"];
+ total_searches: number;
+ };
+ MCPTopQueriesResponse: {
+ data: components["schemas"]["MCPTopQueriesData"];
+ meta: components["schemas"]["MCPMeta"];
+ };
+ MCPTopQuery: {
+ avg_results: number;
+ conversion_rate: number;
+ count: number;
+ query: string;
+ };
+ MCPZeroResultQuery: {
+ count: number;
+ query: string;
+ };
+ MCPZeroResultsData: {
+ queries: components["schemas"]["MCPZeroResultQuery"][];
+ time_window: components["schemas"]["MCPDateWindow"];
+ total_zero_result_searches: number;
+ zero_result_rate: number;
+ };
+ MCPZeroResultsResponse: {
+ data: components["schemas"]["MCPZeroResultsData"];
+ meta: components["schemas"]["MCPMeta"];
  };
  MarkMessagesReadRequest: {
  conversation_id?: string | null;
@@ -10298,6 +10390,98 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["MCPInviteSendResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_metric_definition_api_v1_admin_mcp_metrics__metric_name__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ metric_name: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPMetricResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_top_queries_api_v1_admin_mcp_search_top_queries_get: {
+ parameters: {
+ query?: {
+ start_date?: string | null;
+ end_date?: string | null;
+ limit?: number;
+ min_count?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPTopQueriesResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_zero_result_queries_api_v1_admin_mcp_search_zero_results_get: {
+ parameters: {
+ query?: {
+ start_date?: string | null;
+ end_date?: string | null;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPZeroResultsResponse"];
  };
  };
  422: {

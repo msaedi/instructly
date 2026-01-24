@@ -3674,6 +3674,11 @@ export interface MCPConversionRate {
   to_stage: string;
 }
 
+export interface MCPDateWindow {
+  end: string;
+  start: string;
+}
+
 export interface MCPFoundingCap {
   cap: number;
   is_founding_phase: boolean;
@@ -3840,6 +3845,19 @@ export interface MCPInviteSendResponse {
   meta: MCPMeta;
 }
 
+export interface MCPMetricDefinition {
+  definition: string;
+  metric: string;
+  related_metrics: string[];
+  requirements: string[];
+  source_fields: string[];
+}
+
+export interface MCPMetricResponse {
+  data: MCPMetricDefinition;
+  meta: MCPMeta;
+}
+
 export interface MCPServiceCoverageData {
   group_by: string;
   labels: string[];
@@ -3872,6 +3890,41 @@ export interface MCPStuckResponse {
   meta: MCPMeta;
   summary: MCPStuckSummary[];
   total_stuck: number;
+}
+
+export interface MCPTopQuery {
+  avg_results: number;
+  conversion_rate: number;
+  count: number;
+  query: string;
+}
+
+export interface MCPTopQueriesData {
+  queries: MCPTopQuery[];
+  time_window: MCPDateWindow;
+  total_searches: number;
+}
+
+export interface MCPTopQueriesResponse {
+  data: MCPTopQueriesData;
+  meta: MCPMeta;
+}
+
+export interface MCPZeroResultQuery {
+  count: number;
+  query: string;
+}
+
+export interface MCPZeroResultsData {
+  queries: MCPZeroResultQuery[];
+  time_window: MCPDateWindow;
+  total_zero_result_searches: number;
+  zero_result_rate: number;
+}
+
+export interface MCPZeroResultsResponse {
+  data: MCPZeroResultsData;
+  meta: MCPMeta;
 }
 
 /**
@@ -7186,6 +7239,31 @@ export const GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetGroupBy = {
   category: 'category',
   service: 'service',
 } as const;
+
+export type GetTopQueriesApiV1AdminMcpSearchTopQueriesGetParams = {
+  start_date?: string | null;
+  end_date?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+  /**
+   * @minimum 1
+   * @maximum 1000
+   */
+  min_count?: number;
+};
+
+export type GetZeroResultQueriesApiV1AdminMcpSearchZeroResultsGetParams = {
+  start_date?: string | null;
+  end_date?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+};
 
 export type ExportAnalyticsApiV1AnalyticsExportPostParams = {
   format?: string;

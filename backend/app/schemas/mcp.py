@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -160,6 +160,11 @@ class MCPInstructorDetailResponse(StrictModel):
     stats: MCPInstructorStats
 
 
+class MCPDateWindow(StrictModel):
+    start: date
+    end: date
+
+
 class MCPInvitePreviewRequest(StrictRequestModel):
     recipient_emails: list[EmailStr] = Field(..., min_length=1)
     grant_founding_status: bool = Field(default=True)
@@ -215,3 +220,51 @@ class MCPInviteSendData(StrictModel):
 class MCPInviteSendResponse(StrictModel):
     meta: MCPMeta
     data: MCPInviteSendData
+
+
+class MCPTopQuery(StrictModel):
+    query: str
+    count: int
+    avg_results: float
+    conversion_rate: float
+
+
+class MCPTopQueriesData(StrictModel):
+    time_window: MCPDateWindow
+    queries: list[MCPTopQuery]
+    total_searches: int
+
+
+class MCPTopQueriesResponse(StrictModel):
+    meta: MCPMeta
+    data: MCPTopQueriesData
+
+
+class MCPZeroResultQuery(StrictModel):
+    query: str
+    count: int
+
+
+class MCPZeroResultsData(StrictModel):
+    time_window: MCPDateWindow
+    queries: list[MCPZeroResultQuery]
+    total_zero_result_searches: int
+    zero_result_rate: float
+
+
+class MCPZeroResultsResponse(StrictModel):
+    meta: MCPMeta
+    data: MCPZeroResultsData
+
+
+class MCPMetricDefinition(StrictModel):
+    metric: str
+    definition: str
+    requirements: list[str]
+    source_fields: list[str]
+    related_metrics: list[str]
+
+
+class MCPMetricResponse(StrictModel):
+    meta: MCPMeta
+    data: MCPMetricDefinition
