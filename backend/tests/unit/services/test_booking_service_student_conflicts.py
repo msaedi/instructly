@@ -57,8 +57,8 @@ def _populate_booking_dict(
         "total_price": 50.0,
         "duration_minutes": int((datetime.combine(date.min, end_time) - datetime.combine(date.min, start_time)).seconds / 60),
         "status": status.value,
-        "location_type": "remote",
-        "location_type_display": "Remote",
+        "location_type": "online",
+        "location_type_display": "Online",
         "meeting_location": None,
         "service_area": None,
         "student_note": "",
@@ -230,7 +230,7 @@ class TestStudentConflictValidation:
             end_time=time(16, 30),
             selected_duration=60,
             instructor_service_id=generate_ulid(),
-            location_type="neutral",
+            location_type="online",
             meeting_location="Online",
         )
 
@@ -300,7 +300,7 @@ class TestStudentConflictValidation:
             end_time=time(17, 0),
             selected_duration=60,
             instructor_service_id=generate_ulid(),
-            location_type="neutral",
+            location_type="online",
             meeting_location="Online",
         )
 
@@ -403,7 +403,7 @@ class TestStudentConflictValidation:
             end_time=time(16, 0),
             selected_duration=60,
             instructor_service_id=generate_ulid(),
-            location_type="neutral",
+            location_type="online",
             meeting_location="Online",
         )
 
@@ -423,7 +423,7 @@ class TestStudentConflictValidation:
             end_time=time(16, 30),
             selected_duration=60,
             instructor_service_id=generate_ulid(),
-            location_type="neutral",
+            location_type="online",
             meeting_location="Online",
         )
 
@@ -466,7 +466,7 @@ class TestStudentConflictValidation:
             end_time=time(17, 0),
             selected_duration=60,
             instructor_service_id=generate_ulid(),
-            location_type="neutral",
+            location_type="online",
             meeting_location="Online",
         )
 
@@ -522,7 +522,7 @@ class TestStudentConflictValidation:
             end_time=time(16, 0),
             selected_duration=60,
             instructor_service_id=generate_ulid(),
-            location_type="neutral",
+            location_type="online",
             meeting_location="Online",
         )
 

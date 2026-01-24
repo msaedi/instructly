@@ -143,6 +143,9 @@ class TestSoftDeleteServices:
         # Update profile, removing the service with bookings
         remaining_services = [
             ServiceCreate(
+                offers_travel=False,
+                offers_at_location=False,
+                offers_online=True,
                 service_catalog_id=s["service_catalog_id"], hourly_rate=s["hourly_rate"], description=s["description"]
             )
             for s in initial_profile["services"]
@@ -180,6 +183,9 @@ class TestSoftDeleteServices:
 
         new_services = [
             ServiceCreate(
+                offers_travel=False,
+                offers_at_location=False,
+                offers_online=True,
                 service_catalog_id=s["service_catalog_id"], hourly_rate=s["hourly_rate"], description=s["description"]
             )
             for s in initial_profile["services"]
@@ -212,7 +218,14 @@ class TestSoftDeleteServices:
             db.flush()
 
         new_services.append(
-            ServiceCreate(service_catalog_id=temp_catalog.id, hourly_rate=100.0, description="This will be deleted")
+            ServiceCreate(
+                offers_travel=False,
+                offers_at_location=False,
+                offers_online=True,
+                service_catalog_id=temp_catalog.id,
+                hourly_rate=100.0,
+                description="This will be deleted",
+            )
         )
 
         # Update to add the service
@@ -226,6 +239,9 @@ class TestSoftDeleteServices:
         # Now remove it
         final_services = [
             ServiceCreate(
+                offers_travel=False,
+                offers_at_location=False,
+                offers_online=True,
                 service_catalog_id=s["service_catalog_id"], hourly_rate=s["hourly_rate"], description=s["description"]
             )
             for s in updated["services"]
@@ -270,6 +286,9 @@ class TestSoftDeleteServices:
             # Add the new service
             all_services = [
                 ServiceCreate(
+                    offers_travel=False,
+                    offers_at_location=False,
+                    offers_online=True,
                     service_catalog_id=s["service_catalog_id"],
                     hourly_rate=s["hourly_rate"],
                     description=s["description"],
@@ -277,7 +296,14 @@ class TestSoftDeleteServices:
                 for s in initial_profile["services"]
             ]
             all_services.append(
-                ServiceCreate(service_catalog_id=new_catalog.id, hourly_rate=75.0, description="Additional service")
+                ServiceCreate(
+                    offers_travel=False,
+                    offers_at_location=False,
+                    offers_online=True,
+                    service_catalog_id=new_catalog.id,
+                    hourly_rate=75.0,
+                    description="Additional service",
+                )
             )
 
             update_data = InstructorProfileUpdate(services=all_services)
@@ -317,6 +343,9 @@ class TestSoftDeleteServices:
         update_data = InstructorProfileUpdate(
             services=[
                 ServiceCreate(
+                    offers_travel=False,
+                    offers_at_location=False,
+                    offers_online=True,
                     service_catalog_id=kept_service["service_catalog_id"],
                     hourly_rate=kept_service["hourly_rate"],
                     description=kept_service["description"],
@@ -338,11 +367,17 @@ class TestSoftDeleteServices:
         reactivate_data = InstructorProfileUpdate(
             services=[
                 ServiceCreate(
+                    offers_travel=False,
+                    offers_at_location=False,
+                    offers_online=True,
                     service_catalog_id=kept_service["service_catalog_id"],
                     hourly_rate=kept_service["hourly_rate"],
                     description=kept_service["description"],
                 ),
                 ServiceCreate(
+                    offers_travel=False,
+                    offers_at_location=False,
+                    offers_online=True,
                     service_catalog_id=soft_deleted_service["service_catalog_id"],
                     hourly_rate=soft_deleted_service["hourly_rate"],
                     description="Reactivated service",
@@ -395,6 +430,9 @@ class TestSoftDeleteServices:
             update_data = InstructorProfileUpdate(
                 services=[
                     ServiceCreate(
+                        offers_travel=False,
+                        offers_at_location=False,
+                        offers_online=True,
                         service_catalog_id=active_services[0]["service_catalog_id"],
                         hourly_rate=active_services[0]["hourly_rate"],
                     )

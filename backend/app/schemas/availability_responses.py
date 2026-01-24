@@ -8,6 +8,7 @@ from typing import Dict, List
 from pydantic import ConfigDict, Field, RootModel
 
 from .availability_window import TimeRange
+from .common import LocationTypeLiteral
 
 
 class BookedSlotItem(StrictModel):
@@ -15,6 +16,9 @@ class BookedSlotItem(StrictModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
+    location_type: LocationTypeLiteral = Field(
+        description="Location type (student_location, instructor_location, online, neutral_location)"
+    )
     booking_id: str = Field(description="ULID of the booking")
     date: str = Field(description="ISO date string (YYYY-MM-DD)")
     start_time: str = Field(description="ISO time string (HH:MM:SS)")
@@ -24,7 +28,6 @@ class BookedSlotItem(StrictModel):
     service_name: str = Field(description="Name of the service booked")
     service_area_short: str = Field(description="Abbreviated service area")
     duration_minutes: int = Field(description="Duration of the booking in minutes")
-    location_type: str = Field(description="Location type (neutral, student, instructor)")
 
 
 class WeekAvailabilityUpdateResponse(StrictModel):

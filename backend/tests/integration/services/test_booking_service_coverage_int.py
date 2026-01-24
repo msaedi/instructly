@@ -75,7 +75,7 @@ def create_test_booking(
         service_name=service_name,
         status=status,
         payment_status=payment_status,
-        location_type="neutral",
+        location_type="neutral_location",
         offset_index=offset_index,
         cancel_duplicate=True,
         **extra_fields,
@@ -674,7 +674,10 @@ class TestValidateBookingPrerequisitesIntegration:
             start_time=time(10, 0),
             selected_duration=60,
             end_time=time(11, 0),
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         with pytest.raises(ValidationException, match="Only students can create bookings"):
@@ -701,7 +704,10 @@ class TestValidateBookingPrerequisitesIntegration:
             start_time=time(10, 0),
             selected_duration=60,
             end_time=time(11, 0),
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         with pytest.raises(BusinessRuleException, match="restricted"):
@@ -723,7 +729,10 @@ class TestValidateBookingPrerequisitesIntegration:
             start_time=time(10, 0),
             selected_duration=60,
             end_time=time(11, 0),
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         with pytest.raises(NotFoundException, match="Service not found"):
@@ -745,7 +754,10 @@ class TestValidateBookingPrerequisitesIntegration:
             start_time=time(10, 0),
             selected_duration=60,
             end_time=time(11, 0),
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         with pytest.raises(NotFoundException, match="Instructor profile not found"):
@@ -768,7 +780,10 @@ class TestValidateBookingPrerequisitesIntegration:
             start_time=time(10, 0),
             selected_duration=60,
             end_time=time(11, 0),
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         with pytest.raises(ValidationException, match="Service does not belong"):
@@ -795,7 +810,10 @@ class TestValidateBookingPrerequisitesIntegration:
             start_time=time(10, 0),
             selected_duration=60,
             end_time=time(11, 0),
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         with pytest.raises(BusinessRuleException, match="temporarily suspended"):
@@ -835,7 +853,10 @@ class TestCheckConflictsAndRulesIntegration:
             start_time=time(10, 30),
             selected_duration=60,
             end_time=time(11, 30),
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         with pytest.raises(BookingConflictException):
@@ -1598,7 +1619,10 @@ class TestCreateBookingWithPaymentSetupIntegration:
             start_time=time(10, 0),
             selected_duration=invalid_duration,
             end_time=time(10, 45) if invalid_duration == 45 else time(13, 0),
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         with pytest.raises(BusinessRuleException, match="Invalid duration"):
@@ -1630,7 +1654,10 @@ class TestCreateBookingWithPaymentSetupIntegration:
             start_time=time(11, 0),
             selected_duration=valid_duration,
             end_time=time(12, 0),
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         # Mock StripeService to avoid actual Stripe calls
@@ -1685,7 +1712,10 @@ class TestCreateBookingWithRescheduleIntegration:
             start_time=time(10, 0),
             selected_duration=valid_duration,
             end_time=time(11, 0),
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         mock_stripe = MagicMock()
@@ -1894,7 +1924,10 @@ class TestRescheduledBookingWithExistingPaymentIntegration:
             booking_date=new_date,
             start_time=time(10, 0),
             selected_duration=60,
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         result = booking_service_integration.create_rescheduled_booking_with_existing_payment(
@@ -1935,7 +1968,10 @@ class TestRescheduledBookingWithExistingPaymentIntegration:
             booking_date=date.today() + timedelta(days=4),
             start_time=time(10, 0),
             selected_duration=60,
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         with pytest.raises(NotFoundException, match="Original booking not found"):
@@ -1985,7 +2021,10 @@ class TestRescheduledBookingWithExistingPaymentIntegration:
             booking_date=original_date + timedelta(days=3),
             start_time=time(10, 0),
             selected_duration=invalid_duration,
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         with pytest.raises(BusinessRuleException, match="Invalid duration"):
@@ -2037,7 +2076,10 @@ class TestRescheduledBookingWithLockedFundsIntegration:
             booking_date=new_date,
             start_time=time(10, 0),
             selected_duration=60,
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         result = booking_service_integration.create_rescheduled_booking_with_locked_funds(
@@ -2068,7 +2110,10 @@ class TestRescheduledBookingWithLockedFundsIntegration:
             booking_date=date.today() + timedelta(days=6),
             start_time=time(10, 0),
             selected_duration=60,
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         with pytest.raises(NotFoundException, match="Original booking not found"):
@@ -2114,7 +2159,10 @@ class TestRescheduledBookingWithLockedFundsIntegration:
             booking_date=original_date + timedelta(days=4),
             start_time=time(10, 0),
             selected_duration=invalid_duration,
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         with pytest.raises(BusinessRuleException, match="Invalid duration"):
@@ -2157,7 +2205,10 @@ class TestRescheduledBookingWithLockedFundsIntegration:
             booking_date=original_date + timedelta(days=4),
             start_time=time(10, 0),
             selected_duration=60,
-            location_type="neutral",
+            meeting_location="Test Location",
+            location_lat=40.751,
+            location_lng=-73.989,
+            location_type="neutral_location",
         )
 
         with pytest.raises(BusinessRuleException, match="Cannot change instructor"):

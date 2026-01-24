@@ -17,67 +17,44 @@ const isMessagingRequest = (url: string): boolean =>
 export type ErrorType<Error> = Error;
 
 /**
- * Generic configuration interface for Orval-generated clients.
- * Uses generics to maintain exact type safety with exactOptionalPropertyTypes.
- */
-export interface OrvalMutatorConfig<TData = unknown, TParams = unknown> {
-  url: string;
-  method: string;
-  params?: TParams;
-  data?: TData;
-  headers?: HeadersInit;
-  signal?: AbortSignal | undefined;
-}
-
-/**
- * Custom fetch function for Orval-generated clients.
+ * Custom fetch function for Orval-generated clients (orval v8.x signature).
  *
  * This is called by all generated React Query hooks and provides:
  * - Automatic base URL resolution
  * - Credentials support (cookies)
  * - JSON request/response handling
  * - AbortSignal support
+ *
+ * Orval 8.x changed the mutator signature from a single config object to (url, options).
  */
-export async function customFetch<
-  TResponse,
-  TData = unknown,
-  TParams = unknown,
->(config: OrvalMutatorConfig<TData, TParams>): Promise<TResponse> {
-  const { url, method, params, data, headers: configHeaders, signal } = config;
+export async function customFetch<TResponse>(
+  url: string,
+  options?: RequestInit
+): Promise<TResponse> {
+  const method = options?.method ?? 'GET';
+  const configHeaders = options?.headers;
+  const signal = options?.signal;
+  const data = options?.body;
 
-  // Build query string from params
-  const queryString = params
-    ? '?' +
-      Object.entries(params as Record<string, unknown>)
-        .filter(([_, value]) => value !== undefined && value !== null)
-        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
-        .join('&')
-    : '';
-
-  // Build full URL with base
-  const fullUrl = withApiBase(url + queryString);
+  // Build full URL with base (orval 8.x includes query params in the URL)
+  const fullUrl = withApiBase(url);
 
   // Build headers
   const headers: Record<string, string> = {
     ...(configHeaders as Record<string, string> || {}),
   };
 
-  // Add Content-Type for requests with body
-  if (data && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json';
-  }
-
   // Build fetch options - convert signal from AbortSignal | undefined to AbortSignal | null
-  const options: RequestInit = {
+  const fetchOptions: RequestInit = {
     method,
     headers,
     credentials: 'include', // Always include credentials for cookie-based auth
     signal: signal ?? null,
   };
 
-  // Add body if present
+  // Add body if present (orval 8.x already stringifies the body)
   if (data) {
-    options.body = JSON.stringify(data);
+    fetchOptions.body = data;
   }
 
   // [MSG-DEBUG] Log messaging requests
@@ -93,7 +70,7 @@ export async function customFetch<
 
   // Make request
   const startTime = Date.now();
-  const response = await fetch(fullUrl, options);
+  const response = await fetch(fullUrl, fetchOptions);
   const duration = Date.now() - startTime;
 
   // [MSG-DEBUG] Log messaging responses

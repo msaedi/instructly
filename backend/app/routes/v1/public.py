@@ -367,13 +367,13 @@ async def get_instructor_public_availability(
                 if_none_match = request.headers.get("If-None-Match")
                 if if_none_match and if_none_match == etag:
                     response_obj.headers["ETag"] = etag
-                    response_obj.headers["Cache-Control"] = "private, no-cache, must-revalidate"
+                    response_obj.headers["Cache-Control"] = "public, max-age=120"
                     response_obj.headers["Vary"] = "Accept-Encoding"
                     response_obj.status_code = status.HTTP_304_NOT_MODIFIED
                     return response_data
 
                 # Return cached response (skip DB computation)
-                response_obj.headers["Cache-Control"] = "private, no-cache, must-revalidate"
+                response_obj.headers["Cache-Control"] = "public, max-age=120"
                 response_obj.headers["ETag"] = etag
                 response_obj.headers["Vary"] = "Accept-Encoding"
                 return response_data
@@ -576,7 +576,7 @@ async def get_instructor_public_availability(
         # Set headers on the response object and return the current data
         # The client will handle the 304 logic based on ETag matching
         response_obj.headers["ETag"] = etag
-        response_obj.headers["Cache-Control"] = "private, no-cache, must-revalidate"
+        response_obj.headers["Cache-Control"] = "public, max-age=60"
         response_obj.headers["Vary"] = "Accept-Encoding"
         response_obj.status_code = status.HTTP_304_NOT_MODIFIED
         # Return the existing data - FastAPI will handle 304 response properly
@@ -594,8 +594,8 @@ async def get_instructor_public_availability(
         except Exception as e:
             logger.warning(f"Failed to cache public availability: {e}")
 
-    # Set headers - disable browser caching so changes are seen immediately
-    response_obj.headers["Cache-Control"] = "private, no-cache, must-revalidate"
+    # Set headers for public caching (short TTL)
+    response_obj.headers["Cache-Control"] = "public, max-age=60"
     response_obj.headers["ETag"] = etag
     response_obj.headers["Vary"] = "Accept-Encoding"
 

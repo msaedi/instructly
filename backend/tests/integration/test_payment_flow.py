@@ -152,7 +152,7 @@ class TestPaymentIntegration:
             total_price=Decimal("80.00"),
             service_name="Piano Lessons",
             hourly_rate=Decimal("80.00"),
-            location_type="student_home",
+            location_type="student_location",
             status=BookingStatus.CONFIRMED,
         )
         db.flush()
@@ -837,7 +837,7 @@ class TestPaymentAnalytics:
                 total_price=Decimal(str((i + 1) * 20)),
                 service_name="Piano Lessons",
                 hourly_rate=Decimal(str((i + 1) * 20)),
-                location_type="student_home",
+                location_type="student_location",
                 status=BookingStatus.CONFIRMED,
                 offset_index=i,
             )
@@ -896,7 +896,7 @@ class TestPaymentAnalytics:
                 total_price=Decimal(str((i + 1) * 30)),
                 service_name="Piano Lessons",
                 hourly_rate=Decimal(str((i + 1) * 30)),
-                location_type="student_home",
+                location_type="student_location",
                 status=BookingStatus.CONFIRMED,
                 offset_index=i,
             )

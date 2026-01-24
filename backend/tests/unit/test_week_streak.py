@@ -8,6 +8,19 @@ def _make(dt_str: str, tz: str = "UTC") -> datetime:
     return datetime.fromisoformat(dt_str).replace(tzinfo=ZoneInfo(tz))
 
 
+def test_week_streak_empty_completions_returns_zero():
+    now = _make("2024-01-01T10:00:00")
+    assert compute_week_streak_local([], now) == 0
+
+
+def test_week_streak_adds_current_week_when_missing():
+    tz = ZoneInfo("UTC")
+    base = datetime(2024, 1, 1, 10, 0, tzinfo=tz)
+    now_local = base + timedelta(days=7)
+    streak = compute_week_streak_local([base], now_local)
+    assert streak == 2
+
+
 def test_week_streak_simple_consecutive_weeks():
     tz = ZoneInfo("UTC")
     base = datetime(2024, 1, 1, 10, 0, tzinfo=tz)

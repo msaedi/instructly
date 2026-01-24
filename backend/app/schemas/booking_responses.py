@@ -4,6 +4,8 @@ from ._strict_base import StrictModel
 
 from typing import Optional
 
+from .common import LocationTypeLiteral
+
 
 class SendRemindersResponse(StrictModel):
     """Response for sending booking reminders."""
@@ -26,9 +28,13 @@ class BookingPreviewResponse(StrictModel):
     start_time: str
     end_time: str
     duration_minutes: int
-    location_type: str
+    location_type: LocationTypeLiteral
     location_type_display: str
     meeting_location: Optional[str]
+    location_address: Optional[str] = None
+    location_lat: Optional[float] = None
+    location_lng: Optional[float] = None
+    location_place_id: Optional[str] = None
     service_area: Optional[str]
     status: str
     student_note: Optional[str]

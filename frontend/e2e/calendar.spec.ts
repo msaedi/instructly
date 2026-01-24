@@ -84,7 +84,7 @@ const createBookedSlots = (iso: WeekContext['iso']) => [
     service_name: 'Lesson',
     service_area_short: 'NYC',
     duration_minutes: 30,
-    location_type: 'student_home',
+    location_type: 'student_location',
   },
 ];
 

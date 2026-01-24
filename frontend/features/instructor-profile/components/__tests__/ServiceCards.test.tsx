@@ -2,15 +2,16 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ServiceCards } from '../ServiceCards';
+import type { InstructorService } from '@/types/instructor';
 
-const baseService = {
+const baseService: InstructorService = {
   id: 'svc-1',
   skill: 'Piano',
   hourly_rate: 120,
   duration_options: [30, 60],
   age_groups: ['adults'],
   levels_taught: ['beginner', 'intermediate'],
-  location_types: ['in-person'],
+  location_types: ['in_person'],
   description: '',
 };
 
@@ -35,13 +36,15 @@ describe('ServiceCards', () => {
   });
 
   it('renders badges and labels for kids, levels, and formats', () => {
-    const service = {
+    const service: InstructorService = {
       ...baseService,
       id: 'svc-2',
       skill: 'Guitar',
       age_groups: ['kids'],
       levels_taught: ['advanced', 'beginner'],
-      location_types: ['online', 'in-person'],
+      location_types: ['online', 'in_person'],
+      offers_travel: true,
+      offers_online: true,
       description: '',
     };
 
@@ -51,16 +54,13 @@ describe('ServiceCards', () => {
     expect(kidsBadge).toBeInTheDocument();
     expect(kidsBadge).not.toHaveClass('opacity-0');
     expect(screen.getByText((value) => value.includes('Levels:') && value.includes('Beginner') && value.includes('Advanced'))).toBeInTheDocument();
-    expect(
-      screen.getByText((value) => {
-        const lower = value.toLowerCase();
-        return lower.includes('format:') && lower.includes('in-person') && lower.includes('online');
-      })
-    ).toBeInTheDocument();
+    expect(screen.getByText(/format:/i)).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /travels to you/i })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /online/i })).toBeInTheDocument();
   });
 
   it('disables booking when the selected slot cannot fit the duration', () => {
-    const service = { ...baseService, duration_options: [60] };
+    const service: InstructorService = { ...baseService, duration_options: [60] };
     const selectedSlot = { date: '2025-01-06', time: '9:00 AM', duration: 60, availableDuration: 30 };
 
     render(<ServiceCards services={[service]} selectedSlot={selectedSlot} />);
@@ -75,7 +75,7 @@ describe('ServiceCards', () => {
   });
 
   it('prioritizes the searched service first', () => {
-    const services = [
+    const services: InstructorService[] = [
       { ...baseService, id: 'svc-1', skill: 'Piano' },
       { ...baseService, id: 'svc-3', skill: 'Guitar' },
     ];

@@ -12,6 +12,7 @@ type BookingForPayload = {
   metadata?: {
     serviceId?: string;
     modality?: string;
+    location_type?: string;
   };
 };
 
@@ -21,40 +22,55 @@ export type PricingPreviewSelection = {
   bookingDateLocalYYYYMMDD: string;
   startHHMM24: string;
   selectedDurationMinutes: number;
-  modality: 'remote' | 'in_person' | 'student_home' | 'instructor_location' | 'neutral';
+  modality:
+    | 'remote'
+    | 'in_person'
+    | 'student_location'
+    | 'instructor_location'
+    | 'neutral_location';
   meetingLocation: string;
   appliedCreditCents?: number;
 };
 
 const modalityToLocationType: Record<string, PricingPreviewQuotePayloadBase['location_type']> = {
-  remote: 'remote',
-  online: 'remote',
-  virtual: 'remote',
-  in_person: 'in_person',
-  inperson: 'in_person',
-  student_home: 'student_home',
-  studenthome: 'student_home',
+  remote: 'online',
+  online: 'online',
+  virtual: 'online',
+  in_person: 'student_location',
+  inperson: 'student_location',
+  'in-person': 'student_location',
+  student_home: 'student_location',
+  studenthome: 'student_location',
+  student_location: 'student_location',
   instructor_location: 'instructor_location',
   instructorlocation: 'instructor_location',
-  neutral: 'neutral',
+  neutral: 'neutral_location',
+  neutral_location: 'neutral_location',
 };
 
 const inferLocationType = (booking: BookingForPayload): PricingPreviewQuotePayloadBase['location_type'] => {
-  const modality = (booking.metadata?.modality ?? '').toLowerCase();
+  const metadata = booking.metadata ?? {};
+  const hintRaw =
+    typeof metadata['location_type'] === 'string'
+      ? metadata['location_type']
+      : typeof metadata['modality'] === 'string'
+        ? metadata['modality']
+        : '';
   const location = booking.location.toLowerCase();
 
-  if (modality) {
-    const mapped = modalityToLocationType[modality.replace(/\s+/g, '_')];
+  if (hintRaw) {
+    const normalized = hintRaw.toLowerCase().replace(/\s+/g, '_');
+    const mapped = modalityToLocationType[normalized];
     if (mapped) {
       return mapped;
     }
   }
 
   if (location.includes('online') || location.includes('remote') || location.includes('virtual')) {
-    return 'remote';
+    return 'online';
   }
 
-  return 'in_person';
+  return 'student_location';
 };
 
 const isSelection = (value: BookingForPayload | PricingPreviewSelection): value is PricingPreviewSelection =>

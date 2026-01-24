@@ -73,9 +73,19 @@ export function useCreateBooking(): UseCreateBookingReturn {
         booking_date: data.booking_date,
         start_time: data.start_time,
         selected_duration: selectedDuration,
-        location_type: data.location_type ?? 'neutral',
+        location_type: data.location_type ?? 'online',
         ...(data.student_note !== undefined ? { student_note: data.student_note } : {}),
         ...(data.meeting_location !== undefined ? { meeting_location: data.meeting_location } : {}),
+        ...(data.location_address !== undefined
+          ? { location_address: data.location_address }
+          : data.meeting_location !== undefined
+            ? { location_address: data.meeting_location }
+            : {}),
+        ...(data.location_lat !== undefined ? { location_lat: data.location_lat } : {}),
+        ...(data.location_lng !== undefined ? { location_lng: data.location_lng } : {}),
+        ...(data.location_place_id !== undefined
+          ? { location_place_id: data.location_place_id }
+          : {}),
       };
 
       // Use v1 bookings service

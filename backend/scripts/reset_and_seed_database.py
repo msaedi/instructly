@@ -35,11 +35,12 @@ from app.models.availability import (  # noqa: E402
     InstructorAvailability,
 )
 from app.models.booking import Booking, BookingStatus  # noqa: E402
-from app.models.instructor import InstructorProfile  # noqa: E402
+from app.models.instructor import InstructorPreferredPlace, InstructorProfile  # noqa: E402
 from app.models.password_reset import PasswordResetToken  # noqa: E402
 from app.models.region_boundary import RegionBoundary  # noqa: E402
 from app.models.service import Service  # noqa: E402
 from app.models.user import User
+from app.utils.location_privacy import jitter_coordinates  # noqa: E402
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -69,6 +70,30 @@ NYC_AREAS = [
     "Brooklyn - DUMBO",
     "Queens - Astoria",
     "Queens - Long Island City",
+]
+
+TEACHING_LOCATIONS = [
+    {
+        "address": "225 Cherry Street, New York, NY 10002",
+        "lat": 40.7128,
+        "lng": -74.0060,
+        "neighborhood": "Lower East Side, Manhattan",
+        "label": "Studio",
+    },
+    {
+        "address": "101 Bedford Ave, Brooklyn, NY 11211",
+        "lat": 40.7172,
+        "lng": -73.9577,
+        "neighborhood": "Williamsburg, Brooklyn",
+        "label": "Studio",
+    },
+    {
+        "address": "31-00 47th Ave, Long Island City, NY 11101",
+        "lat": 40.7440,
+        "lng": -73.9370,
+        "neighborhood": "Long Island City, Queens",
+        "label": "Studio",
+    },
 ]
 
 # Test Students
@@ -689,6 +714,25 @@ def create_dummy_instructors(session: Session):
         session.add(profile)
         session.flush()
 
+        teaching_location = random.choice(TEACHING_LOCATIONS)
+        approx_lat, approx_lng = jitter_coordinates(
+            teaching_location["lat"], teaching_location["lng"]
+        )
+        session.add(
+            InstructorPreferredPlace(
+                instructor_id=user.id,
+                kind="teaching_location",
+                address=teaching_location["address"],
+                label=teaching_location.get("label"),
+                position=0,
+                lat=teaching_location["lat"],
+                lng=teaching_location["lng"],
+                approx_lat=approx_lat,
+                approx_lng=approx_lng,
+                neighborhood=teaching_location.get("neighborhood"),
+            )
+        )
+
         for area_name in template.get("areas", []):
             neighborhood = (
                 session.query(RegionBoundary)
@@ -875,7 +919,7 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
         cancellation_reason = None
 
     # Determine location type and meeting location
-    location_types = ["student_home", "instructor_location", "neutral"]
+    location_types = ["student_location", "instructor_location", "neutral_location"]
     location_type = random.choice(location_types)
 
     area = "NYC"
@@ -888,11 +932,11 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
     if service_area and service_area.neighborhood:
         area = service_area.neighborhood.region_name or service_area.neighborhood.parent_region or "NYC"
 
-    if location_type == "student_home":
+    if location_type == "student_location":
         meeting_location = f"Student's home in {area}"
     elif location_type == "instructor_location":
         meeting_location = f"Instructor's studio in {area}"
-    else:  # neutral
+    else:  # neutral_location
         neutral_locations = [
             f"Starbucks at {area}",
             f"Public Library in {area}",
@@ -918,6 +962,7 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
         status=status,
         service_area=area,
         meeting_location=meeting_location,
+        location_address=meeting_location,
         location_type=location_type,  # NEW FIELD
         student_note=random.choice(
             [

@@ -13,13 +13,17 @@ import type { ReactNode } from 'react';
 import type { SelectedNeighborhood } from '@/features/shared/components/SelectedNeighborhoodChips';
 
 // Mock dependencies
-jest.mock('@/lib/api', () => ({
-  fetchWithAuth: jest.fn(),
-  API_ENDPOINTS: {
-    INSTRUCTOR_PROFILE: '/api/v1/instructors/me',
-    ME: '/api/v1/users/me',
-  },
-}));
+jest.mock('@/lib/api', () => {
+  const actual = jest.requireActual('@/lib/api');
+  return {
+    ...actual,
+    fetchWithAuth: jest.fn(),
+    API_ENDPOINTS: {
+      INSTRUCTOR_PROFILE: '/api/v1/instructors/me',
+      ME: '/api/v1/users/me',
+    },
+  };
+});
 
 jest.mock('@/hooks/queries/useInstructorProfileMe', () => ({
   useInstructorProfileMe: jest.fn(),
@@ -76,6 +80,15 @@ jest.mock('@/lib/pricing/platformFees', () => ({
   formatPlatformFeeLabel: jest.fn(() => '15%'),
   resolvePlatformFeeRate: jest.fn(() => 0.15),
   resolveTakeHomePct: jest.fn(() => 0.85),
+}));
+
+jest.mock('sonner', () => ({
+  toast: {
+    error: jest.fn(),
+    success: jest.fn(),
+    info: jest.fn(),
+    warning: jest.fn(),
+  },
 }));
 
 jest.mock('@/lib/profileServiceAreas', () => ({
@@ -167,7 +180,9 @@ const mockInstructorProfile = {
       hourly_rate: 60,
       age_groups: ['adults'],
       levels_taught: ['beginner'],
-      location_types: ['in-person'],
+      offers_travel: true,
+      offers_at_location: false,
+      offers_online: false,
       duration_options: [60],
     },
   ],
@@ -1333,7 +1348,9 @@ describe('EditProfileModal', () => {
 
       // Should have teaching locations section
       await waitFor(() => {
-        expect(screen.getByText(/preferred teaching location/i)).toBeInTheDocument();
+        expect(
+          screen.getByText((_, element) => element?.textContent === 'Where You Teach')
+        ).toBeInTheDocument();
       });
     });
 
@@ -1620,7 +1637,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 100,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in-person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -2145,7 +2164,9 @@ describe('EditProfileModal', () => {
 
       // Should have teaching locations section
       await waitFor(() => {
-        expect(screen.getByText(/Preferred Teaching Location/i)).toBeInTheDocument();
+        expect(
+          screen.getByText((_, element) => element?.textContent === 'Where You Teach')
+        ).toBeInTheDocument();
       });
     });
 
@@ -2373,7 +2394,9 @@ describe('EditProfileModal', () => {
             duration_options: [60],
             levels_taught: ['beginner'],
             equipment: '',
-            location_types: ['in-person'],
+            offers_travel: true,
+            offers_at_location: false,
+            offers_online: false,
           },
         ],
       };
@@ -2523,7 +2546,9 @@ describe('EditProfileModal', () => {
 
       // Should have add address functionality
       await waitFor(() => {
-        expect(screen.getByText(/Preferred Teaching Location/i)).toBeInTheDocument();
+        expect(
+          screen.getByText((_, element) => element?.textContent === 'Where You Teach')
+        ).toBeInTheDocument();
       });
     });
 
@@ -3438,6 +3463,42 @@ describe('EditProfileModal', () => {
       });
     });
 
+    it('surfaces API errors for service areas', async () => {
+      const user = userEvent.setup();
+
+      fetchWithAuthMock.mockImplementation((url: string, options?: RequestInit) => {
+        if (url.includes('service-areas/me') && options?.method === 'PUT') {
+          return Promise.resolve({
+            ok: false,
+            json: () => Promise.resolve({ detail: 'Cannot remove your last service area' }),
+          });
+        }
+        if (url.includes('instructors/me')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockInstructorProfile),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      });
+
+      render(
+        <EditProfileModal {...defaultProps} variant="areas" />,
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      const saveButton = screen.getByRole('button', { name: /save/i });
+      await user.click(saveButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/cannot remove your last service area/i)).toBeInTheDocument();
+      });
+    });
+
     it('handles API error on areas save', async () => {
       const user = userEvent.setup();
 
@@ -3514,7 +3575,9 @@ describe('EditProfileModal', () => {
             hourly_rate: 50,
             age_groups: ['adults'],
             levels_taught: ['beginner'],
-            location_types: ['in-person'],
+            offers_travel: true,
+            offers_at_location: false,
+            offers_online: false,
             duration_options: [60],
           }],
         },
@@ -3731,7 +3794,9 @@ describe('EditProfileModal', () => {
             hourly_rate: 75,
             age_groups: ['adults'],
             levels_taught: ['beginner', 'intermediate'],
-            location_types: ['in-person'],
+            offers_travel: true,
+            offers_at_location: false,
+            offers_online: false,
             duration_options: [60],
           }],
         },
@@ -3838,10 +3903,9 @@ describe('EditProfileModal', () => {
         expect(screen.getByText('Your selected skills')).toBeInTheDocument();
       });
 
-      // Find Online button in location type section
-      const onlineButtons = screen.queryAllByRole('button', { name: /online/i });
-      if (onlineButtons.length > 0) {
-        await user.click(onlineButtons[0] as HTMLElement);
+      const onlineOptions = screen.queryAllByRole('switch', { name: /online lessons/i });
+      if (onlineOptions.length > 0) {
+        await user.click(onlineOptions[0] as HTMLElement);
       }
     });
 
@@ -4780,7 +4844,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 30,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in-person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -4982,7 +5048,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 50,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in-person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -5099,7 +5167,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 50,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in-person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -5392,7 +5462,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 50,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in-person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -5501,7 +5573,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 60,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in-person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -5580,7 +5654,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 45,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in-person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -5709,7 +5785,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 40,
               age_groups: ['adults'],
               levels_taught: ['beginner'],
-              location_types: ['in-person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [60],
             },
           ],
@@ -5846,7 +5924,9 @@ describe('EditProfileModal', () => {
               hourly_rate: 75,
               age_groups: ['adults'],
               levels_taught: ['beginner', 'intermediate'],
-              location_types: ['in-person'],
+              offers_travel: true,
+              offers_at_location: false,
+              offers_online: false,
               duration_options: [30, 60, 90],
               equipment: 'drum sticks, practice pad',
               description: 'Learn drums',

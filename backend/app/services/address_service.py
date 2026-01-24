@@ -8,12 +8,15 @@ from typing import Any, Dict, Optional, Tuple, cast
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
+from ..core.exceptions import BusinessRuleException
 from ..models.region_boundary import RegionBoundary
+from ..models.service_catalog import InstructorService
 from ..repositories.address_repository import (
     InstructorServiceAreaRepository,
     NYCNeighborhoodRepository,
     UserAddressRepository,
 )
+from ..repositories.factory import RepositoryFactory
 from ..repositories.region_boundary_repository import RegionBoundaryRepository
 from ..repositories.user_repository import UserRepository
 from .base import BaseService
@@ -53,6 +56,10 @@ class AddressService(BaseService):
         self.service_area_repo = InstructorServiceAreaRepository(db)
         self.user_repo = UserRepository(db)
         self.region_repo = RegionBoundaryRepository(db)
+        self.profile_repository = RepositoryFactory.create_instructor_profile_repository(db)
+        self.instructor_service_repository = RepositoryFactory.create_base_repository(
+            db, InstructorService
+        )
         try:
             cache_impl = cache_service or get_cache_service(db)
             self.cache: Optional[CacheServiceSyncAdapter]
@@ -332,6 +339,20 @@ class AddressService(BaseService):
 
     @BaseService.measure_operation("replace_service_areas")
     def replace_service_areas(self, instructor_id: str, neighborhood_ids: list[str]) -> int:
+        if not neighborhood_ids:
+            profile = self.profile_repository.get_by_user_id(instructor_id)
+            if profile:
+                services = self.instructor_service_repository.find_by(
+                    instructor_profile_id=profile.id,
+                    is_active=True,
+                )
+                if any(getattr(service, "offers_travel", False) for service in services):
+                    raise BusinessRuleException(
+                        "You can't remove your last service area while you offer travel lessons. "
+                        "Either add another service area first, or disable 'I travel to students' "
+                        "on your skills."
+                    )
+
         with self.transaction():
             count = self.service_area_repo.replace_areas(instructor_id, neighborhood_ids)
 

@@ -24,6 +24,8 @@ export interface ServiceAreaNeighborhood {
   borough?: string | { name?: string | null; label?: string | null } | null;
 }
 
+export type ServiceLocationType = 'in_person' | 'online';
+
 export interface InstructorBasic {
   /** Instructor profile ID (ULID string) */
   id: string;
@@ -95,8 +97,11 @@ export interface InstructorProfile {
 
   /** Preferred teaching locations configured by instructor */
   preferred_teaching_locations?: Array<{
-    address: string;
+    address?: string;
     label?: string;
+    approx_lat?: number;
+    approx_lng?: number;
+    neighborhood?: string;
   }>;
 
   /** Preferred public spaces configured by instructor */
@@ -192,8 +197,17 @@ export interface InstructorService {
   /** Available duration options in minutes */
   duration_options?: number[];
 
-  /** Modalities / delivery methods supported (e.g., 'in-person', 'online') */
-  location_types?: string[];
+  /** Modalities / delivery methods supported (e.g., 'in_person', 'online') */
+  location_types?: ServiceLocationType[];
+
+  /** Instructor travels to student or public locations */
+  offers_travel?: boolean;
+
+  /** Instructor teaches at their own location */
+  offers_at_location?: boolean;
+
+  /** Instructor offers online lessons */
+  offers_online?: boolean;
 
   /** Whether this service is currently active */
   is_active?: boolean;

@@ -17,10 +17,10 @@ describe('priceFloors helpers', () => {
     expect(computePriceFloorCents(mockFloors, 'in_person', 30)).toBe(4500);
   });
 
-  it('computes prorated remote floors for 60/45/30 minutes', () => {
-    expect(computePriceFloorCents(mockFloors, 'remote', 60)).toBe(7000);
-    expect(computePriceFloorCents(mockFloors, 'remote', 45)).toBe(5250);
-    expect(computePriceFloorCents(mockFloors, 'remote', 30)).toBe(3500);
+  it('computes prorated online floors for 60/45/30 minutes', () => {
+    expect(computePriceFloorCents(mockFloors, 'online', 60)).toBe(7000);
+    expect(computePriceFloorCents(mockFloors, 'online', 45)).toBe(5250);
+    expect(computePriceFloorCents(mockFloors, 'online', 30)).toBe(3500);
   });
 
   it('rounds base cents to the nearest integer for fractional hourly rates', () => {
@@ -33,7 +33,7 @@ describe('priceFloors helpers', () => {
     const violations = evaluatePriceFloorViolations({
       hourlyRate: 60,
       durationOptions: [60, 45],
-      locationTypes: ['in-person'],
+      locationTypes: ['in_person'],
       floors: mockFloors,
     });
 

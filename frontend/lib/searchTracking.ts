@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger';
 import { getSessionId, refreshSession, getAnalyticsContext } from '@/lib/sessionTracking';
 import { SearchType } from '@/types/enums';
 import type { components } from '@/features/shared/api/types';
-import { captureDeviceContext, formatDeviceContextForAnalytics } from '@/lib/deviceContext';
+import { captureDeviceContext } from '@/lib/deviceContext';
 
 import { withApiBase } from '@/lib/apiBase';
 import { httpGet, httpPost, postWithRetry } from '@/lib/http';
@@ -214,9 +214,29 @@ export async function recordSearch(
       session_search_count: rawAnalyticsContext.page_view_count,
     };
 
-    // Capture device context
+    // Capture device context and format for backend API schema
     const deviceContext = captureDeviceContext();
-    const deviceInfo = formatDeviceContextForAnalytics(deviceContext);
+    // Map frontend device context to backend DeviceContext schema fields
+    const deviceInfo: SearchHistoryCreate['device_context'] = {
+      screen_width: deviceContext.screenWidth || null,
+      screen_height: deviceContext.screenHeight || null,
+      viewport_size: `${deviceContext.viewportWidth}x${deviceContext.viewportHeight}`,
+      screen_resolution: `${deviceContext.screenWidth}x${deviceContext.screenHeight}`,
+      device_type: deviceContext.touchSupport
+        ? deviceContext.viewportWidth < 768
+          ? 'mobile'
+          : deviceContext.viewportWidth < 1024
+            ? 'tablet'
+            : 'desktop'
+        : 'desktop',
+      connection_type: deviceContext.connectionType || deviceContext.effectiveType || null,
+      connection_effective_type: deviceContext.effectiveType || null,
+      language: deviceContext.language || null,
+      timezone: deviceContext.timezone || null,
+      // browser and os are parsed from user-agent on the backend
+      browser: null,
+      os: null,
+    };
 
     logger.debug('Search tracking - device context', { deviceContext });
     logger.debug('Search tracking - device info', { deviceInfo });

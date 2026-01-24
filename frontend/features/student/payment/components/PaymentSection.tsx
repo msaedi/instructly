@@ -323,19 +323,38 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
     const rawLocation = (updatedBookingData.location ?? bookingData.location ?? '').toString().trim();
     const meetingLocation = rawLocation || 'Student provided address';
-    const metadataModality = String(mergedMetadata['modality'] ?? '').trim().toLowerCase();
-    const isRemoteMetadata = metadataModality === 'remote' || metadataModality === 'online';
+    const normalizeLocationHint = (value: string) => {
+      const normalized = value.trim().toLowerCase();
+      if (!normalized) {
+        return '';
+      }
+      if (normalized === 'student_home') {
+        return 'student_location';
+      }
+      if (normalized === 'neutral') {
+        return 'neutral_location';
+      }
+      return normalized;
+    };
+
+    const metadataLocationType = normalizeLocationHint(String(mergedMetadata['location_type'] ?? ''));
+    const metadataModality = normalizeLocationHint(String(mergedMetadata['modality'] ?? ''));
+    const normalizedMetadataModality = metadataLocationType || metadataModality;
+    const isRemoteMetadata =
+      normalizedMetadataModality === 'remote' || normalizedMetadataModality === 'online';
     const isRemoteLocation = /online|remote|virtual/i.test(meetingLocation);
     const isRemote = isRemoteMetadata || isRemoteLocation;
 
     const allowedModalities: PricingPreviewSelection['modality'][] = [
       'remote',
       'in_person',
-      'student_home',
+      'student_location',
       'instructor_location',
-      'neutral',
+      'neutral_location',
     ];
-    const normalizedModality = (allowedModalities.find((value) => value === metadataModality) ??
+    const normalizedModality = (allowedModalities.find(
+      (value) => value === normalizedMetadataModality,
+    ) ??
       (isRemote ? 'remote' : 'in_person')) as PricingPreviewSelection['modality'];
 
     const selection = {

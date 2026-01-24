@@ -25,6 +25,7 @@ import asyncio
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 import importlib
+import json
 import os
 import secrets
 import sys
@@ -301,6 +302,44 @@ def _ensure_boundary_geometry(boundary: RegionBoundary, borough: str) -> bool:
     boundary.region_metadata = metadata
     return True
 
+
+def _ensure_boundary_columns(db: Session, boundary: RegionBoundary, borough: str) -> None:
+    if not db.bind or db.bind.dialect.name == "sqlite":
+        return
+    try:
+        has_boundary = db.execute(
+            text("SELECT boundary IS NOT NULL FROM region_boundaries WHERE id = :id"),
+            {"id": boundary.id},
+        ).scalar()
+    except Exception:
+        return
+
+    if has_boundary:
+        return
+
+    region_meta = boundary.region_metadata or {}
+    geom = region_meta.get("geometry") if isinstance(region_meta, dict) else None
+    if not geom:
+        lon, lat = BOROUGH_CENTROID.get(borough, BOROUGH_CENTROID["Manhattan"])
+        geom = _square_polygon(lon, lat)
+
+    geom_expr = "ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(:geom), 4326))"
+    try:
+        db.execute(
+            text(
+                f"""
+                UPDATE region_boundaries
+                SET boundary = {geom_expr},
+                    centroid = ST_Centroid({geom_expr})
+                WHERE id = :id
+                """
+            ),
+            {"geom": json.dumps(geom), "id": boundary.id},
+        )
+        db.flush()
+    except Exception:
+        return
+
 def unique_email(prefix: str = "test.user") -> str:
     """Generate a unique email for tests to avoid collisions."""
     # Use example.com instead of insta.test to avoid Pydantic EmailStr validation issues
@@ -330,6 +369,7 @@ def _ensure_region_boundary(db: Session, borough: str) -> RegionBoundary:
     if existing:
         if _ensure_boundary_geometry(existing, normalized):
             db.flush()
+        _ensure_boundary_columns(db, existing, normalized)
         return existing
 
     by_parent = (
@@ -340,6 +380,7 @@ def _ensure_region_boundary(db: Session, borough: str) -> RegionBoundary:
     if by_parent:
         if _ensure_boundary_geometry(by_parent, normalized):
             db.flush()
+        _ensure_boundary_columns(db, by_parent, normalized)
         return by_parent
 
     lon, lat = BOROUGH_CENTROID.get(normalized, BOROUGH_CENTROID["Manhattan"])
@@ -360,11 +401,16 @@ def _ensure_region_boundary(db: Session, borough: str) -> RegionBoundary:
 
     db.add(boundary)
     db.flush()
+    _ensure_boundary_columns(db, boundary, normalized)
     return boundary
 
 
 def add_service_area(db: Session, user: User, neighborhood_id: str) -> InstructorServiceArea:
     """Attach a service area row for the given user."""
+
+    if db.get(User, user.id) is None:
+        db.merge(user)
+        db.flush()
 
     isa = (
         db.query(InstructorServiceArea)
@@ -375,6 +421,9 @@ def add_service_area(db: Session, user: User, neighborhood_id: str) -> Instructo
         .first()
     )
     if isa:
+        if not isa.is_active:
+            isa.is_active = True
+            db.flush()
         return isa
 
     isa = InstructorServiceArea(
@@ -722,7 +771,7 @@ def _prepare_database() -> None:
         conn.execute(
             text(
                 "ALTER TABLE bookings ADD CONSTRAINT ck_bookings_location_type "
-                "CHECK (location_type IN ('student_home', 'instructor_location', 'neutral', 'remote', 'online'))"
+                "CHECK (location_type IN ('student_location', 'instructor_location', 'online', 'neutral_location'))"
             )
         )
         conn.commit()
@@ -1295,6 +1344,10 @@ def test_instructor(db: Session, test_password: str) -> User:
             db.add(region_boundary)
             db.flush()
 
+        if _ensure_boundary_geometry(region_boundary, entry["parent_region"]):
+            db.flush()
+        _ensure_boundary_columns(db, region_boundary, entry["parent_region"])
+
         existing_link = (
             db.query(InstructorServiceArea)
             .filter(
@@ -1353,6 +1406,7 @@ def test_instructor(db: Session, test_password: str) -> User:
             hourly_rate=hourly_rate,
             description=catalog_service.description,
             duration_options=duration_options,
+            offers_travel=True,
             is_active=True,
         )
         services.append(service)
@@ -1446,6 +1500,10 @@ def test_instructor_2(db: Session, test_password: str) -> User:
             )
             db.add(region_boundary)
             db.flush()
+
+        if _ensure_boundary_geometry(region_boundary, entry["parent_region"]):
+            db.flush()
+        _ensure_boundary_columns(db, region_boundary, entry["parent_region"])
 
         existing_link = (
             db.query(InstructorServiceArea)

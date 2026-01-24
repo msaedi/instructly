@@ -17,6 +17,23 @@ jest.mock('@/features/shared/api/schemas/instructorProfile', () => ({
   loadInstructorProfileSchema: jest.fn(),
 }));
 
+jest.mock('@/src/api/services/instructors', () => ({
+  fetchInstructorProfile: jest.fn().mockResolvedValue({
+    services: [
+      {
+        id: 'svc-1',
+        skill: 'Piano',
+        hourly_rate: 90,
+        duration_options: [60],
+        offers_online: true,
+        offers_travel: true,
+        offers_at_location: false,
+      },
+    ],
+    preferred_teaching_locations: [],
+  }),
+}));
+
 jest.mock('@/lib/apiBase', () => ({
   withApiBase: (url: string) => url,
 }));
@@ -103,7 +120,8 @@ describe('PaymentConfirmation price floor handling', () => {
     const submitButton = screen.getByRole('button', { name: /Price must meet minimum/i });
     expect(submitButton).toBeDisabled();
 
-    fireEvent.click(screen.getByLabelText(/Online/i));
+    const onlineOption = await screen.findByRole('button', { name: /online/i });
+    fireEvent.click(onlineOption);
 
     await waitFor(() => {
       expect(

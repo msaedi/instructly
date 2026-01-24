@@ -12,10 +12,25 @@ export function AboutCard({ instructor }: AboutCardProps) {
   // Mock data for languages and education - replace with real data when available
   const languages = ['English', 'Spanish'];
   const education = 'BA Music Education, NYU';
-  const bgcStatusValue = (instructor as { bgc_status?: string | null }).bgc_status;
+  const bgcStatusValue =
+    (instructor as { bgc_status?: string | null }).bgc_status ??
+    (instructor as { background_check_status?: string | null }).background_check_status ??
+    null;
   const bgcStatus = typeof bgcStatusValue === 'string' ? bgcStatusValue.toLowerCase() : '';
   const isLive = Boolean(instructor.is_live);
-  const showBGCBadge = isLive || bgcStatus === 'pending';
+  const backgroundCheckVerified =
+    isLive ||
+    bgcStatus === 'passed' ||
+    bgcStatus === 'clear' ||
+    bgcStatus === 'verified' ||
+    Boolean(
+      (instructor as { background_check_verified?: boolean | null }).background_check_verified
+    ) ||
+    Boolean(
+      (instructor as { background_check_completed?: boolean | null }).background_check_completed
+    );
+  const showBGCBadge = backgroundCheckVerified || bgcStatus === 'pending';
+  const resolvedStatus = bgcStatusValue ?? (backgroundCheckVerified ? 'passed' : null);
 
   return (
     <Card>
@@ -78,7 +93,7 @@ export function AboutCard({ instructor }: AboutCardProps) {
               Verified
             </Badge>
           )}
-          {showBGCBadge && <BGCBadge isLive={isLive} bgcStatus={bgcStatusValue ?? null} />}
+          {showBGCBadge && <BGCBadge isLive={isLive} bgcStatus={resolvedStatus} />}
         </div>
       </CardContent>
     </Card>

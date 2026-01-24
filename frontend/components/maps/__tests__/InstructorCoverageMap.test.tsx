@@ -90,6 +90,7 @@ const controlInstances: Array<{
 
 // Track created markers for testing
 const createdMarkers: Array<{ addTo: jest.Mock; remove: jest.Mock }> = [];
+const createdPinMarkers: Array<{ addTo: jest.Mock; remove: jest.Mock; bindPopup: jest.Mock }> = [];
 
 // Mock Leaflet with better control simulation
 jest.mock('leaflet', () => {
@@ -141,6 +142,22 @@ jest.mock('leaflet', () => {
       createdMarkers.push(marker);
       return marker;
     }),
+    divIcon: jest.fn((options: Record<string, unknown>) => options),
+    marker: jest.fn(() => {
+      const marker = {
+        addTo: jest.fn().mockReturnThis(),
+        remove: jest.fn(),
+        bindPopup: jest.fn().mockReturnThis(),
+      };
+      createdPinMarkers.push(marker);
+      return marker;
+    }),
+    latLngBounds: jest.fn(() => ({
+      extend: jest.fn(function () {
+        return this;
+      }),
+      isValid: jest.fn(() => true),
+    })),
   };
   return L;
 });
@@ -185,6 +202,7 @@ describe('InstructorCoverageMap', () => {
     jest.clearAllMocks();
     controlInstances.length = 0;
     createdMarkers.length = 0;
+    createdPinMarkers.length = 0;
     moveEndHandler = null;
     zoomEndHandler = null;
     // Clear document body of any appended controls
@@ -807,6 +825,17 @@ describe('InstructorCoverageMap', () => {
 
     // Should render map with focus handling
     expect(screen.getByTestId('map-container')).toBeInTheDocument();
+  });
+
+  it('renders location pins when provided', () => {
+    render(
+      <InstructorCoverageMap
+        locationPins={[{ lat: 40.71, lng: -73.99, label: 'Studio' }]}
+      />
+    );
+
+    expect(createdPinMarkers).toHaveLength(1);
+    expect(createdPinMarkers[0]?.bindPopup).toHaveBeenCalledWith('<div>Studio</div>');
   });
 
   it('handles dark mode preference change', () => {

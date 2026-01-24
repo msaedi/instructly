@@ -1,7 +1,7 @@
 // frontend/app/(public)/page.tsx
 'use client';
 
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 // import removed; background handled globally
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -119,18 +119,26 @@ const PrivacySettings = dynamic(
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
-    if (typeof window === 'undefined') return 'arts';
-    const saved = sessionStorage.getItem('homeSelectedCategory');
-    if (!saved) return 'arts';
-    const valid = ['arts', 'sports-fitness', 'tutoring', 'language', 'music', 'kids', 'hidden-gems'];
-    return valid.includes(saved) ? saved : 'arts';
-  });
+  // Always start with default value to avoid hydration mismatch
+  const [selectedCategory, setSelectedCategory] = useState<string>('arts');
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
-  const [isTouchDevice] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  });
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+
+  // Restore saved category from sessionStorage after hydration
+  // This is the correct pattern for hydration-safe browser storage reading -
+  // must happen in useEffect to avoid SSR/client mismatch
+  useEffect(() => {
+    const saved = sessionStorage.getItem('homeSelectedCategory');
+    if (saved) {
+      const valid = ['arts', 'sports-fitness', 'tutoring', 'language', 'music', 'kids', 'hidden-gems'];
+      if (valid.includes(saved)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: restoring state from browser storage after hydration
+        setSelectedCategory(saved);
+      }
+    }
+    // Detect touch device
+    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  }, []);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [userHasBookingHistory, setUserHasBookingHistory] = useState<boolean | null>(null);
   const isClient = useSyncExternalStore(

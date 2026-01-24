@@ -463,7 +463,7 @@ describe('InteractiveGrid', () => {
           service_name: 'Piano',
           service_area_short: 'Manhattan',
           duration_minutes: 60,
-          location_type: 'student_home',
+          location_type: 'student_location',
         },
       ];
 

@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useId, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Layers, MonitorSmartphone } from 'lucide-react';
+import { Layers, MapPin, MonitorSmartphone } from 'lucide-react';
 import type { InstructorService } from '@/types/instructor';
 
 interface ServiceCardsProps {
@@ -9,6 +9,7 @@ interface ServiceCardsProps {
   selectedSlot?: { date: string; time: string; duration: number; availableDuration?: number } | null;
   onBookService?: (service: InstructorService, duration: number) => void;
   searchedService?: string; // To prioritize searched service
+  hasTeachingLocations?: boolean;
 }
 
 
@@ -19,9 +20,17 @@ interface ServiceCardItemProps {
   canBook: boolean;
   selectedSlot?: { date: string; time: string; duration: number; availableDuration?: number } | null;
   onBook: (duration: number) => void;
+  hasTeachingLocations: boolean;
 }
 
-function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: ServiceCardItemProps) {
+function ServiceCardItem({
+  service,
+  duration,
+  canBook,
+  selectedSlot,
+  onBook,
+  hasTeachingLocations,
+}: ServiceCardItemProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState(duration);
 
@@ -51,31 +60,10 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
     return capitalized.join(' · ');
   })();
 
-  const rawLocations = (service as unknown as Record<string, unknown>)?.['location_types'];
-  const locationTypes = Array.isArray(rawLocations)
-    ? rawLocations
-        .map((loc) => (typeof loc === 'string' ? loc.trim().toLowerCase() : ''))
-        .filter((loc) => loc.length > 0)
-    : Array.isArray(service.location_types)
-      ? service.location_types
-          .map((loc) => (typeof loc === 'string' ? loc.trim().toLowerCase() : ''))
-          .filter((loc) => loc.length > 0)
-      : [];
-
-  const locationLabel = (() => {
-    if (!locationTypes.length) return '';
-    const uniqueTypes = Array.from(new Set(locationTypes));
-    const formatted = uniqueTypes.map((loc) => {
-      if (loc.includes('-')) {
-        return loc
-          .split('-')
-          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-          .join('-');
-      }
-      return loc.charAt(0).toUpperCase() + loc.slice(1);
-    });
-    return formatted.join(' · ');
-  })();
+  const offersTravel = Boolean(service.offers_travel);
+  const offersAtLocation = Boolean(service.offers_at_location) && hasTeachingLocations;
+  const offersOnline = Boolean(service.offers_online);
+  const hasFormat = offersTravel || offersAtLocation || offersOnline;
 
   const rawAgeGroups = (service as unknown as Record<string, unknown>)?.['age_groups'];
   const ageGroups = Array.isArray(rawAgeGroups)
@@ -118,21 +106,20 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
     <div className="relative h-full">
       <Card
         className={cn(
-          "transition-all bg-gradient-to-br from-purple-50 to-lavender-50 border-purple-100 flex h-full flex-col",
+          "transition-all bg-gradient-to-br from-purple-50 to-lavender-50 border-purple-100 dark:from-gray-800 dark:to-gray-900 dark:border-gray-700 flex h-full flex-col",
           !canBook ? "opacity-50" : "hover:shadow-md"
         )}
-        style={{ backgroundColor: 'rgb(249, 247, 255)' }}
         onMouseEnter={() => !canBook && setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
       >
         <CardHeader className="text-center pb-2">
-          <CardTitle className="text-lg">
+          <CardTitle className="text-lg text-gray-900 dark:text-gray-100">
             {service.skill || 'Service'}
           </CardTitle>
           <div className="mt-3 flex w-full flex-col items-center gap-2">
             <div className="flex w-full min-h-[26px] items-center justify-center">
               {showsKidsBadge ? (
-                <span className="inline-flex items-center text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-gray-700">
+                <span className="inline-flex items-center text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-gray-700 dark:bg-yellow-900/40 dark:text-yellow-100">
                   Kids lesson available
                 </span>
               ) : (
@@ -141,20 +128,42 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
             </div>
             <div className="flex w-full flex-col items-center text-center gap-2">
               {levelLabel ? (
-                <div className="flex items-center justify-center gap-2 text-xs text-gray-700 leading-tight">
+                <div className="flex items-center justify-center gap-2 text-xs text-gray-700 dark:text-gray-300 leading-tight">
                   <Layers className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
                   <span>Levels: {levelLabel}</span>
                 </div>
               ) : (
                 <span className="text-xs opacity-0">Levels placeholder</span>
               )}
-              {levelLabel && locationLabel ? (
+              {levelLabel && hasFormat ? (
                 <div className="w-10/12 h-px bg-gradient-to-r from-transparent via-[#7E22CE]/40 to-transparent" />
               ) : null}
-              {locationLabel ? (
-                <div className="flex items-center justify-center gap-2 text-sm text-gray-700 leading-tight">
+              {hasFormat ? (
+                <div className="flex items-center justify-center gap-2 text-sm text-gray-700 dark:text-gray-300 leading-tight">
                   <MonitorSmartphone className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
-                  <span>Format: {locationLabel}</span>
+                  <span>Format:</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    {offersTravel && (
+                      <span role="img" aria-label="Travels to you" title="Travels to you" className="cursor-help">
+                        🚗
+                      </span>
+                    )}
+                    {offersAtLocation && (
+                      <span
+                        role="img"
+                        aria-label="At their studio"
+                        title="At their studio"
+                        className="cursor-help inline-flex items-center"
+                      >
+                        <MapPin className="h-4 w-4 text-[#7E22CE]" aria-hidden="true" />
+                      </span>
+                    )}
+                    {offersOnline && (
+                      <span role="img" aria-label="Online" title="Online" className="cursor-help">
+                        💻
+                      </span>
+                    )}
+                  </span>
                 </div>
               ) : (
                 <span className="text-xs opacity-0">Format placeholder</span>
@@ -180,7 +189,7 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
                         onChange={() => setSelectedDuration(dur)}
                         className="w-3 h-3 text-[#7E22CE] accent-purple-700 border-gray-300 focus:ring-[#7E22CE]"
                       />
-                      <span className="ml-1 text-xs text-gray-700 whitespace-nowrap">
+                      <span className="ml-1 text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap">
                         {dur}min
                       </span>
                     </label>
@@ -188,7 +197,7 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
                 </div>
               ) : null}
             </div>
-            <div className="text-lg font-semibold">
+            <div className="text-lg font-semibold text-gray-900 dark:text-white">
               {showHourlyPrice ? `$${price}/hr` : `$${price}`}
             </div>
           </div>
@@ -197,7 +206,7 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
               className={`py-1.5 px-4 rounded-lg font-medium transition-colors ${
                 canBook
                   ? 'bg-[#7E22CE] text-white hover:bg-[#7E22CE] cursor-pointer'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-gray-300 text-gray-500 dark:bg-gray-700 dark:text-gray-300 cursor-not-allowed'
               }`}
               disabled={!canBook}
               onClick={() => onBook && onBook(selectedDuration)}
@@ -228,7 +237,13 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
   );
 }
 
-export function ServiceCards({ services, selectedSlot, onBookService, searchedService }: ServiceCardsProps) {
+export function ServiceCards({
+  services,
+  selectedSlot,
+  onBookService,
+  searchedService,
+  hasTeachingLocations = true,
+}: ServiceCardsProps) {
   if (!services || services.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -275,6 +290,7 @@ export function ServiceCards({ services, selectedSlot, onBookService, searchedSe
             duration={duration}
             canBook={canBook}
             {...(selectedSlot && { selectedSlot })}
+            hasTeachingLocations={hasTeachingLocations}
             onBook={(selectedDuration) => {
               if (onBookService && canBook) {
                 onBookService(service, selectedDuration);

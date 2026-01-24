@@ -68,7 +68,7 @@ def _create_test_booking(
         "hourly_rate": extra_fields.pop("hourly_rate", 50.0),
         "total_price": extra_fields.pop("total_price", 50.0),
         "duration_minutes": extra_fields.pop("duration_minutes", 60),
-        "location_type": extra_fields.pop("location_type", "neutral"),
+        "location_type": extra_fields.pop("location_type", "neutral_location"),
         "meeting_location": extra_fields.pop("meeting_location", "Online"),
     }
     defaults.update(extra_fields)

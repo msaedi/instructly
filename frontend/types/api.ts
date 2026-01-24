@@ -1,6 +1,7 @@
 // frontend/types/api.ts
 
-import type { ServiceAreaNeighborhood } from '@/types/instructor';
+import type { ServiceAreaNeighborhood, ServiceLocationType } from '@/types/instructor';
+import type { LocationType } from '@/types/booking';
 
 /**
  * API Type Definitions
@@ -11,6 +12,12 @@ import type { ServiceAreaNeighborhood } from '@/types/instructor';
  *
  * @module api
  */
+
+// Re-export location types from canonical sources for backward compatibility
+export type { ServiceLocationType } from '@/types/instructor';
+
+// Booking location types - alias to LocationType from booking.ts for backward compatibility
+export type BookingLocationType = LocationType;
 
 /**
  * Generic API response wrapper
@@ -295,6 +302,13 @@ export interface Instructor {
   /** Human-readable summary provided by backend */
   service_area_summary?: string | null;
 
+  /** Approximate studio locations for map pins */
+  teaching_locations?: Array<{
+    approx_lat: number;
+    approx_lng: number;
+    neighborhood?: string;
+  }>;
+
   /** Years of teaching experience */
   years_experience: number;
 
@@ -335,14 +349,20 @@ export interface Instructor {
     /** Skill levels taught */
     levels_taught?: string[];
     /** Available modalities */
-    location_types?: string[];
+    location_types?: ServiceLocationType[];
+    /** Instructor travels to student/public locations */
+    offers_travel?: boolean;
+    /** Instructor teaches at their location */
+    offers_at_location?: boolean;
+    /** Instructor offers online lessons */
+    offers_online?: boolean;
   }>;
 
   /** Additional context used by search highlighting */
   _matchedServiceContext?: {
     levels?: string[];
     age_groups?: string[];
-    location_types?: string[];
+    location_types?: ServiceLocationType[];
   };
   _matchedServiceCatalogId?: string | null;
 

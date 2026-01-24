@@ -2,6 +2,9 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
+from app.models.instructor import InstructorProfile
+from app.models.service_catalog import InstructorService as Service
+
 
 @pytest.fixture(autouse=True)
 def _strict(monkeypatch):
@@ -141,3 +144,55 @@ def test_delete_all_preferred_places(
     follow_data = follow_up.json()
     assert follow_data["preferred_teaching_locations"] == []
     assert follow_data["preferred_public_spaces"] == []
+
+
+def test_cannot_remove_last_teaching_location_when_offers_at_location(
+    client: TestClient,
+    db: Session,
+    catalog_data: dict,
+    test_instructor,
+    auth_headers_instructor: dict,
+) -> None:
+    profile = (
+        db.query(InstructorProfile)
+        .filter(InstructorProfile.user_id == test_instructor.id)
+        .first()
+    )
+    assert profile is not None
+    service = (
+        db.query(Service)
+        .filter(Service.instructor_profile_id == profile.id)
+        .order_by(Service.created_at.asc())
+        .first()
+    )
+    assert service is not None
+    service.offers_at_location = True
+    db.commit()
+
+    seed_payload = {
+        "preferred_teaching_locations": [
+            {"address": "123 Main St, New York, NY", "label": "Studio"},
+        ],
+    }
+    seed_resp = client.put("/api/v1/instructors/me", json=seed_payload, headers=auth_headers_instructor)
+    assert seed_resp.status_code == 200, seed_resp.text
+
+    clear_payload = {
+        "preferred_teaching_locations": [],
+    }
+    clear_resp = client.put(
+        "/api/v1/instructors/me",
+        json=clear_payload,
+        headers=auth_headers_instructor,
+    )
+    assert clear_resp.status_code == 422, clear_resp.text
+    payload = clear_resp.json()
+    detail = payload.get("detail") if isinstance(payload, dict) else None
+    message = ""
+    if isinstance(detail, dict):
+        msg = detail.get("message")
+        if isinstance(msg, str):
+            message = msg
+    elif isinstance(detail, str):
+        message = detail
+    assert "last teaching location" in message.lower()

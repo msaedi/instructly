@@ -172,7 +172,7 @@ class PresentationService(BaseService):
             service_name=booking.service_name,
             service_area_short=service_area_short,
             duration_minutes=booking.duration_minutes,
-            location_type=booking.location_type or "neutral",
+            location_type=booking.location_type or "online",
         )
 
     @BaseService.measure_operation("format_booked_slots_batch")  # METRICS ADDED

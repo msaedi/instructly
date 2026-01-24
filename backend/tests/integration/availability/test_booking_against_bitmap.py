@@ -123,7 +123,7 @@ def test_bookings_respect_bitmap_availability_windows(
             "booking_date": booking_date.isoformat(),
             "start_time": start,
             "selected_duration": duration,
-            "location_type": "remote",
+            "location_type": "online",
         }
 
     inside_resp = bitmap_booking_client.post(

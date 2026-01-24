@@ -29,7 +29,7 @@ describe('useCreateBooking', () => {
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           selected_duration: 60,
-          location_type: 'neutral',
+          location_type: 'neutral_location',
         });
       });
 
@@ -53,7 +53,7 @@ describe('useCreateBooking', () => {
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           selected_duration: 60,
-          location_type: 'neutral',
+          location_type: 'neutral_location',
         });
       });
 
@@ -75,7 +75,7 @@ describe('useCreateBooking', () => {
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           selected_duration: 60,
-          location_type: 'neutral',
+          location_type: 'neutral_location',
         });
       });
 
@@ -96,7 +96,7 @@ describe('useCreateBooking', () => {
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           selected_duration: 60,
-          location_type: 'neutral',
+          location_type: 'neutral_location',
         });
       });
 
@@ -117,7 +117,7 @@ describe('useCreateBooking', () => {
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           selected_duration: 60,
-          location_type: 'neutral',
+          location_type: 'neutral_location',
         });
       });
 
@@ -141,7 +141,7 @@ describe('useCreateBooking', () => {
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           selected_duration: 0,
-          location_type: 'neutral',
+          location_type: 'neutral_location',
         });
       });
 
@@ -180,7 +180,7 @@ describe('useCreateBooking', () => {
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           selected_duration: 60,
-          location_type: 'neutral',
+          location_type: 'neutral_location',
         });
       });
 
@@ -218,7 +218,7 @@ describe('useCreateBooking', () => {
           booking_date: '2024-01-15',
           start_time: '10:00:00',
           end_time: '11:30:00',
-          location_type: 'neutral',
+          location_type: 'neutral_location',
         } as Parameters<typeof result.current.createBooking>[0]);
       });
 
@@ -246,7 +246,7 @@ describe('useCreateBooking', () => {
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           selected_duration: 60,
-          location_type: 'neutral',
+          location_type: 'neutral_location',
         });
       });
 
@@ -267,7 +267,7 @@ describe('useCreateBooking', () => {
           booking_date: '2024-01-15',
           start_time: '23:00:00',
           selected_duration: 60,
-          location_type: 'neutral',
+          location_type: 'neutral_location',
         });
       });
 
@@ -288,7 +288,7 @@ describe('useCreateBooking', () => {
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           selected_duration: 60,
-          location_type: 'neutral',
+          location_type: 'neutral_location',
         });
       });
 
@@ -307,7 +307,7 @@ describe('useCreateBooking', () => {
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           selected_duration: 60,
-          location_type: 'neutral',
+          location_type: 'neutral_location',
         });
       });
 

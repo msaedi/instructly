@@ -41,7 +41,7 @@ def test_payment_status_rejects_legacy_values(db, test_student, test_instructor)
             hourly_rate=100.0,
             total_price=100.0,
             duration_minutes=60,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Test",
             payment_status="captured",
         )
@@ -69,7 +69,7 @@ def test_payment_status_accepts_canonical_values(db, test_student, test_instruct
         hourly_rate=100.0,
         total_price=100.0,
         duration_minutes=60,
-        location_type="neutral",
+        location_type="neutral_location",
         meeting_location="Test",
         payment_status=PaymentStatus.AUTHORIZED.value,
     )

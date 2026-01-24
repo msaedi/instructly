@@ -60,7 +60,7 @@ class TestEmailCleanArchitecture:
         booking.service_area = "Manhattan"
 
         # Location details
-        booking.location_type = "neutral"
+        booking.location_type = "neutral_location"
         booking.location_type_display = "Neutral Location"
         booking.meeting_location = "Central Park"
 
@@ -262,6 +262,7 @@ class TestEmailDataStructures:
     def test_booking_location_display_works(self, test_booking):
         """Test that location_type_display property works correctly."""
         # This is used in emails
+        test_booking.location_type = "neutral_location"
         assert test_booking.location_type_display == "Neutral Location"
 
         # Should not reference slots

@@ -112,6 +112,9 @@ def ensure_instructor_profile_and_service(
             service_catalog_id=svc.id,
             hourly_rate=price,
             duration_options=[60],
+            offers_online=True,
+            offers_travel=False,
+            offers_at_location=False,
             is_active=True,
         )
         db.add(link)

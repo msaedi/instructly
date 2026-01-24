@@ -1274,10 +1274,10 @@ describe('InstructorProfileForm', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
-    // Profile save should succeed even if service area submit fails
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Profile saved', expect.any(Object));
+      expect(toast.error).toHaveBeenCalledWith('Service area submit failed');
     });
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it('handles service areas initial load error gracefully', async () => {

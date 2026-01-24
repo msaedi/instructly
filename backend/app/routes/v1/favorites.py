@@ -172,7 +172,9 @@ async def get_favorites(
                 last_name=instructor.last_name,
                 is_active=instructor.is_active,
                 profile=(
-                    InstructorProfileResponse.from_orm(instructor.instructor_profile)
+                    InstructorProfileResponse.from_orm(
+                        instructor.instructor_profile, include_private_fields=False
+                    )
                     if instructor.instructor_profile
                     else None
                 ),

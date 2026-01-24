@@ -19,6 +19,10 @@ export default defineConfig({
           useMutation: true,
           signal: true,
         },
+        fetch: {
+          // Return the defined response type instead of wrapped {data, status, headers}
+          includeHttpResponseReturnType: false,
+        },
       },
     },
   },

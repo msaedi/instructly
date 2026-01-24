@@ -9,6 +9,7 @@ from typing import Any, Optional
 from pydantic import Field, field_serializer
 
 from ._strict_base import StrictModel, StrictRequestModel
+from .common import LocationTypeLiteral
 
 
 def _serialize_utc_datetime(value: Optional[datetime]) -> Optional[str]:
@@ -98,7 +99,7 @@ class AdminBookingDetailResponse(StrictModel):
     lesson_timezone: Optional[str] = None
     instructor_timezone: Optional[str] = None
     student_timezone: Optional[str] = None
-    location_type: Optional[str] = None
+    location_type: Optional[LocationTypeLiteral] = None
     meeting_location: Optional[str] = None
     student_note: Optional[str] = None
     instructor_note: Optional[str] = None

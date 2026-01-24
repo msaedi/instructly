@@ -458,7 +458,9 @@ class TestInstructorServiceEnhancements:
             equipment_required=["Computer", "Python installed"],
             levels_taught=["Beginner", "Intermediate"],
             age_groups=["18+"],
-            location_types=["online"],
+            offers_online=True,
+            offers_travel=False,
+            offers_at_location=False,
             is_active=True,
         )
         db.add(instructor_svc)
@@ -595,7 +597,9 @@ class TestEnhancedModels:
             equipment_required=["Laptop", "Notebook"],
             levels_taught=["Beginner", "Intermediate", "Advanced"],
             age_groups=["16-18", "18+"],
-            location_types=["in-person", "online"],
+            offers_travel=True,
+            offers_at_location=True,
+            offers_online=True,
             max_distance_miles=20,
             is_active=True,
         )
@@ -608,7 +612,9 @@ class TestEnhancedModels:
         assert saved.equipment_required == ["Laptop", "Notebook"]
         assert saved.levels_taught == ["Beginner", "Intermediate", "Advanced"]
         assert saved.age_groups == ["16-18", "18+"]
-        assert saved.location_types == ["in-person", "online"]
+        assert saved.offers_travel is True
+        assert saved.offers_at_location is True
+        assert saved.offers_online is True
         assert saved.max_distance_miles == 20
 
 

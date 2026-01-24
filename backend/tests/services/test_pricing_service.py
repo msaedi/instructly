@@ -5,6 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Optional
 
 import pytest
@@ -29,7 +30,7 @@ def _create_booking(
     service,
     hourly_rate: Decimal | float,
     duration_minutes: int = 60,
-    location_type: str = "student_home",
+    location_type: str = "student_location",
     status: BookingStatus = BookingStatus.CONFIRMED,
     completed_at: datetime | None = None,
     offset_index: Optional[int] = None,
@@ -203,7 +204,7 @@ def test_pricing_service_detects_remote_by_meeting_location(
         student=test_student,
         service=instructor_service,
         hourly_rate=Decimal("50.00"),
-        location_type="neutral",
+        location_type="neutral_location",
     )
 
     remote_booking.meeting_location = "Online session"
@@ -218,6 +219,48 @@ def test_pricing_service_detects_remote_by_meeting_location(
     assert "remote 60-minute private session" in exc.value.message
     assert exc.value.details.get("modality") == "remote"
     assert exc.value.details.get("required_floor_cents") == 6000
+
+
+def test_resolve_modality_prefers_service_flags():
+    booking = SimpleNamespace(
+        location_type="",
+        meeting_location="",
+        instructor_service=SimpleNamespace(
+            offers_online=True,
+            offers_travel=False,
+            offers_at_location=False,
+        ),
+    )
+
+    assert PricingService._resolve_modality(booking) == "remote"
+
+
+def test_resolve_modality_falls_back_to_meeting_location():
+    booking = SimpleNamespace(
+        location_type="unknown",
+        meeting_location="Zoom online session",
+        instructor_service=SimpleNamespace(
+            offers_online=False,
+            offers_travel=False,
+            offers_at_location=False,
+        ),
+    )
+
+    assert PricingService._resolve_modality(booking) == "remote"
+
+
+def test_resolve_modality_defaults_to_in_person():
+    booking = SimpleNamespace(
+        location_type="",
+        meeting_location="",
+        instructor_service=SimpleNamespace(
+            offers_online=False,
+            offers_travel=False,
+            offers_at_location=False,
+        ),
+    )
+
+    assert PricingService._resolve_modality(booking) == "in_person"
 
 
 def test_pricing_service_tier_pct_at_five_completed_sessions(
@@ -333,7 +376,7 @@ def test_pricing_preview_returns_tier_pct_float_for_quote(
         booking_date=date.today().strftime("%Y-%m-%d"),
         start_time="10:00",
         selected_duration=60,
-        location_type="remote",
+        location_type="online",
         meeting_location="Online",
         applied_credit_cents=0,
     )
@@ -375,7 +418,7 @@ def test_inactivity_reset_to_entry_tier(
         booking_date=date.today().strftime("%Y-%m-%d"),
         start_time="11:00",
         selected_duration=60,
-        location_type="remote",
+        location_type="online",
         meeting_location="Online",
         applied_credit_cents=0,
     )

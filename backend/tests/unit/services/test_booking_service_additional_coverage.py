@@ -98,7 +98,11 @@ def make_booking_data(**overrides: object) -> SimpleNamespace:
         start_time=overrides.get("start_time", time(10, 0)),
         end_time=overrides.get("end_time", None),
         meeting_location=overrides.get("meeting_location", None),
-        location_type=overrides.get("location_type", "neutral"),
+        location_type=overrides.get("location_type", "online"),
+        location_address=overrides.get("location_address", None),
+        location_lat=overrides.get("location_lat", None),
+        location_lng=overrides.get("location_lng", None),
+        location_place_id=overrides.get("location_place_id", None),
         student_note=overrides.get("student_note", None),
     )
     return data
@@ -1340,7 +1344,7 @@ def test_check_conflicts_and_rules_missing_end_time(booking_service: BookingServ
 
 def test_check_conflicts_and_rules_student_conflict(booking_service: BookingService) -> None:
     booking_data = make_booking_data(end_time=time(11, 0))
-    service = SimpleNamespace()
+    service = SimpleNamespace(offers_online=True)
     instructor_profile = SimpleNamespace(min_advance_booking_hours=0)
     student = make_user(RoleName.STUDENT.value)
 

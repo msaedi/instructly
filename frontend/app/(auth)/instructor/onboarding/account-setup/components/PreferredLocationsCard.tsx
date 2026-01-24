@@ -97,8 +97,8 @@ export function PreferredLocationsCard({
       {expanded && (
         <div className="space-y-6" data-testid="preferred-places-card">
           <div>
-            <p className="text-gray-600 mt-1 mb-2">Preferred Teaching Location</p>
-            <p className="text-xs text-gray-600 mb-2">Add a studio, gym, or home address if you teach from a fixed location.</p>
+            <p className="text-gray-600 mt-1 mb-2">Where You Teach</p>
+            <p className="text-xs text-gray-600 mb-2">Add a studio, gym, or home address where students can come to you.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start mt-3 sm:mt-0">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">

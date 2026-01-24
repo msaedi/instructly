@@ -74,7 +74,7 @@ class TestAccountLifecycleEndpoints:
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
             meeting_location="Online",
-            location_type="neutral",
+            location_type="neutral_location",
         )
         db.add(booking)
         db.commit()

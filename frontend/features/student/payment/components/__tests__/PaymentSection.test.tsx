@@ -2528,12 +2528,12 @@ describe('PaymentSection', () => {
       });
     });
 
-    it('handles student_home modality', async () => {
+    it('handles student_location modality', async () => {
       const bookingWithStudentHome: BookingPayment & { metadata?: Record<string, unknown> } = {
         ...mockBookingData,
         metadata: {
           serviceId: 'service-789',
-          modality: 'student_home',
+          modality: 'student_location',
         },
       };
 

@@ -9,6 +9,13 @@
  */
 
 import type { ServiceAreaNeighborhood } from '@/types/instructor';
+import type { LocationType } from '@/types/booking';
+
+// Re-export location types from canonical sources
+export type { ServiceLocationType } from '@/types/instructor';
+
+// Booking location types - alias to LocationType for backward compatibility
+export type BookingLocationType = LocationType;
 
 // Re-export generated types from shim for backward compatibility
 export type {
@@ -46,10 +53,15 @@ export enum BookingStatus {
   NO_SHOW = 'NO_SHOW',
 }
 
-export enum LocationType {
-  STUDENT_HOME = 'student_home',
+// Note: BookingLocationType and ServiceLocationType are now imported and re-exported above
+// from their canonical sources (@/types/booking and @/types/instructor)
+
+// Legacy LocationType enum - kept for backward compatibility with any code using enum values
+export enum LocationTypeEnum {
+  STUDENT_LOCATION = 'student_location',
   INSTRUCTOR_LOCATION = 'instructor_location',
-  NEUTRAL = 'neutral',
+  ONLINE = 'online',
+  NEUTRAL_LOCATION = 'neutral_location',
 }
 
 // Interfaces
@@ -152,7 +164,11 @@ export interface BookingCreate {
   selected_duration: number;
   student_note?: string | null;
   meeting_location?: string | null;
-  location_type?: string | null;
+  location_type?: BookingLocationType | null;
+  location_address?: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_place_id?: string | null;
 }
 
 export interface BookingUpdate {
@@ -179,7 +195,11 @@ export interface BookingBase {
   status: BookingStatus;
   service_area: string | null;
   meeting_location: string | null;
-  location_type: string | null;
+  location_type: BookingLocationType | null;
+  location_address: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
+  location_place_id: string | null;
   student_note: string | null;
   instructor_note: string | null;
   created_at: string;

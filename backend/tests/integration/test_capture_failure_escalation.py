@@ -46,7 +46,7 @@ def test_escalate_capture_failure_locks_account_and_pays_instructor(
         hourly_rate=100.0,
         total_price=100.0,
         duration_minutes=60,
-        location_type="neutral",
+        location_type="neutral_location",
         meeting_location="Test",
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
         payment_intent_id="pi_capture_fail",

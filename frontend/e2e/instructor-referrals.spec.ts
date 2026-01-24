@@ -165,7 +165,7 @@ async function mockDashboardApis(
           description: 'Piano lessons',
           hourly_rate: 90,
           duration_options: [60],
-          location_types: ['remote'],
+          location_types: ['online'],
         },
       ],
       favorited_count: 0,

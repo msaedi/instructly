@@ -1,12 +1,10 @@
 // frontend/app/(public)/search/page.tsx
 'use client';
 
-import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense, useCallback, useRef, useMemo, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { publicApi } from '@/features/shared/api/client';
-import { validateWithZod } from '@/features/shared/api/validation';
-import { loadSearchListSchema } from '@/features/shared/api/schemas/searchList';
 import InstructorCard from '@/components/InstructorCard';
 import dynamic from 'next/dynamic';
 const InstructorCoverageMap = dynamic(() => import('@/components/maps/InstructorCoverageMap'), { ssr: false });
@@ -19,10 +17,27 @@ import { recordSearch } from '@/lib/searchTracking';
 import { withApiBase } from '@/lib/apiBase';
 import { SearchType } from '@/types/enums';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import { AlertTriangle } from 'lucide-react';
-import type { components } from '@/features/shared/api/types';
+import { useInstructorSearchInfinite } from '@/hooks/queries/useInstructorSearch';
+import { useInstructorCoverage } from '@/hooks/queries/useInstructorCoverage';
+import { usePublicAvailability, type InstructorAvailabilitySummary } from '@/hooks/queries/usePublicAvailability';
+import { AlertTriangle, ChevronDown } from 'lucide-react';
+import { FilterBar } from '@/components/search/FilterBar';
+import { DEFAULT_FILTERS, type FilterState } from '@/components/search/filterTypes';
 
-type CoverageFeatureCollectionResponse = components['schemas']['CoverageFeatureCollectionResponse'];
+type SortOption = 'recommended' | 'price_asc' | 'price_desc' | 'rating';
+
+function RateLimitBanner({ rateLimit }: { rateLimit: { seconds: number } | null }) {
+  if (!rateLimit) return null;
+  return (
+    <div
+      data-testid="rate-limit-banner"
+      className="mb-4 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-900 px-3 py-2 text-sm"
+    >
+      Our hamsters are sprinting. Give them {rateLimit.seconds}s.
+    </div>
+  );
+}
+
 
 const getServiceDisplayName = (service: Instructor['services'][number]): string => {
   const candidates: Array<unknown> = [
@@ -117,40 +132,414 @@ const dedupeAndOrderServices = (
     .filter((svc): svc is Instructor['services'][number] => Boolean(svc));
 };
 
+const normalizeTeachingLocations = (
+  locations: readonly unknown[]
+): Array<{ approx_lat: number; approx_lng: number; neighborhood?: string }> => {
+  return locations
+    .map((loc) => {
+      if (!isRecord(loc)) return null;
+      const approxLat = getNumber(loc, 'approx_lat', Number.NaN);
+      const approxLng = getNumber(loc, 'approx_lng', Number.NaN);
+      if (!Number.isFinite(approxLat) || !Number.isFinite(approxLng)) return null;
+      const neighborhood = getString(loc, 'neighborhood', '').trim();
+      return {
+        approx_lat: approxLat,
+        approx_lng: approxLng,
+        ...(neighborhood ? { neighborhood } : {}),
+      };
+    })
+    .filter(
+      (loc): loc is { approx_lat: number; approx_lng: number; neighborhood?: string } =>
+        loc !== null
+    );
+};
+
+const getOptionalBoolean = (record: Record<string, unknown>, key: string): boolean | undefined => {
+  const value = record[key];
+  return typeof value === 'boolean' ? value : undefined;
+};
+
+type NormalizedSearchResult = {
+  instructors: Instructor[];
+  totalResults: number;
+  hasMore: boolean;
+  meta: Record<string, unknown> | null;
+};
+
+type NormalizeSearchInput =
+  | {
+      mode: 'nl';
+      results: unknown[];
+      meta?: unknown;
+    }
+  | {
+      mode: 'catalog';
+      results: unknown[];
+      total: number;
+      hasNext: boolean;
+      serviceCatalogId?: string | null;
+    };
+
+const normalizeSearchResults = (input: NormalizeSearchInput): NormalizedSearchResult => {
+  if (input.mode === 'nl') {
+    const instructors = input.results
+      .map((result: unknown) => {
+        if (!isRecord(result)) {
+          return null;
+        }
+
+        // Extract instructor-level data
+        const instructorId = getString(result, 'instructor_id', '');
+        const relevanceScore = getNumber(result, 'relevance_score', 0);
+
+        // Extract embedded instructor info
+        const instructorInfo = isRecord(result['instructor']) ? result['instructor'] : {};
+        const firstName = getString(instructorInfo, 'first_name', 'Instructor');
+        const lastInitial = getString(instructorInfo, 'last_initial', '');
+        const bioSnippet = getString(instructorInfo, 'bio_snippet', '');
+        const profilePictureUrl = getString(instructorInfo, 'profile_picture_url', '');
+        const verified = Boolean(instructorInfo['verified']);
+        const isFoundingInstructor = Boolean(instructorInfo['is_founding_instructor']);
+        const yearsExperience = getNumber(instructorInfo, 'years_experience', 0);
+
+        // Extract embedded rating info
+        const ratingInfo = isRecord(result['rating']) ? result['rating'] : {};
+        const avgRating = getNumber(ratingInfo, 'average', 0);
+        const reviewCount = getNumber(ratingInfo, 'count', 0);
+
+        // Extract coverage areas
+        const coverageAreas = getArray(result, 'coverage_areas').filter(
+          (v): v is string => typeof v === 'string'
+        );
+
+        const teachingLocations = getArray(instructorInfo, 'teaching_locations')
+          .map((loc) => {
+            if (!isRecord(loc)) return null;
+            const approxLat = getNumber(loc, 'approx_lat', Number.NaN);
+            const approxLng = getNumber(loc, 'approx_lng', Number.NaN);
+            if (!Number.isFinite(approxLat) || !Number.isFinite(approxLng)) return null;
+            const neighborhood = getString(loc, 'neighborhood', '').trim();
+            return {
+              approx_lat: approxLat,
+              approx_lng: approxLng,
+              ...(neighborhood ? { neighborhood } : {}),
+            };
+          })
+          .filter(
+            (loc): loc is { approx_lat: number; approx_lng: number; neighborhood?: string } =>
+              loc !== null
+          );
+
+        // Optional debug distance from searched location (populated when location was resolved)
+        const distanceMiRaw = getNumber(result, 'distance_mi', Number.NaN);
+        const distanceMi = Number.isFinite(distanceMiRaw) ? distanceMiRaw : null;
+        const distanceKmRaw = getNumber(result, 'distance_km', Number.NaN);
+        const distanceKm = Number.isFinite(distanceKmRaw) ? distanceKmRaw : null;
+
+        // Extract best matching service
+        const bestMatch = isRecord(result['best_match']) ? result['best_match'] : {};
+        const bestServiceId = getString(bestMatch, 'service_id', '');
+        const bestServiceCatalogId = getString(bestMatch, 'service_catalog_id', '');
+        const bestServiceName = getString(bestMatch, 'name', '');
+        const bestServiceDescription = getString(bestMatch, 'description', '');
+        const bestPricePerHour = getNumber(bestMatch, 'price_per_hour', 0);
+        const bestOffersTravel = getOptionalBoolean(bestMatch, 'offers_travel');
+        const bestOffersAtLocation = getOptionalBoolean(bestMatch, 'offers_at_location');
+        const bestOffersOnline = getOptionalBoolean(bestMatch, 'offers_online');
+
+        // Build services array from best_match + other_matches
+        const services: Instructor['services'] = [];
+
+        // Add best match as first service
+        services.push({
+          id: bestServiceId,
+          service_catalog_id: bestServiceCatalogId,
+          service_catalog_name: bestServiceName,
+          hourly_rate: bestPricePerHour,
+          description: bestServiceDescription,
+          duration_options: [60],
+          is_active: true,
+          ...(bestOffersTravel !== undefined ? { offers_travel: bestOffersTravel } : {}),
+          ...(bestOffersAtLocation !== undefined ? { offers_at_location: bestOffersAtLocation } : {}),
+          ...(bestOffersOnline !== undefined ? { offers_online: bestOffersOnline } : {}),
+        });
+
+        // Add other matches
+        const otherMatches = getArray(result, 'other_matches');
+        for (const match of otherMatches) {
+          if (!isRecord(match)) continue;
+          const matchOffersTravel = getOptionalBoolean(match, 'offers_travel');
+          const matchOffersAtLocation = getOptionalBoolean(match, 'offers_at_location');
+          const matchOffersOnline = getOptionalBoolean(match, 'offers_online');
+          services.push({
+            id: getString(match, 'service_id', ''),
+            service_catalog_id: getString(match, 'service_catalog_id', ''),
+            service_catalog_name: getString(match, 'name', ''),
+            hourly_rate: getNumber(match, 'price_per_hour', 0),
+            description: getString(match, 'description', ''),
+            duration_options: [60],
+            is_active: true,
+            ...(matchOffersTravel !== undefined ? { offers_travel: matchOffersTravel } : {}),
+            ...(matchOffersAtLocation !== undefined ? { offers_at_location: matchOffersAtLocation } : {}),
+            ...(matchOffersOnline !== undefined ? { offers_online: matchOffersOnline } : {}),
+          });
+        }
+
+        const mapped = {
+          id: instructorId,
+          user_id: instructorId,
+          bio: bioSnippet,
+          profile_picture_url: profilePictureUrl,
+          service_area_summary: coverageAreas.join(', '),
+          service_area_boroughs: coverageAreas,
+          service_area_neighborhoods: [] as Array<{
+            neighborhood_id: string;
+            ntacode: string | null;
+            name: string | null;
+            borough: string | null;
+          }>,
+          years_experience: yearsExperience,
+          teaching_locations: teachingLocations,
+          user: {
+            first_name: firstName,
+            last_initial: lastInitial,
+          },
+          is_founding_instructor: isFoundingInstructor,
+          is_live: true,
+          services,
+          verified,
+          rating: avgRating || undefined,
+          total_reviews: reviewCount,
+          distance_mi: distanceMi,
+          distance_km: distanceKm,
+          _matchedServiceContext: {
+            levels: [] as string[],
+            age_groups: [] as string[],
+            location_types: [] as string[],
+          },
+          relevance_score: relevanceScore,
+          _matchedServiceCatalogId: bestServiceCatalogId || null,
+        } as Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null };
+
+        return mapped;
+      })
+      .filter(
+        (
+          item:
+            | (Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null })
+            | null
+        ): item is Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null } =>
+          item !== null
+      );
+
+    const meta = isRecord(input.meta) ? input.meta : null;
+    const totalResults = meta ? getNumber(meta, 'total_results', instructors.length) : instructors.length;
+    return { instructors, totalResults, hasMore: false, meta };
+  }
+
+  const casted = input.results as unknown as Instructor[];
+  const instructors = casted.map((item) => {
+    const matchId = input.serviceCatalogId || null;
+    const teachingLocationsRaw = getArray(item, 'teaching_locations');
+    const preferredLocationsRaw = getArray(item, 'preferred_teaching_locations');
+    const teachingLocations = normalizeTeachingLocations(
+      teachingLocationsRaw.length ? teachingLocationsRaw : preferredLocationsRaw
+    );
+    const highlightedService = Array.isArray(item.services)
+      ? item.services.find(
+          (svc) =>
+            (svc.service_catalog_id || '').trim().toLowerCase() ===
+              (matchId || '').trim().toLowerCase()
+        ) || item.services[0]
+      : undefined;
+    const levels = Array.isArray(highlightedService?.levels_taught) ? highlightedService.levels_taught : [];
+    const ageGroups = Array.isArray(highlightedService?.age_groups) ? highlightedService.age_groups : [];
+    const locationTypes = Array.isArray(highlightedService?.location_types)
+      ? highlightedService.location_types
+      : [];
+    return {
+      ...item,
+      ...(teachingLocations.length ? { teaching_locations: teachingLocations } : {}),
+      _matchedServiceCatalogId: matchId,
+      _matchedServiceContext: {
+        levels,
+        age_groups: ageGroups,
+        location_types: locationTypes,
+      },
+    };
+  });
+
+  return {
+    instructors,
+    totalResults: input.total,
+    hasMore: input.hasNext,
+    meta: null,
+  };
+};
+
 // Note: Instructor profile hydration removed - backend now returns all embedded data
 // in NL search response (instructor info, ratings, coverage areas, services)
 
 // GeoJSON feature interface for coverage areas
 interface GeoJSONFeature {
+  type: 'Feature';
   properties?: {
     instructors?: string[];
   };
   geometry?: {
     type: string;
-    coordinates: number[][][] | number[][][][];
-  };
+    coordinates: unknown;
+  } | null;
 }
 
-function SearchPageContent() {
+type MapFeatureCollection = {
+  type: 'FeatureCollection';
+  features: GeoJSONFeature[];
+};
+
+const getInstructorMinRate = (instructor: Instructor): number | null => {
+  const services = Array.isArray(instructor.services) ? instructor.services : [];
+  const rates = services
+    .map((service) => service.hourly_rate)
+    .filter((rate): rate is number => Number.isFinite(rate));
+  if (rates.length === 0) return null;
+  return Math.min(...rates);
+};
+
+const compareNullableNumbers = (a: number | null, b: number | null, direction: 'asc' | 'desc') => {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return direction === 'asc' ? a - b : b - a;
+};
+
+// Helper to build query with filters appended
+const buildQueryWithFilters = (baseQuery: string, filters: FilterState): string => {
+  let query = baseQuery.trim();
+
+  // Remove existing filter keywords to avoid duplication
+  const filterPatterns = [
+    /\b(today|tomorrow|this week|next week)\b/gi,
+    /\b(morning|afternoon|evening)\b/gi,
+    /\b(online|in-person|in person|virtual)\b/gi,
+    /\bunder \$?\d+\b/gi,
+    /\babove \$?\d+\b/gi,
+    /\$\d+\s*-\s*\$?\d+/gi,
+  ];
+  for (const pattern of filterPatterns) {
+    query = query.replace(pattern, '').trim();
+  }
+  // Clean up extra spaces
+  query = query.replace(/\s+/g, ' ').trim();
+
+  // Append date filter
+  if (filters.date) {
+    const date = new Date(filters.date);
+    if (!Number.isNaN(date.getTime())) {
+      const monthName = date.toLocaleDateString('en-US', { month: 'long' });
+      const day = date.getDate();
+      query = `${query} on ${monthName} ${day}`;
+    }
+  }
+
+  // Append time filters
+  if (filters.timeOfDay.length > 0) {
+    for (const time of filters.timeOfDay) {
+      query = `${query} ${time}`;
+    }
+  }
+
+  // Append location filter
+  if (filters.location === 'online') {
+    query = `${query} online`;
+  } else if (filters.location === 'travels' || filters.location === 'studio') {
+    query = `${query} in-person`;
+  }
+
+  // Append price filters
+  if (filters.priceMin !== null && filters.priceMax !== null) {
+    query = `${query} $${filters.priceMin}-$${filters.priceMax}`;
+  } else if (filters.priceMax !== null) {
+    query = `${query} under $${filters.priceMax}`;
+  } else if (filters.priceMin !== null) {
+    query = `${query} above $${filters.priceMin}`;
+  }
+
+  return query.trim();
+};
+
+const TIME_OF_DAY_RANGES: Record<'morning' | 'afternoon' | 'evening', [number, number]> = {
+  morning: [6 * 60, 12 * 60],
+  afternoon: [12 * 60, 17 * 60],
+  evening: [17 * 60, 21 * 60],
+};
+
+const parseTimeToMinutes = (value?: string | null): number | null => {
+  if (!value) return null;
+  const [hoursRaw, minutesRaw] = value.split(':');
+  const hours = Number.parseInt(hoursRaw ?? '', 10);
+  const minutes = Number.parseInt(minutesRaw ?? '', 10);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+};
+
+const slotOverlapsRanges = (
+  slot: { start_time: string; end_time: string },
+  ranges: Array<[number, number]>
+): boolean => {
+  const start = parseTimeToMinutes(slot.start_time);
+  const end = parseTimeToMinutes(slot.end_time);
+  if (start === null || end === null) return false;
+  const normalizedEnd = end <= start ? 24 * 60 : end;
+  return ranges.some(([rangeStart, rangeEnd]) => start < rangeEnd && normalizedEnd > rangeStart);
+};
+
+const availabilityMatchesFilters = (
+  availability: InstructorAvailabilitySummary | undefined,
+  filters: FilterState
+): boolean => {
+  const hasDateFilter = Boolean(filters.date);
+  const hasTimeFilter = filters.timeOfDay.length > 0;
+  if (!hasDateFilter && !hasTimeFilter) return true;
+  if (!availability) return true;
+
+  const ranges = hasTimeFilter
+    ? filters.timeOfDay.map((rangeKey) => TIME_OF_DAY_RANGES[rangeKey])
+    : [];
+
+  if (filters.date) {
+    const day = availability.availabilityByDate?.[filters.date];
+    if (!day || day.is_blackout) return false;
+    if (!day.available_slots || day.available_slots.length === 0) return false;
+    if (ranges.length === 0) return true;
+    return day.available_slots.some((slot) => slotOverlapsRanges(slot, ranges));
+  }
+
+  const days = Object.values(availability.availabilityByDate || {});
+  if (days.length === 0) return false;
+  return days.some(
+    (day) =>
+      !day.is_blackout &&
+      Array.isArray(day.available_slots) &&
+      day.available_slots.some((slot) => slotOverlapsRanges(slot, ranges))
+  );
+};
+
+function SearchPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const pathname = usePathname();
   const { setActivity } = useBackgroundConfig();
   const { isAuthenticated } = useAuth();
   const headerRef = useRef<HTMLDivElement | null>(null);
   const lastSearchParamsRef = useRef<string>('');
   const [stackedViewportHeight, setStackedViewportHeight] = useState<number | null>(null);
   const [isStacked, setIsStacked] = useState<boolean>(false);
-  const [instructors, setInstructors] = useState<Instructor[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_total, setTotal] = useState(0);
-  const [serviceName, setServiceName] = useState<string>('');
+  const isAuthenticatedRef = useRef(isAuthenticated);
+  useEffect(() => {
+    isAuthenticatedRef.current = isAuthenticated;
+  }, [isAuthenticated]);
   const [serviceSlug] = useState<string>('');
-  const [rateLimit, setRateLimit] = useState<{ seconds: number } | null>(null);
   const [showTimeSelection, setShowTimeSelection] = useState(false);
   const [timeSelectionContext, setTimeSelectionContext] = useState<Record<string, unknown> | null>(null);
 
@@ -160,29 +549,201 @@ function SearchPageContent() {
 
   const [hoveredInstructorId, setHoveredInstructorId] = useState<string | null>(null);
   const [focusedInstructorId, setFocusedInstructorId] = useState<string | null>(null);
-  const [coverageGeoJSON, setCoverageGeoJSON] = useState<unknown | null>(null);
   const [showScrollIndicator, setShowScrollIndicator] = useState(true);
   const [mapBounds, setMapBounds] = useState<unknown>(null);
   const [showSearchAreaButton, setShowSearchAreaButton] = useState(false);
-  const [filteredInstructors, setFilteredInstructors] = useState<Instructor[]>([]);
-  const [nlSearchMeta, setNlSearchMeta] = useState<Record<string, unknown> | null>(null);
+  const [mapFilterIds, setMapFilterIds] = useState<string[] | null>(null);
 
-  const RateLimitBanner = () =>
-    rateLimit ? (
-      <div data-testid="rate-limit-banner" className="mb-4 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-900 px-3 py-2 text-sm">
-        Our hamsters are sprinting. Give them {rateLimit.seconds}s.
-      </div>
-    ) : null;
+  const boundsContains = useCallback((bounds: unknown, lat: number, lng: number): boolean => {
+    if (!bounds || typeof bounds !== 'object') return false;
+
+    const b = bounds as {
+      _southWest?: { lat: number; lng: number };
+      _northEast?: { lat: number; lng: number };
+    };
+
+    if (!b._southWest || !b._northEast) return false;
+
+    return (
+      lat >= b._southWest.lat &&
+      lat <= b._northEast.lat &&
+      lng >= b._southWest.lng &&
+      lng <= b._northEast.lng
+    );
+  }, []);
+
+  const featureHasPointInBounds = useCallback(
+    (feature: GeoJSONFeature, bounds: unknown): boolean => {
+      if (!feature.geometry || feature.geometry.type !== 'MultiPolygon') return false;
+      const coordinates = feature.geometry.coordinates;
+      if (!Array.isArray(coordinates)) return false;
+
+      for (const polygon of coordinates) {
+        if (!Array.isArray(polygon)) continue;
+        for (const ring of polygon) {
+          if (!Array.isArray(ring)) continue;
+          for (const coord of ring) {
+            if (!Array.isArray(coord) || coord.length < 2) continue;
+            const lng = coord[0];
+            const lat = coord[1];
+            if (typeof lat !== 'number' || typeof lng !== 'number') continue;
+            if (boundsContains(bounds, lat, lng)) return true;
+          }
+        }
+      }
+
+      return false;
+    },
+    [boundsContains]
+  );
+
+
+  const sortParam = (searchParams.get('sort') || 'recommended') as SortOption;
+  const [sortOption, setSortOption] = useState<SortOption>(sortParam);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
+  const sortMenuRef = useRef<HTMLDivElement | null>(null);
+  const [sortPosition, setSortPosition] = useState<{ top: number; left: number } | null>(null);
+  const isClient = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false
+  );
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+
+  const handleSortChange = useCallback((nextSort: SortOption) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextSort && nextSort !== 'recommended') {
+      params.set('sort', nextSort);
+    } else {
+      params.delete('sort');
+    }
+    setSortOption(nextSort);
+    const queryString = params.toString();
+    router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+  }, [searchParams, pathname, router]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const inButton = sortDropdownRef.current?.contains(target);
+      const inMenu = sortMenuRef.current?.contains(target);
+      if (!inButton && !inMenu) {
+        setShowSortDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSortToggle = useCallback(() => {
+    setShowSortDropdown((prev) => {
+      const next = !prev;
+      if (next && sortDropdownRef.current) {
+        const button = sortDropdownRef.current.querySelector('button');
+        if (button) {
+          const rect = button.getBoundingClientRect();
+          setSortPosition({
+            top: rect.bottom + 8,
+            left: rect.left,
+          });
+        }
+      }
+      return next;
+    });
+  }, []);
 
   const query = searchParams.get('q') || '';
   const category = searchParams.get('category') || '';
   const serviceCatalogId = searchParams.get('service_catalog_id') || '';
   const serviceNameFromUrl = searchParams.get('service_name') || '';
-  const availableNow = searchParams.get('available_now') === 'true';
   const ageGroup = searchParams.get('age_group') || '';
   const fromSource = searchParams.get('from') || '';
-  const softFilteringUsed = nlSearchMeta ? getBoolean(nlSearchMeta, 'soft_filtering_used', false) : false;
-  const softFilterMessage = nlSearchMeta ? getString(nlSearchMeta, 'soft_filter_message', '') : '';
+  const builtSearchQuery = useMemo(() => {
+    if (!query) return '';
+    return buildQueryWithFilters(query, filters);
+  }, [query, filters]);
+
+  const searchQueryEnabled = Boolean(builtSearchQuery || serviceCatalogId);
+  const {
+    data: searchResponse,
+    error: searchError,
+    isLoading: isSearchLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInstructorSearchInfinite({
+    searchQuery: builtSearchQuery,
+    serviceCatalogId,
+    perPage: 20,
+    enabled: searchQueryEnabled,
+  });
+  const loading = searchQueryEnabled ? isSearchLoading : false;
+  const loadingMore = isFetchingNextPage;
+
+  const { instructors, totalResults, nlSearchMeta } = useMemo(() => {
+    const pages = searchResponse?.pages ?? [];
+    if (!searchQueryEnabled || pages.length === 0) {
+      return { instructors: [], totalResults: 0, nlSearchMeta: null };
+    }
+
+    let total = 0;
+    let totalSet = false;
+    let meta: Record<string, unknown> | null = null;
+    const combined: Instructor[] = [];
+
+    pages.forEach((pageData) => {
+      const normalized =
+        pageData.mode === 'nl'
+          ? normalizeSearchResults({
+              mode: 'nl',
+              results: pageData.data.results,
+              meta: pageData.data.meta,
+            })
+          : normalizeSearchResults({
+              mode: 'catalog',
+              results: pageData.data.items,
+              total: pageData.data.total,
+              hasNext: pageData.data.has_next,
+              serviceCatalogId,
+            });
+
+      if (!totalSet) {
+        total = normalized.totalResults;
+        totalSet = true;
+      }
+      if (!meta && normalized.meta) {
+        meta = normalized.meta;
+      }
+
+      normalized.instructors.forEach((instructor) => {
+        const highlightId =
+          (instructor as { _matchedServiceCatalogId?: string | null })._matchedServiceCatalogId ?? null;
+        const services = Array.isArray(instructor.services) ? instructor.services : [];
+        const deduped = dedupeAndOrderServices(services, highlightId);
+        combined.push({
+          ...instructor,
+          services: deduped,
+        });
+      });
+    });
+
+    return {
+      instructors: combined,
+      totalResults: totalSet ? total : combined.length,
+      nlSearchMeta: meta,
+    };
+  }, [searchQueryEnabled, searchResponse, serviceCatalogId]);
+
+  const hasMore = Boolean(hasNextPage);
+
+  const softFilteringUsed = nlSearchMeta
+    ? getBoolean(nlSearchMeta, 'soft_filtering_used', false)
+    : false;
+  const softFilterMessage = nlSearchMeta
+    ? getString(nlSearchMeta, 'soft_filter_message', '')
+    : '';
   const searchQueryId = nlSearchMeta ? getString(nlSearchMeta, 'search_query_id', '') : '';
 
   const trackSearchClick = useCallback(
@@ -209,15 +770,6 @@ function SearchPageContent() {
   );
 
   useEffect(() => {
-    // reset page and list when search params change
-    setServiceName(serviceNameFromUrl);
-    setPage(1);
-    setInstructors([]);
-    setHasMore(true);
-    setNlSearchMeta(null);
-  }, [query, category, serviceCatalogId, serviceNameFromUrl]);
-
-  useEffect(() => {
     const activity = (query || category || '').trim();
     if (activity) {
       setActivity(activity);
@@ -226,412 +778,434 @@ function SearchPageContent() {
     }
   }, [query, category, setActivity]);
 
+  const errorMessage = useMemo(() => {
+    if (!searchQueryEnabled) {
+      return 'Please search for a specific service or use natural language search';
+    }
+
+    if (!searchError) return null;
+    return searchError.message || 'Failed to load search results';
+  }, [searchError, searchQueryEnabled]);
+
+  const rateLimit = useMemo(() => {
+    if (!searchQueryEnabled || !searchError) return null;
+    const retryAfterSeconds = (searchError as { retryAfterSeconds?: number }).retryAfterSeconds;
+    const status = (searchError as { status?: number }).status;
+    if (typeof retryAfterSeconds === 'number') {
+      return { seconds: retryAfterSeconds };
+    }
+    if (status === 429) {
+      return { seconds: 0 };
+    }
+    return null;
+  }, [searchError, searchQueryEnabled]);
+
   useEffect(() => {
-    if (serviceCatalogId && (serviceSlug || serviceName)) {
-      setActivity((serviceSlug || serviceName).toLowerCase());
+    if (serviceCatalogId && (serviceSlug || serviceNameFromUrl)) {
+      setActivity((serviceSlug || serviceNameFromUrl).toLowerCase());
     }
-  }, [serviceCatalogId, serviceSlug, serviceName, setActivity]);
+  }, [serviceCatalogId, serviceSlug, serviceNameFromUrl, setActivity]);
 
-  const fetchResults = useCallback(async (pageNum: number, append: boolean = false) => {
-    if (!append) {
-      setLoading(true);
-    } else {
-      setLoadingMore(true);
+  const searchKey = `${query || ''}-${serviceCatalogId || ''}-${category || ''}-${serviceNameFromUrl || ''}-${fromSource || ''}`;
+  const hasSearchResults = searchQueryEnabled && Boolean(searchResponse?.pages?.length);
+
+  useEffect(() => {
+    if (!hasSearchResults) return;
+    if (searchKey === lastSearchParamsRef.current) return;
+    lastSearchParamsRef.current = searchKey;
+
+    let searchType: SearchType = SearchType.NATURAL_LANGUAGE;
+    let searchQueryValue = '';
+
+    if (query) {
+      if (fromSource === 'recent') {
+        searchType = SearchType.SEARCH_HISTORY;
+      } else {
+        searchType = SearchType.NATURAL_LANGUAGE;
+      }
+      searchQueryValue = query;
+    } else if (serviceCatalogId) {
+      searchType = SearchType.SERVICE_PILL;
+      searchQueryValue = serviceNameFromUrl || serviceSlug || `Service #${serviceCatalogId}`;
+    } else if (category) {
+      searchType = SearchType.CATEGORY;
+      searchQueryValue = category;
     }
-    setError(null);
 
-    try {
-      let response;
-      let instructorsData: Instructor[] = [];
-      let totalResults = 0;
-      // Note: Observability tracking now uses instructor-level results directly
+    void recordSearch(
+      {
+        query: searchQueryValue,
+        search_type: searchType,
+        results_count: totalResults,
+      },
+      isAuthenticatedRef.current
+    );
+  }, [
+    hasSearchResults,
+    searchKey,
+    query,
+    fromSource,
+    serviceCatalogId,
+    serviceNameFromUrl,
+    serviceSlug,
+    category,
+    totalResults,
+  ]);
 
-      if (query) {
-        const nlResponse = await publicApi.searchWithNaturalLanguage(query);
-        if (nlResponse.error) {
-          setNlSearchMeta(null);
-          // If 429, client returns retryAfterSeconds – show rate limit banner instead of generic error
-          const secs = (nlResponse as unknown as { retryAfterSeconds?: number }).retryAfterSeconds;
-          if (typeof secs === 'number' && secs > 0) {
-            setRateLimit({ seconds: secs });
-            // Also set friendly copy in error area for test robustness/visibility
-            setError(`Our hamsters are sprinting. Give them ${secs}s.`);
-            return;
-          }
-          // Generic error (no Retry-After) — still show banner for UX consistency/tests
-          setRateLimit({ seconds: 0 });
-          setError('Our hamsters are sprinting. Please try again shortly.');
-          return;
-        } else if (nlResponse.data) {
-          // New instructor-level API: results are already deduplicated by instructor
-          // Each result has: instructor_id, instructor (embedded), rating, coverage_areas,
-          // best_match (service), other_matches (services), relevance_score
-          instructorsData = nlResponse.data.results.map(
-            (result: unknown) => {
-              if (!isRecord(result)) {
-                return null;
-              }
+  const availabilityIds = useMemo(
+    () =>
+      instructors
+        .map((instructor) => instructor.user_id)
+        .filter((id): id is string => Boolean(id)),
+    [instructors]
+  );
+  const availabilityByInstructor = usePublicAvailability(availabilityIds);
 
-              // Extract instructor-level data
-              const instructorId = getString(result, 'instructor_id', '');
-              const relevanceScore = getNumber(result, 'relevance_score', 0);
+  const sidebarFilteredInstructors = useMemo(() => {
+    if (instructors.length === 0) return [];
+    return instructors.filter((instructor) => {
+      const services = Array.isArray(instructor.services) ? instructor.services : [];
+      const activeServices = services.filter((svc) => svc && svc.is_active !== false);
 
-              // Extract embedded instructor info
-              const instructorInfo = isRecord(result['instructor']) ? result['instructor'] : {};
-              const firstName = getString(instructorInfo, 'first_name', 'Instructor');
-              const lastInitial = getString(instructorInfo, 'last_initial', '');
-              const bioSnippet = getString(instructorInfo, 'bio_snippet', '');
-              const profilePictureUrl = getString(instructorInfo, 'profile_picture_url', '');
-              const verified = Boolean(instructorInfo['verified']);
-              const isFoundingInstructor = Boolean(instructorInfo['is_founding_instructor']);
-              const yearsExperience = getNumber(instructorInfo, 'years_experience', 0);
+      const offersTravel = activeServices.some((svc) => svc.offers_travel === true);
+      const offersAtLocation = activeServices.some((svc) => svc.offers_at_location === true);
+      const offersOnline = activeServices.some((svc) => svc.offers_online === true);
 
-              // Extract embedded rating info
-              const ratingInfo = isRecord(result['rating']) ? result['rating'] : {};
-              const avgRating = getNumber(ratingInfo, 'average', 0);
-              const reviewCount = getNumber(ratingInfo, 'count', 0);
+      if (filters.location === 'online' && !offersOnline) return false;
+      if (filters.location === 'travels' && !offersTravel) return false;
+      if (filters.location === 'studio') {
+        const hasLocations =
+          Array.isArray(instructor.teaching_locations) && instructor.teaching_locations.length > 0;
+        if (!offersAtLocation || !hasLocations) return false;
+      }
 
-              // Extract coverage areas
-              const coverageAreas = getArray(result, 'coverage_areas')
-                .filter((v): v is string => typeof v === 'string');
+      if (filters.priceMin !== null || filters.priceMax !== null) {
+        const rates = activeServices
+          .map((svc) => svc.hourly_rate)
+          .filter((rate): rate is number => Number.isFinite(rate));
+        if (rates.length === 0) return false;
+        const matchesRate = rates.some((rate) => {
+          if (filters.priceMin !== null && rate < filters.priceMin) return false;
+          if (filters.priceMax !== null && rate > filters.priceMax) return false;
+          return true;
+        });
+        if (!matchesRate) return false;
+      }
 
-              // Optional debug distance from searched location (populated when location was resolved)
-              const distanceMiRaw = getNumber(result, 'distance_mi', Number.NaN);
-              const distanceMi = Number.isFinite(distanceMiRaw) ? distanceMiRaw : null;
-              const distanceKmRaw = getNumber(result, 'distance_km', Number.NaN);
-              const distanceKm = Number.isFinite(distanceKmRaw) ? distanceKmRaw : null;
-
-              // Extract best matching service
-              const bestMatch = isRecord(result['best_match']) ? result['best_match'] : {};
-              const bestServiceId = getString(bestMatch, 'service_id', '');
-              const bestServiceCatalogId = getString(bestMatch, 'service_catalog_id', '');
-              const bestServiceName = getString(bestMatch, 'name', '');
-              const bestServiceDescription = getString(bestMatch, 'description', '');
-              const bestPricePerHour = getNumber(bestMatch, 'price_per_hour', 0);
-
-              // Build services array from best_match + other_matches
-              const services: Instructor['services'] = [];
-
-              // Add best match as first service
-              services.push({
-                id: bestServiceId,
-                service_catalog_id: bestServiceCatalogId,
-                service_catalog_name: bestServiceName,
-                hourly_rate: bestPricePerHour,
-                description: bestServiceDescription,
-                duration_options: [60],
-                is_active: true,
-              });
-
-              // Add other matches
-              const otherMatches = getArray(result, 'other_matches');
-              for (const match of otherMatches) {
-                if (!isRecord(match)) continue;
-                services.push({
-                  id: getString(match, 'service_id', ''),
-                  service_catalog_id: getString(match, 'service_catalog_id', ''),
-                  service_catalog_name: getString(match, 'name', ''),
-                  hourly_rate: getNumber(match, 'price_per_hour', 0),
-                  description: getString(match, 'description', ''),
-                  duration_options: [60],
-                  is_active: true,
-                });
-              }
-
-              const mapped = {
-                id: instructorId,
-                user_id: instructorId,
-                bio: bioSnippet,
-                profile_picture_url: profilePictureUrl,
-                service_area_summary: coverageAreas.join(', '),
-                service_area_boroughs: coverageAreas,
-                service_area_neighborhoods: [] as Array<{
-                  neighborhood_id: string;
-                  ntacode: string | null;
-                  name: string | null;
-                  borough: string | null;
-                }>,
-                years_experience: yearsExperience,
-                user: {
-                  first_name: firstName,
-                  last_initial: lastInitial,
-                },
-                is_founding_instructor: isFoundingInstructor,
-                is_live: true,
-                services,
-                verified,
-                rating: avgRating || undefined,
-                total_reviews: reviewCount,
-                distance_mi: distanceMi,
-                distance_km: distanceKm,
-                _matchedServiceContext: {
-                  levels: [] as string[],
-                  age_groups: [] as string[],
-                  location_types: [] as string[],
-                },
-                relevance_score: relevanceScore,
-                _matchedServiceCatalogId: bestServiceCatalogId || null,
-              } as Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null };
-
-              return mapped;
-            }
-          ).filter((item: (Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null }) | null): item is Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null } => item !== null);
-
-          // Results are already sorted by relevance and deduplicated by backend
-          // Cast to expected response shape (types will be regenerated after MessageResponse fix)
-          const responseData = nlResponse.data as unknown as {
-            results: unknown[];
-            meta?: unknown;
-          };
-          const meta = isRecord(responseData.meta) ? responseData.meta : null;
-          setNlSearchMeta(meta);
-          totalResults = meta ? getNumber(meta, 'total_results', instructorsData.length) : instructorsData.length;
-          setHasMore(false);
-        }
-      } else if (serviceCatalogId) {
-        const apiParams = {
-          service_catalog_id: serviceCatalogId,
-          page: pageNum,
-          per_page: 20,
-        };
-        response = await publicApi.searchInstructors(apiParams);
-        if (response.error) {
-          setError(response.error);
-          return;
-        } else if (response.data) {
-          // Dev/test-only validation of the response shape
-          const validated = await validateWithZod<{
-            items: unknown[];
-            total: number;
-            page: number;
-            per_page: number;
-            has_next: boolean;
-            has_prev: boolean;
-          }>(loadSearchListSchema, response.data, { endpoint: 'GET /instructors' });
-          const casted = validated.items as unknown as Instructor[];
-          instructorsData = casted.map((item) => {
-            const matchId = serviceCatalogId || null;
-            const highlightedService = Array.isArray(item.services)
-              ? item.services.find((svc) => (svc.service_catalog_id || '').trim().toLowerCase() === (matchId || '').trim().toLowerCase()) || item.services[0]
-              : undefined;
-            const levels = Array.isArray(highlightedService?.levels_taught)
-              ? highlightedService.levels_taught
-              : [];
-            const ageGroups = Array.isArray(highlightedService?.age_groups)
-              ? highlightedService.age_groups
-              : [];
-            const locationTypes = Array.isArray(highlightedService?.location_types)
-              ? highlightedService.location_types
-              : [];
-            return {
-              ...item,
-              _matchedServiceCatalogId: matchId,
-              _matchedServiceContext: {
-                levels,
-                age_groups: ageGroups,
-                location_types: locationTypes,
-              },
-            };
+      if (filters.duration.length > 0) {
+        const durations = new Set<number>();
+        activeServices.forEach((svc) => {
+          if (!Array.isArray(svc.duration_options)) return;
+          svc.duration_options.forEach((duration) => {
+            if (Number.isFinite(duration)) durations.add(duration);
           });
-          totalResults = validated.total;
-          const totalPages = Math.ceil(totalResults / 20);
-          setHasMore(pageNum < totalPages);
-        }
-      } else {
-        setError('Please search for a specific service or use natural language search');
-        return;
+        });
+        if (durations.size === 0) return false;
+        if (!filters.duration.some((duration) => durations.has(duration))) return false;
       }
 
-      // Backend now provides all embedded data, no hydration needed for NL search
-      // For serviceCatalogId search, data is already complete from searchInstructors
-      let finalResults = instructorsData;
-
-      finalResults = finalResults.map((instructor) => {
-        const highlightId =
-          (instructor as { _matchedServiceCatalogId?: string | null })._matchedServiceCatalogId ?? null;
-        const services = Array.isArray(instructor.services) ? instructor.services : [];
-        const deduped = dedupeAndOrderServices(services, highlightId);
-        return {
-          ...instructor,
-          services: deduped,
-        };
-      });
-
-      if (append) {
-        setInstructors((prev) => [...prev, ...finalResults]);
-      } else {
-        setInstructors(finalResults);
-
-        // Track search only for initial loads, not pagination
-        if (pageNum === 1) {
-          // Create a unique key for the current search parameters
-          const searchKey = `${query || ''}-${serviceCatalogId || ''}-${category || ''}-${serviceNameFromUrl || ''}-${fromSource || ''}`;
-
-          // Only track if this is a different search than the last one
-          if (searchKey !== lastSearchParamsRef.current) {
-            lastSearchParamsRef.current = searchKey;
-
-            // Determine search type based on what parameters are present
-            let searchType: SearchType = SearchType.NATURAL_LANGUAGE;
-            let searchQuery = '';
-
-            if (query) {
-              // Check if this is from search history
-              if (fromSource === 'recent') {
-                searchType = SearchType.SEARCH_HISTORY;
-              } else {
-                searchType = SearchType.NATURAL_LANGUAGE;
-              }
-              searchQuery = query;
-            } else if (serviceCatalogId) {
-              searchType = SearchType.SERVICE_PILL;
-              searchQuery = serviceNameFromUrl || serviceName || `Service #${serviceCatalogId}`;
-            } else if (category) {
-              searchType = SearchType.CATEGORY;
-              searchQuery = category;
-            }
-
-            // Record the search for analytics
-            void recordSearch(
-              {
-                query: searchQuery,
-                search_type: searchType,
-                results_count: totalResults,
-              },
-              isAuthenticated
-            );
-          }
-        }
+      if (filters.level.length > 0) {
+        const levels = new Set<string>();
+        activeServices.forEach((svc) => {
+          if (!Array.isArray(svc.levels_taught)) return;
+          svc.levels_taught.forEach((level) => {
+            if (typeof level === 'string') levels.add(level.trim().toLowerCase());
+          });
+        });
+        const contextLevels = Array.isArray(instructor._matchedServiceContext?.levels)
+          ? instructor._matchedServiceContext?.levels
+          : [];
+        contextLevels.forEach((level) => {
+          if (typeof level === 'string') levels.add(level.trim().toLowerCase());
+        });
+        if (levels.size === 0) return false;
+        if (!filters.level.some((level) => levels.has(level))) return false;
       }
-      setTotal(totalResults);
-    } catch {
-      setError('Failed to load search results');
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
+
+      if (filters.audience.length > 0) {
+        const audiences = new Set<string>();
+        activeServices.forEach((svc) => {
+          if (!Array.isArray(svc.age_groups)) return;
+          svc.age_groups.forEach((group) => {
+            if (typeof group === 'string') audiences.add(group.trim().toLowerCase());
+          });
+        });
+        const contextAudiences = Array.isArray(instructor._matchedServiceContext?.age_groups)
+          ? instructor._matchedServiceContext?.age_groups
+          : [];
+        contextAudiences.forEach((group) => {
+          if (typeof group === 'string') audiences.add(group.trim().toLowerCase());
+        });
+        if (audiences.size === 0) return false;
+        if (!filters.audience.some((group) => audiences.has(group))) return false;
+      }
+
+      if (filters.minRating !== 'any') {
+        const ratingValue = typeof instructor.rating === 'number' ? instructor.rating : 0;
+        const minRating = filters.minRating === '4.5' ? 4.5 : 4;
+        if (ratingValue < minRating) return false;
+      }
+
+      const instructorId = instructor.user_id || instructor.id;
+      const availability = instructorId ? availabilityByInstructor[instructorId] : undefined;
+      if (!availabilityMatchesFilters(availability, filters)) return false;
+
+      return true;
+    });
+  }, [availabilityByInstructor, filters, instructors]);
+
+  const instructorCapabilities = useMemo(() => {
+    const map = new Map<string, { offersTravel: boolean; offersAtLocation: boolean; offersOnline: boolean }>();
+    for (const instructor of sidebarFilteredInstructors) {
+      const instructorId = instructor.user_id || instructor.id;
+      if (!instructorId) continue;
+      const services = Array.isArray(instructor.services) ? instructor.services : [];
+      const activeServices = services.filter((svc) => svc && svc.is_active !== false);
+      const offersTravel = activeServices.some((svc) => svc.offers_travel === true);
+      const offersAtLocation = activeServices.some((svc) => svc.offers_at_location === true);
+      const offersOnline = activeServices.some((svc) => svc.offers_online === true);
+      map.set(instructorId, { offersTravel, offersAtLocation, offersOnline });
     }
-  }, [query, category, serviceCatalogId, isAuthenticated, serviceNameFromUrl, fromSource, serviceName]);
+    return map;
+  }, [sidebarFilteredInstructors]);
 
-  useEffect(() => {
-    void fetchResults(1, false);
-  }, [query, category, serviceCatalogId, availableNow, fetchResults]);
+  const coverageIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (instructors || [])
+            .map((i) => i.user_id)
+            .filter((id): id is string => Boolean(id))
+        )
+      ),
+    [instructors]
+  );
+  const coverageQuery = useInstructorCoverage(coverageIds);
+  const emptyCoverage = useMemo(() => ({ type: 'FeatureCollection', features: [] }), []);
+  const coverageGeoJSON = coverageQuery.data ?? emptyCoverage;
 
-  // Initialize filtered instructors when instructors change
-  useEffect(() => {
-    setFilteredInstructors(instructors);
-  }, [instructors]);
-
-  useEffect(() => {
-    const fetchCoverage = async () => {
-      try {
-        const ids = Array.from(new Set((instructors || []).map((i) => i.user_id).filter(Boolean)));
-        if (!ids.length) {
-          setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
-          return;
-        }
-        const params = new URLSearchParams({ ids: ids.join(',') });
-        const coverageUrl = withApiBase(`/api/v1/addresses/coverage/bulk?${params.toString()}`);
-        const res = await fetch(coverageUrl, { credentials: 'include' });
-        if (!res.ok) {
-          setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
-          return;
-        }
-        const data = (await res.json()) as CoverageFeatureCollectionResponse;
-        setCoverageGeoJSON(data);
-      } catch {
-        setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
-      }
+  const coverageFeatureCollection = useMemo<MapFeatureCollection | null>(() => {
+    if (!isFeatureCollection(coverageGeoJSON)) return null;
+    const features: GeoJSONFeature[] = [];
+    for (const feature of coverageGeoJSON.features) {
+      const instructorsList = getArray(feature.properties, 'instructors')
+        .map((id) => (typeof id === 'string' ? id : ''))
+        .filter(Boolean);
+      const filteredInstructors = instructorsList.filter(
+        (id) => instructorCapabilities.get(id)?.offersTravel
+      );
+      if (!filteredInstructors.length) continue;
+      features.push({
+        ...feature,
+        properties: {
+          ...(feature.properties || {}),
+          instructors: filteredInstructors,
+        },
+      });
+    }
+    return {
+      type: 'FeatureCollection',
+      features,
     };
-    void fetchCoverage();
-  }, [instructors]);
+  }, [coverageGeoJSON, instructorCapabilities]);
 
-  // Initialize filtered instructors when instructors change
-  useEffect(() => {
-    setFilteredInstructors(instructors);
-  }, [instructors]);
+  const locationPins = useMemo(() => {
+    const pins: Array<{ lat: number; lng: number; label?: string; instructorId?: string }> = [];
+    for (const instructor of sidebarFilteredInstructors) {
+      const instructorId = instructor.user_id || instructor.id;
+      if (!instructorId) continue;
+      const capabilities = instructorCapabilities.get(instructorId);
+      if (!capabilities?.offersAtLocation) continue;
+      const locations = Array.isArray(instructor.teaching_locations)
+        ? instructor.teaching_locations
+        : [];
+      for (const loc of locations) {
+        const lat = loc.approx_lat;
+        const lng = loc.approx_lng;
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+        const label = typeof loc.neighborhood === 'string' ? loc.neighborhood.trim() : '';
+        if (label) {
+          pins.push({
+            lat,
+            lng,
+            label,
+            instructorId,
+          });
+        } else {
+          pins.push({
+            lat,
+            lng,
+            instructorId,
+          });
+        }
+      }
+    }
+    return pins;
+  }, [sidebarFilteredInstructors, instructorCapabilities]);
+
+  const filteredInstructors = useMemo(() => {
+    if (!mapFilterIds || mapFilterIds.length === 0) return sidebarFilteredInstructors;
+    const idSet = new Set(mapFilterIds);
+    return sidebarFilteredInstructors.filter((instructor) => {
+      const instructorId = instructor.user_id || instructor.id;
+      return instructorId ? idSet.has(instructorId) : false;
+    });
+  }, [mapFilterIds, sidebarFilteredInstructors]);
+
+  const sortedInstructors = useMemo(() => {
+    if (sortOption === 'recommended') return filteredInstructors;
+    const sorted = [...filteredInstructors];
+    if (sortOption === 'price_asc') {
+      sorted.sort((a, b) =>
+        compareNullableNumbers(getInstructorMinRate(a), getInstructorMinRate(b), 'asc')
+      );
+      return sorted;
+    }
+    if (sortOption === 'price_desc') {
+      sorted.sort((a, b) =>
+        compareNullableNumbers(getInstructorMinRate(a), getInstructorMinRate(b), 'desc')
+      );
+      return sorted;
+    }
+    if (sortOption === 'rating') {
+      sorted.sort((a, b) =>
+        compareNullableNumbers(
+          typeof a.rating === 'number' ? a.rating : null,
+          typeof b.rating === 'number' ? b.rating : null,
+          'desc'
+        )
+      );
+      return sorted;
+    }
+    return sorted;
+  }, [filteredInstructors, sortOption]);
 
   // Handle map bounds change
   const handleMapBoundsChange = useCallback((bounds: unknown) => {
-    if (!bounds || !coverageGeoJSON) return;
+    if (!bounds) return;
+
+    const coverageFeatures = coverageFeatureCollection?.features ?? [];
+    const hasPinData = sidebarFilteredInstructors.some((instructor) => {
+      const instructorId = instructor.user_id || instructor.id;
+      if (!instructorId) return false;
+      const capabilities = instructorCapabilities.get(instructorId);
+      if (!capabilities?.offersAtLocation) return false;
+      return Array.isArray(instructor.teaching_locations) && instructor.teaching_locations.length > 0;
+    });
+    const hasCoverageData = coverageFeatures.length > 0;
+
+    if (!hasCoverageData && !hasPinData) {
+      setShowSearchAreaButton(false);
+      setMapBounds(bounds);
+      return;
+    }
 
     // Check if any instructors are outside the current bounds
-    const instructorsInBounds = instructors.filter((instructor) => {
-      // Check if this instructor has any coverage in the current bounds
-      const instructorFeatures = (coverageGeoJSON as { features: GeoJSONFeature[] })?.features?.filter((feature: GeoJSONFeature) => {
-        const instructorsList = feature.properties?.instructors || [];
-        return instructorsList.includes(instructor.user_id);
-      });
+    const instructorsInBounds = sidebarFilteredInstructors.filter((instructor) => {
+      let hasCoverageInBounds = false;
 
-      // Check if any of the instructor's features intersect with the map bounds
-      for (const feature of instructorFeatures) {
-        if (feature.geometry && feature.geometry.type === 'MultiPolygon') {
-          // Simple bounds check - if any part of the polygon is in view
-          for (const polygon of feature.geometry.coordinates) {
-            for (const ring of polygon) {
-              for (const coord of ring) {
-                if (Array.isArray(coord) && coord.length >= 2) {
-                  const lat = coord[1];
-                  const lng = coord[0];
-                  if (bounds && typeof bounds === 'object' && 'contains' in bounds && typeof bounds.contains === 'function' && bounds.contains([lat, lng])) {
-                    return true; // Instructor has coverage in view
-                  }
-                }
-              }
-            }
-          }
-        }
+      if (hasCoverageData) {
+        const instructorId = instructor.user_id || instructor.id;
+        const instructorFeatures = coverageFeatures.filter((feature) => {
+          const rawInstructors = feature.properties?.['instructors'];
+          const instructorsList = Array.isArray(rawInstructors)
+            ? (rawInstructors as string[])
+            : [];
+          return instructorId ? instructorsList.includes(instructorId) : false;
+        });
+
+        hasCoverageInBounds = instructorFeatures.some((feature) =>
+          featureHasPointInBounds(feature, bounds)
+        );
       }
 
-      return false;
+      const instructorId = instructor.user_id || instructor.id;
+      const capabilities = instructorId ? instructorCapabilities.get(instructorId) : null;
+      const hasStudioInBounds = capabilities?.offersAtLocation && Array.isArray(instructor.teaching_locations)
+        ? instructor.teaching_locations.some((loc) => {
+          const lat = loc.approx_lat;
+          const lng = loc.approx_lng;
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+          return boundsContains(bounds, lat, lng);
+        })
+        : false;
+
+      return hasCoverageInBounds || hasStudioInBounds;
     });
 
     // Show button if:
     // 1. Some instructors would be filtered out (zoomed in)
     // 2. OR we're currently showing a filtered view and more instructors could be shown (zoomed out)
-    const hasFilteredInstructors = instructorsInBounds.length < instructors.length;
-    const isShowingFilteredView = filteredInstructors.length < instructors.length;
+    const hasFilteredInstructors = instructorsInBounds.length < sidebarFilteredInstructors.length;
+    const isShowingFilteredView = filteredInstructors.length < sidebarFilteredInstructors.length;
     const wouldShowDifferentResults = instructorsInBounds.length !== filteredInstructors.length;
 
     setShowSearchAreaButton(hasFilteredInstructors || (isShowingFilteredView && wouldShowDifferentResults));
     setMapBounds(bounds);
-  }, [instructors, filteredInstructors, coverageGeoJSON]);
+  }, [sidebarFilteredInstructors, filteredInstructors, coverageFeatureCollection, instructorCapabilities, boundsContains, featureHasPointInBounds]);
 
   // Handle search area button click
   const handleSearchArea = useCallback(() => {
-    if (!mapBounds || !coverageGeoJSON) return;
+    if (!mapBounds) return;
+
+    const coverageFeatures = coverageFeatureCollection?.features ?? [];
+    const hasPinData = sidebarFilteredInstructors.some((instructor) => {
+      const instructorId = instructor.user_id || instructor.id;
+      if (!instructorId) return false;
+      const capabilities = instructorCapabilities.get(instructorId);
+      if (!capabilities?.offersAtLocation) return false;
+      return Array.isArray(instructor.teaching_locations) && instructor.teaching_locations.length > 0;
+    });
+    const hasCoverageData = coverageFeatures.length > 0;
+
+    if (!hasCoverageData && !hasPinData) {
+      setMapFilterIds(null);
+      setShowSearchAreaButton(false);
+      setFocusedInstructorId(null);
+      return;
+    }
 
     // Filter instructors based on current map bounds
-    const instructorsInBounds = instructors.filter((instructor) => {
-      const instructorFeatures = (coverageGeoJSON as { features: GeoJSONFeature[] })?.features?.filter((feature: GeoJSONFeature) => {
-        const instructorsList = feature.properties?.instructors || [];
-        return instructorsList.includes(instructor.user_id);
-      });
+    const instructorsInBounds = sidebarFilteredInstructors.filter((instructor) => {
+      let hasCoverageInBounds = false;
 
-      for (const feature of instructorFeatures) {
-        if (feature.geometry && feature.geometry.type === 'MultiPolygon') {
-          for (const polygon of feature.geometry.coordinates) {
-            for (const ring of polygon) {
-              for (const coord of ring) {
-                if (Array.isArray(coord) && coord.length >= 2) {
-                  const lat = coord[1];
-                  const lng = coord[0];
-                  if (mapBounds && typeof mapBounds === 'object' && 'contains' in mapBounds && typeof mapBounds.contains === 'function' && mapBounds.contains([lat, lng])) {
-                    return true;
-                  }
-                }
-              }
-            }
-          }
-        }
+      if (hasCoverageData) {
+        const instructorId = instructor.user_id || instructor.id;
+        const instructorFeatures = coverageFeatures.filter((feature) => {
+          const rawInstructors = feature.properties?.['instructors'];
+          const instructorsList = Array.isArray(rawInstructors)
+            ? (rawInstructors as string[])
+            : [];
+          return instructorId ? instructorsList.includes(instructorId) : false;
+        });
+
+        hasCoverageInBounds = instructorFeatures.some((feature) =>
+          featureHasPointInBounds(feature, mapBounds)
+        );
       }
-      return false;
+
+      const instructorId = instructor.user_id || instructor.id;
+      const capabilities = instructorId ? instructorCapabilities.get(instructorId) : null;
+      const hasStudioInBounds = capabilities?.offersAtLocation && Array.isArray(instructor.teaching_locations)
+        ? instructor.teaching_locations.some((loc) => {
+          const lat = loc.approx_lat;
+          const lng = loc.approx_lng;
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+          return boundsContains(mapBounds, lat, lng);
+        })
+        : false;
+
+      return hasCoverageInBounds || hasStudioInBounds;
     });
 
-    setFilteredInstructors(instructorsInBounds);
+    const nextIds = instructorsInBounds
+      .map((instructor) => instructor.user_id || instructor.id)
+      .filter((id): id is string => Boolean(id));
+    setMapFilterIds(nextIds);
     setShowSearchAreaButton(false);
     // Clear focused instructor after filtering
     setFocusedInstructorId(null);
-  }, [instructors, mapBounds, coverageGeoJSON]);
+  }, [sidebarFilteredInstructors, mapBounds, coverageFeatureCollection, instructorCapabilities, boundsContains, featureHasPointInBounds]);
 
   // Track stacked layout (below xl) and compute available height so the page itself doesn't scroll
   useEffect(() => {
@@ -681,9 +1255,7 @@ function SearchPageContent() {
     observerRef.current = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting && hasMore && !loadingMore && !loading) {
-          const nextPage = page + 1;
-          setPage(nextPage);
-          void fetchResults(nextPage, true);
+          void fetchNextPage();
         }
       },
       { threshold: 0.1 }
@@ -698,87 +1270,7 @@ function SearchPageContent() {
         observerRef.current.disconnect();
       }
     };
-  }, [hasMore, loadingMore, loading, page, fetchResults]);
-
-  // Fetch next available slot for each instructor
-  interface InstructorAvailabilitySummary {
-    timezone?: string;
-    availabilityByDate: Record<
-      string,
-      {
-        available_slots: Array<{ start_time: string; end_time: string }>;
-        is_blackout?: boolean;
-      }
-    >;
-  }
-  const [availabilityByInstructor, setAvailabilityByInstructor] = useState<Record<string, InstructorAvailabilitySummary>>({});
-
-  useEffect(() => {
-    const formatDate = (d: Date) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const normalizeTime = (value?: string | null) => {
-      if (!value) return '00:00';
-      const [h = '0', m = '0'] = value.split(':');
-      return `${String(parseInt(h, 10) || 0).padStart(2, '0')}:${String(parseInt(m, 10) || 0).padStart(2, '0')}`;
-    };
-
-    const fetchAvailabilities = async () => {
-      try {
-        const updates: Record<string, InstructorAvailabilitySummary> = {};
-        const today = new Date();
-        const startDate = new Date(today);
-        const endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 14);
-
-        await Promise.all(
-          instructors.map(async (i) => {
-            try {
-              const { data, status } = await publicApi.getInstructorAvailability(i.user_id, {
-                start_date: formatDate(startDate),
-                end_date: formatDate(endDate),
-              });
-              if (!data || status !== 200) {
-                return;
-              }
-              const byDate = data.availability_by_date || {};
-              const normalizedEntries = Object.entries(byDate).reduce<
-                Record<string, { available_slots: Array<{ start_time: string; end_time: string }>; is_blackout?: boolean }>
-              >((acc, [date, day]) => {
-                if (!day) return acc;
-                acc[date] = {
-                  available_slots: (day.available_slots || []).map((slot) => ({
-                    start_time: normalizeTime(slot.start_time),
-                    end_time: normalizeTime(slot.end_time),
-                  })),
-                  is_blackout: day.is_blackout,
-                };
-                return acc;
-              }, {});
-
-              updates[i.user_id] = {
-                timezone: data.timezone ?? undefined,
-                availabilityByDate: normalizedEntries,
-              };
-            } catch {
-              // ignore errors for individual instructors
-            }
-          })
-        );
-
-        if (Object.keys(updates).length) {
-          setAvailabilityByInstructor((prev) => ({ ...prev, ...updates }));
-        }
-      } catch {
-        // ignore batch errors
-      }
-    };
-
-    if (instructors && instructors.length) {
-      void fetchAvailabilities();
-    }
-  }, [instructors]);
-
-
+  }, [fetchNextPage, hasMore, loadingMore, loading]);
 
   return (
     <div className="min-h-screen">
@@ -804,37 +1296,72 @@ function SearchPageContent() {
            } as React.CSSProperties : undefined}>
         {/* Left Side - Filter and Instructor Cards */}
         <div className="flex-1 overflow-visible order-1 xl:order-1">
-          {/* Filter Bar - Extra compact on stacked view */}
+          {/* Filter Bar */}
           <div className={`px-6 ${isStacked ? 'pt-1 pb-1' : 'pt-0 md:pt-2 pb-1 md:pb-3'}`}>
             <div className={`bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 ${isStacked ? 'p-1' : 'p-1 md:p-4'}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex gap-1 md:gap-6 pr-1 md:pr-2">
-                  {/* Date filters group */}
-                  <div className={`bg-gray-100 rounded-lg ${isStacked ? 'px-0.5 py-0.5' : 'px-0.5 py-0.5'} flex gap-0.5`}>
-                    <button className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} bg-white rounded-md font-medium cursor-pointer`}>Today</button>
-                    <button className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} text-gray-600 hover:bg-gray-50 rounded-md cursor-pointer`}>This Week</button>
-                    <button className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} text-gray-600 hover:bg-gray-50 rounded-md cursor-pointer`}>Choose Date</button>
+              <FilterBar
+                filters={filters}
+                onFiltersChange={(nextFilters) => {
+                  setFilters(nextFilters);
+                  setMapFilterIds(null);
+                  setShowSearchAreaButton(false);
+                  setFocusedInstructorId(null);
+                }}
+                rightSlot={(
+                  <div className={`flex items-center gap-1 ${isStacked ? 'ml-1' : 'ml-3 md:ml-4'}`} ref={sortDropdownRef}>
+                    <span className={`${isStacked ? 'text-xs hidden' : 'text-xs md:text-sm'} text-gray-600 whitespace-nowrap hidden sm:inline`}>Sort:</span>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={handleSortToggle}
+                        className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer transition-colors`}
+                      >
+                        <span>
+                          {sortOption === 'recommended' && 'Recommended'}
+                          {sortOption === 'price_asc' && 'Price: Low'}
+                          {sortOption === 'price_desc' && 'Price: High'}
+                          {sortOption === 'rating' && 'Top Rated'}
+                        </span>
+                        <ChevronDown className={`h-3 w-3 text-gray-500 transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {isClient && showSortDropdown && sortPosition
+                        ? createPortal(
+                            <div
+                              ref={sortMenuRef}
+                              className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[9999] min-w-[180px] w-auto"
+                              style={{ top: sortPosition.top, left: sortPosition.left }}
+                            >
+                              {[
+                                { value: 'recommended', label: 'Recommended' },
+                                { value: 'price_asc', label: 'Price: Low to High' },
+                                { value: 'price_desc', label: 'Price: High to Low' },
+                                { value: 'rating', label: 'Highest Rated' },
+                              ].map((option) => (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  onClick={() => {
+                                    handleSortChange(option.value as SortOption);
+                                    setShowSortDropdown(false);
+                                  }}
+                                  className={`block w-full px-4 py-2 text-left text-sm whitespace-nowrap transition-colors ${
+                                    sortOption === option.value
+                                      ? 'bg-purple-50 text-[#7E22CE] font-medium'
+                                      : 'text-gray-700 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>,
+                            document.body
+                          )
+                        : null}
+                    </div>
                   </div>
-
-                  {/* Time filters group */}
-                  <div className={`bg-gray-100 rounded-lg ${isStacked ? 'px-0.5 py-0.5' : 'px-0.5 py-0.5'} flex gap-0.5`}>
-                    <button className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} text-gray-600 hover:bg-gray-50 rounded-md cursor-pointer`}>Morning</button>
-                    <button className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} text-gray-600 hover:bg-gray-50 rounded-md cursor-pointer`}>Afternoon</button>
-                  </div>
-
-                  {/* More Filters button */}
-                  <button className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer`}>More Filters</button>
-                </div>
-
-                {/* Sort section */}
-                <div className={`flex items-center gap-1 ${isStacked ? 'ml-1' : 'ml-3 md:ml-4'}`}>
-                  <span className={`${isStacked ? 'text-xs' : 'text-xs md:text-sm'} text-gray-600 whitespace-nowrap`}>Sort by:</span>
-                  <button className={`${isStacked ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 md:px-4 md:py-2 text-xs md:text-sm'} border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer`}>
-                    <span>Recommended</span>
-                    <span className="text-gray-500">▼</span>
-                  </button>
-                </div>
-              </div>
+                )}
+              />
             </div>
           </div>
 
@@ -842,7 +1369,7 @@ function SearchPageContent() {
           <div className="relative h-full overflow-hidden">
             <div ref={listRef} className={`overflow-y-auto px-6 py-2 md:py-6 h-full max-h-full xl:h-[calc(100vh-15rem)] ${isStacked ? 'snap-y snap-mandatory' : ''} overscroll-contain scrollbar-hide`} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               {/* Rate limit banner */}
-              <RateLimitBanner />
+              <RateLimitBanner rateLimit={rateLimit} />
 
             {/* Kids banner */}
             {ageGroup === 'kids' && (
@@ -863,12 +1390,12 @@ function SearchPageContent() {
               <div className="flex justify-center items-center h-64">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#7E22CE]"></div>
               </div>
-            ) : error ? (
+            ) : errorMessage ? (
               <div className="text-center py-12">
-                <p className="text-red-600">{error}</p>
+                <p className="text-red-600">{errorMessage}</p>
                 <Link href="/" className="text-[#7E22CE] hover:underline mt-4 inline-block">Return to Home</Link>
               </div>
-            ) : filteredInstructors.length === 0 ? (
+            ) : sortedInstructors.length === 0 ? (
               <div className="text-center py-12" data-testid="no-results">
                 <p className="text-gray-600 text-lg mb-4">No instructors found matching your search.</p>
                 <Link href="/" className="text-[#7E22CE] hover:underline">Try a different search</Link>
@@ -876,16 +1403,11 @@ function SearchPageContent() {
             ) : (
               <>
                 <div className={`flex flex-col ${isStacked ? 'gap-20' : 'gap-4 md:gap-6'}`}>
-                  {filteredInstructors.map((instructor, index) => {
+                  {sortedInstructors.map((instructor, index) => {
                     const highlightServiceCatalogId =
                       (instructor as { _matchedServiceCatalogId?: string | null })._matchedServiceCatalogId ??
                       (serviceCatalogId || null);
-                    const enhancedInstructor = {
-                      ...instructor,
-                      rating: instructor.rating || 4.8,
-                      total_reviews: instructor.total_reviews || Math.floor(Math.random() * 100) + 20,
-                      verified: true,
-                    };
+                    const enhancedInstructor = { ...instructor };
 
                     const handleInteraction = (
                       interactionType: 'click' | 'hover' | 'bookmark' | 'view_profile' | 'contact' | 'book' = 'click'
@@ -943,11 +1465,11 @@ function SearchPageContent() {
                   </div>
                 )}
 
-                {filteredInstructors.length > 0 && filteredInstructors.length < instructors.length && (
+                {sortedInstructors.length > 0 && sortedInstructors.length < sidebarFilteredInstructors.length && (
                   <div className="mt-4 md:mt-8 text-center text-gray-600 py-4">
-                    {filteredInstructors.length === 1
+                    {sortedInstructors.length === 1
                       ? "1 instructor found in this area"
-                      : `Showing ${filteredInstructors.length} instructors in this area`}
+                      : `Showing ${sortedInstructors.length} instructors in this area`}
                   </div>
                 )}
               </>
@@ -975,10 +1497,11 @@ function SearchPageContent() {
             <div className="bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 p-2 md:p-4 h-full">
               <InstructorCoverageMap
                 height="100%"
-                featureCollection={isFeatureCollection(coverageGeoJSON) ? coverageGeoJSON : null}
+                featureCollection={coverageFeatureCollection}
                 showCoverage={true}
                 highlightInstructorId={hoveredInstructorId}
                 focusInstructorId={focusedInstructorId}
+                locationPins={locationPins}
                 onBoundsChange={handleMapBoundsChange}
                 showSearchAreaButton={showSearchAreaButton}
                 onSearchArea={handleSearchArea}
@@ -1012,6 +1535,12 @@ function SearchPageContent() {
       )}
     </div>
   );
+}
+
+function SearchPageContent() {
+  const searchParams = useSearchParams();
+  const searchKey = searchParams.toString();
+  return <SearchPageInner key={searchKey} />;
 }
 
 export default function SearchResultsPage() {

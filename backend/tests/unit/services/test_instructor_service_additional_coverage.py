@@ -148,9 +148,27 @@ class TestAutoBioGeneration:
         update_data = MagicMock()
         update_data.model_dump.return_value = {"bio": None}
         update_data.bio = None
+        from app.schemas.instructor import ServiceCreate
+
         update_data.services = [
-            MagicMock(service_catalog_id="cat-yoga"),
-            MagicMock(service_catalog_id="cat-pilates"),
+            ServiceCreate(
+                offers_travel=False,
+                offers_at_location=False,
+                offers_online=True,
+                service_catalog_id="cat-yoga",
+                hourly_rate=60.0,
+                description="Yoga sessions",
+                duration_options=[60],
+            ),
+            ServiceCreate(
+                offers_travel=False,
+                offers_at_location=False,
+                offers_online=True,
+                service_catalog_id="cat-pilates",
+                hourly_rate=65.0,
+                description="Pilates sessions",
+                duration_options=[60],
+            ),
         ]
 
         # Mock geocoding

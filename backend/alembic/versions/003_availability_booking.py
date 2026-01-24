@@ -142,11 +142,15 @@ def upgrade() -> None:
         sa.Column("status", sa.String(20), nullable=False, server_default="CONFIRMED"),
         sa.Column("service_area", sa.String(), nullable=True),
         sa.Column("meeting_location", sa.Text(), nullable=True),
+        sa.Column("location_address", sa.Text(), nullable=True),
+        sa.Column("location_lat", sa.Numeric(10, 8), nullable=True),
+        sa.Column("location_lng", sa.Numeric(11, 8), nullable=True),
+        sa.Column("location_place_id", sa.String(255), nullable=True),
         sa.Column(
             "location_type",
             sa.String(50),
             nullable=True,
-            comment="Type of meeting location: student_home, instructor_location, or neutral",
+            comment="Type of meeting location: student_location, instructor_location, online, or neutral_location",
         ),
         sa.Column("student_note", sa.Text(), nullable=True),
         sa.Column("instructor_note", sa.Text(), nullable=True),
@@ -272,6 +276,7 @@ def upgrade() -> None:
     op.create_index("idx_bookings_cancelled_by_id", "bookings", ["cancelled_by_id"])
     op.create_index("idx_bookings_rescheduled_from_id", "bookings", ["rescheduled_from_booking_id"])
     op.create_index("idx_bookings_rescheduled_to_id", "bookings", ["rescheduled_to_booking_id"])
+    op.create_index("idx_bookings_location_place_id", "bookings", ["location_place_id"])
     op.create_index(
         "ix_bookings_payment_status",
         "bookings",
@@ -304,7 +309,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_bookings_location_type",
         "bookings",
-        "location_type IN ('student_home', 'instructor_location', 'neutral', 'remote', 'online')",
+        "location_type IN ('student_location', 'instructor_location', 'online', 'neutral_location')",
     )
     op.create_check_constraint(
         "ck_bookings_payment_status",
@@ -779,6 +784,7 @@ def downgrade() -> None:
     op.drop_index("ix_bookings_locked_at", table_name="bookings")
     op.drop_index("ix_bookings_auth_scheduled_for", table_name="bookings")
     op.drop_index("ix_bookings_payment_status", table_name="bookings")
+    op.drop_index("idx_bookings_location_place_id", table_name="bookings")
     op.drop_index("idx_bookings_rescheduled_to_id", table_name="bookings")
     op.drop_index("idx_bookings_rescheduled_from_id", table_name="bookings")
     op.drop_index("idx_bookings_cancelled_by_id", table_name="bookings")

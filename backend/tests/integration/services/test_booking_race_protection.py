@@ -56,6 +56,7 @@ def _get_service_with_duration(db: Session, instructor: User, duration_minutes: 
             service_catalog_id=catalog.id,
             hourly_rate=120.0,
             duration_options=[60],
+            offers_at_location=True,
             is_active=True,
         )
         db.add(new_service)
@@ -64,7 +65,11 @@ def _get_service_with_duration(db: Session, instructor: User, duration_minutes: 
     for svc in services:
         options = getattr(svc, "duration_options", []) or []
         if duration_minutes in options:
+            svc.offers_at_location = True
+            db.flush()
             return svc
+    services[0].offers_at_location = True
+    db.flush()
     return services[0]
 
 

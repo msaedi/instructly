@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { InstructorProfile, InstructorService, ServiceAreaNeighborhood } from '@/types/instructor';
+import type { InstructorProfile, InstructorService, ServiceAreaNeighborhood, ServiceLocationType } from '@/types/instructor';
 import { useInstructor } from '@/src/api/services/instructors';
 
 type ServerInstructorProfileResult = {
@@ -14,7 +14,10 @@ type ServerInstructorProfileResult = {
     duration_options?: number[];
     hourly_rate?: number | string;
     description?: string | null;
-    location_types?: string[];
+    location_types?: ServiceLocationType[];
+    offers_travel?: boolean;
+    offers_at_location?: boolean;
+    offers_online?: boolean;
     levels_taught?: string[];
     age_groups?: string[];
     service_catalog_name?: string;
@@ -23,7 +26,13 @@ type ServerInstructorProfileResult = {
   service_area_boroughs?: string[];
   service_area_neighborhoods?: ServiceAreaNeighborhood[];
   service_area_summary?: string | null;
-  preferred_teaching_locations?: Array<{ address?: string; label?: string | null }>;
+  preferred_teaching_locations?: Array<{
+    address?: string | null;
+    label?: string | null;
+    approx_lat?: number | null;
+    approx_lng?: number | null;
+    neighborhood?: string | null;
+  }>;
   preferred_public_spaces?: Array<{ address?: string; label?: string | null }>;
   years_experience?: number;
   favorited_count?: number;
@@ -31,6 +40,13 @@ type ServerInstructorProfileResult = {
   is_favorited?: unknown;
   has_profile_picture?: boolean;
   profile_picture_version?: number;
+  is_live?: boolean;
+  is_founding_instructor?: boolean;
+  bgc_status?: string | null;
+  background_check_status?: string | null;
+  background_check_verified?: boolean | null;
+  background_check_completed?: boolean | null;
+  bgc_completed_at?: string | null;
 };
 
 /**
@@ -78,6 +94,18 @@ export function useInstructorProfile(instructorId: string) {
         result.location_types = svc.location_types;
       }
 
+      if (typeof svc.offers_travel === 'boolean') {
+        result.offers_travel = svc.offers_travel;
+      }
+
+      if (typeof svc.offers_at_location === 'boolean') {
+        result.offers_at_location = svc.offers_at_location;
+      }
+
+      if (typeof svc.offers_online === 'boolean') {
+        result.offers_online = svc.offers_online;
+      }
+
       if (Array.isArray(svc.levels_taught) && svc.levels_taught.length) {
         result.levels_taught = svc.levels_taught;
       }
@@ -107,6 +135,12 @@ export function useInstructorProfile(instructorId: string) {
       ? Number((serverInst as Record<string, unknown>)['profile_picture_version'])
       : undefined;
 
+    const bgcStatusRaw = typeof (serverInst as Record<string, unknown>)['bgc_status'] === 'string'
+      ? String((serverInst as Record<string, unknown>)['bgc_status'])
+      : typeof (serverInst as Record<string, unknown>)['background_check_status'] === 'string'
+        ? String((serverInst as Record<string, unknown>)['background_check_status'])
+        : undefined;
+
     const instructorProfile: InstructorProfile = {
       id: canonicalId,
       user_id: serverInst.user_id || canonicalId,
@@ -119,11 +153,44 @@ export function useInstructorProfile(instructorId: string) {
             .map((loc) => {
               if (!loc || typeof loc !== 'object') return null;
               const address = typeof loc.address === 'string' ? loc.address.trim() : '';
-              if (!address) return null;
               const labelRaw = typeof loc.label === 'string' ? loc.label.trim() : '';
-              return labelRaw ? { address, label: labelRaw } : { address };
+              const approxLat = typeof loc.approx_lat === 'number' ? loc.approx_lat : undefined;
+              const approxLng = typeof loc.approx_lng === 'number' ? loc.approx_lng : undefined;
+              const neighborhood = typeof loc.neighborhood === 'string' ? loc.neighborhood.trim() : '';
+
+              if (!address && !labelRaw && !Number.isFinite(approxLat) && !Number.isFinite(approxLng) && !neighborhood) {
+                return null;
+              }
+
+              const payload: {
+                address?: string;
+                label?: string;
+                approx_lat?: number;
+                approx_lng?: number;
+                neighborhood?: string;
+              } = {};
+              if (address) payload.address = address;
+              if (labelRaw) payload.label = labelRaw;
+              if (typeof approxLat === 'number' && Number.isFinite(approxLat)) {
+                payload.approx_lat = approxLat;
+              }
+              if (typeof approxLng === 'number' && Number.isFinite(approxLng)) {
+                payload.approx_lng = approxLng;
+              }
+              if (neighborhood) payload.neighborhood = neighborhood;
+              return payload;
             })
-            .filter((loc): loc is { address: string; label?: string } => loc !== null)
+            .filter(
+              (
+                loc
+              ): loc is {
+                address?: string;
+                label?: string;
+                approx_lat?: number;
+                approx_lng?: number;
+                neighborhood?: string;
+              } => loc !== null
+            )
         : [],
       preferred_public_spaces: Array.isArray(serverInst.preferred_public_spaces)
         ? serverInst.preferred_public_spaces
@@ -149,11 +216,25 @@ export function useInstructorProfile(instructorId: string) {
       ...(typeof topLevelProfilePictureVersion !== 'undefined' ? { profile_picture_version: topLevelProfilePictureVersion } : {}),
       services: mappedServices,
       favorited_count: serverInst.favorited_count || 0,
+      ...(typeof serverInst.is_live === 'boolean' && { is_live: serverInst.is_live }),
+      ...(typeof serverInst.is_founding_instructor === 'boolean' && {
+        is_founding_instructor: serverInst.is_founding_instructor,
+      }),
       // Only include optional properties when they have actual values
       ...(typeof (serverInst as Record<string, unknown>)['verified'] !== 'undefined' && { is_verified: Boolean((serverInst as Record<string, unknown>)['verified']) }),
       ...(typeof (serverInst as Record<string, unknown>)['is_favorited'] !== 'undefined' && { is_favorited: Boolean((serverInst as Record<string, unknown>)['is_favorited']) }),
-      ...(typeof (serverInst as Record<string, unknown>)['bgc_status'] === 'string' && {
-        bgc_status: String((serverInst as Record<string, unknown>)['bgc_status']),
+      ...(typeof bgcStatusRaw === 'string' && {
+        bgc_status: bgcStatusRaw,
+      }),
+      ...(typeof (serverInst as Record<string, unknown>)['background_check_verified'] === 'boolean' && {
+        background_check_completed: Boolean(
+          (serverInst as Record<string, unknown>)['background_check_verified']
+        ),
+      }),
+      ...(typeof (serverInst as Record<string, unknown>)['background_check_completed'] === 'boolean' && {
+        background_check_completed: Boolean(
+          (serverInst as Record<string, unknown>)['background_check_completed']
+        ),
       }),
       ...(typeof (serverInst as Record<string, unknown>)['bgc_completed_at'] === 'string' && {
         bgc_completed_at: String((serverInst as Record<string, unknown>)['bgc_completed_at']),

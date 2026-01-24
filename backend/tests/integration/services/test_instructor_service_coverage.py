@@ -77,6 +77,9 @@ def test_create_and_update_instructor_profile(db, test_student, monkeypatch):
         buffer_time_minutes=0,
         services=[
             ServiceCreate(
+                offers_travel=False,
+                offers_at_location=False,
+                offers_online=True,
                 service_catalog_id=catalog_services[0].id,
                 hourly_rate=50.0,
                 description="Lessons",
@@ -107,6 +110,9 @@ def test_create_and_update_instructor_profile(db, test_student, monkeypatch):
 
     update_services = [
         ServiceCreate(
+            offers_travel=False,
+            offers_at_location=False,
+            offers_online=True,
             service_catalog_id=catalog_services[0].id,
             hourly_rate=55.0,
             description="Updated",
@@ -116,6 +122,9 @@ def test_create_and_update_instructor_profile(db, test_student, monkeypatch):
     if len(catalog_services) > 1:
         update_services.append(
             ServiceCreate(
+                offers_travel=False,
+                offers_at_location=False,
+                offers_online=True,
                 service_catalog_id=catalog_services[1].id,
                 hourly_rate=60.0,
                 description="Second",

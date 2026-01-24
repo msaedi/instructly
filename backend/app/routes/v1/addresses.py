@@ -22,12 +22,13 @@ Endpoints:
 import logging
 from typing import Any, Dict, Mapping, Sequence, cast
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Response, status
 from fastapi.params import Path
 from sqlalchemy.orm import Session
 
-from ...api.dependencies.auth import get_current_active_user
+from ...api.dependencies.auth import get_current_active_user, require_beta_access
 from ...api.dependencies.services import get_cache_service_dep
+from ...core.exceptions import DomainException
 from ...database import get_db as get_session
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
@@ -217,7 +218,12 @@ def delete_my_address(
 
 
 # Instructor service areas
-@router.get("/service-areas/me", response_model=ServiceAreasResponse)
+@router.get(
+    "/service-areas/me",
+    response_model=ServiceAreasResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
+@rate_limit("30/minute", key_type=RateLimitKeyType.IP)
 def list_my_service_areas(
     current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
@@ -379,14 +385,22 @@ def place_details(place_id: str, provider: str | None = None) -> PlaceDetails:
     )
 
 
-@router.put("/service-areas/me", response_model=ServiceAreasResponse)
+@router.put(
+    "/service-areas/me",
+    response_model=ServiceAreasResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
+@rate_limit("30/minute", key_type=RateLimitKeyType.IP)
 def replace_my_service_areas(
     payload: ServiceAreasUpdateRequest,
     current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
 ) -> ServiceAreasResponse:
     """Replace all service areas for the current instructor."""
-    service.replace_service_areas(current_user.id, payload.neighborhood_ids)
+    try:
+        service.replace_service_areas(current_user.id, payload.neighborhood_ids)
+    except DomainException as exc:
+        raise exc.to_http_exception()
     service_areas_raw = cast(
         Sequence[Mapping[str, Any]],
         service.list_service_areas(current_user.id),
@@ -399,7 +413,9 @@ def replace_my_service_areas(
 @router.get("/coverage/bulk", response_model=CoverageFeatureCollectionResponse)
 @rate_limit("10/minute", key_type=RateLimitKeyType.IP)
 def get_bulk_coverage_geojson(
-    ids: str, service: AddressService = Depends(get_address_service)
+    ids: str,
+    response: Response,
+    service: AddressService = Depends(get_address_service),
 ) -> CoverageFeatureCollectionResponse:
     """Return GeoJSON FeatureCollection of neighborhoods served by the given instructors.
 
@@ -408,10 +424,12 @@ def get_bulk_coverage_geojson(
     instructor_ids = [s.strip() for s in (ids or "").split(",") if s.strip()]
     # Basic validation and limit
     if not instructor_ids:
+        response.headers["Cache-Control"] = "public, max-age=600"
         return CoverageFeatureCollectionResponse(type="FeatureCollection", features=[])
     if len(instructor_ids) > 100:
         instructor_ids = instructor_ids[:100]
     geo = cast(Mapping[str, Any], service.get_coverage_geojson_for_instructors(instructor_ids))
+    response.headers["Cache-Control"] = "public, max-age=600"
     return CoverageFeatureCollectionResponse(
         type=geo.get("type", "FeatureCollection"), features=geo.get("features", [])
     )

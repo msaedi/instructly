@@ -8,9 +8,10 @@ jest.mock('@/types/booking', () => ({
   ...jest.requireActual('@/types/booking'),
   getLocationTypeIcon: (locationType: string) => {
     const icons: Record<string, string> = {
-      in_person: '📍',
-      remote: '💻',
-      hybrid: '🔄',
+      student_location: '🏠',
+      instructor_location: '🏫',
+      neutral_location: '📍',
+      online: '💻',
     };
     return icons[locationType] || '📍';
   },
@@ -23,7 +24,7 @@ describe('BookedSlotCell', () => {
     student_last_initial: 'D',
     service_name: 'Piano Lesson',
     service_area_short: 'UWS',
-    location_type: 'in_person',
+    location_type: 'student_location',
     duration_minutes: 60,
     date: '2026-01-20',
     start_time: '10:00',
@@ -79,7 +80,7 @@ describe('BookedSlotCell', () => {
 
     it('shows location type icon', () => {
       render(<BookedSlotCell {...defaultProps} />);
-      expect(screen.getByText('📍')).toBeInTheDocument();
+      expect(screen.getByText('🏠')).toBeInTheDocument();
     });
 
     it('shows duration badge for bookings over 60 minutes', () => {
@@ -128,7 +129,7 @@ describe('BookedSlotCell', () => {
 
     it('shows location type icon', () => {
       render(<BookedSlotCell {...defaultProps} isMobile={true} />);
-      expect(screen.getByText('📍')).toBeInTheDocument();
+      expect(screen.getByText('🏠')).toBeInTheDocument();
     });
 
     it('shows service area abbreviation', () => {
@@ -167,17 +168,16 @@ describe('BookedSlotCell', () => {
   });
 
   describe('different location types', () => {
-    it('shows remote icon for remote location', () => {
-      const remoteSlot = { ...mockSlot, location_type: 'remote' as const };
+    it('shows online icon for online location', () => {
+      const remoteSlot = { ...mockSlot, location_type: 'online' as const };
       render(<BookedSlotCell {...defaultProps} slot={remoteSlot} />);
       expect(screen.getByText('💻')).toBeInTheDocument();
     });
 
-    it('shows student_home icon for student_home location', () => {
-      const studentHomeSlot = { ...mockSlot, location_type: 'student_home' as const };
+    it('shows student location icon for student location', () => {
+      const studentHomeSlot = { ...mockSlot, location_type: 'student_location' as const };
       render(<BookedSlotCell {...defaultProps} slot={studentHomeSlot} />);
-      // Student home has the house icon in the component
-      expect(screen.getByRole('button')).toBeInTheDocument();
+      expect(screen.getByText('🏠')).toBeInTheDocument();
     });
   });
 });

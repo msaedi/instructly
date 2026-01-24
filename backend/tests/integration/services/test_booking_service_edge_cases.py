@@ -99,8 +99,10 @@ class TestBookingServiceErrorHandling:
             end_time=end_time,
             selected_duration=60,
             instructor_service_id=service.id,
-            location_type="neutral",
-            meeting_location="Online",
+            location_type="neutral_location",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
         )
 
         # Should succeed despite notification failure
@@ -168,7 +170,7 @@ class TestBookingServiceQueryVariations:
             total_price=50.0,
             duration_minutes=60,
             status=BookingStatus.CANCELLED,
-            location_type="neutral",
+            location_type="neutral_location",
         )
         db.add(cancelled_booking)
         db.commit()
@@ -213,7 +215,7 @@ class TestBookingServiceQueryVariations:
                 total_price=50.0,
                 duration_minutes=60,
                 status=BookingStatus.CONFIRMED,
-                location_type="neutral",
+                location_type="neutral_location",
             )
             db.add(booking)
         db.commit()
@@ -274,7 +276,7 @@ class TestBookingServiceStatisticsEdgeCases:
             total_price=100.0,  # 2 hours
             duration_minutes=120,
             status=BookingStatus.COMPLETED,
-            location_type="neutral",
+            location_type="neutral_location",
             completed_at=datetime.now(timezone.utc),
         )
         db.add(completed_booking)
@@ -563,7 +565,7 @@ class TestBookingServiceReminders:
             total_price=50.0,
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
-            location_type="neutral",
+            location_type="neutral_location",
         )
         db.add(another_booking)
         db.commit()
@@ -677,9 +679,12 @@ class TestStudentDoubleBookingPrevention:
                 service_catalog_id=piano_catalog.id,
                 hourly_rate=100.0,
                 duration_options=[60],  # Add duration_options
+                offers_travel=True,
                 is_active=True,
             )
             db.add(piano_service)
+        piano_service.offers_travel = True
+        db.flush()
 
         # Add availability for both instructors using service-level week save
         availability_service = AvailabilityService(db)
@@ -736,8 +741,10 @@ class TestStudentDoubleBookingPrevention:
             end_time=time(11, 0),
             selected_duration=60,
             instructor_service_id=service1.id,
-            location_type="neutral",
-            meeting_location="Online",
+            location_type="neutral_location",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
         )
 
         booking1 = await asyncio.to_thread(booking_service.create_booking,
@@ -754,8 +761,10 @@ class TestStudentDoubleBookingPrevention:
             end_time=time(11, 30),
             selected_duration=60,
             instructor_service_id=piano_service.id,
-            location_type="neutral",
-            meeting_location="Online",
+            location_type="neutral_location",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
         )
 
         # This should fail with ConflictException
@@ -841,9 +850,12 @@ class TestStudentDoubleBookingPrevention:
                 service_catalog_id=piano_catalog.id,
                 hourly_rate=100.0,
                 duration_options=[60],  # Add duration_options
+                offers_travel=True,
                 is_active=True,
             )
             db.add(piano_service)
+        piano_service.offers_travel = True
+        db.flush()
 
         # Add availability for both instructors using the service layer to avoid overlaps
         availability_service = AvailabilityService(db)
@@ -881,8 +893,10 @@ class TestStudentDoubleBookingPrevention:
             end_time=time(11, 0),
             selected_duration=60,
             instructor_service_id=service1.id,
-            location_type="neutral",
-            meeting_location="Online",
+            location_type="neutral_location",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
         )
 
         booking1 = await asyncio.to_thread(booking_service.create_booking,
@@ -899,8 +913,10 @@ class TestStudentDoubleBookingPrevention:
             end_time=time(15, 0),  # 3:00 PM
             selected_duration=60,
             instructor_service_id=piano_service.id,
-            location_type="neutral",
-            meeting_location="Online",
+            location_type="neutral_location",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
         )
 
         # This should succeed - no overlap

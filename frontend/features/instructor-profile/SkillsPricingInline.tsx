@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { DollarSign, ChevronDown, Lightbulb } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
@@ -12,6 +13,10 @@ import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/que
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import type { ApiErrorResponse, CategoryServiceDetail, InstructorProfileResponse, ServiceCategory } from '@/features/shared/api/types';
+import type { ServiceLocationType } from '@/types/instructor';
+import { queryKeys } from '@/src/api/queryKeys';
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
+import { toast } from 'sonner';
 
 type SelectedService = {
   catalog_service_id: string;
@@ -23,7 +28,34 @@ type SelectedService = {
   equipment?: string;
   levels_taught: Array<'beginner' | 'intermediate' | 'advanced'>;
   duration_options: number[];
-  location_types: Array<'in-person' | 'online'>;
+  offers_travel: boolean;
+  offers_at_location: boolean;
+  offers_online: boolean;
+};
+
+type ServiceCapabilities = Pick<
+  SelectedService,
+  'offers_travel' | 'offers_at_location' | 'offers_online'
+>;
+
+const hasAnyLocationOption = (service: ServiceCapabilities) =>
+  service.offers_travel || service.offers_at_location || service.offers_online;
+
+const isLocationCapabilityError = (message: string) =>
+  message.includes("Cannot enable travel") ||
+  message.includes("Cannot enable 'at my location'");
+
+const locationTypesFromCapabilities = (
+  service: ServiceCapabilities
+): ServiceLocationType[] => {
+  const types: ServiceLocationType[] = [];
+  if (service.offers_travel || service.offers_at_location) {
+    types.push('in_person');
+  }
+  if (service.offers_online) {
+    types.push('online');
+  }
+  return types;
 };
 
 interface Props {
@@ -37,13 +69,15 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   const [servicesByCategory, setServicesByCategory] = useState<Record<string, CategoryServiceDetail[]>>({});
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
+  const queryClient = useQueryClient();
   const [svcLoading, setSvcLoading] = useState(false);
   const [svcSaving, setSvcSaving] = useState(false);
   const [error, setError] = useState('');
+  const [priceErrors, setPriceErrors] = useState<Record<string, string>>({});
   // Default to true (assume live) until we confirm otherwise - safer default
   const [isInstructorLive, setIsInstructorLive] = useState(true);
   const [profileLoaded, setProfileLoaded] = useState(false);
-  const { config: pricingConfig } = usePricingConfig();
+  const { config: pricingConfig, isLoading: pricingConfigLoading } = usePricingConfig();
   const { fees } = usePlatformFees();
   const pricingFloors = pricingConfig?.price_floor_cents ?? null;
 
@@ -52,10 +86,47 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   const { data: allServicesData, isLoading: allServicesLoading } = useAllServicesWithInstructors();
   // Use React Query hook for instructor profile when prop not provided (prevents duplicate API calls)
   const { data: profileFromHook } = useInstructorProfileMe(!instructorProfile);
+  const profileData = instructorProfile ?? profileFromHook;
+  const hasServiceAreas = useMemo(() => {
+    if (!profileData) return false;
+    const neighborhoods = Array.isArray(profileData.service_area_neighborhoods)
+      ? profileData.service_area_neighborhoods
+      : [];
+    const boroughs = Array.isArray(profileData.service_area_boroughs)
+      ? profileData.service_area_boroughs
+      : [];
+    const summary =
+      typeof profileData.service_area_summary === 'string'
+        ? profileData.service_area_summary
+        : '';
+    return (
+      neighborhoods.length > 0 || boroughs.length > 0 || summary.trim().length > 0
+    );
+  }, [profileData]);
+  const hasTeachingLocations = useMemo(() => {
+    if (!profileData) return false;
+    const teaching = Array.isArray(profileData.preferred_teaching_locations)
+      ? profileData.preferred_teaching_locations
+      : [];
+    return teaching.length > 0;
+  }, [profileData]);
   const [skillsFilter, setSkillsFilter] = useState('');
   const [requestedSkill, setRequestedSkill] = useState('');
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
+  const initialLoadRef = useRef(true);
+  const autoSaveTimeout = useRef<NodeJS.Timeout | null>(null);
+  const hasLocalEditsRef = useRef(false);
+  const isHydratingRef = useRef(false);
+  const isEditingRef = useRef(false);
+  const pendingSyncSignatureRef = useRef<string | null>(null);
+  const lastLocalSignatureRef = useRef<string>('');
+  // FIX 1: Use ref for priceErrors to avoid dependency cycle in handleSave
+  // handleSave reads priceErrors but also SETS it, causing infinite re-renders
+  const priceErrorsRef = useRef<Record<string, string>>({});
+  // FIX 4: Use ref for handleSave to remove it from autosave effect dependencies
+  // This prevents the effect from firing twice (once for selectedServices, once for handleSave)
+  const handleSaveRef = useRef<((source: 'auto' | 'manual') => Promise<void>) | null>(null);
   const profileFeeContext = useMemo(() => {
     const profileData = instructorProfile ?? profileFromHook;
     const record = profileData as Record<string, unknown> | null;
@@ -79,20 +150,104 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   const instructorTakeHomePct = useMemo(() => resolveTakeHomePct(platformFeeRate), [platformFeeRate]);
   const platformFeeLabel = useMemo(() => formatPlatformFeeLabel(platformFeeRate), [platformFeeRate]);
 
+  const resolveCapabilitiesFromService = useCallback((service: Record<string, unknown>): ServiceCapabilities => {
+    return {
+      offers_travel: service['offers_travel'] === true,
+      offers_at_location: service['offers_at_location'] === true,
+      offers_online: service['offers_online'] === true,
+    };
+  }, []);
+
+  const defaultCapabilities = (): ServiceCapabilities => {
+    const defaultTravel = hasServiceAreas;
+    const defaultAtLocation = hasTeachingLocations;
+    return {
+      offers_travel: defaultTravel,
+      offers_at_location: defaultAtLocation,
+      offers_online: !defaultTravel && !defaultAtLocation,
+    };
+  };
+
   const serviceFloorViolations = useMemo(() => {
     const map = new Map<string, FloorViolation[]>();
-    if (!pricingFloors) return map;
+    if (!pricingFloors) {
+      logger.debug('SkillsPricingInline: serviceFloorViolations memo - no pricing floors');
+      return map;
+    }
     selectedServices.forEach((service) => {
+      const locationTypes = locationTypesFromCapabilities(service);
+      if (!locationTypes.length) {
+        logger.debug('SkillsPricingInline: serviceFloorViolations memo - no location types', {
+          serviceId: service.catalog_service_id,
+        });
+        return;
+      }
+      const hourlyRate = Number(service.hourly_rate);
       const violations = evaluatePriceFloorViolations({
-        hourlyRate: Number(service.hourly_rate),
+        hourlyRate,
         durationOptions: service.duration_options ?? [60],
-        locationTypes: service.location_types ?? ['in-person'],
+        locationTypes,
         floors: pricingFloors,
+      });
+      logger.debug('SkillsPricingInline: serviceFloorViolations memo - evaluated', {
+        serviceId: service.catalog_service_id,
+        hourlyRate,
+        locationTypes,
+        durationOptions: service.duration_options,
+        violationsCount: violations.length,
+        violations,
       });
       if (violations.length > 0) map.set(service.catalog_service_id, violations);
     });
     return map;
   }, [pricingFloors, selectedServices]);
+
+  const buildPriceFloorErrors = useCallback(() => {
+    const next: Record<string, string> = {};
+    if (!pricingFloors) return next;
+    serviceFloorViolations.forEach((violations, serviceId) => {
+      const violation = violations?.[0];
+      if (!violation) return;
+      const serviceName =
+        selectedServices.find((s) => s.catalog_service_id === serviceId)?.name || 'this service';
+      next[serviceId] =
+        `Minimum price for a ${violation.modalityLabel} ${violation.duration}-minute private session ` +
+        `is $${formatCents(violation.floorCents)} (current $${formatCents(violation.baseCents)}). ` +
+        `Please adjust the rate for ${serviceName}.`;
+    });
+    return next;
+  }, [pricingFloors, serviceFloorViolations, selectedServices]);
+
+  const serializeServices = useCallback((services: SelectedService[]) => {
+    return JSON.stringify(
+      services
+        .map((service) => ({
+          id: service.catalog_service_id,
+          hourly_rate: service.hourly_rate.trim(),
+          offers_travel: service.offers_travel,
+          offers_at_location: service.offers_at_location,
+          offers_online: service.offers_online,
+          duration_options: [...service.duration_options].sort((a, b) => a - b),
+          levels_taught: [...service.levels_taught].sort(),
+          ageGroup: service.ageGroup,
+          description: (service.description ?? '').trim(),
+          equipment: (service.equipment ?? '').trim(),
+        }))
+        .sort((a, b) => a.id.localeCompare(b.id))
+    );
+  }, []);
+
+  const setSelectedServicesWithDirty = useCallback((updater: (prev: SelectedService[]) => SelectedService[]) => {
+    hasLocalEditsRef.current = true;
+    isEditingRef.current = true;
+    pendingSyncSignatureRef.current = null;
+    setSelectedServices(updater);
+  }, []);
+
+  // FIX 1 (continued): Sync priceErrors ref when state changes
+  useEffect(() => {
+    priceErrorsRef.current = priceErrors;
+  }, [priceErrors]);
 
   // Sync loading state with React Query hooks
   useEffect(() => {
@@ -129,6 +284,10 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     const profileData = instructorProfile ?? profileFromHook;
     if (!profileData) return;
 
+    if (isEditingRef.current) {
+      return;
+    }
+
     const me = profileData as Record<string, unknown>;
     logger.debug('SkillsPricingInline: using profile data', {
       source: instructorProfile ? 'prop' : 'hook',
@@ -144,6 +303,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     const mapped: SelectedService[] = (me['services'] as unknown[] || [])
       .map((svc: unknown) => {
         const s = svc as Record<string, unknown>;
+        const capabilities = resolveCapabilitiesFromService(s);
         const catalogId = String(s['service_catalog_id'] || '');
         const serviceName = displayServiceName(
           {
@@ -181,10 +341,9 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
             Array.isArray(s['duration_options']) && (s['duration_options'] as number[]).length
               ? (s['duration_options'] as number[])
               : [60],
-          location_types:
-            Array.isArray(s['location_types']) && (s['location_types'] as string[]).length
-              ? (s['location_types'] as Array<'in-person' | 'online'>)
-              : ['in-person'],
+          offers_travel: hasServiceAreas ? capabilities.offers_travel : false,
+          offers_at_location: hasTeachingLocations ? capabilities.offers_at_location : false,
+          offers_online: capabilities.offers_online,
         } as SelectedService;
       })
       .filter((svc: SelectedService) => svc.catalog_service_id);
@@ -198,9 +357,76 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
           ]),
         ).values(),
       );
+      const incomingSignature = serializeServices(deduped);
+
+      // FIX 6: Check if this is our own save returning
+      // If pendingSyncSignatureRef matches, this is our save - clear editing state and accept
+      if (pendingSyncSignatureRef.current && incomingSignature === pendingSyncSignatureRef.current) {
+        logger.debug('SkillsPricingInline: hydration matches pending save, accepting', {
+          matchedSignature: true,
+        });
+        pendingSyncSignatureRef.current = null;
+        hasLocalEditsRef.current = false;
+        isEditingRef.current = false; // FIX 6: Clear editing state now that our save is confirmed
+        isHydratingRef.current = true;
+        setSelectedServices(deduped);
+        return;
+      }
+
+      // If user has local edits and incoming doesn't match, don't overwrite
+      if (hasLocalEditsRef.current || isEditingRef.current) {
+        const localSignature = lastLocalSignatureRef.current;
+        if (localSignature === incomingSignature) {
+          // Incoming matches local - no change needed, just clear flags
+          hasLocalEditsRef.current = false;
+          isEditingRef.current = false;
+          return;
+        }
+        // Incoming differs from local - don't overwrite user edits
+        logger.debug('SkillsPricingInline: hydration blocked - user has local edits', {
+          hasLocalEdits: hasLocalEditsRef.current,
+          isEditing: isEditingRef.current,
+        });
+        return;
+      }
+
+      isHydratingRef.current = true;
+      hasLocalEditsRef.current = false;
       setSelectedServices(deduped);
     }
-  }, [instructorProfile, profileFromHook]);
+  }, [
+    hasServiceAreas,
+    hasTeachingLocations,
+    instructorProfile,
+    profileFromHook,
+    resolveCapabilitiesFromService,
+    serializeServices,
+  ]);
+
+  // FIX 3: Effect #5 - Capability cleanup when service areas/teaching locations removed
+  // This is a system-initiated change, not a user edit. Mark as hydrating to prevent
+  // autosave effect from treating it as a user change that needs saving.
+  useEffect(() => {
+    if (hasServiceAreas && hasTeachingLocations) return;
+    // Mark as hydrating so autosave effect skips this change
+    isHydratingRef.current = true;
+    setSelectedServices((prev) => {
+      let mutated = false;
+      const next = prev.map((service) => {
+        let updated = service;
+        if (!hasServiceAreas && updated.offers_travel) {
+          updated = { ...updated, offers_travel: false };
+          mutated = true;
+        }
+        if (!hasTeachingLocations && updated.offers_at_location) {
+          updated = { ...updated, offers_at_location: false };
+          mutated = true;
+        }
+        return updated;
+      });
+      return mutated ? next : prev;
+    });
+  }, [hasServiceAreas, hasTeachingLocations]);
 
   const toggleCategory = (slug: string) => {
     setCollapsed((prev) => ({ ...prev, [slug]: !prev[slug] }));
@@ -233,11 +459,11 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
       }
       return;
     }
-    setSelectedServices((prev) => prev.filter((s) => s.catalog_service_id !== catalogServiceId));
-  }, [canRemoveSkill, profileLoaded, isInstructorLive, selectedServices.length]);
+    setSelectedServicesWithDirty((prev) => prev.filter((s) => s.catalog_service_id !== catalogServiceId));
+  }, [canRemoveSkill, profileLoaded, isInstructorLive, selectedServices.length, setSelectedServicesWithDirty]);
 
   const toggleServiceSelection = (svc: CategoryServiceDetail) => {
-    setSelectedServices((prev) => {
+    setSelectedServicesWithDirty((prev) => {
       const exists = prev.some((s) => s.catalog_service_id === svc.id);
       if (exists) {
         // Block deletion until profile is loaded
@@ -265,7 +491,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
           equipment: '',
           levels_taught: ['beginner', 'intermediate', 'advanced'],
           duration_options: [60],
-          location_types: ['in-person'],
+          ...defaultCapabilities(),
         },
       ];
     });
@@ -287,16 +513,22 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     }
   }, [requestedSkill]);
 
-  const initialLoadRef = useRef(true);
-  const autoSaveTimeout = useRef<NodeJS.Timeout | null>(null);
-
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (source: 'auto' | 'manual' = 'auto') => {
     try {
       setSvcSaving(true);
+      // FIX 2: Don't clear isEditingRef at start - only after successful save
+      // This prevents hydration from overwriting user edits during save
 
       // Safeguard: Don't save if profile hasn't loaded (we don't know if instructor is live)
       if (!profileLoaded) {
         logger.warn('SkillsPricingInline: Skipping save - profile not loaded yet');
+        setSvcSaving(false);
+        return;
+      }
+
+      // FIX 9: Don't save if pricing config is still loading - we need it for floor validation
+      if (pricingConfigLoading) {
+        logger.warn('SkillsPricingInline: Skipping save - pricing config still loading');
         setSvcSaving(false);
         return;
       }
@@ -309,19 +541,61 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
         return;
       }
 
+      // FIX 8: Add comprehensive logging to debug price floor validation
+      logger.debug('SkillsPricingInline: price floor validation check', {
+        source,
+        hasPricingFloors: Boolean(pricingFloors),
+        pricingFloors,
+        violationsSize: serviceFloorViolations.size,
+        violations: Array.from(serviceFloorViolations.entries()).map(([id, v]) => ({ id, violations: v })),
+        services: selectedServices.map((s) => ({
+          id: s.catalog_service_id,
+          hourly_rate: s.hourly_rate,
+          duration_options: s.duration_options,
+          offers_travel: s.offers_travel,
+          offers_at_location: s.offers_at_location,
+          offers_online: s.offers_online,
+        })),
+      });
+
       if (pricingFloors && serviceFloorViolations.size > 0) {
-        const iterator = serviceFloorViolations.entries().next();
-        if (!iterator.done) {
-          const [serviceId, violations] = iterator.value;
-          const violation = violations?.[0];
-          if (violation) {
-            setError(
-              `Minimum price for a ${violation.modalityLabel} ${violation.duration}-minute private session is $${formatCents(violation.floorCents)} (current $${formatCents(violation.baseCents)}). Please adjust the rate for ${selectedServices.find((s) => s.catalog_service_id === serviceId)?.name || 'this service'}.`
-            );
-            setSvcSaving(false);
-            return;
-          }
+        const nextPriceErrors = buildPriceFloorErrors();
+        const firstError = Object.values(nextPriceErrors)[0];
+        if (firstError) {
+          logger.debug('SkillsPricingInline: price floor violation detected, blocking save', {
+            source,
+            violationCount: serviceFloorViolations.size,
+            firstError,
+          });
+          setPriceErrors(nextPriceErrors);
+          // FIX 7: Show toast for ALL saves (not just manual) so user sees feedback
+          toast.error(firstError, { id: 'price-floor-error' });
+          setSvcSaving(false);
+          return;
         }
+      }
+      // FIX 1: Read from ref to avoid dependency cycle
+      const currentPriceErrors = priceErrorsRef.current;
+      if (currentPriceErrors && Object.keys(currentPriceErrors).length > 0) {
+        setPriceErrors({});
+      }
+
+      const hasInvalidCapabilities = selectedServices.some((service) =>
+        !hasAnyLocationOption({
+          offers_travel: hasServiceAreas ? service.offers_travel : false,
+          offers_at_location: hasTeachingLocations ? service.offers_at_location : false,
+          offers_online: service.offers_online,
+        })
+      );
+      if (hasInvalidCapabilities) {
+        if (source === 'manual') {
+          toast.error(
+            'Select at least one way to offer this skill (travel, at your studio, or online)',
+            { id: 'capability-error' }
+          );
+        }
+        setSvcSaving(false);
+        return;
       }
 
       const payload = {
@@ -340,7 +614,9 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
               .filter(Boolean)?.length
               ? { equipment_required: service.equipment.split(',').map((v) => v.trim()).filter(Boolean) }
               : {}),
-            location_types: service.location_types?.length ? service.location_types : ['in-person'],
+            offers_travel: hasServiceAreas ? service.offers_travel : false,
+            offers_at_location: hasTeachingLocations ? service.offers_at_location : false,
+            offers_online: service.offers_online,
           })),
       };
 
@@ -353,27 +629,80 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
         const msg = (await res.json().catch(() => ({}))) as ApiErrorResponse;
         throw new Error(msg.detail || msg.message || 'Failed to save');
       }
+      // FIX 6: Set pendingSyncSignatureRef BEFORE invalidation, and DON'T clear isEditingRef
+      // The hydration effect will clear isEditingRef when it sees our save return
+      logger.debug('SkillsPricingInline: save succeeded', {
+        source,
+        serviceCount: selectedServices.length,
+      });
+      pendingSyncSignatureRef.current = serializeServices(selectedServices);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.instructors.me });
+      // DON'T clear isEditingRef here - let hydration effect clear it when signature matches
+      // This prevents race condition where hydration runs before we're ready
       setError('');
     } catch (e: unknown) {
       logger.error('Failed to save services', e);
-      setError(e instanceof Error ? e.message : 'Failed to save');
+      const message = e instanceof Error ? e.message : 'Failed to save';
+      if (isLocationCapabilityError(message)) {
+        setError('');
+        return;
+      }
+      setError(message);
     } finally {
       setSvcSaving(false);
     }
-  }, [profileLoaded, isInstructorLive, pricingFloors, selectedServices, serviceFloorViolations]);
+  }, [
+    buildPriceFloorErrors,
+    hasServiceAreas,
+    hasTeachingLocations,
+    profileLoaded,
+    isInstructorLive,
+    pricingConfigLoading, // FIX 9: Wait for pricing config before saving
+    pricingFloors,
+    // FIX 1: priceErrors removed - now read via priceErrorsRef to break dependency cycle
+    queryClient,
+    selectedServices,
+    serviceFloorViolations,
+    serializeServices,
+  ]);
 
+  // FIX 4 (continued): Keep handleSaveRef in sync with handleSave
+  useEffect(() => {
+    handleSaveRef.current = handleSave;
+  }, [handleSave]);
+
+  // Autosave effect - triggers save 1200ms after user changes
+  // FIX 4: Removed handleSave from dependencies - use ref instead
+  // This prevents double-firing when handleSave changes due to selectedServices dependency
   useEffect(() => {
     if (initialLoadRef.current) {
       initialLoadRef.current = false;
+      if (isHydratingRef.current) {
+        isHydratingRef.current = false;
+        return;
+      }
+      // FIX 5: Don't set hasLocalEditsRef on initial mount with empty services
+      // Only mark dirty if there are actually services (meaning user added something)
+      if (selectedServices.length > 0) {
+        hasLocalEditsRef.current = true;
+      }
       return;
     }
+
+    if (isHydratingRef.current) {
+      isHydratingRef.current = false;
+      return;
+    }
+
+    hasLocalEditsRef.current = true;
 
     if (autoSaveTimeout.current) {
       clearTimeout(autoSaveTimeout.current);
     }
 
     autoSaveTimeout.current = setTimeout(() => {
-      void handleSave();
+      // FIX 4: Call via ref to avoid dependency
+      void handleSaveRef.current?.('auto');
     }, 1200);
 
     return () => {
@@ -382,11 +711,17 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
         autoSaveTimeout.current = null;
       }
     };
-  }, [selectedServices, handleSave]);
+  }, [selectedServices]); // FIX 4: handleSave removed from dependencies
+
+  useEffect(() => {
+    lastLocalSignatureRef.current = serializeServices(selectedServices);
+  }, [selectedServices, serializeServices]);
+
+  const showError = Boolean(error) && !isLocationCapabilityError(error);
 
   return (
     <div className={className}>
-      {error && (
+      {showError && (
         <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</div>
       )}
       {svcLoading ? (
@@ -474,8 +809,21 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
 
           {/* Your selected skills (detailed cards) */}
           <div className="space-y-4">
-            {selectedServices.map((s, index) => (
-              <div key={`${s.catalog_service_id || s.name}-${index}`} className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            {selectedServices.map((s, index) => {
+              const effectiveOffersTravel = hasServiceAreas ? s.offers_travel : false;
+              const effectiveOffersAtLocation = hasTeachingLocations ? s.offers_at_location : false;
+              const priceError = priceErrors[s.catalog_service_id];
+              const effectiveCapabilities: ServiceCapabilities = {
+                offers_travel: effectiveOffersTravel,
+                offers_at_location: effectiveOffersAtLocation,
+                offers_online: s.offers_online,
+              };
+
+              return (
+                <div
+                  key={`${s.catalog_service_id || s.name}-${index}`}
+                  className="p-4 bg-gray-50 border border-gray-200 rounded-lg"
+                >
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <div className="text-base font-medium text-gray-900">{s.service_catalog_name ?? s.name ?? 'Service'}</div>
@@ -508,15 +856,37 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                         type="number"
                         placeholder="Hourly rate"
                         value={s.hourly_rate}
-                        onChange={(e) => setSelectedServices((prev) => prev.map((x, i) => i === index ? { ...x, hourly_rate: e.target.value } : x))}
-                        className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] focus:border-purple-500"
+                        onChange={(e) => {
+                          const nextValue = e.target.value;
+                          setSelectedServicesWithDirty((prev) =>
+                            prev.map((x, i) => (i === index ? { ...x, hourly_rate: nextValue } : x))
+                          );
+                          if (priceError) {
+                            setPriceErrors((prev) => {
+                              if (!prev[s.catalog_service_id]) return prev;
+                              const next = { ...prev };
+                              delete next[s.catalog_service_id];
+                              return next;
+                            });
+                          }
+                        }}
+                        // FIX 2: Removed onBlur that cleared isEditingRef
+                        // isEditingRef stays true until save succeeds, protecting against hydration overwrite
+                        className={`w-full pl-9 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                          priceError
+                            ? 'border-red-500 focus:ring-red-200 focus:border-red-500'
+                            : 'border-gray-300 focus:ring-[#D4B5F0] focus:border-purple-500'
+                        }`}
+                        aria-invalid={priceError ? 'true' : 'false'}
                         min="0"
                         step="0.01"
                         required
                       />
                     </div>
-                    <span className="text-sm text-gray-600">/hr</span>
                   </div>
+                  {priceError && (
+                    <p className="mt-1 text-xs text-red-600">{priceError}</p>
+                  )}
                   {s.hourly_rate && Number(s.hourly_rate) > 0 && (
                     <div className="mt-2 text-xs text-gray-600">
                       You&apos;ll earn{' '}
@@ -537,7 +907,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                         return (
                           <button
                             key={ageType}
-                            onClick={() => setSelectedServices((prev) => prev.map((x, i) => {
+                            onClick={() => setSelectedServicesWithDirty((prev) => prev.map((x, i) => {
                               if (i !== index) return x;
                               const cur = x.ageGroup;
                               let next: 'kids' | 'adults' | 'both';
@@ -556,27 +926,108 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                     </div>
                   </div>
                   <div className="bg-white rounded-lg p-3 border border-gray-200">
-                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Location Type</label>
-                    <div className="flex gap-1">
-                      {(['in-person', 'online'] as const).map((loc) => (
-                        <button
-                          key={loc}
-                          onClick={() => setSelectedServices((prev) => prev.map((x, i) => {
-                            if (i !== index) return x;
-                            const has = x.location_types.includes(loc);
-                            const other = loc === 'in-person' ? 'online' : 'in-person';
-                            if (has && x.location_types.length === 1) return { ...x, location_types: [other] };
-                            return { ...x, location_types: has ? x.location_types.filter((v) => v !== loc) : [...x.location_types, loc] };
-                          }))}
-                          className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
-                            s.location_types.includes(loc) ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                          type="button"
-                        >
-                          {loc === 'in-person' ? 'In-Person' : 'Online'}
-                        </button>
-                      ))}
+                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">
+                      How do you offer this skill?
+                    </label>
+                    <div className="space-y-3">
+                      {(() => {
+                        const travelDisabled = !hasServiceAreas;
+                        const travelMessage = travelDisabled
+                          ? 'You need at least one service area to offer travel lessons'
+                          : null;
+                        const atLocationDisabled = !hasTeachingLocations;
+                        const atLocationMessage = atLocationDisabled
+                          ? 'You need at least one teaching location to offer studio lessons'
+                          : null;
+
+                        return (
+                          <>
+                            <div
+                              className={`rounded-md border border-gray-200 p-3 ${
+                                travelDisabled ? 'opacity-60 cursor-not-allowed' : ''
+                              }`}
+                              title={travelMessage ?? undefined}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-700">I travel to students</p>
+                                  <p className="text-xs text-gray-500">(Within your service areas)</p>
+                                </div>
+                                <ToggleSwitch
+                                  checked={effectiveOffersTravel}
+                                  onChange={() =>
+                                    setSelectedServicesWithDirty((prev) =>
+                                      prev.map((x, i) =>
+                                        i === index ? { ...x, offers_travel: !x.offers_travel } : x
+                                      )
+                                    )
+                                  }
+                                  disabled={travelDisabled}
+                                  ariaLabel="I travel to students"
+                                  {...(travelMessage ? { title: travelMessage } : {})}
+                                />
+                              </div>
+                              {travelMessage && (
+                                <p className="mt-1 text-xs text-gray-500">{travelMessage}</p>
+                              )}
+                            </div>
+                            <div
+                              className={`rounded-md border border-gray-200 p-3 ${
+                                atLocationDisabled ? 'opacity-60 cursor-not-allowed' : ''
+                              }`}
+                              title={atLocationMessage ?? undefined}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-700">Students come to me</p>
+                                  <p className="text-xs text-gray-500">(At your teaching location)</p>
+                                </div>
+                                <ToggleSwitch
+                                  checked={effectiveOffersAtLocation}
+                                  onChange={() =>
+                                    setSelectedServicesWithDirty((prev) =>
+                                      prev.map((x, i) =>
+                                        i === index ? { ...x, offers_at_location: !x.offers_at_location } : x
+                                      )
+                                    )
+                                  }
+                                  disabled={atLocationDisabled}
+                                  ariaLabel="Students come to me"
+                                  {...(atLocationMessage ? { title: atLocationMessage } : {})}
+                                />
+                              </div>
+                              {atLocationMessage && (
+                                <p className="mt-1 text-xs text-gray-500">{atLocationMessage}</p>
+                              )}
+                            </div>
+                            <div className="rounded-md border border-gray-200 p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-700">Online lessons</p>
+                                  <p className="text-xs text-gray-500">(Video call)</p>
+                                </div>
+                                <ToggleSwitch
+                                  checked={s.offers_online}
+                                  onChange={() =>
+                                    setSelectedServicesWithDirty((prev) =>
+                                      prev.map((x, i) =>
+                                        i === index ? { ...x, offers_online: !x.offers_online } : x
+                                      )
+                                    )
+                                  }
+                                  ariaLabel="Online lessons"
+                                />
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
+                    {!hasAnyLocationOption(effectiveCapabilities) && (
+                      <p className="text-xs text-red-600 mt-2">
+                        Select at least one location option for this skill.
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -587,7 +1038,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                       {(['beginner', 'intermediate', 'advanced'] as const).map((lvl) => (
                         <button
                           key={lvl}
-                          onClick={() => setSelectedServices((prev) => prev.map((x, i) => i === index ? { ...x, levels_taught: x.levels_taught.includes(lvl) ? x.levels_taught.filter((v) => v !== lvl) : [...x.levels_taught, lvl] } : x))}
+                          onClick={() => setSelectedServicesWithDirty((prev) => prev.map((x, i) => i === index ? { ...x, levels_taught: x.levels_taught.includes(lvl) ? x.levels_taught.filter((v) => v !== lvl) : [...x.levels_taught, lvl] } : x))}
                           className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
                             s.levels_taught.includes(lvl) ? 'bg-purple-100 text-[#7E22CE] border border-purple-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
@@ -604,7 +1055,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                       {[30, 45, 60, 90].map((d) => (
                         <button
                           key={d}
-                          onClick={() => setSelectedServices((prev) => prev.map((x, i) => {
+                          onClick={() => setSelectedServicesWithDirty((prev) => prev.map((x, i) => {
                             if (i !== index) return x;
                             const has = x.duration_options.includes(d);
                             if (has && x.duration_options.length === 1) return x;
@@ -630,7 +1081,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white"
                       placeholder="Brief description of your teaching style..."
                       value={s.description || ''}
-                      onChange={(e) => setSelectedServices((prev) => prev.map((x, i) => i === index ? { ...x, description: e.target.value } : x))}
+                      onChange={(e) => setSelectedServicesWithDirty((prev) => prev.map((x, i) => i === index ? { ...x, description: e.target.value } : x))}
                     />
                   </div>
                   <div>
@@ -640,12 +1091,13 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500 bg-white"
                       placeholder="Yoga mat, tennis racket..."
                       value={s.equipment || ''}
-                      onChange={(e) => setSelectedServices((prev) => prev.map((x, i) => i === index ? { ...x, equipment: e.target.value } : x))}
+                      onChange={(e) => setSelectedServicesWithDirty((prev) => prev.map((x, i) => i === index ? { ...x, equipment: e.target.value } : x))}
                     />
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
 
             {selectedServices.length === 0 && (
               <div className="text-center py-8 text-gray-500">

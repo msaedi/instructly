@@ -4,10 +4,9 @@
 import { useRouter } from 'next/navigation';
 import { Star, Heart, Layers, MonitorSmartphone, Clock3, MapPin } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
-import { Instructor, ServiceCatalogItem } from '@/types/api';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Instructor } from '@/types/api';
+import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { publicApi } from '@/features/shared/api/client';
 import { ApiProblemError } from '@/lib/api/fetch';
 import {
   fetchPricingPreview,
@@ -17,20 +16,16 @@ import {
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { favoritesApi } from '@/services/api/favorites';
 import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavoriteStatus';
-import { useSearchRatingQuery } from '@/hooks/queries/useRatings';
+import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
+import { useServicesCatalog } from '@/hooks/queries/useServices';
 import { useRecentReviews } from '@/src/api/services/reviews';
 import { toast } from 'sonner';
-import { logger } from '@/lib/logger';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { timeToMinutes } from '@/lib/time';
 import { at } from '@/lib/ts/safe';
 import { MessageInstructorButton } from '@/components/instructor/MessageInstructorButton';
 import { FoundingBadge } from '@/components/ui/FoundingBadge';
 import { BGCBadge } from '@/components/ui/BGCBadge';
-
-// Simple in-module cache to avoid N duplicate catalog fetches (one per card)
-let catalogCache: ServiceCatalogItem[] | null = null;
-let catalogPromise: Promise<ServiceCatalogItem[]> | null = null;
 
 type AvailabilitySlot = {
   start_time: string;
@@ -121,7 +116,7 @@ interface InstructorCardProps {
   appliedCreditCents?: number;
   highlightServiceCatalogId?: string;
 }
-export default function InstructorCard({
+function InstructorCard({
   instructor,
   availabilityData,
   onViewProfile,
@@ -134,7 +129,7 @@ export default function InstructorCard({
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
+  const { data: serviceCatalog = [] } = useServicesCatalog();
 
   // Use React Query hook for favorite status (prevents duplicate API calls)
   const { data: favoriteStatus } = useFavoriteStatus(instructor.user_id);
@@ -165,18 +160,33 @@ export default function InstructorCard({
     () => Math.max(0, Math.round(appliedCreditCents ?? 0)),
     [appliedCreditCents]
   );
-  const primaryServiceId = instructor?.services?.[0]?.id;
-  const { data: searchRating } = useSearchRatingQuery(instructor.user_id, primaryServiceId);
-  const rating = typeof searchRating?.primary_rating === 'number' ? searchRating?.primary_rating : null;
-  const reviewCount = searchRating?.review_count || 0;
+  const { data: ratingsData } = useInstructorRatingsQuery(instructor.user_id);
+  const rating =
+    typeof ratingsData?.overall?.rating === 'number' ? ratingsData.overall.rating : null;
+  const reviewCount = ratingsData?.overall?.total_reviews ?? 0;
   const showRating = typeof rating === 'number' && reviewCount >= 3;
   const distanceMi = (instructor as { distance_mi?: number | null }).distance_mi;
   const showDistance = typeof distanceMi === 'number' && Number.isFinite(distanceMi);
   const showFoundingBadge = Boolean(instructor.is_founding_instructor);
-  const bgcStatusValue = (instructor as { bgc_status?: string | null }).bgc_status;
+  const bgcStatusValue =
+    (instructor as { bgc_status?: string | null }).bgc_status ??
+    (instructor as { background_check_status?: string | null }).background_check_status ??
+    null;
   const bgcStatus = typeof bgcStatusValue === 'string' ? bgcStatusValue.toLowerCase() : '';
   const isLive = Boolean((instructor as { is_live?: boolean }).is_live);
-  const showBGCBadge = isLive || bgcStatus === 'pending';
+  const backgroundCheckVerified =
+    isLive ||
+    bgcStatus === 'passed' ||
+    bgcStatus === 'clear' ||
+    bgcStatus === 'verified' ||
+    Boolean(
+      (instructor as { background_check_verified?: boolean | null }).background_check_verified
+    ) ||
+    Boolean(
+      (instructor as { background_check_completed?: boolean | null }).background_check_completed
+    );
+  const showBGCBadge = backgroundCheckVerified || bgcStatus === 'pending';
+  const resolvedBgcStatus = bgcStatusValue ?? (backgroundCheckVerified ? 'passed' : null);
 
   // Use React Query hook for recent reviews (prevents duplicate API calls)
   const { data: recentReviewsData } = useRecentReviews({
@@ -186,42 +196,6 @@ export default function InstructorCard({
   const recentReviews = recentReviewsData?.reviews ?? [];
   const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
   const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'NYC';
-  // Fetch service catalog on mount with simple de-duplication
-  useEffect(() => {
-    const fetchServiceCatalog = async () => {
-      try {
-        if (catalogCache) {
-          setServiceCatalog(catalogCache);
-          return;
-        }
-        if (catalogPromise) {
-          const data = await catalogPromise;
-          setServiceCatalog(data);
-          return;
-        }
-        catalogPromise = (async () => {
-          const response = await publicApi.getCatalogServices();
-          const data: ServiceCatalogItem[] = (response.data ?? []).map((service) => {
-            const { description, ...rest } = service;
-            return {
-              ...rest,
-              ...(typeof description === 'string' ? { description } : {}),
-            };
-          });
-          catalogCache = data;
-          return data;
-        })();
-        const activePromise = catalogPromise;
-        if (!activePromise) return;
-        const data = await activePromise;
-        setServiceCatalog(data);
-      } catch (error) {
-        logger.error('Failed to fetch service catalog', error as Error);
-      }
-    };
-    void fetchServiceCatalog();
-  }, []);
-
   // Favorite status is now handled by useFavoriteStatus hook (React Query)
   // Recent reviews are now handled by useRecentReviews hook (React Query)
 
@@ -455,7 +429,7 @@ const findNextAvailableSlot = (
 
               {showBGCBadge ? (
                 <div className={showRating || showFoundingBadge ? 'mt-1' : ''}>
-                  <BGCBadge isLive={isLive} bgcStatus={bgcStatusValue ?? null} />
+                  <BGCBadge isLive={isLive} bgcStatus={resolvedBgcStatus} />
                 </div>
               ) : null}
 
@@ -486,7 +460,6 @@ const findNextAvailableSlot = (
                 })._matchedServiceContext;
                 const contextLevels = context?.levels ?? [];
                 const contextAgeGroups = context?.age_groups ?? [];
-                const contextLocations = context?.location_types ?? [];
 
                 const highlightService = highlightId
                   ? instructor.services.find(
@@ -494,17 +467,22 @@ const findNextAvailableSlot = (
                     )
                   : null;
 
+                const formatService = highlightService ?? instructor.services[0];
+                const offersTravel = Boolean(formatService?.offers_travel);
+                const hasTeachingLocations =
+                  (Array.isArray((instructor as { teaching_locations?: unknown[] }).teaching_locations) &&
+                    (instructor as { teaching_locations?: unknown[] }).teaching_locations!.length > 0) ||
+                  (Array.isArray((instructor as { preferred_teaching_locations?: unknown[] }).preferred_teaching_locations) &&
+                    (instructor as { preferred_teaching_locations?: unknown[] }).preferred_teaching_locations!.length > 0);
+                const offersAtLocation =
+                  Boolean(formatService?.offers_at_location) && Boolean(hasTeachingLocations);
+                const offersOnline = Boolean(formatService?.offers_online);
+                const hasFormat = offersTravel || offersAtLocation || offersOnline;
+
                 const derivedLevels = Array.isArray(highlightService?.levels_taught)
                   ? Array.from(
                       new Set(
                         highlightService!.levels_taught!.map((lvl) => String(lvl).trim().toLowerCase()).filter(Boolean),
-                      ),
-                    )
-                  : [];
-                const derivedLocations = Array.isArray(highlightService?.location_types)
-                  ? Array.from(
-                      new Set(
-                        highlightService!.location_types!.map((loc) => String(loc).trim().toLowerCase()).filter(Boolean),
                       ),
                     )
                   : [];
@@ -518,20 +496,9 @@ const findNextAvailableSlot = (
 
                 const levels = contextLevels.length ? contextLevels : derivedLevels;
                 const ageGroups = contextAgeGroups.length ? contextAgeGroups : derivedAgeGroups;
-                const locations = contextLocations.length ? contextLocations : derivedLocations;
 
                 const levelLabel = levels
                   .map((lvl) => lvl.charAt(0).toUpperCase() + lvl.slice(1))
-                  .join(' · ');
-                const locationLabel = locations
-                  .map((loc) =>
-                    loc.includes('-')
-                      ? loc
-                          .split('-')
-                          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-                          .join('-')
-                      : loc.charAt(0).toUpperCase() + loc.slice(1),
-                  )
                   .join(' · ');
                 const showsKidsBadge = ageGroups.map((g) => g.toLowerCase()).includes('kids');
 
@@ -556,13 +523,34 @@ const findNextAvailableSlot = (
                     </div>
                   );
                 }
-                if (locationLabel) {
+                if (hasFormat) {
                   highlightRows.push(
                     <div className="flex items-center gap-2">
                       <MonitorSmartphone className="h-3.5 w-3.5 text-[#7E22CE]" aria-hidden="true" />
                       <div>
                         <span className="font-semibold text-[#7E22CE]">Format:</span>{' '}
-                        <span>{locationLabel}</span>
+                        <span className="inline-flex items-center gap-1.5">
+                          {offersTravel && (
+                            <span role="img" aria-label="Travels to you" title="Travels to you" className="cursor-help">
+                              🚗
+                            </span>
+                          )}
+                          {offersAtLocation && (
+                            <span
+                              role="img"
+                              aria-label="At their studio"
+                              title="At their studio"
+                              className="cursor-help inline-flex items-center"
+                            >
+                              <MapPin className="h-4 w-4 text-[#7E22CE]" aria-hidden="true" />
+                            </span>
+                          )}
+                          {offersOnline && (
+                            <span role="img" aria-label="Online" title="Online" className="cursor-help">
+                              💻
+                            </span>
+                          )}
+                        </span>
                       </div>
                     </div>
                   );
@@ -652,9 +640,7 @@ const findNextAvailableSlot = (
                 title={!user ? "Sign in to save this instructor" : isFavorited ? "Remove from favorites" : "Add to favorites"}
               >
                 <Heart
-                  className="h-5 w-5"
-                  fill={isFavorited ? '#ff0000' : 'none'}
-                  color={isFavorited ? '#ff0000' : '#666'}
+                  className={`h-5 w-5 ${isFavorited ? 'fill-red-500 text-red-500' : 'fill-none text-gray-500'}`}
                 />
               </button>
             </div>
@@ -804,11 +790,18 @@ const findNextAvailableSlot = (
               {recentReviews.map((r) => (
                 <div key={r.id} className="bg-gray-50 p-3 rounded-lg">
                   <div className="flex items-center mb-1">
-                    <div className="flex">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="h-4 w-4 text-yellow-500 fill-current" />
-                      ))}
-                    </div>
+                  <div className="flex">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`h-4 w-4 ${
+                          typeof r.rating === 'number' && star <= r.rating
+                            ? 'fill-yellow-400 text-yellow-400'
+                            : 'fill-gray-200 text-gray-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
                   </div>
                   {r.review_text && (
                     <p className="text-sm text-gray-700 italic line-clamp-3">{`"${r.review_text}"`}</p>
@@ -825,3 +818,5 @@ const findNextAvailableSlot = (
     </div>
   );
 }
+
+export default memo(InstructorCard);

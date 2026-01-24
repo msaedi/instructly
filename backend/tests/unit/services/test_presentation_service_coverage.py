@@ -58,7 +58,7 @@ def test_format_booked_slot_for_display(db) -> None:
     assert result.student_first_name == "John"
     assert result.student_last_initial == "S."
     assert result.service_area_short == "UWS"
-    assert result.location_type == "neutral"
+    assert result.location_type == "online"
 
 
 def test_format_booked_slots_from_service_data(db, monkeypatch) -> None:

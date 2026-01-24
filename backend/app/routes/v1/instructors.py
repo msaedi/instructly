@@ -44,6 +44,7 @@ from ...database import get_db
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit as legacy_rate_limit
 from ...models.user import User
 from ...ratelimit.dependency import rate_limit
+from ...repositories.filter_repository import FilterRepository
 from ...schemas.address_responses import CoverageFeatureCollectionResponse
 from ...schemas.base_responses import PaginatedResponse
 from ...schemas.instructor import (
@@ -51,6 +52,8 @@ from ...schemas.instructor import (
     InstructorProfileCreate,
     InstructorProfileResponse,
     InstructorProfileUpdate,
+    InstructorServiceAreaCheckResponse,
+    ServiceAreaCheckCoordinates,
 )
 from ...services.address_service import AddressService
 from ...services.cache_service import CacheServiceSyncAdapter
@@ -428,4 +431,48 @@ async def get_coverage(
     )
     return CoverageFeatureCollectionResponse(
         type=geo.get("type", "FeatureCollection"), features=geo.get("features", [])
+    )
+
+
+@router.get(
+    "/{instructor_id}/check-service-area",
+    response_model=InstructorServiceAreaCheckResponse,
+    dependencies=[Depends(rate_limit("read"))],
+    responses={
+        400: {"description": "Invalid instructor ID"},
+        404: {"description": "Instructor not found"},
+    },
+)
+def check_service_area(
+    instructor_id: str = Path(
+        ...,
+        description="Instructor user ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
+    lat: float = Query(..., description="Latitude"),
+    lng: float = Query(..., description="Longitude"),
+    db: Session = Depends(get_db),
+    instructor_service: InstructorService = Depends(get_instructor_service),
+) -> InstructorServiceAreaCheckResponse:
+    """Check whether coordinates fall within an instructor's service area."""
+    if not is_valid_ulid(instructor_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid instructor ID")
+
+    try:
+        instructor_service.get_instructor_user(instructor_id)
+    except NotFoundException as exc:
+        raise exc.to_http_exception()
+
+    filter_repo = FilterRepository(db)
+    is_covered = filter_repo.is_location_in_service_area(
+        instructor_id=instructor_id,
+        lat=lat,
+        lng=lng,
+    )
+
+    return InstructorServiceAreaCheckResponse(
+        instructor_id=instructor_id,
+        is_covered=is_covered,
+        coordinates=ServiceAreaCheckCoordinates(lat=lat, lng=lng),
     )

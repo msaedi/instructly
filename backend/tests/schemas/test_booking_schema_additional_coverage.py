@@ -48,7 +48,7 @@ def _base_booking_payload() -> dict:
         "status": BookingStatus.CONFIRMED,
         "service_area": None,
         "meeting_location": None,
-        "location_type": "neutral",
+        "location_type": "neutral_location",
         "student_note": None,
         "instructor_note": None,
         "created_at": datetime(2024, 1, 1, tzinfo=timezone.utc),

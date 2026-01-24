@@ -53,19 +53,64 @@ function normalizeTimezone(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function normalizeModality(modality: unknown, fallbackLocation: string | undefined): 'remote' | 'in_person' {
-  const raw = typeof modality === 'string' ? modality.toLowerCase() : '';
-  if (raw.includes('remote') || raw.includes('online') || raw.includes('virtual')) {
-    return 'remote';
+function normalizeNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
   }
-  if (raw.includes('in_person') || raw.includes('in-person')) {
-    return 'in_person';
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
   }
-  const fallback = typeof fallbackLocation === 'string' ? fallbackLocation.toLowerCase() : '';
-  if (fallback.includes('online') || fallback.includes('remote') || fallback.includes('virtual')) {
-    return 'remote';
+  return undefined;
+}
+
+type NormalizedLocationType =
+  | 'student_location'
+  | 'instructor_location'
+  | 'online'
+  | 'neutral_location';
+
+function normalizeLocationType(
+  modality: unknown,
+  locationTypeOverride: unknown,
+  fallbackLocation: string | undefined,
+): NormalizedLocationType {
+  const normalizeHint = (value: unknown): NormalizedLocationType | null => {
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const raw = value.toLowerCase().trim();
+    if (!raw) {
+      return null;
+    }
+    if (raw.includes('remote') || raw.includes('online') || raw.includes('virtual')) {
+      return 'online';
+    }
+    if (raw.includes('instructor') || raw.includes('studio')) {
+      return 'instructor_location';
+    }
+    if (raw.includes('neutral') || raw.includes('public')) {
+      return 'neutral_location';
+    }
+    if (raw.includes('student') || raw.includes('home') || raw.includes('in_person') || raw.includes('in-person')) {
+      return 'student_location';
+    }
+    return null;
+  };
+
+  const override = normalizeHint(locationTypeOverride);
+  if (override) {
+    return override;
   }
-  return 'in_person';
+  const normalizedModality = normalizeHint(modality);
+  if (normalizedModality) {
+    return normalizedModality;
+  }
+  const fallback = normalizeHint(fallbackLocation);
+  if (fallback) {
+    return fallback;
+  }
+  return 'student_location';
 }
 
 /**
@@ -92,10 +137,44 @@ export function buildCreateBookingPayload({
     booking.startTime,
     booking.endTime,
   );
-  const modality = normalizeModality(metadata['modality'], booking.location);
-  const meetingLocation = booking.location || (modality === 'remote' ? 'Online' : 'In-person lesson');
+  const locationType = normalizeLocationType(
+    metadata['modality'],
+    metadata['location_type'],
+    booking.location,
+  );
+  const addressFromMetadata =
+    typeof metadata['location_address'] === 'string' ? metadata['location_address'] : undefined;
+  const addressFromBooking =
+    typeof booking.address?.fullAddress === 'string' ? booking.address.fullAddress : undefined;
+  const locationAddress =
+    locationType === 'online'
+      ? undefined
+      : addressFromBooking ?? addressFromMetadata ?? booking.location;
+  const locationLat =
+    locationType === 'online'
+      ? undefined
+      : booking.address?.lat ?? normalizeNumber(metadata['location_lat']);
+  const locationLng =
+    locationType === 'online'
+      ? undefined
+      : booking.address?.lng ?? normalizeNumber(metadata['location_lng']);
+  const locationPlaceId =
+    locationType === 'online'
+      ? undefined
+      : (typeof booking.address?.placeId === 'string' ? booking.address.placeId : undefined) ??
+        (typeof metadata['location_place_id'] === 'string'
+          ? metadata['location_place_id']
+          : undefined) ??
+        (typeof metadata['place_id'] === 'string' ? metadata['place_id'] : undefined);
+  const fallbackLocation =
+    typeof booking.location === 'string' && booking.location.trim().length > 0
+      ? booking.location
+      : undefined;
+  const meetingLocation =
+    locationAddress ??
+    fallbackLocation ??
+    (locationType === 'online' ? 'Online' : 'In-person lesson');
   const normalizedDate = normalizeBookingDate(bookingDate);
-  const locationType = modality;
   const resolvedTimezone =
     normalizeTimezone(instructorTimezone) ??
     normalizeTimezone(metadata['timezone']) ??
@@ -113,6 +192,10 @@ export function buildCreateBookingPayload({
     selected_duration: durationMinutes,
     meeting_location: meetingLocation,
     location_type: locationType,
+    ...(locationAddress !== undefined ? { location_address: locationAddress } : {}),
+    ...(locationLat !== undefined ? { location_lat: locationLat } : {}),
+    ...(locationLng !== undefined ? { location_lng: locationLng } : {}),
+    ...(locationPlaceId !== undefined ? { location_place_id: locationPlaceId } : {}),
   };
 
   if (resolvedTimezone) {

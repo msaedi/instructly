@@ -72,11 +72,10 @@ const hashQuotePayload = (payload?: PricingPreviewQuotePayloadBase | null): stri
 const QUOTE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const QUOTE_TIME_PATTERN = /^\d{2}:\d{2}$/;
 const ALLOWED_LOCATION_TYPES = new Set([
-  'remote',
-  'in_person',
-  'student_home',
+  'student_location',
   'instructor_location',
-  'neutral',
+  'online',
+  'neutral_location',
 ]);
 
 const validateQuotePayload = (
@@ -127,15 +126,20 @@ const extractBasePayload = (
     meeting_location,
   } = payload;
 
-  return {
+  const base: PricingPreviewQuotePayloadBase = {
     instructor_id,
     instructor_service_id,
     booking_date,
     start_time,
     selected_duration,
     location_type,
-    meeting_location,
   };
+
+  if (meeting_location !== undefined) {
+    base.meeting_location = meeting_location;
+  }
+
+  return base;
 };
 
 export function usePricingPreviewController({

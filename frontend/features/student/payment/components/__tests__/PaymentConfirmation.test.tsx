@@ -138,7 +138,20 @@ describe('PaymentConfirmation', () => {
     });
 
     fetchBookingsListMock.mockResolvedValue({ items: [] });
-    fetchInstructorProfileMock.mockResolvedValue({ services: [] });
+    fetchInstructorProfileMock.mockResolvedValue({
+      services: [
+        {
+          id: 'svc-1',
+          skill: 'Piano',
+          hourly_rate: 100,
+          duration_options: [60],
+          offers_online: true,
+          offers_travel: true,
+          offers_at_location: false,
+        },
+      ],
+      preferred_teaching_locations: [],
+    });
     getPlaceDetailsMock.mockResolvedValue({ data: null, error: null });
   });
 
@@ -384,16 +397,16 @@ describe('PaymentConfirmation', () => {
       expect(screen.getByText('Lesson Location')).toBeInTheDocument();
     });
 
-    it('shows online toggle checkbox', async () => {
+    it('shows online location option', async () => {
       await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
 
       // Expand location section
       fireEvent.click(screen.getByText('Lesson Location'));
 
-      expect(screen.getByLabelText('Online')).toBeInTheDocument();
+      expect(await screen.findByRole('button', { name: /online/i })).toBeInTheDocument();
     });
 
-    it('toggles online lesson when checkbox clicked', async () => {
+    it('toggles online lesson when option clicked', async () => {
       const user = setupUser();
 
       await renderWithConflictCheck(<PaymentConfirmation {...defaultProps} />);
@@ -401,10 +414,11 @@ describe('PaymentConfirmation', () => {
       // Expand location section
       fireEvent.click(screen.getByText('Lesson Location'));
 
-      const checkbox = screen.getByLabelText('Online');
-      await user.click(checkbox);
+      const onlineOption = await screen.findByRole('button', { name: /online/i });
+      await user.click(onlineOption);
 
-      expect(checkbox).toBeChecked();
+      expect(onlineOption).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByText(/online lesson via video call/i)).toBeInTheDocument();
     });
 
     it('shows address inputs when not online', async () => {
@@ -643,7 +657,8 @@ describe('PaymentConfirmation', () => {
 
       // Expand location and toggle online
       fireEvent.click(screen.getByText('Lesson Location'));
-      await user.click(screen.getByLabelText('Online'));
+      const onlineOption = await screen.findByRole('button', { name: /online/i });
+      await user.click(onlineOption);
 
       expect(onClearFloorViolation).toHaveBeenCalled();
     });
@@ -709,7 +724,15 @@ describe('PaymentConfirmation', () => {
 
       fetchInstructorProfileMock.mockResolvedValue({
         services: [
-          { id: 'svc-1', skill: 'Piano', hourly_rate: 100, duration_options: [30, 60, 90] },
+          {
+            id: 'svc-1',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [30, 60, 90],
+            offers_online: true,
+            offers_travel: false,
+            offers_at_location: false,
+          },
         ],
       });
 
@@ -730,7 +753,15 @@ describe('PaymentConfirmation', () => {
 
       fetchInstructorProfileMock.mockResolvedValue({
         services: [
-          { id: 'svc-1', skill: 'Piano', hourly_rate: 100, duration_options: [30, 60, 90] },
+          {
+            id: 'svc-1',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [30, 60, 90],
+            offers_online: true,
+            offers_travel: false,
+            offers_at_location: false,
+          },
         ],
       });
 
@@ -821,12 +852,11 @@ describe('PaymentConfirmation', () => {
       );
 
       // Wait for component to initialize
-      await waitFor(() => {
-        expect(screen.getByLabelText('Online')).toBeInTheDocument();
-      });
+      expect(await screen.findByRole('button', { name: /online/i })).toBeInTheDocument();
 
       // Toggle online
-      await user.click(screen.getByLabelText('Online'));
+      const onlineOption = await screen.findByRole('button', { name: /online/i });
+      await user.click(onlineOption);
 
       // onBookingUpdate is called during initialization and on changes
       await waitFor(() => {
@@ -900,8 +930,11 @@ describe('PaymentConfirmation', () => {
       // (Online location doesn't count as "saved location")
       // Wait for useEffect to parse the location and set isOnlineLesson = true
       await waitFor(() => {
-        const checkbox = screen.getByLabelText('Online');
-        expect(checkbox).toBeChecked();
+        if (!screen.queryByText(/How do you want to take this lesson/i)) {
+          fireEvent.click(screen.getByText('Lesson Location'));
+        }
+        const onlineOption = screen.getByRole('button', { name: /online/i });
+        expect(onlineOption).toHaveAttribute('aria-pressed', 'true');
       }, { timeout: 2000 });
     });
 
@@ -914,8 +947,11 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={remoteBooking} />);
 
       await waitFor(() => {
-        const checkbox = screen.getByLabelText('Online');
-        expect(checkbox).toBeChecked();
+        if (!screen.queryByText(/How do you want to take this lesson/i)) {
+          fireEvent.click(screen.getByText('Lesson Location'));
+        }
+        const onlineOption = screen.getByRole('button', { name: /online/i });
+        expect(onlineOption).toHaveAttribute('aria-pressed', 'true');
       }, { timeout: 2000 });
     });
 
@@ -2189,8 +2225,9 @@ describe('PaymentConfirmation', () => {
       // Expand location section
       fireEvent.click(screen.getByText('Lesson Location'));
 
-      // Toggle online checkbox
-      await user.click(screen.getByLabelText('Online'));
+      // Toggle online option
+      const onlineOption = await screen.findByRole('button', { name: /online/i });
+      await user.click(onlineOption);
 
       // onBookingUpdate should be called
       await waitFor(() => {
@@ -2218,12 +2255,13 @@ describe('PaymentConfirmation', () => {
       // Expand location section
       fireEvent.click(screen.getByText('Lesson Location'));
 
-      // Toggle online checkbox
-      await user.click(screen.getByLabelText('Online'));
+      // Toggle online option
+      const onlineOption = await screen.findByRole('button', { name: /online/i });
+      await user.click(onlineOption);
 
       await waitFor(() => {
-        const checkbox = screen.getByLabelText('Online');
-        expect(checkbox).toBeChecked();
+        const option = screen.getByRole('button', { name: /online/i });
+        expect(option).toHaveAttribute('aria-pressed', 'true');
       });
     });
   });
@@ -2234,8 +2272,24 @@ describe('PaymentConfirmation', () => {
 
       fetchInstructorProfileMock.mockResolvedValue({
         services: [
-          { id: 'svc-1', skill: 'Piano', hourly_rate: 100, duration_options: [30, 60, 90] },
-          { id: 'svc-2', skill: 'Guitar', hourly_rate: 80, duration_options: [30, 60] },
+          {
+            id: 'svc-1',
+            skill: 'Piano',
+            hourly_rate: 100,
+            duration_options: [30, 60, 90],
+            offers_online: true,
+            offers_travel: false,
+            offers_at_location: false,
+          },
+          {
+            id: 'svc-2',
+            skill: 'Guitar',
+            hourly_rate: 80,
+            duration_options: [30, 60],
+            offers_online: true,
+            offers_travel: false,
+            offers_at_location: false,
+          },
         ],
       });
 
@@ -2825,8 +2879,11 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={bookingWithRemoteMetadata as BookingPayment} />);
 
       await waitFor(() => {
-        const checkbox = screen.getByLabelText('Online');
-        expect(checkbox).toBeChecked();
+        if (!screen.queryByText(/How do you want to take this lesson/i)) {
+          fireEvent.click(screen.getByText('Lesson Location'));
+        }
+        const option = screen.getByRole('button', { name: /online/i });
+        expect(option).toHaveAttribute('aria-pressed', 'true');
       });
     });
 
@@ -2844,8 +2901,8 @@ describe('PaymentConfirmation', () => {
       fireEvent.click(screen.getByText('Lesson Location'));
 
       await waitFor(() => {
-        const checkbox = screen.getByLabelText('Online');
-        expect(checkbox).not.toBeChecked();
+        const option = screen.getByRole('button', { name: /online/i });
+        expect(option).toHaveAttribute('aria-pressed', 'false');
       });
     });
   });
@@ -3168,8 +3225,11 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={onlineBooking} />);
 
       await waitFor(() => {
-        const checkbox = screen.getByLabelText('Online');
-        expect(checkbox).toBeChecked();
+        if (!screen.queryByText(/How do you want to take this lesson/i)) {
+          fireEvent.click(screen.getByText('Lesson Location'));
+        }
+        const option = screen.getByRole('button', { name: /online/i });
+        expect(option).toHaveAttribute('aria-pressed', 'true');
       });
     });
 
@@ -3194,8 +3254,11 @@ describe('PaymentConfirmation', () => {
       render(<PaymentConfirmation {...defaultProps} booking={remoteBooking} />);
 
       await waitFor(() => {
-        const checkbox = screen.getByLabelText('Online');
-        expect(checkbox).toBeChecked();
+        if (!screen.queryByText(/How do you want to take this lesson/i)) {
+          fireEvent.click(screen.getByText('Lesson Location'));
+        }
+        const option = screen.getByRole('button', { name: /online/i });
+        expect(option).toHaveAttribute('aria-pressed', 'true');
       });
     });
   });

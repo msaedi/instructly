@@ -67,3 +67,26 @@ def test_replace_service_areas_uses_region_boundary(
     assert first["ntacode"] == unique_nyc_region_code
     assert first["name"] == "Test Neighborhood"
     assert first["borough"] == "Manhattan"
+
+
+def test_replace_service_areas_blocks_last_area_when_travel_enabled(
+    client: TestClient,
+    auth_headers_instructor: dict,
+) -> None:
+    resp = client.put(
+        "/api/v1/addresses/service-areas/me",
+        json={"neighborhood_ids": []},
+        headers=auth_headers_instructor,
+    )
+
+    assert resp.status_code == 422, resp.text
+    payload = resp.json()
+    detail = payload.get("detail") if isinstance(payload, dict) else None
+    message = ""
+    if isinstance(detail, dict):
+        msg = detail.get("message")
+        if isinstance(msg, str):
+            message = msg
+    elif isinstance(detail, str):
+        message = detail
+    assert "last service area" in message.lower()

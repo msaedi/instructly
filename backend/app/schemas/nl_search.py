@@ -20,6 +20,14 @@ from pydantic import BaseModel, Field
 # =============================================================================
 
 
+class InstructorTeachingLocationSummary(BaseModel):
+    """Approximate teaching location data for public maps."""
+
+    approx_lat: float = Field(..., description="Approximate latitude")
+    approx_lng: float = Field(..., description="Approximate longitude")
+    neighborhood: Optional[str] = Field(None, description="Neighborhood or city label")
+
+
 class InstructorSummary(BaseModel):
     """Embedded instructor info for search results."""
 
@@ -31,6 +39,9 @@ class InstructorSummary(BaseModel):
     verified: bool = Field(False, description="Whether instructor is verified")
     is_founding_instructor: bool = Field(False, description="Founding instructor status")
     years_experience: Optional[int] = Field(None, description="Years of experience")
+    teaching_locations: List[InstructorTeachingLocationSummary] = Field(
+        default_factory=list, description="Approximate teaching locations for studio pins"
+    )
 
 
 class RatingSummary(BaseModel):
@@ -51,6 +62,15 @@ class ServiceMatch(BaseModel):
     description: Optional[str] = Field(None, description="Service description")
     price_per_hour: int = Field(..., ge=0, description="Hourly rate in dollars")
     relevance_score: float = Field(..., ge=0, le=1, description="Semantic match score")
+    offers_travel: Optional[bool] = Field(
+        None, description="Instructor travels to student for this service"
+    )
+    offers_at_location: Optional[bool] = Field(
+        None, description="Instructor teaches at their own location for this service"
+    )
+    offers_online: Optional[bool] = Field(
+        None, description="Instructor offers online lessons for this service"
+    )
 
 
 class NLSearchResultItem(BaseModel):

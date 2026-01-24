@@ -26,6 +26,7 @@ Endpoints:
 
 import asyncio
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 import logging
 from typing import Any, NoReturn, Optional, cast
 
@@ -80,6 +81,23 @@ def handle_domain_exception(exc: DomainException) -> NoReturn:
     if hasattr(exc, "to_http_exception"):
         raise exc.to_http_exception()
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+
+
+def _safe_float(value: object) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float, Decimal)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _safe_str(value: object) -> Optional[str]:
+    return value if isinstance(value, str) else None
 
 
 # ============================================================================
@@ -524,11 +542,15 @@ async def get_booking_preview(
             start_time=str(booking.start_time),
             end_time=str(booking.end_time),
             duration_minutes=booking.duration_minutes,
-            location_type=booking.location_type or "neutral",
+            location_type=booking.location_type or "online",
             location_type_display=booking.location_type_display
             if booking.location_type
-            else "Neutral Location",
+            else "Online",
             meeting_location=booking.meeting_location,
+            location_address=_safe_str(getattr(booking, "location_address", None)),
+            location_lat=_safe_float(getattr(booking, "location_lat", None)),
+            location_lng=_safe_float(getattr(booking, "location_lng", None)),
+            location_place_id=_safe_str(getattr(booking, "location_place_id", None)),
             service_area=booking.service_area,
             status=booking.status,
             student_note=booking.student_note,
@@ -772,12 +794,38 @@ async def reschedule_booking(
                 else None
             )
             _location_type_raw = getattr(original, "location_type", None)
-            _location_type = (
-                _location_type_raw
-                if isinstance(_location_type_raw, str)
-                and _location_type_raw in ["student_home", "instructor_location", "neutral"]
-                else "neutral"
-            )
+            # Map legacy location_type values to canonical values
+            _LEGACY_LOCATION_TYPE_MAP = {
+                "student_home": "student_location",
+                "neutral": "neutral_location",
+                "instructor_studio": "instructor_location",
+                "in_person": "student_location",  # Default in-person to student location
+            }
+            _VALID_LOCATION_TYPES = {
+                "student_location",
+                "instructor_location",
+                "online",
+                "neutral_location",
+            }
+            if isinstance(_location_type_raw, str):
+                if _location_type_raw in _VALID_LOCATION_TYPES:
+                    _location_type = _location_type_raw
+                elif _location_type_raw in _LEGACY_LOCATION_TYPE_MAP:
+                    _location_type = _LEGACY_LOCATION_TYPE_MAP[_location_type_raw]
+                    logger.info(
+                        f"Mapped legacy location_type '{_location_type_raw}' to '{_location_type}'"
+                    )
+                else:
+                    logger.warning(
+                        f"Unknown location_type '{_location_type_raw}', defaulting to 'online'"
+                    )
+                    _location_type = "online"
+            else:
+                _location_type = "online"
+            _location_address = _safe_str(getattr(original, "location_address", None))
+            _location_lat = _safe_float(getattr(original, "location_lat", None))
+            _location_lng = _safe_float(getattr(original, "location_lng", None))
+            _location_place_id = _safe_str(getattr(original, "location_place_id", None))
 
             new_booking_data = BookingCreate(
                 instructor_id=original.instructor_id,
@@ -789,6 +837,10 @@ async def reschedule_booking(
                 student_note=_student_note,
                 meeting_location=_meeting_location,
                 location_type=_location_type,
+                location_address=_location_address,
+                location_lat=_location_lat,
+                location_lng=_location_lng,
+                location_place_id=_location_place_id,
             )
 
             raw_payment_intent_id = getattr(original, "payment_intent_id", None)

@@ -83,7 +83,7 @@ class TestInstructorPrivacySchemas:
             status=BookingStatus.CONFIRMED,
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
-            location_type="neutral",
+            location_type="neutral_location",
             service_area="Manhattan",
         )
         db.add(booking)
@@ -220,7 +220,7 @@ class TestBookingServicePrivacy:
             status=BookingStatus.CONFIRMED,
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
-            location_type="neutral",
+            location_type="neutral_location",
             service_area="Brooklyn",
         )
         db.add(booking)

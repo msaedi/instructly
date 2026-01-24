@@ -2543,6 +2543,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/instructors/{instructor_id}/check-service-area": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["check_service_area_api_v1_instructors__instructor_id__check_service_area_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/instructors/{instructor_id}/coverage": {
  parameters: {
  query?: never;
@@ -4239,6 +4255,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/services/{service_id}/capabilities": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch: operations["update_service_capabilities_api_v1_services__service_id__capabilities_patch"];
+ trace?: never;
+ };
  "/api/v1/sse/token": {
  parameters: {
  query?: never;
@@ -4573,7 +4605,7 @@ export type components = {
  instructor_note?: string | null;
  instructor_timezone?: string | null;
  lesson_timezone?: string | null;
- location_type?: string | null;
+ location_type?: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
  meeting_location?: string | null;
  payment: components["schemas"]["AdminBookingPaymentInfo"];
  service: components["schemas"]["AdminBookingServiceInfo"];
@@ -5262,7 +5294,7 @@ export type components = {
  date: string;
  duration_minutes: number;
  end_time: string;
- location_type: string;
+ location_type: "student_location" | "instructor_location" | "online" | "neutral_location";
  service_area_short: string;
  service_name: string;
  start_time: string;
@@ -5286,7 +5318,11 @@ export type components = {
  end_time?: string | null;
  instructor_id: string;
  instructor_service_id: string;
- location_type: ("student_home" | "instructor_location" | "neutral" | "remote" | "in_person") | null;
+ location_address?: string | null;
+ location_lat?: number | null;
+ location_lng?: number | null;
+ location_place_id?: string | null;
+ location_type: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
  meeting_location?: string | null;
  selected_duration: number;
  start_time: string;
@@ -5321,7 +5357,11 @@ export type components = {
  instructor_service_id: string;
  instructor_timezone?: string | null;
  lesson_timezone?: string | null;
- location_type: string | null;
+ location_address?: string | null;
+ location_lat?: number | null;
+ location_lng?: number | null;
+ location_place_id?: string | null;
+ location_type: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
  lock_resolution?: string | null;
  lock_resolved_at?: string | null;
  locked_amount_cents?: number | null;
@@ -5365,7 +5405,11 @@ export type components = {
  end_time: string;
  instructor_first_name: string;
  instructor_last_name: string;
- location_type: string;
+ location_address?: string | null;
+ location_lat?: number | null;
+ location_lng?: number | null;
+ location_place_id?: string | null;
+ location_type: "student_location" | "instructor_location" | "online" | "neutral_location";
  location_type_display: string;
  meeting_location: string | null;
  service_area: string | null;
@@ -5411,7 +5455,11 @@ export type components = {
  instructor_service_id: string;
  instructor_timezone?: string | null;
  lesson_timezone?: string | null;
- location_type: string | null;
+ location_address?: string | null;
+ location_lat?: number | null;
+ location_lng?: number | null;
+ location_place_id?: string | null;
+ location_type: ("student_location" | "instructor_location" | "online" | "neutral_location") | null;
  lock_resolution?: string | null;
  lock_resolved_at?: string | null;
  locked_amount_cents?: number | null;
@@ -6092,6 +6140,7 @@ export type components = {
  InstructorProfileResponse: {
  background_check_object_key?: string | null;
  background_check_uploaded_at?: string | null;
+ bgc_status?: string | null;
  bio: string;
  buffer_time_minutes: number;
  created_at: string;
@@ -6159,6 +6208,16 @@ export type components = {
  is_active: boolean;
  name: string;
  };
+ InstructorServiceAreaCheckResponse: {
+ coordinates: components["schemas"]["ServiceAreaCheckCoordinates"];
+ instructor_id: string;
+ is_covered: boolean;
+ };
+ InstructorServiceCapabilitiesUpdate: {
+ offers_at_location?: boolean | null;
+ offers_online?: boolean | null;
+ offers_travel?: boolean | null;
+ };
  InstructorServiceCreate: {
  catalog_service_id: string;
  custom_description?: string | null;
@@ -6174,7 +6233,12 @@ export type components = {
  hourly_rate: number;
  id: string;
  is_active: boolean;
+ location_types?: string[] | null;
  name: string;
+ offers_at_location: boolean;
+ offers_online: boolean;
+ offers_travel: boolean;
+ service_catalog_name?: string | null;
  updated_at?: string | null;
  };
  InstructorSummary: {
@@ -6184,8 +6248,14 @@ export type components = {
  is_founding_instructor: boolean;
  last_initial: string;
  profile_picture_url?: string | null;
+ teaching_locations?: components["schemas"]["InstructorTeachingLocationSummary"][];
  verified: boolean;
  years_experience?: number | null;
+ };
+ InstructorTeachingLocationSummary: {
+ approx_lat: number;
+ approx_lng: number;
+ neighborhood?: string | null;
  };
  InviteBatchAsyncStartResponse: {
  task_id: string;
@@ -6830,8 +6900,8 @@ export type components = {
  booking_date: string;
  instructor_id: string;
  instructor_service_id: string;
- location_type: string;
- meeting_location: string;
+ location_type: "student_location" | "instructor_location" | "online" | "neutral_location";
+ meeting_location?: string | null;
  selected_duration: number;
  start_time: string;
  };
@@ -7413,6 +7483,10 @@ export type components = {
  message: string;
  reminders_sent: number;
  };
+ ServiceAreaCheckCoordinates: {
+ lat: number;
+ lng: number;
+ };
  ServiceAreaItem: {
  borough?: string | null;
  name?: string | null;
@@ -7440,6 +7514,9 @@ export type components = {
  hourly_rate: number | string;
  levels_taught?: string[] | null;
  location_types?: string[] | null;
+ offers_at_location?: boolean | null;
+ offers_online?: boolean | null;
+ offers_travel?: boolean | null;
  requirements?: string | null;
  service_catalog_id: string;
  };
@@ -7451,6 +7528,9 @@ export type components = {
  ServiceMatch: {
  description?: string | null;
  name: string;
+ offers_at_location?: boolean | null;
+ offers_online?: boolean | null;
+ offers_travel?: boolean | null;
  price_per_hour: number;
  relevance_score: number;
  service_catalog_id: string;
@@ -7482,6 +7562,9 @@ export type components = {
  levels_taught?: string[] | null;
  location_types?: string[] | null;
  name?: string | null;
+ offers_at_location: boolean;
+ offers_online: boolean;
+ offers_travel: boolean;
  online_capable?: boolean | null;
  requirements?: string | null;
  requires_certification?: boolean | null;
@@ -13433,6 +13516,50 @@ export interface operations {
  };
  };
  };
+ check_service_area_api_v1_instructors__instructor_id__check_service_area_get: {
+ parameters: {
+ query: {
+ lat: number;
+ lng: number;
+ };
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InstructorServiceAreaCheckResponse"];
+ };
+ };
+ 400: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  get_coverage_api_v1_instructors__instructor_id__coverage_get: {
  parameters: {
  query?: never;
@@ -16607,6 +16734,39 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["ServiceSearchResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ update_service_capabilities_api_v1_services__service_id__capabilities_patch: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ service_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["InstructorServiceCapabilitiesUpdate"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InstructorServiceResponse"];
  };
  };
  422: {

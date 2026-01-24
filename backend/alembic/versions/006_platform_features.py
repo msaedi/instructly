@@ -1048,6 +1048,18 @@ def upgrade() -> None:
         "instructor_services",
         ["service_catalog_id", "is_active"],
     )
+    op.add_column(
+        "instructor_services",
+        sa.Column("offers_travel", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+    )
+    op.add_column(
+        "instructor_services",
+        sa.Column("offers_at_location", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+    )
+    op.add_column(
+        "instructor_services",
+        sa.Column("offers_online", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+    )
     op.create_index("ix_reviews_booking_id", "reviews", ["booking_id"])
     op.create_index(
         "ix_reviews_instructor_id_created_at",
@@ -1198,6 +1210,9 @@ def downgrade() -> None:
     op.drop_column("bookings", "reminder_1h_sent")
     op.drop_column("bookings", "reminder_24h_sent")
     op.drop_column("users", "phone_verified")
+    op.drop_column("instructor_services", "offers_online")
+    op.drop_column("instructor_services", "offers_at_location")
+    op.drop_column("instructor_services", "offers_travel")
 
     op.drop_index("ix_search_clicks_instructor_id", table_name="search_clicks")
     op.drop_index("ix_message_reactions_message_id", table_name="message_reactions")

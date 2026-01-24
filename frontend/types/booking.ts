@@ -29,7 +29,11 @@ export type BookingCreate = GeneratedBookingCreate;
 // BookedSlotsResponse kept local - uses typed BookedSlotPreview with frontend LocationType
 
 // Frontend-only types (not in generated OpenAPI)
-export type LocationType = 'student_home' | 'instructor_location' | 'neutral' | 'in_person' | 'remote';
+export type LocationType =
+  | 'student_location'
+  | 'instructor_location'
+  | 'online'
+  | 'neutral_location';
 
 // Privacy-protected instructor info for student-facing views
 export interface InstructorInfo {
@@ -77,6 +81,10 @@ export interface Booking {
   service_area?: string;
   meeting_location?: string;
   location_type?: LocationType;
+  location_address?: string;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_place_id?: string | null;
 
   // Notes
   student_note?: string;
@@ -228,11 +236,13 @@ export interface UpcomingBooking {
 // Add location type display helper
 export const getLocationTypeDisplay = (locationType: LocationType): string => {
   switch (locationType) {
-    case 'student_home':
-      return "Student's Home";
+    case 'student_location':
+      return 'Student Location';
     case 'instructor_location':
       return "Instructor's Location";
-    case 'neutral':
+    case 'online':
+      return 'Online';
+    case 'neutral_location':
       return 'Neutral Location';
     default:
       return 'Location TBD';
@@ -242,11 +252,13 @@ export const getLocationTypeDisplay = (locationType: LocationType): string => {
 // Add location type icon helper
 export const getLocationTypeIcon = (locationType: LocationType): string => {
   switch (locationType) {
-    case 'student_home':
+    case 'student_location':
       return '🏠';
     case 'instructor_location':
       return '🏫';
-    case 'neutral':
+    case 'online':
+      return '💻';
+    case 'neutral_location':
       return '📍';
     default:
       return '📍';

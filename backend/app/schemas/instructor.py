@@ -21,7 +21,7 @@ from ..core.constants import (
     MIN_BIO_LENGTH,
     MIN_SESSION_DURATION,
 )
-from ._strict_base import StrictRequestModel
+from ._strict_base import StrictModel, StrictRequestModel
 from .address import ServiceAreaNeighborhoodOut
 from .base import Money, StandardizedModel
 
@@ -107,16 +107,48 @@ class PreferredPublicSpaceIn(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
-class PreferredTeachingLocationOut(PreferredTeachingLocationIn):
+class ServiceAreaCheckCoordinates(StrictModel):
+    """Coordinates payload for service area checks."""
+
+    lat: float = Field(..., description="Latitude")
+    lng: float = Field(..., description="Longitude")
+
+
+class InstructorServiceAreaCheckResponse(StrictModel):
+    """Response payload for instructor service area coverage checks."""
+
+    instructor_id: str = Field(..., description="Instructor user ULID")
+    is_covered: bool = Field(
+        ...,
+        description="True when the coordinates fall inside an instructor's active service areas",
+    )
+    coordinates: ServiceAreaCheckCoordinates
+
+
+class PreferredTeachingLocationOut(BaseModel):
     """Preferred teaching location response payload."""
+
+    address: Optional[str] = None
+    label: Optional[str] = None
+    approx_lat: Optional[float] = None
+    approx_lng: Optional[float] = None
+    neighborhood: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
     @model_serializer
     def serialize(self) -> dict[str, Any]:
-        data: dict[str, Any] = {"address": self.address}
+        data: dict[str, Any] = {}
+        if self.address:
+            data["address"] = self.address
         if self.label is not None:
             data["label"] = self.label
+        if self.approx_lat is not None:
+            data["approx_lat"] = self.approx_lat
+        if self.approx_lng is not None:
+            data["approx_lng"] = self.approx_lng
+        if self.neighborhood:
+            data["neighborhood"] = self.neighborhood
         return data
 
 
@@ -164,7 +196,19 @@ class ServiceBase(StandardizedModel):
     )
     location_types: Optional[List[str]] = Field(
         default=None,
-        description="Where lessons are offered. Allowed: 'in-person', 'online'",
+        description="Where lessons are offered. Allowed: 'in_person', 'online'",
+    )
+    offers_travel: Optional[bool] = Field(
+        default=None,
+        description="Whether the instructor travels to student locations for this service",
+    )
+    offers_at_location: Optional[bool] = Field(
+        default=None,
+        description="Whether the instructor offers lessons at their location for this service",
+    )
+    offers_online: Optional[bool] = Field(
+        default=None,
+        description="Whether the instructor offers online lessons for this service",
     )
     duration_options: List[int] = Field(
         default=[60],
@@ -236,16 +280,18 @@ class ServiceBase(StandardizedModel):
     def validate_location_types(cls, v: Optional[List[str]]) -> Optional[List[str]]:
         """Normalize and validate location types.
 
-        Allowed values: in-person, online.
+        Allowed values: in_person, online.
         """
         if v is None:
             return v
-        allowed = {"in-person", "online"}
+        allowed = {"in_person", "online"}
         normalized: List[str] = []
         for item in v:
             value = str(item).strip().lower()
+            if value == "in-person":
+                value = "in_person"
             if value not in allowed:
-                raise ValueError("location_types must be one or more of: 'in-person', 'online'")
+                raise ValueError("location_types must be one or more of: 'in_person', 'online'")
             if value not in normalized:
                 normalized.append(value)
         return normalized
@@ -277,6 +323,18 @@ class ServiceResponse(ServiceBase):
         ...,
         max_length=255,
         description="Human-readable name of the catalog service",
+    )
+    offers_travel: bool = Field(
+        default=False,
+        description="Whether the instructor travels to student locations for this service",
+    )
+    offers_at_location: bool = Field(
+        default=False,
+        description="Whether the instructor offers lessons at their location for this service",
+    )
+    offers_online: bool = Field(
+        default=True,
+        description="Whether the instructor offers online lessons for this service",
     )
     display_order: int | None = Field(
         default=None,
@@ -483,6 +541,9 @@ class InstructorProfileResponse(InstructorProfileBase):
     is_founding_instructor: bool = Field(
         default=False, description="Whether the instructor is a founding instructor"
     )
+    bgc_status: Optional[str] = Field(
+        default=None, description="Background check status for public display"
+    )
     preferred_teaching_locations: List[PreferredTeachingLocationOut] = Field(default_factory=list)
     preferred_public_spaces: List[PreferredPublicSpaceOut] = Field(default_factory=list)
     service_area_neighborhoods: List[ServiceAreaNeighborhoodOut] = Field(default_factory=list)
@@ -492,7 +553,9 @@ class InstructorProfileResponse(InstructorProfileBase):
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def from_orm(cls, instructor_profile: Any) -> "InstructorProfileResponse":
+    def from_orm(
+        cls, instructor_profile: Any, *, include_private_fields: bool = True
+    ) -> "InstructorProfileResponse":
         """
         Create InstructorProfileResponse from ORM model with privacy protection.
 
@@ -520,12 +583,15 @@ class InstructorProfileResponse(InstructorProfileBase):
             )
 
             for place in teaching_sorted:
-                teaching_locations.append(
-                    PreferredTeachingLocationOut(
-                        address=getattr(place, "address", ""),
-                        label=getattr(place, "label", None),
-                    )
-                )
+                payload: dict[str, Any] = {
+                    "label": getattr(place, "label", None),
+                    "approx_lat": getattr(place, "approx_lat", None),
+                    "approx_lng": getattr(place, "approx_lng", None),
+                    "neighborhood": getattr(place, "neighborhood", None),
+                }
+                if include_private_fields:
+                    payload["address"] = getattr(place, "address", None)
+                teaching_locations.append(PreferredTeachingLocationOut(**payload))
 
             for place in public_sorted:
                 public_spaces.append(
@@ -570,6 +636,12 @@ class InstructorProfileResponse(InstructorProfileBase):
         if neighborhoods_source:
             for entry in neighborhoods_source:
                 if isinstance(entry, dict):
+                    if entry.get("is_active") is False:
+                        continue
+                else:
+                    if getattr(entry, "is_active", True) is False:
+                        continue
+                if isinstance(entry, dict):
                     neighborhood_id = entry.get("neighborhood_id") or entry.get("id")
                     ntacode = entry.get("ntacode") or entry.get("region_code")
                     name = entry.get("name") or entry.get("region_name")
@@ -600,6 +672,8 @@ class InstructorProfileResponse(InstructorProfileBase):
                 user_service_areas = getattr(instructor_profile.user, "service_areas", []) or []
 
             for area in user_service_areas:
+                if getattr(area, "is_active", True) is False:
+                    continue
                 neighborhood = getattr(area, "neighborhood", None)
                 neighborhood_id = getattr(area, "neighborhood_id", None)
                 if neighborhood is None:
@@ -635,6 +709,8 @@ class InstructorProfileResponse(InstructorProfileBase):
             service_area_summary = None
 
         neighborhoods_output = [entry.model_dump(mode="python") for entry in neighborhoods_payload]
+        bgc_status_raw = getattr(instructor_profile, "bgc_status", None)
+        bgc_status = bgc_status_raw if isinstance(bgc_status_raw, str) else None
 
         return cls(
             id=instructor_profile.id,
@@ -657,6 +733,7 @@ class InstructorProfileResponse(InstructorProfileBase):
             onboarding_completed_at=getattr(instructor_profile, "onboarding_completed_at", None),
             is_live=getattr(instructor_profile, "is_live", False),
             is_founding_instructor=getattr(instructor_profile, "is_founding_instructor", False),
+            bgc_status=bgc_status,
             preferred_teaching_locations=teaching_locations,
             preferred_public_spaces=public_spaces,
             service_area_neighborhoods=neighborhoods_output,

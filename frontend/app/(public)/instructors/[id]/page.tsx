@@ -14,6 +14,7 @@ import { InstructorProfileSkeleton } from '@/features/instructor-profile/compone
 import { useInstructorProfile } from '@/features/instructor-profile/hooks/useInstructorProfile';
 import { useBookingModal } from '@/features/instructor-profile/hooks/useBookingModal';
 import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
+import { useInstructorCoverage } from '@/src/api/services/instructors';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { useRouter as useNextRouter } from 'next/navigation';
 import { calculateEndTime } from '@/features/shared/utils/booking';
@@ -24,11 +25,11 @@ import { navigationStateManager } from '@/lib/navigation/navigationStateManager'
 import { format } from 'date-fns';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { getString, getNumber } from '@/lib/typesafe';
+import { getString, getNumber, isFeatureCollection } from '@/lib/typesafe';
 import type { InstructorService } from '@/types/instructor';
 import { at } from '@/lib/ts/safe';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
+import { WhereTheyTeach } from '@/components/instructor/WhereTheyTeach';
 
 import { storeBookingIntent, getBookingIntent, clearBookingIntent } from '@/features/shared/utils/booking';
 
@@ -167,124 +168,50 @@ function InstructorProfileContent() {
       duration: initialRestore.bookingIntent.duration,
     });
   }, [bookingModal, initialRestore.bookingIntent, initialRestore.openModalFromIntent]);
-  const serviceAreaBoroughs = instructor ? getServiceAreaBoroughs(instructor) : [];
-  const preferredTeachingLocations =
-    Array.isArray(instructor?.preferred_teaching_locations)
-      ? instructor.preferred_teaching_locations.filter(
-          (loc): loc is { address: string; label?: string } =>
-            !!loc && typeof loc.address === 'string' && loc.address.trim().length > 0,
-        )
-      : [];
-  const preferredPublicSpaces =
-    Array.isArray(instructor?.preferred_public_spaces)
-      ? instructor.preferred_public_spaces.filter(
-          (loc): loc is { address: string; label?: string } =>
-            !!loc && typeof loc.address === 'string' && loc.address.trim().length > 0,
-        )
-      : [];
-  const hasAnyInPersonLocations =
-    serviceAreaBoroughs.length > 0 || preferredTeachingLocations.length > 0 || preferredPublicSpaces.length > 0;
-  const offersOnline = Array.isArray(instructor?.services)
-    ? instructor.services.some((service) => {
-        const locations = Array.isArray((service as { location_types?: unknown }).location_types)
-          ? ((service as { location_types?: string[] }).location_types ?? [])
-          : [];
-        return locations
-          .map((loc) => (typeof loc === 'string' ? loc.toLowerCase().trim() : ''))
-          .some((loc) => loc === 'online');
-      })
+  const services = Array.isArray(instructor?.services) ? instructor.services : [];
+  const offersTravel = services.some((service) => service.offers_travel === true);
+  const offersAtLocation = services.some((service) => service.offers_at_location === true);
+  const offersOnline = services.some((service) => service.offers_online === true);
+  const hasTeachingLocations = Array.isArray(instructor?.preferred_teaching_locations)
+    ? instructor.preferred_teaching_locations.length > 0
     : false;
-  const serviceAreaSectionContent = (
-    <>
-      {hasAnyInPersonLocations ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {serviceAreaBoroughs.length > 0 && (
-            <div>
-              <div className="text-lg font-bold mb-2">Travel To You</div>
-              <ul className="text-xs text-gray-600 space-y-0.5 list-disc list-inside">
-                {serviceAreaBoroughs.slice(0, 8).map((borough) => (
-                  <li key={borough}>{borough}</li>
-                ))}
-                {serviceAreaBoroughs.length > 8 && (
-                  <li className="text-[#7E22CE] text-xs font-medium mt-1">
-                    + {serviceAreaBoroughs.length - 8} more
-                  </li>
-                )}
-              </ul>
-            </div>
-          )}
+  const shouldShowMap = offersTravel || (offersAtLocation && hasTeachingLocations);
+  const coverageInstructorId = instructor?.user_id || instructorId;
+  const { data: coverage } = useInstructorCoverage(coverageInstructorId, {
+    enabled: shouldShowMap && Boolean(coverageInstructorId),
+  });
 
-          {preferredTeachingLocations.length > 0 && (
-            <div>
-              <div className="text-lg font-bold mb-2">Teach At</div>
-              <ul className="text-xs text-gray-600 space-y-0.5 list-disc list-inside">
-                {preferredTeachingLocations.map((location, idx) => {
-                  const rawLabel = typeof location.label === 'string' ? location.label.trim() : '';
-                  const address = location.address.trim();
-                  const addressParts = address.split(',').map((part) => part.trim()).filter(Boolean);
-                  const fallbackTitle = (addressParts.length > 0 ? addressParts[0] : address) || '';
-                  const displayPrimary = (rawLabel || fallbackTitle).trim();
-                  const secondaryCandidate = rawLabel
-                    ? address
-                    : addressParts.slice(1).join(', ');
-                  const showSecondary =
-                    Boolean(secondaryCandidate) &&
-                    secondaryCandidate.toLowerCase() !== displayPrimary.toLowerCase();
-                  return (
-                    <li key={`${address}-${idx}`} className="flex flex-col gap-0.5">
-                      <span className="font-semibold text-gray-700">{displayPrimary}</span>
-                      {showSecondary ? (
-                        <span className="ml-3 text-[11px] text-gray-500">{secondaryCandidate}</span>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-
-          {preferredPublicSpaces.length > 0 && (
-            <div>
-              <div className="text-lg font-bold mb-2">Public Spaces</div>
-              <ul className="text-xs text-gray-600 space-y-0.5 list-disc list-inside">
-                {preferredPublicSpaces.map((space, idx) => {
-                  const rawLabel = typeof space.label === 'string' ? space.label.trim() : '';
-                  const address = space.address.trim();
-                  const addressParts = address.split(',').map((part) => part.trim()).filter(Boolean);
-                  const fallbackTitle = (addressParts.length > 0 ? addressParts[0] : address) || '';
-                  const displayPrimary = (rawLabel || fallbackTitle).trim();
-                  const secondaryCandidate = rawLabel
-                    ? address
-                    : addressParts.slice(1).join(', ');
-                  const showSecondary =
-                    Boolean(secondaryCandidate) &&
-                    secondaryCandidate.toLowerCase() !== displayPrimary.toLowerCase();
-                  return (
-                    <li key={`${space.address}-${idx}`} className="flex flex-col gap-0.5">
-                      <span className="font-semibold text-gray-700">{displayPrimary}</span>
-                      {showSecondary ? (
-                        <span className="ml-3 text-[11px] text-gray-500">{secondaryCandidate}</span>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="text-xs text-gray-500">
-          This instructor hasn’t shared in-person service areas yet.
-        </div>
-      )}
-      {offersOnline ? (
-        <div className="mt-6 flex items-center gap-2 text-sm font-semibold text-[#7E22CE]">
-          <span className="inline-block h-2 w-2 rounded-full border border-[#7E22CE]" aria-hidden="true" />
-          <span>Online lesson available</span>
-        </div>
-      ) : null}
-    </>
-  );
+  const formatCityState = (address: string): string => {
+    const parts = address.split(',').map((part) => part.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      const city = parts[parts.length - 2] || '';
+      const stateRaw = parts[parts.length - 1] || '';
+      const state = stateRaw.replace(/\b\d{5}(?:-\d{4})?\b/g, '').replace(/\s{2,}/g, ' ').trim();
+      return [city, state].filter(Boolean).join(', ');
+    }
+    return '';
+  };
+  const studioPins: Array<{ lat: number; lng: number; label?: string }> = [];
+  if (instructor && offersAtLocation && Array.isArray(instructor.preferred_teaching_locations)) {
+    for (const location of instructor.preferred_teaching_locations) {
+      if (!location || typeof location !== 'object') continue;
+      const approxLat = typeof location.approx_lat === 'number' ? location.approx_lat : undefined;
+      const approxLng = typeof location.approx_lng === 'number' ? location.approx_lng : undefined;
+      if (typeof approxLat !== 'number' || typeof approxLng !== 'number') continue;
+      const neighborhood = typeof location.neighborhood === 'string' ? location.neighborhood.trim() : '';
+      const labelFallback = typeof location.label === 'string' ? location.label.trim() : '';
+      const addressFallback = typeof location.address === 'string'
+        ? formatCityState(location.address)
+        : '';
+      const label = neighborhood || addressFallback || labelFallback || undefined;
+      if (label) {
+        studioPins.push({ lat: approxLat, lng: approxLng, label });
+      } else {
+        studioPins.push({ lat: approxLat, lng: approxLng });
+      }
+    }
+  }
+  const coverageCollection = isFeatureCollection(coverage) ? coverage : null;
 
 
 
@@ -528,16 +455,18 @@ function InstructorProfileContent() {
             <ServiceCards
               services={instructor.services}
               selectedSlot={activeSelectedSlot}
+              hasTeachingLocations={hasTeachingLocations}
               onBookService={(service, duration) => handleBookingClick(service, duration)}
             />
           </section>
 
-          <section>
-            <h2 className="text-xl font-semibold mb-4">Service Areas</h2>
-            <div className="rounded-xl bg-white p-3">
-              {serviceAreaSectionContent}
-            </div>
-          </section>
+          <WhereTheyTeach
+            offersTravel={offersTravel}
+            offersAtLocation={offersAtLocation && hasTeachingLocations}
+            offersOnline={offersOnline}
+            coverage={coverageCollection}
+            studioPins={studioPins}
+          />
 
           <ReviewsSection instructorId={instructor.user_id} />
         </div>
@@ -550,22 +479,24 @@ function InstructorProfileContent() {
           </div>
 
 
-          {/* Skills & Service Areas */}
+          {/* Skills & Lesson Options */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h2 className="text-lg text-gray-600 mb-4">Skills and pricing</h2>
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
+              <h2 className="text-lg text-gray-900 dark:text-white mb-4">Skills and pricing</h2>
               <ServiceCards
                 services={instructor.services}
                 selectedSlot={activeSelectedSlot}
+                hasTeachingLocations={hasTeachingLocations}
                 onBookService={(service, duration) => handleBookingClick(service, duration)}
               />
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h2 className="text-lg text-gray-600 mb-4">Service Areas</h2>
-              <div className="rounded-xl bg-white p-3">
-                {serviceAreaSectionContent}
-              </div>
-            </div>
+            <WhereTheyTeach
+              offersTravel={offersTravel}
+              offersAtLocation={offersAtLocation && hasTeachingLocations}
+              offersOnline={offersOnline}
+              coverage={coverageCollection}
+              studioPins={studioPins}
+            />
           </div>
 
           {/* Availability Grid removed per request */}

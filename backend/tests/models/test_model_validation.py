@@ -312,7 +312,7 @@ class TestCleanArchitectureVerification:
             total_price=50.0,
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
-            location_type="student_home",
+            location_type="student_location",
             meeting_location="123 Test St",
         )
         db.add(booking)
@@ -326,7 +326,7 @@ class TestCleanArchitectureVerification:
 
         # Verify we can work with the booking without any slot reference
         assert booking.is_upcoming or booking.is_past  # One must be true
-        assert booking.location_type_display == "Student's Home"
+        assert booking.location_type_display == "Student Location"
 
     @pytest.mark.skip(reason="AvailabilitySlot model removed - bitmap-only storage now")
     def test_availability_slot_is_complete(self, db, test_instructor):

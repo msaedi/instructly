@@ -77,6 +77,9 @@ logger = logging.getLogger(__name__)
 KNOWN_DEVICE_TTL_SECONDS = 60 * 60 * 24 * 90  # 90 days
 KNOWN_DEVICE_MAX = 10
 
+# OAuth2 token type constant (avoids B105 false positive for "bearer" string literal)
+OAUTH2_TOKEN_TYPE: str = "bearer"
+
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["auth-v1"])
 
@@ -787,7 +790,11 @@ async def login_with_session(
             cache_service=cache_service,
         )
 
-    response_payload = {"access_token": access_token, "token_type": "bearer", "requires_2fa": False}
+    response_payload = {
+        "access_token": access_token,
+        "token_type": OAUTH2_TOKEN_TYPE,
+        "requires_2fa": False,
+    }
     return LoginResponse(**model_filter(LoginResponse, response_payload))
 
 

@@ -2,14 +2,14 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReviewsSection } from '../ReviewsSection';
-import { useInstructorReviews } from '../../hooks/useInstructorReviews';
+import { useRecentReviews } from '@/src/api/services/reviews';
 import { useRouter } from 'next/navigation';
 
-jest.mock('../../hooks/useInstructorReviews', () => ({
-  useInstructorReviews: jest.fn(),
+jest.mock('@/src/api/services/reviews', () => ({
+  useRecentReviews: jest.fn(),
 }));
 
-const mockUseInstructorReviews = useInstructorReviews as jest.Mock;
+const mockUseRecentReviews = useRecentReviews as jest.Mock;
 
 describe('ReviewsSection', () => {
   beforeEach(() => {
@@ -17,7 +17,7 @@ describe('ReviewsSection', () => {
   });
 
   it('shows a loading skeleton while reviews load', () => {
-    mockUseInstructorReviews.mockReturnValue({ data: null, isLoading: true, error: null });
+    mockUseRecentReviews.mockReturnValue({ data: null, isLoading: true, error: null });
 
     const { container } = render(<ReviewsSection instructorId="inst-1" />);
 
@@ -26,7 +26,7 @@ describe('ReviewsSection', () => {
   });
 
   it('shows an error state when reviews fail to load', () => {
-    mockUseInstructorReviews.mockReturnValue({ data: null, isLoading: false, error: new Error('fail') });
+    mockUseRecentReviews.mockReturnValue({ data: null, isLoading: false, error: new Error('fail') });
 
     render(<ReviewsSection instructorId="inst-1" />);
 
@@ -34,7 +34,7 @@ describe('ReviewsSection', () => {
   });
 
   it('shows a new instructor state when there are no reviews', () => {
-    mockUseInstructorReviews.mockReturnValue({ data: { reviews: [], total: 0, per_page: 12 }, isLoading: false, error: null });
+    mockUseRecentReviews.mockReturnValue({ data: { reviews: [], total: 0, per_page: 12 }, isLoading: false, error: null });
 
     render(<ReviewsSection instructorId="inst-1" />);
 
@@ -47,7 +47,7 @@ describe('ReviewsSection', () => {
     const push = jest.fn();
     (useRouter as jest.Mock).mockReturnValue({ push });
 
-    mockUseInstructorReviews.mockReturnValue({
+    mockUseRecentReviews.mockReturnValue({
       data: {
         total: 20,
         per_page: 12,

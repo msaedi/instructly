@@ -62,6 +62,9 @@ def _create_instructor_with_service(db: Session) -> tuple[User, InstructorProfil
         service_catalog_id=svc_cat.id,
         hourly_rate=120.00,
         duration_options=[60],
+        offers_travel=True,
+        offers_at_location=True,
+        offers_online=True,
         is_active=True,
     )
     db.add(svc)
@@ -131,7 +134,7 @@ def _create_booking(
         duration_minutes=60,
         status=status,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
         payment_method_id="pm_test",
         payment_intent_id=payment_intent_id,
         payment_status=payment_status,
@@ -356,7 +359,9 @@ def test_create_rescheduled_booking_with_locked_funds_links_chain(db: Session):
         selected_duration=60,
         student_note=None,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
+        location_lat=40.758,
+        location_lng=-73.985,
     )
 
     service = BookingService(db)

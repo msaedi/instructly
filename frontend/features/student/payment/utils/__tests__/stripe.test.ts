@@ -77,9 +77,32 @@ describe('getStripeErrorMessage', () => {
     );
   });
 
+  it('maps additional error codes to friendly messages', () => {
+    const { stripeModule } = setupModule('pk_live_123');
+    expect(stripeModule.getStripeErrorMessage({ code: 'payment_intent_authentication_failure' })).toBe(
+      'Authentication failed. Please try a different payment method.'
+    );
+    expect(stripeModule.getStripeErrorMessage({ code: 'amount_too_large' })).toBe(
+      'Amount exceeds the maximum transaction limit of $1,000.'
+    );
+    expect(stripeModule.getStripeErrorMessage({ code: 'insufficient_funds' })).toBe(
+      'Insufficient funds. Please try a different payment method.'
+    );
+  });
+
   it('returns a default message for unknown errors', () => {
     const { stripeModule } = setupModule('pk_live_123');
     expect(stripeModule.getStripeErrorMessage({ code: 'unknown_code' })).toBe(
+      'An unexpected error occurred. Please try again.'
+    );
+  });
+
+  it('returns a default message for non-object errors', () => {
+    const { stripeModule } = setupModule('pk_live_123');
+    expect(stripeModule.getStripeErrorMessage(null)).toBe(
+      'An unexpected error occurred. Please try again.'
+    );
+    expect(stripeModule.getStripeErrorMessage('oops')).toBe(
       'An unexpected error occurred. Please try again.'
     );
   });

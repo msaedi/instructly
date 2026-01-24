@@ -32,7 +32,7 @@ def _create_booking(db: Session, *, student: User, instructor: User) -> str:
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test",
-        location_type="neutral",
+        location_type="neutral_location",
     )
     db.commit()
     return booking.id

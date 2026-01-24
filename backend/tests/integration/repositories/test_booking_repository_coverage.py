@@ -39,7 +39,7 @@ def _create_booking(
         "duration_minutes": 60,
         "meeting_location": "Test Location",
         "service_area": "Manhattan",
-        "location_type": "neutral",
+        "location_type": "neutral_location",
     }
     base_fields.update(booking_timezone_fields(booking_date, start_time, end_time))
     base_fields.update(overrides)

@@ -92,7 +92,9 @@ def test_public_visibility_rules(client, db, catalog_entry):
             service_catalog_id=catalog_entry.id,
             hourly_rate=75.0,
             duration_options=[60],
-            location_types=["online"],
+            offers_online=True,
+            offers_travel=False,
+            offers_at_location=False,
             is_active=True,
         )
         db.add(service)

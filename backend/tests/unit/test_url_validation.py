@@ -2,6 +2,7 @@
 """Tests for shared URL validation utility."""
 
 
+from app.utils import url_validation
 from app.utils.url_validation import is_allowed_origin, origin_from_header
 
 
@@ -61,6 +62,13 @@ class TestIsAllowedOrigin:
         assert is_allowed_origin("https://fake-instainstru.com") is False
         assert is_allowed_origin("https://instainstru.evil.com") is False
 
+    def test_urlparse_exception_returns_false(self, monkeypatch):
+        def _boom(_value: str):
+            raise ValueError("boom")
+
+        monkeypatch.setattr(url_validation, "urlparse", _boom)
+        assert is_allowed_origin("https://instainstru.com") is False
+
 
 class TestOriginFromHeader:
     """Tests for origin_from_header() extraction."""
@@ -105,3 +113,10 @@ class TestOriginFromHeader:
     def test_https_scheme_allowed(self):
         result = origin_from_header("https://example.com")
         assert result == "https://example.com"
+
+    def test_urlparse_exception_returns_none(self, monkeypatch):
+        def _boom(_value: str):
+            raise ValueError("boom")
+
+        monkeypatch.setattr(url_validation, "urlparse", _boom)
+        assert origin_from_header("https://example.com") is None

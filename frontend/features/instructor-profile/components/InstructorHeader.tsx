@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Star, Heart, Share2, ShieldCheck } from 'lucide-react';
+import { Star, Heart, Share2 } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
 import { useRouter } from 'next/navigation';
@@ -9,7 +9,6 @@ import { favoritesApi } from '@/services/api/favorites';
 import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavoriteStatus';
 import { toast } from 'sonner';
 import type { InstructorProfile } from '@/types/instructor';
-import { MessageInstructorButton } from '@/components/instructor/MessageInstructorButton';
 import { FoundingBadge } from '@/components/ui/FoundingBadge';
 import { BGCBadge } from '@/components/ui/BGCBadge';
 
@@ -37,11 +36,25 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   };
 
   const displayName = getDisplayName();
-  const bgcStatusValue = (instructor as { bgc_status?: string | null }).bgc_status;
+  const bgcStatusValue =
+    (instructor as { bgc_status?: string | null }).bgc_status ??
+    (instructor as { background_check_status?: string | null }).background_check_status ??
+    null;
   const bgcStatus = typeof bgcStatusValue === 'string' ? bgcStatusValue.toLowerCase() : '';
   const isLive = Boolean(instructor.is_live);
-  const showBGCBadge = isLive || bgcStatus === 'pending';
-  const backgroundCheckVerified = isLive || bgcStatus === 'passed';
+  const backgroundCheckVerified =
+    isLive ||
+    bgcStatus === 'passed' ||
+    bgcStatus === 'clear' ||
+    bgcStatus === 'verified' ||
+    Boolean(
+      (instructor as { background_check_verified?: boolean | null }).background_check_verified
+    ) ||
+    Boolean(
+      (instructor as { background_check_completed?: boolean | null }).background_check_completed
+    );
+  const showBGCBadge = backgroundCheckVerified || bgcStatus === 'pending';
+  const resolvedStatus = bgcStatus || (backgroundCheckVerified ? 'passed' : '');
   const isFoundingInstructor = Boolean(instructor.is_founding_instructor);
   const [shareCopied, setShareCopied] = useState(false);
   const handleShare = async () => {
@@ -125,8 +138,6 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
                 user={avatarUser}
                 size={224}
                 className="rounded-full ring-1 ring-gray-200 overflow-hidden"
-                fallbackBgColor="#F3E8FF"
-                fallbackTextColor="#7E22CE"
                 variant="display"
               />
             </div>
@@ -138,14 +149,6 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl lg:text-3xl font-bold text-[#7E22CE]" data-testid="instructor-profile-name">{displayName}</h1>
                 <div className="flex items-center gap-1.5">
-                  {/* Message Button */}
-                  <MessageInstructorButton
-                    instructorId={instructor.user_id}
-                    instructorName={displayName}
-                    variant="outline"
-                    size="sm"
-                    className="text-[#7E22CE] border-[#7E22CE] hover:bg-purple-50"
-                  />
                   <button
                     onClick={handleHeartClick}
                     disabled={isLoading}
@@ -175,7 +178,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
               {(isFoundingInstructor || showBGCBadge) && (
                 <div className="flex flex-wrap items-center gap-2">
                   {isFoundingInstructor && <FoundingBadge size="md" />}
-                  {showBGCBadge && <BGCBadge isLive={isLive} bgcStatus={bgcStatusValue ?? null} />}
+                  {showBGCBadge && <BGCBadge isLive={isLive} bgcStatus={resolvedStatus || null} />}
                 </div>
               )}
 
@@ -199,13 +202,6 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
                 <p className="text-lg text-gray-600">{instructor.years_experience} years experience</p>
               )}
 
-              {/* Background Check Badge */}
-              {backgroundCheckVerified && (
-                <div className="flex items-center gap-2 text-emerald-700">
-                  <ShieldCheck className="h-4 w-4" />
-                  <span className="text-sm">Background check cleared</span>
-                </div>
-              )}
               </div>
             </div>
           </div>

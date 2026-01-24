@@ -67,7 +67,7 @@ def test_booked_slots_endpoint(
         total_price=service.hourly_rate,
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
-        location_type="student_home",  # FIXED: was "student"
+        location_type="student_location",  # FIXED: was "student"
         service_area="Manhattan",
         meeting_location="123 Test St",
     )
@@ -114,7 +114,7 @@ def test_booked_slots_endpoint(
     assert slot_data["student_last_initial"] == "S."
     assert slot_data["service_name"] == (service.catalog_entry.name if service.catalog_entry else "Unknown Service")
     assert slot_data["duration_minutes"] == 60
-    assert slot_data["location_type"] == "student_home"
+    assert slot_data["location_type"] == "student_location"
 
 
 def test_booked_slots_endpoint_empty_week(

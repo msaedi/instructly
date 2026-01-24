@@ -134,7 +134,7 @@ class TestCircularDependencyEdgeCases:
             total_price=Decimal("50.00"),
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
-            location_type="neutral",
+            location_type="neutral_location",
             meeting_location="Online",
         )
         db.commit()
@@ -360,6 +360,9 @@ class TestSoftDeleteEdgeCases:
             bio="Updated bio",
             services=[
                 ServiceCreate(
+                    offers_travel=False,
+                    offers_at_location=False,
+                    offers_online=True,
                     service_catalog_id=s.service_catalog_id, hourly_rate=s.hourly_rate, description=s.description
                 )
                 for s in updated_services
@@ -420,6 +423,9 @@ class TestSoftDeleteEdgeCases:
             bio="Updated bio",
             services=[
                 ServiceCreate(
+                    offers_travel=False,
+                    offers_at_location=False,
+                    offers_online=True,
                     service_catalog_id=s.service_catalog_id, hourly_rate=s.hourly_rate, description=s.description
                 )
                 for s in updated_services
@@ -480,6 +486,9 @@ class TestSoftDeleteEdgeCases:
             bio="Updated bio",
             services=[
                 ServiceCreate(
+                    offers_travel=False,
+                    offers_at_location=False,
+                    offers_online=True,
                     service_catalog_id=s.service_catalog_id, hourly_rate=s.hourly_rate, description=s.description
                 )
                 for s in existing_services
@@ -524,8 +533,10 @@ class TestSoftDeleteEdgeCases:
             start_time=target_start,
             selected_duration=60,
             end_time=target_end,
-            location_type="neutral",
-            meeting_location="Online",
+            location_type="neutral_location",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
         )
 
         # Test async method - expect NotFoundException
@@ -598,6 +609,9 @@ class TestSoftDeleteEdgeCases:
             bio="Updated bio",
             services=[
                 ServiceCreate(
+                    offers_travel=False,
+                    offers_at_location=False,
+                    offers_online=True,
                     service_catalog_id=original_catalog_id,  # Same catalog service
                     hourly_rate=80.0,  # Updated rate
                     description="Reactivated service",

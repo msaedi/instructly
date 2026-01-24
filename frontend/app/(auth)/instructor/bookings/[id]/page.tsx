@@ -172,7 +172,15 @@ export default function BookingDetailsPage() {
             <div className="text-gray-600">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-lg">{booking.location_type ? getLocationTypeIcon(booking.location_type as LocationType) : '📍'}</span>
-                <span className="font-medium">{booking.location_type === 'student_home' ? "Student's Home" : booking.location_type === 'instructor_location' ? "Instructor's Location" : 'Neutral Location'}</span>
+                <span className="font-medium">
+                  {booking.location_type === 'student_location'
+                    ? 'Student Location'
+                    : booking.location_type === 'instructor_location'
+                      ? "Instructor's Location"
+                      : booking.location_type === 'online'
+                        ? 'Online'
+                        : 'Neutral Location'}
+                </span>
               </div>
               {booking.meeting_location && <p className="ml-7 text-sm">{booking.meeting_location}</p>}
               {booking.service_area && <p className="ml-7 text-sm text-gray-500">Service area: {booking.service_area}</p>}

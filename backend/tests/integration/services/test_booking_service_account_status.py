@@ -83,7 +83,7 @@ class TestBookingServiceAccountStatus:
             duration_minutes=60,
             status=BookingStatus.COMPLETED,
             meeting_location="Online",
-            location_type="neutral",
+            location_type="neutral_location",
         )
         db.add(booking)
         db.commit()
@@ -116,8 +116,10 @@ class TestBookingServiceAccountStatus:
             start_time=start_time,
             selected_duration=60,
             end_time=time(start_time.hour + 1, start_time.minute),
-            location_type="neutral",
-            meeting_location="Online",
+            location_type="neutral_location",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
             student_note="Test booking",
         )
 
@@ -154,8 +156,10 @@ class TestBookingServiceAccountStatus:
             start_time=start_time,
             selected_duration=60,
             end_time=time(start_time.hour + 1, start_time.minute),
-            location_type="neutral",
-            meeting_location="Online",
+            location_type="neutral_location",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
             student_note="Test booking",
         )
 
@@ -195,8 +199,10 @@ class TestBookingServiceAccountStatus:
             start_time=start_time,
             selected_duration=60,
             end_time=time(start_time.hour + 1, start_time.minute),
-            location_type="neutral",
-            meeting_location="Online",
+            location_type="neutral_location",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
             student_note="Test booking",
         )
 
@@ -236,8 +242,10 @@ class TestBookingServiceAccountStatus:
             start_time=start_time,
             selected_duration=60,
             end_time=time(start_time.hour + 1, start_time.minute),
-            location_type="neutral",
-            meeting_location="Online",
+            location_type="neutral_location",
+            meeting_location="123 Main St, New York, NY",
+            location_lat=40.758,
+            location_lng=-73.985,
             student_note="Test booking",
         )
 
@@ -331,7 +339,7 @@ class TestBookingServiceAccountStatus:
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
             meeting_location="Online",
-            location_type="neutral",
+            location_type="neutral_location",
         )
         db.add(future_booking)
         db.commit()

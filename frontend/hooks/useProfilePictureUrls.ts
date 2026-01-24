@@ -195,7 +195,7 @@ const requestProfilePictureBatch = async (
   try {
     const response = await fetchWithAuth(`/api/v1/users/profile-picture-urls?${params.toString()}`, {
       method: 'GET',
-      noCache: true,
+      noCache: false,
       signal: controller.signal,
     });
     if (!response.ok) {

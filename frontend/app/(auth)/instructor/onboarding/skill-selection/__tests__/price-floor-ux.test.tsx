@@ -29,7 +29,7 @@ function PricingSectionHarness() {
     return evaluatePriceFloorViolations({
       hourlyRate: Number(hourlyRate),
       durationOptions: [60],
-      locationTypes: ['in-person'],
+      locationTypes: ['in_person'],
       floors,
     });
   }, [floors, hourlyRate]);

@@ -178,7 +178,7 @@ export default function TimeSelectionModal({
       const primary = locationTypes.find((value) => /online|remote|virtual/i.test(String(value))) ?? locationTypes[0];
       return normalizeModality(primary);
     }
-    return 'remote';
+    return 'online';
   }, [selectedService]);
 
   const instructorAvatarUser = useMemo(
@@ -529,13 +529,13 @@ export default function TimeSelectionModal({
 
   const priceFloorWarning = useMemo(() => {
     if (!priceFloorViolation) return null;
-    const modalityLabel = selectedModality === 'in_person' ? 'in-person' : 'remote';
+    const modalityLabel = selectedModality === 'in_person' ? 'in-person' : 'online';
     return `Minimum for ${modalityLabel} ${selectedDuration}-minute private session is $${formatCents(priceFloorViolation.floorCents)} (current $${formatCents(priceFloorViolation.baseCents)}). Please pick a different duration.`;
   }, [priceFloorViolation, selectedDuration, selectedModality]);
 
   useEffect(() => {
     if (!priceFloorViolation) return;
-    const modalityLabel = selectedModality === 'in_person' ? 'in-person' : 'remote';
+    const modalityLabel = selectedModality === 'in_person' ? 'in-person' : 'online';
     logger.warn('Detected price floor violation in TimeSelectionModal', {
       modality: modalityLabel,
       duration: selectedDuration,

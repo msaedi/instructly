@@ -129,6 +129,7 @@ export const queryKeys = {
   // Services queries
   services: {
     all: ['services'] as const,
+    catalog: ['services', 'catalog'] as const,
     featured: ['services', 'featured'] as const,
     categories: ['services', 'categories'] as const,
     byCategory: (categorySlug: string) => ['services', 'category', categorySlug] as const,

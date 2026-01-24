@@ -61,7 +61,7 @@ def test_week_with_known_bookings(
             total_price=service.hourly_rate,
             duration_minutes=60,
             status=BookingStatus.CONFIRMED,
-            location_type="instructor_location" if i == 0 else "neutral",  # FIXED: was "instructor"
+            location_type="instructor_location" if i == 0 else "neutral_location",  # FIXED: was "instructor"
             service_area="Manhattan",
             meeting_location=f"Location {i+1}",
         )
@@ -93,7 +93,7 @@ def test_week_with_known_bookings(
         if i == 0:
             assert slot["location_type"] == "instructor_location"
         else:
-            assert slot["location_type"] == "neutral"
+            assert slot["location_type"] == "neutral_location"
 
 
 def test_multiple_instructors_isolation(

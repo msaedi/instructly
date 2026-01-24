@@ -5,15 +5,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import InstructorCard from '../InstructorCard';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavoriteStatus';
-import { useSearchRatingQuery } from '@/hooks/queries/useRatings';
+import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
 import { useRecentReviews } from '@/src/api/services/reviews';
 import { favoritesApi } from '@/services/api/favorites';
-import { publicApi } from '@/features/shared/api/client';
+import { useServicesCatalog } from '@/hooks/queries/useServices';
 import { fetchPricingPreview } from '@/lib/api/pricing';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import type { Instructor } from '@/types/api';
+import type { ServiceLocationType } from '@/types/instructor';
 
 jest.mock('@/features/shared/hooks/useAuth', () => ({
   useAuth: jest.fn(),
@@ -25,7 +26,7 @@ jest.mock('@/hooks/queries/useFavoriteStatus', () => ({
 }));
 
 jest.mock('@/hooks/queries/useRatings', () => ({
-  useSearchRatingQuery: jest.fn(),
+  useInstructorRatingsQuery: jest.fn(),
 }));
 
 jest.mock('@/src/api/services/reviews', () => ({
@@ -39,10 +40,8 @@ jest.mock('@/services/api/favorites', () => ({
   },
 }));
 
-jest.mock('@/features/shared/api/client', () => ({
-  publicApi: {
-    getCatalogServices: jest.fn(),
-  },
+jest.mock('@/hooks/queries/useServices', () => ({
+  useServicesCatalog: jest.fn(),
 }));
 
 // Mock the ApiProblemError class inline so instanceof checks work
@@ -105,9 +104,9 @@ const mockUseAuth = useAuth as jest.Mock;
 const mockUseRouter = useRouter as jest.Mock;
 const mockUseFavoriteStatus = useFavoriteStatus as jest.Mock;
 const mockUseSetFavoriteStatus = useSetFavoriteStatus as jest.Mock;
-const mockUseSearchRatingQuery = useSearchRatingQuery as jest.Mock;
+const mockUseInstructorRatingsQuery = useInstructorRatingsQuery as jest.Mock;
 const mockUseRecentReviews = useRecentReviews as jest.Mock;
-const mockPublicApi = publicApi as jest.Mocked<typeof publicApi>;
+const mockUseServicesCatalog = useServicesCatalog as jest.Mock;
 const mockFavoritesApi = favoritesApi as jest.Mocked<typeof favoritesApi>;
 const mockFetchPricingPreview = fetchPricingPreview as jest.Mock;
 
@@ -148,13 +147,12 @@ describe('InstructorCard', () => {
     mockUseAuth.mockReturnValue({ user: null });
     mockUseFavoriteStatus.mockReturnValue({ data: false });
     mockUseSetFavoriteStatus.mockReturnValue(mockSetFavoriteStatus);
-    mockUseSearchRatingQuery.mockReturnValue({ data: null });
+    mockUseInstructorRatingsQuery.mockReturnValue({ data: null });
     mockUseRecentReviews.mockReturnValue({ data: null });
-    mockPublicApi.getCatalogServices.mockResolvedValue({
-      status: 200,
+    mockUseServicesCatalog.mockReturnValue({
       data: [
-        { id: 'cat-1', name: 'Piano', description: 'Piano lessons', category_id: 'music', search_terms: ['piano'], slug: 'piano', typical_duration_options: [60] },
-        { id: 'cat-2', name: 'Guitar', description: 'Guitar lessons', category_id: 'music', search_terms: ['guitar'], slug: 'guitar', typical_duration_options: [60] },
+        { id: 'cat-1', name: 'Piano', description: 'Piano lessons', category_id: 'music' },
+        { id: 'cat-2', name: 'Guitar', description: 'Guitar lessons', category_id: 'music' },
       ],
     });
     Object.defineProperty(window, 'sessionStorage', {
@@ -231,8 +229,8 @@ describe('InstructorCard', () => {
     });
 
     it('displays rating when reviewCount >= 3', async () => {
-      mockUseSearchRatingQuery.mockReturnValue({
-        data: { primary_rating: 4.5, review_count: 10 },
+      mockUseInstructorRatingsQuery.mockReturnValue({
+        data: { overall: { rating: 4.5, total_reviews: 10 } },
       });
       const instructor = createInstructor();
       renderWithProviders(<InstructorCard instructor={instructor} />);
@@ -241,8 +239,8 @@ describe('InstructorCard', () => {
     });
 
     it('hides rating when reviewCount < 3', async () => {
-      mockUseSearchRatingQuery.mockReturnValue({
-        data: { primary_rating: 5.0, review_count: 2 },
+      mockUseInstructorRatingsQuery.mockReturnValue({
+        data: { overall: { rating: 5.0, total_reviews: 2 } },
       });
       const instructor = createInstructor();
       renderWithProviders(<InstructorCard instructor={instructor} />);
@@ -445,8 +443,8 @@ describe('InstructorCard', () => {
     });
 
     it('navigates to reviews page when rating clicked', async () => {
-      mockUseSearchRatingQuery.mockReturnValue({
-        data: { primary_rating: 4.5, review_count: 10 },
+      mockUseInstructorRatingsQuery.mockReturnValue({
+        data: { overall: { rating: 4.5, total_reviews: 10 } },
       });
       const instructor = createInstructor();
       renderWithProviders(<InstructorCard instructor={instructor} />);
@@ -727,14 +725,18 @@ describe('InstructorCard', () => {
             service_catalog_id: 'cat-1',
             hourly_rate: 60,
             duration_options: [60],
-            location_types: ['in-person', 'online'],
+            location_types: ['in_person', 'online'],
+            offers_travel: true,
+            offers_online: true,
           },
         ],
       });
       renderWithProviders(<InstructorCard instructor={instructor} highlightServiceCatalogId="cat-1" />);
 
       await waitFor(() => {
-        expect(screen.getByText(/in-person.*online/i)).toBeInTheDocument();
+        expect(screen.getByText(/format:/i)).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /travels to you/i })).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /online/i })).toBeInTheDocument();
       });
     });
   });
@@ -747,7 +749,9 @@ describe('InstructorCard', () => {
     });
 
     it('handles null rating gracefully', () => {
-      mockUseSearchRatingQuery.mockReturnValue({ data: { primary_rating: null, review_count: 5 } });
+      mockUseInstructorRatingsQuery.mockReturnValue({
+        data: { overall: { rating: null, total_reviews: 5 } },
+      });
       const instructor = createInstructor();
       renderWithProviders(<InstructorCard instructor={instructor} />);
       // Should not display rating when it's null
@@ -913,7 +917,7 @@ describe('InstructorCard', () => {
 
   describe('service catalog error handling', () => {
     it('handles failed service catalog fetch gracefully', async () => {
-      mockPublicApi.getCatalogServices.mockRejectedValue(new Error('Network error'));
+      mockUseServicesCatalog.mockReturnValue({ data: undefined, error: new Error('Network error') });
 
       const instructor = createInstructor();
       // Should not throw
@@ -1014,7 +1018,7 @@ describe('InstructorCard', () => {
           service_catalog_id: 'cat-1',
           hourly_rate: 60,
           duration_options: [60],
-          location_types: ['online', '', 'in-home'],
+          location_types: ['online', '', 'in-home'] as unknown as ServiceLocationType[],
         }],
       });
 
