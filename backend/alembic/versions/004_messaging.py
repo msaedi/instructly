@@ -70,7 +70,7 @@ def upgrade() -> None:
         sa.Column("conversation_id", sa.String(26), nullable=False),
         sa.Column("message_type", sa.String(50), nullable=False, server_default="user"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
         sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("deleted_by", sa.String(26), nullable=True),
@@ -86,6 +86,11 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["sender_id"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["conversation_id"], ["conversations.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint(
+            "message_type IN ('user', 'system_booking_created', 'system_booking_cancelled', "
+            "'system_booking_rescheduled', 'system_booking_completed', 'system_conversation_started')",
+            name="ck_messages_message_type",
+        ),
     )
 
     op.create_index("ix_messages_booking_created", "messages", ["booking_id", "created_at"])
@@ -151,7 +156,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
             nullable=False,
         ),
-        sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["conversation_id"],

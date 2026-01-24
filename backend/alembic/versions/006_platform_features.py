@@ -647,6 +647,8 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["used_booking_id"], ["bookings.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["reserved_for_booking_id"], ["bookings.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint("amount_cents >= 0", name="ck_platform_credits_amount_positive"),
+        sa.CheckConstraint("reserved_amount_cents >= 0", name="ck_platform_credits_reserved_positive"),
         comment="Credits issued from cancellations, usable on future bookings",
     )
     op.create_index("idx_platform_credits_user_id", "platform_credits", ["user_id"])

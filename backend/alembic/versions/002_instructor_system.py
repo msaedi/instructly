@@ -243,7 +243,7 @@ def upgrade() -> None:
         sa.Column("id", sa.String(26), nullable=False),
         sa.Column("instructor_profile_id", sa.String(26), nullable=False),
         sa.Column("service_catalog_id", sa.String(26), nullable=False),
-        sa.Column("hourly_rate", sa.Float(), nullable=False),
+        sa.Column("hourly_rate", sa.Numeric(10, 2), nullable=False),
         sa.Column("experience_level", sa.String(50), nullable=True),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("requirements", sa.Text(), nullable=True),

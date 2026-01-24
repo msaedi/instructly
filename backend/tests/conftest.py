@@ -1108,6 +1108,14 @@ def db():
 def unique_nyc_region_code(db: Session):
     """Yield a unique NYC region code and clean it up after the test."""
     code = f"Z{secrets.token_hex(2).upper()}"
+    # First delete any service areas referencing the region (FK constraint is RESTRICT)
+    db.execute(
+        text(
+            "DELETE FROM instructor_service_areas WHERE neighborhood_id IN "
+            "(SELECT id FROM region_boundaries WHERE region_type = 'nyc' AND region_code = :code)"
+        ),
+        {"code": code},
+    )
     db.execute(
         text("DELETE FROM region_boundaries WHERE region_type = 'nyc' AND region_code = :code"),
         {"code": code},
@@ -1116,6 +1124,14 @@ def unique_nyc_region_code(db: Session):
     try:
         yield code
     finally:
+        # Clean up in correct order: service areas first, then region boundaries
+        db.execute(
+            text(
+                "DELETE FROM instructor_service_areas WHERE neighborhood_id IN "
+                "(SELECT id FROM region_boundaries WHERE region_type = 'nyc' AND region_code = :code)"
+            ),
+            {"code": code},
+        )
         db.execute(
             text(
                 "DELETE FROM region_boundaries WHERE region_type = 'nyc' AND region_code = :code"
@@ -1672,7 +1688,7 @@ def test_booking(db: Session, test_student: User, test_instructor_with_availabil
         end_time=time(12, 0),
         service_name=service_name,
         hourly_rate=service.hourly_rate,
-        total_price=service.hourly_rate * 3,
+        total_price=float(service.hourly_rate) * 3,
         duration_minutes=180,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test Location",
@@ -1793,7 +1809,7 @@ def test_instructor_with_bookings(db: Session, test_instructor_with_availability
         end_time=time(12, 0),
         service_name=service_name,
         hourly_rate=service.hourly_rate,
-        total_price=service.hourly_rate * 3,
+        total_price=float(service.hourly_rate) * 3,
         duration_minutes=180,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test Location",

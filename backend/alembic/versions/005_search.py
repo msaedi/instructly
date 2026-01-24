@@ -347,7 +347,7 @@ def upgrade() -> None:
         "instructor_service_areas",
         sa.Column("instructor_id", sa.String(26), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column(
-            "neighborhood_id", sa.String(26), sa.ForeignKey("region_boundaries.id", ondelete="CASCADE"), nullable=False
+            "neighborhood_id", sa.String(26), sa.ForeignKey("region_boundaries.id", ondelete="RESTRICT"), nullable=False
         ),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
@@ -568,6 +568,7 @@ def upgrade() -> None:
             sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
+            onupdate=sa.func.now(),
         ),
         sa.Column("deprecated_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),

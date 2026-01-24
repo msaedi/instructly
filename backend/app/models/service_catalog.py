@@ -14,7 +14,18 @@ import logging
 from typing import Any, Dict, List, Optional, Set, cast
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import ulid
 
@@ -185,9 +196,7 @@ class ServiceCatalog(Base):
     def price_range(self) -> tuple[Optional[float], Optional[float]]:
         """Get min and max prices from active instructors."""
         active_prices: List[float] = [
-            cast(float, service.hourly_rate)
-            for service in self.instructor_services
-            if service.is_active
+            float(service.hourly_rate) for service in self.instructor_services if service.is_active
         ]
 
         if not active_prices:
@@ -300,7 +309,7 @@ class InstructorService(Base):
         nullable=False,
         index=True,
     )
-    hourly_rate = Column(Float, nullable=False)
+    hourly_rate = Column(Numeric(10, 2), nullable=False)
     experience_level = Column(String(50), nullable=True)
     description = Column(Text, nullable=True)
     requirements = Column(Text, nullable=True)
@@ -376,7 +385,7 @@ class InstructorService(Base):
         Returns:
             float: Price for the session
         """
-        hourly_rate = cast(float, self.hourly_rate)
+        hourly_rate = float(self.hourly_rate)
         return (hourly_rate * duration_minutes) / 60.0
 
     def deactivate(self) -> None:
