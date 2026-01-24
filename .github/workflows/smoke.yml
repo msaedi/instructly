@@ -75,7 +75,8 @@ jobs:
             -H "Cache-Control: no-cache" -H "Pragma: no-cache" \
             "$PREVIEW_WEB/instructor/console?ts=$(date +%s)" | tee /tmp/web.txt
           grep -E "^HTTP/.* (301|302|307|308)" /tmp/web.txt
-          grep -i "location: /staff-login" /tmp/web.txt
+          # Match staff-login in location header (handles both relative /staff-login and full URL)
+          grep -iE "^location:.*staff-login" /tmp/web.txt
       - name: robots header present
         run: |
           curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -I "$PREVIEW_WEB/" | grep -i "x-robots-tag: noindex"
