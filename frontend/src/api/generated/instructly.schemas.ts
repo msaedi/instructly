@@ -3706,6 +3706,91 @@ export interface MCPFunnelSummaryResponse {
   time_window: MCPTimeWindow;
 }
 
+export interface MCPInstructorBGC {
+  completed_at?: string | null;
+  status?: string | null;
+  valid_until?: string | null;
+}
+
+export interface MCPInstructorOnboarding {
+  background_check_uploaded_at?: string | null;
+  bgc_completed_at?: string | null;
+  bgc_invited_at?: string | null;
+  identity_verified_at?: string | null;
+  onboarding_completed_at?: string | null;
+  profile_created_at?: string | null;
+  profile_updated_at?: string | null;
+}
+
+export interface MCPInstructorService {
+  category: string;
+  hourly_rate: string;
+  is_active: boolean;
+  name: string;
+  slug: string;
+}
+
+export interface MCPInstructorStats {
+  bookings_cancelled: number;
+  bookings_completed: number;
+  no_shows: number;
+  rating_avg: number;
+  rating_count: number;
+  response_rate?: number | null;
+}
+
+export interface MCPInstructorDetailResponse {
+  admin_url: string;
+  bgc: MCPInstructorBGC;
+  email: string;
+  founding_granted_at?: string | null;
+  is_founding: boolean;
+  live_at?: string | null;
+  meta: MCPMeta;
+  name: string;
+  onboarding: MCPInstructorOnboarding;
+  phone?: string | null;
+  services: MCPInstructorService[];
+  stats: MCPInstructorStats;
+  status: string;
+  user_id: string;
+}
+
+export interface MCPInstructorListItem {
+  admin_url: string;
+  bookings_completed: number;
+  categories: string[];
+  email: string;
+  founding_granted_at?: string | null;
+  is_founding: boolean;
+  live_at?: string | null;
+  name: string;
+  rating_avg: number;
+  services: string[];
+  status: string;
+  user_id: string;
+}
+
+export interface MCPInstructorListResponse {
+  items: MCPInstructorListItem[];
+  limit: number;
+  meta: MCPMeta;
+  next_cursor?: string | null;
+}
+
+export interface MCPServiceCoverageData {
+  group_by: string;
+  labels: string[];
+  total_instructors: number;
+  total_services_offered: number;
+  values: number[];
+}
+
+export interface MCPServiceCoverageResponse {
+  data: MCPServiceCoverageData;
+  meta: MCPMeta;
+}
+
 export interface MCPStuckInstructor {
   current_stage: string;
   days_in_stage: number;
@@ -6998,6 +7083,47 @@ export type GetStuckInstructorsApiV1AdminMcpFoundingStuckGetParams = {
    */
   limit?: number;
 };
+
+export type ListInstructorsApiV1AdminMcpInstructorsGetParams = {
+  status?: 'registered' | 'onboarding' | 'live' | 'paused' | null;
+  is_founding?: boolean | null;
+  service_slug?: string | null;
+  category_slug?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+  cursor?: string | null;
+};
+
+export type GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetParams = {
+  status?: GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetStatus;
+  group_by?: GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetGroupBy;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  top?: number;
+};
+
+export type GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetStatus =
+  (typeof GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetStatus)[keyof typeof GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetStatus];
+
+export const GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetStatus = {
+  registered: 'registered',
+  onboarding: 'onboarding',
+  live: 'live',
+  paused: 'paused',
+} as const;
+
+export type GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetGroupBy =
+  (typeof GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetGroupBy)[keyof typeof GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetGroupBy];
+
+export const GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetGroupBy = {
+  category: 'category',
+  service: 'service',
+} as const;
 
 export type ExportAnalyticsApiV1AnalyticsExportPostParams = {
   format?: string;

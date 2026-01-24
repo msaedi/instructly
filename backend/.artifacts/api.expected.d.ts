@@ -975,6 +975,54 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/instructors": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_instructors_api_v1_admin_mcp_instructors_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/instructors/coverage": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_service_coverage_api_v1_admin_mcp_instructors_coverage_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/instructors/{identifier}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_instructor_detail_api_v1_admin_mcp_instructors__identifier__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/referrals/config": {
  parameters: {
  query?: never;
@@ -6452,10 +6500,86 @@ export type components = {
  stages: components["schemas"]["MCPFunnelStage"][];
  time_window: components["schemas"]["MCPTimeWindow"];
  };
+ MCPInstructorBGC: {
+ completed_at?: string | null;
+ status?: string | null;
+ valid_until?: string | null;
+ };
+ MCPInstructorDetailResponse: {
+ admin_url: string;
+ bgc: components["schemas"]["MCPInstructorBGC"];
+ email: string;
+ founding_granted_at?: string | null;
+ is_founding: boolean;
+ live_at?: string | null;
+ meta: components["schemas"]["MCPMeta"];
+ name: string;
+ onboarding: components["schemas"]["MCPInstructorOnboarding"];
+ phone?: string | null;
+ services: components["schemas"]["MCPInstructorService"][];
+ stats: components["schemas"]["MCPInstructorStats"];
+ status: string;
+ user_id: string;
+ };
+ MCPInstructorListItem: {
+ admin_url: string;
+ bookings_completed: number;
+ categories: string[];
+ email: string;
+ founding_granted_at?: string | null;
+ is_founding: boolean;
+ live_at?: string | null;
+ name: string;
+ rating_avg: number;
+ services: string[];
+ status: string;
+ user_id: string;
+ };
+ MCPInstructorListResponse: {
+ items: components["schemas"]["MCPInstructorListItem"][];
+ limit: number;
+ meta: components["schemas"]["MCPMeta"];
+ next_cursor?: string | null;
+ };
+ MCPInstructorOnboarding: {
+ background_check_uploaded_at?: string | null;
+ bgc_completed_at?: string | null;
+ bgc_invited_at?: string | null;
+ identity_verified_at?: string | null;
+ onboarding_completed_at?: string | null;
+ profile_created_at?: string | null;
+ profile_updated_at?: string | null;
+ };
+ MCPInstructorService: {
+ category: string;
+ hourly_rate: string;
+ is_active: boolean;
+ name: string;
+ slug: string;
+ };
+ MCPInstructorStats: {
+ bookings_cancelled: number;
+ bookings_completed: number;
+ no_shows: number;
+ rating_avg: number;
+ rating_count: number;
+ response_rate?: number | null;
+ };
  MCPMeta: {
  actor: components["schemas"]["MCPActor"];
  generated_at: string;
  request_id: string;
+ };
+ MCPServiceCoverageData: {
+ group_by: string;
+ labels: string[];
+ total_instructors: number;
+ total_services_offered: number;
+ values: number[];
+ };
+ MCPServiceCoverageResponse: {
+ data: components["schemas"]["MCPServiceCoverageData"];
+ meta: components["schemas"]["MCPMeta"];
  };
  MCPStuckInstructor: {
  current_stage: string;
@@ -9936,6 +10060,100 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["MCPStuckResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_instructors_api_v1_admin_mcp_instructors_get: {
+ parameters: {
+ query?: {
+ status?: ("registered" | "onboarding" | "live" | "paused") | null;
+ is_founding?: boolean | null;
+ service_slug?: string | null;
+ category_slug?: string | null;
+ limit?: number;
+ cursor?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPInstructorListResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_service_coverage_api_v1_admin_mcp_instructors_coverage_get: {
+ parameters: {
+ query?: {
+ status?: "registered" | "onboarding" | "live" | "paused";
+ group_by?: "category" | "service";
+ top?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPServiceCoverageResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_instructor_detail_api_v1_admin_mcp_instructors__identifier__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ identifier: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPInstructorDetailResponse"];
  };
  };
  422: {

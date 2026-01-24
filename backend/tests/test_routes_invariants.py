@@ -256,6 +256,9 @@ class TestRoutingInvariants:
             # Admin auth-blocks: /summary static route defined before /{email} dynamic route
             ("/api/v1/admin/auth-blocks/summary", "/api/v1/admin/auth-blocks/{email}"),
             ("/api/v1/admin/auth-blocks/{email}", "/api/v1/admin/auth-blocks/summary"),
+            # MCP instructors: static coverage route defined before dynamic {identifier}
+            ("/api/v1/admin/mcp/instructors/coverage", "/api/v1/admin/mcp/instructors/{identifier}"),
+            ("/api/v1/admin/mcp/instructors/{identifier}", "/api/v1/admin/mcp/instructors/coverage"),
         }
 
         for path1, path2 in combinations(v1_paths, 2):

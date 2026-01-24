@@ -1225,6 +1225,57 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mcp/instructors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Instructors */
+        get: operations["list_instructors_api_v1_admin_mcp_instructors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/instructors/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Service Coverage */
+        get: operations["get_service_coverage_api_v1_admin_mcp_instructors_coverage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/instructors/{identifier}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Instructor Detail */
+        get: operations["get_instructor_detail_api_v1_admin_mcp_instructors__identifier__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/referrals/config": {
         parameters: {
             query?: never;
@@ -11931,6 +11982,124 @@ export type components = {
             stages: components["schemas"]["MCPFunnelStage"][];
             time_window: components["schemas"]["MCPTimeWindow"];
         };
+        /** MCPInstructorBGC */
+        MCPInstructorBGC: {
+            /** Completed At */
+            completed_at?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Valid Until */
+            valid_until?: string | null;
+        };
+        /** MCPInstructorDetailResponse */
+        MCPInstructorDetailResponse: {
+            /** Admin Url */
+            admin_url: string;
+            bgc: components["schemas"]["MCPInstructorBGC"];
+            /** Email */
+            email: string;
+            /** Founding Granted At */
+            founding_granted_at?: string | null;
+            /** Is Founding */
+            is_founding: boolean;
+            /** Live At */
+            live_at?: string | null;
+            meta: components["schemas"]["MCPMeta"];
+            /** Name */
+            name: string;
+            onboarding: components["schemas"]["MCPInstructorOnboarding"];
+            /** Phone */
+            phone?: string | null;
+            /** Services */
+            services: components["schemas"]["MCPInstructorService"][];
+            stats: components["schemas"]["MCPInstructorStats"];
+            /** Status */
+            status: string;
+            /** User Id */
+            user_id: string;
+        };
+        /** MCPInstructorListItem */
+        MCPInstructorListItem: {
+            /** Admin Url */
+            admin_url: string;
+            /** Bookings Completed */
+            bookings_completed: number;
+            /** Categories */
+            categories: string[];
+            /** Email */
+            email: string;
+            /** Founding Granted At */
+            founding_granted_at?: string | null;
+            /** Is Founding */
+            is_founding: boolean;
+            /** Live At */
+            live_at?: string | null;
+            /** Name */
+            name: string;
+            /** Rating Avg */
+            rating_avg: number;
+            /** Services */
+            services: string[];
+            /** Status */
+            status: string;
+            /** User Id */
+            user_id: string;
+        };
+        /** MCPInstructorListResponse */
+        MCPInstructorListResponse: {
+            /** Items */
+            items: components["schemas"]["MCPInstructorListItem"][];
+            /** Limit */
+            limit: number;
+            meta: components["schemas"]["MCPMeta"];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** MCPInstructorOnboarding */
+        MCPInstructorOnboarding: {
+            /** Background Check Uploaded At */
+            background_check_uploaded_at?: string | null;
+            /** Bgc Completed At */
+            bgc_completed_at?: string | null;
+            /** Bgc Invited At */
+            bgc_invited_at?: string | null;
+            /** Identity Verified At */
+            identity_verified_at?: string | null;
+            /** Onboarding Completed At */
+            onboarding_completed_at?: string | null;
+            /** Profile Created At */
+            profile_created_at?: string | null;
+            /** Profile Updated At */
+            profile_updated_at?: string | null;
+        };
+        /** MCPInstructorService */
+        MCPInstructorService: {
+            /** Category */
+            category: string;
+            /** Hourly Rate */
+            hourly_rate: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
+        /** MCPInstructorStats */
+        MCPInstructorStats: {
+            /** Bookings Cancelled */
+            bookings_cancelled: number;
+            /** Bookings Completed */
+            bookings_completed: number;
+            /** No Shows */
+            no_shows: number;
+            /** Rating Avg */
+            rating_avg: number;
+            /** Rating Count */
+            rating_count: number;
+            /** Response Rate */
+            response_rate?: number | null;
+        };
         /** MCPMeta */
         MCPMeta: {
             actor: components["schemas"]["MCPActor"];
@@ -11941,6 +12110,24 @@ export type components = {
             generated_at: string;
             /** Request Id */
             request_id: string;
+        };
+        /** MCPServiceCoverageData */
+        MCPServiceCoverageData: {
+            /** Group By */
+            group_by: string;
+            /** Labels */
+            labels: string[];
+            /** Total Instructors */
+            total_instructors: number;
+            /** Total Services Offered */
+            total_services_offered: number;
+            /** Values */
+            values: number[];
+        };
+        /** MCPServiceCoverageResponse */
+        MCPServiceCoverageResponse: {
+            data: components["schemas"]["MCPServiceCoverageData"];
+            meta: components["schemas"]["MCPMeta"];
         };
         /** MCPStuckInstructor */
         MCPStuckInstructor: {
@@ -19079,6 +19266,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MCPStuckResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_instructors_api_v1_admin_mcp_instructors_get: {
+        parameters: {
+            query?: {
+                status?: ("registered" | "onboarding" | "live" | "paused") | null;
+                is_founding?: boolean | null;
+                service_slug?: string | null;
+                category_slug?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPInstructorListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_service_coverage_api_v1_admin_mcp_instructors_coverage_get: {
+        parameters: {
+            query?: {
+                status?: "registered" | "onboarding" | "live" | "paused";
+                group_by?: "category" | "service";
+                top?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPServiceCoverageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_instructor_detail_api_v1_admin_mcp_instructors__identifier__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPInstructorDetailResponse"];
                 };
             };
             /** @description Validation Error */
