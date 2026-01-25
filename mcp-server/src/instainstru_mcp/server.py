@@ -31,6 +31,11 @@ class DualAuthMiddleware:
         "/.well-known/oauth-authorization-server",
     }
 
+    # RFC 9728 allows path-inserted metadata URLs like /.well-known/oauth-protected-resource/sse
+    EXEMPT_PATH_PREFIXES = (
+        "/.well-known/oauth-protected-resource/",
+    )
+
     def __init__(self, app: Any, settings: Settings | None = None) -> None:
         self.app = app
         self.simple_token = os.environ.get("INSTAINSTRU_MCP_API_SERVICE_TOKEN")
@@ -47,12 +52,17 @@ class DualAuthMiddleware:
             return
 
         path = scope.get("path", "")
-        if path in self.EXEMPT_PATHS:
+        if path in self.EXEMPT_PATHS or path.startswith(self.EXEMPT_PATH_PREFIXES):
             await self.app(scope, receive, send)
             return
 
         headers = dict(scope.get("headers", []))
         auth_header = headers.get(b"authorization", b"").decode()
+        logger.info(
+            "Auth header present: %s, starts with Bearer: %s",
+            bool(auth_header),
+            auth_header.startswith("Bearer ") if auth_header else False,
+        )
         if not auth_header.startswith("Bearer "):
             self._log_auth_failure(scope)
             await self._send_error(
@@ -81,11 +91,16 @@ class DualAuthMiddleware:
         await self.app(scope, receive, send)
 
     async def _authenticate(self, token: str) -> dict | None:
+        logger.info("Attempting authentication, token length: %d", len(token))
         if self.simple_token:
             if secrets.compare_digest(token, self.simple_token):
                 logger.debug("Authenticated via simple Bearer token")
                 return {"method": "simple_token"}
 
+        logger.info(
+            "Trying Auth0 validation, validator present: %s",
+            bool(self.auth0_validator),
+        )
         if self.auth0_validator:
             try:
                 import jwt as pyjwt
@@ -166,30 +181,26 @@ def _attach_health_route(app: Any) -> None:
 
 def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
     async def oauth_protected_resource(request):
+        """Return OAuth 2.0 Protected Resource Metadata (RFC 9728)."""
         if not settings.auth0_domain or not settings.auth0_audience:
             return JSONResponse(
                 {"error": "Auth0 not configured"},
                 status_code=503,
             )
 
-        hostname = request.url.hostname or "localhost"
-        scheme = request.url.scheme or "https"
-        port = request.url.port
-        if port and not (
-            (scheme == "https" and port == 443) or (scheme == "http" and port == 80)
-        ):
-            hostname = f"{hostname}:{port}"
-
-        resource_url = settings.auth0_audience or f"https://{hostname}"
+        # Resource is the MCP endpoint URL (audience)
+        resource_url = settings.auth0_audience
         issuer = f"https://{settings.auth0_domain}/"
         return JSONResponse(
             {
                 "resource": resource_url,
                 "authorization_servers": [issuer],
+                "scopes_supported": ["openid", "profile", "email"],
             }
         )
 
     async def oauth_authorization_server(_request):
+        """Return OAuth 2.0 Authorization Server Metadata (RFC 8414)."""
         if not settings.auth0_domain or not settings.auth0_audience:
             return JSONResponse(
                 {"error": "Auth0 not configured"},
@@ -205,13 +216,24 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
                 "token_endpoint": f"{base_url}/oauth/token",
                 "jwks_uri": f"{base_url}/.well-known/jwks.json",
                 "response_types_supported": ["code"],
+                "grant_types_supported": ["authorization_code", "refresh_token"],
+                "token_endpoint_auth_methods_supported": ["none"],  # PKCE public clients
                 "code_challenge_methods_supported": ["S256"],
+                "scopes_supported": ["openid", "profile", "email", "offline_access"],
             }
         )
 
     app.routes.append(
         Route(
             "/.well-known/oauth-protected-resource",
+            oauth_protected_resource,
+            methods=["GET"],
+        )
+    )
+    # RFC 9728 path-inserted metadata: handle requests like /sse appended to the well-known path
+    app.routes.append(
+        Route(
+            "/.well-known/oauth-protected-resource/{path:path}",
             oauth_protected_resource,
             methods=["GET"],
         )
