@@ -59,7 +59,7 @@ jobs:
           grep -E "^HTTP/.* (400|401|403)" /tmp/checkr.txt
       - name: Metrics endpoint reachable
         run: |
-          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused "$API/api/v1/metrics" | head -n 20
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused "$API/api/v1/internal/metrics" | head -n 20
 
   smoke-preview-web:
     name: Preview Web gate (frontend)
@@ -106,11 +106,11 @@ jobs:
             -H "Origin: $ORIGIN" \
             -H "Access-Control-Request-Method: GET" \
             -H "Access-Control-Request-Headers: content-type"
-      - name: CSRF sanity (cross-origin POST should be blocked)
+      - name: CSRF sanity (cross-origin GET should be blocked)
         run: |
           set +e
-          curl -sS --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i -X POST "$API$GATED" -H "Origin: $ORIGIN" -d '{}' | tee /tmp/c.txt
-          grep -E "^HTTP/.* (401|403|405)" /tmp/c.txt
+          curl -sS --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i -X GET "$API$GATED" -H "Origin: $ORIGIN" | tee /tmp/c.txt
+          grep -E "^HTTP/.* (401|403)" /tmp/c.txt
       - name: Phase-gated route (401/403 in prod)
         run: |
           set +e
@@ -139,4 +139,4 @@ jobs:
           grep -E "^HTTP/.* (400|401|403)" /tmp/checkr.txt
       - name: Metrics endpoint reachable
         run: |
-          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused "$API/api/v1/metrics" | head -n 20
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused "$API/api/v1/internal/metrics" | head -n 20

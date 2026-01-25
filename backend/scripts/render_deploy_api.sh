@@ -42,7 +42,7 @@ for service in data:
 }
 
 # Resolve service name for a given logical type and target env
-# Types: backend|redis|prom_agent|worker|beat|flower
+# Types: backend|redis|prom_agent|worker|beat|flower|mcp
 get_service_name() {
     local typ=$1
     local env=$2  # preview|prod
@@ -58,6 +58,7 @@ get_service_name() {
             worker)     echo "celery-worker-preview" ;;
             beat)       echo "celery-beat-preview" ;;
             flower)     echo "flower-preview" ;;
+            mcp)        echo "instainstru-mcp-preview" ;;
         esac
     else
         case "$typ" in
@@ -67,6 +68,7 @@ get_service_name() {
             worker)     echo "celery-worker" ;;
             beat)       echo "celery-beat" ;;
             flower)     echo "flower" ;;
+            mcp)        echo "instainstru-mcp" ;;
         esac
     fi
 }
@@ -140,9 +142,10 @@ echo "6) Flower"
 echo "7) Celery Stack (Worker + Beat + Flower)"
 echo "8) All services (including Backend API)"
 echo "9) Full Stack (Redis/Prometheus + All services)"
+echo "10) MCP Server"
 echo "0) Exit"
 echo ""
-read -p "Enter your choice (0-9): " choice
+read -p "Enter your choice (0-10): " choice
 
 case $choice in
     1)
@@ -172,6 +175,7 @@ case $choice in
     8)
         echo "Deploying all services (except Redis/Prometheus Agent)..."
         deploy_service "$(get_service_name backend "$TARGET_ENV")"
+        deploy_service "$(get_service_name mcp "$TARGET_ENV")"
         deploy_service "$(get_service_name worker "$TARGET_ENV")"
         deploy_service "$(get_service_name beat "$TARGET_ENV")"
         deploy_service "$(get_service_name flower "$TARGET_ENV")"
@@ -188,6 +192,10 @@ case $choice in
         deploy_service "$(get_service_name beat "$TARGET_ENV")"
         deploy_service "$(get_service_name flower "$TARGET_ENV")"
         deploy_service "$(get_service_name backend "$TARGET_ENV")"
+        deploy_service "$(get_service_name mcp "$TARGET_ENV")"
+        ;;
+    10)
+        deploy_service "$(get_service_name mcp "$TARGET_ENV")"
         ;;
     0)
         echo "Exiting..."
