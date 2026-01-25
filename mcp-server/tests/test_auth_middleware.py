@@ -393,3 +393,78 @@ class TestEdgeCases:
             headers={"Authorization": "Bearer Bearer test-token-123"},
         )
         assert response.status_code == 401
+
+
+class TestOAuthMetadata:
+    """Tests for OAuth metadata endpoints."""
+
+    def test_oauth_metadata_endpoint_returns_auth0_info(self):
+        """Should return Auth0 metadata when configured."""
+        from instainstru_mcp.auth import get_auth0_validator
+        from instainstru_mcp.config import Settings
+        from instainstru_mcp.server import create_app
+
+        get_auth0_validator.cache_clear()
+        settings = Settings(
+            api_service_token="test-token",
+            api_base_url="https://api.example.com",
+            auth0_domain="instainstru-admin.us.auth0.com",
+            auth0_audience="https://mcp.instainstru.com",
+        )
+        client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
+
+        response = client.get("/.well-known/oauth-protected-resource")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["resource"] == "http://testserver/sse"
+        assert payload["authorization_servers"] == [
+            "https://instainstru-admin.us.auth0.com/"
+        ]
+
+        response = client.get("/.well-known/oauth-authorization-server")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["issuer"] == "https://instainstru-admin.us.auth0.com/"
+        assert payload["authorization_endpoint"].endswith("/authorize")
+        assert payload["token_endpoint"].endswith("/oauth/token")
+        assert payload["jwks_uri"].endswith("/.well-known/jwks.json")
+
+    def test_oauth_metadata_no_auth_required(self):
+        """Metadata endpoints should be public (no auth required)."""
+        from instainstru_mcp.auth import get_auth0_validator
+        from instainstru_mcp.config import Settings
+        from instainstru_mcp.server import create_app
+
+        get_auth0_validator.cache_clear()
+        settings = Settings(
+            api_service_token="test-token",
+            api_base_url="https://api.example.com",
+            auth0_domain="instainstru-admin.us.auth0.com",
+            auth0_audience="https://mcp.instainstru.com",
+        )
+        client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
+
+        assert client.get("/.well-known/oauth-protected-resource").status_code == 200
+        assert (
+            client.get("/.well-known/oauth-authorization-server").status_code == 200
+        )
+
+    def test_oauth_metadata_returns_503_when_not_configured(self):
+        """Should return 503 when Auth0 is not configured."""
+        from instainstru_mcp.auth import get_auth0_validator
+        from instainstru_mcp.config import Settings
+        from instainstru_mcp.server import create_app
+
+        get_auth0_validator.cache_clear()
+        settings = Settings(
+            api_service_token="test-token",
+            api_base_url="https://api.example.com",
+        )
+        client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
+
+        assert (
+            client.get("/.well-known/oauth-protected-resource").status_code == 503
+        )
+        assert (
+            client.get("/.well-known/oauth-authorization-server").status_code == 503
+        )

@@ -24,7 +24,11 @@ if TYPE_CHECKING:
 class DualAuthMiddleware:
     """Raw ASGI middleware supporting simple Bearer tokens and Auth0 JWTs."""
 
-    PUBLIC_PATHS = {"/api/v1/health"}
+    EXEMPT_PATHS = {
+        "/api/v1/health",
+        "/.well-known/oauth-protected-resource",
+        "/.well-known/oauth-authorization-server",
+    }
 
     def __init__(self, app: Any, settings: Settings | None = None) -> None:
         self.app = app
@@ -42,7 +46,7 @@ class DualAuthMiddleware:
             return
 
         path = scope.get("path", "")
-        if path in self.PUBLIC_PATHS:
+        if path in self.EXEMPT_PATHS:
             await self.app(scope, receive, send)
             return
 
@@ -140,10 +144,73 @@ def _attach_health_route(app: Any) -> None:
     app.routes.append(Route("/api/v1/health", health_check, methods=["GET", "HEAD"]))
 
 
+def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
+    async def oauth_protected_resource(request):
+        if not settings.auth0_domain or not settings.auth0_audience:
+            return JSONResponse(
+                {"error": "Auth0 not configured"},
+                status_code=503,
+            )
+
+        hostname = request.url.hostname or "localhost"
+        scheme = request.url.scheme or "https"
+        port = request.url.port
+        if port and not (
+            (scheme == "https" and port == 443) or (scheme == "http" and port == 80)
+        ):
+            hostname = f"{hostname}:{port}"
+
+        resource_url = f"{scheme}://{hostname}/sse"
+        issuer = f"https://{settings.auth0_domain}/"
+        return JSONResponse(
+            {
+                "resource": resource_url,
+                "authorization_servers": [issuer],
+            }
+        )
+
+    async def oauth_authorization_server(_request):
+        if not settings.auth0_domain or not settings.auth0_audience:
+            return JSONResponse(
+                {"error": "Auth0 not configured"},
+                status_code=503,
+            )
+
+        base_url = f"https://{settings.auth0_domain}"
+        issuer = f"{base_url}/"
+        return JSONResponse(
+            {
+                "issuer": issuer,
+                "authorization_endpoint": f"{base_url}/authorize",
+                "token_endpoint": f"{base_url}/oauth/token",
+                "jwks_uri": f"{base_url}/.well-known/jwks.json",
+                "response_types_supported": ["code"],
+                "code_challenge_methods_supported": ["S256"],
+            }
+        )
+
+    app.routes.append(
+        Route(
+            "/.well-known/oauth-protected-resource",
+            oauth_protected_resource,
+            methods=["GET"],
+        )
+    )
+    app.routes.append(
+        Route(
+            "/.well-known/oauth-authorization-server",
+            oauth_authorization_server,
+            methods=["GET"],
+        )
+    )
+
+
 def create_app(settings: Settings | None = None):
+    settings = settings or Settings()  # type: ignore[call-arg]
     mcp = create_mcp(settings=settings)
     app_instance = cast(Any, mcp).http_app(transport="sse")
     _attach_health_route(app_instance)
+    _attach_oauth_metadata_routes(app_instance, settings)
     return DualAuthMiddleware(app_instance, settings=settings)
 
 
@@ -154,7 +221,12 @@ def get_app() -> Any:
     """Get or create the app instance (lazy initialization)."""
     global _app
     if _app is None:
-        _app = create_app()
+        settings = Settings()  # type: ignore[call-arg]
+        mcp = create_mcp(settings=settings)
+        app_instance = cast(Any, mcp).http_app(transport="sse")
+        _attach_health_route(app_instance)
+        _attach_oauth_metadata_routes(app_instance, settings)
+        _app = DualAuthMiddleware(app_instance, settings=settings)
     return _app
 
 
