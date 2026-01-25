@@ -14,7 +14,7 @@ import ulid
 
 from app.api.dependencies.auth import validate_mcp_service
 from app.api.dependencies.database import get_db
-from app.core.exceptions import MCPTokenError
+from app.core.exceptions import MCPTokenError, ServiceException
 from app.models.user import User
 from app.ratelimit.dependency import rate_limit
 from app.schemas.mcp import (
@@ -38,6 +38,7 @@ from app.services.mcp_invite_service import MCPInviteService
 
 router = APIRouter(tags=["MCP Admin - Invites"])
 logger = logging.getLogger(__name__)
+MAX_INVITE_BATCH_SIZE = 100
 
 
 def _normalize_emails(emails: Iterable[str]) -> tuple[list[str], list[str]]:
@@ -66,6 +67,11 @@ async def preview_invites(
     current_user: User = Depends(validate_mcp_service),
     db: Session = Depends(get_db),
 ) -> MCPInvitePreviewResponse:
+    if len(payload.recipient_emails) > MAX_INVITE_BATCH_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Maximum {MAX_INVITE_BATCH_SIZE} recipients per batch",
+        )
     recipient_emails, warnings = _normalize_emails([str(e) for e in payload.recipient_emails])
     if not recipient_emails:
         raise HTTPException(status_code=400, detail="recipient_emails_required")
@@ -187,10 +193,31 @@ async def send_invites(
     expires_in_days = int(token_payload.get("expires_in_days", 14))
     grant_founding = bool(token_payload.get("grant_founding_status", True))
 
+    if grant_founding:
+        cap_remaining = await asyncio.to_thread(invite_service.get_founding_cap_remaining)
+        founding_count = len([email for email in recipient_emails if email])
+        if founding_count > cap_remaining:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Founding cap exceeded: "
+                    f"{founding_count} requested but only {cap_remaining} remaining. "
+                    "Preview again to get current cap."
+                ),
+            )
+
     idempotency_service = MCPIdempotencyService(db)
-    already_done, cached_result = await idempotency_service.check_and_store(
-        idempotency_key, operation="mcp_invites.send"
-    )
+    try:
+        already_done, cached_result = await idempotency_service.check_and_store(
+            idempotency_key, operation="mcp_invites.send"
+        )
+    except ServiceException as exc:
+        if exc.code == "idempotency_unavailable":
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Service temporarily unavailable. Please retry.",
+            ) from exc
+        raise
     if already_done:
         if cached_result is None:
             raise HTTPException(

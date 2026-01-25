@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Optional
 
+from redis.exceptions import RedisError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ServiceException
 from app.services.base import BaseService
+
+logger = logging.getLogger(__name__)
 
 
 class MCPIdempotencyService(BaseService):
@@ -33,25 +37,32 @@ class MCPIdempotencyService(BaseService):
         If no, store key and return (False, None).
         """
         self._operation_context = operation
-        redis = await self._get_redis()
-        storage_key = self._key(operation, idempotency_key)
-        cached_raw = await redis.get(storage_key)
-        if cached_raw:
-            cached = self._safe_load(cached_raw)
-            if isinstance(cached, dict) and cached.get("status") == "pending":
-                return True, None
-            return True, cached
-
-        pending_payload = json.dumps({"status": "pending"})
-        was_set = await redis.set(storage_key, pending_payload, ex=self.TTL_SECONDS, nx=True)
-        if not was_set:
+        try:
+            redis = await self._get_redis()
+            storage_key = self._key(operation, idempotency_key)
             cached_raw = await redis.get(storage_key)
-            cached = self._safe_load(cached_raw) if cached_raw else None
-            if isinstance(cached, dict) and cached.get("status") == "pending":
-                return True, None
-            return True, cached
+            if cached_raw:
+                cached = self._safe_load(cached_raw)
+                if isinstance(cached, dict) and cached.get("status") == "pending":
+                    return True, None
+                return True, cached
 
-        return False, None
+            pending_payload = json.dumps({"status": "pending"})
+            was_set = await redis.set(storage_key, pending_payload, ex=self.TTL_SECONDS, nx=True)
+            if not was_set:
+                cached_raw = await redis.get(storage_key)
+                cached = self._safe_load(cached_raw) if cached_raw else None
+                if isinstance(cached, dict) and cached.get("status") == "pending":
+                    return True, None
+                return True, cached
+
+            return False, None
+        except RedisError as exc:
+            logger.error("Redis unavailable for idempotency check: %s", exc)
+            raise ServiceException(
+                "Idempotency service temporarily unavailable",
+                code="idempotency_unavailable",
+            ) from exc
 
     @BaseService.measure_operation("mcp_idempotency.store_result")
     async def store_result(self, idempotency_key: str, result: dict[str, Any]) -> None:
@@ -61,9 +72,12 @@ class MCPIdempotencyService(BaseService):
             raise ServiceException(
                 "Idempotency operation context missing", code="mcp_idem_operation_missing"
             )
-        redis = await self._get_redis()
-        storage_key = self._key(operation, idempotency_key)
-        await redis.setex(storage_key, self.TTL_SECONDS, json.dumps(result))
+        try:
+            redis = await self._get_redis()
+            storage_key = self._key(operation, idempotency_key)
+            await redis.setex(storage_key, self.TTL_SECONDS, json.dumps(result))
+        except RedisError as exc:
+            logger.error("Redis unavailable for storing idempotency result: %s", exc)
 
     def _key(self, operation: str, key: str) -> str:
         return f"mcp:idempotency:{operation}:{key}"

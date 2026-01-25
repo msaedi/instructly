@@ -3813,7 +3813,10 @@ export interface MCPInvitePreviewRequest {
   expires_in_days?: number;
   grant_founding_status?: boolean;
   message_note?: string | null;
-  /** @minItems 1 */
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
   recipient_emails: string[];
 }
 

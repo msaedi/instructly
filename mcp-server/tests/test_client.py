@@ -1,6 +1,8 @@
+from unittest.mock import patch
+
+import httpx
 import pytest
 import respx
-import httpx
 
 from instainstru_mcp.auth import MCPAuth
 from instainstru_mcp.client import (
@@ -81,4 +83,24 @@ async def test_client_network_error():
 
     with pytest.raises(BackendConnectionError):
         await client.get_funnel_summary()
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_instructor_detail_url_encodes_name_with_spaces():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    with patch.object(client, "call") as mock_call:
+        mock_call.return_value = {"data": {}}
+        await client.get_instructor_detail("Jane Doe")
+        mock_call.assert_called_once_with(
+            "GET",
+            "/api/v1/admin/mcp/instructors/Jane%20Doe",
+        )
+
     await client.aclose()

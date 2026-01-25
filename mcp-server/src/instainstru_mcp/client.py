@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 from uuid import uuid4
 
 import httpx
@@ -135,9 +136,10 @@ class InstaInstruClient:
         )
 
     async def get_instructor_detail(self, identifier: str) -> dict:
+        encoded_identifier = quote(identifier, safe="")
         return await self.call(
             "GET",
-            f"/api/v1/admin/mcp/instructors/{identifier}",
+            f"/api/v1/admin/mcp/instructors/{encoded_identifier}",
         )
 
     async def preview_invites(self, **payload: Any) -> dict:

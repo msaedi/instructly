@@ -166,7 +166,7 @@ class MCPDateWindow(StrictModel):
 
 
 class MCPInvitePreviewRequest(StrictRequestModel):
-    recipient_emails: list[EmailStr] = Field(..., min_length=1)
+    recipient_emails: list[EmailStr] = Field(..., min_length=1, max_length=100)
     grant_founding_status: bool = Field(default=True)
     expires_in_days: int = Field(default=14, ge=1, le=180)
     message_note: Optional[str] = None

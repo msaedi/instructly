@@ -36,7 +36,7 @@ class MCPInviteService(BaseService):
             cap = int(cap_raw)
         except (TypeError, ValueError):
             cap = 100
-        used = self._profile_repo.count_founding_instructors()
+        used = int(self._profile_repo.count_founding_instructors())
         return max(0, cap - used)
 
     @BaseService.measure_operation("mcp_invites.audit_preview")
