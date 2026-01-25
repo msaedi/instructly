@@ -60,9 +60,9 @@ def create_test_app(simple_token=None, auth0_domain=None, auth0_audience=None):
     if simple_token:
         env["INSTAINSTRU_MCP_API_SERVICE_TOKEN"] = simple_token
     if auth0_domain:
-        env["AUTH0_DOMAIN"] = auth0_domain
+        env["INSTAINSTRU_MCP_AUTH0_DOMAIN"] = auth0_domain
     if auth0_audience:
-        env["AUTH0_AUDIENCE"] = auth0_audience
+        env["INSTAINSTRU_MCP_AUTH0_AUDIENCE"] = auth0_audience
 
     with patch.dict("os.environ", env, clear=True):
         from instainstru_mcp.server import DualAuthMiddleware
@@ -208,6 +208,45 @@ class TestAuth0TokenAuth:
                 headers={"Authorization": f"Bearer {valid_auth0_token}"},
             )
             assert response.status_code == 401
+
+    def test_auth0_jwks_fetch_failure_returns_401(self, mock_jwks_client):
+        """Should return 401 when JWKS fetch fails (network error)."""
+        from jwt import PyJWKClientError
+
+        mock_jwks_client.get_signing_key_from_jwt.side_effect = PyJWKClientError(
+            "Network error"
+        )
+
+        client = create_test_app(
+            auth0_domain="instainstru-admin.us.auth0.com",
+            auth0_audience="https://mcp.instainstru.com",
+        )
+        response = client.get(
+            "/sse",
+            headers={"Authorization": "Bearer some.jwt.token"},
+        )
+        assert response.status_code == 401
+
+    def test_simple_token_works_when_jwks_fails(self, mock_jwks_client):
+        """Simple token should work even if JWKS fetch fails."""
+        from jwt import PyJWKClientError
+
+        mock_jwks_client.get_signing_key_from_jwt.side_effect = PyJWKClientError(
+            "Network error"
+        )
+
+        client = create_test_app(
+            simple_token="test-token-123",
+            auth0_domain="instainstru-admin.us.auth0.com",
+            auth0_audience="https://mcp.instainstru.com",
+        )
+        response = client.get(
+            "/sse",
+            headers={"Authorization": "Bearer test-token-123"},
+        )
+        assert response.status_code == 200
+        assert "simple_token" in response.text
+        mock_jwks_client.get_signing_key_from_jwt.assert_not_called()
 
 
 # --- Dual Auth Tests ---

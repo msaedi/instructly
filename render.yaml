@@ -104,6 +104,10 @@ services:
         value: https://api.instainstru.com
       - key: INSTAINSTRU_MCP_API_SERVICE_TOKEN
         sync: false
+      - key: INSTAINSTRU_MCP_AUTH0_DOMAIN
+        sync: false
+      - key: INSTAINSTRU_MCP_AUTH0_AUDIENCE
+        sync: false
     healthCheckPath: /api/v1/health
     autoDeploy: false
 

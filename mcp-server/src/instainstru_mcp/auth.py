@@ -5,14 +5,15 @@ from __future__ import annotations
 import logging
 import os
 from functools import lru_cache
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import jwt
 from jwt import PyJWKClient, PyJWKClientError
 
-from .config import Settings
-
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from .config import Settings
 
 
 class AuthenticationError(Exception):
@@ -97,14 +98,38 @@ class Auth0TokenValidator:
 
 
 @lru_cache(maxsize=1)
-def get_auth0_validator() -> Optional[Auth0TokenValidator]:
-    """Return Auth0 validator singleton, or None if not configured."""
-    domain = os.environ.get("AUTH0_DOMAIN")
-    audience = os.environ.get("AUTH0_AUDIENCE")
+def _get_auth0_validator(
+    domain: str | None, audience: str | None
+) -> Optional[Auth0TokenValidator]:
+    if bool(domain) != bool(audience):
+        logger.warning(
+            "Partial Auth0 config detected: both INSTAINSTRU_MCP_AUTH0_DOMAIN and "
+            "INSTAINSTRU_MCP_AUTH0_AUDIENCE must be set. Auth0 validation disabled."
+        )
+        return None
 
     if not domain or not audience:
-        logger.info("Auth0 not configured (AUTH0_DOMAIN or AUTH0_AUDIENCE missing)")
+        logger.info(
+            "Auth0 not configured (INSTAINSTRU_MCP_AUTH0_DOMAIN or "
+            "INSTAINSTRU_MCP_AUTH0_AUDIENCE missing)"
+        )
         return None
 
     logger.info("Auth0 configured for domain: %s, audience: %s", domain, audience)
     return Auth0TokenValidator(domain=domain, audience=audience)
+
+
+def get_auth0_validator(
+    *, settings: Optional["Settings"] = None
+) -> Optional[Auth0TokenValidator]:
+    """Return Auth0 validator singleton, or None if not configured."""
+    if settings is None:
+        from .config import Settings
+
+        token = os.environ.get("INSTAINSTRU_MCP_API_SERVICE_TOKEN", "")
+        settings = Settings(api_service_token=token)
+
+    return _get_auth0_validator(settings.auth0_domain, settings.auth0_audience)
+
+
+get_auth0_validator.cache_clear = _get_auth0_validator.cache_clear  # type: ignore[attr-defined]

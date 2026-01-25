@@ -26,10 +26,10 @@ class DualAuthMiddleware:
 
     PUBLIC_PATHS = {"/api/v1/health"}
 
-    def __init__(self, app: Any) -> None:
+    def __init__(self, app: Any, settings: Settings | None = None) -> None:
         self.app = app
         self.simple_token = os.environ.get("INSTAINSTRU_MCP_API_SERVICE_TOKEN")
-        self.auth0_validator = get_auth0_validator()
+        self.auth0_validator = get_auth0_validator(settings=settings)
 
         if not self.simple_token and not self.auth0_validator:
             logger.warning(
@@ -49,6 +49,7 @@ class DualAuthMiddleware:
         headers = dict(scope.get("headers", []))
         auth_header = headers.get(b"authorization", b"").decode()
         if not auth_header.startswith("Bearer "):
+            self._log_auth_failure(scope)
             await self._send_error(
                 scope,
                 receive,
@@ -61,6 +62,7 @@ class DualAuthMiddleware:
         token = auth_header[7:]
         auth_result = await self._authenticate(token)
         if auth_result is None:
+            self._log_auth_failure(scope)
             await self._send_error(
                 scope,
                 receive,
@@ -96,6 +98,12 @@ class DualAuthMiddleware:
             logger.error("No authentication methods configured")
 
         return None
+
+    def _log_auth_failure(self, scope: dict) -> None:
+        path = scope.get("path", "unknown")
+        client = scope.get("client")
+        client_ip = client[0] if client else "unknown"
+        logger.warning("Auth failed: path=%s client_ip=%s", path, client_ip)
 
     async def _send_error(self, scope, receive, send, status_code: int, message: str):
         response = JSONResponse({"error": message}, status_code=status_code)
@@ -136,7 +144,7 @@ def create_app(settings: Settings | None = None):
     mcp = create_mcp(settings=settings)
     app_instance = cast(Any, mcp).http_app(transport="sse")
     _attach_health_route(app_instance)
-    return DualAuthMiddleware(app_instance)
+    return DualAuthMiddleware(app_instance, settings=settings)
 
 
 _app: Any | None = None
