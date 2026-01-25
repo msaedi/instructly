@@ -416,7 +416,7 @@ class TestOAuthMetadata:
         response = client.get("/.well-known/oauth-protected-resource")
         assert response.status_code == 200
         payload = response.json()
-        assert payload["resource"] == "https://mcp.instainstru.com"
+        assert payload["resource"] == "https://mcp.instainstru.com/sse"
         assert payload["authorization_servers"] == [
             "https://instainstru-admin.us.auth0.com/"
         ]

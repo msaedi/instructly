@@ -188,8 +188,8 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
                 status_code=503,
             )
 
-        # Resource is the MCP endpoint URL (audience)
-        resource_url = settings.auth0_audience
+        # Resource should be the actual SSE endpoint URL per RFC 9728
+        resource_url = f"{settings.auth0_audience}/sse"
         issuer = f"https://{settings.auth0_domain}/"
         return JSONResponse(
             {
