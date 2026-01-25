@@ -60,12 +60,12 @@ def _preview_payload(test_instructor):
 
 
 def test_preview_returns_structure(
-    client: TestClient, auth_headers_admin, test_instructor, dummy_redis
+    client: TestClient, mcp_service_headers, test_instructor, dummy_redis
 ):
     res = client.post(
         "/api/v1/admin/mcp/invites/preview",
         json=_preview_payload(test_instructor),
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
     )
     assert res.status_code == 200
     body = res.json()
@@ -76,7 +76,7 @@ def test_preview_returns_structure(
 
 
 def test_preview_detects_existing_and_cap(
-    client: TestClient, auth_headers_admin, db, test_instructor, dummy_redis
+    client: TestClient, mcp_service_headers, db, test_instructor, dummy_redis
 ):
     profile = (
         db.query(InstructorProfile)
@@ -100,7 +100,7 @@ def test_preview_detects_existing_and_cap(
     res = client.post(
         "/api/v1/admin/mcp/invites/preview",
         json=_preview_payload(test_instructor),
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
     )
     assert res.status_code == 200
     data = res.json()["data"]
@@ -115,13 +115,13 @@ def test_preview_detects_existing_and_cap(
 
 
 def test_preview_generates_valid_confirm_token(
-    client: TestClient, auth_headers_admin, admin_user, test_instructor, db, dummy_redis
+    client: TestClient, mcp_service_headers, mcp_service_user, test_instructor, db, dummy_redis
 ):
     payload = _preview_payload(test_instructor)
     res = client.post(
         "/api/v1/admin/mcp/invites/preview",
         json=payload,
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
     )
     assert res.status_code == 200
     body = res.json()["data"]
@@ -134,11 +134,17 @@ def test_preview_generates_valid_confirm_token(
         "message_note": payload["message_note"],
     }
     service = MCPConfirmTokenService(db)
-    assert service.validate_token(token, expected_payload, actor_id=admin_user.id) is True
+    assert service.validate_token(token, expected_payload, actor_id=mcp_service_user.id) is True
 
 
 def test_send_invites_flow_and_audit(
-    client: TestClient, auth_headers_admin, admin_user, test_instructor, db, dummy_redis, monkeypatch
+    client: TestClient,
+    mcp_service_headers,
+    mcp_service_user,
+    test_instructor,
+    db,
+    dummy_redis,
+    monkeypatch,
 ):
     sent = []
 
@@ -155,12 +161,12 @@ def test_send_invites_flow_and_audit(
     preview = client.post(
         "/api/v1/admin/mcp/invites/preview",
         json=_preview_payload(test_instructor),
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
     )
     assert preview.status_code == 200
     token = preview.json()["data"]["confirm_token"]
 
-    headers = {**auth_headers_admin, "Idempotency-Key": "idem-123"}
+    headers = {**mcp_service_headers, "Idempotency-Key": "idem-123"}
     res = client.post(
         "/api/v1/admin/mcp/invites/send",
         json={"confirm_token": token, "idempotency_key": "idem-123"},
@@ -179,12 +185,12 @@ def test_send_invites_flow_and_audit(
         .first()
     )
     assert log is not None
-    assert log.actor_id == admin_user.id
+    assert log.actor_id == mcp_service_user.id
     assert "recipient_emails" not in (log.after or {})
 
 
 def test_send_invites_idempotent(
-    client: TestClient, auth_headers_admin, test_instructor, dummy_redis, monkeypatch
+    client: TestClient, mcp_service_headers, test_instructor, dummy_redis, monkeypatch
 ):
     counter = {"calls": 0}
 
@@ -201,11 +207,11 @@ def test_send_invites_idempotent(
     preview = client.post(
         "/api/v1/admin/mcp/invites/preview",
         json=_preview_payload(test_instructor),
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
     )
     token = preview.json()["data"]["confirm_token"]
 
-    headers = {**auth_headers_admin, "Idempotency-Key": "idem-dup"}
+    headers = {**mcp_service_headers, "Idempotency-Key": "idem-dup"}
     payload = {"confirm_token": token, "idempotency_key": "idem-dup"}
 
     first = client.post("/api/v1/admin/mcp/invites/send", json=payload, headers=headers)
@@ -218,24 +224,24 @@ def test_send_invites_idempotent(
 
 
 def test_send_rejects_missing_idempotency_key(
-    client: TestClient, auth_headers_admin, test_instructor, dummy_redis
+    client: TestClient, mcp_service_headers, test_instructor, dummy_redis
 ):
     preview = client.post(
         "/api/v1/admin/mcp/invites/preview",
         json=_preview_payload(test_instructor),
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
     )
     token = preview.json()["data"]["confirm_token"]
     res = client.post(
         "/api/v1/admin/mcp/invites/send",
         json={"confirm_token": token, "idempotency_key": "idem-missing"},
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
     )
     assert res.status_code == 400
 
 
 def test_send_rejects_expired_token(
-    client: TestClient, auth_headers_admin, admin_user, db, dummy_redis, monkeypatch
+    client: TestClient, mcp_service_headers, mcp_service_user, db, dummy_redis, monkeypatch
 ):
     monkeypatch.setattr(MCPConfirmTokenService, "TOKEN_EXPIRY_MINUTES", -1)
     service = MCPConfirmTokenService(db)
@@ -245,9 +251,9 @@ def test_send_rejects_expired_token(
         "expires_in_days": 14,
         "message_note": None,
     }
-    token, _ = service.generate_token(payload, actor_id=admin_user.id)
+    token, _ = service.generate_token(payload, actor_id=mcp_service_user.id)
 
-    headers = {**auth_headers_admin, "Idempotency-Key": "idem-exp"}
+    headers = {**mcp_service_headers, "Idempotency-Key": "idem-exp"}
     res = client.post(
         "/api/v1/admin/mcp/invites/send",
         json={"confirm_token": token, "idempotency_key": "idem-exp"},
@@ -256,17 +262,12 @@ def test_send_rejects_expired_token(
     assert res.status_code == 400
 
 
-def test_invites_permissions(client: TestClient, auth_headers, test_instructor, dummy_redis):
+def test_invites_reject_invalid_token(
+    client: TestClient, mcp_service_headers, test_instructor, dummy_redis
+):
     res = client.post(
         "/api/v1/admin/mcp/invites/preview",
         json=_preview_payload(test_instructor),
-        headers=auth_headers,
+        headers={"Authorization": "Bearer invalid"},
     )
-    assert res.status_code == 403
-
-    res = client.post(
-        "/api/v1/admin/mcp/invites/send",
-        json={"confirm_token": "token", "idempotency_key": "idem"},
-        headers=auth_headers,
-    )
-    assert res.status_code == 403
+    assert res.status_code == 401

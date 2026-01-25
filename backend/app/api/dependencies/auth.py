@@ -17,9 +17,10 @@ import asyncio
 import hmac
 import logging
 import os
-from typing import Awaitable, Callable, Optional
+import secrets
+from typing import Any, Awaitable, Callable, Optional, cast
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from ...auth import (
@@ -35,8 +36,57 @@ from ...core.config import settings
 from ...models.user import User
 from ...monitoring.prometheus_metrics import prometheus_metrics
 from ...repositories.beta_repository import BetaAccessRepository, BetaSettingsRepository
+from .database import get_db
 
 logger = logging.getLogger(__name__)
+
+
+def _secret_value(secret_obj: Any) -> str:
+    getter = getattr(secret_obj, "get_secret_value", None)
+    if callable(getter):
+        return cast(str, getter())
+    return str(secret_obj)
+
+
+def _get_bearer_token(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        return None
+    return parts[1].strip() or None
+
+
+async def validate_mcp_service(
+    authorization: str | None = Header(default=None, alias="Authorization"),
+    db: Session = Depends(get_db),
+) -> User:
+    """Validate MCP service token and return the service account user."""
+    token = _get_bearer_token(authorization)
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization header",
+        )
+
+    expected = _secret_value(settings.mcp_service_token).strip()
+    if not expected or not secrets.compare_digest(token, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid service token",
+        )
+
+    from ...repositories.user_repository import UserRepository
+
+    user_repo = UserRepository(db)
+    # async-blocking-ignore: MCP service token uses sync DB session
+    service_user = user_repo.get_by_email("admin@instainstru.com")  # async-blocking-ignore
+    if not service_user:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="MCP service account not found",
+        )
+    return service_user
 
 
 def _from_preview_origin(request: Request) -> bool:
@@ -121,9 +171,6 @@ def _preview_bypass(request: Request, user: User | None) -> bool:
                 logger.debug("Non-fatal error ignored", exc_info=True)
             return True
     return False
-
-
-from .database import get_db
 
 
 def _testing_bypass(request: Request | None) -> bool:

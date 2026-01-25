@@ -1,4 +1,4 @@
-"""MCP Admin endpoints for search analytics."""
+"""MCP Admin endpoints for search analytics (service token auth)."""
 
 from __future__ import annotations
 
@@ -9,9 +9,8 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.api.dependencies.auth import validate_mcp_service
 from app.api.dependencies.database import get_db
-from app.core.enums import PermissionName
-from app.dependencies.permissions import require_all_permissions
 from app.models.user import User
 from app.schemas.mcp import (
     MCPActor,
@@ -43,9 +42,7 @@ async def get_top_queries(
     end_date: date | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     min_count: int = Query(default=2, ge=1, le=1000),
-    current_user: User = Depends(
-        require_all_permissions(PermissionName.MCP_ACCESS, PermissionName.ADMIN_READ)
-    ),
+    current_user: User = Depends(validate_mcp_service),
     db: Session = Depends(get_db),
 ) -> MCPTopQueriesResponse:
     start_value, end_value = _resolve_date_range(start_date, end_date)
@@ -82,9 +79,7 @@ async def get_zero_result_queries(
     start_date: date | None = None,
     end_date: date | None = None,
     limit: int = Query(default=50, ge=1, le=200),
-    current_user: User = Depends(
-        require_all_permissions(PermissionName.MCP_ACCESS, PermissionName.ADMIN_READ)
-    ),
+    current_user: User = Depends(validate_mcp_service),
     db: Session = Depends(get_db),
 ) -> MCPZeroResultsResponse:
     start_value, end_value = _resolve_date_range(start_date, end_date)

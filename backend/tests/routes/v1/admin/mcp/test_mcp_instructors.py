@@ -19,8 +19,8 @@ def _ensure_service(db, slug: str) -> ServiceCatalog:
     return service
 
 
-def test_list_instructors_structure(client: TestClient, auth_headers_admin):
-    res = client.get("/api/v1/admin/mcp/instructors", headers=auth_headers_admin)
+def test_list_instructors_structure(client: TestClient, mcp_service_headers):
+    res = client.get("/api/v1/admin/mcp/instructors", headers=mcp_service_headers)
     assert res.status_code == 200
     data = res.json()
     assert "meta" in data
@@ -28,7 +28,9 @@ def test_list_instructors_structure(client: TestClient, auth_headers_admin):
     assert "limit" in data
 
 
-def test_list_instructors_filters(client: TestClient, db, test_instructor, test_instructor_2, auth_headers_admin):
+def test_list_instructors_filters(
+    client: TestClient, db, test_instructor, test_instructor_2, mcp_service_headers
+):
     profile_2 = (
         db.query(InstructorProfile)
         .filter(InstructorProfile.user_id == test_instructor_2.id)
@@ -43,7 +45,7 @@ def test_list_instructors_filters(client: TestClient, db, test_instructor, test_
 
     res = client.get(
         "/api/v1/admin/mcp/instructors",
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
         params={"status": "registered"},
     )
     assert res.status_code == 200
@@ -53,7 +55,7 @@ def test_list_instructors_filters(client: TestClient, db, test_instructor, test_
 
     res = client.get(
         "/api/v1/admin/mcp/instructors",
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
         params={"service_slug": "piano"},
     )
     assert res.status_code == 200
@@ -62,13 +64,13 @@ def test_list_instructors_filters(client: TestClient, db, test_instructor, test_
 
     res = client.get(
         "/api/v1/admin/mcp/instructors",
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
         params={"is_founding": True},
     )
     assert res.status_code == 200
 
 
-def test_service_coverage_endpoint(client: TestClient, db, test_instructor_2, auth_headers_admin):
+def test_service_coverage_endpoint(client: TestClient, db, test_instructor_2, mcp_service_headers):
     profile_2 = (
         db.query(InstructorProfile)
         .filter(InstructorProfile.user_id == test_instructor_2.id)
@@ -88,7 +90,7 @@ def test_service_coverage_endpoint(client: TestClient, db, test_instructor_2, au
 
     res = client.get(
         "/api/v1/admin/mcp/instructors/coverage",
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
     )
     assert res.status_code == 200
     data = res.json()
@@ -98,7 +100,7 @@ def test_service_coverage_endpoint(client: TestClient, db, test_instructor_2, au
 
     res = client.get(
         "/api/v1/admin/mcp/instructors/coverage",
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
         params={"group_by": "service"},
     )
     assert res.status_code == 200
@@ -106,16 +108,16 @@ def test_service_coverage_endpoint(client: TestClient, db, test_instructor_2, au
     assert data["data"]["group_by"] == "service"
 
 
-def test_instructor_detail_lookup(client: TestClient, db, test_instructor, auth_headers_admin):
+def test_instructor_detail_lookup(client: TestClient, db, test_instructor, mcp_service_headers):
     user_id = test_instructor.id
-    res = client.get(f"/api/v1/admin/mcp/instructors/{user_id}", headers=auth_headers_admin)
+    res = client.get(f"/api/v1/admin/mcp/instructors/{user_id}", headers=mcp_service_headers)
     assert res.status_code == 200
     data = res.json()
     assert data["user_id"] == user_id
 
     res = client.get(
         f"/api/v1/admin/mcp/instructors/{test_instructor.email}",
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
     )
     assert res.status_code == 200
 
@@ -125,22 +127,22 @@ def test_instructor_detail_lookup(client: TestClient, db, test_instructor, auth_
     full_name = f"{test_instructor.first_name} {test_instructor.last_name}"
     res = client.get(
         f"/api/v1/admin/mcp/instructors/{full_name}",
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
     )
     assert res.status_code == 200
 
 
-def test_instructor_detail_not_found(client: TestClient, auth_headers_admin):
+def test_instructor_detail_not_found(client: TestClient, mcp_service_headers):
     res = client.get(
         "/api/v1/admin/mcp/instructors/Unknown%20Person",
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
     )
     assert res.status_code == 404
 
 
-def test_instructors_permissions(client: TestClient, auth_headers):
-    res = client.get("/api/v1/admin/mcp/instructors", headers=auth_headers)
-    assert res.status_code == 403
-
-    res = client.get("/api/v1/admin/mcp/instructors/coverage", headers=auth_headers)
-    assert res.status_code == 403
+def test_instructors_reject_invalid_token(client: TestClient, mcp_service_headers):
+    res = client.get(
+        "/api/v1/admin/mcp/instructors",
+        headers={"Authorization": "Bearer invalid"},
+    )
+    assert res.status_code == 401

@@ -1,4 +1,4 @@
-"""MCP Admin endpoints for instructor operations."""
+"""MCP Admin endpoints for instructor operations (service token auth)."""
 
 from __future__ import annotations
 
@@ -9,10 +9,9 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.api.dependencies.auth import validate_mcp_service
 from app.api.dependencies.database import get_db
-from app.core.enums import PermissionName
 from app.core.exceptions import NotFoundException
-from app.dependencies.permissions import require_permission
 from app.models.user import User
 from app.schemas.mcp import (
     MCPActor,
@@ -40,8 +39,7 @@ async def list_instructors(
     category_slug: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     cursor: str | None = None,
-    current_user: User = Depends(require_permission(PermissionName.MCP_ACCESS)),
-    _: User = Depends(require_permission(PermissionName.ADMIN_READ)),
+    current_user: User = Depends(validate_mcp_service),
     db: Session = Depends(get_db),
 ) -> MCPInstructorListResponse:
     service = MCPInstructorService(db)
@@ -78,8 +76,7 @@ async def get_service_coverage(
     status: Literal["registered", "onboarding", "live", "paused"] = "live",
     group_by: Literal["category", "service"] = "category",
     top: int = Query(default=25, ge=1, le=200),
-    current_user: User = Depends(require_permission(PermissionName.MCP_ACCESS)),
-    _: User = Depends(require_permission(PermissionName.ADMIN_READ)),
+    current_user: User = Depends(validate_mcp_service),
     db: Session = Depends(get_db),
 ) -> MCPServiceCoverageResponse:
     service = MCPInstructorService(db)
@@ -97,8 +94,7 @@ async def get_service_coverage(
 @router.get("/{identifier}", response_model=MCPInstructorDetailResponse)
 async def get_instructor_detail(
     identifier: str,
-    current_user: User = Depends(require_permission(PermissionName.MCP_ACCESS)),
-    _: User = Depends(require_permission(PermissionName.ADMIN_READ)),
+    current_user: User = Depends(validate_mcp_service),
     db: Session = Depends(get_db),
 ) -> MCPInstructorDetailResponse:
     service = MCPInstructorService(db)

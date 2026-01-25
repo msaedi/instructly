@@ -1,4 +1,4 @@
-"""MCP Admin endpoints for metric definitions."""
+"""MCP Admin endpoints for metric definitions (service token auth)."""
 
 from __future__ import annotations
 
@@ -7,8 +7,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.enums import PermissionName
-from app.dependencies.permissions import require_permission
+from app.api.dependencies.auth import validate_mcp_service
 from app.models.user import User
 from app.schemas.mcp import MCPActor, MCPMeta, MCPMetricDefinition, MCPMetricResponse
 
@@ -119,7 +118,7 @@ METRIC_DEFINITIONS: dict[str, MCPMetricDefinition] = {
 @router.get("/{metric_name}", response_model=MCPMetricResponse)
 async def get_metric_definition(
     metric_name: str,
-    current_user: User = Depends(require_permission(PermissionName.MCP_ACCESS)),
+    current_user: User = Depends(validate_mcp_service),
 ) -> MCPMetricResponse:
     definition = METRIC_DEFINITIONS.get(metric_name)
     if not definition:

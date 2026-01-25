@@ -10189,7 +10189,9 @@ export interface operations {
  start_date?: string | null;
  end_date?: string | null;
  };
- header?: never;
+ header?: {
+ Authorization?: string | null;
+ };
  path?: never;
  cookie?: never;
  };
@@ -10220,7 +10222,9 @@ export interface operations {
  stage?: string | null;
  limit?: number;
  };
- header?: never;
+ header?: {
+ Authorization?: string | null;
+ };
  path?: never;
  cookie?: never;
  };
@@ -10254,7 +10258,9 @@ export interface operations {
  limit?: number;
  cursor?: string | null;
  };
- header?: never;
+ header?: {
+ Authorization?: string | null;
+ };
  path?: never;
  cookie?: never;
  };
@@ -10285,7 +10291,9 @@ export interface operations {
  group_by?: "category" | "service";
  top?: number;
  };
- header?: never;
+ header?: {
+ Authorization?: string | null;
+ };
  path?: never;
  cookie?: never;
  };
@@ -10312,7 +10320,9 @@ export interface operations {
  get_instructor_detail_api_v1_admin_mcp_instructors__identifier__get: {
  parameters: {
  query?: never;
- header?: never;
+ header?: {
+ Authorization?: string | null;
+ };
  path: {
  identifier: string;
  };
@@ -10341,7 +10351,9 @@ export interface operations {
  preview_invites_api_v1_admin_mcp_invites_preview_post: {
  parameters: {
  query?: never;
- header?: never;
+ header?: {
+ Authorization?: string | null;
+ };
  path?: never;
  cookie?: never;
  };
@@ -10374,6 +10386,7 @@ export interface operations {
  query?: never;
  header?: {
  "Idempotency-Key"?: string | null;
+ Authorization?: string | null;
  };
  path?: never;
  cookie?: never;
@@ -10405,7 +10418,9 @@ export interface operations {
  get_metric_definition_api_v1_admin_mcp_metrics__metric_name__get: {
  parameters: {
  query?: never;
- header?: never;
+ header?: {
+ Authorization?: string | null;
+ };
  path: {
  metric_name: string;
  };
@@ -10439,7 +10454,9 @@ export interface operations {
  limit?: number;
  min_count?: number;
  };
- header?: never;
+ header?: {
+ Authorization?: string | null;
+ };
  path?: never;
  cookie?: never;
  };
@@ -10470,7 +10487,9 @@ export interface operations {
  end_date?: string | null;
  limit?: number;
  };
- header?: never;
+ header?: {
+ Authorization?: string | null;
+ };
  path?: never;
  cookie?: never;
  };

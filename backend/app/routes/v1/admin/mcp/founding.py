@@ -1,9 +1,7 @@
 """
 MCP Admin endpoints for founding instructor funnel analytics.
 
-All endpoints require:
-- mcp:access permission
-- admin:read permission (for reads)
+All endpoints require a valid MCP service token.
 """
 
 from __future__ import annotations
@@ -14,9 +12,8 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.api.dependencies.auth import validate_mcp_service
 from app.api.dependencies.database import get_db
-from app.core.enums import PermissionName
-from app.dependencies.permissions import require_all_permissions
 from app.models.user import User
 from app.schemas.mcp import (
     MCPActor,
@@ -52,9 +49,7 @@ def _window_end(value: date | None) -> datetime | None:
 async def get_funnel_summary(
     start_date: date | None = None,
     end_date: date | None = None,
-    current_user: User = Depends(
-        require_all_permissions(PermissionName.MCP_ACCESS, PermissionName.ADMIN_READ)
-    ),
+    current_user: User = Depends(validate_mcp_service),
     db: Session = Depends(get_db),
 ) -> MCPFunnelSummaryResponse:
     """
@@ -92,9 +87,7 @@ async def get_stuck_instructors(
     stuck_days: int = Query(default=7, ge=1, le=90),
     stage: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
-    current_user: User = Depends(
-        require_all_permissions(PermissionName.MCP_ACCESS, PermissionName.ADMIN_READ)
-    ),
+    current_user: User = Depends(validate_mcp_service),
     db: Session = Depends(get_db),
 ) -> MCPStuckResponse:
     """

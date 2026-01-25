@@ -172,6 +172,11 @@ class Settings(BaseSettings):
         alias="MCP_TOKEN_SECRET",
         description="Secret key for MCP confirm tokens (falls back to SECRET_KEY when unset)",
     )
+    mcp_service_token: SecretStr = Field(
+        default=SecretStr(""),
+        alias="MCP_SERVICE_TOKEN",
+        description="Service token for MCP server authentication",
+    )
     temp_token_iss: str = Field(
         default="instainstru-auth",
         alias="TEMP_TOKEN_ISS",

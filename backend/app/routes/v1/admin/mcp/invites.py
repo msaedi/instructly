@@ -1,4 +1,4 @@
-"""MCP Admin endpoints for founding instructor invites."""
+"""MCP Admin endpoints for founding instructor invites (service token auth)."""
 
 from __future__ import annotations
 
@@ -11,10 +11,9 @@ from fastapi import APIRouter, Body, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 import ulid
 
+from app.api.dependencies.auth import validate_mcp_service
 from app.api.dependencies.database import get_db
-from app.core.enums import PermissionName
 from app.core.exceptions import MCPTokenError
-from app.dependencies.permissions import require_all_permissions
 from app.models.user import User
 from app.schemas.mcp import (
     MCPActor,
@@ -57,9 +56,7 @@ def _normalize_emails(emails: Iterable[str]) -> tuple[list[str], list[str]]:
 @router.post("/preview", response_model=MCPInvitePreviewResponse)
 async def preview_invites(
     payload: MCPInvitePreviewRequest = Body(...),
-    current_user: User = Depends(
-        require_all_permissions(PermissionName.MCP_ACCESS, PermissionName.ADMIN_MANAGE)
-    ),
+    current_user: User = Depends(validate_mcp_service),
     db: Session = Depends(get_db),
 ) -> MCPInvitePreviewResponse:
     recipient_emails, warnings = _normalize_emails([str(e) for e in payload.recipient_emails])
@@ -139,9 +136,7 @@ async def preview_invites(
 async def send_invites(
     payload: MCPInviteSendRequest = Body(...),
     idempotency_header: str | None = Header(default=None, alias="Idempotency-Key"),
-    current_user: User = Depends(
-        require_all_permissions(PermissionName.MCP_ACCESS, PermissionName.ADMIN_MANAGE)
-    ),
+    current_user: User = Depends(validate_mcp_service),
     db: Session = Depends(get_db),
 ) -> MCPInviteSendResponse:
     if not idempotency_header:

@@ -34,6 +34,7 @@ from typing import Dict, List, Sequence, Tuple
 import weakref
 
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 import pytest
 import pytz
 from ulid import ULID
@@ -1757,6 +1758,36 @@ def admin_user(db: Session, test_password: str) -> User:
     db.refresh(user)
     db.commit()
     return user
+
+
+@pytest.fixture
+def mcp_service_user(db: Session, test_password: str) -> User:
+    existing = db.query(User).filter(User.email == "admin@instainstru.com").first()
+    if existing:
+        return existing
+
+    user = User(
+        email="admin@instainstru.com",
+        hashed_password=get_password_hash(test_password),
+        first_name="MCP",
+        last_name="Service",
+        zip_code="10001",
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
+
+    permission_service = PermissionService(db)
+    permission_service.assign_role(user.id, RoleName.ADMIN)
+    db.refresh(user)
+    db.commit()
+    return user
+
+
+@pytest.fixture
+def mcp_service_headers(mcp_service_user: User) -> dict:
+    settings.mcp_service_token = SecretStr("test-mcp-token")
+    return {"Authorization": "Bearer test-mcp-token"}
 
 
 @pytest.fixture

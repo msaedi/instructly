@@ -54,7 +54,7 @@ def test_top_queries_structure_and_filters(
     client: TestClient,
     db,
     test_instructor,
-    auth_headers_admin,
+    mcp_service_headers,
 ):
     _clear_search_data(db)
     base_time = datetime(2030, 1, 15, tzinfo=timezone.utc)
@@ -97,7 +97,7 @@ def test_top_queries_structure_and_filters(
 
     res = client.get(
         "/api/v1/admin/mcp/search/top-queries",
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
         params={"start_date": start_date, "end_date": end_date},
     )
     assert res.status_code == 200
@@ -117,7 +117,7 @@ def test_top_queries_structure_and_filters(
 
     res = client.get(
         "/api/v1/admin/mcp/search/top-queries",
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
         params={"start_date": start_date, "end_date": end_date, "min_count": 1, "limit": 1},
     )
     assert res.status_code == 200
@@ -127,7 +127,7 @@ def test_top_queries_structure_and_filters(
 def test_zero_results_rate(
     client: TestClient,
     db,
-    auth_headers_admin,
+    mcp_service_headers,
 ):
     _clear_search_data(db)
     base_time = datetime(2030, 1, 15, tzinfo=timezone.utc)
@@ -156,7 +156,7 @@ def test_zero_results_rate(
 
     res = client.get(
         "/api/v1/admin/mcp/search/zero-results",
-        headers=auth_headers_admin,
+        headers=mcp_service_headers,
         params={"start_date": start_date, "end_date": end_date},
     )
     assert res.status_code == 200
@@ -167,9 +167,9 @@ def test_zero_results_rate(
     assert data["queries"][0]["count"] == 2
 
 
-def test_search_permissions(client: TestClient, auth_headers):
-    res = client.get("/api/v1/admin/mcp/search/top-queries", headers=auth_headers)
-    assert res.status_code == 403
-
-    res = client.get("/api/v1/admin/mcp/search/zero-results", headers=auth_headers)
-    assert res.status_code == 403
+def test_search_rejects_invalid_token(client: TestClient, mcp_service_headers):
+    res = client.get(
+        "/api/v1/admin/mcp/search/top-queries",
+        headers={"Authorization": "Bearer invalid"},
+    )
+    assert res.status_code == 401
