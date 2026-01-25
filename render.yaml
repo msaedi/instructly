@@ -96,13 +96,17 @@ services:
     plan: starter
     region: ohio
     buildCommand: "cd mcp-server && pip install -e ."
-    startCommand: "cd mcp-server && uvicorn instainstru_mcp.server:app --host 0.0.0.0 --port $PORT"
+    startCommand: "cd mcp-server && uvicorn instainstru_mcp.server:get_app --factory --host 0.0.0.0 --port $PORT"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: INSTAINSTRU_MCP_API_BASE_URL
         value: https://api.instainstru.com
       - key: INSTAINSTRU_MCP_API_SERVICE_TOKEN
+        sync: false
+      - key: INSTAINSTRU_MCP_AUTH0_DOMAIN
+        sync: false
+      - key: INSTAINSTRU_MCP_AUTH0_AUDIENCE
         sync: false
     healthCheckPath: /api/v1/health
     autoDeploy: false

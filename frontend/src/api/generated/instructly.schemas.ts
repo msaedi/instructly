@@ -3729,6 +3729,7 @@ export interface MCPInstructorOnboarding {
 
 export interface MCPInstructorService {
   category: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
   hourly_rate: string;
   is_active: boolean;
   name: string;

@@ -10,5 +10,7 @@ class Settings(BaseSettings):
 
     api_base_url: str = "https://api.instainstru.com"
     api_service_token: str
+    auth0_domain: str | None = None
+    auth0_audience: str | None = None
 
     model_config = SettingsConfigDict(env_prefix="INSTAINSTRU_MCP_", env_file=".env")

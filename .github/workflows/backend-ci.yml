@@ -217,3 +217,27 @@ jobs:
       run: |
         # Scan requirements files directly - NOT the system Python packages
         pip-audit -r requirements.txt -r requirements-dev.txt --desc
+
+  test-mcp:
+    name: Test MCP Server
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: 'pip'
+        cache-dependency-path: mcp-server/pyproject.toml
+
+    - name: Install MCP dependencies
+      working-directory: mcp-server
+      run: pip install -e ".[dev]"
+
+    - name: Run MCP tests
+      working-directory: mcp-server
+      env:
+        INSTAINSTRU_MCP_API_SERVICE_TOKEN: test-token-for-ci
+        INSTAINSTRU_MCP_API_BASE_URL: https://api.example.com
+      run: pytest tests/ -v

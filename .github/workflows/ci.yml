@@ -209,25 +209,3 @@ jobs:
             fi
             echo "ok: ${pkg} pinned to ${ver}"
           done
-
-  mcp-server-tests:
-    if: github.actor != 'dependabot[bot]'
-    needs: contract-check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Use Python 3.11
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: mcp-server/pyproject.toml
-
-      - name: Install MCP server deps
-        working-directory: mcp-server
-        run: pip install -e ".[dev]"
-
-      - name: Run MCP server tests
-        working-directory: mcp-server
-        run: pytest tests/ -v

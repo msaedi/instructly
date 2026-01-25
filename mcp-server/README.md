@@ -72,8 +72,14 @@ npx @modelcontextprotocol/inspector http://localhost:8001/sse
 ## Environment Variables
 All variables are prefixed with `INSTAINSTRU_MCP_`.
 
-- `INSTAINSTRU_MCP_API_BASE_URL` (default: `https://api.instainstru.com`)
-- `INSTAINSTRU_MCP_API_SERVICE_TOKEN` (required)
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `INSTAINSTRU_MCP_API_SERVICE_TOKEN` | Yes | Bearer token for Claude Desktop authentication |
+| `INSTAINSTRU_MCP_API_BASE_URL` | Yes | Backend API URL (e.g., `https://api.instainstru.com`) |
+| `INSTAINSTRU_MCP_AUTH0_DOMAIN` | No | Auth0 domain for OAuth (e.g., `instainstru-admin.us.auth0.com`) |
+| `INSTAINSTRU_MCP_AUTH0_AUDIENCE` | No | Auth0 API audience (e.g., `https://mcp.instainstru.com`) |
+
+**Note:** For Auth0 OAuth support, both `INSTAINSTRU_MCP_AUTH0_DOMAIN` and `INSTAINSTRU_MCP_AUTH0_AUDIENCE` must be set.
 
 Example `.env`:
 ```
@@ -83,13 +89,13 @@ INSTAINSTRU_MCP_API_SERVICE_TOKEN=svc_...
 
 ## Run Locally
 ```bash
-uvicorn instainstru_mcp.server:app --host 0.0.0.0 --port 8001
+uvicorn instainstru_mcp.server:get_app --factory --host 0.0.0.0 --port 8001
 ```
 
 ## Deployment (Render)
 Render start command:
 ```
-uvicorn instainstru_mcp.server:app --host 0.0.0.0 --port $PORT
+uvicorn instainstru_mcp.server:get_app --factory --host 0.0.0.0 --port $PORT
 ```
 
 Required env vars in Render:

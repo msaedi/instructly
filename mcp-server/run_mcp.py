@@ -41,10 +41,11 @@ if __name__ == "__main__":
     print("   cd backend && python run_backend.py")
 
     uvicorn.run(
-        "instainstru_mcp.server:app",
+        "instainstru_mcp.server:get_app",
         host="0.0.0.0",
         port=8001,
         reload=True,
         reload_dirs=["src"],
         log_level="info",
+        factory=True,
     )
