@@ -160,7 +160,7 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
         ):
             hostname = f"{hostname}:{port}"
 
-        resource_url = f"{scheme}://{hostname}/sse"
+        resource_url = settings.auth0_audience or f"https://{hostname}"
         issuer = f"https://{settings.auth0_domain}/"
         return JSONResponse(
             {
