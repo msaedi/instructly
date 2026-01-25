@@ -14,6 +14,7 @@ from sqlalchemy import and_, desc, func
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import literal
 
+from ..models.nl_search import SearchClick, SearchQuery
 from ..models.search_event import SearchEvent, SearchEventCandidate
 from ..models.search_history import SearchHistory
 from ..models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
@@ -1167,6 +1168,133 @@ class SearchAnalyticsRepository:
             }
             for row in result
         ]
+
+    def nl_get_top_queries_by_date_range(
+        self,
+        start_date: date,
+        end_date: date,
+        limit: int = 50,
+        min_count: int = 2,
+    ) -> List[Dict[str, Any]]:
+        """Get top NL search queries with booking conversion rates."""
+        base_rows = (
+            self.db.query(
+                SearchQuery.original_query.label("query"),
+                func.count(SearchQuery.id).label("query_count"),
+                func.avg(SearchQuery.result_count).label("avg_results"),
+            )
+            .filter(
+                and_(
+                    func.date(SearchQuery.created_at) >= start_date,
+                    func.date(SearchQuery.created_at) <= end_date,
+                    SearchQuery.original_query.isnot(None),
+                    SearchQuery.original_query != "",
+                )
+            )
+            .group_by(SearchQuery.original_query)
+            .having(func.count(SearchQuery.id) >= min_count)
+            .order_by(desc("query_count"))
+            .limit(limit)
+            .all()
+        )
+
+        if not base_rows:
+            return []
+
+        queries = [row.query for row in base_rows]
+        conversion_rows = (
+            self.db.query(
+                SearchQuery.original_query.label("query"),
+                func.count(func.distinct(SearchQuery.id)).label("book_count"),
+            )
+            .join(SearchClick, SearchClick.search_query_id == SearchQuery.id)
+            .filter(
+                and_(
+                    SearchClick.action == "book",
+                    SearchQuery.original_query.in_(queries),
+                    func.date(SearchQuery.created_at) >= start_date,
+                    func.date(SearchQuery.created_at) <= end_date,
+                )
+            )
+            .group_by(SearchQuery.original_query)
+            .all()
+        )
+        conversion_map = {row.query: int(row.book_count or 0) for row in conversion_rows}
+
+        results: List[Dict[str, Any]] = []
+        for row in base_rows:
+            count = int(row.query_count or 0)
+            book_count = conversion_map.get(row.query, 0)
+            conversion_rate = round((book_count / count), 4) if count else 0.0
+            results.append(
+                {
+                    "query": row.query,
+                    "count": count,
+                    "avg_results": float(row.avg_results or 0.0),
+                    "conversion_rate": conversion_rate,
+                }
+            )
+
+        return results
+
+    def nl_get_zero_result_queries_by_date_range(
+        self, start_date: date, end_date: date, limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        """Get NL search queries that returned zero results within date range."""
+        rows = (
+            self.db.query(
+                SearchQuery.original_query.label("query"),
+                func.count(SearchQuery.id).label("query_count"),
+            )
+            .filter(
+                and_(
+                    func.date(SearchQuery.created_at) >= start_date,
+                    func.date(SearchQuery.created_at) <= end_date,
+                    SearchQuery.result_count == 0,
+                    SearchQuery.original_query.isnot(None),
+                    SearchQuery.original_query != "",
+                )
+            )
+            .group_by(SearchQuery.original_query)
+            .order_by(desc("query_count"))
+            .limit(limit)
+            .all()
+        )
+
+        return [{"query": row.query, "count": int(row.query_count or 0)} for row in rows]
+
+    def nl_count_searches_by_date_range(self, start_date: date, end_date: date) -> int:
+        """Count total NL searches within date range."""
+        return int(
+            self.db.query(func.count(SearchQuery.id))
+            .filter(
+                and_(
+                    func.date(SearchQuery.created_at) >= start_date,
+                    func.date(SearchQuery.created_at) <= end_date,
+                    SearchQuery.original_query.isnot(None),
+                    SearchQuery.original_query != "",
+                )
+            )
+            .scalar()
+            or 0
+        )
+
+    def nl_count_zero_result_searches_by_date_range(self, start_date: date, end_date: date) -> int:
+        """Count NL searches with zero results within date range."""
+        return int(
+            self.db.query(func.count(SearchQuery.id))
+            .filter(
+                and_(
+                    func.date(SearchQuery.created_at) >= start_date,
+                    func.date(SearchQuery.created_at) <= end_date,
+                    SearchQuery.result_count == 0,
+                    SearchQuery.original_query.isnot(None),
+                    SearchQuery.original_query != "",
+                )
+            )
+            .scalar()
+            or 0
+        )
 
     def nl_get_zero_result_queries(self, days: int = 7, limit: int = 100) -> List[Dict[str, Any]]:
         """Get NL search queries that returned zero results."""

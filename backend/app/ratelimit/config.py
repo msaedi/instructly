@@ -41,6 +41,8 @@ BUCKETS: Dict[str, Dict[str, Any]] = {
     # Conversation-scoped messaging limit (per user+conversation)
     "conv_msg": dict(rate_per_min=60, burst=10, window_s=60),
     "financial": dict(rate_per_min=5, burst=0, window_s=60),
+    "admin_mcp": dict(rate_per_min=60, burst=10, window_s=60),
+    "admin_mcp_invite": dict(rate_per_min=10, burst=2, window_s=60),
 }
 
 # Per-bucket shadow overrides (default inherits global). Financial enforcement in PR-3.

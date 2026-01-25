@@ -34,6 +34,7 @@ from typing import Dict, List, Sequence, Tuple
 import weakref
 
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 import pytest
 import pytz
 from ulid import ULID
@@ -1108,6 +1109,14 @@ def db():
 def unique_nyc_region_code(db: Session):
     """Yield a unique NYC region code and clean it up after the test."""
     code = f"Z{secrets.token_hex(2).upper()}"
+    # First delete any service areas referencing the region (FK constraint is RESTRICT)
+    db.execute(
+        text(
+            "DELETE FROM instructor_service_areas WHERE neighborhood_id IN "
+            "(SELECT id FROM region_boundaries WHERE region_type = 'nyc' AND region_code = :code)"
+        ),
+        {"code": code},
+    )
     db.execute(
         text("DELETE FROM region_boundaries WHERE region_type = 'nyc' AND region_code = :code"),
         {"code": code},
@@ -1116,6 +1125,14 @@ def unique_nyc_region_code(db: Session):
     try:
         yield code
     finally:
+        # Clean up in correct order: service areas first, then region boundaries
+        db.execute(
+            text(
+                "DELETE FROM instructor_service_areas WHERE neighborhood_id IN "
+                "(SELECT id FROM region_boundaries WHERE region_type = 'nyc' AND region_code = :code)"
+            ),
+            {"code": code},
+        )
         db.execute(
             text(
                 "DELETE FROM region_boundaries WHERE region_type = 'nyc' AND region_code = :code"
@@ -1672,7 +1689,7 @@ def test_booking(db: Session, test_student: User, test_instructor_with_availabil
         end_time=time(12, 0),
         service_name=service_name,
         hourly_rate=service.hourly_rate,
-        total_price=service.hourly_rate * 3,
+        total_price=float(service.hourly_rate) * 3,
         duration_minutes=180,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test Location",
@@ -1744,6 +1761,36 @@ def admin_user(db: Session, test_password: str) -> User:
 
 
 @pytest.fixture
+def mcp_service_user(db: Session, test_password: str) -> User:
+    existing = db.query(User).filter(User.email == "admin@instainstru.com").first()
+    if existing:
+        return existing
+
+    user = User(
+        email="admin@instainstru.com",
+        hashed_password=get_password_hash(test_password),
+        first_name="MCP",
+        last_name="Service",
+        zip_code="10001",
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
+
+    permission_service = PermissionService(db)
+    permission_service.assign_role(user.id, RoleName.ADMIN)
+    db.refresh(user)
+    db.commit()
+    return user
+
+
+@pytest.fixture
+def mcp_service_headers(mcp_service_user: User) -> dict:
+    settings.mcp_service_token = SecretStr("test-mcp-token")
+    return {"Authorization": "Bearer test-mcp-token"}
+
+
+@pytest.fixture
 def auth_headers_admin(admin_user: User) -> dict:
     from app.auth import create_access_token
 
@@ -1793,7 +1840,7 @@ def test_instructor_with_bookings(db: Session, test_instructor_with_availability
         end_time=time(12, 0),
         service_name=service_name,
         hourly_rate=service.hourly_rate,
-        total_price=service.hourly_rate * 3,
+        total_price=float(service.hourly_rate) * 3,
         duration_minutes=180,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test Location",

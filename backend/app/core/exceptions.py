@@ -53,6 +53,26 @@ class ValidationException(DomainException):
         )
 
 
+class MCPTokenError(ValidationException):
+    """Raised when an MCP confirm token is invalid or expired."""
+
+    def __init__(
+        self,
+        reason: str,
+        *,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        payload: Dict[str, Any] = {"reason": reason}
+        if details:
+            payload.update(details)
+        super().__init__(
+            message="Invalid confirm token",
+            code=f"MCP_TOKEN_{reason.upper()}",
+            details=payload,
+        )
+        self.reason = reason
+
+
 class NotFoundException(DomainException):
     """Raised when a requested resource is not found."""
 

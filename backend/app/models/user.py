@@ -78,7 +78,7 @@ class User(Base):
     phone = Column(String(20), nullable=True)
     phone_verified = Column(Boolean, nullable=False, default=False)
     zip_code = Column(String(10), nullable=False)
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, nullable=True, default=True)
     # Role removed - now using RBAC system with user_roles table
     # Account lifecycle status - active, suspended, or deactivated
     # Check constraint in migration ensures valid values

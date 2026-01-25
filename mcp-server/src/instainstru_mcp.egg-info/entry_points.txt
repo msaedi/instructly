@@ -1,0 +1,2 @@
+[console_scripts]
+instainstru-mcp = instainstru_mcp.server:main

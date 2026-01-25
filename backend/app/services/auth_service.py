@@ -194,6 +194,11 @@ class AuthService(BaseService):
                             is_active=True,
                         )
 
+                    from .instructor_lifecycle_service import InstructorLifecycleService
+
+                    lifecycle_service = InstructorLifecycleService(self.db)
+                    lifecycle_service.record_registration(user.id, is_founding=False)
+
                 self.logger.info(f"Successfully registered user: {email} with role: {role}")
                 return user
 

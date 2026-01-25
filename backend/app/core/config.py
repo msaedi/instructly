@@ -167,6 +167,21 @@ class Settings(BaseSettings):
         alias="TEMP_TOKEN_SECRET",
         description="Optional override secret for 2FA temp tokens (defaults to SECRET_KEY)",
     )
+    mcp_token_secret: SecretStr = Field(
+        default=SecretStr(""),
+        alias="MCP_TOKEN_SECRET",
+        description="Secret key for MCP confirm tokens (falls back to SECRET_KEY when unset)",
+    )
+    mcp_service_token: SecretStr | None = Field(
+        default=None,
+        alias="MCP_SERVICE_TOKEN",
+        description="Service token for MCP server authentication",
+    )
+    mcp_service_account_email: str = Field(
+        default="admin@instainstru.com",
+        alias="MCP_SERVICE_ACCOUNT_EMAIL",
+        description="Service account email used for MCP audit logging",
+    )
     temp_token_iss: str = Field(
         default="instainstru-auth",
         alias="TEMP_TOKEN_ISS",

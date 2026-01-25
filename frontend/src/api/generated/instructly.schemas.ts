@@ -3663,6 +3663,273 @@ export interface LoginResponse {
   token_type?: string | null;
 }
 
+export interface MCPActor {
+  email: string;
+  id: string;
+}
+
+export interface MCPConversionRate {
+  from_stage: string;
+  rate: number;
+  to_stage: string;
+}
+
+export interface MCPDateWindow {
+  end: string;
+  start: string;
+}
+
+export interface MCPFoundingCap {
+  cap: number;
+  is_founding_phase: boolean;
+  remaining: number;
+  used: number;
+}
+
+export interface MCPFunnelStage {
+  count: number;
+  description: string;
+  stage: string;
+}
+
+export interface MCPMeta {
+  actor: MCPActor;
+  generated_at: string;
+  request_id: string;
+}
+
+export interface MCPTimeWindow {
+  end?: string | null;
+  start?: string | null;
+}
+
+export interface MCPFunnelSummaryResponse {
+  conversion_rates: MCPConversionRate[];
+  founding_cap: MCPFoundingCap;
+  meta: MCPMeta;
+  stages: MCPFunnelStage[];
+  time_window: MCPTimeWindow;
+}
+
+export interface MCPInstructorBGC {
+  completed_at?: string | null;
+  status?: string | null;
+  valid_until?: string | null;
+}
+
+export interface MCPInstructorOnboarding {
+  background_check_uploaded_at?: string | null;
+  bgc_completed_at?: string | null;
+  bgc_invited_at?: string | null;
+  identity_verified_at?: string | null;
+  onboarding_completed_at?: string | null;
+  profile_created_at?: string | null;
+  profile_updated_at?: string | null;
+}
+
+export interface MCPInstructorService {
+  category: string;
+  hourly_rate: string;
+  is_active: boolean;
+  name: string;
+  slug: string;
+}
+
+export interface MCPInstructorStats {
+  bookings_cancelled: number;
+  bookings_completed: number;
+  no_shows: number;
+  rating_avg: number;
+  rating_count: number;
+  response_rate?: number | null;
+}
+
+export interface MCPInstructorDetailResponse {
+  admin_url: string;
+  bgc: MCPInstructorBGC;
+  email: string;
+  founding_granted_at?: string | null;
+  is_founding: boolean;
+  live_at?: string | null;
+  meta: MCPMeta;
+  name: string;
+  onboarding: MCPInstructorOnboarding;
+  phone?: string | null;
+  services: MCPInstructorService[];
+  stats: MCPInstructorStats;
+  status: string;
+  user_id: string;
+}
+
+export interface MCPInstructorListItem {
+  admin_url: string;
+  bookings_completed: number;
+  categories: string[];
+  email: string;
+  founding_granted_at?: string | null;
+  is_founding: boolean;
+  live_at?: string | null;
+  name: string;
+  rating_avg: number;
+  services: string[];
+  status: string;
+  user_id: string;
+}
+
+export interface MCPInstructorListResponse {
+  items: MCPInstructorListItem[];
+  limit: number;
+  meta: MCPMeta;
+  next_cursor?: string | null;
+}
+
+export interface MCPInvitePreview {
+  expires_at: string;
+  founding_cap_remaining: number;
+  grants_founding: boolean;
+  subject: string;
+}
+
+export interface MCPInvitePreviewRecipient {
+  email: string;
+  exists_in_system: boolean;
+  user_id?: string | null;
+}
+
+export interface MCPInvitePreviewData {
+  confirm_expires_at: string;
+  confirm_token: string;
+  invite_preview: MCPInvitePreview;
+  recipient_count: number;
+  recipients: MCPInvitePreviewRecipient[];
+  warnings: string[];
+}
+
+export interface MCPInvitePreviewRequest {
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
+  expires_in_days?: number;
+  grant_founding_status?: boolean;
+  message_note?: string | null;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  recipient_emails: string[];
+}
+
+export interface MCPInvitePreviewResponse {
+  data: MCPInvitePreviewData;
+  meta: MCPMeta;
+}
+
+export interface MCPInviteSendResult {
+  code: string;
+  email: string;
+  status: string;
+}
+
+export interface MCPInviteSendData {
+  audit_id: string;
+  failed_count: number;
+  invites: MCPInviteSendResult[];
+  sent_count: number;
+}
+
+export interface MCPInviteSendRequest {
+  confirm_token: string;
+  idempotency_key: string;
+}
+
+export interface MCPInviteSendResponse {
+  data: MCPInviteSendData;
+  meta: MCPMeta;
+}
+
+export interface MCPMetricDefinition {
+  definition: string;
+  metric: string;
+  related_metrics: string[];
+  requirements: string[];
+  source_fields: string[];
+}
+
+export interface MCPMetricResponse {
+  data: MCPMetricDefinition;
+  meta: MCPMeta;
+}
+
+export interface MCPServiceCoverageData {
+  group_by: string;
+  labels: string[];
+  total_instructors: number;
+  total_services_offered: number;
+  values: number[];
+}
+
+export interface MCPServiceCoverageResponse {
+  data: MCPServiceCoverageData;
+  meta: MCPMeta;
+}
+
+export interface MCPStuckInstructor {
+  current_stage: string;
+  days_in_stage: number;
+  email: string;
+  name: string;
+  occurred_at?: string | null;
+  user_id: string;
+}
+
+export interface MCPStuckSummary {
+  stage: string;
+  stuck_count: number;
+}
+
+export interface MCPStuckResponse {
+  instructors: MCPStuckInstructor[];
+  meta: MCPMeta;
+  summary: MCPStuckSummary[];
+  total_stuck: number;
+}
+
+export interface MCPTopQuery {
+  avg_results: number;
+  conversion_rate: number;
+  count: number;
+  query: string;
+}
+
+export interface MCPTopQueriesData {
+  queries: MCPTopQuery[];
+  time_window: MCPDateWindow;
+  total_searches: number;
+}
+
+export interface MCPTopQueriesResponse {
+  data: MCPTopQueriesData;
+  meta: MCPMeta;
+}
+
+export interface MCPZeroResultQuery {
+  count: number;
+  query: string;
+}
+
+export interface MCPZeroResultsData {
+  queries: MCPZeroResultQuery[];
+  time_window: MCPDateWindow;
+  total_zero_result_searches: number;
+  zero_result_rate: number;
+}
+
+export interface MCPZeroResultsResponse {
+  data: MCPZeroResultsData;
+  meta: MCPMeta;
+}
+
 /**
  * Request to mark messages as read.
  */
@@ -6912,6 +7179,91 @@ export type ListUnresolvedLocationQueriesApiV1AdminLocationLearningUnresolvedGet
   /**
    * @minimum 1
    * @maximum 500
+   */
+  limit?: number;
+};
+
+export type GetFunnelSummaryApiV1AdminMcpFoundingFunnelGetParams = {
+  start_date?: string | null;
+  end_date?: string | null;
+};
+
+export type GetStuckInstructorsApiV1AdminMcpFoundingStuckGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 90
+   */
+  stuck_days?: number;
+  stage?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+};
+
+export type ListInstructorsApiV1AdminMcpInstructorsGetParams = {
+  status?: 'registered' | 'onboarding' | 'live' | 'paused' | null;
+  is_founding?: boolean | null;
+  service_slug?: string | null;
+  category_slug?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+  cursor?: string | null;
+};
+
+export type GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetParams = {
+  status?: GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetStatus;
+  group_by?: GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetGroupBy;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  top?: number;
+};
+
+export type GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetStatus =
+  (typeof GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetStatus)[keyof typeof GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetStatus];
+
+export const GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetStatus = {
+  registered: 'registered',
+  onboarding: 'onboarding',
+  live: 'live',
+  paused: 'paused',
+} as const;
+
+export type GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetGroupBy =
+  (typeof GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetGroupBy)[keyof typeof GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetGroupBy];
+
+export const GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetGroupBy = {
+  category: 'category',
+  service: 'service',
+} as const;
+
+export type GetTopQueriesApiV1AdminMcpSearchTopQueriesGetParams = {
+  start_date?: string | null;
+  end_date?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+  /**
+   * @minimum 1
+   * @maximum 1000
+   */
+  min_count?: number;
+};
+
+export type GetZeroResultQueriesApiV1AdminMcpSearchZeroResultsGetParams = {
+  start_date?: string | null;
+  end_date?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 200
    */
   limit?: number;
 };

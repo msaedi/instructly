@@ -69,6 +69,13 @@ from app.routes.v1.admin import (
     refunds as admin_refunds_v1,
     search_config as admin_search_config_v1,
 )
+from app.routes.v1.admin.mcp import (
+    founding as admin_mcp_founding_v1,
+    instructors as admin_mcp_instructors_v1,
+    invites as admin_mcp_invites_v1,
+    metrics as admin_mcp_metrics_v1,
+    search as admin_mcp_search_v1,
+)
 
 
 def build_openapi_app() -> FastAPI:
@@ -148,6 +155,11 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(admin_location_learning_v1.router, prefix="/admin/location-learning")  # type: ignore[attr-defined]
     api_v1.include_router(admin_bookings_v1.router, prefix="/admin")  # type: ignore[attr-defined]
     api_v1.include_router(admin_refunds_v1.router, prefix="/admin/bookings")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_mcp_founding_v1.router, prefix="/admin/mcp/founding")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_mcp_instructors_v1.router, prefix="/admin/mcp/instructors")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_mcp_invites_v1.router, prefix="/admin/mcp/invites")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_mcp_search_v1.router, prefix="/admin/mcp/search")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_mcp_metrics_v1.router, prefix="/admin/mcp/metrics")  # type: ignore[attr-defined]
     api_v1.include_router(referrals_v1.admin_router, prefix="/admin/referrals")  # type: ignore[attr-defined]
 
     # Webhook routes

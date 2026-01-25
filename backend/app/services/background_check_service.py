@@ -210,6 +210,11 @@ class BackgroundCheckService(BaseService):
                 includes_canceled=False,
             )
 
+            from .instructor_lifecycle_service import InstructorLifecycleService
+
+            lifecycle_service = InstructorLifecycleService(self.db)
+            lifecycle_service.record_bgc_initiated(profile.user_id)
+
         return {
             "status": "pending",
             "report_id": report_id,
@@ -237,6 +242,14 @@ class BackgroundCheckService(BaseService):
                 completed_at=completed_at,
                 result=result,
             )
+
+            if updated and completed:
+                profile = self.repository.get_by_report_id(report_id)
+                if profile:
+                    from .instructor_lifecycle_service import InstructorLifecycleService
+
+                    lifecycle_service = InstructorLifecycleService(self.db)
+                    lifecycle_service.record_bgc_completed(profile.user_id, status)
 
         if not updated:
             self.logger.info(

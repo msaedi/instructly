@@ -71,7 +71,7 @@ def create_test_booking(
         end_time=end_time,
         duration_minutes=duration_minutes,
         hourly_rate=service.hourly_rate,
-        total_price=service.hourly_rate * (duration_minutes / 60),
+        total_price=float(service.hourly_rate) * (duration_minutes / 60),
         service_name=service_name,
         status=status,
         payment_status=payment_status,

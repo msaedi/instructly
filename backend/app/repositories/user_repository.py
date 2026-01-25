@@ -10,7 +10,7 @@ from datetime import datetime
 import logging
 from typing import Any, Optional, Sequence, cast
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import with_db_retry
@@ -96,6 +96,23 @@ class UserRepository(BaseRepository[User]):
         except Exception as e:
             self.logger.error(f"Error getting user by email {email}: {str(e)}")
             return None
+
+    def list_by_emails(self, emails: Sequence[str], *, case_insensitive: bool = True) -> list[User]:
+        """Return users matching the supplied emails."""
+        if not emails:
+            return []
+        try:
+            if case_insensitive:
+                lowered = [email.lower() for email in emails if email]
+                if not lowered:
+                    return []
+                stmt = select(User).where(func.lower(User.email).in_(lowered))
+            else:
+                stmt = select(User).where(User.email.in_(list(emails)))
+            return cast(list[User], self.db.execute(stmt).scalars().all())
+        except Exception as e:
+            self.logger.error(f"Error listing users by emails: {str(e)}")
+            return []
 
     # ==========================================
     # With Relationships (6+ violations fixed)

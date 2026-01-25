@@ -25,6 +25,7 @@ from .conversation_user_state import ConversationUserState
 from .event_outbox import EventOutbox, EventOutboxStatus, NotificationDelivery
 from .favorite import UserFavorite
 from .instructor import BGCConsent, InstructorPreferredPlace, InstructorProfile
+from .instructor_lifecycle_event import InstructorLifecycleEvent
 
 # Location resolution models
 from .location_alias import NYC_CITY_ID, LocationAlias
@@ -81,6 +82,7 @@ __all__ = [
     "UserPermission",
     # Instructor models
     "InstructorProfile",
+    "InstructorLifecycleEvent",
     "BGCConsent",
     "InstructorPreferredPlace",
     # Service catalog models

@@ -943,6 +943,166 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/founding/funnel": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_funnel_summary_api_v1_admin_mcp_founding_funnel_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/founding/stuck": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_stuck_instructors_api_v1_admin_mcp_founding_stuck_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/instructors": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_instructors_api_v1_admin_mcp_instructors_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/instructors/coverage": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_service_coverage_api_v1_admin_mcp_instructors_coverage_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/instructors/{identifier}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_instructor_detail_api_v1_admin_mcp_instructors__identifier__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/invites/preview": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["preview_invites_api_v1_admin_mcp_invites_preview_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/invites/send": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["send_invites_api_v1_admin_mcp_invites_send_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/metrics/{metric_name}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_metric_definition_api_v1_admin_mcp_metrics__metric_name__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/search/top-queries": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_top_queries_api_v1_admin_mcp_search_top_queries_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/search/zero-results": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_zero_result_queries_api_v1_admin_mcp_search_zero_results_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/referrals/config": {
  parameters: {
  query?: never;
@@ -6393,6 +6553,228 @@ export type components = {
  hit_rate?: number | null;
  target?: number | null;
  };
+ MCPActor: {
+ email: string;
+ id: string;
+ };
+ MCPConversionRate: {
+ from_stage: string;
+ rate: number;
+ to_stage: string;
+ };
+ MCPDateWindow: {
+ end: string;
+ start: string;
+ };
+ MCPFoundingCap: {
+ cap: number;
+ is_founding_phase: boolean;
+ remaining: number;
+ used: number;
+ };
+ MCPFunnelStage: {
+ count: number;
+ description: string;
+ stage: string;
+ };
+ MCPFunnelSummaryResponse: {
+ conversion_rates: components["schemas"]["MCPConversionRate"][];
+ founding_cap: components["schemas"]["MCPFoundingCap"];
+ meta: components["schemas"]["MCPMeta"];
+ stages: components["schemas"]["MCPFunnelStage"][];
+ time_window: components["schemas"]["MCPTimeWindow"];
+ };
+ MCPInstructorBGC: {
+ completed_at?: string | null;
+ status?: string | null;
+ valid_until?: string | null;
+ };
+ MCPInstructorDetailResponse: {
+ admin_url: string;
+ bgc: components["schemas"]["MCPInstructorBGC"];
+ email: string;
+ founding_granted_at?: string | null;
+ is_founding: boolean;
+ live_at?: string | null;
+ meta: components["schemas"]["MCPMeta"];
+ name: string;
+ onboarding: components["schemas"]["MCPInstructorOnboarding"];
+ phone?: string | null;
+ services: components["schemas"]["MCPInstructorService"][];
+ stats: components["schemas"]["MCPInstructorStats"];
+ status: string;
+ user_id: string;
+ };
+ MCPInstructorListItem: {
+ admin_url: string;
+ bookings_completed: number;
+ categories: string[];
+ email: string;
+ founding_granted_at?: string | null;
+ is_founding: boolean;
+ live_at?: string | null;
+ name: string;
+ rating_avg: number;
+ services: string[];
+ status: string;
+ user_id: string;
+ };
+ MCPInstructorListResponse: {
+ items: components["schemas"]["MCPInstructorListItem"][];
+ limit: number;
+ meta: components["schemas"]["MCPMeta"];
+ next_cursor?: string | null;
+ };
+ MCPInstructorOnboarding: {
+ background_check_uploaded_at?: string | null;
+ bgc_completed_at?: string | null;
+ bgc_invited_at?: string | null;
+ identity_verified_at?: string | null;
+ onboarding_completed_at?: string | null;
+ profile_created_at?: string | null;
+ profile_updated_at?: string | null;
+ };
+ MCPInstructorService: {
+ category: string;
+ hourly_rate: string;
+ is_active: boolean;
+ name: string;
+ slug: string;
+ };
+ MCPInstructorStats: {
+ bookings_cancelled: number;
+ bookings_completed: number;
+ no_shows: number;
+ rating_avg: number;
+ rating_count: number;
+ response_rate?: number | null;
+ };
+ MCPInvitePreview: {
+ expires_at: string;
+ founding_cap_remaining: number;
+ grants_founding: boolean;
+ subject: string;
+ };
+ MCPInvitePreviewData: {
+ confirm_expires_at: string;
+ confirm_token: string;
+ invite_preview: components["schemas"]["MCPInvitePreview"];
+ recipient_count: number;
+ recipients: components["schemas"]["MCPInvitePreviewRecipient"][];
+ warnings: string[];
+ };
+ MCPInvitePreviewRecipient: {
+ email: string;
+ exists_in_system: boolean;
+ user_id?: string | null;
+ };
+ MCPInvitePreviewRequest: {
+ expires_in_days: number;
+ grant_founding_status: boolean;
+ message_note?: string | null;
+ recipient_emails: string[];
+ };
+ MCPInvitePreviewResponse: {
+ data: components["schemas"]["MCPInvitePreviewData"];
+ meta: components["schemas"]["MCPMeta"];
+ };
+ MCPInviteSendData: {
+ audit_id: string;
+ failed_count: number;
+ invites: components["schemas"]["MCPInviteSendResult"][];
+ sent_count: number;
+ };
+ MCPInviteSendRequest: {
+ confirm_token: string;
+ idempotency_key: string;
+ };
+ MCPInviteSendResponse: {
+ data: components["schemas"]["MCPInviteSendData"];
+ meta: components["schemas"]["MCPMeta"];
+ };
+ MCPInviteSendResult: {
+ code: string;
+ email: string;
+ status: string;
+ };
+ MCPMeta: {
+ actor: components["schemas"]["MCPActor"];
+ generated_at: string;
+ request_id: string;
+ };
+ MCPMetricDefinition: {
+ definition: string;
+ metric: string;
+ related_metrics: string[];
+ requirements: string[];
+ source_fields: string[];
+ };
+ MCPMetricResponse: {
+ data: components["schemas"]["MCPMetricDefinition"];
+ meta: components["schemas"]["MCPMeta"];
+ };
+ MCPServiceCoverageData: {
+ group_by: string;
+ labels: string[];
+ total_instructors: number;
+ total_services_offered: number;
+ values: number[];
+ };
+ MCPServiceCoverageResponse: {
+ data: components["schemas"]["MCPServiceCoverageData"];
+ meta: components["schemas"]["MCPMeta"];
+ };
+ MCPStuckInstructor: {
+ current_stage: string;
+ days_in_stage: number;
+ email: string;
+ name: string;
+ occurred_at?: string | null;
+ user_id: string;
+ };
+ MCPStuckResponse: {
+ instructors: components["schemas"]["MCPStuckInstructor"][];
+ meta: components["schemas"]["MCPMeta"];
+ summary: components["schemas"]["MCPStuckSummary"][];
+ total_stuck: number;
+ };
+ MCPStuckSummary: {
+ stage: string;
+ stuck_count: number;
+ };
+ MCPTimeWindow: {
+ end?: string | null;
+ start?: string | null;
+ };
+ MCPTopQueriesData: {
+ queries: components["schemas"]["MCPTopQuery"][];
+ time_window: components["schemas"]["MCPDateWindow"];
+ total_searches: number;
+ };
+ MCPTopQueriesResponse: {
+ data: components["schemas"]["MCPTopQueriesData"];
+ meta: components["schemas"]["MCPMeta"];
+ };
+ MCPTopQuery: {
+ avg_results: number;
+ conversion_rate: number;
+ count: number;
+ query: string;
+ };
+ MCPZeroResultQuery: {
+ count: number;
+ query: string;
+ };
+ MCPZeroResultsData: {
+ queries: components["schemas"]["MCPZeroResultQuery"][];
+ time_window: components["schemas"]["MCPDateWindow"];
+ total_zero_result_searches: number;
+ zero_result_rate: number;
+ };
+ MCPZeroResultsResponse: {
+ data: components["schemas"]["MCPZeroResultsData"];
+ meta: components["schemas"]["MCPMeta"];
+ };
  MarkMessagesReadRequest: {
  conversation_id?: string | null;
  message_ids?: string[] | null;
@@ -9789,6 +10171,336 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AdminLocationLearningDismissQueryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_funnel_summary_api_v1_admin_mcp_founding_funnel_get: {
+ parameters: {
+ query?: {
+ start_date?: string | null;
+ end_date?: string | null;
+ };
+ header?: {
+ Authorization?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPFunnelSummaryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_stuck_instructors_api_v1_admin_mcp_founding_stuck_get: {
+ parameters: {
+ query?: {
+ stuck_days?: number;
+ stage?: string | null;
+ limit?: number;
+ };
+ header?: {
+ Authorization?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPStuckResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_instructors_api_v1_admin_mcp_instructors_get: {
+ parameters: {
+ query?: {
+ status?: ("registered" | "onboarding" | "live" | "paused") | null;
+ is_founding?: boolean | null;
+ service_slug?: string | null;
+ category_slug?: string | null;
+ limit?: number;
+ cursor?: string | null;
+ };
+ header?: {
+ Authorization?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPInstructorListResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_service_coverage_api_v1_admin_mcp_instructors_coverage_get: {
+ parameters: {
+ query?: {
+ status?: "registered" | "onboarding" | "live" | "paused";
+ group_by?: "category" | "service";
+ top?: number;
+ };
+ header?: {
+ Authorization?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPServiceCoverageResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_instructor_detail_api_v1_admin_mcp_instructors__identifier__get: {
+ parameters: {
+ query?: never;
+ header?: {
+ Authorization?: string | null;
+ };
+ path: {
+ identifier: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPInstructorDetailResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ preview_invites_api_v1_admin_mcp_invites_preview_post: {
+ parameters: {
+ query?: never;
+ header?: {
+ Authorization?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["MCPInvitePreviewRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPInvitePreviewResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ send_invites_api_v1_admin_mcp_invites_send_post: {
+ parameters: {
+ query?: never;
+ header?: {
+ "Idempotency-Key"?: string | null;
+ Authorization?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["MCPInviteSendRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPInviteSendResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_metric_definition_api_v1_admin_mcp_metrics__metric_name__get: {
+ parameters: {
+ query?: never;
+ header?: {
+ Authorization?: string | null;
+ };
+ path: {
+ metric_name: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPMetricResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_top_queries_api_v1_admin_mcp_search_top_queries_get: {
+ parameters: {
+ query?: {
+ start_date?: string | null;
+ end_date?: string | null;
+ limit?: number;
+ min_count?: number;
+ };
+ header?: {
+ Authorization?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPTopQueriesResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_zero_result_queries_api_v1_admin_mcp_search_zero_results_get: {
+ parameters: {
+ query?: {
+ start_date?: string | null;
+ end_date?: string | null;
+ limit?: number;
+ };
+ header?: {
+ Authorization?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPZeroResultsResponse"];
  };
  };
  422: {

@@ -1235,7 +1235,7 @@ class DatabaseSeeder:
                         duration_minutes=duration,
                         service_name=service_name,
                         hourly_rate=service.hourly_rate,
-                        total_price=service.hourly_rate * (duration / 60),
+                        total_price=float(service.hourly_rate) * (duration / 60),
                         status=BookingStatus.CONFIRMED,
                         service_area=None,
                         meeting_location="Online",
@@ -1559,7 +1559,7 @@ class DatabaseSeeder:
                     service_name=catalog_service.name if catalog_service else "Service",
                     service_area="Manhattan",
                     hourly_rate=service.hourly_rate,
-                    total_price=service.hourly_rate * (duration / 60),
+                    total_price=float(service.hourly_rate) * (duration / 60),
                     duration_minutes=duration,
                     student_note="Completed lesson for testing Book Again feature",
                     completed_at=datetime.now() - timedelta(days=days_ago - 1),  # Mark as completed day after booking
@@ -1809,7 +1809,7 @@ class DatabaseSeeder:
                     service_name=service_name,
                     service_area="Manhattan",
                     hourly_rate=service.hourly_rate,
-                    total_price=service.hourly_rate * (duration / 60),
+                    total_price=float(service.hourly_rate) * (duration / 60),
                     duration_minutes=duration,
                     student_note="Completed lesson for testing Book Again feature",
                     completed_at=datetime.now() - timedelta(days=days_ago - 1),
@@ -2053,7 +2053,7 @@ class DatabaseSeeder:
                         # Pre-generate ULID for bulk insert
                         booking_id = str(ulid.ULID())
                         service_name = service.catalog_entry.name if service.catalog_entry else "Service"
-                        total_price = float(service.hourly_rate * (duration / 60))
+                        total_price = float(service.hourly_rate) * (duration / 60)
 
                         tz_fields = self._build_booking_timezone_fields(
                             booking_date_val,
