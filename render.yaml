@@ -96,7 +96,7 @@ services:
     plan: starter
     region: ohio
     buildCommand: "cd mcp-server && pip install -e ."
-    startCommand: "cd mcp-server && uvicorn instainstru_mcp.server:app --host 0.0.0.0 --port $PORT"
+    startCommand: "cd mcp-server && uvicorn instainstru_mcp.server:get_app --factory --host 0.0.0.0 --port $PORT"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9

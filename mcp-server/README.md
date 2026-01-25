@@ -83,13 +83,13 @@ INSTAINSTRU_MCP_API_SERVICE_TOKEN=svc_...
 
 ## Run Locally
 ```bash
-uvicorn instainstru_mcp.server:app --host 0.0.0.0 --port 8001
+uvicorn instainstru_mcp.server:get_app --factory --host 0.0.0.0 --port 8001
 ```
 
 ## Deployment (Render)
 Render start command:
 ```
-uvicorn instainstru_mcp.server:app --host 0.0.0.0 --port $PORT
+uvicorn instainstru_mcp.server:get_app --factory --host 0.0.0.0 --port $PORT
 ```
 
 Required env vars in Render:

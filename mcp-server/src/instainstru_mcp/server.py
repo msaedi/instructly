@@ -139,11 +139,24 @@ def create_app(settings: Settings | None = None):
     return DualAuthMiddleware(app_instance)
 
 
-app = create_app()
+_app: Any | None = None
+
+
+def get_app() -> Any:
+    """Get or create the app instance (lazy initialization)."""
+    global _app
+    if _app is None:
+        _app = create_app()
+    return _app
 
 
 def main() -> None:
     import uvicorn
 
     port = int(os.getenv("PORT", "8001"))
-    uvicorn.run("instainstru_mcp.server:app", host="0.0.0.0", port=port)
+    uvicorn.run(
+        "instainstru_mcp.server:get_app",
+        host="0.0.0.0",
+        port=port,
+        factory=True,
+    )
