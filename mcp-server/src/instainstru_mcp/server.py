@@ -7,6 +7,7 @@ import secrets
 import logging
 
 from typing import Any, TYPE_CHECKING, cast
+import httpx
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
@@ -95,8 +96,27 @@ class DualAuthMiddleware:
                     claims.get("email", claims.get("sub")),
                 )
                 return {"method": "auth0", "claims": claims}
-            except pyjwt.InvalidTokenError:
-                pass
+            except pyjwt.InvalidTokenError as exc:
+                error_msg = str(exc)
+                if (
+                    "Invalid payload string" in error_msg
+                    or "invalid start byte" in error_msg.lower()
+                    or "Not enough segments" in error_msg
+                ):
+                    logger.info(
+                        "JWT decode failed, trying opaque token validation via /userinfo"
+                    )
+                    claims = _validate_opaque_token_sync(
+                        token,
+                        self.auth0_validator.domain,
+                    )
+                    if claims:
+                        logger.debug(
+                            "Authenticated via Auth0 userinfo: %s",
+                            claims.get("email", claims.get("sub")),
+                        )
+                        return {"method": "auth0", "claims": claims}
+                logger.info("Invalid Auth0 token: %s", exc)
 
         if not self.simple_token and not self.auth0_validator:
             logger.error("No authentication methods configured")
@@ -203,6 +223,28 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
             methods=["GET"],
         )
     )
+
+
+def _validate_opaque_token_sync(token: str, auth0_domain: str) -> dict | None:
+    """Validate opaque token via Auth0 /userinfo endpoint (sync)."""
+    try:
+        response = httpx.get(
+            f"https://{auth0_domain}/userinfo",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10.0,
+        )
+        if response.status_code == 200:
+            user_info = response.json()
+            logger.info(
+                "Opaque token validated for user: %s",
+                user_info.get("email", user_info.get("sub")),
+            )
+            return user_info
+        logger.warning("Opaque token validation returned %s", response.status_code)
+        return None
+    except Exception as exc:
+        logger.warning("Opaque token validation failed: %s", exc)
+        return None
 
 
 def create_app(settings: Settings | None = None):
