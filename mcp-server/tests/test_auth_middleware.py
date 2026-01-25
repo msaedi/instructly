@@ -416,7 +416,7 @@ class TestOAuthMetadata:
         response = client.get("/.well-known/oauth-protected-resource")
         assert response.status_code == 200
         payload = response.json()
-        assert payload["resource"] == "http://testserver/sse"
+        assert payload["resource"] == "https://mcp.instainstru.com"
         assert payload["authorization_servers"] == [
             "https://instainstru-admin.us.auth0.com/"
         ]
@@ -468,3 +468,36 @@ class TestOAuthMetadata:
         assert (
             client.get("/.well-known/oauth-authorization-server").status_code == 503
         )
+
+
+class TestOpaqueTokenFallback:
+    """Tests for Auth0 opaque token fallback via /userinfo."""
+
+    def test_opaque_token_validated_via_userinfo(self, mock_jwks_client):
+        """Should validate opaque token via /userinfo when JWT decode fails."""
+        mock_jwks_client.get_signing_key_from_jwt.side_effect = None
+
+        with patch("instainstru_mcp.auth.jwt.decode") as mock_decode:
+            mock_decode.side_effect = jwt.InvalidTokenError(
+                "Invalid payload string: 'utf-8' codec can't decode byte 0x92 in position 1"
+            )
+            with patch("instainstru_mcp.server.httpx.get") as mock_get:
+                mock_response = MagicMock()
+                mock_response.status_code = 200
+                mock_response.json.return_value = {
+                    "sub": "auth0|opaque",
+                    "email": "opaque@instainstru.com",
+                }
+                mock_get.return_value = mock_response
+
+                client = create_test_app(
+                    auth0_domain="instainstru-admin.us.auth0.com",
+                    auth0_audience="https://mcp.instainstru.com",
+                )
+                response = client.get(
+                    "/sse",
+                    headers={"Authorization": "Bearer opaque-token"},
+                )
+                assert response.status_code == 200
+                assert "auth0" in response.text
+                mock_get.assert_called_once()
