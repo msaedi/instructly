@@ -104,6 +104,7 @@ services:
         value: https://api.instainstru.com
       - key: INSTAINSTRU_MCP_API_SERVICE_TOKEN
         sync: false
+    healthCheckPath: /api/v1/health
     autoDeploy: false
 
 # Database configuration is external (Supabase)

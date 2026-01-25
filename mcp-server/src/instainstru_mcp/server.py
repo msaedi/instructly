@@ -7,6 +7,8 @@ import os
 from typing import Any, cast
 
 from fastmcp import FastMCP
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 from .auth import MCPAuth
 from .client import InstaInstruClient
@@ -34,13 +36,24 @@ def create_mcp(
     return mcp
 
 
+def _attach_health_route(app: Any) -> None:
+    async def health_check(_request):
+        """Health check endpoint for load balancer."""
+        return JSONResponse({"status": "ok", "service": "instainstru-mcp"})
+
+    app.routes.append(Route("/api/v1/health", health_check, methods=["GET", "HEAD"]))
+
+
 def create_app(settings: Settings | None = None):
     mcp = create_mcp(settings=settings)
-    return cast(Any, mcp).http_app(transport="sse")
+    app_instance = cast(Any, mcp).http_app(transport="sse")
+    _attach_health_route(app_instance)
+    return app_instance
 
 
 mcp = create_mcp()
 app = cast(Any, mcp).http_app(transport="sse")
+_attach_health_route(app)
 
 
 def main() -> None:
