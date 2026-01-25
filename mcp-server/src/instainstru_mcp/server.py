@@ -23,7 +23,7 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
         if request.url.path == "/api/v1/health":
             return await call_next(request)
 
-        expected_token = os.environ.get("INSTAINSTRU_MCP_AUTH_TOKEN")
+        expected_token = os.environ.get("INSTAINSTRU_MCP_API_SERVICE_TOKEN")
         if not expected_token:
             return JSONResponse(
                 {"error": "Server authentication not configured"},
@@ -80,10 +80,7 @@ def create_app(settings: Settings | None = None):
     return app_instance
 
 
-mcp = create_mcp()
-app = cast(Any, mcp).http_app(transport="sse")
-app.add_middleware(BearerAuthMiddleware)
-_attach_health_route(app)
+app = create_app()
 
 
 def main() -> None:
