@@ -196,7 +196,7 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
                 "resource": resource_url,
                 "authorization_servers": [issuer],
                 "scopes_supported": ["openid", "profile", "email"],
-                "client_id": "Xzpdy0x0TN7QniAxJZWGELKyPRHnIAd4",  # Pre-registered Auth0 SPA
+                "client_id": "XzpdyOxOTN7QniAxJZWGELKyPRHnIAd4",  # Pre-registered Auth0 SPA
             }
         )
 
