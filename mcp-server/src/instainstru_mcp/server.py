@@ -8,7 +8,6 @@ import secrets
 from typing import Any, cast
 
 from fastmcp import FastMCP
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
@@ -18,30 +17,48 @@ from .config import Settings
 from .tools import founding, instructors, invites, metrics, search
 
 
-class BearerAuthMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        if request.url.path == "/api/v1/health":
-            return await call_next(request)
+class BearerAuthMiddleware:
+    """Raw ASGI middleware - compatible with SSE streams."""
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        if path == "/api/v1/health":
+            await self.app(scope, receive, send)
+            return
 
         expected_token = os.environ.get("INSTAINSTRU_MCP_API_SERVICE_TOKEN")
         if not expected_token:
-            return JSONResponse(
+            response = JSONResponse(
                 {"error": "Server authentication not configured"},
                 status_code=500,
             )
+            await response(scope, receive, send)
+            return
 
-        auth_header = request.headers.get("Authorization", "")
+        headers = dict(scope.get("headers", []))
+        auth_header = headers.get(b"authorization", b"").decode()
         if not auth_header.startswith("Bearer "):
-            return JSONResponse(
+            response = JSONResponse(
                 {"error": "Missing or invalid Authorization header"},
                 status_code=401,
             )
+            await response(scope, receive, send)
+            return
 
         provided_token = auth_header[7:]
         if not secrets.compare_digest(provided_token, expected_token):
-            return JSONResponse({"error": "Invalid token"}, status_code=401)
+            response = JSONResponse({"error": "Invalid token"}, status_code=401)
+            await response(scope, receive, send)
+            return
 
-        return await call_next(request)
+        await self.app(scope, receive, send)
 
 
 def create_mcp(
@@ -75,9 +92,8 @@ def _attach_health_route(app: Any) -> None:
 def create_app(settings: Settings | None = None):
     mcp = create_mcp(settings=settings)
     app_instance = cast(Any, mcp).http_app(transport="sse")
-    app_instance.add_middleware(BearerAuthMiddleware)
     _attach_health_route(app_instance)
-    return app_instance
+    return BearerAuthMiddleware(app_instance)
 
 
 app = create_app()

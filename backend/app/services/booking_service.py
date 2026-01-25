@@ -183,15 +183,13 @@ class BookingService(BaseService):
 
     def _booking_event_identity(self, booking: Booking, event_type: str) -> tuple[str, str]:
         """Return idempotency key and version for a booking domain event."""
-        timestamp: datetime | None = None
+        timestamp = booking.created_at or datetime.now(timezone.utc)
         if event_type == "booking.cancelled" and booking.cancelled_at:
             timestamp = booking.cancelled_at
         elif event_type == "booking.completed" and booking.completed_at:
             timestamp = booking.completed_at
         elif booking.updated_at:
             timestamp = booking.updated_at
-        else:
-            timestamp = booking.created_at or datetime.now(timezone.utc)
 
         ts = timestamp.astimezone(timezone.utc)
         version = ts.isoformat()

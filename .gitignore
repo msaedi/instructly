@@ -128,3 +128,4 @@ docs/temp-logs/
 # Load test results
 backend/tests/load/results/
 !backend/tests/load/results/.gitkeep
+mcp-server/src/*.egg-info/

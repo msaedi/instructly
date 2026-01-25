@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, TypeAlias, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, TypeVar, cast
 
 from celery.app.task import Task
 import httpx
@@ -26,7 +26,26 @@ from app.tasks.celery_app import celery_app
 
 TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
 if TYPE_CHECKING:
-    MonitoringTaskBase: TypeAlias = Task[Any, Any]
+
+    class MonitoringTaskBase:
+        _db: Optional[Session]
+        _email_service: Optional[EmailService]
+        _email_config_service: Optional[EmailConfigService]
+
+        def after_return(
+            self,
+            status: str,
+            retval: object,
+            task_id: str,
+            args: Tuple[Any, ...],
+            kwargs: Dict[str, Any],
+            einfo: Any,
+        ) -> None:
+            ...
+
+        def retry(self, *args: Any, **kwargs: Any) -> Any:
+            ...
+
 else:
     MonitoringTaskBase = Task
 

@@ -15,7 +15,6 @@ from typing import (
     Optional,
     ParamSpec,
     Protocol,
-    TypeAlias,
     TypeVar,
     cast,
 )
@@ -29,7 +28,26 @@ from app.core.config import settings
 if TYPE_CHECKING:
     from app.services.retention_service import RetentionResult
 
-    BaseTaskType: TypeAlias = Task[Any, Any]
+    class BaseTaskType:
+        name: str
+        request: Any
+
+        def on_failure(
+            self, exc: Exception, task_id: str, args: Any, kwargs: Any, einfo: Any
+        ) -> None:
+            ...
+
+        def on_retry(
+            self, exc: Exception, task_id: str, args: Any, kwargs: Any, einfo: Any
+        ) -> None:
+            ...
+
+        def on_success(self, retval: Any, task_id: str, args: Any, kwargs: Any) -> None:
+            ...
+
+        def retry(self, *args: Any, **kwargs: Any) -> Any:
+            ...
+
 else:
     BaseTaskType = Task
 
@@ -224,7 +242,15 @@ def create_celery_app() -> Celery:
 
 
 # Disable Celery's default logging configuration
-@setup_logging.connect
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def _connect_setup_logging(func: F) -> F:
+    setup_logging.connect(func)
+    return func
+
+
+@_connect_setup_logging
 def config_loggers(*args: Any, **kwargs: Any) -> None:
     """Configure logging to integrate with the application's logging setup."""
     import logging

@@ -8,7 +8,7 @@ and apply data retention policies.
 
 from datetime import datetime, timezone
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, TypeAlias, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, TypeVar, cast
 
 from celery.app.task import Task
 from sqlalchemy.orm import Session
@@ -20,7 +20,29 @@ from .celery_app import celery_app
 
 TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
 if TYPE_CHECKING:
-    DatabaseTaskBase: TypeAlias = Task[Any, Any]
+
+    class DatabaseTaskBase:
+        _db: Optional[Session]
+
+        def on_failure(
+            self,
+            exc: BaseException,
+            task_id: str,
+            args: Tuple[Any, ...],
+            kwargs: Dict[str, Any],
+            einfo: Any,
+        ) -> None:
+            ...
+
+        def on_success(
+            self,
+            retval: object,
+            task_id: str,
+            args: Tuple[Any, ...],
+            kwargs: Dict[str, Any],
+        ) -> None:
+            ...
+
 else:
     DatabaseTaskBase = Task
 
