@@ -42,6 +42,8 @@ logger = logging.getLogger(__name__)
 
 
 def _secret_value(secret_obj: Any) -> str:
+    if secret_obj is None:
+        return ""
     getter = getattr(secret_obj, "get_secret_value", None)
     if callable(getter):
         return cast(str, getter())
@@ -80,11 +82,14 @@ async def validate_mcp_service(
 
     user_repo = UserRepository(db)
     # async-blocking-ignore: MCP service token uses sync DB session
-    service_user = user_repo.get_by_email("admin@instainstru.com")  # async-blocking-ignore
+    service_user = user_repo.get_by_email(  # async-blocking-ignore
+        settings.mcp_service_account_email
+    )
     if not service_user:
+        logger.error("MCP service account not found: %s", settings.mcp_service_account_email)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="MCP service account not found",
+            detail="Service configuration error",
         )
     return service_user
 

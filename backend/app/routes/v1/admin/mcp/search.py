@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies.auth import validate_mcp_service
 from app.api.dependencies.database import get_db
 from app.models.user import User
+from app.ratelimit.dependency import rate_limit
 from app.schemas.mcp import (
     MCPActor,
     MCPDateWindow,
@@ -36,7 +37,11 @@ def _resolve_date_range(start_date: date | None, end_date: date | None) -> tuple
     return start_value, end_value
 
 
-@router.get("/top-queries", response_model=MCPTopQueriesResponse)
+@router.get(
+    "/top-queries",
+    response_model=MCPTopQueriesResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
 async def get_top_queries(
     start_date: date | None = None,
     end_date: date | None = None,
@@ -74,7 +79,11 @@ async def get_top_queries(
     )
 
 
-@router.get("/zero-results", response_model=MCPZeroResultsResponse)
+@router.get(
+    "/zero-results",
+    response_model=MCPZeroResultsResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
 async def get_zero_result_queries(
     start_date: date | None = None,
     end_date: date | None = None,

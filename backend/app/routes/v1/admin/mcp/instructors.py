@@ -13,6 +13,7 @@ from app.api.dependencies.auth import validate_mcp_service
 from app.api.dependencies.database import get_db
 from app.core.exceptions import NotFoundException
 from app.models.user import User
+from app.ratelimit.dependency import rate_limit
 from app.schemas.mcp import (
     MCPActor,
     MCPInstructorBGC,
@@ -31,7 +32,11 @@ from app.services.mcp_instructor_service import MCPInstructorService
 router = APIRouter(tags=["MCP Admin - Instructors"])
 
 
-@router.get("", response_model=MCPInstructorListResponse)
+@router.get(
+    "",
+    response_model=MCPInstructorListResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
 async def list_instructors(
     status: Literal["registered", "onboarding", "live", "paused"] | None = None,
     is_founding: bool | None = None,
@@ -71,7 +76,11 @@ async def list_instructors(
     )
 
 
-@router.get("/coverage", response_model=MCPServiceCoverageResponse)
+@router.get(
+    "/coverage",
+    response_model=MCPServiceCoverageResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
 async def get_service_coverage(
     status: Literal["registered", "onboarding", "live", "paused"] = "live",
     group_by: Literal["category", "service"] = "category",
@@ -91,7 +100,11 @@ async def get_service_coverage(
     return MCPServiceCoverageResponse(meta=meta, data=MCPServiceCoverageData(**data))
 
 
-@router.get("/{identifier}", response_model=MCPInstructorDetailResponse)
+@router.get(
+    "/{identifier}",
+    response_model=MCPInstructorDetailResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
 async def get_instructor_detail(
     identifier: str,
     current_user: User = Depends(validate_mcp_service),

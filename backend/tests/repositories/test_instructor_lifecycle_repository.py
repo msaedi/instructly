@@ -116,3 +116,17 @@ def test_get_stuck_instructors(db, test_instructor, test_instructor_2):
     assert test_instructor.id in stuck_ids
     assert test_instructor_2.id not in stuck_ids
     assert all(row["days_stuck"] >= 7 for row in stuck if row["user_id"] == test_instructor.id)
+
+
+def test_stuck_instructors_excludes_went_live(db, test_instructor):
+    repo = InstructorLifecycleRepository(db)
+    now = datetime.now(timezone.utc)
+
+    went_live = repo.record_event(user_id=test_instructor.id, event_type="went_live")
+    went_live.occurred_at = now - timedelta(days=30)
+    db.flush()
+
+    stuck = repo.get_stuck_instructors(stuck_days=7)
+    stuck_ids = {row["user_id"] for row in stuck}
+
+    assert test_instructor.id not in stuck_ids

@@ -20,6 +20,14 @@ from .base_repository import BaseRepository
 MILESTONE_EVENT_TYPES: tuple[str, ...] = tuple(
     event_type for event_type in EVENT_TYPES if event_type not in {"paused", "reactivated"}
 )
+TERMINAL_LIFECYCLE_EVENTS = frozenset(
+    {
+        "went_live",
+        "paused",
+        "reactivated",
+        "deactivated",
+    }
+)
 
 
 class InstructorLifecycleRepository(BaseRepository[InstructorLifecycleEvent]):
@@ -122,7 +130,10 @@ class InstructorLifecycleRepository(BaseRepository[InstructorLifecycleEvent]):
         stage: str | None = None,
         limit: int = 50,
     ) -> list[dict[str, Any]]:
-        """Find instructors stuck at a stage for more than N days."""
+        """Find instructors stuck at a stage for more than N days.
+
+        Only includes instructors whose latest event is not terminal.
+        """
         limit = max(1, limit)
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(days=stuck_days)
@@ -157,6 +168,7 @@ class InstructorLifecycleRepository(BaseRepository[InstructorLifecycleEvent]):
             .filter(
                 latest_events.c.rn == 1,
                 latest_events.c.occurred_at <= cutoff,
+                ~latest_events.c.event_type.in_(TERMINAL_LIFECYCLE_EVENTS),
             )
         )
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Iterable
 from uuid import uuid4
 
@@ -15,6 +16,7 @@ from app.api.dependencies.auth import validate_mcp_service
 from app.api.dependencies.database import get_db
 from app.core.exceptions import MCPTokenError
 from app.models.user import User
+from app.ratelimit.dependency import rate_limit
 from app.schemas.mcp import (
     MCPActor,
     MCPInvitePreview,
@@ -35,6 +37,7 @@ from app.services.mcp_idempotency_service import MCPIdempotencyService
 from app.services.mcp_invite_service import MCPInviteService
 
 router = APIRouter(tags=["MCP Admin - Invites"])
+logger = logging.getLogger(__name__)
 
 
 def _normalize_emails(emails: Iterable[str]) -> tuple[list[str], list[str]]:
@@ -53,7 +56,11 @@ def _normalize_emails(emails: Iterable[str]) -> tuple[list[str], list[str]]:
     return normalized, warnings
 
 
-@router.post("/preview", response_model=MCPInvitePreviewResponse)
+@router.post(
+    "/preview",
+    response_model=MCPInvitePreviewResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
 async def preview_invites(
     payload: MCPInvitePreviewRequest = Body(...),
     current_user: User = Depends(validate_mcp_service),
@@ -132,7 +139,11 @@ async def preview_invites(
     )
 
 
-@router.post("/send", response_model=MCPInviteSendResponse)
+@router.post(
+    "/send",
+    response_model=MCPInviteSendResponse,
+    dependencies=[Depends(rate_limit("admin_mcp_invite"))],
+)
 async def send_invites(
     payload: MCPInviteSendRequest = Body(...),
     idempotency_header: str | None = Header(default=None, alias="Idempotency-Key"),
@@ -219,6 +230,7 @@ async def send_invites(
                 )
             )
         except Exception:
+            logger.exception("Failed to send invite to %s", email)
             failed_count += 1
             invites.append(
                 MCPInviteSendResult(

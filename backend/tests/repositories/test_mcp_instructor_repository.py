@@ -120,3 +120,17 @@ def test_get_instructor_by_identifier(db, test_instructor):
     profile_name = repo.get_instructor_by_identifier(full_name)
     assert profile_name is not None
     assert profile_name.user_id == test_instructor.id
+
+
+def test_name_search_escapes_like_patterns(db, test_instructor):
+    repo = MCPInstructorRepository(db)
+
+    test_instructor.first_name = "test"
+    test_instructor.last_name = "pattern"
+    db.flush()
+
+    result = repo.get_instructor_by_identifier("test%pattern")
+    assert result is None
+
+    result = repo.get_instructor_by_identifier("test_pattern")
+    assert result is None

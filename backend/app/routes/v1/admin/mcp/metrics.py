@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.dependencies.auth import validate_mcp_service
 from app.models.user import User
+from app.ratelimit.dependency import rate_limit
 from app.schemas.mcp import MCPActor, MCPMeta, MCPMetricDefinition, MCPMetricResponse
 
 router = APIRouter(tags=["MCP Admin - Metrics"])
@@ -115,7 +116,11 @@ METRIC_DEFINITIONS: dict[str, MCPMetricDefinition] = {
 }
 
 
-@router.get("/{metric_name}", response_model=MCPMetricResponse)
+@router.get(
+    "/{metric_name}",
+    response_model=MCPMetricResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
 async def get_metric_definition(
     metric_name: str,
     current_user: User = Depends(validate_mcp_service),

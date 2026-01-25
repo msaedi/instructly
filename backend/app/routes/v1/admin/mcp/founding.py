@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies.auth import validate_mcp_service
 from app.api.dependencies.database import get_db
 from app.models.user import User
+from app.ratelimit.dependency import rate_limit
 from app.schemas.mcp import (
     MCPActor,
     MCPConversionRate,
@@ -45,7 +46,11 @@ def _window_end(value: date | None) -> datetime | None:
     return TimezoneService.local_to_utc(value, time.max, "UTC")
 
 
-@router.get("/funnel", response_model=MCPFunnelSummaryResponse)
+@router.get(
+    "/funnel",
+    response_model=MCPFunnelSummaryResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
 async def get_funnel_summary(
     start_date: date | None = None,
     end_date: date | None = None,
@@ -82,7 +87,11 @@ async def get_funnel_summary(
     )
 
 
-@router.get("/stuck", response_model=MCPStuckResponse)
+@router.get(
+    "/stuck",
+    response_model=MCPStuckResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
 async def get_stuck_instructors(
     stuck_days: int = Query(default=7, ge=1, le=90),
     stage: str | None = None,

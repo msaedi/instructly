@@ -21,6 +21,11 @@ class MCPInstructorRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
+    @staticmethod
+    def _escape_like_pattern(value: str) -> str:
+        """Escape special LIKE pattern characters to prevent pattern injection."""
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
     def list_instructors(
         self,
         *,
@@ -282,11 +287,11 @@ class MCPInstructorRepository:
             if profile:
                 return cast(InstructorProfile, profile)
 
-        needle = identifier.lower()
+        needle = self._escape_like_pattern(identifier.lower())
         full_name = func.lower(func.trim(User.first_name) + " " + func.trim(User.last_name))
         return cast(
             InstructorProfile | None,
-            query.filter(full_name.like(f"%{needle}%")).first(),
+            query.filter(full_name.like(f"%{needle}%", escape="\\")).first(),
         )
 
     def get_booking_stats(self, user_id: str) -> dict[str, int]:

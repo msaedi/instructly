@@ -11,6 +11,45 @@ source venv/bin/activate
 pip install -e ".[dev]"
 ```
 
+## Available Tools
+
+The MCP server exposes 10 tools for AI agents:
+
+### Founding Instructor Tools
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `instainstru_founding_funnel_summary` | Get founding instructor funnel with stage counts and conversion rates | `start_date?`, `end_date?` |
+| `instainstru_founding_stuck_instructors` | Find instructors stuck in onboarding | `stuck_days?` (default: 7), `stage?`, `limit?` (default: 50) |
+
+### Instructor Management Tools
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `instainstru_instructors_list` | List instructors with optional filters | `status?`, `is_founding?`, `service_slug?`, `category_slug?`, `limit?`, `cursor?` |
+| `instainstru_instructors_coverage` | Get instructor service coverage data | `status?` (default: "live"), `group_by?` (default: "category"), `top?` (default: 25) |
+| `instainstru_instructors_detail` | Get full instructor profile by ID, email, or name | `identifier` (required) |
+
+### Invite Tools
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `instainstru_invites_preview` | Preview sending invites (returns confirm token) | `recipient_emails` (required), `grant_founding_status?`, `expires_in_days?`, `message_note?` |
+| `instainstru_invites_send` | Execute invite send after preview confirmation | `confirm_token` (required), `idempotency_key` (required) |
+
+### Search Analytics Tools
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `instainstru_search_top_queries` | Get top search queries with conversion metrics | `start_date?`, `end_date?`, `min_count?` (default: 2), `limit?` (default: 50) |
+| `instainstru_search_zero_results` | Get zero-result queries (demand gaps) | `start_date?`, `end_date?`, `limit?` (default: 50) |
+
+### Metrics Tools
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `instainstru_metrics_describe` | Get a metrics dictionary definition | `metric_name` (required) |
+
 ## Quick Start (Local Development)
 
 1. Start the backend first:
