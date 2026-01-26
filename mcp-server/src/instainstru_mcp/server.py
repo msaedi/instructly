@@ -10,7 +10,8 @@ from typing import TYPE_CHECKING, Any, cast
 import httpx
 import jwt as pyjwt
 from jwt import PyJWKClient
-from starlette.responses import JSONResponse, RedirectResponse, Response
+from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse, RedirectResponse
 from starlette.routing import Route
 
 from .client import InstaInstruClient
@@ -68,10 +69,6 @@ class WorkOSAuthMiddleware:
             return
 
         path = scope.get("path", "")
-        method = scope.get("method", "")
-        if method == "OPTIONS":
-            await self._send_cors_preflight(scope, receive, send)
-            return
         if path in self.EXEMPT_PATHS or path.startswith(self.EXEMPT_PATH_PREFIXES):
             await self.app(scope, receive, send)
             return
@@ -138,29 +135,12 @@ class WorkOSAuthMiddleware:
         resource_metadata_url = "https://mcp.instainstru.com/.well-known/oauth-protected-resource"
         headers = {
             "WWW-Authenticate": f'Bearer resource_metadata="{resource_metadata_url}"',
-            **_cors_headers(),
         }
         response = JSONResponse({"error": message}, status_code=401, headers=headers)
         await response(scope, receive, send)
 
     async def _send_error(self, scope, receive, send, status_code: int, message: str):
-        response = JSONResponse(
-            {"error": message},
-            status_code=status_code,
-            headers=_cors_headers(),
-        )
-        await response(scope, receive, send)
-
-    async def _send_cors_preflight(self, scope, receive, send) -> None:
-        """Handle CORS preflight OPTIONS requests."""
-        response = Response(
-            status_code=204,
-            headers={
-                **_cors_headers(),
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Max-Age": "86400",
-            },
-        )
+        response = JSONResponse({"error": message}, status_code=status_code)
         await response(scope, receive, send)
 
 
@@ -329,7 +309,15 @@ def create_app(settings: Settings | None = None):
     app_instance = cast(Any, mcp).http_app(transport="sse")
     _attach_health_route(app_instance)
     _attach_oauth_metadata_routes(app_instance, settings)
-    return WorkOSAuthMiddleware(app_instance, settings)
+    app_with_auth = WorkOSAuthMiddleware(app_instance, settings)
+    return CORSMiddleware(
+        app_with_auth,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Accept"],
+        expose_headers=["*"],
+    )
 
 
 _app: Any | None = None

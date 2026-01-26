@@ -417,8 +417,14 @@ class TestCORSPreflight:
         app = create_app(settings)
         client = TestClient(app, raise_server_exceptions=False)
 
-        response = client.options("/sse")
-        assert response.status_code == 204
+        response = client.options(
+            "/sse",
+            headers={
+                "Origin": "https://example.com",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert response.status_code in {200, 204}
         assert "Access-Control-Allow-Origin" in response.headers
         assert "Access-Control-Allow-Methods" in response.headers
         assert "Authorization" in response.headers.get("Access-Control-Allow-Headers", "")
@@ -428,8 +434,30 @@ class TestCORSPreflight:
         app = create_app(settings)
         client = TestClient(app, raise_server_exceptions=False)
 
-        response = client.options("/sse")
-        assert response.status_code == 204
+        response = client.options(
+            "/sse",
+            headers={
+                "Origin": "https://example.com",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert response.status_code in {200, 204}
+
+
+class TestCORSHeaders:
+    """Test CORS headers on successful responses."""
+
+    def test_sse_response_includes_cors_headers(self):
+        settings = get_test_settings()
+        app = create_app(settings)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.get(
+            "/api/v1/health",
+            headers={"Origin": "https://example.com"},
+        )
+        assert response.status_code == 200
+        assert response.headers.get("Access-Control-Allow-Origin") == "*"
 
 
 class TestGetAppSingleton:
