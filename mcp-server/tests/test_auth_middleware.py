@@ -1,6 +1,6 @@
 """Tests for WorkOS auth middleware (simple Bearer + WorkOS JWT)."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import jwt as pyjwt
 import pytest
@@ -368,18 +368,23 @@ class TestOAuthMetadata:
         client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
         assert client.get("/.well-known/oauth-protected-resource").status_code == 503
 
-    def test_oauth_authorization_server_redirects(self):
+    def test_oauth_authorization_server_proxies_response(self):
         settings = get_test_settings(workos_domain="test.authkit.app")
         client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
-        response = client.get(
-            "/.well-known/oauth-authorization-server",
-            follow_redirects=False,
-        )
-        assert response.status_code == 302
-        assert (
-            response.headers["location"]
-            == "https://test.authkit.app/.well-known/oauth-authorization-server"
-        )
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"issuer": "https://test.authkit.app"}
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+
+        with patch("instainstru_mcp.server.httpx.AsyncClient") as mock_async_client:
+            mock_async_client.return_value.__aenter__.return_value = mock_client
+            response = client.get("/.well-known/oauth-authorization-server")
+
+        assert response.status_code == 200
+        assert response.json()["issuer"] == "https://test.authkit.app"
 
     def test_oauth_authorization_server_503_when_not_configured(self):
         settings = get_test_settings(workos_domain="")
@@ -444,3 +449,61 @@ class TestGetAppSingleton:
         assert app_second is sentinel
         mock_create.assert_called_once()
         server_module._app = None
+
+
+class TestOAuthEndpointProxies:
+    """Test OAuth endpoint proxies/redirects."""
+
+    def test_openid_configuration_exempt_from_auth(self):
+        settings = get_test_settings()
+        app = create_app(settings)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.get("/.well-known/openid-configuration")
+        assert response.status_code != 401
+
+    def test_register_endpoint_proxies_post(self):
+        settings = get_test_settings()
+        app = create_app(settings)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.post("/register", json={"client_name": "test"})
+        assert response.status_code != 401
+
+    def test_openid_configuration_proxies_response(self):
+        settings = get_test_settings(workos_domain="test.authkit.app")
+        app = create_app(settings)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"issuer": "https://test.authkit.app"}
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+
+        with patch("instainstru_mcp.server.httpx.AsyncClient") as mock_async_client:
+            mock_async_client.return_value.__aenter__.return_value = mock_client
+            response = client.get("/.well-known/openid-configuration")
+
+        assert response.status_code == 200
+        assert response.json()["issuer"] == "https://test.authkit.app"
+
+    def test_register_proxy_post_returns_status(self):
+        settings = get_test_settings(workos_domain="test.authkit.app")
+        app = create_app(settings)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        mock_response = MagicMock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"client_id": "abc123"}
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+
+        with patch("instainstru_mcp.server.httpx.AsyncClient") as mock_async_client:
+            mock_async_client.return_value.__aenter__.return_value = mock_client
+            response = client.post("/register", json={"client_name": "test"})
+
+        assert response.status_code == 201
+        assert response.json()["client_id"] == "abc123"

@@ -7,6 +7,7 @@ import os
 import secrets
 from typing import TYPE_CHECKING, Any, cast
 
+import httpx
 import jwt as pyjwt
 from jwt import PyJWKClient
 from starlette.responses import JSONResponse, RedirectResponse, Response
@@ -36,6 +37,9 @@ class WorkOSAuthMiddleware:
         "/api/v1/health",
         "/.well-known/oauth-protected-resource",
         "/.well-known/oauth-authorization-server",
+        "/.well-known/openid-configuration",
+        "/register",
+        "/oauth2/register",
     }
 
     EXEMPT_PATH_PREFIXES = ("/.well-known/oauth-protected-resource/",)
@@ -134,7 +138,7 @@ class WorkOSAuthMiddleware:
         resource_metadata_url = "https://mcp.instainstru.com/.well-known/oauth-protected-resource"
         headers = {
             "WWW-Authenticate": f'Bearer resource_metadata="{resource_metadata_url}"',
-            **self._cors_headers(),
+            **_cors_headers(),
         }
         response = JSONResponse({"error": message}, status_code=401, headers=headers)
         await response(scope, receive, send)
@@ -143,7 +147,7 @@ class WorkOSAuthMiddleware:
         response = JSONResponse(
             {"error": message},
             status_code=status_code,
-            headers=self._cors_headers(),
+            headers=_cors_headers(),
         )
         await response(scope, receive, send)
 
@@ -152,24 +156,26 @@ class WorkOSAuthMiddleware:
         response = Response(
             status_code=204,
             headers={
-                **self._cors_headers(),
+                **_cors_headers(),
                 "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
                 "Access-Control-Max-Age": "86400",
             },
         )
         await response(scope, receive, send)
 
-    @staticmethod
-    def _cors_headers() -> dict[str, str]:
-        return {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept",
-        }
-
 
 def _load_settings() -> Settings:
     token = os.environ.get("INSTAINSTRU_MCP_API_SERVICE_TOKEN", "")
     return Settings(api_service_token=token)
+
+
+def _cors_headers() -> dict[str, str]:
+    """Return CORS headers for cross-origin requests."""
+    return {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept",
+    }
 
 
 def create_mcp(settings: Settings | None = None) -> "FastMCP":
@@ -181,7 +187,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     auth = MCPAuth(settings)
     client = InstaInstruClient(settings, auth)
 
-    mcp = FastMCP("InstaInstru Admin")
+    mcp = FastMCP("iNSTAiNSTRU Admin")
 
     founding.register_tools(mcp, client)
     instructors.register_tools(mcp, client)
@@ -216,14 +222,62 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
         )
 
     async def oauth_authorization_server(_request):
-        """Redirect to WorkOS OAuth authorization server metadata."""
+        """Proxy WorkOS OAuth authorization server metadata."""
         if not settings.workos_domain:
             return JSONResponse({"error": "WorkOS not configured"}, status_code=503)
 
         workos_metadata_url = (
             f"https://{settings.workos_domain}/.well-known/oauth-authorization-server"
         )
-        return RedirectResponse(url=workos_metadata_url, status_code=302)
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(workos_metadata_url, timeout=10.0)
+            return JSONResponse(response.json(), headers=_cors_headers())
+        except Exception as exc:  # pragma: no cover - defensive
+            return JSONResponse({"error": str(exc)}, status_code=502, headers=_cors_headers())
+
+    async def openid_configuration(_request):
+        """Proxy WorkOS OpenID configuration."""
+        if not settings.workos_domain:
+            return JSONResponse({"error": "WorkOS not configured"}, status_code=503)
+
+        workos_url = f"https://{settings.workos_domain}/.well-known/openid-configuration"
+        fallback_url = f"https://{settings.workos_domain}/.well-known/oauth-authorization-server"
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(workos_url, timeout=10.0)
+            if response.status_code == 200:
+                return JSONResponse(response.json(), headers=_cors_headers())
+            return RedirectResponse(url=fallback_url, status_code=302, headers=_cors_headers())
+        except Exception:
+            return RedirectResponse(url=fallback_url, status_code=302, headers=_cors_headers())
+
+    async def register_redirect(request):
+        """Redirect or proxy client registration to WorkOS."""
+        if not settings.workos_domain:
+            return JSONResponse({"error": "WorkOS not configured"}, status_code=503)
+
+        workos_url = f"https://{settings.workos_domain}/oauth2/register"
+        if request.method == "POST":
+            try:
+                body = await request.body()
+                headers = {"Content-Type": "application/json"}
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        workos_url,
+                        content=body,
+                        headers=headers,
+                        timeout=10.0,
+                    )
+                return JSONResponse(
+                    response.json(),
+                    status_code=response.status_code,
+                    headers=_cors_headers(),
+                )
+            except Exception as exc:
+                return JSONResponse({"error": str(exc)}, status_code=502, headers=_cors_headers())
+
+        return RedirectResponse(url=workos_url, status_code=302, headers=_cors_headers())
 
     app.routes.append(
         Route(
@@ -244,6 +298,27 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
             "/.well-known/oauth-authorization-server",
             oauth_authorization_server,
             methods=["GET"],
+        )
+    )
+    app.routes.append(
+        Route(
+            "/.well-known/openid-configuration",
+            openid_configuration,
+            methods=["GET"],
+        )
+    )
+    app.routes.append(
+        Route(
+            "/register",
+            register_redirect,
+            methods=["GET", "POST", "OPTIONS"],
+        )
+    )
+    app.routes.append(
+        Route(
+            "/oauth2/register",
+            register_redirect,
+            methods=["GET", "POST", "OPTIONS"],
         )
     )
 
