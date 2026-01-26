@@ -95,9 +95,17 @@ class WorkOSAuthMiddleware:
 
         # Check email allowlist for WorkOS tokens
         if auth_result.get("method") == "workos":
-            email = auth_result.get("claims", {}).get("email", "").lower()
-            if email not in ALLOWED_EMAILS:
-                logger.warning("Access denied for email: %s", email)
+            claims = auth_result.get("claims", {})
+            email = (
+                claims.get("email") or claims.get("preferred_username") or claims.get("sub", "")
+            ).lower()
+            logger.info("Checking email allowlist for: %s", email)
+            if not email or email not in ALLOWED_EMAILS:
+                logger.warning(
+                    "Access denied for email: %s (claims: %s)",
+                    email,
+                    list(claims.keys()),
+                )
                 await self._send_error(scope, receive, send, 403, "Access denied")
                 return
 
@@ -121,6 +129,7 @@ class WorkOSAuthMiddleware:
                     issuer=self.workos_issuer,
                     options={"verify_aud": False},
                 )
+                logger.info("WorkOS JWT claims: %s", claims)
                 logger.info(
                     "Authenticated via WorkOS: %s",
                     claims.get("email", claims.get("sub")),
