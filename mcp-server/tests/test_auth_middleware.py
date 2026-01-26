@@ -404,6 +404,29 @@ class TestWWWAuthenticateHeader:
         )
 
 
+class TestCORSPreflight:
+    """Test CORS preflight handling."""
+
+    def test_options_request_returns_204_with_cors_headers(self):
+        settings = get_test_settings()
+        app = create_app(settings)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.options("/sse")
+        assert response.status_code == 204
+        assert "Access-Control-Allow-Origin" in response.headers
+        assert "Access-Control-Allow-Methods" in response.headers
+        assert "Authorization" in response.headers.get("Access-Control-Allow-Headers", "")
+
+    def test_options_request_no_auth_required(self):
+        settings = get_test_settings()
+        app = create_app(settings)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.options("/sse")
+        assert response.status_code == 204
+
+
 class TestGetAppSingleton:
     """Tests for get_app singleton behavior."""
 

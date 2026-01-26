@@ -64,6 +64,10 @@ class WorkOSAuthMiddleware:
             return
 
         path = scope.get("path", "")
+        method = scope.get("method", "")
+        if method == "OPTIONS":
+            await self._send_cors_preflight(scope, receive, send)
+            return
         if path in self.EXEMPT_PATHS or path.startswith(self.EXEMPT_PATH_PREFIXES):
             await self.app(scope, receive, send)
             return
@@ -128,13 +132,40 @@ class WorkOSAuthMiddleware:
     async def _send_401(self, scope, receive, send, message: str):
         """Send 401 with WWW-Authenticate header per RFC 9728."""
         resource_metadata_url = "https://mcp.instainstru.com/.well-known/oauth-protected-resource"
-        headers = {"WWW-Authenticate": f'Bearer resource_metadata="{resource_metadata_url}"'}
+        headers = {
+            "WWW-Authenticate": f'Bearer resource_metadata="{resource_metadata_url}"',
+            **self._cors_headers(),
+        }
         response = JSONResponse({"error": message}, status_code=401, headers=headers)
         await response(scope, receive, send)
 
     async def _send_error(self, scope, receive, send, status_code: int, message: str):
-        response = JSONResponse({"error": message}, status_code=status_code)
+        response = JSONResponse(
+            {"error": message},
+            status_code=status_code,
+            headers=self._cors_headers(),
+        )
         await response(scope, receive, send)
+
+    async def _send_cors_preflight(self, scope, receive, send) -> None:
+        """Handle CORS preflight OPTIONS requests."""
+        response = JSONResponse(
+            None,
+            status_code=204,
+            headers={
+                **self._cors_headers(),
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Max-Age": "86400",
+            },
+        )
+        await response(scope, receive, send)
+
+    @staticmethod
+    def _cors_headers() -> dict[str, str]:
+        return {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept",
+        }
 
 
 def _load_settings() -> Settings:
