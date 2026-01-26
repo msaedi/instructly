@@ -161,8 +161,17 @@ repos:
         stages: [pre-commit]
       - id: mypy-mcp-server
         name: mypy (mcp-server)
-        entry: bash -lc "cd mcp-server && mypy src/"
-        language: system
+        entry: mypy
+        language: python
+        additional_dependencies:
+          - mypy==1.8.0
+          - pydantic>=2.0.0
+          - pydantic-settings>=2.0.0
+          - PyJWT[crypto]>=2.8.0
+          - httpx>=0.27.0
+          - fastmcp>=0.4.0
+          - python-dotenv>=1.0.0
+        args: ["mcp-server/src"]
         files: ^mcp-server/.*\.py$
         pass_filenames: false
         description: Run mypy for MCP server
