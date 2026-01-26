@@ -31,6 +31,24 @@ ALLOWED_EMAILS = {
 }
 
 
+async def _fetch_workos_userinfo(token: str, workos_domain: str) -> dict | None:
+    """Fetch user info from WorkOS userinfo endpoint."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"https://{workos_domain}/oauth2/userinfo",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10.0,
+            )
+        if response.status_code == 200:
+            return response.json()
+        logger.warning("WorkOS userinfo returned %s", response.status_code)
+        return None
+    except Exception as exc:
+        logger.warning("Failed to fetch WorkOS userinfo: %s", exc)
+        return None
+
+
 class WorkOSAuthMiddleware:
     """ASGI middleware supporting simple Bearer tokens and WorkOS JWTs."""
 
@@ -87,7 +105,7 @@ class WorkOSAuthMiddleware:
             return
 
         token = auth_header[7:]
-        auth_result = self._authenticate(token)
+        auth_result = await self._authenticate(token)
 
         if auth_result is None:
             await self._send_401(scope, receive, send, "Invalid token")
@@ -112,7 +130,7 @@ class WorkOSAuthMiddleware:
         scope["auth"] = auth_result
         await self.app(scope, receive, send)
 
-    def _authenticate(self, token: str) -> dict | None:
+    async def _authenticate(self, token: str) -> dict | None:
         # Try simple token first
         if self.simple_token and secrets.compare_digest(token, self.simple_token):
             logger.debug("Authenticated via simple Bearer token")
@@ -129,7 +147,12 @@ class WorkOSAuthMiddleware:
                     issuer=self.workos_issuer,
                     options={"verify_aud": False},
                 )
-                logger.info("WorkOS JWT claims: %s", claims)
+                logger.info("WorkOS JWT claims: %s", list(claims.keys()))
+                userinfo = await _fetch_workos_userinfo(token, self.workos_domain)
+                if userinfo:
+                    logger.info("WorkOS userinfo: %s", userinfo)
+                    claims["email"] = userinfo.get("email")
+                    claims["name"] = userinfo.get("name")
                 logger.info(
                     "Authenticated via WorkOS: %s",
                     claims.get("email", claims.get("sub")),

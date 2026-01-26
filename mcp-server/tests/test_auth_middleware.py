@@ -63,6 +63,14 @@ def mock_jwks_client():
         yield mock_client
 
 
+@pytest.fixture(autouse=True)
+def mock_workos_userinfo():
+    """Avoid real WorkOS userinfo calls during tests."""
+    with patch("instainstru_mcp.server._fetch_workos_userinfo", new_callable=AsyncMock) as mock:
+        mock.return_value = None
+        yield mock
+
+
 # --- Simple Token Tests ---
 
 
@@ -203,6 +211,108 @@ class TestWorkOSTokenAuth:
             )
             assert response.status_code == 200
             assert "workos" in response.text
+
+    def test_preferred_username_allowlisted(self, mock_jwks_client, mock_workos_userinfo):
+        mock_key = MagicMock()
+        mock_key.key = "test-key"
+        mock_jwks_client.get_signing_key_from_jwt.return_value = mock_key
+
+        mock_workos_userinfo.return_value = None
+
+        with patch("instainstru_mcp.server.pyjwt.decode") as mock_decode:
+            mock_decode.return_value = {
+                "sub": "user123",
+                "preferred_username": "admin@instainstru.com",
+            }
+            client = create_test_app(workos_domain="test.authkit.app")
+            response = client.get(
+                "/sse",
+                headers={"Authorization": "Bearer valid.jwt.token"},
+            )
+            assert response.status_code == 200
+
+    def test_sub_allowlisted_when_email_missing(self, mock_jwks_client, mock_workos_userinfo):
+        mock_key = MagicMock()
+        mock_key.key = "test-key"
+        mock_jwks_client.get_signing_key_from_jwt.return_value = mock_key
+
+        mock_workos_userinfo.return_value = None
+
+        with patch("instainstru_mcp.server.pyjwt.decode") as mock_decode:
+            mock_decode.return_value = {
+                "sub": "mehdi@instainstru.com",
+            }
+            client = create_test_app(workos_domain="test.authkit.app")
+            response = client.get(
+                "/sse",
+                headers={"Authorization": "Bearer valid.jwt.token"},
+            )
+            assert response.status_code == 200
+
+    def test_userinfo_overrides_jwt_email(self, mock_jwks_client, mock_workos_userinfo):
+        mock_key = MagicMock()
+        mock_key.key = "test-key"
+        mock_jwks_client.get_signing_key_from_jwt.return_value = mock_key
+
+        mock_workos_userinfo.return_value = {
+            "email": "admin@instainstru.com",
+            "name": "Admin User",
+        }
+
+        with patch("instainstru_mcp.server.pyjwt.decode") as mock_decode:
+            mock_decode.return_value = {
+                "sub": "user123",
+                "email": "not-allowed@example.com",
+            }
+            client = create_test_app(workos_domain="test.authkit.app")
+            response = client.get(
+                "/sse",
+                headers={"Authorization": "Bearer valid.jwt.token"},
+            )
+            assert response.status_code == 200
+
+    def test_userinfo_non_allowlisted_email_denied(self, mock_jwks_client, mock_workos_userinfo):
+        mock_key = MagicMock()
+        mock_key.key = "test-key"
+        mock_jwks_client.get_signing_key_from_jwt.return_value = mock_key
+
+        mock_workos_userinfo.return_value = {
+            "email": "not-allowed@example.com",
+        }
+
+        with patch("instainstru_mcp.server.pyjwt.decode") as mock_decode:
+            mock_decode.return_value = {
+                "sub": "user123",
+                "email": "admin@instainstru.com",
+            }
+            client = create_test_app(workos_domain="test.authkit.app")
+            response = client.get(
+                "/sse",
+                headers={"Authorization": "Bearer valid.jwt.token"},
+            )
+            assert response.status_code == 403
+
+    def test_userinfo_called_when_email_missing(self, mock_jwks_client, mock_workos_userinfo):
+        mock_key = MagicMock()
+        mock_key.key = "test-key"
+        mock_jwks_client.get_signing_key_from_jwt.return_value = mock_key
+
+        mock_workos_userinfo.return_value = {
+            "email": "admin@instainstru.com",
+        }
+
+        with patch("instainstru_mcp.server.pyjwt.decode") as mock_decode:
+            mock_decode.return_value = {
+                "sub": "user123",
+            }
+            client = create_test_app(workos_domain="test.authkit.app")
+            response = client.get(
+                "/sse",
+                headers={"Authorization": "Bearer valid.jwt.token"},
+            )
+            assert response.status_code == 200
+
+        mock_workos_userinfo.assert_awaited_once()
 
 
 # --- Dual Auth Tests ---
