@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import jwt as pyjwt
 from jwt import PyJWKClient
-from starlette.responses import JSONResponse, RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
 from .client import InstaInstruClient
@@ -149,8 +149,7 @@ class WorkOSAuthMiddleware:
 
     async def _send_cors_preflight(self, scope, receive, send) -> None:
         """Handle CORS preflight OPTIONS requests."""
-        response = JSONResponse(
-            None,
+        response = Response(
             status_code=204,
             headers={
                 **self._cors_headers(),
