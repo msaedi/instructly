@@ -368,6 +368,25 @@ class TestOAuthMetadata:
         client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
         assert client.get("/.well-known/oauth-protected-resource").status_code == 503
 
+    def test_oauth_authorization_server_redirects(self):
+        settings = get_test_settings(workos_domain="test.authkit.app")
+        client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
+        response = client.get(
+            "/.well-known/oauth-authorization-server",
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        assert (
+            response.headers["location"]
+            == "https://test.authkit.app/.well-known/oauth-authorization-server"
+        )
+
+    def test_oauth_authorization_server_503_when_not_configured(self):
+        settings = get_test_settings(workos_domain="")
+        client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
+        response = client.get("/.well-known/oauth-authorization-server")
+        assert response.status_code == 503
+
 
 # --- WWW-Authenticate Header Tests ---
 

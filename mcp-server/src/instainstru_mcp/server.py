@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import jwt as pyjwt
 from jwt import PyJWKClient
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, RedirectResponse
 from starlette.routing import Route
 
 from .client import InstaInstruClient
@@ -35,6 +35,7 @@ class WorkOSAuthMiddleware:
     EXEMPT_PATHS = {
         "/api/v1/health",
         "/.well-known/oauth-protected-resource",
+        "/.well-known/oauth-authorization-server",
     }
 
     EXEMPT_PATH_PREFIXES = ("/.well-known/oauth-protected-resource/",)
@@ -184,6 +185,16 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
             }
         )
 
+    async def oauth_authorization_server(_request):
+        """Redirect to WorkOS OAuth authorization server metadata."""
+        if not settings.workos_domain:
+            return JSONResponse({"error": "WorkOS not configured"}, status_code=503)
+
+        workos_metadata_url = (
+            f"https://{settings.workos_domain}/.well-known/oauth-authorization-server"
+        )
+        return RedirectResponse(url=workos_metadata_url, status_code=302)
+
     app.routes.append(
         Route(
             "/.well-known/oauth-protected-resource",
@@ -195,6 +206,13 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
         Route(
             "/.well-known/oauth-protected-resource/{path:path}",
             oauth_protected_resource,
+            methods=["GET"],
+        )
+    )
+    app.routes.append(
+        Route(
+            "/.well-known/oauth-authorization-server",
+            oauth_authorization_server,
             methods=["GET"],
         )
     )
