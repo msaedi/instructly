@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import secrets
@@ -94,21 +95,28 @@ class WorkOSAuthMiddleware:
 
         headers = dict(scope.get("headers", []))
         auth_header = headers.get(b"authorization", b"").decode()
+        content_type = headers.get(b"content-type", b"").decode()
+        method = scope.get("method", "")
+        is_json = "application/json" in content_type
+
+        body = b""
+        receive_for_app = receive
+        parsed_body: dict | None = None
+        if method in {"POST", "PUT", "PATCH"}:
+            body = await _read_body(receive)
+            receive_for_app = _replay_body(body)
+            if is_json:
+                parsed_body = _parse_json_body(body)
 
         if not auth_header.startswith("Bearer "):
-            await self._send_401(
-                scope,
-                receive,
-                send,
-                "Missing or invalid Authorization header",
-            )
+            await self._send_auth_required(scope, send, body, parsed_body, is_json)
             return
 
         token = auth_header[7:]
         auth_result = await self._authenticate(token)
 
         if auth_result is None:
-            await self._send_401(scope, receive, send, "Invalid token")
+            await self._send_auth_required(scope, send, body, parsed_body, is_json)
             return
 
         # Check email allowlist for WorkOS tokens
@@ -128,7 +136,18 @@ class WorkOSAuthMiddleware:
                 return
 
         scope["auth"] = auth_result
-        await self.app(scope, receive, send)
+
+        should_inject_tools = (
+            method == "POST"
+            and is_json
+            and isinstance(parsed_body, dict)
+            and parsed_body.get("method") == "tools/list"
+        )
+        if should_inject_tools:
+            await self._call_with_tool_injection(scope, receive_for_app, send)
+            return
+
+        await self.app(scope, receive_for_app, send)
 
     async def _authenticate(self, token: str) -> dict | None:
         # Try simple token first
@@ -165,16 +184,76 @@ class WorkOSAuthMiddleware:
 
     async def _send_401(self, scope, receive, send, message: str):
         """Send 401 with WWW-Authenticate header per RFC 9728."""
-        resource_metadata_url = "https://mcp.instainstru.com/.well-known/oauth-protected-resource"
-        headers = {
-            "WWW-Authenticate": f'Bearer resource_metadata="{resource_metadata_url}"',
-        }
+        headers = {"WWW-Authenticate": _www_authenticate_from_scope(scope)}
         response = JSONResponse({"error": message}, status_code=401, headers=headers)
         await response(scope, receive, send)
 
     async def _send_error(self, scope, receive, send, status_code: int, message: str):
         response = JSONResponse({"error": message}, status_code=status_code)
         await response(scope, receive, send)
+
+    async def _send_auth_required(
+        self,
+        scope,
+        send,
+        body: bytes,
+        parsed_body: dict | None,
+        is_json: bool,
+    ) -> None:
+        www_authenticate = _www_authenticate_from_scope(scope)
+        method = scope.get("method", "")
+        path = scope.get("path", "")
+
+        if method == "POST" and is_json:
+            response = _build_mcp_auth_error(body, parsed_body, www_authenticate)
+            await response(scope, _noop_receive, send)
+            return
+
+        message = "Missing or invalid Authorization header"
+        if method == "GET" and "/sse" in path:
+            message = "Unauthorized"
+        response = JSONResponse(
+            {"error": message},
+            status_code=401,
+            headers={"WWW-Authenticate": www_authenticate},
+        )
+        await response(scope, _noop_receive, send)
+
+    async def _call_with_tool_injection(self, scope, receive, send) -> None:
+        start_message: dict | None = None
+        body_chunks: list[bytes] = []
+
+        async def send_wrapper(message):
+            nonlocal start_message
+            if message["type"] == "http.response.start":
+                start_message = message
+                return
+            if message["type"] == "http.response.body":
+                body_chunks.append(message.get("body", b""))
+                if message.get("more_body", False):
+                    return
+                body = b"".join(body_chunks)
+                new_body = _inject_security_schemes_body(body)
+                headers = _replace_content_length(
+                    (start_message or {}).get("headers", []),
+                    len(new_body),
+                )
+                await send(
+                    {
+                        "type": "http.response.start",
+                        "status": (start_message or {}).get("status", 200),
+                        "headers": headers,
+                    }
+                )
+                await send(
+                    {
+                        "type": "http.response.body",
+                        "body": new_body,
+                        "more_body": False,
+                    }
+                )
+
+        await self.app(scope, receive, send_wrapper)
 
 
 def _load_settings() -> Settings:
@@ -189,6 +268,115 @@ def _cors_headers() -> dict[str, str]:
         "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
         "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept",
     }
+
+
+def _www_authenticate_from_scope(scope: dict) -> str:
+    host = "mcp.instainstru.com"
+    for key, value in scope.get("headers", []):
+        if key == b"host":
+            host = value.decode()
+            break
+    resource_metadata_url = f"https://{host}/.well-known/oauth-protected-resource"
+    return (
+        f'Bearer resource_metadata="{resource_metadata_url}", '
+        f'error="unauthorized", '
+        f'error_description="Authentication required to access this resource"'
+    )
+
+
+async def _read_body(receive) -> bytes:
+    body = b""
+    more_body = True
+    while more_body:
+        message = await receive()
+        if message.get("type") == "http.disconnect":
+            break
+        body += message.get("body", b"")
+        more_body = message.get("more_body", False)
+    return body
+
+
+def _replay_body(body: bytes):
+    sent = False
+
+    async def receive():
+        nonlocal sent
+        if sent:
+            return {"type": "http.request", "body": b"", "more_body": False}
+        sent = True
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    return receive
+
+
+async def _noop_receive():
+    return {"type": "http.request", "body": b"", "more_body": False}
+
+
+def _parse_json_body(body: bytes) -> dict | None:
+    try:
+        data = json.loads(body.decode())
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _build_mcp_auth_error(
+    body: bytes, parsed_body: dict | None, www_authenticate: str
+) -> JSONResponse:
+    request_id = None
+    data = parsed_body or _parse_json_body(body)
+    if isinstance(data, dict):
+        request_id = data.get("id")
+    mcp_error = {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Authentication required. Please connect your account to continue.",
+                }
+            ],
+            "_meta": {"mcp/www_authenticate": [www_authenticate]},
+            "isError": True,
+        },
+    }
+    return JSONResponse(
+        mcp_error,
+        status_code=200,
+        headers={"WWW-Authenticate": www_authenticate},
+    )
+
+
+def _inject_security_schemes(payload: dict) -> dict:
+    result = payload.get("result")
+    if not isinstance(result, dict):
+        return payload
+    tools = result.get("tools")
+    if not isinstance(tools, list):
+        return payload
+    for tool in tools:
+        if isinstance(tool, dict):
+            tool["securitySchemes"] = [{"type": "oauth2", "scopes": ["openid", "email"]}]
+    return payload
+
+
+def _inject_security_schemes_body(body: bytes) -> bytes:
+    try:
+        payload = json.loads(body.decode())
+    except Exception:
+        return body
+    if not isinstance(payload, dict):
+        return body
+    payload = _inject_security_schemes(payload)
+    return json.dumps(payload).encode()
+
+
+def _replace_content_length(headers: list[tuple[bytes, bytes]], length: int):
+    filtered = [(k, v) for (k, v) in headers if k.lower() != b"content-length"]
+    filtered.append((b"content-length", str(length).encode()))
+    return filtered
 
 
 def create_mcp(settings: Settings | None = None) -> "FastMCP":

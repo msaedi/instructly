@@ -7,7 +7,7 @@ import pytest
 from instainstru_mcp.config import Settings
 from instainstru_mcp.server import WorkOSAuthMiddleware, create_app
 from starlette.applications import Starlette
-from starlette.responses import PlainTextResponse
+from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
@@ -92,7 +92,10 @@ class TestSimpleTokenAuth:
         client = create_test_app(simple_token="test-token-123", workos_domain="")
         response = client.get("/sse")
         assert response.status_code == 401
-        assert "Missing" in response.json()["error"]
+        assert response.json()["error"] in {
+            "Missing or invalid Authorization header",
+            "Unauthorized",
+        }
 
     def test_malformed_auth_header(self):
         client = create_test_app(simple_token="test-token-123", workos_domain="")
@@ -550,10 +553,13 @@ class TestWWWAuthenticateHeader:
         client = create_test_app(simple_token="test-token-123", workos_domain="")
         response = client.get("/sse")
         assert response.status_code == 401
+        www_authenticate = response.headers.get("WWW-Authenticate", "")
         assert (
-            response.headers.get("WWW-Authenticate")
-            == 'Bearer resource_metadata="https://mcp.instainstru.com/.well-known/oauth-protected-resource"'
+            'resource_metadata="https://testserver/.well-known/oauth-protected-resource"'
+            in www_authenticate
         )
+        assert 'error="unauthorized"' in www_authenticate
+        assert "Authentication required" in www_authenticate
 
 
 class TestCORSPreflight:
@@ -605,6 +611,62 @@ class TestCORSHeaders:
         )
         assert response.status_code == 200
         assert response.headers.get("Access-Control-Allow-Origin") == "*"
+
+
+class TestChatGPTOAuthSupport:
+    """Tests for ChatGPT-specific OAuth requirements."""
+
+    def test_401_includes_www_authenticate_header(self):
+        settings = get_test_settings()
+        app = create_app(settings)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.get("/sse")
+        assert response.status_code == 401
+        assert "WWW-Authenticate" in response.headers
+        assert "resource_metadata=" in response.headers["WWW-Authenticate"]
+
+    def test_post_returns_mcp_error_with_www_authenticate_meta(self):
+        settings = get_test_settings()
+        app = create_app(settings)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.post(
+            "/sse",
+            json={"jsonrpc": "2.0", "method": "tools/call", "id": 1},
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get("result", {}).get("isError") is True
+        assert "mcp/www_authenticate" in data.get("result", {}).get("_meta", {})
+
+    def test_oauth_metadata_includes_pkce_support(self):
+        settings = get_test_settings(workos_domain="test.authkit.app")
+        client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "issuer": "https://test.authkit.app",
+            "authorization_endpoint": "https://test.authkit.app/oauth2/authorize",
+            "token_endpoint": "https://test.authkit.app/oauth2/token",
+            "registration_endpoint": "https://test.authkit.app/oauth2/register",
+            "code_challenge_methods_supported": ["S256"],
+        }
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+
+        with patch("instainstru_mcp.server.httpx.AsyncClient") as mock_async_client:
+            mock_async_client.return_value.__aenter__.return_value = mock_client
+            response = client.get("/.well-known/oauth-authorization-server")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "code_challenge_methods_supported" in data
+        assert "S256" in data["code_challenge_methods_supported"]
 
 
 class TestGetAppSingleton:
@@ -701,3 +763,37 @@ class TestOAuthEndpointProxies:
 
         assert response.status_code == 200
         assert response.json()["access_token"] == "token123"
+
+
+class TestSecuritySchemesInjection:
+    """Ensure tools/list responses include securitySchemes for ChatGPT."""
+
+    def test_tools_list_injects_security_schemes(self):
+        async def tools_list(_request):
+            return JSONResponse(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "result": {"tools": [{"name": "tool_one"}]},
+                }
+            )
+
+        routes = [Route("/sse", tools_list, methods=["POST"])]
+        app = Starlette(routes=routes)
+        settings = get_test_settings(workos_domain="")
+
+        with patch.dict("os.environ", {"INSTAINSTRU_MCP_API_SERVICE_TOKEN": "test-token"}):
+            wrapped = WorkOSAuthMiddleware(app, settings)
+            client = TestClient(wrapped, raise_server_exceptions=False)
+            response = client.post(
+                "/sse",
+                json={"jsonrpc": "2.0", "method": "tools/list", "id": 1},
+                headers={
+                    "Authorization": "Bearer test-token",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert response.status_code == 200
+        tools = response.json()["result"]["tools"]
+        assert tools[0]["securitySchemes"] == [{"type": "oauth2", "scopes": ["openid", "email"]}]
