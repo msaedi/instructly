@@ -41,6 +41,7 @@ class WorkOSAuthMiddleware:
         "/.well-known/openid-configuration",
         "/register",
         "/oauth2/register",
+        "/oauth2/token",
     }
 
     EXEMPT_PATH_PREFIXES = ("/.well-known/oauth-protected-resource/",)
@@ -202,7 +203,7 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
         )
 
     async def oauth_authorization_server(_request):
-        """Proxy WorkOS OAuth authorization server metadata."""
+        """Proxy WorkOS OAuth authorization server metadata with rewritten endpoints."""
         if not settings.workos_domain:
             return JSONResponse({"error": "WorkOS not configured"}, status_code=503)
 
@@ -212,7 +213,14 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(workos_metadata_url, timeout=10.0)
-            return JSONResponse(response.json(), headers=_cors_headers())
+            metadata = response.json()
+            our_base = "https://mcp.instainstru.com"
+            metadata["registration_endpoint"] = f"{our_base}/oauth2/register"
+            metadata[
+                "authorization_endpoint"
+            ] = f"https://{settings.workos_domain}/oauth2/authorize"
+            metadata["token_endpoint"] = f"{our_base}/oauth2/token"
+            return JSONResponse(metadata, headers=_cors_headers())
         except Exception as exc:  # pragma: no cover - defensive
             return JSONResponse({"error": str(exc)}, status_code=502, headers=_cors_headers())
 
@@ -259,6 +267,36 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
 
         return RedirectResponse(url=workos_url, status_code=302, headers=_cors_headers())
 
+    async def token_proxy(request):
+        """Proxy token requests to WorkOS."""
+        if not settings.workos_domain:
+            return JSONResponse({"error": "WorkOS not configured"}, status_code=503)
+
+        workos_url = f"https://{settings.workos_domain}/oauth2/token"
+        try:
+            body = await request.body()
+            headers = {
+                "Content-Type": request.headers.get(
+                    "Content-Type",
+                    "application/x-www-form-urlencoded",
+                )
+            }
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    workos_url,
+                    content=body,
+                    headers=headers,
+                    timeout=10.0,
+                )
+            return JSONResponse(
+                response.json(),
+                status_code=response.status_code,
+                headers=_cors_headers(),
+            )
+        except Exception as exc:
+            logger.error("Token proxy error: %s", exc)
+            return JSONResponse({"error": str(exc)}, status_code=502, headers=_cors_headers())
+
     app.routes.append(
         Route(
             "/.well-known/oauth-protected-resource",
@@ -299,6 +337,13 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
             "/oauth2/register",
             register_redirect,
             methods=["GET", "POST", "OPTIONS"],
+        )
+    )
+    app.routes.append(
+        Route(
+            "/oauth2/token",
+            token_proxy,
+            methods=["POST", "OPTIONS"],
         )
     )
 

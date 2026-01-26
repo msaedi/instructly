@@ -368,13 +368,17 @@ class TestOAuthMetadata:
         client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
         assert client.get("/.well-known/oauth-protected-resource").status_code == 503
 
-    def test_oauth_authorization_server_proxies_response(self):
+    def test_oauth_authorization_server_rewrites_endpoints(self):
         settings = get_test_settings(workos_domain="test.authkit.app")
         client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
 
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"issuer": "https://test.authkit.app"}
+        mock_response.json.return_value = {
+            "issuer": "https://test.authkit.app",
+            "registration_endpoint": "https://workos.example.com/oauth2/register",
+            "token_endpoint": "https://workos.example.com/oauth2/token",
+        }
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -384,7 +388,10 @@ class TestOAuthMetadata:
             response = client.get("/.well-known/oauth-authorization-server")
 
         assert response.status_code == 200
-        assert response.json()["issuer"] == "https://test.authkit.app"
+        data = response.json()
+        assert data["issuer"] == "https://test.authkit.app"
+        assert data["registration_endpoint"] == "https://mcp.instainstru.com/oauth2/register"
+        assert data["token_endpoint"] == "https://mcp.instainstru.com/oauth2/token"
 
     def test_oauth_authorization_server_503_when_not_configured(self):
         settings = get_test_settings(workos_domain="")
@@ -535,3 +542,22 @@ class TestOAuthEndpointProxies:
 
         assert response.status_code == 201
         assert response.json()["client_id"] == "abc123"
+
+    def test_token_proxy_post_returns_status(self):
+        settings = get_test_settings(workos_domain="test.authkit.app")
+        app = create_app(settings)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"access_token": "token123"}
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+
+        with patch("instainstru_mcp.server.httpx.AsyncClient") as mock_async_client:
+            mock_async_client.return_value.__aenter__.return_value = mock_client
+            response = client.post("/oauth2/token", data={"grant_type": "client_credentials"})
+
+        assert response.status_code == 200
+        assert response.json()["access_token"] == "token123"
