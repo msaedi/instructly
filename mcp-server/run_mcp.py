@@ -5,8 +5,8 @@ For local development only - connects to local backend at localhost:8000.
 """
 
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # Add mcp-server/src to path
 mcp_dir = Path(__file__).parent

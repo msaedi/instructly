@@ -32,9 +32,7 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         top: int = 25,
     ) -> dict:
         """Get instructor service coverage data."""
-        return await client.get_instructor_coverage(
-            status=status, group_by=group_by, top=top
-        )
+        return await client.get_instructor_coverage(status=status, group_by=group_by, top=top)
 
     async def instainstru_instructors_detail(identifier: str) -> dict:
         """Get full instructor profile details by id/email/name."""

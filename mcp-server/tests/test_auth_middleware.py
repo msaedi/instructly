@@ -1,71 +1,36 @@
-"""Tests for dual auth middleware (Bearer + Auth0 OAuth)."""
+"""Tests for WorkOS auth middleware (simple Bearer + WorkOS JWT)."""
 
-import time
 from unittest.mock import MagicMock, patch
 
-import jwt
+import jwt as pyjwt
 import pytest
+from instainstru_mcp.config import Settings
+from instainstru_mcp.server import WorkOSAuthMiddleware, create_app
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-
-# --- Fixtures ---
-
-@pytest.fixture
-def mock_jwks_client():
-    """Mock PyJWKClient for Auth0 tests."""
-    with patch("instainstru_mcp.auth.PyJWKClient") as mock:
-        mock_client = MagicMock()
-        mock.return_value = mock_client
-        yield mock_client
+# --- Helpers ---
 
 
-@pytest.fixture
-def valid_auth0_token():
-    """Generate a valid-looking JWT for testing."""
-    payload = {
-        "sub": "auth0|user123",
-        "email": "admin@instainstru.com",
-        "aud": "https://mcp.instainstru.com",
-        "iss": "https://instainstru-admin.us.auth0.com/",
-        "iat": int(time.time()),
-        "exp": int(time.time()) + 3600,
-    }
-    return jwt.encode(payload, "test-secret", algorithm="HS256")
+def get_test_settings(workos_domain: str | None = "test.authkit.app") -> Settings:
+    return Settings(
+        api_base_url="https://api.test.com",
+        api_service_token="backend-token",
+        workos_domain=workos_domain or "",
+        workos_client_id="client_test123",
+    )
 
 
-@pytest.fixture
-def expired_auth0_token():
-    """Generate an expired JWT."""
-    payload = {
-        "sub": "auth0|user123",
-        "email": "admin@instainstru.com",
-        "aud": "https://mcp.instainstru.com",
-        "iss": "https://instainstru-admin.us.auth0.com/",
-        "iat": int(time.time()) - 7200,
-        "exp": int(time.time()) - 3600,
-    }
-    return jwt.encode(payload, "test-secret", algorithm="HS256")
-
-
-def create_test_app(simple_token=None, auth0_domain=None, auth0_audience=None):
-    """Create a test app with the middleware."""
-    from instainstru_mcp.auth import get_auth0_validator
-
-    get_auth0_validator.cache_clear()
-
+def create_test_app(
+    simple_token: str | None = None, workos_domain: str | None = "test.authkit.app"
+) -> TestClient:
     env = {}
-    if simple_token:
+    if simple_token is not None:
         env["INSTAINSTRU_MCP_API_SERVICE_TOKEN"] = simple_token
-    if auth0_domain:
-        env["INSTAINSTRU_MCP_AUTH0_DOMAIN"] = auth0_domain
-    if auth0_audience:
-        env["INSTAINSTRU_MCP_AUTH0_AUDIENCE"] = auth0_audience
 
     with patch.dict("os.environ", env, clear=True):
-        from instainstru_mcp.server import DualAuthMiddleware
 
         async def protected_endpoint(request):
             auth_info = request.scope.get("auth", {})
@@ -81,241 +46,216 @@ def create_test_app(simple_token=None, auth0_domain=None, auth0_audience=None):
         ]
 
         app = Starlette(routes=routes)
-        wrapped = DualAuthMiddleware(app)
-
+        settings = get_test_settings(workos_domain=workos_domain)
+        wrapped = WorkOSAuthMiddleware(app, settings)
         return TestClient(wrapped, raise_server_exceptions=False)
+
+
+# --- Fixtures ---
+
+
+@pytest.fixture
+def mock_jwks_client():
+    """Mock PyJWKClient for WorkOS tests."""
+    with patch("instainstru_mcp.server.PyJWKClient") as mock_class:
+        mock_client = MagicMock()
+        mock_class.return_value = mock_client
+        yield mock_client
 
 
 # --- Simple Token Tests ---
 
+
 class TestSimpleTokenAuth:
-    """Tests for simple Bearer token authentication (Claude Desktop)."""
+    """Tests for simple Bearer token authentication."""
 
     def test_valid_simple_token(self):
-        """Should accept valid simple Bearer token."""
-        client = create_test_app(simple_token="test-token-123")
+        client = create_test_app(simple_token="test-token-123", workos_domain="")
         response = client.get("/sse", headers={"Authorization": "Bearer test-token-123"})
         assert response.status_code == 200
         assert "simple_token" in response.text
 
     def test_invalid_simple_token(self):
-        """Should reject invalid simple Bearer token."""
-        client = create_test_app(simple_token="test-token-123")
+        client = create_test_app(simple_token="test-token-123", workos_domain="")
         response = client.get("/sse", headers={"Authorization": "Bearer wrong-token"})
         assert response.status_code == 401
 
     def test_missing_auth_header(self):
-        """Should reject requests without Authorization header."""
-        client = create_test_app(simple_token="test-token-123")
+        client = create_test_app(simple_token="test-token-123", workos_domain="")
         response = client.get("/sse")
         assert response.status_code == 401
         assert "Missing" in response.json()["error"]
 
     def test_malformed_auth_header(self):
-        """Should reject malformed Authorization header."""
-        client = create_test_app(simple_token="test-token-123")
+        client = create_test_app(simple_token="test-token-123", workos_domain="")
         response = client.get("/sse", headers={"Authorization": "Basic abc123"})
         assert response.status_code == 401
 
     def test_bearer_case_sensitive(self):
-        """Bearer keyword should be case-sensitive."""
-        client = create_test_app(simple_token="test-token-123")
+        client = create_test_app(simple_token="test-token-123", workos_domain="")
         response = client.get("/sse", headers={"Authorization": "bearer test-token-123"})
         assert response.status_code == 401
 
 
-# --- Auth0 Token Tests ---
+# --- WorkOS Token Tests ---
 
-class TestAuth0TokenAuth:
-    """Tests for Auth0 JWT authentication (Claude Web)."""
 
-    def test_valid_auth0_token(self, mock_jwks_client, valid_auth0_token):
-        """Should accept valid Auth0 JWT."""
+class TestWorkOSTokenAuth:
+    """Tests for WorkOS JWT authentication."""
+
+    def test_valid_workos_token(self, mock_jwks_client):
         mock_key = MagicMock()
-        mock_key.key = "test-secret"
+        mock_key.key = "test-key"
         mock_jwks_client.get_signing_key_from_jwt.return_value = mock_key
 
-        with patch("instainstru_mcp.auth.jwt.decode") as mock_decode:
+        with patch("instainstru_mcp.server.pyjwt.decode") as mock_decode:
             mock_decode.return_value = {
-                "sub": "auth0|user123",
+                "sub": "user123",
                 "email": "admin@instainstru.com",
             }
 
-            client = create_test_app(
-                auth0_domain="instainstru-admin.us.auth0.com",
-                auth0_audience="https://mcp.instainstru.com",
-            )
+            client = create_test_app(workos_domain="test.authkit.app")
             response = client.get(
                 "/sse",
-                headers={"Authorization": f"Bearer {valid_auth0_token}"},
+                headers={"Authorization": "Bearer valid.jwt.token"},
             )
             assert response.status_code == 200
-            assert "auth0" in response.text
+            assert "workos" in response.text
 
-    def test_expired_auth0_token(self, mock_jwks_client, expired_auth0_token):
-        """Should reject expired Auth0 JWT."""
+            _, kwargs = mock_decode.call_args
+            assert kwargs["issuer"] == "https://test.authkit.app"
+            assert kwargs["options"]["verify_aud"] is False
+
+    def test_expired_workos_token(self, mock_jwks_client):
         mock_key = MagicMock()
-        mock_key.key = "test-secret"
+        mock_key.key = "test-key"
         mock_jwks_client.get_signing_key_from_jwt.return_value = mock_key
 
-        with patch("instainstru_mcp.auth.jwt.decode") as mock_decode:
-            mock_decode.side_effect = jwt.ExpiredSignatureError("Token expired")
-
-            client = create_test_app(
-                auth0_domain="instainstru-admin.us.auth0.com",
-                auth0_audience="https://mcp.instainstru.com",
-            )
+        with patch("instainstru_mcp.server.pyjwt.decode") as mock_decode:
+            mock_decode.side_effect = pyjwt.ExpiredSignatureError("Token expired")
+            client = create_test_app(workos_domain="test.authkit.app")
             response = client.get(
                 "/sse",
-                headers={"Authorization": f"Bearer {expired_auth0_token}"},
+                headers={"Authorization": "Bearer expired.jwt"},
             )
             assert response.status_code == 401
 
-    def test_wrong_audience(self, mock_jwks_client, valid_auth0_token):
-        """Should reject JWT with wrong audience."""
+    def test_wrong_issuer(self, mock_jwks_client):
         mock_key = MagicMock()
-        mock_key.key = "test-secret"
+        mock_key.key = "test-key"
         mock_jwks_client.get_signing_key_from_jwt.return_value = mock_key
 
-        with patch("instainstru_mcp.auth.jwt.decode") as mock_decode:
-            mock_decode.side_effect = jwt.InvalidAudienceError("Invalid audience")
-
-            client = create_test_app(
-                auth0_domain="instainstru-admin.us.auth0.com",
-                auth0_audience="https://mcp.instainstru.com",
-            )
+        with patch("instainstru_mcp.server.pyjwt.decode") as mock_decode:
+            mock_decode.side_effect = pyjwt.InvalidIssuerError("Invalid issuer")
+            client = create_test_app(workos_domain="test.authkit.app")
             response = client.get(
                 "/sse",
-                headers={"Authorization": f"Bearer {valid_auth0_token}"},
+                headers={"Authorization": "Bearer wrong-issuer.jwt"},
             )
             assert response.status_code == 401
 
-    def test_wrong_issuer(self, mock_jwks_client, valid_auth0_token):
-        """Should reject JWT with wrong issuer."""
+    def test_invalid_workos_token(self, mock_jwks_client):
         mock_key = MagicMock()
-        mock_key.key = "test-secret"
+        mock_key.key = "test-key"
         mock_jwks_client.get_signing_key_from_jwt.return_value = mock_key
 
-        with patch("instainstru_mcp.auth.jwt.decode") as mock_decode:
-            mock_decode.side_effect = jwt.InvalidIssuerError("Invalid issuer")
-
-            client = create_test_app(
-                auth0_domain="instainstru-admin.us.auth0.com",
-                auth0_audience="https://mcp.instainstru.com",
-            )
+        with patch("instainstru_mcp.server.pyjwt.decode") as mock_decode:
+            mock_decode.side_effect = pyjwt.InvalidTokenError("Invalid token")
+            client = create_test_app(workos_domain="test.authkit.app")
             response = client.get(
                 "/sse",
-                headers={"Authorization": f"Bearer {valid_auth0_token}"},
+                headers={"Authorization": "Bearer invalid.jwt"},
             )
             assert response.status_code == 401
 
-    def test_auth0_jwks_fetch_failure_returns_401(self, mock_jwks_client):
-        """Should return 401 when JWKS fetch fails (network error)."""
-        from jwt import PyJWKClientError
+    def test_email_not_in_allowlist_returns_403(self, mock_jwks_client):
+        mock_key = MagicMock()
+        mock_key.key = "test-key"
+        mock_jwks_client.get_signing_key_from_jwt.return_value = mock_key
 
-        mock_jwks_client.get_signing_key_from_jwt.side_effect = PyJWKClientError(
-            "Network error"
-        )
+        with patch("instainstru_mcp.server.pyjwt.decode") as mock_decode:
+            mock_decode.return_value = {
+                "sub": "user123",
+                "email": "not-allowed@example.com",
+            }
+            client = create_test_app(workos_domain="test.authkit.app")
+            response = client.get(
+                "/sse",
+                headers={"Authorization": "Bearer valid.jwt.token"},
+            )
+            assert response.status_code == 403
+            assert response.json()["error"] == "Access denied"
 
-        client = create_test_app(
-            auth0_domain="instainstru-admin.us.auth0.com",
-            auth0_audience="https://mcp.instainstru.com",
-        )
-        response = client.get(
-            "/sse",
-            headers={"Authorization": "Bearer some.jwt.token"},
-        )
-        assert response.status_code == 401
+    def test_email_in_allowlist_returns_200(self, mock_jwks_client):
+        mock_key = MagicMock()
+        mock_key.key = "test-key"
+        mock_jwks_client.get_signing_key_from_jwt.return_value = mock_key
 
-    def test_simple_token_works_when_jwks_fails(self, mock_jwks_client):
-        """Simple token should work even if JWKS fetch fails."""
-        from jwt import PyJWKClientError
-
-        mock_jwks_client.get_signing_key_from_jwt.side_effect = PyJWKClientError(
-            "Network error"
-        )
-
-        client = create_test_app(
-            simple_token="test-token-123",
-            auth0_domain="instainstru-admin.us.auth0.com",
-            auth0_audience="https://mcp.instainstru.com",
-        )
-        response = client.get(
-            "/sse",
-            headers={"Authorization": "Bearer test-token-123"},
-        )
-        assert response.status_code == 200
-        assert "simple_token" in response.text
-        mock_jwks_client.get_signing_key_from_jwt.assert_not_called()
+        with patch("instainstru_mcp.server.pyjwt.decode") as mock_decode:
+            mock_decode.return_value = {
+                "sub": "user123",
+                "email": "mehdi@instainstru.com",
+            }
+            client = create_test_app(workos_domain="test.authkit.app")
+            response = client.get(
+                "/sse",
+                headers={"Authorization": "Bearer valid.jwt.token"},
+            )
+            assert response.status_code == 200
+            assert "workos" in response.text
 
 
 # --- Dual Auth Tests ---
 
+
 class TestDualAuth:
-    """Tests for dual auth (both methods configured)."""
+    """Tests for dual auth (simple token + WorkOS)."""
 
     def test_simple_token_when_both_configured(self, mock_jwks_client):
-        """Simple token should work when both auth methods configured."""
         client = create_test_app(
             simple_token="test-token-123",
-            auth0_domain="instainstru-admin.us.auth0.com",
-            auth0_audience="https://mcp.instainstru.com",
+            workos_domain="test.authkit.app",
         )
         response = client.get("/sse", headers={"Authorization": "Bearer test-token-123"})
         assert response.status_code == 200
         assert "simple_token" in response.text
+        mock_jwks_client.get_signing_key_from_jwt.assert_not_called()
 
-    def test_auth0_token_when_both_configured(self, mock_jwks_client, valid_auth0_token):
-        """Auth0 token should work when both auth methods configured."""
+    def test_workos_token_when_both_configured(self, mock_jwks_client):
         mock_key = MagicMock()
-        mock_key.key = "test-secret"
+        mock_key.key = "test-key"
         mock_jwks_client.get_signing_key_from_jwt.return_value = mock_key
 
-        with patch("instainstru_mcp.auth.jwt.decode") as mock_decode:
+        with patch("instainstru_mcp.server.pyjwt.decode") as mock_decode:
             mock_decode.return_value = {
-                "sub": "auth0|user123",
-                "email": "admin@test.com",
+                "sub": "user123",
+                "email": "admin@instainstru.com",
             }
-
             client = create_test_app(
                 simple_token="different-token",
-                auth0_domain="instainstru-admin.us.auth0.com",
-                auth0_audience="https://mcp.instainstru.com",
+                workos_domain="test.authkit.app",
             )
             response = client.get(
                 "/sse",
-                headers={"Authorization": f"Bearer {valid_auth0_token}"},
+                headers={"Authorization": "Bearer valid.jwt.token"},
             )
             assert response.status_code == 200
-            assert "auth0" in response.text
-
-    def test_simple_token_tried_first(self, mock_jwks_client):
-        """Simple token should be tried before Auth0 (faster path)."""
-        client = create_test_app(
-            simple_token="test-token-123",
-            auth0_domain="instainstru-admin.us.auth0.com",
-            auth0_audience="https://mcp.instainstru.com",
-        )
-        response = client.get("/sse", headers={"Authorization": "Bearer test-token-123"})
-
-        mock_jwks_client.get_signing_key_from_jwt.assert_not_called()
-        assert response.status_code == 200
+            assert "workos" in response.text
 
 
 # --- Health Endpoint Tests ---
+
 
 class TestHealthEndpoint:
     """Tests for health endpoint (no auth required)."""
 
     def test_health_no_auth(self):
-        """Health endpoint should work without auth."""
-        client = create_test_app(simple_token="test-token")
+        client = create_test_app(simple_token="test-token", workos_domain="")
         response = client.get("/api/v1/health")
         assert response.status_code == 200
 
     def test_health_with_auth(self):
-        """Health endpoint should also work with auth header."""
-        client = create_test_app(simple_token="test-token")
+        client = create_test_app(simple_token="test-token", workos_domain="")
         response = client.get(
             "/api/v1/health",
             headers={"Authorization": "Bearer test-token"},
@@ -325,30 +265,29 @@ class TestHealthEndpoint:
 
 # --- No Auth Configured Tests ---
 
+
 class TestNoAuthConfigured:
     """Tests when no authentication is configured."""
 
     def test_rejects_all_when_no_auth_configured(self):
-        """Should reject all requests when no auth method configured."""
-        client = create_test_app()
+        client = create_test_app(workos_domain="")
         response = client.get("/sse", headers={"Authorization": "Bearer any-token"})
         assert response.status_code == 401
 
     def test_health_still_works_when_no_auth_configured(self):
-        """Health should still work even with no auth configured."""
-        client = create_test_app()
+        client = create_test_app(workos_domain="")
         response = client.get("/api/v1/health")
         assert response.status_code == 200
 
 
-# --- Auth0 Not Configured Tests ---
+# --- WorkOS Not Configured Tests ---
 
-class TestAuth0NotConfigured:
-    """Tests when only simple token is configured (no Auth0)."""
+
+class TestWorkOSNotConfigured:
+    """Tests when only simple token is configured (no WorkOS)."""
 
     def test_falls_back_to_simple_token_only(self):
-        """Should only try simple token when Auth0 not configured."""
-        client = create_test_app(simple_token="test-token-123")
+        client = create_test_app(simple_token="test-token-123", workos_domain="")
 
         response = client.get("/sse", headers={"Authorization": "Bearer test-token-123"})
         assert response.status_code == 200
@@ -364,30 +303,27 @@ class TestAuth0NotConfigured:
 
 # --- Edge Cases ---
 
+
 class TestEdgeCases:
     """Edge case tests."""
 
     def test_empty_token(self):
-        """Should reject empty token."""
-        client = create_test_app(simple_token="test-token-123")
+        client = create_test_app(simple_token="test-token-123", workos_domain="")
         response = client.get("/sse", headers={"Authorization": "Bearer "})
         assert response.status_code == 401
 
     def test_whitespace_token(self):
-        """Should reject whitespace token."""
-        client = create_test_app(simple_token="test-token-123")
+        client = create_test_app(simple_token="test-token-123", workos_domain="")
         response = client.get("/sse", headers={"Authorization": "Bearer   "})
         assert response.status_code == 401
 
     def test_token_with_extra_spaces(self):
-        """Should handle token with surrounding spaces."""
-        client = create_test_app(simple_token="test-token-123")
+        client = create_test_app(simple_token="test-token-123", workos_domain="")
         response = client.get("/sse", headers={"Authorization": "Bearer test-token-123 "})
         assert response.status_code == 401
 
     def test_multiple_bearer_keywords(self):
-        """Should handle malformed 'Bearer Bearer token'."""
-        client = create_test_app(simple_token="test-token-123")
+        client = create_test_app(simple_token="test-token-123", workos_domain="")
         response = client.get(
             "/sse",
             headers={"Authorization": "Bearer Bearer test-token-123"},
@@ -395,109 +331,74 @@ class TestEdgeCases:
         assert response.status_code == 401
 
 
+# --- OAuth Metadata Tests ---
+
+
 class TestOAuthMetadata:
     """Tests for OAuth metadata endpoints."""
 
-    def test_oauth_metadata_endpoint_returns_auth0_info(self):
-        """Should return Auth0 metadata when configured."""
-        from instainstru_mcp.auth import get_auth0_validator
-        from instainstru_mcp.config import Settings
-        from instainstru_mcp.server import create_app
-
-        get_auth0_validator.cache_clear()
-        settings = Settings(
-            api_service_token="test-token",
-            api_base_url="https://api.example.com",
-            auth0_domain="instainstru-admin.us.auth0.com",
-            auth0_audience="https://mcp.instainstru.com",
-        )
+    def test_oauth_metadata_endpoint_returns_workos_info(self):
+        settings = get_test_settings(workos_domain="test.authkit.app")
         client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
 
         response = client.get("/.well-known/oauth-protected-resource")
         assert response.status_code == 200
         payload = response.json()
         assert payload["resource"] == "https://mcp.instainstru.com/sse"
-        assert payload["authorization_servers"] == [
-            "https://instainstru-admin.us.auth0.com/"
-        ]
+        assert payload["authorization_servers"] == ["https://test.authkit.app"]
+        assert payload["bearer_methods_supported"] == ["header"]
+        assert payload["scopes_supported"] == ["openid", "profile", "email"]
 
-        response = client.get("/.well-known/oauth-authorization-server")
+    def test_oauth_metadata_path_inserted(self):
+        settings = get_test_settings(workos_domain="test.authkit.app")
+        client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
+
+        response = client.get("/.well-known/oauth-protected-resource/sse")
         assert response.status_code == 200
         payload = response.json()
-        assert payload["issuer"] == "https://instainstru-admin.us.auth0.com/"
-        assert payload["authorization_endpoint"].endswith("/authorize")
-        assert payload["token_endpoint"].endswith("/oauth/token")
-        assert payload["jwks_uri"].endswith("/.well-known/jwks.json")
+        assert payload["resource"] == "https://mcp.instainstru.com/sse"
 
     def test_oauth_metadata_no_auth_required(self):
-        """Metadata endpoints should be public (no auth required)."""
-        from instainstru_mcp.auth import get_auth0_validator
-        from instainstru_mcp.config import Settings
-        from instainstru_mcp.server import create_app
-
-        get_auth0_validator.cache_clear()
-        settings = Settings(
-            api_service_token="test-token",
-            api_base_url="https://api.example.com",
-            auth0_domain="instainstru-admin.us.auth0.com",
-            auth0_audience="https://mcp.instainstru.com",
-        )
+        settings = get_test_settings(workos_domain="test.authkit.app")
         client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
-
         assert client.get("/.well-known/oauth-protected-resource").status_code == 200
-        assert (
-            client.get("/.well-known/oauth-authorization-server").status_code == 200
-        )
 
     def test_oauth_metadata_returns_503_when_not_configured(self):
-        """Should return 503 when Auth0 is not configured."""
-        from instainstru_mcp.auth import get_auth0_validator
-        from instainstru_mcp.config import Settings
-        from instainstru_mcp.server import create_app
-
-        get_auth0_validator.cache_clear()
-        settings = Settings(
-            api_service_token="test-token",
-            api_base_url="https://api.example.com",
-        )
+        settings = get_test_settings(workos_domain="")
         client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
+        assert client.get("/.well-known/oauth-protected-resource").status_code == 503
 
+
+# --- WWW-Authenticate Header Tests ---
+
+
+class TestWWWAuthenticateHeader:
+    """Tests RFC 9728 compliance for WWW-Authenticate header."""
+
+    def test_401_includes_resource_metadata_header(self):
+        client = create_test_app(simple_token="test-token-123", workos_domain="")
+        response = client.get("/sse")
+        assert response.status_code == 401
         assert (
-            client.get("/.well-known/oauth-protected-resource").status_code == 503
-        )
-        assert (
-            client.get("/.well-known/oauth-authorization-server").status_code == 503
+            response.headers.get("WWW-Authenticate")
+            == 'Bearer resource_metadata="https://mcp.instainstru.com/.well-known/oauth-protected-resource"'
         )
 
 
-class TestOpaqueTokenFallback:
-    """Tests for Auth0 opaque token fallback via /userinfo."""
+class TestGetAppSingleton:
+    """Tests for get_app singleton behavior."""
 
-    def test_opaque_token_validated_via_userinfo(self, mock_jwks_client):
-        """Should validate opaque token via /userinfo when JWT decode fails."""
-        mock_jwks_client.get_signing_key_from_jwt.side_effect = None
+    def test_get_app_returns_singleton(self):
+        from instainstru_mcp import server as server_module
 
-        with patch("instainstru_mcp.auth.jwt.decode") as mock_decode:
-            mock_decode.side_effect = jwt.InvalidTokenError(
-                "Invalid payload string: 'utf-8' codec can't decode byte 0x92 in position 1"
-            )
-            with patch("instainstru_mcp.server.httpx.get") as mock_get:
-                mock_response = MagicMock()
-                mock_response.status_code = 200
-                mock_response.json.return_value = {
-                    "sub": "auth0|opaque",
-                    "email": "opaque@instainstru.com",
-                }
-                mock_get.return_value = mock_response
+        server_module._app = None
+        sentinel = object()
 
-                client = create_test_app(
-                    auth0_domain="instainstru-admin.us.auth0.com",
-                    auth0_audience="https://mcp.instainstru.com",
-                )
-                response = client.get(
-                    "/sse",
-                    headers={"Authorization": "Bearer opaque-token"},
-                )
-                assert response.status_code == 200
-                assert "auth0" in response.text
-                mock_get.assert_called_once()
+        with patch("instainstru_mcp.server.create_app", return_value=sentinel) as mock_create:
+            app_first = server_module.get_app()
+            app_second = server_module.get_app()
+
+        assert app_first is sentinel
+        assert app_second is sentinel
+        mock_create.assert_called_once()
+        server_module._app = None

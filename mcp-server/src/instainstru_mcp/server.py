@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import secrets
-import logging
+from typing import TYPE_CHECKING, Any, cast
 
-from typing import Any, TYPE_CHECKING, cast
-import httpx
+import jwt as pyjwt
+from jwt import PyJWKClient
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from .auth import MCPAuth, get_auth0_validator
 from .client import InstaInstruClient
 from .config import Settings
 from .tools import founding, instructors, invites, metrics, search
@@ -21,30 +21,41 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from fastmcp import FastMCP
 
+# Allowed admin emails (enforce access control server-side)
+ALLOWED_EMAILS = {
+    "admin@instainstru.com",
+    "faeze@instainstru.com",
+    "mehdi@instainstru.com",
+}
 
-class DualAuthMiddleware:
-    """Raw ASGI middleware supporting simple Bearer tokens and Auth0 JWTs."""
+
+class WorkOSAuthMiddleware:
+    """ASGI middleware supporting simple Bearer tokens and WorkOS JWTs."""
 
     EXEMPT_PATHS = {
         "/api/v1/health",
         "/.well-known/oauth-protected-resource",
-        "/.well-known/oauth-authorization-server",
     }
 
-    # RFC 9728 allows path-inserted metadata URLs like /.well-known/oauth-protected-resource/sse
-    EXEMPT_PATH_PREFIXES = (
-        "/.well-known/oauth-protected-resource/",
-    )
+    EXEMPT_PATH_PREFIXES = ("/.well-known/oauth-protected-resource/",)
 
-    def __init__(self, app: Any, settings: Settings | None = None) -> None:
+    def __init__(self, app: Any, settings: Settings) -> None:
         self.app = app
+        self.settings = settings
         self.simple_token = os.environ.get("INSTAINSTRU_MCP_API_SERVICE_TOKEN")
-        self.auth0_validator = get_auth0_validator(settings=settings)
 
-        if not self.simple_token and not self.auth0_validator:
-            logger.warning(
-                "No authentication configured! Server will reject all requests."
-            )
+        # WorkOS JWT validation
+        self.workos_domain = settings.workos_domain
+        self.workos_issuer = f"https://{self.workos_domain}"
+        self.jwks_client = None
+
+        if self.workos_domain:
+            jwks_url = f"{self.workos_issuer}/oauth2/jwks"
+            self.jwks_client = PyJWKClient(jwks_url)
+            logger.info("WorkOS JWT validation configured for %s", self.workos_domain)
+
+        if not self.simple_token and not self.jwks_client:
+            logger.warning("No authentication configured!")
 
     async def __call__(self, scope, receive, send) -> None:
         if scope.get("type") != "http":
@@ -58,107 +69,86 @@ class DualAuthMiddleware:
 
         headers = dict(scope.get("headers", []))
         auth_header = headers.get(b"authorization", b"").decode()
-        logger.info(
-            "Auth header present: %s, starts with Bearer: %s",
-            bool(auth_header),
-            auth_header.startswith("Bearer ") if auth_header else False,
-        )
+
         if not auth_header.startswith("Bearer "):
-            self._log_auth_failure(scope)
-            await self._send_error(
+            await self._send_401(
                 scope,
                 receive,
                 send,
-                status_code=401,
-                message="Missing or invalid Authorization header",
+                "Missing or invalid Authorization header",
             )
             return
 
         token = auth_header[7:]
-        auth_result = await self._authenticate(token)
+        auth_result = self._authenticate(token)
+
         if auth_result is None:
-            self._log_auth_failure(scope)
-            await self._send_error(
-                scope,
-                receive,
-                send,
-                status_code=401,
-                message="Invalid token",
-            )
+            await self._send_401(scope, receive, send, "Invalid token")
             return
+
+        # Check email allowlist for WorkOS tokens
+        if auth_result.get("method") == "workos":
+            email = auth_result.get("claims", {}).get("email", "").lower()
+            if email not in ALLOWED_EMAILS:
+                logger.warning("Access denied for email: %s", email)
+                await self._send_error(scope, receive, send, 403, "Access denied")
+                return
 
         scope["auth"] = auth_result
         await self.app(scope, receive, send)
 
-    async def _authenticate(self, token: str) -> dict | None:
-        logger.info("Attempting authentication, token length: %d", len(token))
-        if self.simple_token:
-            if secrets.compare_digest(token, self.simple_token):
-                logger.debug("Authenticated via simple Bearer token")
-                return {"method": "simple_token"}
+    def _authenticate(self, token: str) -> dict | None:
+        # Try simple token first
+        if self.simple_token and secrets.compare_digest(token, self.simple_token):
+            logger.debug("Authenticated via simple Bearer token")
+            return {"method": "simple_token"}
 
-        logger.info(
-            "Trying Auth0 validation, validator present: %s",
-            bool(self.auth0_validator),
-        )
-        if self.auth0_validator:
+        # Try WorkOS JWT
+        if self.jwks_client:
             try:
-                import jwt as pyjwt
-
-                claims = self.auth0_validator.validate(token)
-                logger.debug(
-                    "Authenticated via Auth0: %s",
+                signing_key = self.jwks_client.get_signing_key_from_jwt(token)
+                claims = pyjwt.decode(
+                    token,
+                    signing_key.key,
+                    algorithms=["RS256"],
+                    issuer=self.workos_issuer,
+                    options={"verify_aud": False},
+                )
+                logger.info(
+                    "Authenticated via WorkOS: %s",
                     claims.get("email", claims.get("sub")),
                 )
-                return {"method": "auth0", "claims": claims}
+                return {"method": "workos", "claims": claims}
             except pyjwt.InvalidTokenError as exc:
-                error_msg = str(exc)
-                if (
-                    "Invalid payload string" in error_msg
-                    or "invalid start byte" in error_msg.lower()
-                    or "Not enough segments" in error_msg
-                ):
-                    logger.info(
-                        "JWT decode failed, trying opaque token validation via /userinfo"
-                    )
-                    claims = _validate_opaque_token_sync(
-                        token,
-                        self.auth0_validator.domain,
-                    )
-                    if claims:
-                        logger.debug(
-                            "Authenticated via Auth0 userinfo: %s",
-                            claims.get("email", claims.get("sub")),
-                        )
-                        return {"method": "auth0", "claims": claims}
-                logger.info("Invalid Auth0 token: %s", exc)
-
-        if not self.simple_token and not self.auth0_validator:
-            logger.error("No authentication methods configured")
+                logger.info("WorkOS JWT validation failed: %s", exc)
 
         return None
 
-    def _log_auth_failure(self, scope: dict) -> None:
-        path = scope.get("path", "unknown")
-        client = scope.get("client")
-        client_ip = client[0] if client else "unknown"
-        logger.warning("Auth failed: path=%s client_ip=%s", path, client_ip)
+    async def _send_401(self, scope, receive, send, message: str):
+        """Send 401 with WWW-Authenticate header per RFC 9728."""
+        resource_metadata_url = "https://mcp.instainstru.com/.well-known/oauth-protected-resource"
+        headers = {"WWW-Authenticate": f'Bearer resource_metadata="{resource_metadata_url}"'}
+        response = JSONResponse({"error": message}, status_code=401, headers=headers)
+        await response(scope, receive, send)
 
     async def _send_error(self, scope, receive, send, status_code: int, message: str):
         response = JSONResponse({"error": message}, status_code=status_code)
         await response(scope, receive, send)
 
 
-def create_mcp(
-    settings: Settings | None = None,
-    auth: MCPAuth | None = None,
-    client: InstaInstruClient | None = None,
-) -> FastMCP:
+def _load_settings() -> Settings:
+    token = os.environ.get("INSTAINSTRU_MCP_API_SERVICE_TOKEN", "")
+    return Settings(api_service_token=token)
+
+
+def create_mcp(settings: Settings | None = None) -> "FastMCP":
     from fastmcp import FastMCP
 
-    settings = settings or Settings()  # type: ignore[call-arg]
-    auth = auth or MCPAuth(settings)
-    client = client or InstaInstruClient(settings, auth)
+    from .auth import MCPAuth
+
+    settings = settings or _load_settings()
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
 
     mcp = FastMCP("InstaInstru Admin")
 
@@ -173,54 +163,24 @@ def create_mcp(
 
 def _attach_health_route(app: Any) -> None:
     async def health_check(_request):
-        """Health check endpoint for load balancer."""
         return JSONResponse({"status": "ok", "service": "instainstru-mcp"})
 
     app.routes.append(Route("/api/v1/health", health_check, methods=["GET", "HEAD"]))
 
 
 def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
-    async def oauth_protected_resource(request):
-        """Return OAuth 2.0 Protected Resource Metadata (RFC 9728)."""
-        if not settings.auth0_domain or not settings.auth0_audience:
-            return JSONResponse(
-                {"error": "Auth0 not configured"},
-                status_code=503,
-            )
+    """Attach OAuth 2.0 Protected Resource Metadata endpoint (RFC 9728)."""
 
-        # Resource should be the actual SSE endpoint URL per RFC 9728
-        resource_url = f"{settings.auth0_audience}/sse"
-        issuer = f"https://{settings.auth0_domain}/"
+    async def oauth_protected_resource(_request):
+        if not settings.workos_domain:
+            return JSONResponse({"error": "WorkOS not configured"}, status_code=503)
+
         return JSONResponse(
             {
-                "resource": resource_url,
-                "authorization_servers": [issuer],
+                "resource": "https://mcp.instainstru.com/sse",
+                "authorization_servers": [f"https://{settings.workos_domain}"],
+                "bearer_methods_supported": ["header"],
                 "scopes_supported": ["openid", "profile", "email"],
-                "client_id": "XzpdyOxOTN7QniAxJZWGELKyPRHnIAd4",  # Pre-registered Auth0 SPA
-            }
-        )
-
-    async def oauth_authorization_server(_request):
-        """Return OAuth 2.0 Authorization Server Metadata (RFC 8414)."""
-        if not settings.auth0_domain or not settings.auth0_audience:
-            return JSONResponse(
-                {"error": "Auth0 not configured"},
-                status_code=503,
-            )
-
-        base_url = f"https://{settings.auth0_domain}"
-        issuer = f"{base_url}/"
-        return JSONResponse(
-            {
-                "issuer": issuer,
-                "authorization_endpoint": f"{base_url}/authorize",
-                "token_endpoint": f"{base_url}/oauth/token",
-                "jwks_uri": f"{base_url}/.well-known/jwks.json",
-                "response_types_supported": ["code"],
-                "grant_types_supported": ["authorization_code", "refresh_token"],
-                "token_endpoint_auth_methods_supported": ["none"],  # PKCE public clients
-                "code_challenge_methods_supported": ["S256"],
-                "scopes_supported": ["openid", "profile", "email", "offline_access"],
             }
         )
 
@@ -231,7 +191,6 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
             methods=["GET"],
         )
     )
-    # RFC 9728 path-inserted metadata: handle requests like /sse appended to the well-known path
     app.routes.append(
         Route(
             "/.well-known/oauth-protected-resource/{path:path}",
@@ -239,44 +198,15 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
             methods=["GET"],
         )
     )
-    app.routes.append(
-        Route(
-            "/.well-known/oauth-authorization-server",
-            oauth_authorization_server,
-            methods=["GET"],
-        )
-    )
-
-
-def _validate_opaque_token_sync(token: str, auth0_domain: str) -> dict | None:
-    """Validate opaque token via Auth0 /userinfo endpoint (sync)."""
-    try:
-        response = httpx.get(
-            f"https://{auth0_domain}/userinfo",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=10.0,
-        )
-        if response.status_code == 200:
-            user_info = response.json()
-            logger.info(
-                "Opaque token validated for user: %s",
-                user_info.get("email", user_info.get("sub")),
-            )
-            return user_info
-        logger.warning("Opaque token validation returned %s", response.status_code)
-        return None
-    except Exception as exc:
-        logger.warning("Opaque token validation failed: %s", exc)
-        return None
 
 
 def create_app(settings: Settings | None = None):
-    settings = settings or Settings()  # type: ignore[call-arg]
+    settings = settings or _load_settings()
     mcp = create_mcp(settings=settings)
     app_instance = cast(Any, mcp).http_app(transport="sse")
     _attach_health_route(app_instance)
     _attach_oauth_metadata_routes(app_instance, settings)
-    return DualAuthMiddleware(app_instance, settings=settings)
+    return WorkOSAuthMiddleware(app_instance, settings)
 
 
 _app: Any | None = None
@@ -286,12 +216,7 @@ def get_app() -> Any:
     """Get or create the app instance (lazy initialization)."""
     global _app
     if _app is None:
-        settings = Settings()  # type: ignore[call-arg]
-        mcp = create_mcp(settings=settings)
-        app_instance = cast(Any, mcp).http_app(transport="sse")
-        _attach_health_route(app_instance)
-        _attach_oauth_metadata_routes(app_instance, settings)
-        _app = DualAuthMiddleware(app_instance, settings=settings)
+        _app = create_app()
     return _app
 
 
@@ -301,7 +226,7 @@ def main() -> None:
     port = int(os.getenv("PORT", "8001"))
     uvicorn.run(
         "instainstru_mcp.server:get_app",
-        host="0.0.0.0",
+        host="0.0.0.0",  # nosec B104
         port=port,
         factory=True,
     )

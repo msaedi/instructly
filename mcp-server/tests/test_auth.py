@@ -1,5 +1,4 @@
 import pytest
-
 from instainstru_mcp.auth import AuthenticationError, MCPAuth
 from instainstru_mcp.config import Settings
 

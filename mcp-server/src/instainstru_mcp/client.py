@@ -77,9 +77,7 @@ class InstaInstruClient:
         if response.status_code == 404:
             raise BackendNotFoundError("backend_not_found")
         if response.status_code >= 400:
-            raise BackendRequestError(
-                f"backend_error_{response.status_code}"
-            )
+            raise BackendRequestError(f"backend_error_{response.status_code}")
 
         try:
             return response.json()
@@ -149,9 +147,7 @@ class InstaInstruClient:
             json=payload,
         )
 
-    async def send_invites(
-        self, confirm_token: str, idempotency_key: str
-    ) -> dict:
+    async def send_invites(self, confirm_token: str, idempotency_key: str) -> dict:
         return await self.call(
             "POST",
             "/api/v1/admin/mcp/invites/send",

@@ -1,7 +1,5 @@
 import pytest
-
 from fastmcp import FastMCP
-
 from instainstru_mcp.tools import founding, instructors, invites, metrics, search
 
 
@@ -10,15 +8,19 @@ class FakeClient:
         self.calls: list[tuple[str, tuple, dict]] = []
 
     async def get_funnel_summary(self, start_date=None, end_date=None):
-        self.calls.append(("get_funnel_summary", (), {"start_date": start_date, "end_date": end_date}))
+        self.calls.append(
+            ("get_funnel_summary", (), {"start_date": start_date, "end_date": end_date})
+        )
         return {"ok": True}
 
     async def get_stuck_instructors(self, stuck_days=7, stage=None, limit=50):
-        self.calls.append((
-            "get_stuck_instructors",
-            (),
-            {"stuck_days": stuck_days, "stage": stage, "limit": limit},
-        ))
+        self.calls.append(
+            (
+                "get_stuck_instructors",
+                (),
+                {"stuck_days": stuck_days, "stage": stage, "limit": limit},
+            )
+        )
         return {"ok": True}
 
     async def list_instructors(self, **filters):
@@ -26,11 +28,13 @@ class FakeClient:
         return {"ok": True}
 
     async def get_instructor_coverage(self, status="live", group_by="category", top=25):
-        self.calls.append((
-            "get_instructor_coverage",
-            (),
-            {"status": status, "group_by": group_by, "top": top},
-        ))
+        self.calls.append(
+            (
+                "get_instructor_coverage",
+                (),
+                {"status": status, "group_by": group_by, "top": top},
+            )
+        )
         return {"ok": True}
 
     async def get_instructor_detail(self, identifier):
@@ -42,11 +46,13 @@ class FakeClient:
         return {"ok": True}
 
     async def send_invites(self, confirm_token, idempotency_key):
-        self.calls.append((
-            "send_invites",
-            (confirm_token, idempotency_key),
-            {},
-        ))
+        self.calls.append(
+            (
+                "send_invites",
+                (confirm_token, idempotency_key),
+                {},
+            )
+        )
         return {"ok": True}
 
     async def get_top_queries(self, **filters):
@@ -73,7 +79,9 @@ async def test_founding_tools_call_client():
     assert client.calls[0][0] == "get_funnel_summary"
     assert client.calls[0][2] == {"start_date": "2026-01-01", "end_date": "2026-01-31"}
 
-    result = await tools["instainstru_founding_stuck_instructors"](stuck_days=10, stage="profile_submitted", limit=5)
+    result = await tools["instainstru_founding_stuck_instructors"](
+        stuck_days=10, stage="profile_submitted", limit=5
+    )
     assert result == {"ok": True}
     assert client.calls[1][0] == "get_stuck_instructors"
     assert client.calls[1][2] == {"stuck_days": 10, "stage": "profile_submitted", "limit": 5}
@@ -98,7 +106,9 @@ async def test_instructor_tools_call_client():
     assert client.calls[0][2]["status"] == "live"
     assert client.calls[0][2]["is_founding"] is True
 
-    result = await tools["instainstru_instructors_coverage"](status="live", group_by="service", top=5)
+    result = await tools["instainstru_instructors_coverage"](
+        status="live", group_by="service", top=5
+    )
     assert result == {"ok": True}
     assert client.calls[1][0] == "get_instructor_coverage"
     assert client.calls[1][2] == {"status": "live", "group_by": "service", "top": 5}
@@ -147,7 +157,9 @@ async def test_search_tools_call_client():
     assert client.calls[0][0] == "get_top_queries"
     assert client.calls[0][2]["min_count"] == 3
 
-    result = await tools["instainstru_search_zero_results"](start_date="2026-01-01", end_date="2026-01-31", limit=5)
+    result = await tools["instainstru_search_zero_results"](
+        start_date="2026-01-01", end_date="2026-01-31", limit=5
+    )
     assert result == {"ok": True}
     assert client.calls[1][0] == "get_zero_results"
     assert client.calls[1][2]["limit"] == 5

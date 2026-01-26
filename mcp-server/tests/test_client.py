@@ -3,7 +3,6 @@ from unittest.mock import patch
 import httpx
 import pytest
 import respx
-
 from instainstru_mcp.auth import MCPAuth
 from instainstru_mcp.client import (
     BackendAuthError,

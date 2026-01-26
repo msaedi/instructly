@@ -21,9 +21,7 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         limit: int = 50,
     ) -> dict:
         """Find instructors stuck in onboarding."""
-        return await client.get_stuck_instructors(
-            stuck_days=stuck_days, stage=stage, limit=limit
-        )
+        return await client.get_stuck_instructors(stuck_days=stuck_days, stage=stage, limit=limit)
 
     mcp.tool()(instainstru_founding_funnel_summary)
     mcp.tool()(instainstru_founding_stuck_instructors)
