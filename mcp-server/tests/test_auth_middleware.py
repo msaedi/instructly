@@ -340,28 +340,54 @@ class TestOAuthMetadata:
     def test_oauth_metadata_endpoint_returns_workos_info(self):
         settings = get_test_settings(workos_domain="test.authkit.app")
         client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
+        host = "preview-mcp.instainstru.com"
 
-        response = client.get("/.well-known/oauth-protected-resource")
+        response = client.get(
+            "/.well-known/oauth-protected-resource",
+            headers={"host": host},
+        )
         assert response.status_code == 200
         payload = response.json()
-        assert payload["resource"] == "https://mcp.instainstru.com/sse"
-        assert payload["authorization_servers"] == ["https://test.authkit.app"]
+        assert payload["resource"] == f"https://{host}/sse"
+        assert payload["authorization_servers"] == [f"https://{host}"]
         assert payload["bearer_methods_supported"] == ["header"]
         assert payload["scopes_supported"] == ["openid", "profile", "email"]
 
     def test_oauth_metadata_path_inserted(self):
         settings = get_test_settings(workos_domain="test.authkit.app")
         client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
+        host = "preview-mcp.instainstru.com"
 
-        response = client.get("/.well-known/oauth-protected-resource/sse")
+        response = client.get(
+            "/.well-known/oauth-protected-resource/sse",
+            headers={"host": host},
+        )
         assert response.status_code == 200
         payload = response.json()
-        assert payload["resource"] == "https://mcp.instainstru.com/sse"
+        assert payload["resource"] == f"https://{host}/sse"
+
+    def test_oauth_protected_resource_points_to_our_server(self):
+        settings = get_test_settings(workos_domain="test.authkit.app")
+        client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
+        host = "preview-mcp.instainstru.com"
+
+        response = client.get(
+            "/.well-known/oauth-protected-resource",
+            headers={"host": host},
+        )
+        payload = response.json()
+        assert payload["authorization_servers"] == [f"https://{host}"]
 
     def test_oauth_metadata_no_auth_required(self):
         settings = get_test_settings(workos_domain="test.authkit.app")
         client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
-        assert client.get("/.well-known/oauth-protected-resource").status_code == 200
+        assert (
+            client.get(
+                "/.well-known/oauth-protected-resource",
+                headers={"host": "preview-mcp.instainstru.com"},
+            ).status_code
+            == 200
+        )
 
     def test_oauth_metadata_returns_503_when_not_configured(self):
         settings = get_test_settings(workos_domain="")
@@ -371,6 +397,7 @@ class TestOAuthMetadata:
     def test_oauth_authorization_server_rewrites_endpoints(self):
         settings = get_test_settings(workos_domain="test.authkit.app")
         client = TestClient(create_app(settings=settings), raise_server_exceptions=False)
+        host = "preview-mcp.instainstru.com"
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -385,13 +412,16 @@ class TestOAuthMetadata:
 
         with patch("instainstru_mcp.server.httpx.AsyncClient") as mock_async_client:
             mock_async_client.return_value.__aenter__.return_value = mock_client
-            response = client.get("/.well-known/oauth-authorization-server")
+            response = client.get(
+                "/.well-known/oauth-authorization-server",
+                headers={"host": host},
+            )
 
         assert response.status_code == 200
         data = response.json()
         assert data["issuer"] == "https://test.authkit.app"
-        assert data["registration_endpoint"] == "https://mcp.instainstru.com/oauth2/register"
-        assert data["token_endpoint"] == "https://mcp.instainstru.com/oauth2/token"
+        assert data["registration_endpoint"] == f"https://{host}/oauth2/register"
+        assert data["token_endpoint"] == f"https://{host}/oauth2/token"
 
     def test_oauth_authorization_server_503_when_not_configured(self):
         settings = get_test_settings(workos_domain="")

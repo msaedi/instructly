@@ -189,20 +189,22 @@ def _attach_health_route(app: Any) -> None:
 def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
     """Attach OAuth 2.0 Protected Resource Metadata endpoint (RFC 9728)."""
 
-    async def oauth_protected_resource(_request):
+    async def oauth_protected_resource(request):
         if not settings.workos_domain:
             return JSONResponse({"error": "WorkOS not configured"}, status_code=503)
 
+        host = request.headers.get("host", "mcp.instainstru.com")
+        base_url = f"https://{host}"
         return JSONResponse(
             {
-                "resource": "https://mcp.instainstru.com/sse",
-                "authorization_servers": [f"https://{settings.workos_domain}"],
+                "resource": f"{base_url}/sse",
+                "authorization_servers": [base_url],
                 "bearer_methods_supported": ["header"],
                 "scopes_supported": ["openid", "profile", "email"],
             }
         )
 
-    async def oauth_authorization_server(_request):
+    async def oauth_authorization_server(request):
         """Proxy WorkOS OAuth authorization server metadata with rewritten endpoints."""
         if not settings.workos_domain:
             return JSONResponse({"error": "WorkOS not configured"}, status_code=503)
@@ -211,15 +213,16 @@ def _attach_oauth_metadata_routes(app: Any, settings: Settings) -> None:
             f"https://{settings.workos_domain}/.well-known/oauth-authorization-server"
         )
         try:
+            host = request.headers.get("host", "mcp.instainstru.com")
+            base_url = f"https://{host}"
             async with httpx.AsyncClient() as client:
                 response = await client.get(workos_metadata_url, timeout=10.0)
             metadata = response.json()
-            our_base = "https://mcp.instainstru.com"
-            metadata["registration_endpoint"] = f"{our_base}/oauth2/register"
+            metadata["registration_endpoint"] = f"{base_url}/oauth2/register"
             metadata[
                 "authorization_endpoint"
             ] = f"https://{settings.workos_domain}/oauth2/authorize"
-            metadata["token_endpoint"] = f"{our_base}/oauth2/token"
+            metadata["token_endpoint"] = f"{base_url}/oauth2/token"
             return JSONResponse(metadata, headers=_cors_headers())
         except Exception as exc:  # pragma: no cover - defensive
             return JSONResponse({"error": str(exc)}, status_code=502, headers=_cors_headers())
