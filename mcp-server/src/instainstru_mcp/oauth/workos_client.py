@@ -25,6 +25,7 @@ class WorkOSClient:
             "response_type": "code",
             "state": state,
             "scope": "openid profile email",
+            "provider": "authkit",
         }
         return f"{self.base_url}/oauth2/authorize?{urlencode(params)}"
 
