@@ -522,6 +522,7 @@ def create_app(settings: Settings | None = None):
     app_instance = cast(Any, mcp).http_app(transport="streamable-http", stateless_http=True)
 
     wrapper_app = Starlette()
+    wrapper_app.router.redirect_slashes = False
     wrapper_app.mount("/mcp", app_instance)
     _attach_health_route(wrapper_app)
     attach_oauth_routes(wrapper_app, settings)
