@@ -119,8 +119,8 @@ class DualAuthMiddleware:
             await self._send_auth_required(scope, send, body, parsed_body, is_json)
             return
 
-        # Check email allowlist for JWT tokens
-        if auth_result.get("method") in {"jwt", "workos"}:
+        # Check email allowlist only for self-issued JWT tokens
+        if auth_result.get("method") == "jwt":
             claims = auth_result.get("claims", {})
             email = (
                 claims.get("email") or claims.get("preferred_username") or claims.get("sub", "")
