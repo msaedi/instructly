@@ -450,7 +450,7 @@ def _attach_health_route(app: Any) -> None:
 def create_app(settings: Settings | None = None):
     settings = settings or _load_settings()
     mcp = create_mcp(settings=settings)
-    app_instance = cast(Any, mcp).http_app(transport="sse")
+    app_instance = cast(Any, mcp).http_app(transport="streamable-http")
     _attach_health_route(app_instance)
     attach_oauth_routes(app_instance, settings)
     app_with_auth = DualAuthMiddleware(app_instance, settings)
