@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
 import secrets
-from typing import TYPE_CHECKING, Any, cast
+import time
+from typing import TYPE_CHECKING, Any, Tuple, cast
 from urllib.parse import parse_qs, urlencode
 
 import jwt as pyjwt
 from cryptography.hazmat.primitives import serialization
 from jwt import PyJWK, PyJWKClient, PyJWKClientError
+from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -40,9 +43,35 @@ class DualAuthMiddleware:
 
     EXEMPT_PATHS = {
         "/api/v1/health",
+        "/.well-known/oauth-protected-resource",
+        "/.well-known/oauth-authorization-server",
+        "/.well-known/openid-configuration",
+        "/.well-known/jwks.json",
+        "/oauth/token",
+        "/oauth/authorize",
+        "/oauth2/token",
+        "/oauth2/register",
+        "/authorize",
+        "/callback",
     }
 
-    EXEMPT_PATH_PREFIXES = ("/.well-known/",)
+    EXEMPT_PATH_PREFIXES = (
+        "/.well-known/oauth-protected-resource/",
+        "/.well-known/oauth-authorization-server/",
+        "/oauth/",
+        "/oauth2/",
+    )
+
+    # MCP methods that don't require authentication (ChatGPT mixed-auth pattern)
+    UNAUTHENTICATED_MCP_METHODS = {
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+    }
+
+    # Token verification cache: token digest -> (expiry_timestamp, auth_result)
+    _auth_cache: dict[str, Tuple[float, dict]] = {}
+    _AUTH_CACHE_TTL = 55
 
     def __init__(self, app: Any, settings: Settings) -> None:
         self.app = app
@@ -102,11 +131,21 @@ class DualAuthMiddleware:
         body = b""
         receive_for_app = receive
         parsed_body: dict | None = None
-        if method in {"POST", "PUT", "PATCH"}:
+        mcp_method: str | None = None
+        if method == "POST":
             body = await _read_body(receive)
             receive_for_app = _replay_body(body)
             if is_json:
                 parsed_body = _parse_json_body(body)
+                if isinstance(parsed_body, dict):
+                    mcp_method = parsed_body.get("method")
+            if mcp_method in self.UNAUTHENTICATED_MCP_METHODS:
+                logger.info("Allowing unauthenticated MCP method: %s", mcp_method)
+                if mcp_method == "tools/list":
+                    await self._call_with_tool_injection(scope, receive_for_app, send)
+                    return
+                await self.app(scope, receive_for_app, send)
+                return
 
         if not auth_header.startswith("Bearer "):
             await self._send_auth_required(scope, send, body, parsed_body, is_json)
@@ -152,13 +191,24 @@ class DualAuthMiddleware:
         await self.app(scope, receive_for_app, send)
 
     async def _authenticate(self, token: str, issuer: str) -> dict | None:
+        now = time.time()
+        cache_key = hashlib.sha256(token.encode()).hexdigest()
+        cached = self._auth_cache.get(cache_key)
+        if cached:
+            expiry, cached_result = cached
+            if now < expiry:
+                logger.debug("Auth cache hit")
+                return cached_result
+            del self._auth_cache[cache_key]
+
         # Try simple token first
+        result: dict | None = None
         if self.simple_token and secrets.compare_digest(token, self.simple_token):
             logger.debug("Authenticated via simple Bearer token")
-            return {"method": "simple_token"}
+            result = {"method": "simple_token"}
 
         # Try self-issued JWT
-        if self.jwt_signing_key:
+        if result is None and self.jwt_signing_key:
             try:
                 header = pyjwt.get_unverified_header(token)
                 kid = header.get("kid")
@@ -172,12 +222,12 @@ class DualAuthMiddleware:
                     audience=issuer,
                 )
                 logger.info("Authenticated via JWT: %s", claims.get("email", claims.get("sub")))
-                return {"method": "jwt", "claims": claims}
+                result = {"method": "jwt", "claims": claims}
             except pyjwt.InvalidTokenError as exc:
                 logger.info("JWT validation failed: %s", exc)
 
         # Try WorkOS JWT
-        if self.workos_jwks_client and self.workos_issuer:
+        if result is None and self.workos_jwks_client and self.workos_issuer:
             try:
                 signing_key = self.workos_jwks_client.get_signing_key_from_jwt(token)
                 claims = pyjwt.decode(
@@ -188,11 +238,30 @@ class DualAuthMiddleware:
                     options={"verify_aud": False},
                 )
                 logger.info("Authenticated via WorkOS: %s", claims.get("email", claims.get("sub")))
-                return {"method": "workos", "claims": claims}
+                result = {"method": "workos", "claims": claims}
             except (pyjwt.InvalidTokenError, PyJWKClientError) as exc:
                 logger.info("WorkOS JWT validation failed: %s", exc)
 
-        return None
+        if result is not None:
+            cache_ttl: float = float(self._AUTH_CACHE_TTL)
+            claims = result.get("claims") if isinstance(result, dict) else None
+            if isinstance(claims, dict) and "exp" in claims:
+                exp_value = claims.get("exp")
+                if isinstance(exp_value, (int, float)):
+                    token_ttl = exp_value - now
+                elif isinstance(exp_value, str) and exp_value.isdigit():
+                    token_ttl = float(exp_value) - now
+                else:
+                    token_ttl = cache_ttl
+                cache_ttl = min(cache_ttl, max(0, token_ttl - 5))
+            if cache_ttl > 0:
+                self._auth_cache[cache_key] = (now + cache_ttl, result)
+                if len(self._auth_cache) > 1000:
+                    expired = [k for k, (exp, _) in self._auth_cache.items() if exp < now]
+                    for k in expired:
+                        del self._auth_cache[k]
+
+        return result
 
     async def _send_401(self, scope, receive, send, message: str):
         """Send 401 with WWW-Authenticate header per RFC 9728."""
@@ -222,7 +291,7 @@ class DualAuthMiddleware:
             return
 
         message = "Missing or invalid Authorization header"
-        if method == "GET" and "/sse" in path:
+        if method == "GET" and ("/sse" in path or "/mcp" in path):
             message = "Unauthorized"
         response = JSONResponse(
             {"error": message},
@@ -450,18 +519,24 @@ def _attach_health_route(app: Any) -> None:
 def create_app(settings: Settings | None = None):
     settings = settings or _load_settings()
     mcp = create_mcp(settings=settings)
-    app_instance = cast(Any, mcp).http_app(transport="streamable-http")
-    _attach_health_route(app_instance)
-    attach_oauth_routes(app_instance, settings)
-    app_with_auth = DualAuthMiddleware(app_instance, settings)
-    return CORSMiddleware(
-        app_with_auth,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "Accept"],
-        expose_headers=["*"],
-    )
+    app_instance = cast(Any, mcp).http_app(transport="streamable-http", stateless_http=True)
+
+    wrapper_app = Starlette()
+    wrapper_app.mount("/mcp", app_instance)
+    _attach_health_route(wrapper_app)
+    attach_oauth_routes(wrapper_app, settings)
+
+    app_with_auth = DualAuthMiddleware(wrapper_app, settings)
+    if os.getenv("ENABLE_CORS", "false").lower() == "true":
+        return CORSMiddleware(
+            app_with_auth,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type", "Accept"],
+            expose_headers=["*"],
+        )
+    return app_with_auth
 
 
 _app: Any | None = None

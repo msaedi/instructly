@@ -60,9 +60,11 @@ def test_oauth_protected_resource_points_to_workos():
     response = client.get("/.well-known/oauth-protected-resource")
     assert response.status_code == 200
     payload = response.json()
-    assert payload["resource"] == "https://mcp.instainstru.com"
+    assert payload["resource"] == "https://mcp.instainstru.com/mcp"
     assert payload["authorization_servers"] == ["https://workos.test"]
     assert payload["bearer_methods_supported"] == ["header"]
+    assert payload["scopes_supported"] == ["openid", "profile", "email", "offline_access"]
+    assert payload["client_id"] == "workos-client"
 
 
 def test_openid_configuration_proxies_workos():

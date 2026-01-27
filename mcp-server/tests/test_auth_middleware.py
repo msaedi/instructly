@@ -71,7 +71,7 @@ def create_test_app(
             return PlainTextResponse("healthy")
 
         routes = [
-            Route("/sse", protected_endpoint),
+            Route("/sse", protected_endpoint, methods=["GET", "POST"]),
             Route("/messages/", protected_endpoint, methods=["POST"]),
             Route("/api/v1/health", health_endpoint),
         ]
@@ -227,22 +227,22 @@ class TestWWWAuthenticateHeader:
 class TestCORSHeaders:
     def test_sse_response_includes_cors_headers(self, jwt_keys: dict[str, str]):
         settings = get_test_settings(jwt_keys=jwt_keys)
-        app = create_app(settings)
-        client = TestClient(app, raise_server_exceptions=False)
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setenv("ENABLE_CORS", "true")
+            app = create_app(settings)
+            client = TestClient(app, raise_server_exceptions=False)
 
-        response = client.get(
-            "/api/v1/health",
-            headers={"Origin": "https://example.com"},
-        )
+            response = client.get(
+                "/api/v1/health",
+                headers={"Origin": "https://example.com"},
+            )
         assert response.status_code == 200
         assert response.headers.get("Access-Control-Allow-Origin") == "*"
 
 
 class TestChatGPTOAuthSupport:
     def test_post_returns_mcp_error_with_www_authenticate_meta(self):
-        settings = get_test_settings()
-        app = create_app(settings)
-        client = TestClient(app, raise_server_exceptions=False)
+        client = create_test_app()
 
         response = client.post(
             "/sse",
@@ -254,6 +254,17 @@ class TestChatGPTOAuthSupport:
         data = response.json()
         assert data.get("result", {}).get("isError") is True
         assert "mcp/www_authenticate" in data.get("result", {}).get("_meta", {})
+
+    def test_initialize_allows_unauthenticated(self):
+        client = create_test_app()
+
+        response = client.post(
+            "/sse",
+            json={"jsonrpc": "2.0", "method": "initialize", "id": 1},
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 200
 
 
 class TestGetAppSingleton:
@@ -295,10 +306,7 @@ class TestSecuritySchemesInjection:
             response = client.post(
                 "/sse",
                 json={"jsonrpc": "2.0", "method": "tools/list", "id": 1},
-                headers={
-                    "Authorization": "Bearer test-token",
-                    "Content-Type": "application/json",
-                },
+                headers={"Content-Type": "application/json"},
             )
 
         assert response.status_code == 200

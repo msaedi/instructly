@@ -45,13 +45,16 @@ def attach_oauth_routes(app: Any, settings: Settings) -> None:
         if not settings.workos_domain:
             return JSONResponse({"error": "WorkOS not configured"}, status_code=503)
         issuer = _base_url(request)
-        return JSONResponse(
-            {
-                "resource": issuer,
-                "authorization_servers": [f"https://{settings.workos_domain}"],
-                "bearer_methods_supported": ["header"],
-            }
-        )
+        resource_url = f"{issuer}/mcp"
+        payload = {
+            "resource": resource_url,
+            "authorization_servers": [f"https://{settings.workos_domain}"],
+            "bearer_methods_supported": ["header"],
+            "scopes_supported": ["openid", "profile", "email", "offline_access"],
+        }
+        if settings.workos_client_id:
+            payload["client_id"] = settings.workos_client_id
+        return JSONResponse(payload)
 
     async def openid_configuration(request: Request):
         """Proxy WorkOS OpenID configuration."""
