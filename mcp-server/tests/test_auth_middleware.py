@@ -275,18 +275,26 @@ class TestMcpRoute:
         with TestClient(app, raise_server_exceptions=False) as client:
             response = client.post(
                 "/mcp",
-                json={"jsonrpc": "2.0", "method": "initialize", "id": 1},
+                json={
+                    "jsonrpc": "2.0",
+                    "method": "initialize",
+                    "id": 1,
+                    "params": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {},
+                        "clientInfo": {"name": "tests", "version": "0.0.0"},
+                    },
+                },
                 headers={
                     "Content-Type": "application/json",
                     "Accept": "application/json",
                 },
             )
 
-            assert response.status_code == 406
+            assert response.status_code == 200
             payload = response.json()
             assert payload.get("jsonrpc") == "2.0"
-            assert payload.get("error", {}).get("code") == -32600
-            assert "Not Acceptable" in payload.get("error", {}).get("message", "")
+            assert "result" in payload
 
     def test_double_mcp_path_returns_404(self, jwt_keys: dict[str, str]):
         settings = get_test_settings(jwt_keys=jwt_keys)
@@ -294,7 +302,16 @@ class TestMcpRoute:
         with TestClient(app, raise_server_exceptions=False) as client:
             response = client.post(
                 "/mcp/mcp",
-                json={"jsonrpc": "2.0", "method": "initialize", "id": 1},
+                json={
+                    "jsonrpc": "2.0",
+                    "method": "initialize",
+                    "id": 1,
+                    "params": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {},
+                        "clientInfo": {"name": "tests", "version": "0.0.0"},
+                    },
+                },
                 headers={"Content-Type": "application/json"},
             )
 

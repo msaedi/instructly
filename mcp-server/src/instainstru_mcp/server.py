@@ -125,15 +125,30 @@ class DualAuthMiddleware:
             return
 
         scope = _normalize_session_query(scope)
+        scope = _normalize_mcp_path(scope)
+        headers = dict(scope.get("headers", []))
+        session_id = headers.get(b"mcp-session-id", b"").decode()
+        protocol_version = headers.get(b"mcp-protocol-version", b"").decode()
+        if session_id or protocol_version:
+            logger.info(
+                "MCP headers: session_id=%s protocol_version=%s",
+                session_id[:16] if session_id else "none",
+                protocol_version or "none",
+            )
+
         path = scope.get("path", "")
         if path in self.EXEMPT_PATHS or path.startswith(self.EXEMPT_PATH_PREFIXES):
             await self.app(scope, receive, send)
             return
 
-        headers = dict(scope.get("headers", []))
+        method = scope.get("method", "")
+        if method == "DELETE" and path in {"/mcp", "/mcp/"}:
+            logger.info("MCP session DELETE request")
+            await self.app(scope, receive, send)
+            return
+
         auth_header = headers.get(b"authorization", b"").decode()
         content_type = headers.get(b"content-type", b"").decode()
-        method = scope.get("method", "")
         is_json = "application/json" in content_type
 
         body = b""
@@ -405,6 +420,17 @@ def _normalize_session_query(scope: dict) -> dict:
     return new_scope
 
 
+def _normalize_mcp_path(scope: dict) -> dict:
+    path = scope.get("path", "")
+    if path != "/mcp/":
+        return scope
+    new_scope = dict(scope)
+    new_scope["path"] = "/mcp"
+    if "raw_path" in scope:
+        new_scope["raw_path"] = b"/mcp"
+    return new_scope
+
+
 def _host_from_scope(scope: dict) -> str:
     host = "mcp.instainstru.com"
     for key, value in scope.get("headers", []):
@@ -475,7 +501,9 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
 
 def _attach_health_route(app: Any) -> None:
     async def health_check(_request):
-        return JSONResponse({"status": "ok", "service": "instainstru-mcp"})
+        return JSONResponse(
+            {"status": "ok", "service": "instainstru-mcp", "version": "v3-json-response"}
+        )
 
     app.routes.append(Route("/api/v1/health", health_check, methods=["GET", "HEAD"]))
 
@@ -484,8 +512,10 @@ def create_app(settings: Settings | None = None):
     settings = settings or _load_settings()
     mcp = create_mcp(settings=settings)
     app_instance = mcp.http_app(
+        path="/mcp",
         transport="streamable-http",
         stateless_http=True,
+        json_response=True,
     )
     _attach_health_route(app_instance)
     attach_oauth_routes(app_instance, settings)
