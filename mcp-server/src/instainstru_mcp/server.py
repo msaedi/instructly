@@ -7,6 +7,7 @@ import logging
 import os
 import secrets
 from typing import TYPE_CHECKING, Any, cast
+from urllib.parse import parse_qs, urlencode
 
 import jwt as pyjwt
 from cryptography.hazmat.primitives import serialization
@@ -86,6 +87,7 @@ class DualAuthMiddleware:
             await self.app(scope, receive, send)
             return
 
+        scope = _normalize_session_query(scope)
         path = scope.get("path", "")
         if path in self.EXEMPT_PATHS or path.startswith(self.EXEMPT_PATH_PREFIXES):
             await self.app(scope, receive, send)
@@ -269,6 +271,39 @@ class DualAuthMiddleware:
 def _load_settings() -> Settings:
     token = os.environ.get("INSTAINSTRU_MCP_API_SERVICE_TOKEN", "")
     return Settings(api_service_token=token)
+
+
+def _normalize_uuid(value: str) -> str:
+    """Convert 32-char hex to UUID format with dashes."""
+    normalized = value.replace("-", "").lower()
+    if len(normalized) == 32 and all(ch in "0123456789abcdef" for ch in normalized):
+        return (
+            f"{normalized[:8]}-{normalized[8:12]}-{normalized[12:16]}-"
+            f"{normalized[16:20]}-{normalized[20:]}"
+        )
+    return value
+
+
+def _normalize_session_query(scope: dict) -> dict:
+    path = scope.get("path", "")
+    if "/messages/" not in path:
+        return scope
+    raw_query = scope.get("query_string", b"")
+    if not raw_query:
+        return scope
+    try:
+        params = parse_qs(raw_query.decode(), keep_blank_values=True)
+    except UnicodeDecodeError:
+        return scope
+    if "session_id" not in params or not params["session_id"]:
+        return scope
+    normalized = [_normalize_uuid(value) for value in params["session_id"]]
+    if normalized == params["session_id"]:
+        return scope
+    params["session_id"] = normalized
+    new_scope = dict(scope)
+    new_scope["query_string"] = urlencode(params, doseq=True).encode()
+    return new_scope
 
 
 def _host_from_scope(scope: dict) -> str:

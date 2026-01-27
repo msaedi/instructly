@@ -306,3 +306,24 @@ class TestSecuritySchemesInjection:
         assert tools[0]["securitySchemes"] == [
             {"type": "oauth2", "scopes": ["openid", "profile", "email"]}
         ]
+
+
+class TestSessionIdNormalization:
+    def test_messages_session_id_normalized(self, jwt_keys: dict[str, str]):
+        async def messages(request):
+            return JSONResponse({"session_id": request.query_params.get("session_id")})
+
+        app = Starlette(routes=[Route("/messages/", messages, methods=["POST"])])
+        settings = get_test_settings(jwt_keys=jwt_keys)
+
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setenv("INSTAINSTRU_MCP_API_SERVICE_TOKEN", "test-token")
+            wrapped = DualAuthMiddleware(app, settings)
+            client = TestClient(wrapped, raise_server_exceptions=False)
+            response = client.post(
+                "/messages/?session_id=21920ee01ade40bb9477016c8719f49b",
+                headers={"Authorization": "Bearer test-token"},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["session_id"] == "21920ee0-1ade-40bb-9477-016c8719f49b"
