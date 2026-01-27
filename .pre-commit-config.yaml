@@ -92,6 +92,13 @@ repos:
         files: ^backend/app/(routes|services|api)/.*\.py$
         exclude: ^backend/app/services/(cache_service|logging_service|metrics_service)\.py$
         description: Prevent timezone bugs by checking for date.today() in user-facing code
+      - id: check-timezone-usage-mcp
+        name: Check for timezone-unsafe usage (mcp-server)
+        entry: backend/scripts/check_timezone_usage.py
+        language: python
+        args: ["--mode", "generic"]
+        files: ^mcp-server/src/.*\.py$
+        description: Prevent timezone-unsafe usage in MCP server code
       - id: check-time-to-minutes
         name: Check time-to-minutes conversions
         entry: python backend/scripts/check_time_to_minutes.py

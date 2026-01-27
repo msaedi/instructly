@@ -3,11 +3,11 @@ fastapi==0.128.0
 starlette==0.50.0
 uvicorn==0.40.0
 gunicorn==23.0.0
-python-multipart==0.0.21
-sse-starlette==3.1.1
+python-multipart==0.0.22
+sse-starlette==3.2.0
 
 # Database
-SQLAlchemy==2.0.45
+SQLAlchemy==2.0.46
 psycopg2-binary==2.9.11
 alembic==1.18.1
 pgvector==0.4.2
@@ -36,7 +36,7 @@ httpx==0.28.1
 requests==2.32.5
 
 # Email
-resend==2.19.0
+resend==2.21.0
 Jinja2==3.1.6
 pywebpush>=2.0.0
 twilio>=8.0.0
@@ -77,5 +77,5 @@ pytest-asyncio==1.3.0
 matplotlib==3.10.8
 networkx==3.6.1
 hiredis==3.3.0
-numpy==2.4.0
+numpy==2.4.1
 # pytest-timeout moved to requirements-dev.txt (testing dependency)

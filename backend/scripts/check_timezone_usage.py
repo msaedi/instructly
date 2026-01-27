@@ -6,6 +6,7 @@ This script checks for instances of date.today() in user-facing code paths
 and suggests using get_user_today_by_id() instead.
 """
 
+import argparse
 from pathlib import Path
 import re
 import sys
@@ -25,8 +26,9 @@ DATETIME_NOW_DATE_PATTERN = re.compile(r"datetime\.now\(\)\.date\(\)")
 DATETIME_UTCNOW_PATTERN = re.compile(r"datetime\.utcnow\(\)")
 DATETIME_NOW_NAIVE_PATTERN = re.compile(r"datetime\.now\(\)\s*[<>]|[<>]\s*datetime\.now\(\)")
 
-# Pattern to check if timezone utilities are imported
+# Pattern to check if timezone utilities are imported (backend mode)
 TIMEZONE_IMPORT_PATTERN = re.compile(r"from\s+.*timezone_utils\s+import|import\s+.*timezone_utils")
+GENERIC_TIMEZONE_IMPORT_PATTERN = re.compile(r"\btimezone\b")
 
 
 def is_allowed_file(filepath: Path) -> bool:
@@ -37,7 +39,7 @@ def is_allowed_file(filepath: Path) -> bool:
     return False
 
 
-def check_file(filepath: Path) -> list:
+def check_file(filepath: Path, mode: str) -> list:
     """
     Check a single file for date.today() usage.
 
@@ -53,13 +55,19 @@ def check_file(filepath: Path) -> list:
             content = f.read()
 
         # Check if file imports timezone utilities
-        has_timezone_import = bool(TIMEZONE_IMPORT_PATTERN.search(content))
+        if mode == "backend":
+            has_timezone_import = bool(TIMEZONE_IMPORT_PATTERN.search(content))
+        else:
+            has_timezone_import = bool(GENERIC_TIMEZONE_IMPORT_PATTERN.search(content))
 
         # Find all timezone-unaware date/time usage
         for line_num, line in enumerate(content.splitlines(), 1):
             has_violation = False
             violation_text = ""
-            suggestion = "get_user_today_by_id(user_id, db)"
+            if mode == "backend":
+                suggestion = "get_user_today_by_id(user_id, db)"
+            else:
+                suggestion = "datetime.now(timezone.utc).date()"
 
             if DATE_TODAY_PATTERN.search(line):
                 has_violation = True
@@ -67,6 +75,10 @@ def check_file(filepath: Path) -> list:
             elif DATETIME_NOW_DATE_PATTERN.search(line):
                 has_violation = True
                 violation_text = "datetime.now().date()"
+                if mode == "backend":
+                    suggestion = "get_user_today_by_id(user_id, db)"
+                else:
+                    suggestion = "datetime.now(timezone.utc).date()"
             elif DATETIME_UTCNOW_PATTERN.search(line):
                 has_violation = True
                 violation_text = "datetime.utcnow()"
@@ -123,16 +135,25 @@ def check_file(filepath: Path) -> list:
 
 def main():
     """Main function to check all files passed as arguments."""
-    if len(sys.argv) < 2:
-        # No files to check
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--mode",
+        default="backend",
+        help="Select check mode (backend or generic).",
+    )
+    parser.add_argument("files", nargs="*")
+    args = parser.parse_args()
+
+    mode = args.mode
+    if len(args.files) < 1:
         return 0
 
     all_violations = []
 
-    for filepath_str in sys.argv[1:]:
+    for filepath_str in args.files:
         filepath = Path(filepath_str)
         if filepath.is_file() and filepath.suffix == ".py":
-            violations = check_file(filepath)
+            violations = check_file(filepath, mode)
             if violations:
                 all_violations.append((filepath, violations))
 
@@ -146,7 +167,7 @@ def main():
                 print(f"  Line {v['line']}: {v['code']}")
                 if v["suggestion"] == "get_user_today_by_id(user_id, db)" and not v["has_timezone_import"]:
                     print("    💡 Add: from app.core.timezone_utils import get_user_today_by_id")
-                elif v["suggestion"] == "datetime.now(timezone.utc)":
+                elif "timezone.utc" in v["suggestion"] and not v["has_timezone_import"]:
                     print("    💡 Add: from datetime import timezone")
                 print(f"    💡 Use: {v['suggestion']} instead")
             print()
