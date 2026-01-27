@@ -14,7 +14,6 @@ from urllib.parse import parse_qs, urlencode
 import jwt as pyjwt
 from cryptography.hazmat.primitives import serialization
 from jwt import PyJWK, PyJWKClient, PyJWKClientError
-from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -519,15 +518,14 @@ def _attach_health_route(app: Any) -> None:
 def create_app(settings: Settings | None = None):
     settings = settings or _load_settings()
     mcp = create_mcp(settings=settings)
-    app_instance = cast(Any, mcp).http_app(transport="streamable-http", stateless_http=True)
+    app_instance = cast(Any, mcp).http_app(
+        transport="streamable-http",
+        stateless_http=True,
+    )
+    _attach_health_route(app_instance)
+    attach_oauth_routes(app_instance, settings)
 
-    wrapper_app = Starlette()
-    wrapper_app.router.redirect_slashes = False
-    wrapper_app.mount("/mcp", app_instance)
-    _attach_health_route(wrapper_app)
-    attach_oauth_routes(wrapper_app, settings)
-
-    app_with_auth = DualAuthMiddleware(wrapper_app, settings)
+    app_with_auth = DualAuthMiddleware(app_instance, settings)
     if os.getenv("ENABLE_CORS", "false").lower() == "true":
         return CORSMiddleware(
             app_with_auth,

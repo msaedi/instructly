@@ -267,6 +267,39 @@ class TestChatGPTOAuthSupport:
         assert response.status_code == 200
 
 
+class TestMcpRoute:
+    def test_initialize_on_mcp_root(self, jwt_keys: dict[str, str]):
+        settings = get_test_settings(jwt_keys=jwt_keys)
+        app = create_app(settings)
+        with TestClient(app, raise_server_exceptions=False) as client:
+            response = client.post(
+                "/mcp",
+                json={"jsonrpc": "2.0", "method": "initialize", "id": 1},
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+            )
+
+            assert response.status_code == 406
+            payload = response.json()
+            assert payload.get("jsonrpc") == "2.0"
+            assert payload.get("error", {}).get("code") == -32600
+            assert "Not Acceptable" in payload.get("error", {}).get("message", "")
+
+    def test_double_mcp_path_returns_404(self, jwt_keys: dict[str, str]):
+        settings = get_test_settings(jwt_keys=jwt_keys)
+        app = create_app(settings)
+        with TestClient(app, raise_server_exceptions=False) as client:
+            response = client.post(
+                "/mcp/mcp",
+                json={"jsonrpc": "2.0", "method": "initialize", "id": 1},
+                headers={"Content-Type": "application/json"},
+            )
+
+            assert response.status_code == 404
+
+
 class TestGetAppSingleton:
     def test_get_app_returns_singleton(self):
         from instainstru_mcp import server as server_module
