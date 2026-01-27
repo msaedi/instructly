@@ -43,7 +43,15 @@ class InstaInstruClient:
     ) -> None:
         self.settings = settings
         self.auth = auth
-        self.http = http or httpx.AsyncClient(base_url=settings.api_base_url)
+        self.http = http or httpx.AsyncClient(
+            base_url=settings.api_base_url,
+            timeout=httpx.Timeout(
+                connect=10.0,
+                read=30.0,
+                write=10.0,
+                pool=10.0,
+            ),
+        )
 
     async def aclose(self) -> None:
         await self.http.aclose()
@@ -56,6 +64,7 @@ class InstaInstruClient:
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
+        timeout: float | httpx.Timeout | None = None,
     ) -> dict:
         request_id = str(uuid4())
         request_headers = self.auth.get_headers(request_id)
@@ -68,9 +77,23 @@ class InstaInstruClient:
                 params=params,
                 json=json,
                 headers=request_headers,
+                timeout=timeout,
             )
+        except httpx.TimeoutException as exc:
+            timeout_value: float | None = None
+            if isinstance(timeout, (int, float)):
+                timeout_value = float(timeout)
+            elif isinstance(timeout, httpx.Timeout):
+                timeout_value = timeout.read
+            else:
+                timeout_value = self.http.timeout.read
+            if timeout_value is not None:
+                message = f"backend_timeout: Request to {path} timed out after {timeout_value}s"
+            else:
+                message = f"backend_timeout: Request to {path} timed out"
+            raise BackendConnectionError(message) from exc
         except httpx.HTTPError as exc:
-            raise BackendConnectionError("backend_connection_failed") from exc
+            raise BackendConnectionError(f"backend_connection_failed: {exc}") from exc
 
         if response.status_code in {401, 403}:
             raise BackendAuthError("backend_auth_failed")
@@ -145,6 +168,7 @@ class InstaInstruClient:
             "POST",
             "/api/v1/admin/mcp/invites/preview",
             json=payload,
+            timeout=60.0,
         )
 
     async def send_invites(self, confirm_token: str, idempotency_key: str) -> dict:

@@ -317,6 +317,39 @@ class TestMcpRoute:
 
             assert response.status_code == 404
 
+    def test_initialize_on_mcp_trailing_slash(self, jwt_keys: dict[str, str]):
+        settings = get_test_settings(jwt_keys=jwt_keys)
+        app = create_app(settings)
+        with TestClient(app, raise_server_exceptions=False) as client:
+            response = client.post(
+                "/mcp/",
+                json={
+                    "jsonrpc": "2.0",
+                    "method": "initialize",
+                    "id": 1,
+                    "params": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {},
+                        "clientInfo": {"name": "tests", "version": "0.0.0"},
+                    },
+                },
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                follow_redirects=False,
+            )
+
+            assert response.status_code == 200
+
+    def test_mcp_delete_passthrough(self, jwt_keys: dict[str, str]):
+        settings = get_test_settings(jwt_keys=jwt_keys)
+        app = create_app(settings)
+        with TestClient(app, raise_server_exceptions=False) as client:
+            response = client.delete("/mcp", follow_redirects=False)
+
+            assert response.status_code not in {401, 403}
+
 
 class TestGetAppSingleton:
     def test_get_app_returns_singleton(self):
