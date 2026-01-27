@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -22,6 +23,16 @@ from .storage import InMemoryStorage, OAuthStorage
 from .workos_client import WorkOSClient
 
 logger = logging.getLogger(__name__)
+
+ALLOWED_REDIRECT_PATTERNS = [
+    r"^https://chatgpt\.com/.*$",
+    r"^https://claude\.ai/.*$",
+    r"^http://localhost:\d+/.*$",
+]
+
+
+def is_valid_redirect_uri(uri: str) -> bool:
+    return any(re.match(pattern, uri) for pattern in ALLOWED_REDIRECT_PATTERNS)
 
 
 def attach_oauth_routes(
@@ -255,7 +266,10 @@ def attach_oauth_routes(
 
         client = storage.get_client(client_id)
         if not client:
-            return _json_error(400, "unauthorized_client", "client not registered")
+            if not client_id.startswith("mcp_client_"):
+                return _json_error(400, "unauthorized_client", "client not registered")
+            if not is_valid_redirect_uri(redirect_uri):
+                return _json_error(400, "invalid_redirect_uri")
 
         if response_type != "code":
             return _json_error(400, "unsupported_response_type")
@@ -263,7 +277,9 @@ def attach_oauth_routes(
         if not code_challenge or code_challenge_method != "S256":
             return _json_error(400, "invalid_request", "PKCE S256 required")
 
-        if not any(secrets.compare_digest(redirect_uri, uri) for uri in client.redirect_uris):
+        if client and not any(
+            secrets.compare_digest(redirect_uri, uri) for uri in client.redirect_uris
+        ):
             return _json_error(400, "invalid_redirect_uri")
 
         workos = _ensure_workos()
