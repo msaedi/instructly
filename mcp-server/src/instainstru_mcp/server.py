@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import jwt as pyjwt
 from cryptography.hazmat.primitives import serialization
-from jwt import PyJWK
+from jwt import PyJWK, PyJWKClient, PyJWKClientError
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -39,17 +39,9 @@ class DualAuthMiddleware:
 
     EXEMPT_PATHS = {
         "/api/v1/health",
-        "/.well-known/oauth-protected-resource",
-        "/.well-known/oauth-authorization-server",
-        "/.well-known/openid-configuration",
-        "/.well-known/jwks.json",
-        "/oauth2/register",
-        "/oauth2/authorize",
-        "/oauth2/callback",
-        "/oauth2/token",
     }
 
-    EXEMPT_PATH_PREFIXES = ("/.well-known/oauth-protected-resource/",)
+    EXEMPT_PATH_PREFIXES = ("/.well-known/",)
 
     def __init__(self, app: Any, settings: Settings) -> None:
         self.app = app
@@ -60,6 +52,10 @@ class DualAuthMiddleware:
         self.jwt_key_id = settings.jwt_key_id
         self.jwt_signing_key = None
         self.jwt_public_key = None
+        self.workos_domain = settings.workos_domain
+        self.workos_client_id = settings.workos_client_id
+        self.workos_issuer = None
+        self.workos_jwks_client = None
 
         if settings.jwt_public_key:
             try:
@@ -74,7 +70,15 @@ class DualAuthMiddleware:
             except Exception as exc:  # pragma: no cover - defensive
                 logger.warning("Failed to load JWT public key: %s", exc)
 
-        if not self.simple_token and not self.jwt_signing_key:
+        if self.workos_domain:
+            self.workos_issuer = f"https://{self.workos_domain}"
+            try:
+                self.workos_jwks_client = PyJWKClient(f"{self.workos_issuer}/oauth2/jwks")
+                logger.info("WorkOS JWT validation configured for %s", self.workos_domain)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("Failed to configure WorkOS JWKS: %s", exc)
+
+        if not self.simple_token and not self.jwt_signing_key and not self.workos_jwks_client:
             logger.warning("No authentication configured!")
 
     async def __call__(self, scope, receive, send) -> None:
@@ -116,7 +120,7 @@ class DualAuthMiddleware:
             return
 
         # Check email allowlist for JWT tokens
-        if auth_result.get("method") == "jwt":
+        if auth_result.get("method") in {"jwt", "workos"}:
             claims = auth_result.get("claims", {})
             email = (
                 claims.get("email") or claims.get("preferred_username") or claims.get("sub", "")
@@ -169,6 +173,22 @@ class DualAuthMiddleware:
                 return {"method": "jwt", "claims": claims}
             except pyjwt.InvalidTokenError as exc:
                 logger.info("JWT validation failed: %s", exc)
+
+        # Try WorkOS JWT
+        if self.workos_jwks_client and self.workos_issuer:
+            try:
+                signing_key = self.workos_jwks_client.get_signing_key_from_jwt(token)
+                claims = pyjwt.decode(
+                    token,
+                    signing_key.key,
+                    algorithms=["RS256"],
+                    issuer=self.workos_issuer,
+                    options={"verify_aud": False},
+                )
+                logger.info("Authenticated via WorkOS: %s", claims.get("email", claims.get("sub")))
+                return {"method": "workos", "claims": claims}
+            except (pyjwt.InvalidTokenError, PyJWKClientError) as exc:
+                logger.info("WorkOS JWT validation failed: %s", exc)
 
         return None
 
