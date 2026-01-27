@@ -8,12 +8,13 @@ import logging
 import os
 import secrets
 import time
-from typing import TYPE_CHECKING, Any, Tuple, cast
+from typing import TYPE_CHECKING, Any, Tuple
 from urllib.parse import parse_qs, urlencode
 
+import httpx
 import jwt as pyjwt
 from cryptography.hazmat.primitives import serialization
-from jwt import PyJWK, PyJWKClient, PyJWKClientError
+from jwt import PyJWK
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -38,7 +39,13 @@ ALLOWED_EMAILS = {
 
 
 class DualAuthMiddleware:
-    """ASGI middleware supporting simple Bearer tokens and self-issued JWTs."""
+    """ASGI middleware supporting simple Bearer tokens and self-issued JWTs.
+
+    Optimized for streamable-http transport:
+    - No response buffering (streaming compatible)
+    - Async JWKS fetching with aggressive caching
+    - MCP method detection for mixed auth
+    """
 
     EXEMPT_PATHS = {
         "/api/v1/health",
@@ -71,6 +78,11 @@ class DualAuthMiddleware:
     # Token verification cache: token digest -> (expiry_timestamp, auth_result)
     _auth_cache: dict[str, Tuple[float, dict]] = {}
     _AUTH_CACHE_TTL = 55
+    _AUTH_CACHE_MAX_SIZE = 1000
+
+    # JWKS cache: kid -> (expiry_timestamp, signing_key)
+    _jwks_cache: dict[str, Tuple[float, Any]] = {}
+    _JWKS_CACHE_TTL = 3600  # 1 hour - JWKS keys rarely change
 
     def __init__(self, app: Any, settings: Settings) -> None:
         self.app = app
@@ -84,7 +96,7 @@ class DualAuthMiddleware:
         self.workos_domain = settings.workos_domain
         self.workos_client_id = settings.workos_client_id
         self.workos_issuer = None
-        self.workos_jwks_client = None
+        self.workos_jwks_url = None
 
         if settings.jwt_public_key:
             try:
@@ -96,18 +108,15 @@ class DualAuthMiddleware:
                 jwk.update({"kid": self.jwt_key_id, "use": "sig", "alg": "RS256"})
                 self.jwt_signing_key = PyJWK.from_dict(jwk).key
                 logger.info("JWT validation configured for self-issued tokens")
-            except Exception as exc:  # pragma: no cover - defensive
+            except Exception as exc:
                 logger.warning("Failed to load JWT public key: %s", exc)
 
         if self.workos_domain:
             self.workos_issuer = f"https://{self.workos_domain}"
-            try:
-                self.workos_jwks_client = PyJWKClient(f"{self.workos_issuer}/oauth2/jwks")
-                logger.info("WorkOS JWT validation configured for %s", self.workos_domain)
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.warning("Failed to configure WorkOS JWKS: %s", exc)
+            self.workos_jwks_url = f"{self.workos_issuer}/oauth2/jwks"
+            logger.info("WorkOS JWT validation configured for %s", self.workos_domain)
 
-        if not self.simple_token and not self.jwt_signing_key and not self.workos_jwks_client:
+        if not self.simple_token and not self.jwt_signing_key and not self.workos_jwks_url:
             logger.warning("No authentication configured!")
 
     async def __call__(self, scope, receive, send) -> None:
@@ -129,25 +138,29 @@ class DualAuthMiddleware:
 
         body = b""
         receive_for_app = receive
-        parsed_body: dict | None = None
         mcp_method: str | None = None
+
+        # For POST requests, read body to detect MCP method
         if method == "POST":
             body = await _read_body(receive)
             receive_for_app = _replay_body(body)
-            if is_json:
-                parsed_body = _parse_json_body(body)
-                if isinstance(parsed_body, dict):
-                    mcp_method = parsed_body.get("method")
+            if is_json and body:
+                try:
+                    parsed = json.loads(body.decode())
+                    if isinstance(parsed, dict):
+                        mcp_method = parsed.get("method")
+                except Exception:
+                    pass
+
+            # Allow unauthenticated access for discovery methods
             if mcp_method in self.UNAUTHENTICATED_MCP_METHODS:
                 logger.info("Allowing unauthenticated MCP method: %s", mcp_method)
-                if mcp_method == "tools/list":
-                    await self._call_with_tool_injection(scope, receive_for_app, send)
-                    return
                 await self.app(scope, receive_for_app, send)
                 return
 
+        # Require Bearer token for all other requests
         if not auth_header.startswith("Bearer "):
-            await self._send_auth_required(scope, send, body, parsed_body, is_json)
+            await self._send_auth_required(scope, send, body, is_json)
             return
 
         token = auth_header[7:]
@@ -156,7 +169,7 @@ class DualAuthMiddleware:
         auth_result = await self._authenticate(token, issuer)
 
         if auth_result is None:
-            await self._send_auth_required(scope, send, body, parsed_body, is_json)
+            await self._send_auth_required(scope, send, body, is_json)
             return
 
         # Check email allowlist only for self-issued JWT tokens
@@ -167,31 +180,18 @@ class DualAuthMiddleware:
             ).lower()
             logger.info("Checking email allowlist for: %s", email)
             if not email or email not in ALLOWED_EMAILS:
-                logger.warning(
-                    "Access denied for email: %s (claims: %s)",
-                    email,
-                    list(claims.keys()),
-                )
-                await self._send_error(scope, receive, send, 403, "Access denied")
+                logger.warning("Access denied for email: %s", email)
+                await self._send_error(scope, receive_for_app, send, 403, "Access denied")
                 return
 
         scope["auth"] = auth_result
-
-        should_inject_tools = (
-            method == "POST"
-            and is_json
-            and isinstance(parsed_body, dict)
-            and parsed_body.get("method") == "tools/list"
-        )
-        if should_inject_tools:
-            await self._call_with_tool_injection(scope, receive_for_app, send)
-            return
-
         await self.app(scope, receive_for_app, send)
 
     async def _authenticate(self, token: str, issuer: str) -> dict | None:
         now = time.time()
         cache_key = hashlib.sha256(token.encode()).hexdigest()
+
+        # Check auth cache
         cached = self._auth_cache.get(cache_key)
         if cached:
             expiry, cached_result = cached
@@ -200,8 +200,9 @@ class DualAuthMiddleware:
                 return cached_result
             del self._auth_cache[cache_key]
 
-        # Try simple token first
         result: dict | None = None
+
+        # Try simple token first (fastest)
         if self.simple_token and secrets.compare_digest(token, self.simple_token):
             logger.debug("Authenticated via simple Bearer token")
             result = {"method": "simple_token"}
@@ -220,120 +221,150 @@ class DualAuthMiddleware:
                     issuer=issuer,
                     audience=issuer,
                 )
-                logger.info("Authenticated via JWT: %s", claims.get("email", claims.get("sub")))
+                logger.info(
+                    "Authenticated via self-issued JWT: %s", claims.get("email", claims.get("sub"))
+                )
                 result = {"method": "jwt", "claims": claims}
             except pyjwt.InvalidTokenError as exc:
-                logger.info("JWT validation failed: %s", exc)
+                logger.debug("Self-issued JWT validation failed: %s", exc)
 
-        # Try WorkOS JWT
-        if result is None and self.workos_jwks_client and self.workos_issuer:
-            try:
-                signing_key = self.workos_jwks_client.get_signing_key_from_jwt(token)
-                claims = pyjwt.decode(
-                    token,
-                    signing_key.key,
-                    algorithms=["RS256"],
-                    issuer=self.workos_issuer,
-                    options={"verify_aud": False},
-                )
-                logger.info("Authenticated via WorkOS: %s", claims.get("email", claims.get("sub")))
-                result = {"method": "workos", "claims": claims}
-            except (pyjwt.InvalidTokenError, PyJWKClientError) as exc:
-                logger.info("WorkOS JWT validation failed: %s", exc)
+        # Try WorkOS JWT (async JWKS fetch with caching)
+        if result is None and self.workos_jwks_url and self.workos_issuer:
+            result = await self._validate_workos_token(token)
 
-        if result is not None:
-            cache_ttl: float = float(self._AUTH_CACHE_TTL)
-            claims = result.get("claims") if isinstance(result, dict) else None
-            if isinstance(claims, dict) and "exp" in claims:
-                exp_value = claims.get("exp")
-                if isinstance(exp_value, (int, float)):
-                    token_ttl = exp_value - now
-                elif isinstance(exp_value, str) and exp_value.isdigit():
-                    token_ttl = float(exp_value) - now
-                else:
-                    token_ttl = cache_ttl
-                cache_ttl = min(cache_ttl, max(0, token_ttl - 5))
-            if cache_ttl > 0:
-                self._auth_cache[cache_key] = (now + cache_ttl, result)
-                if len(self._auth_cache) > 1000:
-                    expired = [k for k, (exp, _) in self._auth_cache.items() if exp < now]
-                    for k in expired:
-                        del self._auth_cache[k]
+        # Cache successful auth
+        if result:
+            self._cache_auth(cache_key, result, now)
 
         return result
 
-    async def _send_401(self, scope, receive, send, message: str):
-        """Send 401 with WWW-Authenticate header per RFC 9728."""
-        headers = {"WWW-Authenticate": _www_authenticate_from_scope(scope)}
-        response = JSONResponse({"error": message}, status_code=401, headers=headers)
-        await response(scope, receive, send)
+    async def _validate_workos_token(self, token: str) -> dict | None:
+        """Validate WorkOS JWT with async JWKS fetching and caching."""
+        try:
+            # Get the key ID from token header
+            header = pyjwt.get_unverified_header(token)
+            kid = header.get("kid")
+            if not kid:
+                logger.debug("WorkOS token missing kid")
+                return None
 
-    async def _send_error(self, scope, receive, send, status_code: int, message: str):
-        response = JSONResponse({"error": message}, status_code=status_code)
-        await response(scope, receive, send)
+            # Get signing key (from cache or fetch)
+            signing_key = await self._get_workos_signing_key(kid)
+            if not signing_key:
+                return None
 
-    async def _send_auth_required(
-        self,
-        scope,
-        send,
-        body: bytes,
-        parsed_body: dict | None,
-        is_json: bool,
-    ) -> None:
-        www_authenticate = _www_authenticate_from_scope(scope)
-        method = scope.get("method", "")
-        path = scope.get("path", "")
+            # Validate the token
+            claims = pyjwt.decode(
+                token,
+                signing_key,
+                algorithms=["RS256"],
+                issuer=self.workos_issuer,
+                options={"verify_aud": False},
+            )
+            logger.info("Authenticated via WorkOS JWT: %s", claims.get("email", claims.get("sub")))
+            return {"method": "workos", "claims": claims}
 
-        if method == "POST" and is_json:
-            response = _build_mcp_auth_error(body, parsed_body, www_authenticate)
-            await response(scope, _noop_receive, send)
-            return
+        except pyjwt.InvalidTokenError as exc:
+            logger.debug("WorkOS JWT validation failed: %s", exc)
+            return None
+        except Exception as exc:
+            logger.warning("WorkOS JWT validation error: %s", exc)
+            return None
 
-        message = "Missing or invalid Authorization header"
-        if method == "GET" and ("/sse" in path or "/mcp" in path):
-            message = "Unauthorized"
-        response = JSONResponse(
-            {"error": message},
-            status_code=401,
-            headers={"WWW-Authenticate": www_authenticate},
-        )
+    async def _get_workos_signing_key(self, kid: str) -> Any | None:
+        """Get WorkOS signing key with async fetch and caching."""
+        if not self.workos_jwks_url:
+            return None
+        now = time.time()
+
+        # Check cache
+        cached = self._jwks_cache.get(kid)
+        if cached:
+            expiry, key = cached
+            if now < expiry:
+                logger.debug("JWKS cache hit for kid=%s", kid[:8])
+                return key
+            del self._jwks_cache[kid]
+
+        # Fetch JWKS asynchronously
+        logger.info("Fetching JWKS for kid=%s from %s", kid[:8], self.workos_jwks_url)
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(self.workos_jwks_url)
+                response.raise_for_status()
+                jwks_data = response.json()
+
+            # Find the matching key
+            for key_data in jwks_data.get("keys", []):
+                if key_data.get("kid") == kid:
+                    jwk = PyJWK.from_dict(key_data)
+                    # Cache the key
+                    self._jwks_cache[kid] = (now + self._JWKS_CACHE_TTL, jwk.key)
+                    logger.info("Cached JWKS key for kid=%s", kid[:8])
+                    return jwk.key
+
+            logger.warning("Key not found in JWKS: kid=%s", kid[:8])
+            return None
+
+        except Exception as exc:
+            logger.error("Failed to fetch JWKS: %s", exc)
+            return None
+
+    def _cache_auth(self, cache_key: str, result: dict, now: float) -> None:
+        """Cache auth result with cleanup."""
+        self._auth_cache[cache_key] = (now + self._AUTH_CACHE_TTL, result)
+
+        # Cleanup if cache is too large
+        if len(self._auth_cache) > self._AUTH_CACHE_MAX_SIZE:
+            expired = [k for k, (exp, _) in self._auth_cache.items() if now >= exp]
+            for k in expired:
+                del self._auth_cache[k]
+
+    async def _send_auth_required(self, scope, send, body: bytes, is_json: bool) -> None:
+        """Send 401 with proper MCP error format for JSON requests."""
+        www_auth = _www_authenticate_from_scope(scope)
+
+        if is_json and body:
+            # Parse request ID for proper JSON-RPC error
+            request_id = None
+            try:
+                parsed = json.loads(body.decode())
+                if isinstance(parsed, dict):
+                    request_id = parsed.get("id")
+            except Exception:
+                pass
+
+            mcp_error = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Authentication required. Please connect your account to continue.",
+                        }
+                    ],
+                    "_meta": {"mcp/www_authenticate": [www_auth]},
+                    "isError": True,
+                },
+            }
+            response = JSONResponse(
+                mcp_error,
+                status_code=200,  # MCP uses 200 with error in body
+                headers={"WWW-Authenticate": www_auth},
+            )
+        else:
+            response = JSONResponse(
+                {"error": "Authentication required"},
+                status_code=401,
+                headers={"WWW-Authenticate": www_auth},
+            )
+
         await response(scope, _noop_receive, send)
 
-    async def _call_with_tool_injection(self, scope, receive, send) -> None:
-        start_message: dict | None = None
-        body_chunks: list[bytes] = []
-
-        async def send_wrapper(message):
-            nonlocal start_message
-            if message["type"] == "http.response.start":
-                start_message = message
-                return
-            if message["type"] == "http.response.body":
-                body_chunks.append(message.get("body", b""))
-                if message.get("more_body", False):
-                    return
-                body = b"".join(body_chunks)
-                new_body = _inject_security_schemes_body(body)
-                headers = _replace_content_length(
-                    (start_message or {}).get("headers", []),
-                    len(new_body),
-                )
-                await send(
-                    {
-                        "type": "http.response.start",
-                        "status": (start_message or {}).get("status", 200),
-                        "headers": headers,
-                    }
-                )
-                await send(
-                    {
-                        "type": "http.response.body",
-                        "body": new_body,
-                        "more_body": False,
-                    }
-                )
-
-        await self.app(scope, receive, send_wrapper)
+    async def _send_error(self, scope, receive, send, status_code: int, message: str) -> None:
+        response = JSONResponse({"error": message}, status_code=status_code)
+        await response(scope, receive, send)
 
 
 def _load_settings() -> Settings:
@@ -422,72 +453,6 @@ async def _noop_receive():
     return {"type": "http.request", "body": b"", "more_body": False}
 
 
-def _parse_json_body(body: bytes) -> dict | None:
-    try:
-        data = json.loads(body.decode())
-    except Exception:
-        return None
-    return data if isinstance(data, dict) else None
-
-
-def _build_mcp_auth_error(
-    body: bytes, parsed_body: dict | None, www_authenticate: str
-) -> JSONResponse:
-    request_id = None
-    data = parsed_body or _parse_json_body(body)
-    if isinstance(data, dict):
-        request_id = data.get("id")
-    mcp_error = {
-        "jsonrpc": "2.0",
-        "id": request_id,
-        "result": {
-            "content": [
-                {
-                    "type": "text",
-                    "text": "Authentication required. Please connect your account to continue.",
-                }
-            ],
-            "_meta": {"mcp/www_authenticate": [www_authenticate]},
-            "isError": True,
-        },
-    }
-    return JSONResponse(
-        mcp_error,
-        status_code=200,
-        headers={"WWW-Authenticate": www_authenticate},
-    )
-
-
-def _inject_security_schemes(payload: dict) -> dict:
-    result = payload.get("result")
-    if not isinstance(result, dict):
-        return payload
-    tools = result.get("tools")
-    if not isinstance(tools, list):
-        return payload
-    for tool in tools:
-        if isinstance(tool, dict):
-            tool["securitySchemes"] = [{"type": "oauth2", "scopes": ["openid", "profile", "email"]}]
-    return payload
-
-
-def _inject_security_schemes_body(body: bytes) -> bytes:
-    try:
-        payload = json.loads(body.decode())
-    except Exception:
-        return body
-    if not isinstance(payload, dict):
-        return body
-    payload = _inject_security_schemes(payload)
-    return json.dumps(payload).encode()
-
-
-def _replace_content_length(headers: list[tuple[bytes, bytes]], length: int):
-    filtered = [(k, v) for (k, v) in headers if k.lower() != b"content-length"]
-    filtered.append((b"content-length", str(length).encode()))
-    return filtered
-
-
 def create_mcp(settings: Settings | None = None) -> "FastMCP":
     from fastmcp import FastMCP
 
@@ -518,7 +483,7 @@ def _attach_health_route(app: Any) -> None:
 def create_app(settings: Settings | None = None):
     settings = settings or _load_settings()
     mcp = create_mcp(settings=settings)
-    app_instance = cast(Any, mcp).http_app(
+    app_instance = mcp.http_app(
         transport="streamable-http",
         stateless_http=True,
     )

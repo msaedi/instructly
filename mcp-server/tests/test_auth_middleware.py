@@ -103,6 +103,7 @@ class TestSimpleTokenAuth:
         assert response.json()["error"] in {
             "Missing or invalid Authorization header",
             "Unauthorized",
+            "Authentication required",
         }
 
     def test_malformed_auth_header(self):
@@ -315,38 +316,6 @@ class TestGetAppSingleton:
         assert app_first is sentinel
         assert app_second is sentinel
         server_module._app = None
-
-
-class TestSecuritySchemesInjection:
-    def test_tools_list_injects_security_schemes(self):
-        async def tools_list(_request):
-            return JSONResponse(
-                {
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "result": {"tools": [{"name": "tool_one"}]},
-                }
-            )
-
-        routes = [Route("/sse", tools_list, methods=["POST"])]
-        app = Starlette(routes=routes)
-        settings = get_test_settings()
-
-        with pytest.MonkeyPatch().context() as mp:
-            mp.setenv("INSTAINSTRU_MCP_API_SERVICE_TOKEN", "test-token")
-            wrapped = DualAuthMiddleware(app, settings)
-            client = TestClient(wrapped, raise_server_exceptions=False)
-            response = client.post(
-                "/sse",
-                json={"jsonrpc": "2.0", "method": "tools/list", "id": 1},
-                headers={"Content-Type": "application/json"},
-            )
-
-        assert response.status_code == 200
-        tools = response.json()["result"]["tools"]
-        assert tools[0]["securitySchemes"] == [
-            {"type": "oauth2", "scopes": ["openid", "profile", "email"]}
-        ]
 
 
 class TestSessionIdNormalization:
