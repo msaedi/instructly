@@ -41,6 +41,7 @@ class DualAuthMiddleware:
         "/api/v1/health",
         "/.well-known/oauth-protected-resource",
         "/.well-known/oauth-authorization-server",
+        "/.well-known/openid-configuration",
         "/.well-known/jwks.json",
         "/oauth2/register",
         "/oauth2/authorize",

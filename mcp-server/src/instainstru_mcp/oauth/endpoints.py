@@ -123,6 +123,26 @@ def attach_oauth_routes(
             }
         )
 
+    async def openid_configuration(request: Request):
+        issuer = _base_url(request)
+        return JSONResponse(
+            {
+                "issuer": issuer,
+                "authorization_endpoint": f"{issuer}/oauth2/authorize",
+                "token_endpoint": f"{issuer}/oauth2/token",
+                "userinfo_endpoint": f"{issuer}/oauth2/userinfo",
+                "jwks_uri": f"{issuer}/.well-known/jwks.json",
+                "registration_endpoint": f"{issuer}/oauth2/register",
+                "scopes_supported": ["openid", "profile", "email"],
+                "response_types_supported": ["code"],
+                "grant_types_supported": ["authorization_code", "refresh_token"],
+                "subject_types_supported": ["public"],
+                "id_token_signing_alg_values_supported": ["RS256"],
+                "token_endpoint_auth_methods_supported": ["none"],
+                "code_challenge_methods_supported": ["S256"],
+            }
+        )
+
     async def oauth_protected_resource(request: Request):
         issuer = _base_url(request)
         return JSONResponse({"resource": f"{issuer}/sse", "authorization_servers": [issuer]})
@@ -131,6 +151,39 @@ def attach_oauth_routes(
         if not jwks:
             return JSONResponse({"error": "JWKS not configured"}, status_code=503)
         return JSONResponse(jwks)
+
+    async def userinfo(request: Request):
+        if not public_key:
+            return JSONResponse({"error": "JWT verification not configured"}, status_code=503)
+
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return _json_error(401, "invalid_request", "Missing bearer token")
+
+        token = auth_header[7:].strip()
+        if not token:
+            return _json_error(401, "invalid_request", "Missing bearer token")
+
+        issuer = _base_url(request)
+        try:
+            claims = pyjwt.decode(
+                token,
+                public_key,
+                algorithms=["RS256"],
+                issuer=issuer,
+                audience=issuer,
+            )
+        except pyjwt.InvalidTokenError:
+            return _json_error(401, "invalid_token", "Token invalid")
+
+        return JSONResponse(
+            {
+                "sub": claims.get("sub"),
+                "email": claims.get("email"),
+                "scope": claims.get("scope"),
+                "name": claims.get("name"),
+            }
+        )
 
     async def register_client(request: Request):
         data: dict[str, Any] = {}
@@ -451,7 +504,15 @@ def attach_oauth_routes(
             methods=["GET"],
         )
     )
+    app.routes.append(
+        Route(
+            "/.well-known/openid-configuration",
+            openid_configuration,
+            methods=["GET"],
+        )
+    )
     app.routes.append(Route("/.well-known/jwks.json", jwks_endpoint, methods=["GET"]))
+    app.routes.append(Route("/oauth2/userinfo", userinfo, methods=["GET"]))
     app.routes.append(Route("/oauth2/register", register_client, methods=["POST"]))
     app.routes.append(Route("/oauth2/authorize", authorize, methods=["GET"]))
     app.routes.append(Route("/oauth2/callback", callback, methods=["GET"]))
