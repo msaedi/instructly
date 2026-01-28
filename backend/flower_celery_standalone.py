@@ -9,7 +9,16 @@ import ssl
 from celery import Celery
 
 # Get Redis URL from environment
-redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+redis_url = (
+    os.getenv("CELERY_BROKER_URL")  # Explicit Celery broker (most specific)
+    or os.getenv("REDIS_URL")        # Uppercase convention
+    or os.getenv("redis_url")        # Lowercase (current Render config)
+    or "redis://localhost:6379/0"    # Fallback for local dev
+)
+
+# Ensure database number is specified (append /0 if missing)
+if redis_url and not any(redis_url.endswith(f"/{i}") for i in range(16)):
+    redis_url = f"{redis_url}/0"
 
 # Handle SSL for Upstash Redis
 broker_use_ssl = None
