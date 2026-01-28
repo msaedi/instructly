@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
 from app.models.user import User
+from app.principal import Principal
 from app.repositories.factory import RepositoryFactory
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.services.base import BaseService
@@ -43,7 +44,7 @@ class MCPInviteService(BaseService):
     def write_preview_audit(
         self,
         *,
-        actor: User,
+        actor: Principal,
         recipient_count: int,
         existing_user_count: int,
         grant_founding: bool,
@@ -70,7 +71,7 @@ class MCPInviteService(BaseService):
     def write_send_audit(
         self,
         *,
-        actor: User,
+        actor: Principal,
         audit_id: str,
         recipient_count: int,
         sent_count: int,

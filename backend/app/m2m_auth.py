@@ -24,6 +24,7 @@ class M2MTokenClaims(BaseModel):
     exp: int
     iat: int
     scope: str
+    org_id: str | None = None
 
 
 class JWKSCache:

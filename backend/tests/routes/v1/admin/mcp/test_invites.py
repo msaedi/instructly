@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.exceptions import ServiceException
 from app.models.audit_log import AuditLog
 from app.models.instructor import InstructorProfile
+from app.principal import UserPrincipal
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.routes.v1.admin.mcp.invites import MAX_INVITE_BATCH_SIZE, preview_invites
 from app.schemas.mcp import MCPInvitePreviewRequest
@@ -175,7 +176,11 @@ async def test_preview_rejects_too_many_recipients_route_guard(mcp_service_user)
     )
 
     with pytest.raises(HTTPException) as exc:
-        await preview_invites(payload=payload, current_user=mcp_service_user, db=None)
+        principal = UserPrincipal(
+            user_id=mcp_service_user.id,
+            email=mcp_service_user.email,
+        )
+        await preview_invites(payload=payload, principal=principal, db=None)
     assert exc.value.status_code == 400
 
 

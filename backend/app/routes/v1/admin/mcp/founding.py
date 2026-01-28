@@ -12,9 +12,9 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.dependencies.auth import validate_mcp_service
 from app.api.dependencies.database import get_db
-from app.models.user import User
+from app.dependencies.mcp_auth import require_mcp_scope
+from app.principal import Principal
 from app.ratelimit.dependency import rate_limit
 from app.schemas.mcp import (
     MCPActor,
@@ -54,7 +54,7 @@ def _window_end(value: date | None) -> datetime | None:
 async def get_funnel_summary(
     start_date: date | None = None,
     end_date: date | None = None,
-    current_user: User = Depends(validate_mcp_service),
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
     db: Session = Depends(get_db),
 ) -> MCPFunnelSummaryResponse:
     """
@@ -70,7 +70,11 @@ async def get_funnel_summary(
     meta = MCPMeta(
         request_id=str(uuid4()),
         generated_at=datetime.now(timezone.utc),
-        actor=MCPActor(id=current_user.id, email=current_user.email),
+        actor=MCPActor(
+            id=principal.id,
+            email=principal.identifier,
+            principal_type=principal.principal_type,
+        ),
     )
 
     stages = [MCPFunnelStage(**stage) for stage in summary.get("stages", [])]
@@ -96,7 +100,7 @@ async def get_stuck_instructors(
     stuck_days: int = Query(default=7, ge=1, le=90),
     stage: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
-    current_user: User = Depends(validate_mcp_service),
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
     db: Session = Depends(get_db),
 ) -> MCPStuckResponse:
     """
@@ -114,7 +118,11 @@ async def get_stuck_instructors(
     meta = MCPMeta(
         request_id=str(uuid4()),
         generated_at=datetime.now(timezone.utc),
-        actor=MCPActor(id=current_user.id, email=current_user.email),
+        actor=MCPActor(
+            id=principal.id,
+            email=principal.identifier,
+            principal_type=principal.principal_type,
+        ),
     )
 
     summary = [MCPStuckSummary(**row) for row in payload.get("summary", [])]

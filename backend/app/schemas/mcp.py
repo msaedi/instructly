@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import EmailStr, Field
 
@@ -14,6 +14,7 @@ from ._strict_base import StrictModel, StrictRequestModel
 class MCPActor(StrictModel):
     id: str
     email: str
+    principal_type: Literal["user", "service"] = "service"
 
 
 class MCPMeta(StrictModel):

@@ -12,10 +12,10 @@ from fastapi import APIRouter, Body, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 import ulid
 
-from app.api.dependencies.auth import validate_mcp_service
 from app.api.dependencies.database import get_db
 from app.core.exceptions import MCPTokenError, ServiceException
-from app.models.user import User
+from app.dependencies.mcp_auth import require_mcp_scope
+from app.principal import Principal
 from app.ratelimit.dependency import rate_limit
 from app.schemas.mcp import (
     MCPActor,
@@ -64,7 +64,7 @@ def _normalize_emails(emails: Iterable[str]) -> tuple[list[str], list[str]]:
 )
 async def preview_invites(
     payload: MCPInvitePreviewRequest = Body(...),
-    current_user: User = Depends(validate_mcp_service),
+    principal: Principal = Depends(require_mcp_scope("mcp:write")),
     db: Session = Depends(get_db),
 ) -> MCPInvitePreviewResponse:
     if len(payload.recipient_emails) > MAX_INVITE_BATCH_SIZE:
@@ -113,12 +113,12 @@ async def preview_invites(
     confirm_token, confirm_expires_at = await asyncio.to_thread(
         confirm_service.generate_token,
         token_payload,
-        actor_id=current_user.id,
+        actor_id=principal.id,
     )
 
     await asyncio.to_thread(
         invite_service.write_preview_audit,
-        actor=current_user,
+        actor=principal,
         recipient_count=len(recipient_emails),
         existing_user_count=len(existing_users),
         grant_founding=payload.grant_founding_status,
@@ -129,7 +129,11 @@ async def preview_invites(
     meta = MCPMeta(
         request_id=str(uuid4()),
         generated_at=datetime.now(timezone.utc),
-        actor=MCPActor(id=current_user.id, email=current_user.email),
+        actor=MCPActor(
+            id=principal.id,
+            email=principal.identifier,
+            principal_type=principal.principal_type,
+        ),
     )
 
     return MCPInvitePreviewResponse(
@@ -153,7 +157,7 @@ async def preview_invites(
 async def send_invites(
     payload: MCPInviteSendRequest = Body(...),
     idempotency_header: str | None = Header(default=None, alias="Idempotency-Key"),
-    current_user: User = Depends(validate_mcp_service),
+    principal: Principal = Depends(require_mcp_scope("mcp:write")),
     db: Session = Depends(get_db),
 ) -> MCPInviteSendResponse:
     if not idempotency_header:
@@ -178,7 +182,7 @@ async def send_invites(
             confirm_service.validate_token,
             payload.confirm_token,
             token_payload,
-            actor_id=current_user.id,
+            actor_id=principal.id,
         )
     except MCPTokenError as exc:
         raise exc.to_http_exception()
@@ -227,7 +231,11 @@ async def send_invites(
         meta = MCPMeta(
             request_id=str(uuid4()),
             generated_at=datetime.now(timezone.utc),
-            actor=MCPActor(id=current_user.id, email=current_user.email),
+            actor=MCPActor(
+                id=principal.id,
+                email=principal.identifier,
+                principal_type=principal.principal_type,
+            ),
         )
         return MCPInviteSendResponse(
             meta=meta,
@@ -271,7 +279,7 @@ async def send_invites(
     audit_id = str(ulid.ULID())
     await asyncio.to_thread(
         invite_service.write_send_audit,
-        actor=current_user,
+        actor=principal,
         audit_id=audit_id,
         recipient_count=len(recipient_emails),
         sent_count=sent_count,
@@ -292,7 +300,11 @@ async def send_invites(
     meta = MCPMeta(
         request_id=str(uuid4()),
         generated_at=datetime.now(timezone.utc),
-        actor=MCPActor(id=current_user.id, email=current_user.email),
+        actor=MCPActor(
+            id=principal.id,
+            email=principal.identifier,
+            principal_type=principal.principal_type,
+        ),
     )
 
     return MCPInviteSendResponse(meta=meta, data=response_data)

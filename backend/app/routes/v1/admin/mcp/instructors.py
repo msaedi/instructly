@@ -9,10 +9,10 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.api.dependencies.auth import validate_mcp_service
 from app.api.dependencies.database import get_db
 from app.core.exceptions import NotFoundException
-from app.models.user import User
+from app.dependencies.mcp_auth import require_mcp_scope
+from app.principal import Principal
 from app.ratelimit.dependency import rate_limit
 from app.schemas.mcp import (
     MCPActor,
@@ -44,7 +44,7 @@ async def list_instructors(
     category_slug: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     cursor: str | None = None,
-    current_user: User = Depends(validate_mcp_service),
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
     db: Session = Depends(get_db),
 ) -> MCPInstructorListResponse:
     service = MCPInstructorService(db)
@@ -63,7 +63,11 @@ async def list_instructors(
     meta = MCPMeta(
         request_id=str(uuid4()),
         generated_at=datetime.now(timezone.utc),
-        actor=MCPActor(id=current_user.id, email=current_user.email),
+        actor=MCPActor(
+            id=principal.id,
+            email=principal.identifier,
+            principal_type=principal.principal_type,
+        ),
     )
 
     items = [MCPInstructorListItem(**item) for item in payload.get("items", [])]
@@ -85,7 +89,7 @@ async def get_service_coverage(
     status: Literal["registered", "onboarding", "live", "paused"] = "live",
     group_by: Literal["category", "service"] = "category",
     top: int = Query(default=25, ge=1, le=200),
-    current_user: User = Depends(validate_mcp_service),
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
     db: Session = Depends(get_db),
 ) -> MCPServiceCoverageResponse:
     service = MCPInstructorService(db)
@@ -94,7 +98,11 @@ async def get_service_coverage(
     meta = MCPMeta(
         request_id=str(uuid4()),
         generated_at=datetime.now(timezone.utc),
-        actor=MCPActor(id=current_user.id, email=current_user.email),
+        actor=MCPActor(
+            id=principal.id,
+            email=principal.identifier,
+            principal_type=principal.principal_type,
+        ),
     )
 
     return MCPServiceCoverageResponse(meta=meta, data=MCPServiceCoverageData(**data))
@@ -107,7 +115,7 @@ async def get_service_coverage(
 )
 async def get_instructor_detail(
     identifier: str,
-    current_user: User = Depends(validate_mcp_service),
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
     db: Session = Depends(get_db),
 ) -> MCPInstructorDetailResponse:
     service = MCPInstructorService(db)
@@ -119,7 +127,11 @@ async def get_instructor_detail(
     meta = MCPMeta(
         request_id=str(uuid4()),
         generated_at=datetime.now(timezone.utc),
-        actor=MCPActor(id=current_user.id, email=current_user.email),
+        actor=MCPActor(
+            id=principal.id,
+            email=principal.identifier,
+            principal_type=principal.principal_type,
+        ),
     )
 
     return MCPInstructorDetailResponse(

@@ -7,8 +7,8 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.dependencies.auth import validate_mcp_service
-from app.models.user import User
+from app.dependencies.mcp_auth import require_mcp_scope
+from app.principal import Principal
 from app.ratelimit.dependency import rate_limit
 from app.schemas.mcp import MCPActor, MCPMeta, MCPMetricDefinition, MCPMetricResponse
 
@@ -123,7 +123,7 @@ METRIC_DEFINITIONS: dict[str, MCPMetricDefinition] = {
 )
 async def get_metric_definition(
     metric_name: str,
-    current_user: User = Depends(validate_mcp_service),
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
 ) -> MCPMetricResponse:
     definition = METRIC_DEFINITIONS.get(metric_name)
     if not definition:
@@ -132,7 +132,11 @@ async def get_metric_definition(
     meta = MCPMeta(
         request_id=str(uuid4()),
         generated_at=datetime.now(timezone.utc),
-        actor=MCPActor(id=current_user.id, email=current_user.email),
+        actor=MCPActor(
+            id=principal.id,
+            email=principal.identifier,
+            principal_type=principal.principal_type,
+        ),
     )
 
     return MCPMetricResponse(meta=meta, data=definition)

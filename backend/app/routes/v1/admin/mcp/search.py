@@ -9,9 +9,9 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.api.dependencies.auth import validate_mcp_service
 from app.api.dependencies.database import get_db
-from app.models.user import User
+from app.dependencies.mcp_auth import require_mcp_scope
+from app.principal import Principal
 from app.ratelimit.dependency import rate_limit
 from app.schemas.mcp import (
     MCPActor,
@@ -47,7 +47,7 @@ async def get_top_queries(
     end_date: date | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     min_count: int = Query(default=2, ge=1, le=1000),
-    current_user: User = Depends(validate_mcp_service),
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
     db: Session = Depends(get_db),
 ) -> MCPTopQueriesResponse:
     start_value, end_value = _resolve_date_range(start_date, end_date)
@@ -64,7 +64,11 @@ async def get_top_queries(
     meta = MCPMeta(
         request_id=str(uuid4()),
         generated_at=datetime.now(timezone.utc),
-        actor=MCPActor(id=current_user.id, email=current_user.email),
+        actor=MCPActor(
+            id=principal.id,
+            email=principal.identifier,
+            principal_type=principal.principal_type,
+        ),
     )
 
     queries = [MCPTopQuery(**row) for row in payload.get("queries", [])]
@@ -88,7 +92,7 @@ async def get_zero_result_queries(
     start_date: date | None = None,
     end_date: date | None = None,
     limit: int = Query(default=50, ge=1, le=200),
-    current_user: User = Depends(validate_mcp_service),
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
     db: Session = Depends(get_db),
 ) -> MCPZeroResultsResponse:
     start_value, end_value = _resolve_date_range(start_date, end_date)
@@ -104,7 +108,11 @@ async def get_zero_result_queries(
     meta = MCPMeta(
         request_id=str(uuid4()),
         generated_at=datetime.now(timezone.utc),
-        actor=MCPActor(id=current_user.id, email=current_user.email),
+        actor=MCPActor(
+            id=principal.id,
+            email=principal.identifier,
+            principal_type=principal.principal_type,
+        ),
     )
 
     queries = [MCPZeroResultQuery(**row) for row in payload.get("queries", [])]
