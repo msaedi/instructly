@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -90,6 +91,23 @@ class CsrfOriginMiddlewareASGI:
             or p.startswith("/api/v1/auth/register")
         )
 
+    def _is_service_token(self, token: str) -> bool:
+        if not token:
+            return False
+        try:
+            raw = settings.mcp_service_token
+        except Exception:
+            return False
+        if raw is None:
+            return False
+        try:
+            expected = raw.get_secret_value()
+        except Exception:
+            expected = str(raw)
+        if not expected:
+            return False
+        return secrets.compare_digest(token, expected)
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
@@ -112,6 +130,25 @@ class CsrfOriginMiddlewareASGI:
         if self._is_webhook_path(path) or self._is_exempt_path(path):
             await self.app(scope, receive, send)
             return
+
+        auth_header = ""
+        try:
+            for k, v in scope.get("headers", []) or []:
+                if k.decode().lower() == "authorization":
+                    auth_header = v.decode()
+                    break
+        except Exception:
+            auth_header = auth_header or ""
+
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            if self._is_service_token(token):
+                logger.info(
+                    "csrf_bypass_service_token",
+                    extra={"service": "mcp", "method": method, "path": path},
+                )
+                await self.app(scope, receive, send)
+                return
 
         allowed_host = self._allowed_frontend_host()
         if not allowed_host:

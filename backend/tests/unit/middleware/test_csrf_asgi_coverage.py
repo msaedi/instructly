@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from pydantic import SecretStr
 import pytest
 
 from app.middleware.csrf_asgi import CsrfOriginMiddlewareASGI
@@ -104,6 +105,96 @@ async def test_csrf_blocks_invalid_origin(monkeypatch):
     middleware = CsrfOriginMiddlewareASGI(app)
     messages = await _run_app(
         middleware, _scope(headers={"origin": "https://evil.example.com"})
+    )
+    assert messages[0]["status"] == 403
+
+
+@pytest.mark.asyncio
+async def test_csrf_allows_service_token(monkeypatch):
+    async def app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    monkeypatch.setattr(
+        "app.middleware.csrf_asgi.settings",
+        SimpleNamespace(
+            is_testing=False,
+            preview_frontend_domain="preview.example.com",
+            prod_frontend_origins_csv="https://app.instainstru.com",
+            mcp_service_token=SecretStr("mcp-test-token"),
+        ),
+    )
+    monkeypatch.setenv("SITE_MODE", "prod")
+    middleware = CsrfOriginMiddlewareASGI(app)
+    messages = await _run_app(
+        middleware,
+        _scope(
+            headers={
+                "origin": "https://evil.example.com",
+                "authorization": "Bearer mcp-test-token",
+            }
+        ),
+    )
+    assert messages[0]["status"] == 200
+
+
+@pytest.mark.asyncio
+async def test_csrf_blocks_invalid_origin_without_service_token(monkeypatch):
+    async def app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    monkeypatch.setattr(
+        "app.middleware.csrf_asgi.settings",
+        SimpleNamespace(
+            is_testing=False,
+            preview_frontend_domain="preview.example.com",
+            prod_frontend_origins_csv="https://app.instainstru.com",
+            mcp_service_token=SecretStr("mcp-test-token"),
+        ),
+    )
+    monkeypatch.setenv("SITE_MODE", "prod")
+    middleware = CsrfOriginMiddlewareASGI(app)
+    messages = await _run_app(
+        middleware,
+        _scope(
+            headers={
+                "origin": "https://evil.example.com",
+                "authorization": "Bearer wrong-token",
+            }
+        ),
+    )
+    assert messages[0]["status"] == 403
+
+
+@pytest.mark.asyncio
+async def test_csrf_rejects_partial_service_token(monkeypatch):
+    async def app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    full_token = "mcp-test-token"
+    partial_token = full_token[: len(full_token) // 2]
+
+    monkeypatch.setattr(
+        "app.middleware.csrf_asgi.settings",
+        SimpleNamespace(
+            is_testing=False,
+            preview_frontend_domain="preview.example.com",
+            prod_frontend_origins_csv="https://app.instainstru.com",
+            mcp_service_token=SecretStr(full_token),
+        ),
+    )
+    monkeypatch.setenv("SITE_MODE", "prod")
+    middleware = CsrfOriginMiddlewareASGI(app)
+    messages = await _run_app(
+        middleware,
+        _scope(
+            headers={
+                "origin": "https://evil.example.com",
+                "authorization": f"Bearer {partial_token}xxx",
+            }
+        ),
     )
     assert messages[0]["status"] == 403
 
