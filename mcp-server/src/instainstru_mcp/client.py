@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import quote
 from uuid import uuid4
 
 import httpx
+from pydantic import SecretStr
 
-from .auth import MCPAuth
+from .auth import AuthenticationError, MCPAuth
 from .config import Settings
 
 
@@ -32,6 +35,37 @@ class BackendRequestError(BackendError):
     """Raised for non-auth backend errors."""
 
 
+class TokenCache:
+    """Cache for M2M access tokens."""
+
+    def __init__(self) -> None:
+        self._token: str | None = None
+        self._expires_at: datetime | None = None
+
+    def get(self) -> str | None:
+        if self._token and self._expires_at:
+            now = datetime.now(timezone.utc)
+            if now < (self._expires_at - timedelta(seconds=60)):
+                return self._token
+        return None
+
+    def set(self, token: str, expires_in: int) -> None:
+        now = datetime.now(timezone.utc)
+        self._token = token
+        self._expires_at = now + timedelta(seconds=expires_in)
+
+
+logger = logging.getLogger(__name__)
+
+
+def _secret_value(value: SecretStr | str | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, SecretStr):
+        return value.get_secret_value()
+    return str(value)
+
+
 class InstaInstruClient:
     """HTTP client for InstaInstru backend API."""
 
@@ -43,6 +77,7 @@ class InstaInstruClient:
     ) -> None:
         self.settings = settings
         self.auth = auth
+        self._token_cache = TokenCache()
         self.http = http or httpx.AsyncClient(
             base_url=settings.api_base_url,
             timeout=httpx.Timeout(
@@ -68,6 +103,8 @@ class InstaInstruClient:
     ) -> dict:
         request_id = str(uuid4())
         request_headers = self.auth.get_headers(request_id)
+        token = await self._get_bearer_token()
+        request_headers["Authorization"] = f"Bearer {token}"
         if headers:
             request_headers.update(headers)
         try:
@@ -106,6 +143,60 @@ class InstaInstruClient:
             return response.json()
         except ValueError:
             return {"status_code": response.status_code, "text": response.text}
+
+    async def _get_bearer_token(self) -> str:
+        if self._m2m_configured():
+            try:
+                return await self._get_access_token()
+            except Exception as exc:
+                static_token = self._get_static_token()
+                if static_token:
+                    logger.warning("m2m_token_fetch_failed_fallback_static", exc_info=exc)
+                    return static_token
+                raise BackendConnectionError("m2m_token_fetch_failed") from exc
+        static_token = self._get_static_token()
+        if static_token:
+            return static_token
+        raise AuthenticationError("api_service_token_missing")
+
+    def _m2m_configured(self) -> bool:
+        return bool(
+            self.settings.workos_m2m_client_id
+            and _secret_value(self.settings.workos_m2m_client_secret).strip()
+            and self.settings.workos_m2m_token_url
+            and self.settings.workos_m2m_audience
+        )
+
+    def _get_static_token(self) -> str:
+        return _secret_value(self.settings.api_service_token).strip()
+
+    async def _get_access_token(self) -> str:
+        cached = self._token_cache.get()
+        if cached:
+            return cached
+
+        client_secret = _secret_value(self.settings.workos_m2m_client_secret).strip()
+        if not self.settings.workos_m2m_client_id or not client_secret:
+            raise BackendConnectionError("m2m_client_credentials_missing")
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                self.settings.workos_m2m_token_url,
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": self.settings.workos_m2m_client_id,
+                    "client_secret": client_secret,
+                    "audience": self.settings.workos_m2m_audience,
+                    "scope": "mcp:read mcp:write",
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        token = data["access_token"]
+        expires_in = int(data.get("expires_in", 3600))
+        self._token_cache.set(token, expires_in)
+        return token
 
     async def get_funnel_summary(
         self, start_date: str | None = None, end_date: str | None = None

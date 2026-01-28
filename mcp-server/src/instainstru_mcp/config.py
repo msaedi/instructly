@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,10 +10,14 @@ class Settings(BaseSettings):
     """Runtime settings loaded from environment."""
 
     api_base_url: str = "https://api.instainstru.com"
-    api_service_token: str
+    api_service_token: SecretStr = SecretStr("")
     workos_domain: str | None = None
     workos_client_id: str | None = None
     workos_client_secret: str | None = None
+    workos_m2m_client_id: str = ""
+    workos_m2m_client_secret: SecretStr = SecretStr("")
+    workos_m2m_token_url: str = "https://api.workos.com/oauth/token"
+    workos_m2m_audience: str = "https://api.instainstru.com"
 
     jwt_private_key: str | None = None
     jwt_public_key: str | None = None

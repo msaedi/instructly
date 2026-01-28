@@ -383,8 +383,7 @@ class DualAuthMiddleware:
 
 
 def _load_settings() -> Settings:
-    token = os.environ.get("INSTAINSTRU_MCP_API_SERVICE_TOKEN", "")
-    return Settings(api_service_token=token)
+    return Settings()
 
 
 def _normalize_uuid(value: str) -> str:
