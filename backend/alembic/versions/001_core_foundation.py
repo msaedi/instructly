@@ -431,7 +431,7 @@ def upgrade() -> None:
         sa.Column("entity_type", sa.String(length=50), nullable=False),
         sa.Column("entity_id", sa.String(length=64), nullable=False),
         sa.Column("action", sa.String(length=30), nullable=False),
-        sa.Column("actor_id", sa.String(length=26), nullable=True),
+        sa.Column("actor_id", sa.String(length=64), nullable=True),
         sa.Column("actor_role", sa.String(length=30), nullable=True),
         sa.Column(
             "occurred_at",

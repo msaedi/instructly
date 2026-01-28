@@ -34,7 +34,7 @@ class AuditLog(Base):
     entity_type = Column(String(50), nullable=False)
     entity_id = Column(String(64), nullable=False)
     action = Column(String(30), nullable=False)
-    actor_id = Column(String(26), nullable=True)
+    actor_id = Column(String(64), nullable=True)
     actor_role = Column(String(30), nullable=True)
     occurred_at = Column(
         DateTime(timezone=True),
