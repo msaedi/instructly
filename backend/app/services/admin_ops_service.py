@@ -101,12 +101,13 @@ class AdminOpsService(BaseService):
             else:
                 repeat_students += 1
 
-        # Get top categories
+        # Get top categories (instructor_service.category is a property that returns str)
         category_counts: dict[str, int] = {}
         for booking in bookings:
-            if booking.instructor_service and booking.instructor_service.category:
-                cat = booking.instructor_service.category.name
-                category_counts[cat] = category_counts.get(cat, 0) + 1
+            if booking.instructor_service:
+                cat = booking.instructor_service.category
+                if cat:
+                    category_counts[cat] = category_counts.get(cat, 0) + 1
 
         top_categories_list: list[dict[str, Any]] = [
             {"category": k, "count": v} for k, v in category_counts.items()
@@ -162,10 +163,10 @@ class AdminOpsService(BaseService):
 
         result = []
         for b in bookings:
-            # Get category name safely
+            # Get category name safely (instructor_service.category is a property that returns str)
             category = ""
-            if b.instructor_service and b.instructor_service.category:
-                category = b.instructor_service.category.name
+            if b.instructor_service:
+                category = b.instructor_service.category or ""
 
             result.append(
                 {
@@ -467,9 +468,10 @@ class AdminOpsService(BaseService):
 
         result = []
         for b in bookings:
+            # Get category name safely (instructor_service.category is a property that returns str)
             category = ""
-            if b.instructor_service and b.instructor_service.category:
-                category = b.instructor_service.category.name
+            if b.instructor_service:
+                category = b.instructor_service.category or ""
 
             result.append(
                 {
