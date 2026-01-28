@@ -14,6 +14,9 @@ from app.dependencies.mcp_auth import require_mcp_scope
 from app.principal import Principal
 from app.ratelimit.dependency import rate_limit
 from app.schemas.celery_admin import (
+    MCPCeleryActiveTask,
+    MCPCeleryActiveTasksResponse,
+    MCPCeleryBeatScheduleResponse,
     MCPCeleryFailedTask,
     MCPCeleryFailedTasksResponse,
     MCPCeleryLastTaskRun,
@@ -21,6 +24,9 @@ from app.schemas.celery_admin import (
     MCPCeleryPaymentHealthResponse,
     MCPCeleryQueueInfo,
     MCPCeleryQueuesResponse,
+    MCPCeleryScheduledTask,
+    MCPCeleryTaskHistoryItem,
+    MCPCeleryTaskHistoryResponse,
     MCPCeleryWorkerInfo,
     MCPCeleryWorkersResponse,
     MCPCeleryWorkersSummary,
@@ -147,5 +153,102 @@ async def get_payment_health(
         pending_captures=result["pending_captures"],
         failed_payments_24h=result["failed_payments_24h"],
         last_task_runs=last_task_runs,
+        checked_at=result["checked_at"],
+    )
+
+
+# ==================== TIER 2: Active Tasks, Task History, Beat Schedule ====================
+
+
+@router.get(
+    "/tasks/active",
+    response_model=MCPCeleryActiveTasksResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
+async def get_active_tasks(
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
+    db: Session = Depends(get_db),
+) -> MCPCeleryActiveTasksResponse:
+    """
+    Get currently running Celery tasks.
+
+    Returns a list of tasks that are currently being executed across all workers.
+    """
+    service = CeleryAdminService(db)
+    result = await service.get_active_tasks()
+
+    tasks = [MCPCeleryActiveTask(**t) for t in result["tasks"]]
+
+    return MCPCeleryActiveTasksResponse(
+        tasks=tasks,
+        count=result["count"],
+        checked_at=result["checked_at"],
+    )
+
+
+@router.get(
+    "/tasks/history",
+    response_model=MCPCeleryTaskHistoryResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
+async def get_task_history(
+    task_name: str | None = Query(default=None, description="Filter by task name (partial match)"),
+    state: str
+    | None = Query(
+        default=None,
+        description="Filter by state (SUCCESS, FAILURE, PENDING, STARTED, RETRY)",
+    ),
+    hours: int = Query(default=1, ge=1, le=24, description="Look back window in hours (max 24)"),
+    limit: int = Query(default=100, ge=1, le=500, description="Max results (max 500)"),
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
+    db: Session = Depends(get_db),
+) -> MCPCeleryTaskHistoryResponse:
+    """
+    Get recent Celery task history.
+
+    Query recent task executions with optional filters for task name, state,
+    and time window. Returns timing information and results/errors.
+    """
+    service = CeleryAdminService(db)
+    result = await service.get_task_history(
+        task_name=task_name,
+        state=state,
+        hours=hours,
+        limit=limit,
+    )
+
+    tasks = [MCPCeleryTaskHistoryItem(**t) for t in result["tasks"]]
+
+    return MCPCeleryTaskHistoryResponse(
+        tasks=tasks,
+        count=result["count"],
+        filters_applied=result["filters_applied"],
+        checked_at=result["checked_at"],
+    )
+
+
+@router.get(
+    "/schedule",
+    response_model=MCPCeleryBeatScheduleResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
+async def get_beat_schedule(
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
+    db: Session = Depends(get_db),
+) -> MCPCeleryBeatScheduleResponse:
+    """
+    Get Celery Beat schedule.
+
+    Returns all configured periodic tasks with human-readable schedule descriptions.
+    This reads from the static configuration for accuracy.
+    """
+    service = CeleryAdminService(db)
+    result = await service.get_beat_schedule()
+
+    tasks = [MCPCeleryScheduledTask(**t) for t in result["tasks"]]
+
+    return MCPCeleryBeatScheduleResponse(
+        tasks=tasks,
+        count=result["count"],
         checked_at=result["checked_at"],
     )

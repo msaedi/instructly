@@ -406,3 +406,272 @@ class CeleryAdminService(BaseService):
             "last_task_runs": last_task_runs,
             "checked_at": now,
         }
+
+    # ==================== TIER 2: Active Tasks, Task History, Beat Schedule ====================
+
+    MAX_TASK_HISTORY_HOURS = 24
+    MAX_TASK_HISTORY_LIMIT = 500
+    RESULT_TRUNCATE_LENGTH = 500
+
+    @BaseService.measure_operation("get_active_tasks")
+    async def get_active_tasks(self) -> dict[str, Any]:
+        """Get currently running Celery tasks from Flower.
+
+        Returns a list of active tasks across all workers.
+        """
+        now = datetime.now(timezone.utc)
+        data = await self._call_flower("/api/tasks", params={"state": "STARTED"})
+
+        tasks = []
+        if data:
+            for task_id, task_info in data.items():
+                if not isinstance(task_info, dict):
+                    continue
+
+                # Parse started_at timestamp
+                started = task_info.get("started")
+                started_at = None
+                if started:
+                    try:
+                        started_at = datetime.fromtimestamp(started, tz=timezone.utc)
+                    except (TypeError, ValueError):
+                        pass
+
+                # Truncate args/kwargs
+                args_str = str(task_info.get("args", ""))
+                if len(args_str) > self.ARGS_TRUNCATE_LENGTH:
+                    args_str = args_str[: self.ARGS_TRUNCATE_LENGTH] + "..."
+
+                kwargs_str = str(task_info.get("kwargs", ""))
+                if len(kwargs_str) > self.ARGS_TRUNCATE_LENGTH:
+                    kwargs_str = kwargs_str[: self.ARGS_TRUNCATE_LENGTH] + "..."
+
+                tasks.append(
+                    {
+                        "task_id": task_id,
+                        "task_name": task_info.get("name", "unknown"),
+                        "worker": task_info.get("worker", "unknown"),
+                        "started_at": started_at,
+                        "args": args_str if args_str and args_str != "()" else None,
+                        "kwargs": kwargs_str if kwargs_str and kwargs_str != "{}" else None,
+                    }
+                )
+
+        return {
+            "tasks": tasks,
+            "count": len(tasks),
+            "checked_at": now,
+        }
+
+    @BaseService.measure_operation("get_task_history")
+    async def get_task_history(
+        self,
+        task_name: str | None = None,
+        state: str | None = None,
+        hours: int = 1,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        """Get recent Celery task history from Flower.
+
+        Args:
+            task_name: Filter by task name (partial match via Flower).
+            state: Filter by state (SUCCESS, FAILURE, PENDING, STARTED, RETRY).
+            hours: Look back window (max 24 hours).
+            limit: Maximum number of results (max 500).
+
+        Returns task history with timing and result info.
+        """
+        now = datetime.now(timezone.utc)
+
+        # Cap parameters
+        effective_hours = min(hours, self.MAX_TASK_HISTORY_HOURS)
+        effective_limit = min(limit, self.MAX_TASK_HISTORY_LIMIT)
+
+        # Build query params
+        params: dict[str, Any] = {"limit": effective_limit}
+        if task_name:
+            params["name"] = task_name
+        if state:
+            params["state"] = state
+
+        data = await self._call_flower("/api/tasks", params=params)
+
+        tasks = []
+        cutoff_time = now - timedelta(hours=effective_hours)
+
+        if data:
+            for task_id, task_info in data.items():
+                if not isinstance(task_info, dict):
+                    continue
+
+                # Parse timestamps
+                received_at = None
+                received = task_info.get("received")
+                if received:
+                    try:
+                        received_at = datetime.fromtimestamp(received, tz=timezone.utc)
+                    except (TypeError, ValueError):
+                        pass
+
+                # Skip tasks outside time window
+                if received_at and received_at < cutoff_time:
+                    continue
+
+                started_at = None
+                started = task_info.get("started")
+                if started:
+                    try:
+                        started_at = datetime.fromtimestamp(started, tz=timezone.utc)
+                    except (TypeError, ValueError):
+                        pass
+
+                succeeded_at = None
+                succeeded = task_info.get("succeeded")
+                if succeeded:
+                    try:
+                        succeeded_at = datetime.fromtimestamp(succeeded, tz=timezone.utc)
+                    except (TypeError, ValueError):
+                        pass
+
+                # Calculate runtime if we have start and end times
+                runtime_seconds = None
+                if started_at and succeeded_at:
+                    runtime_seconds = (succeeded_at - started_at).total_seconds()
+
+                # Truncate result
+                result = task_info.get("result")
+                if result:
+                    result_str = str(result)
+                    if len(result_str) > self.RESULT_TRUNCATE_LENGTH:
+                        result = result_str[: self.RESULT_TRUNCATE_LENGTH] + "..."
+                    else:
+                        result = result_str
+
+                tasks.append(
+                    {
+                        "task_id": task_id,
+                        "task_name": task_info.get("name", "unknown"),
+                        "state": task_info.get("state", "unknown"),
+                        "received_at": received_at,
+                        "started_at": started_at,
+                        "succeeded_at": succeeded_at,
+                        "runtime_seconds": runtime_seconds,
+                        "result": result,
+                        "exception": task_info.get("exception"),
+                        "retries": task_info.get("retries", 0),
+                    }
+                )
+
+        # Record filters applied
+        filters_applied = {
+            "task_name": task_name,
+            "state": state,
+            "hours": effective_hours,
+            "limit": effective_limit,
+        }
+
+        return {
+            "tasks": tasks,
+            "count": len(tasks),
+            "filters_applied": filters_applied,
+            "checked_at": now,
+        }
+
+    @BaseService.measure_operation("get_beat_schedule")
+    async def get_beat_schedule(self) -> dict[str, Any]:
+        """Get Celery Beat schedule from static configuration.
+
+        Returns the configured periodic tasks with human-readable schedules.
+        This reads from the static configuration rather than Flower for accuracy.
+        """
+        from app.tasks.beat_schedule import get_beat_schedule as get_schedule_config
+
+        now = datetime.now(timezone.utc)
+        tasks = []
+
+        schedule_config = get_schedule_config()
+
+        for name, config in schedule_config.items():
+            task = config.get("task", "")
+            schedule = config.get("schedule")
+
+            # Convert schedule to human-readable string
+            schedule_str = self._format_schedule(schedule)
+
+            tasks.append(
+                {
+                    "name": name,
+                    "task": task,
+                    "schedule": schedule_str,
+                    "last_run": None,  # Would need Flower/DB tracking to know this
+                    "next_run": None,  # Would need scheduler state to calculate
+                    "enabled": True,
+                }
+            )
+
+        return {
+            "tasks": tasks,
+            "count": len(tasks),
+            "checked_at": now,
+        }
+
+    @staticmethod
+    def _format_schedule(schedule: object) -> str:
+        """Convert a Celery schedule to human-readable format."""
+        from celery.schedules import crontab
+
+        if isinstance(schedule, timedelta):
+            total_seconds = int(schedule.total_seconds())
+            if total_seconds < 60:
+                return f"every {total_seconds} seconds"
+            elif total_seconds < 3600:
+                minutes = total_seconds // 60
+                return f"every {minutes} minute{'s' if minutes != 1 else ''}"
+            else:
+                hours = total_seconds // 3600
+                return f"every {hours} hour{'s' if hours != 1 else ''}"
+        elif isinstance(schedule, crontab):
+            # Build human-readable crontab description
+            # Use getattr for crontab internals (they're undocumented but stable)
+            minute = str(getattr(schedule, "_orig_minute", "*"))
+            hour = str(getattr(schedule, "_orig_hour", "*"))
+            dom = str(getattr(schedule, "_orig_day_of_month", "*"))
+            month = str(getattr(schedule, "_orig_month_of_year", "*"))
+            dow = str(getattr(schedule, "_orig_day_of_week", "*"))
+
+            # Common patterns
+            if minute.startswith("*/"):
+                interval = minute[2:]
+                return f"every {interval} minutes"
+            elif hour.startswith("*/"):
+                interval = hour[2:]
+                return f"every {interval} hours"
+
+            # Specific times
+            if minute != "*" and hour != "*":
+                time_str = f"{hour.zfill(2)}:{minute.zfill(2)} UTC"
+                if dow != "*":
+                    dow_names = {
+                        "0": "Sunday",
+                        "1": "Monday",
+                        "2": "Tuesday",
+                        "3": "Wednesday",
+                        "4": "Thursday",
+                        "5": "Friday",
+                        "6": "Saturday",
+                    }
+                    dow_name = dow_names.get(dow, f"day {dow}")
+                    return f"{dow_name} at {time_str}"
+                elif dom != "*":
+                    return f"day {dom} of month at {time_str}"
+                else:
+                    return f"daily at {time_str}"
+
+            # Hourly at specific minute
+            if minute != "*" and hour == "*":
+                return f"hourly at :{minute.zfill(2)}"
+
+            # Fallback: raw crontab representation
+            return f"cron({minute} {hour} {dom} {month} {dow})"
+
+        return str(schedule)

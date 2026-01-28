@@ -307,6 +307,9 @@ class TestCeleryPaymentHealthEndpoint:
             "/api/v1/admin/mcp/celery/queues",
             "/api/v1/admin/mcp/celery/failed",
             "/api/v1/admin/mcp/celery/payment-health",
+            "/api/v1/admin/mcp/celery/tasks/active",
+            "/api/v1/admin/mcp/celery/tasks/history",
+            "/api/v1/admin/mcp/celery/schedule",
         ]
 
         for endpoint in endpoints:
@@ -315,3 +318,216 @@ class TestCeleryPaymentHealthEndpoint:
                 headers={"Authorization": "Bearer invalid-token"},
             )
             assert res.status_code == 401, f"Endpoint {endpoint} should reject invalid token"
+
+
+# ==================== TIER 2: Active Tasks, Task History, Beat Schedule ====================
+
+
+class TestCeleryActiveTasksEndpoint:
+    """Tests for GET /api/v1/admin/mcp/celery/tasks/active"""
+
+    def test_get_active_tasks_success(self, client: TestClient, db, mcp_service_headers):
+        """Test successful retrieval of active tasks."""
+        mock_flower_response = {
+            "task-1": {
+                "name": "app.tasks.send_email",
+                "worker": "celery@worker1",
+                "started": 1704067200,
+                "args": "(1, 2)",
+                "kwargs": "{'key': 'value'}",
+            },
+            "task-2": {
+                "name": "app.tasks.process_payment",
+                "worker": "celery@worker2",
+                "started": 1704067300,
+            },
+        }
+
+        with patch(
+            "app.services.celery_admin_service.CeleryAdminService._call_flower",
+            new_callable=AsyncMock,
+            return_value=mock_flower_response,
+        ):
+            res = client.get(
+                "/api/v1/admin/mcp/celery/tasks/active",
+                headers=mcp_service_headers,
+            )
+
+        assert res.status_code == 200
+        data = res.json()
+
+        assert "tasks" in data
+        assert "count" in data
+        assert "checked_at" in data
+
+        assert data["count"] == 2
+        assert len(data["tasks"]) == 2
+
+        task1 = next(t for t in data["tasks"] if t["task_id"] == "task-1")
+        assert task1["task_name"] == "app.tasks.send_email"
+        assert task1["worker"] == "celery@worker1"
+        assert task1["started_at"] is not None
+
+    def test_get_active_tasks_empty(self, client: TestClient, db, mcp_service_headers):
+        """Test when there are no active tasks."""
+        with patch(
+            "app.services.celery_admin_service.CeleryAdminService._call_flower",
+            new_callable=AsyncMock,
+            return_value={},
+        ):
+            res = client.get(
+                "/api/v1/admin/mcp/celery/tasks/active",
+                headers=mcp_service_headers,
+            )
+
+        assert res.status_code == 200
+        data = res.json()
+
+        assert data["count"] == 0
+        assert data["tasks"] == []
+
+    def test_get_active_tasks_requires_auth(self, client: TestClient):
+        """Test that endpoint requires authentication."""
+        res = client.get("/api/v1/admin/mcp/celery/tasks/active")
+        assert res.status_code == 401
+
+
+class TestCeleryTaskHistoryEndpoint:
+    """Tests for GET /api/v1/admin/mcp/celery/tasks/history"""
+
+    def test_get_task_history_success(self, client: TestClient, db, mcp_service_headers):
+        """Test successful retrieval of task history."""
+        mock_flower_response = {
+            "task-1": {
+                "name": "app.tasks.send_email",
+                "state": "SUCCESS",
+                "received": 1704067200,
+                "started": 1704067210,
+                "succeeded": 1704067220,
+                "result": "Email sent",
+                "retries": 0,
+            },
+            "task-2": {
+                "name": "app.tasks.process_payment",
+                "state": "FAILURE",
+                "received": 1704067300,
+                "exception": "ValueError('Invalid')",
+                "retries": 2,
+            },
+        }
+
+        with patch(
+            "app.services.celery_admin_service.CeleryAdminService._call_flower",
+            new_callable=AsyncMock,
+            return_value=mock_flower_response,
+        ):
+            res = client.get(
+                "/api/v1/admin/mcp/celery/tasks/history?hours=24",
+                headers=mcp_service_headers,
+            )
+
+        assert res.status_code == 200
+        data = res.json()
+
+        assert "tasks" in data
+        assert "count" in data
+        assert "filters_applied" in data
+        assert "checked_at" in data
+
+        assert data["filters_applied"]["hours"] == 24
+
+    def test_get_task_history_with_filters(self, client: TestClient, db, mcp_service_headers):
+        """Test task history with filters."""
+        with patch(
+            "app.services.celery_admin_service.CeleryAdminService._call_flower",
+            new_callable=AsyncMock,
+            return_value={},
+        ):
+            res = client.get(
+                "/api/v1/admin/mcp/celery/tasks/history?task_name=send_email&state=FAILURE&hours=12&limit=50",
+                headers=mcp_service_headers,
+            )
+
+        assert res.status_code == 200
+        data = res.json()
+
+        assert data["filters_applied"]["task_name"] == "send_email"
+        assert data["filters_applied"]["state"] == "FAILURE"
+        assert data["filters_applied"]["hours"] == 12
+        assert data["filters_applied"]["limit"] == 50
+
+    def test_get_task_history_invalid_hours(self, client: TestClient, db, mcp_service_headers):
+        """Test that hours parameter is validated."""
+        res = client.get(
+            "/api/v1/admin/mcp/celery/tasks/history?hours=100",
+            headers=mcp_service_headers,
+        )
+
+        # FastAPI validates hours <= 24, so this should return 422
+        assert res.status_code == 422
+
+    def test_get_task_history_invalid_limit(self, client: TestClient, db, mcp_service_headers):
+        """Test that limit parameter is validated."""
+        res = client.get(
+            "/api/v1/admin/mcp/celery/tasks/history?limit=1000",
+            headers=mcp_service_headers,
+        )
+
+        # FastAPI validates limit <= 500, so this should return 422
+        assert res.status_code == 422
+
+    def test_get_task_history_requires_auth(self, client: TestClient):
+        """Test that endpoint requires authentication."""
+        res = client.get("/api/v1/admin/mcp/celery/tasks/history")
+        assert res.status_code == 401
+
+
+class TestCeleryBeatScheduleEndpoint:
+    """Tests for GET /api/v1/admin/mcp/celery/schedule"""
+
+    def test_get_beat_schedule_success(self, client: TestClient, db, mcp_service_headers):
+        """Test successful retrieval of beat schedule."""
+        res = client.get(
+            "/api/v1/admin/mcp/celery/schedule",
+            headers=mcp_service_headers,
+        )
+
+        assert res.status_code == 200
+        data = res.json()
+
+        assert "tasks" in data
+        assert "count" in data
+        assert "checked_at" in data
+
+        # Should have at least some scheduled tasks
+        assert data["count"] > 0
+        assert len(data["tasks"]) == data["count"]
+
+        # Each task should have expected fields
+        for task in data["tasks"]:
+            assert "name" in task
+            assert "task" in task
+            assert "schedule" in task
+            assert "enabled" in task
+
+    def test_get_beat_schedule_contains_known_tasks(
+        self, client: TestClient, db, mcp_service_headers
+    ):
+        """Test that beat schedule contains expected tasks."""
+        res = client.get(
+            "/api/v1/admin/mcp/celery/schedule",
+            headers=mcp_service_headers,
+        )
+
+        assert res.status_code == 200
+        data = res.json()
+
+        task_names = [t["name"] for t in data["tasks"]]
+
+        # Check for some expected tasks
+        assert "notifications-dispatch-pending" in task_names
+
+    def test_get_beat_schedule_requires_auth(self, client: TestClient):
+        """Test that endpoint requires authentication."""
+        res = client.get("/api/v1/admin/mcp/celery/schedule")
+        assert res.status_code == 401

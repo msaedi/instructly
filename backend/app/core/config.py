@@ -935,20 +935,29 @@ class Settings(BaseSettings):
 
     # Flower (Celery monitoring) configuration
     flower_url: str = Field(
-        default="https://flower-xwcb.onrender.com",
+        default="http://localhost:5555",
         alias="FLOWER_URL",
-        description="Flower API base URL for Celery monitoring",
+        description="Flower monitoring URL",
     )
-    flower_user: str | None = Field(
+    flower_basic_auth: str | None = Field(
         default=None,
-        alias="FLOWER_USER",
-        description="Optional basic auth username for Flower API",
+        alias="FLOWER_BASIC_AUTH",
+        description="Flower HTTP Basic Auth in format 'username:password'",
     )
-    flower_password: SecretStr | None = Field(
-        default=None,
-        alias="FLOWER_PASSWORD",
-        description="Optional basic auth password for Flower API",
-    )
+
+    @property
+    def flower_user(self) -> str | None:
+        """Extract username from FLOWER_BASIC_AUTH."""
+        if self.flower_basic_auth and ":" in self.flower_basic_auth:
+            return self.flower_basic_auth.split(":", 1)[0]
+        return None
+
+    @property
+    def flower_password(self) -> str | None:
+        """Extract password from FLOWER_BASIC_AUTH."""
+        if self.flower_basic_auth and ":" in self.flower_basic_auth:
+            return self.flower_basic_auth.split(":", 1)[1]
+        return None
 
     email_enabled: bool = Field(default=True, description="Flag to enable/disable email sending")
 

@@ -317,3 +317,35 @@ class InstaInstruClient:
             "GET",
             "/api/v1/admin/mcp/celery/payment-health",
         )
+
+    # Tier 2 Celery endpoints
+
+    async def get_celery_active_tasks(self) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/tasks/active",
+        )
+
+    async def get_celery_task_history(
+        self,
+        task_name: str | None = None,
+        state: str | None = None,
+        hours: int = 1,
+        limit: int = 100,
+    ) -> dict:
+        params: dict[str, Any] = {"hours": hours, "limit": limit}
+        if task_name:
+            params["task_name"] = task_name
+        if state:
+            params["state"] = state
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/tasks/history",
+            params=params,
+        )
+
+    async def get_celery_beat_schedule(self) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/schedule",
+        )

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from ._strict_base import StrictModel
 
@@ -99,4 +99,69 @@ class MCPCeleryPaymentHealthResponse(StrictModel):
     pending_captures: int
     failed_payments_24h: int
     last_task_runs: list[MCPCeleryLastTaskRun]
+    checked_at: datetime
+
+
+# ==================== TIER 2: Active Tasks, Task History, Beat Schedule ====================
+
+
+class MCPCeleryActiveTask(StrictModel):
+    """Information about a currently running Celery task."""
+
+    task_id: str
+    task_name: str
+    worker: str
+    started_at: Optional[datetime] = None
+    args: Optional[str] = None  # Truncated/sanitized
+    kwargs: Optional[str] = None  # Truncated/sanitized
+
+
+class MCPCeleryActiveTasksResponse(StrictModel):
+    """Response for active tasks endpoint."""
+
+    tasks: list[MCPCeleryActiveTask]
+    count: int
+    checked_at: datetime
+
+
+class MCPCeleryTaskHistoryItem(StrictModel):
+    """Information about a historical Celery task execution."""
+
+    task_id: str
+    task_name: str
+    state: str
+    received_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
+    succeeded_at: Optional[datetime] = None  # or failed_at
+    runtime_seconds: Optional[float] = None
+    result: Optional[str] = None  # Truncated for SUCCESS
+    exception: Optional[str] = None  # For FAILURE
+    retries: int = 0
+
+
+class MCPCeleryTaskHistoryResponse(StrictModel):
+    """Response for task history endpoint."""
+
+    tasks: list[MCPCeleryTaskHistoryItem]
+    count: int
+    filters_applied: dict[str, Any]
+    checked_at: datetime
+
+
+class MCPCeleryScheduledTask(StrictModel):
+    """Information about a scheduled periodic task."""
+
+    name: str
+    task: str
+    schedule: str  # Human-readable: "every 5 minutes", "daily at 00:00 UTC"
+    last_run: Optional[datetime] = None
+    next_run: Optional[datetime] = None
+    enabled: bool = True
+
+
+class MCPCeleryBeatScheduleResponse(StrictModel):
+    """Response for beat schedule endpoint."""
+
+    tasks: list[MCPCeleryScheduledTask]
+    count: int
     checked_at: datetime

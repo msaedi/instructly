@@ -34,7 +34,7 @@ services:
     plan: starter
     region: ohio
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=100 --pool=prefork"
+    startCommand: "celery -A app.tasks.celery_app worker -E --loglevel=info --concurrency=2 --max-tasks-per-child=100 --pool=prefork"
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.18
