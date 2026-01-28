@@ -349,3 +349,54 @@ class InstaInstruClient:
             "GET",
             "/api/v1/admin/mcp/celery/schedule",
         )
+
+    # ==================== Operations endpoints ====================
+
+    async def get_booking_summary(self, period: str = "today") -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/ops/bookings/summary",
+            params={"period": period},
+        )
+
+    async def get_recent_bookings(
+        self,
+        status: str | None = None,
+        limit: int = 20,
+        hours: int = 24,
+    ) -> dict:
+        params: dict[str, Any] = {"limit": limit, "hours": hours}
+        if status:
+            params["status"] = status
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/ops/bookings/recent",
+            params=params,
+        )
+
+    async def get_payment_pipeline(self) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/ops/payments/pipeline",
+        )
+
+    async def get_pending_payouts(self, limit: int = 20) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/ops/payments/pending-payouts",
+            params={"limit": limit},
+        )
+
+    async def lookup_user(self, identifier: str) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/ops/users/lookup",
+            params={"identifier": identifier},
+        )
+
+    async def get_user_booking_history(self, user_id: str, limit: int = 20) -> dict:
+        return await self.call(
+            "GET",
+            f"/api/v1/admin/mcp/ops/users/{user_id}/bookings",
+            params={"limit": limit},
+        )

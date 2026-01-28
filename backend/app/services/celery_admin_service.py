@@ -8,11 +8,10 @@ import logging
 from typing import Any, cast
 
 import httpx
-from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.repositories.admin_ops_repository import AdminOpsRepository
 
 from .base import BaseService
 
@@ -40,6 +39,7 @@ class CeleryAdminService(BaseService):
     def __init__(self, db: Session) -> None:
         """Initialize the service."""
         super().__init__(db)
+        self.repository = AdminOpsRepository(db)
 
     async def _call_flower(
         self,
@@ -246,63 +246,28 @@ class CeleryAdminService(BaseService):
 
     def _query_pending_authorizations(self, now: datetime) -> int:
         """Query pending authorizations count (sync helper for asyncio.to_thread)."""
-        result = (
-            self.db.query(func.count(Booking.id))  # repo-pattern-ignore: admin monitoring
-            .filter(
-                Booking.payment_status == PaymentStatus.SCHEDULED.value,
-                Booking.booking_date >= now.date(),
-                Booking.status == BookingStatus.CONFIRMED.value,
-            )
-            .scalar()
-        )
-        return result or 0
+        return self.repository.count_pending_authorizations(from_date=now.date())
 
     def _query_overdue_authorizations(self, now: datetime) -> int:
         """Query overdue authorizations count (sync helper for asyncio.to_thread)."""
         cutoff_24h = now + timedelta(hours=24)
-        result = (
-            self.db.query(func.count(Booking.id))  # repo-pattern-ignore: admin monitoring
-            .filter(
-                Booking.payment_status == PaymentStatus.SCHEDULED.value,
-                Booking.booking_start_utc <= cutoff_24h,
-                Booking.booking_start_utc > now,
-                Booking.status == BookingStatus.CONFIRMED.value,
-            )
-            .scalar()
+        return self.repository.count_overdue_authorizations(
+            cutoff_time=cutoff_24h, current_time=now
         )
-        return result or 0
 
     def _query_pending_captures(self) -> int:
         """Query pending captures count (sync helper for asyncio.to_thread)."""
-        result = (
-            self.db.query(func.count(Booking.id))  # repo-pattern-ignore: admin monitoring
-            .filter(
-                Booking.payment_status == PaymentStatus.AUTHORIZED.value,
-                Booking.status == BookingStatus.COMPLETED.value,
-            )
-            .scalar()
+        from app.models.booking import BookingStatus, PaymentStatus
+
+        return self.repository.count_bookings_by_payment_and_status(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            booking_status=BookingStatus.COMPLETED.value,
         )
-        return result or 0
 
     def _query_failed_payments_24h(self, now: datetime) -> int:
         """Query failed payments in last 24h count (sync helper for asyncio.to_thread)."""
         cutoff_24h_ago = now - timedelta(hours=24)
-        result = (
-            self.db.query(func.count(Booking.id))  # repo-pattern-ignore: admin monitoring
-            .filter(
-                and_(
-                    Booking.payment_status.in_(
-                        [
-                            PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-                            PaymentStatus.MANUAL_REVIEW.value,
-                        ]
-                    ),
-                    Booking.updated_at >= cutoff_24h_ago,
-                )
-            )
-            .scalar()
-        )
-        return result or 0
+        return self.repository.count_failed_payments(updated_since=cutoff_24h_ago)
 
     @BaseService.measure_operation("get_payment_health")
     async def get_payment_health(self) -> dict[str, Any]:
@@ -314,7 +279,6 @@ class CeleryAdminService(BaseService):
         issues: list[dict[str, Any]] = []
 
         # Run all DB queries in parallel using asyncio.to_thread
-        # repo-pattern-ignore: MCP admin read-only aggregate queries for monitoring
         (
             pending_auth_count,
             overdue_auth_count,

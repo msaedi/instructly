@@ -23,7 +23,7 @@ from .client import InstaInstruClient
 from .config import Settings
 from .oauth.crypto import build_jwks, normalize_pem
 from .oauth.endpoints import attach_oauth_routes
-from .tools import celery, founding, instructors, invites, metrics, search
+from .tools import celery, founding, instructors, invites, metrics, operations, search
 
 logger = logging.getLogger(__name__)
 
@@ -493,6 +493,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     founding.register_tools(mcp, client)
     instructors.register_tools(mcp, client)
     invites.register_tools(mcp, client)
+    operations.register_tools(mcp, client)
     search.register_tools(mcp, client)
     metrics.register_tools(mcp, client)
 
