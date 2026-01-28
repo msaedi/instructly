@@ -182,6 +182,21 @@ class Settings(BaseSettings):
         alias="MCP_SERVICE_ACCOUNT_EMAIL",
         description="Service account email used for MCP audit logging",
     )
+    workos_jwks_url: str = Field(
+        default="",
+        alias="WORKOS_JWKS_URL",
+        description="WorkOS JWKS URL for M2M token verification",
+    )
+    workos_m2m_audience: str = Field(
+        default="",
+        alias="WORKOS_M2M_AUDIENCE",
+        description="Audience for WorkOS M2M tokens",
+    )
+    workos_issuer: str = Field(
+        default="",
+        alias="WORKOS_ISSUER",
+        description="Issuer for WorkOS M2M tokens",
+    )
     temp_token_iss: str = Field(
         default="instainstru-auth",
         alias="TEMP_TOKEN_ISS",

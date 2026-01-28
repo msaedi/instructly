@@ -21,6 +21,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from ..core.config import settings
+from ..m2m_auth import has_scope, verify_m2m_token
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,52 @@ class CsrfOriginMiddlewareASGI:
             return False
         return secrets.compare_digest(token, expected)
 
+    async def _check_service_auth(self, auth_header: str, method: str, path: str) -> bool:
+        if not auth_header.startswith("Bearer "):
+            return False
+
+        token = auth_header[7:]
+
+        if self._is_service_token(token):
+            logger.info(
+                "csrf_bypass_service_token",
+                extra={
+                    "service": "mcp",
+                    "auth_method": "static_token",
+                    "method": method,
+                    "path": path,
+                },
+            )
+            return True
+
+        claims = await verify_m2m_token(token)
+        if claims:
+            required_scope = (
+                "mcp:write" if method in {"POST", "PUT", "DELETE", "PATCH"} else "mcp:read"
+            )
+            if has_scope(claims, required_scope):
+                logger.info(
+                    "csrf_bypass_m2m_token",
+                    extra={
+                        "service": claims.sub,
+                        "auth_method": "m2m_jwt",
+                        "scopes": claims.scope,
+                        "method": method,
+                        "path": path,
+                    },
+                )
+                return True
+            logger.warning(
+                "m2m_token_insufficient_scope",
+                extra={
+                    "service": claims.sub,
+                    "required": required_scope,
+                    "has": claims.scope,
+                },
+            )
+
+        return False
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
@@ -140,15 +187,9 @@ class CsrfOriginMiddlewareASGI:
         except Exception:
             auth_header = auth_header or ""
 
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-            if self._is_service_token(token):
-                logger.info(
-                    "csrf_bypass_service_token",
-                    extra={"service": "mcp", "method": method, "path": path},
-                )
-                await self.app(scope, receive, send)
-                return
+        if await self._check_service_auth(auth_header, method, path):
+            await self.app(scope, receive, send)
+            return
 
         allowed_host = self._allowed_frontend_host()
         if not allowed_host:
