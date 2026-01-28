@@ -148,6 +148,7 @@ from .routes.v1.admin import (
     search_config as admin_search_config_v1,
 )
 from .routes.v1.admin.mcp import (
+    celery as admin_mcp_celery_v1,
     founding as admin_mcp_founding_v1,
     instructors as admin_mcp_instructors_v1,
     invites as admin_mcp_invites_v1,
@@ -1072,6 +1073,7 @@ api_v1.include_router(admin_mcp_instructors_v1.router, prefix="/admin/mcp/instru
 api_v1.include_router(admin_mcp_invites_v1.router, prefix="/admin/mcp/invites")  # type: ignore[attr-defined]
 api_v1.include_router(admin_mcp_search_v1.router, prefix="/admin/mcp/search")  # type: ignore[attr-defined]
 api_v1.include_router(admin_mcp_metrics_v1.router, prefix="/admin/mcp/metrics")  # type: ignore[attr-defined]
+api_v1.include_router(admin_mcp_celery_v1.router, prefix="/admin/mcp/celery")  # type: ignore[attr-defined]
 # Phase 23 v1 webhooks router
 api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
 # Phase 24.5 v1 admin operations routers

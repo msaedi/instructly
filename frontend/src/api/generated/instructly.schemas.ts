@@ -3663,9 +3663,122 @@ export interface LoginResponse {
   token_type?: string | null;
 }
 
+export type MCPActorPrincipalType =
+  (typeof MCPActorPrincipalType)[keyof typeof MCPActorPrincipalType];
+
+export const MCPActorPrincipalType = {
+  user: 'user',
+  service: 'service',
+} as const;
+
 export interface MCPActor {
   email: string;
   id: string;
+  principal_type?: MCPActorPrincipalType;
+}
+
+/**
+ * Information about a failed Celery task.
+ */
+export interface MCPCeleryFailedTask {
+  exception?: string | null;
+  failed_at?: string | null;
+  queue?: string | null;
+  task_args?: string | null;
+  task_id: string;
+  task_kwargs?: string | null;
+  task_name: string;
+  traceback?: string | null;
+}
+
+/**
+ * Response for failed tasks endpoint.
+ */
+export interface MCPCeleryFailedTasksResponse {
+  checked_at: string;
+  count: number;
+  failed_tasks: MCPCeleryFailedTask[];
+}
+
+/**
+ * Information about the last run of a payment task.
+ */
+export interface MCPCeleryLastTaskRun {
+  last_run_at?: string | null;
+  status?: string | null;
+  task_name: string;
+}
+
+/**
+ * A payment health issue.
+ */
+export interface MCPCeleryPaymentHealthIssue {
+  count: number;
+  message: string;
+  severity: string;
+}
+
+/**
+ * Response for payment health endpoint.
+ */
+export interface MCPCeleryPaymentHealthResponse {
+  checked_at: string;
+  failed_payments_24h: number;
+  healthy: boolean;
+  issues: MCPCeleryPaymentHealthIssue[];
+  last_task_runs: MCPCeleryLastTaskRun[];
+  overdue_authorizations: number;
+  pending_authorizations: number;
+  pending_captures: number;
+}
+
+/**
+ * Information about a single Celery queue.
+ */
+export interface MCPCeleryQueueInfo {
+  consumers: number;
+  depth: number;
+  name: string;
+}
+
+/**
+ * Response for Celery queues endpoint.
+ */
+export interface MCPCeleryQueuesResponse {
+  checked_at: string;
+  queues: MCPCeleryQueueInfo[];
+  total_depth: number;
+}
+
+/**
+ * Information about a single Celery worker.
+ */
+export interface MCPCeleryWorkerInfo {
+  active_tasks: number;
+  concurrency: number;
+  hostname: string;
+  processed_total: number;
+  queues: string[];
+  status: string;
+}
+
+/**
+ * Summary counts for workers.
+ */
+export interface MCPCeleryWorkersSummary {
+  offline_workers: number;
+  online_workers: number;
+  total_active_tasks: number;
+  total_workers: number;
+}
+
+/**
+ * Response for Celery workers endpoint.
+ */
+export interface MCPCeleryWorkersResponse {
+  checked_at: string;
+  summary: MCPCeleryWorkersSummary;
+  workers: MCPCeleryWorkerInfo[];
 }
 
 export interface MCPConversionRate {
@@ -7180,6 +7293,14 @@ export type ListUnresolvedLocationQueriesApiV1AdminLocationLearningUnresolvedGet
   /**
    * @minimum 1
    * @maximum 500
+   */
+  limit?: number;
+};
+
+export type GetFailedTasksApiV1AdminMcpCeleryFailedGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 100
    */
   limit?: number;
 };

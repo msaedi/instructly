@@ -1,288 +1,510 @@
 # InstaInstru MCP Admin Copilot Server
-*Complete Implementation Guide*
-*Last Updated: January 27, 2026*
+*Comprehensive Reference Document*
+*Last Updated: January 28, 2026*
 
 ## 🎯 Overview
 
 The MCP Admin Copilot is an AI-powered admin interface for InstaInstru, enabling natural language operations through LLM clients like ChatGPT, Claude Desktop, and MCP Inspector.
 
-| Component | Value |
-|-----------|-------|
+**What it does:** Allows administrators to query instructor data, analyze search patterns, send invitations, and monitor the founding instructor program—all through conversational AI.
+
+| Property | Value |
+|----------|-------|
 | **Production URL** | https://mcp.instainstru.com |
-| **Transport** | streamable-http (with json_response) |
-| **Auth** | OAuth 2.0 (WorkOS AuthKit) |
-| **Tools** | 10 admin operations |
+| **Protocol** | Model Context Protocol (MCP) |
+| **Transport** | Streamable HTTP with JSON responses |
+| **Auth** | OAuth2 M2M (JWT) + static token fallback |
 | **Framework** | FastMCP 2.14.3+ |
+| **Hosting** | Render (Virginia region) |
+
+---
+
+## 🛠️ Available Tools (10 Total)
+
+### Founding Instructor Management
+
+| Tool | Description | Use Case |
+|------|-------------|----------|
+| `instainstru_founding_funnel_summary` | Pipeline stages, conversion rates, cap status | "How many founding slots are left?" |
+| `instainstru_founding_stuck_instructors` | Find instructors stuck in onboarding | "Who hasn't completed onboarding in 7 days?" |
+
+### Instructor Operations
+
+| Tool | Description | Use Case |
+|------|-------------|----------|
+| `instainstru_instructors_list` | List with filters (status, category, is_founding) | "Show all founding music instructors" |
+| `instainstru_instructors_coverage` | Service coverage by category | "What categories need more instructors?" |
+| `instainstru_instructors_detail` | Full profile by ID, email, or name | "Look up sarah.chen@example.com" |
+
+### Search Analytics
+
+| Tool | Description | Use Case |
+|------|-------------|----------|
+| `instainstru_search_top_queries` | Top queries with conversion rates | "What are students searching for?" |
+| `instainstru_search_zero_results` | Queries with no results (supply gaps) | "What services are students looking for that we don't have?" |
+
+### Outreach
+
+| Tool | Description | Use Case |
+|------|-------------|----------|
+| `instainstru_invites_preview` | Preview invite batch before sending | "Preview sending a founding invite to john@example.com" |
+| `instainstru_invites_send` | Send invites after confirmation | "Send that invite" |
+
+### Metrics
+
+| Tool | Description | Use Case |
+|------|-------------|----------|
+| `instainstru_metrics_describe` | Get definition for a metric name | "What does GMV mean?" |
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────┐     ┌──────────────────────┐
-│   LLM Client        │     │   InstaInstru API    │
-│  (ChatGPT/Claude)   │     │  api.instainstru.com │
-└─────────┬───────────┘     └──────────┬───────────┘
-          │                            │
-          │ MCP Protocol               │ REST API
-          │ (streamable-http)          │ (Bearer Token)
-          ▼                            ▼
-┌─────────────────────────────────────────────────┐
-│           MCP Server (FastMCP)                   │
-│           mcp.instainstru.com                    │
-├─────────────────────────────────────────────────┤
-│  /mcp          - MCP protocol endpoint           │
-│  /oauth2/*     - OAuth proxy to WorkOS           │
-│  /.well-known/* - OAuth discovery metadata       │
-│  /api/v1/health - Health check                   │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    LLM Client (ChatGPT/Claude)                  │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ HTTPS + JSON-RPC
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    MCP Server (Render)                          │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ DualAuthMiddleware                                       │   │
+│  │ • OAuth 2.0 (WorkOS) for client discovery               │   │
+│  │ • Unauthenticated: initialize, tools/list               │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ FastMCP Application                                      │   │
+│  │ • transport="streamable-http"                           │   │
+│  │ • json_response=True (critical for ChatGPT)             │   │
+│  │ • stateless_http=True (load balancer compatible)        │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ M2M Token Manager                                        │   │
+│  │ • Fetches JWT from WorkOS (client_credentials grant)    │   │
+│  │ • 1-hour tokens, auto-refresh with 60s buffer           │   │
+│  │ • Fallback to static service token                       │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ InstaInstruClient (httpx)                               │   │
+│  │ • 30s read timeout, 60s for slow endpoints              │   │
+│  │ • Bearer token (M2M JWT or static)                      │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ HTTPS + Bearer Token (M2M JWT)
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              InstaInstru Backend API                            │
+│              (api.instainstru.com)                              │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Principal-Based Authentication                           │   │
+│  │ • Verify JWT via JWKS (1-hour cache)                    │   │
+│  │ • Extract ServicePrincipal from claims                  │   │
+│  │ • Enforce scopes: mcp:read, mcp:write                   │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ /api/v1/admin/mcp/* endpoints                           │   │
+│  │ • founding/funnel-summary                                │   │
+│  │ • instructors/list, coverage, detail                    │   │
+│  │ • search/top-queries, zero-results                      │   │
+│  │ • invites/preview, send                                 │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
----
+### Key Components
 
-## 🔧 10 Admin Tools
-
-### Founding Instructor Management
-
-| Tool | Description |
-|------|-------------|
-| `instainstru_founding_funnel_summary` | Pipeline stages, conversion rates, founding cap status (0/100 used) |
-| `instainstru_founding_stuck_instructors` | Find instructors stuck in onboarding by stage/days |
-
-### Instructor Operations
-
-| Tool | Description |
-|------|-------------|
-| `instainstru_instructors_list` | List with filters (status, category, service, is_founding) |
-| `instainstru_instructors_coverage` | Service coverage grouped by category/service |
-| `instainstru_instructors_detail` | Full profile by ID, email, or name |
-
-### Search Analytics
-
-| Tool | Description |
-|------|-------------|
-| `instainstru_search_top_queries` | Top queries with count, avg results, conversion rate |
-| `instainstru_search_zero_results` | Queries returning no results (supply gap analysis) |
-
-### Outreach
-
-| Tool | Description |
-|------|-------------|
-| `instainstru_invites_preview` | Preview invite batch with founding status grant option |
-| `instainstru_invites_send` | Send invites after confirming preview token |
-
-### Metrics
-
-| Tool | Description |
-|------|-------------|
-| `instainstru_metrics_describe` | Get definition for a specific metric name |
+| Component | File | Purpose |
+|-----------|------|---------|
+| **Server** | `server.py` | FastMCP app, middleware, health check |
+| **Auth Middleware** | `server.py` | DualAuthMiddleware for OAuth + Bearer |
+| **M2M Token** | `client.py` | WorkOS M2M JWT fetching and caching |
+| **API Client** | `client.py` | httpx client for backend calls |
+| **Tools** | `tools/*.py` | MCP tool definitions |
+| **Config** | `config.py` | pydantic-settings with env vars |
 
 ---
 
 ## 🔐 Authentication
 
-### OAuth 2.0 Flow (for LLM Clients)
+### Two-Layer Auth Architecture
+
+The MCP system has two authentication layers:
+
+| Layer | Purpose | Method |
+|-------|---------|--------|
+| **Client → MCP Server** | Verify LLM client identity | OAuth 2.0 (ChatGPT) or Bearer token |
+| **MCP Server → Backend** | Service-to-service auth | OAuth2 M2M JWT (WorkOS) |
+
+### OAuth2 M2M Flow (Server → Backend)
 
 ```
-1. Client → GET /.well-known/oauth-protected-resource
-   ← Returns authorization_servers: ["https://mcp.instainstru.com"]
-
-2. Client → GET /.well-known/oauth-authorization-server
-   ← Returns rewritten metadata with proxied endpoints
-
-3. Client → POST /oauth2/register (proxied to WorkOS)
-   ← Dynamic client registration
-
-4. User redirected to WorkOS login
-   ← Authenticates with email
-
-5. Client → POST /oauth2/token (proxied to WorkOS)
-   ← Token exchange
-
-6. Client → POST /mcp with Bearer token
-   ← Server validates JWT + checks email allowlist
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  MCP Server     │     │  WorkOS         │     │  Backend API    │
+└────────┬────────┘     └────────┬────────┘     └────────┬────────┘
+         │                       │                       │
+         │ POST /oauth2/token    │                       │
+         │ (client_credentials)  │                       │
+         │──────────────────────>│                       │
+         │                       │                       │
+         │ JWT (1-hour expiry)   │                       │
+         │<──────────────────────│                       │
+         │                       │                       │
+         │                       │ GET /admin/mcp/*      │
+         │                       │ Authorization: Bearer │
+         │                       │──────────────────────>│
+         │                       │                       │
+         │                       │                       │ Verify JWT (JWKS)
+         │                       │                       │ Extract Principal
+         │                       │                       │ Check Scopes
+         │                       │                       │
+         │                       │        200 OK         │
+         │                       │<──────────────────────│
 ```
 
-### Email Allowlist
+### Principal-Based Authorization (Backend)
 
-Access restricted to:
-- `admin@instainstru.com`
-- `faeze@instainstru.com`
-- `mehdi@instainstru.com`
+The backend uses a Principal abstraction to handle both human and service actors:
 
-### Backend API Authentication
-
-The MCP server authenticates to the InstaInstru API using a service token:
+```python
+@runtime_checkable
+class Principal(Protocol):
+    @property
+    def id(self) -> str: ...        # For audit trails
+    @property
+    def identifier(self) -> str: ... # Email or client_id
+    @property
+    def principal_type(self) -> Literal["user", "service"]: ...
 ```
-Authorization: Bearer <INSTAINSTRU_MCP_API_SERVICE_TOKEN>
+
+| Principal Type | Source | Example ID |
+|----------------|--------|------------|
+| **UserPrincipal** | Database User | `01KFVQBM6GTBKGMZVRYCWHJTMV` |
+| **ServicePrincipal** | M2M JWT claims | `client_01KG195317CE131WXZRSWP93S9` |
+
+### Scope Enforcement
+
+| Scope | Operations | Endpoints |
+|-------|------------|-----------|
+| `mcp:read` | List, get, search | `GET /instructors`, `GET /search/*` |
+| `mcp:write` | Create, send | `POST /invites/preview`, `POST /invites/send` |
+
+### Unauthenticated Methods (Required for ChatGPT)
+
+These methods must work without authentication:
+- `initialize`
+- `notifications/initialized`
+- `tools/list`
+
+This is ChatGPT's "mixed-auth" pattern—discover tools first, authenticate when invoking.
+
+---
+
+## ⚙️ Configuration
+
+### MCP Server Environment Variables
+
+```bash
+# Backend API
+INSTAINSTRU_MCP_API_BASE_URL=https://api.instainstru.com
+INSTAINSTRU_MCP_API_SERVICE_TOKEN=<static-token-fallback>
+
+# OAuth2 M2M (WorkOS)
+INSTAINSTRU_MCP_WORKOS_M2M_CLIENT_ID=client_01KG195317CE131WXZRSWP93S9
+INSTAINSTRU_MCP_WORKOS_M2M_CLIENT_SECRET=<secret>
+INSTAINSTRU_MCP_WORKOS_M2M_TOKEN_URL=https://savvy-stone-81-staging.authkit.app/oauth2/token
+INSTAINSTRU_MCP_WORKOS_M2M_AUDIENCE=https://api.instainstru.com
+
+# OAuth for client discovery (ChatGPT)
+INSTAINSTRU_MCP_WORKOS_CLIENT_ID=client_01KFVQBM6GTBKGMZVRYCWHJTMV
+INSTAINSTRU_MCP_WORKOS_DOMAIN=savvy-stone-81-staging.authkit.app
+```
+
+### Backend Environment Variables
+
+```bash
+# JWT Verification
+WORKOS_JWKS_URL=https://api.workos.com/sso/jwks/client_01KFVQBM6GTBKGMZVRYCWHJTMV
+WORKOS_M2M_AUDIENCE=client_01KFVQBM6GTBKGMZVRYCWHJTMV
+WORKOS_ISSUER=https://savvy-stone-81-staging.authkit.app
+
+# Static token fallback
+MCP_SERVICE_TOKEN=<same-as-mcp-server>
+```
+
+### Key Discovery: WorkOS Token Endpoint
+
+The correct WorkOS M2M token endpoint is:
+- ❌ `https://api.workos.com/oauth/token`
+- ❌ `https://xxx.authkit.app/oauth/token`
+- ✅ `https://xxx.authkit.app/oauth2/token` (note the `2`)
+
+### FastMCP Configuration
+
+```python
+mcp.http_app(
+    path="/mcp",
+    transport="streamable-http",
+    stateless_http=True,      # Required for load balancing
+    json_response=True,       # Critical for ChatGPT!
+)
 ```
 
 ---
 
-## 🚦 LLM Client Compatibility
+## 🖥️ Client Setup
 
-| Client | Transport | Auth | Status |
-|--------|-----------|------|--------|
-| **ChatGPT** | streamable-http | OAuth 2.0 | ✅ Working |
-| **Claude Desktop** | SSE | Bearer Token | ✅ Working |
-| **MCP Inspector** | SSE/HTTP | OAuth/Bearer | ✅ Working |
-| **Claude.ai Web** | SSE | OAuth 2.0 | ❌ Bug (gets token, never uses it) |
+### ChatGPT
 
-### ChatGPT Configuration
+1. Go to ChatGPT → Settings → Connected Apps
+2. Add MCP server: `https://mcp.instainstru.com/mcp`
+3. Authenticate with WorkOS when prompted
+4. Tools appear in the tool picker
 
-In ChatGPT (chatgpt.com):
-1. Settings → MCP Servers → Add Server
-2. URL: `https://mcp.instainstru.com/mcp`
-3. Complete OAuth flow when prompted
-4. 10 tools appear, ready to use
+### Claude Desktop
 
-### Claude Desktop Configuration
+Add to `~/.config/claude/mcp.json`:
 
-In `~/.claude/claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
     "instainstru": {
-      "url": "https://mcp.instainstru.com/sse",
-      "headers": {
-        "Authorization": "Bearer <your-token>"
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.instainstru.com/mcp"],
+      "env": {
+        "BEARER_TOKEN": "<your-service-token>"
       }
     }
   }
 }
 ```
 
----
-
-## ⚙️ Technical Implementation
-
-### FastMCP Configuration
-
-```python
-mcp = FastMCP("InstaInstru Admin")
-
-app_instance = mcp.http_app(
-    transport="streamable-http",
-    stateless_http=True,      # Required for horizontal scaling
-    json_response=True,       # Critical: prevents SSE streaming hangs
-    path="/mcp",              # Explicit path
-)
-```
-
-### Key Design Decisions
-
-| Decision | Rationale |
-|----------|-----------|
-| `json_response=True` | ChatGPT hangs on SSE-style streaming responses |
-| `stateless_http=True` | Enables horizontal scaling, no session affinity |
-| OAuth proxy endpoints | Browsers block cross-origin POSTs to WorkOS |
-| 30s default timeout | Backend API calls can be slow |
-| 60s timeout for invites | Email sending is particularly slow |
-| Mixed auth pattern | Unauthenticated discovery, OAuth for tool execution |
-
-### Backend Client (httpx)
-
-```python
-self.http = httpx.AsyncClient(
-    base_url=settings.api_base_url,
-    timeout=httpx.Timeout(
-        connect=10.0,
-        read=30.0,
-        write=10.0,
-        pool=10.0,
-    ),
-)
-```
-
-### JWT Validation with Caching
-
-- JWKS fetched from WorkOS with 1-hour cache
-- Auth results cached 55s with hash-based key
-- Max 1000 cached entries
-
----
-
-## 🌐 Deployment
-
-### Render Service
-
-| Property | Value |
-|----------|-------|
-| **Service Name** | instainstru-mcp |
-| **Service ID** | srv-d5qp5lmr433s7387el9g |
-| **Live URL** | https://mcp.instainstru.com |
-| **Health Check** | /api/v1/health |
-| **Plan** | Starter |
-
-### Environment Variables
+### MCP Inspector
 
 ```bash
-# Backend API
-INSTAINSTRU_MCP_API_SERVICE_TOKEN=<service-token>
-INSTAINSTRU_MCP_API_BASE_URL=https://api.instainstru.com
-
-# OAuth (WorkOS)
-INSTAINSTRU_MCP_WORKOS_CLIENT_ID=client_01KFQCYZ...
-INSTAINSTRU_MCP_WORKOS_DOMAIN=savvy-stone-81-staging.authkit.app
-INSTAINSTRU_MCP_WORKOS_JWKS_URL=https://api.workos.com/sso/jwks/client_01KFQCYZ...
+npx @anthropic-ai/mcp-inspector https://mcp.instainstru.com/mcp
 ```
 
-### Files Structure
+---
 
+## 🚦 Client Compatibility
+
+| Client | Transport | Auth | Status | Notes |
+|--------|-----------|------|--------|-------|
+| **ChatGPT** | Streamable HTTP | OAuth 2.0 | ✅ Working | All 10 tools operational, read + write verified |
+| **Claude Desktop** | SSE | Bearer Token | ⚠️ Blocked | Anthropic OAuth bug [#5](https://github.com/anthropics/claude-ai-mcp/issues/5) |
+| **Claude.ai Web** | SSE | OAuth 2.0 | ⚠️ Blocked | Same Anthropic bug - OAuth discovery works, flow never completes |
+| **MCP Inspector** | Both | Both | ✅ Working | Testing tool |
+| **Cursor IDE** | Both | Various | 🔶 Untested | Should work |
+
+### Claude OAuth Bug Details
+
+**Issue:** [anthropics/claude-ai-mcp#5](https://github.com/anthropics/claude-ai-mcp/issues/5)
+
+Claude clients discover OAuth metadata successfully but never complete the flow:
 ```
-mcp-server/
-├── src/instainstru_mcp/
-│   ├── server.py          # FastMCP app, OAuth endpoints, auth middleware
-│   ├── client.py          # httpx client for backend API
-│   ├── endpoints.py       # OAuth proxy implementation
-│   ├── settings.py        # pydantic-settings configuration
-│   └── tools/
-│       ├── founding.py    # Founding instructor tools
-│       ├── instructors.py # Instructor management tools
-│       ├── search.py      # Search analytics tools
-│       ├── invites.py     # Outreach tools
-│       └── metrics.py     # Metrics tools
-├── tests/
-│   └── test_auth_middleware.py  # 43 tests
-└── pyproject.toml
+POST /mcp → 406 (triggers OAuth discovery) ✅
+GET /.well-known/oauth-protected-resource → 200 ✅
+... flow stops here, never completes ❌
+```
+
+**Not our issue:** WorkOS supports all token auth methods (`none`, `client_secret_basic`, `client_secret_post`), so the DCR-related bug mentioned in updates doesn't apply.
+
+**Workaround:** Use ChatGPT for MCP admin operations until Anthropic fixes this.
+
+---
+
+## 📊 Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/mcp` | POST | Main MCP endpoint |
+| `/api/v1/health` | GET | Health check for Render |
+| `/.well-known/oauth-protected-resource` | GET | OAuth discovery |
+| `/.well-known/oauth-authorization-server` | GET | OAuth metadata (proxied) |
+| `/oauth2/register` | POST | Dynamic client registration (proxied) |
+| `/oauth2/token` | POST | Token exchange (proxied) |
+| `/oauth2/userinfo` | GET | User profile (proxied) |
+
+---
+
+## 🔧 Performance Optimizations
+
+### Auth Caching (MCP Server)
+
+```python
+# 55-second TTL, hash-based keys
+# Prevents CPU spikes from repeated JWT validation
+AUTH_CACHE_TTL = 55
+AUTH_CACHE_MAX_SIZE = 1000
+```
+
+### JWKS Caching (Backend)
+
+```python
+# 1-hour TTL for WorkOS JWKS
+# Async fetching to avoid blocking
+JWKS_CACHE_TTL = 3600
+```
+
+### M2M Token Caching (MCP Server)
+
+```python
+# Token cached until expiry - 60 seconds buffer
+# Avoids token fetch on every request
+token_expiry = datetime.now() + timedelta(seconds=expires_in - 60)
+```
+
+### Backend Timeouts
+
+```python
+httpx.Timeout(
+    connect=10.0,
+    read=30.0,      # Default read timeout
+    write=10.0,
+    pool=10.0,
+)
+
+# Slow endpoints get 60s
+await self.call(..., timeout=60.0)
+```
+
+---
+
+## 🔒 Security Features
+
+| Feature | Implementation |
+|---------|----------------|
+| **JWT Validation** | JWKS-based with 1-hour cache |
+| **Timing-Safe Comparison** | `secrets.compare_digest()` for static tokens |
+| **Scope Enforcement** | Route-level `mcp:read` / `mcp:write` |
+| **Audit Trail** | Principal type + ID in all audit logs |
+| **Short-Lived Tokens** | M2M JWTs expire in 1 hour |
+| **Dual Auth Support** | M2M JWT + static token fallback |
+
+### Structured Logging
+
+```python
+# Auth events logged with context
+mcp_auth_m2m_jwt       # M2M token validated
+mcp_auth_static_token  # Static token used (fallback)
+mcp_auth_failed        # Auth failed
+mcp_scope_insufficient # Scope check failed
 ```
 
 ---
 
 ## 🧪 Testing
 
-### Test Coverage
+### Test File
 
-| Area | Tests |
-|------|-------|
-| Auth middleware | 25+ |
-| OAuth flow | 10+ |
-| MCP routes | 8+ |
-| **Total** | 43+ |
+`mcp-server/tests/test_auth_middleware.py` - 45+ tests
 
 ### Key Test Cases
 
-```python
-# MCP route behavior
-test_mcp_initialize_returns_json()
-test_mcp_slash_works_without_redirect()
-test_mcp_mcp_returns_404()  # No double-mount
-test_delete_mcp_passes_through()
+| Test | Purpose |
+|------|---------|
+| `test_mcp_initialize_succeeds` | JSON response, no hang |
+| `test_mcp_slash_no_redirect` | /mcp/ works without 307 |
+| `test_mcp_mcp_returns_404` | No double-mount regression |
+| `test_delete_mcp_passthrough` | DELETE method for session termination |
+| `test_userinfo_*` | Email extraction from WorkOS |
 
-# OAuth flow
-test_oauth_register_proxied()
-test_oauth_token_proxied()
-test_userinfo_fetched_for_email()
+### Backend Auth Tests
 
-# Auth
-test_allowlisted_email_granted()
-test_non_allowlisted_email_denied()
-test_jwt_validation_caches_result()
+| File | Purpose |
+|------|---------|
+| `test_principal.py` | Principal protocol tests |
+| `test_mcp_auth.py` | MCP auth dependency tests |
+| `test_m2m_auth.py` | JWT verification tests |
+
+### Running Tests
+
+```bash
+cd mcp-server
+pytest tests/ -v
 ```
 
 ---
 
-## 📊 Production Data (Current)
+## 🚀 Deployment
+
+### Render Service
+
+| Property | Value |
+|----------|-------|
+| **Service ID** | srv-d5qp5lmr433s7387el9g |
+| **URL** | https://mcp.instainstru.com |
+| **Plan** | Starter |
+| **Region** | Virginia |
+| **Health Check** | `/api/v1/health` |
+
+### Deploy Command
+
+```bash
+# Included in render_deploy_api.sh
+render deploy srv-d5qp5lmr433s7387el9g
+```
+
+---
+
+## 📝 Key Technical Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| **OAuth2 M2M over static tokens** | Short-lived JWTs, automatic rotation, scope enforcement |
+| **Principal abstraction** | Decouples auth from User model, enables service actors |
+| **Streamable HTTP over SSE** | SSE deprecated by MCP project; better proxy compatibility |
+| **json_response=True** | ChatGPT hangs on SSE streaming for tool listing |
+| **stateless_http=True** | Required for load balancing; no sticky sessions |
+| **WorkOS for M2M** | Same provider as user auth; JWKS validation |
+| **Proxy OAuth endpoints** | Browser CORS prevents direct cross-origin calls |
+| **Mixed auth pattern** | ChatGPT requires unauthenticated discovery |
+| **55s auth cache** | Prevents CPU spikes from JWT validation |
+| **audit_log.actor_id VARCHAR(64)** | M2M client IDs are 32 chars (vs 26-char ULIDs) |
+
+---
+
+## 🐛 Troubleshooting
+
+### "ReadTimeout" on tool calls
+
+**Cause:** Backend API slow to respond
+**Fix:** Increase timeout in `client.py` or add per-request override
+
+### 32-second hang on tools/list
+
+**Cause:** SSE streaming + ChatGPT don't mix
+**Fix:** `json_response=True` in FastMCP config
+
+### 100% CPU on tool refresh
+
+**Cause:** JWT validation on every request
+**Fix:** Auth cache with 55s TTL
+
+### "Session not found"
+
+**Cause:** UUID format mismatch
+**Fix:** Normalize session_id (ChatGPT sends without dashes)
+
+### OAuth flow works but 401 on tool call
+
+**Cause:** Email not in allowlist or scope mismatch
+**Fix:** Check userinfo endpoint returns valid email, verify scopes
+
+### "value too long for type character varying(26)"
+
+**Cause:** M2M client IDs are 32 chars, audit_log.actor_id was VARCHAR(26)
+**Fix:** Expand column to VARCHAR(64)
+
+### Claude OAuth discovery succeeds but tools return "Insufficient permissions"
+
+**Cause:** Anthropic OAuth bug [#5](https://github.com/anthropics/claude-ai-mcp/issues/5)
+**Fix:** Use ChatGPT until Anthropic fixes it
+
+---
+
+## 📈 Production Data (as of Jan 28, 2026)
 
 ```
 Founding Cap: 100 slots, 0 used, 100 remaining
@@ -298,55 +520,78 @@ Service Coverage:
 
 ---
 
-## 🐛 Known Issues & Workarounds
+## 🎯 Status & Next Steps
 
-### Claude.ai Web OAuth Bug
-- **Issue**: Completes OAuth, gets token, but never sends it with requests
-- **Status**: Anthropic bug (GitHub #11814, #3515)
-- **Workaround**: Use Claude Desktop with Bearer token instead
+### Completed ✅
+- MCP server deployed to production
+- OAuth2 M2M authentication (WorkOS)
+- Principal-based authorization
+- Scope enforcement (mcp:read, mcp:write)
+- ChatGPT integration fully working (read + write)
+- All 10 tools operational
+- Auth caching for performance
+- Timeout handling for reliability
+- audit_log schema fix for M2M client IDs
 
-### Slow Backend Endpoints
-- **Issue**: Some endpoints (invites) take >5s
-- **Fix**: 60s timeout override for slow endpoints
+### Known Issues ⚠️
+- Claude Desktop/Web blocked by Anthropic OAuth bug
+- Awaiting fix from Anthropic team
 
----
+### Future Enhancements
 
-## 🔮 Future Enhancements
+#### Infrastructure Monitoring Tools
+| Tool Category | Use Cases |
+|---------------|-----------|
+| **Celery/Flower** | "What tasks are running?", "Any failed tasks?", "Show queue depth" |
+| **Prometheus** | "What's our API latency?", "Show error rate last hour" |
+| **Grafana** | "Get dashboard snapshot", "Show slow queries panel" |
+| **Alertmanager** | "Any firing alerts?", "Silence the disk space alert" |
 
-1. **More Tools**
-   - Booking management (view, cancel, reschedule)
-   - Payment insights (revenue, payouts)
-   - Student analytics (signups, retention)
+#### Admin Operations Tools
+| Tool Category | Use Cases |
+|---------------|-----------|
+| **Booking Management** | "Show today's bookings", "Find cancelled lessons" |
+| **Payment Insights** | "Show pending payouts", "Revenue this week" |
+| **User Support** | "Look up user by phone", "Check booking history" |
 
-2. **Rate Limiting**
-   - Per-user rate limits on tool calls
-   - Protect against abuse
-
-3. **Observability**
-   - Prometheus metrics for tool calls
-   - Error rate tracking
-   - Latency percentiles
-
-4. **Multi-Environment**
-   - Preview MCP server (preview-mcp.instainstru.com)
-   - Staging environment support
-
----
-
-## 📚 Key Learnings
-
-1. **`json_response=True` is critical** - Without it, FastMCP's streamable-http returns SSE-style responses that never close, causing 32s hangs
-
-2. **OAuth must be proxied** - Browser clients can't POST to different origins (WorkOS)
-
-3. **Mixed auth works** - Unauthenticated tool discovery, OAuth only for execution
-
-4. **Auth caching prevents CPU spikes** - JWT verification is expensive, cache for 55s
-
-5. **Path normalization matters** - ChatGPT clients sensitive to `/mcp` vs `/mcp/` redirects
-
-6. **Timeout per-endpoint** - Some endpoints are genuinely slow, don't fail fast
+#### Platform Improvements
+- Rate limiting for MCP endpoints
+- Metrics dashboard for tool usage
+- Preview environment MCP service
+- Remove static token fallback once M2M stable
 
 ---
 
-*MCP Admin Copilot Server - Production Ready 🚀*
+## 📚 Related Files
+
+```
+mcp-server/
+├── src/instainstru_mcp/
+│   ├── server.py          # Main server, middleware
+│   ├── client.py          # Backend API client, M2M token manager
+│   ├── config.py          # Environment config
+│   └── tools/
+│       ├── founding.py    # Founding instructor tools
+│       ├── instructors.py # Instructor tools
+│       ├── search.py      # Search analytics tools
+│       ├── invites.py     # Outreach tools
+│       └── metrics.py     # Metrics tools
+├── tests/
+│   └── test_auth_middleware.py
+├── pyproject.toml
+└── render.yaml
+
+backend/app/
+├── auth/
+│   └── principal.py       # Principal protocol and implementations
+├── dependencies/
+│   └── mcp_auth.py        # get_mcp_principal, require_mcp_scope
+├── m2m_auth.py            # JWT verification via JWKS
+└── routes/v1/admin/mcp/   # MCP admin endpoints
+```
+
+---
+
+*MCP Admin Copilot Server - OAuth2 M2M Production Ready 🚀*
+
+**STATUS:** ChatGPT fully operational. Claude blocked by Anthropic bug.

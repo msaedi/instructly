@@ -1181,6 +1181,103 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mcp/celery/failed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Failed Tasks
+         * @description Get failed Celery tasks from Flower.
+         *
+         *     Returns a list of failed tasks with exception and traceback info.
+         *     Traceback is truncated to 1000 characters, args/kwargs to 200 characters.
+         */
+        get: operations["get_failed_tasks_api_v1_admin_mcp_celery_failed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/celery/payment-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Payment Health
+         * @description Get payment pipeline health status.
+         *
+         *     Combines Celery task status from Flower with database queries
+         *     for booking payment status to provide a health overview.
+         *
+         *     Checks:
+         *     - Pending authorizations (scheduled but not yet processed)
+         *     - Overdue authorizations (within 24h of booking but not authorized)
+         *     - Pending captures (authorized but not yet captured after completion)
+         *     - Failed payments in last 24 hours
+         */
+        get: operations["get_payment_health_api_v1_admin_mcp_celery_payment_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/celery/queues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Queues
+         * @description Get Celery queue depths from Flower.
+         *
+         *     Returns a list of queues with their current depth.
+         */
+        get: operations["get_queues_api_v1_admin_mcp_celery_queues_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/celery/workers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Workers
+         * @description Get Celery worker status from Flower.
+         *
+         *     Returns a list of workers with their status, active tasks,
+         *     and processing statistics.
+         */
+        get: operations["get_workers_api_v1_admin_mcp_celery_workers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/mcp/founding/funnel": {
         parameters: {
             query?: never;
@@ -12027,6 +12124,171 @@ export type components = {
             email: string;
             /** Id */
             id: string;
+            /**
+             * Principal Type
+             * @default service
+             * @enum {string}
+             */
+            principal_type: "user" | "service";
+        };
+        /**
+         * MCPCeleryFailedTask
+         * @description Information about a failed Celery task.
+         */
+        MCPCeleryFailedTask: {
+            /** Exception */
+            exception?: string | null;
+            /** Failed At */
+            failed_at?: string | null;
+            /** Queue */
+            queue?: string | null;
+            /** Task Args */
+            task_args?: string | null;
+            /** Task Id */
+            task_id: string;
+            /** Task Kwargs */
+            task_kwargs?: string | null;
+            /** Task Name */
+            task_name: string;
+            /** Traceback */
+            traceback?: string | null;
+        };
+        /**
+         * MCPCeleryFailedTasksResponse
+         * @description Response for failed tasks endpoint.
+         */
+        MCPCeleryFailedTasksResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Count */
+            count: number;
+            /** Failed Tasks */
+            failed_tasks: components["schemas"]["MCPCeleryFailedTask"][];
+        };
+        /**
+         * MCPCeleryLastTaskRun
+         * @description Information about the last run of a payment task.
+         */
+        MCPCeleryLastTaskRun: {
+            /** Last Run At */
+            last_run_at?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Task Name */
+            task_name: string;
+        };
+        /**
+         * MCPCeleryPaymentHealthIssue
+         * @description A payment health issue.
+         */
+        MCPCeleryPaymentHealthIssue: {
+            /** Count */
+            count: number;
+            /** Message */
+            message: string;
+            /** Severity */
+            severity: string;
+        };
+        /**
+         * MCPCeleryPaymentHealthResponse
+         * @description Response for payment health endpoint.
+         */
+        MCPCeleryPaymentHealthResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Failed Payments 24H */
+            failed_payments_24h: number;
+            /** Healthy */
+            healthy: boolean;
+            /** Issues */
+            issues: components["schemas"]["MCPCeleryPaymentHealthIssue"][];
+            /** Last Task Runs */
+            last_task_runs: components["schemas"]["MCPCeleryLastTaskRun"][];
+            /** Overdue Authorizations */
+            overdue_authorizations: number;
+            /** Pending Authorizations */
+            pending_authorizations: number;
+            /** Pending Captures */
+            pending_captures: number;
+        };
+        /**
+         * MCPCeleryQueueInfo
+         * @description Information about a single Celery queue.
+         */
+        MCPCeleryQueueInfo: {
+            /** Consumers */
+            consumers: number;
+            /** Depth */
+            depth: number;
+            /** Name */
+            name: string;
+        };
+        /**
+         * MCPCeleryQueuesResponse
+         * @description Response for Celery queues endpoint.
+         */
+        MCPCeleryQueuesResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Queues */
+            queues: components["schemas"]["MCPCeleryQueueInfo"][];
+            /** Total Depth */
+            total_depth: number;
+        };
+        /**
+         * MCPCeleryWorkerInfo
+         * @description Information about a single Celery worker.
+         */
+        MCPCeleryWorkerInfo: {
+            /** Active Tasks */
+            active_tasks: number;
+            /** Concurrency */
+            concurrency: number;
+            /** Hostname */
+            hostname: string;
+            /** Processed Total */
+            processed_total: number;
+            /** Queues */
+            queues: string[];
+            /** Status */
+            status: string;
+        };
+        /**
+         * MCPCeleryWorkersResponse
+         * @description Response for Celery workers endpoint.
+         */
+        MCPCeleryWorkersResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            summary: components["schemas"]["MCPCeleryWorkersSummary"];
+            /** Workers */
+            workers: components["schemas"]["MCPCeleryWorkerInfo"][];
+        };
+        /**
+         * MCPCeleryWorkersSummary
+         * @description Summary counts for workers.
+         */
+        MCPCeleryWorkersSummary: {
+            /** Offline Workers */
+            offline_workers: number;
+            /** Online Workers */
+            online_workers: number;
+            /** Total Active Tasks */
+            total_active_tasks: number;
+            /** Total Workers */
+            total_workers: number;
         };
         /** MCPConversionRate */
         MCPConversionRate: {
@@ -19476,15 +19738,104 @@ export interface operations {
             };
         };
     };
+    get_failed_tasks_api_v1_admin_mcp_celery_failed_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPCeleryFailedTasksResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_payment_health_api_v1_admin_mcp_celery_payment_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPCeleryPaymentHealthResponse"];
+                };
+            };
+        };
+    };
+    get_queues_api_v1_admin_mcp_celery_queues_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPCeleryQueuesResponse"];
+                };
+            };
+        };
+    };
+    get_workers_api_v1_admin_mcp_celery_workers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPCeleryWorkersResponse"];
+                };
+            };
+        };
+    };
     get_funnel_summary_api_v1_admin_mcp_founding_funnel_get: {
         parameters: {
             query?: {
                 start_date?: string | null;
                 end_date?: string | null;
             };
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -19517,9 +19868,7 @@ export interface operations {
                 stage?: string | null;
                 limit?: number;
             };
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -19555,9 +19904,7 @@ export interface operations {
                 limit?: number;
                 cursor?: string | null;
             };
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -19590,9 +19937,7 @@ export interface operations {
                 group_by?: "category" | "service";
                 top?: number;
             };
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -19621,9 +19966,7 @@ export interface operations {
     get_instructor_detail_api_v1_admin_mcp_instructors__identifier__get: {
         parameters: {
             query?: never;
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path: {
                 identifier: string;
             };
@@ -19654,9 +19997,7 @@ export interface operations {
     preview_invites_api_v1_admin_mcp_invites_preview_post: {
         parameters: {
             query?: never;
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -19691,7 +20032,6 @@ export interface operations {
             query?: never;
             header?: {
                 "Idempotency-Key"?: string | null;
-                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -19725,9 +20065,7 @@ export interface operations {
     get_metric_definition_api_v1_admin_mcp_metrics__metric_name__get: {
         parameters: {
             query?: never;
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path: {
                 metric_name: string;
             };
@@ -19763,9 +20101,7 @@ export interface operations {
                 limit?: number;
                 min_count?: number;
             };
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -19798,9 +20134,7 @@ export interface operations {
                 end_date?: string | null;
                 limit?: number;
             };
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };

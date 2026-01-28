@@ -943,6 +943,70 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/celery/failed": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_failed_tasks_api_v1_admin_mcp_celery_failed_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/celery/payment-health": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_payment_health_api_v1_admin_mcp_celery_payment_health_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/celery/queues": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_queues_api_v1_admin_mcp_celery_queues_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/celery/workers": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_workers_api_v1_admin_mcp_celery_workers_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/mcp/founding/funnel": {
  parameters: {
  query?: never;
@@ -6556,6 +6620,71 @@ export type components = {
  MCPActor: {
  email: string;
  id: string;
+ principal_type: "user" | "service";
+ };
+ MCPCeleryFailedTask: {
+ exception?: string | null;
+ failed_at?: string | null;
+ queue?: string | null;
+ task_args?: string | null;
+ task_id: string;
+ task_kwargs?: string | null;
+ task_name: string;
+ traceback?: string | null;
+ };
+ MCPCeleryFailedTasksResponse: {
+ checked_at: string;
+ count: number;
+ failed_tasks: components["schemas"]["MCPCeleryFailedTask"][];
+ };
+ MCPCeleryLastTaskRun: {
+ last_run_at?: string | null;
+ status?: string | null;
+ task_name: string;
+ };
+ MCPCeleryPaymentHealthIssue: {
+ count: number;
+ message: string;
+ severity: string;
+ };
+ MCPCeleryPaymentHealthResponse: {
+ checked_at: string;
+ failed_payments_24h: number;
+ healthy: boolean;
+ issues: components["schemas"]["MCPCeleryPaymentHealthIssue"][];
+ last_task_runs: components["schemas"]["MCPCeleryLastTaskRun"][];
+ overdue_authorizations: number;
+ pending_authorizations: number;
+ pending_captures: number;
+ };
+ MCPCeleryQueueInfo: {
+ consumers: number;
+ depth: number;
+ name: string;
+ };
+ MCPCeleryQueuesResponse: {
+ checked_at: string;
+ queues: components["schemas"]["MCPCeleryQueueInfo"][];
+ total_depth: number;
+ };
+ MCPCeleryWorkerInfo: {
+ active_tasks: number;
+ concurrency: number;
+ hostname: string;
+ processed_total: number;
+ queues: string[];
+ status: string;
+ };
+ MCPCeleryWorkersResponse: {
+ checked_at: string;
+ summary: components["schemas"]["MCPCeleryWorkersSummary"];
+ workers: components["schemas"]["MCPCeleryWorkerInfo"][];
+ };
+ MCPCeleryWorkersSummary: {
+ offline_workers: number;
+ online_workers: number;
+ total_active_tasks: number;
+ total_workers: number;
  };
  MCPConversionRate: {
  from_stage: string;
@@ -10183,15 +10312,99 @@ export interface operations {
  };
  };
  };
+ get_failed_tasks_api_v1_admin_mcp_celery_failed_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPCeleryFailedTasksResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_payment_health_api_v1_admin_mcp_celery_payment_health_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPCeleryPaymentHealthResponse"];
+ };
+ };
+ };
+ };
+ get_queues_api_v1_admin_mcp_celery_queues_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPCeleryQueuesResponse"];
+ };
+ };
+ };
+ };
+ get_workers_api_v1_admin_mcp_celery_workers_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPCeleryWorkersResponse"];
+ };
+ };
+ };
+ };
  get_funnel_summary_api_v1_admin_mcp_founding_funnel_get: {
  parameters: {
  query?: {
  start_date?: string | null;
  end_date?: string | null;
  };
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path?: never;
  cookie?: never;
  };
@@ -10222,9 +10435,7 @@ export interface operations {
  stage?: string | null;
  limit?: number;
  };
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path?: never;
  cookie?: never;
  };
@@ -10258,9 +10469,7 @@ export interface operations {
  limit?: number;
  cursor?: string | null;
  };
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path?: never;
  cookie?: never;
  };
@@ -10291,9 +10500,7 @@ export interface operations {
  group_by?: "category" | "service";
  top?: number;
  };
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path?: never;
  cookie?: never;
  };
@@ -10320,9 +10527,7 @@ export interface operations {
  get_instructor_detail_api_v1_admin_mcp_instructors__identifier__get: {
  parameters: {
  query?: never;
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path: {
  identifier: string;
  };
@@ -10351,9 +10556,7 @@ export interface operations {
  preview_invites_api_v1_admin_mcp_invites_preview_post: {
  parameters: {
  query?: never;
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path?: never;
  cookie?: never;
  };
@@ -10386,7 +10589,6 @@ export interface operations {
  query?: never;
  header?: {
  "Idempotency-Key"?: string | null;
- Authorization?: string | null;
  };
  path?: never;
  cookie?: never;
@@ -10418,9 +10620,7 @@ export interface operations {
  get_metric_definition_api_v1_admin_mcp_metrics__metric_name__get: {
  parameters: {
  query?: never;
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path: {
  metric_name: string;
  };
@@ -10454,9 +10654,7 @@ export interface operations {
  limit?: number;
  min_count?: number;
  };
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path?: never;
  cookie?: never;
  };
@@ -10487,9 +10685,7 @@ export interface operations {
  end_date?: string | null;
  limit?: number;
  };
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path?: never;
  cookie?: never;
  };

@@ -932,6 +932,24 @@ class Settings(BaseSettings):
     prometheus_bearer_token: str = Field(
         default="", description="Optional bearer token for Prometheus API"
     )
+
+    # Flower (Celery monitoring) configuration
+    flower_url: str = Field(
+        default="https://flower-xwcb.onrender.com",
+        alias="FLOWER_URL",
+        description="Flower API base URL for Celery monitoring",
+    )
+    flower_user: str | None = Field(
+        default=None,
+        alias="FLOWER_USER",
+        description="Optional basic auth username for Flower API",
+    )
+    flower_password: SecretStr | None = Field(
+        default=None,
+        alias="FLOWER_PASSWORD",
+        description="Optional basic auth password for Flower API",
+    )
+
     email_enabled: bool = Field(default=True, description="Flag to enable/disable email sending")
 
     @property

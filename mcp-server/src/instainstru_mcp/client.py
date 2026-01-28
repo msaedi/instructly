@@ -292,3 +292,28 @@ class InstaInstruClient:
             "GET",
             f"/api/v1/admin/mcp/metrics/{metric_name}",
         )
+
+    async def get_celery_workers(self) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/workers",
+        )
+
+    async def get_celery_queues(self) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/queues",
+        )
+
+    async def get_celery_failed_tasks(self, limit: int = 50) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/failed",
+            params={"limit": limit},
+        )
+
+    async def get_celery_payment_health(self) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/payment-health",
+        )
