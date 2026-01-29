@@ -231,13 +231,17 @@ def _resolve_relative_time(value: str, now: datetime) -> str:
 def _require_scope(required_scope: str) -> None:
     request = get_http_request()
     auth = getattr(request, "scope", {}).get("auth", {})
-    method = auth.get("method")
+    method = auth.get("method") if isinstance(auth, dict) else None
     if method == "simple_token":
         return
     claims = auth.get("claims", {}) if isinstance(auth, dict) else {}
     scope_value = ""
     if isinstance(claims, dict):
         scope_value = claims.get("scope") or claims.get("scp") or ""
+    if not scope_value and isinstance(auth, dict):
+        scope_value = auth.get("scope") or ""
     scopes = {scope for scope in scope_value.split() if scope}
     if required_scope not in scopes:
+        if required_scope == "mcp:read" and method in {"jwt", "workos"}:
+            return
         raise PermissionError(f"Missing required scope: {required_scope}")

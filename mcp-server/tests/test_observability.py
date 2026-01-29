@@ -544,6 +544,17 @@ def test_require_scope_accepts_scp_claim(monkeypatch):
     observability._require_scope("mcp:read")
 
 
+def test_require_scope_allows_read_without_scope_for_oauth(monkeypatch):
+    def fake_request():
+        class Dummy:
+            scope = {"auth": {"method": "workos"}}
+
+        return Dummy()
+
+    monkeypatch.setattr(observability, "get_http_request", fake_request)
+    observability._require_scope("mcp:read")
+
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_grafana_request_auth_error():
