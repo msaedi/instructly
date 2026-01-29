@@ -102,19 +102,20 @@ class CeleryAdminService(BaseService):
 
         if data:
             for hostname, info in data.items():
-                status_bool = info.get("status", False)
-                status = "online" if status_bool else "offline"
+                # Worker presence in Flower response indicates it is online.
+                status = "online"
                 active_tasks_list = info.get("active", [])
                 active_count = len(active_tasks_list) if isinstance(active_tasks_list, list) else 0
 
                 # Get processed total from stats
                 stats = info.get("stats", {})
                 total_stats = stats.get("total", {})
-                processed_total = (
-                    total_stats.get("total", 0) if isinstance(total_stats, dict) else 0
-                )
+                processed_total = sum(total_stats.values()) if isinstance(total_stats, dict) else 0
 
-                concurrency = info.get("concurrency", 0)
+                pool_info = stats.get("pool", {})
+                concurrency = (
+                    pool_info.get("max-concurrency", 0) if isinstance(pool_info, dict) else 0
+                )
 
                 # Get queue names
                 active_queues = info.get("active_queues", [])

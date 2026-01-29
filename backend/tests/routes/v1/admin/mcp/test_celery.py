@@ -15,17 +15,19 @@ class TestCeleryWorkersEndpoint:
         """Test successful retrieval of worker status."""
         mock_flower_response = {
             "celery@worker1": {
-                "status": True,
                 "active": [{"id": "task-1"}],
-                "stats": {"total": {"total": 100}},
-                "concurrency": 4,
+                "stats": {
+                    "total": {"some.task": 60, "another.task": 40},
+                    "pool": {"max-concurrency": 4},
+                },
                 "active_queues": [{"name": "celery"}, {"name": "default"}],
             },
             "celery@worker2": {
-                "status": False,
                 "active": [],
-                "stats": {"total": {"total": 50}},
-                "concurrency": 2,
+                "stats": {
+                    "total": {"some.task": 50},
+                    "pool": {"max-concurrency": 2},
+                },
                 "active_queues": [{"name": "celery"}],
             },
         }
@@ -49,8 +51,8 @@ class TestCeleryWorkersEndpoint:
 
         assert len(data["workers"]) == 2
         assert data["summary"]["total_workers"] == 2
-        assert data["summary"]["online_workers"] == 1
-        assert data["summary"]["offline_workers"] == 1
+        assert data["summary"]["online_workers"] == 2
+        assert data["summary"]["offline_workers"] == 0
         assert data["summary"]["total_active_tasks"] == 1
 
         # Check worker details

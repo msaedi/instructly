@@ -179,10 +179,14 @@ class TestGetWorkersEdgeCases:
         """Test workers with non-list active tasks."""
         mock_data = {
             "celery@worker1": {
-                "status": True,
                 "active": "not_a_list",  # Edge case: not a list
-                "stats": {"total": {"total": 10}},
-                "concurrency": 2,
+                "stats": {
+                    "total": {
+                        "some.task": 50,
+                        "another.task": 33,
+                    },
+                    "pool": {"max-concurrency": 4},
+                },
                 "active_queues": [],
             },
         }
@@ -192,16 +196,17 @@ class TestGetWorkersEdgeCases:
             result = await service.get_workers()
 
         assert result["workers"][0]["active_tasks"] == 0
+        assert result["workers"][0]["status"] == "online"
+        assert result["workers"][0]["processed_total"] == 83
+        assert result["workers"][0]["concurrency"] == 4
 
     @pytest.mark.asyncio
     async def test_get_workers_with_non_dict_stats(self, service):
         """Test workers with non-dict stats."""
         mock_data = {
             "celery@worker1": {
-                "status": True,
                 "active": [],
-                "stats": {"total": "not_a_dict"},  # Edge case
-                "concurrency": 2,
+                "stats": {"total": "not_a_dict", "pool": {"max-concurrency": 2}},  # Edge case
                 "active_queues": [],
             },
         }
@@ -211,16 +216,16 @@ class TestGetWorkersEdgeCases:
             result = await service.get_workers()
 
         assert result["workers"][0]["processed_total"] == 0
+        assert result["workers"][0]["concurrency"] == 2
+        assert result["workers"][0]["status"] == "online"
 
     @pytest.mark.asyncio
     async def test_get_workers_with_invalid_queue_entries(self, service):
         """Test workers with invalid queue entries."""
         mock_data = {
             "celery@worker1": {
-                "status": True,
                 "active": [],
-                "stats": {},
-                "concurrency": 2,
+                "stats": {"total": {}, "pool": {"max-concurrency": 2}},
                 "active_queues": [
                     {"name": "valid_queue"},
                     "not_a_dict",
@@ -234,6 +239,8 @@ class TestGetWorkersEdgeCases:
             result = await service.get_workers()
 
         assert result["workers"][0]["queues"] == ["valid_queue"]
+        assert result["workers"][0]["concurrency"] == 2
+        assert result["workers"][0]["status"] == "online"
 
 
 class TestGetQueuesEdgeCases:
