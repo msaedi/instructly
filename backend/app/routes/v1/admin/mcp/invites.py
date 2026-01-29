@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from enum import Enum
 import logging
-from typing import Iterable
+from typing import Iterable, cast
 from uuid import uuid4
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, status
 from sqlalchemy.orm import Session
 import ulid
 
@@ -19,6 +20,11 @@ from app.principal import Principal
 from app.ratelimit.dependency import rate_limit
 from app.schemas.mcp import (
     MCPActor,
+    MCPInviteDetailData,
+    MCPInviteDetailResponse,
+    MCPInviteListData,
+    MCPInviteListItem,
+    MCPInviteListResponse,
     MCPInvitePreview,
     MCPInvitePreviewData,
     MCPInvitePreviewRecipient,
@@ -39,6 +45,13 @@ from app.services.mcp_invite_service import MCPInviteService
 router = APIRouter(tags=["MCP Admin - Invites"])
 logger = logging.getLogger(__name__)
 MAX_INVITE_BATCH_SIZE = 100
+
+
+class InviteStatus(str, Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
 
 
 def _normalize_emails(emails: Iterable[str]) -> tuple[list[str], list[str]]:
@@ -308,3 +321,98 @@ async def send_invites(
     )
 
     return MCPInviteSendResponse(meta=meta, data=response_data)
+
+
+@router.get(
+    "",
+    response_model=MCPInviteListResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
+async def list_invites(
+    email: str | None = Query(default=None, description="Filter by recipient email"),
+    status: InviteStatus
+    | None = Query(
+        default=None, description="Filter by status: pending, accepted, expired, revoked"
+    ),
+    start_date: date
+    | None = Query(default=None, description="Filter by created_at start date (YYYY-MM-DD)"),
+    end_date: date
+    | None = Query(default=None, description="Filter by created_at end date (YYYY-MM-DD)"),
+    limit: int = Query(default=50, ge=1, le=200, description="Max results (max 200)"),
+    cursor: str | None = Query(default=None, description="Pagination cursor"),
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
+    db: Session = Depends(get_db),
+) -> MCPInviteListResponse:
+    """List invite history with optional filters."""
+    invite_service = MCPInviteService(db)
+    try:
+        payload = await asyncio.to_thread(
+            invite_service.list_invites,
+            email=email,
+            status=status.value if status else None,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            cursor=cursor,
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid_cursor")
+
+    invites_raw = payload.get("invites", [])
+    invites_data = cast(
+        list[dict[str, object]], invites_raw if isinstance(invites_raw, list) else []
+    )
+    invites = [MCPInviteListItem(**item) for item in invites_data]
+    count_raw = payload.get("count", 0)
+    count_value = int(count_raw) if isinstance(count_raw, (int, str)) else 0
+
+    meta = MCPMeta(
+        request_id=str(uuid4()),
+        generated_at=datetime.now(timezone.utc),
+        actor=MCPActor(
+            id=principal.id,
+            email=principal.identifier,
+            principal_type=principal.principal_type,
+        ),
+    )
+
+    return MCPInviteListResponse(
+        meta=meta,
+        data=MCPInviteListData(
+            invites=invites,
+            count=count_value,
+            next_cursor=payload.get("next_cursor"),
+        ),
+    )
+
+
+@router.get(
+    "/{identifier}",
+    response_model=MCPInviteDetailResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
+async def get_invite_detail(
+    identifier: str,
+    principal: Principal = Depends(require_mcp_scope("mcp:read")),
+    db: Session = Depends(get_db),
+) -> MCPInviteDetailResponse:
+    """Get full invite details by invite ID or code."""
+    invite_service = MCPInviteService(db)
+    payload = await asyncio.to_thread(invite_service.get_invite_detail, identifier)
+    if not payload:
+        raise HTTPException(status_code=404, detail="invite_not_found")
+
+    meta = MCPMeta(
+        request_id=str(uuid4()),
+        generated_at=datetime.now(timezone.utc),
+        actor=MCPActor(
+            id=principal.id,
+            email=principal.identifier,
+            principal_type=principal.principal_type,
+        ),
+    )
+
+    return MCPInviteDetailResponse(
+        meta=meta,
+        data=MCPInviteDetailData(**payload),
+    )

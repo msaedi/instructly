@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 from fastapi import HTTPException
@@ -8,6 +9,7 @@ import pytest
 from app.core.config import settings
 from app.core.exceptions import ServiceException
 from app.models.audit_log import AuditLog
+from app.models.beta import BetaInvite
 from app.models.instructor import InstructorProfile
 from app.principal import UserPrincipal
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
@@ -386,3 +388,96 @@ def test_send_rejects_if_founding_cap_exceeded_since_preview(
     )
     assert send_resp.status_code == 409
     assert "cap exceeded" in send_resp.json()["detail"].lower()
+
+
+def test_invite_history_list_filters(
+    client: TestClient, db, mcp_service_headers, test_instructor
+):
+    now = datetime.now(timezone.utc)
+    pending = BetaInvite(
+        code="PEND1234",
+        email="pending@example.com",
+        expires_at=now + timedelta(days=7),
+    )
+    accepted = BetaInvite(
+        code="ACPT1234",
+        email="accepted@example.com",
+        expires_at=now + timedelta(days=7),
+        used_at=now - timedelta(days=1),
+        used_by_user_id=test_instructor.id,
+    )
+    expired = BetaInvite(
+        code="EXPR1234",
+        email="expired@example.com",
+        expires_at=now - timedelta(days=1),
+    )
+    db.add_all([pending, accepted, expired])
+    db.flush()
+
+    res = client.get(
+        "/api/v1/admin/mcp/invites",
+        headers=mcp_service_headers,
+        params={"status": "accepted"},
+    )
+    assert res.status_code == 200
+    payload = res.json()
+    codes = {item["code"] for item in payload["data"]["invites"]}
+    assert "ACPT1234" in codes
+    assert "PEND1234" not in codes
+
+
+def test_invite_history_detail_by_code(client: TestClient, db, mcp_service_headers):
+    now = datetime.now(timezone.utc)
+    invite = BetaInvite(
+        code="CODE1234",
+        email="detail@example.com",
+        expires_at=now + timedelta(days=7),
+    )
+    db.add(invite)
+    db.flush()
+
+    res = client.get(
+        f"/api/v1/admin/mcp/invites/{invite.code}",
+        headers=mcp_service_headers,
+    )
+    assert res.status_code == 200
+    payload = res.json()
+    assert payload["data"]["code"] == "CODE1234"
+    assert payload["data"]["status"] == "pending"
+
+
+def test_invite_history_invalid_cursor_returns_400(client: TestClient, mcp_service_headers):
+    res = client.get(
+        "/api/v1/admin/mcp/invites",
+        headers=mcp_service_headers,
+        params={"cursor": "bad-cursor"},
+    )
+    assert res.status_code == 400
+    assert res.json()["detail"] == "invalid_cursor"
+
+
+def test_invite_history_detail_not_found(client: TestClient, mcp_service_headers):
+    res = client.get(
+        "/api/v1/admin/mcp/invites/not-a-real-invite",
+        headers=mcp_service_headers,
+    )
+    assert res.status_code == 404
+    assert res.json()["detail"] == "invite_not_found"
+
+
+def test_preview_warns_on_duplicate_emails(
+    client: TestClient, mcp_service_headers, test_instructor, dummy_redis
+):
+    payload = {
+        "recipient_emails": [test_instructor.email, test_instructor.email.upper()],
+        "grant_founding_status": True,
+        "expires_in_days": 14,
+    }
+    res = client.post(
+        "/api/v1/admin/mcp/invites/preview",
+        json=payload,
+        headers=mcp_service_headers,
+    )
+    assert res.status_code == 200
+    warnings = res.json()["data"]["warnings"]
+    assert any(test_instructor.email.lower() in warning for warning in warnings)

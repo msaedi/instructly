@@ -273,6 +273,33 @@ class InstaInstruClient:
             headers={"Idempotency-Key": idempotency_key},
         )
 
+    async def list_invites(self, **filters: Any) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/invites",
+            params={k: v for k, v in filters.items() if v is not None},
+        )
+
+    async def get_invite_detail(self, identifier: str) -> dict:
+        encoded = quote(identifier, safe="")
+        return await self.call(
+            "GET",
+            f"/api/v1/admin/mcp/invites/{encoded}",
+        )
+
+    async def get_services_catalog(self) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/services/catalog",
+        )
+
+    async def lookup_service(self, query: str) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/services/lookup",
+            params={"q": query},
+        )
+
     async def get_top_queries(self, **filters: Any) -> dict:
         return await self.call(
             "GET",

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import EmailStr, Field
 
@@ -269,3 +269,80 @@ class MCPMetricDefinition(StrictModel):
 class MCPMetricResponse(StrictModel):
     meta: MCPMeta
     data: MCPMetricDefinition
+
+
+class MCPServiceCatalogItem(StrictModel):
+    id: str
+    name: str
+    slug: str
+    category_slug: Optional[str] = None
+    category_name: Optional[str] = None
+    is_active: bool
+
+
+class MCPServiceCatalogData(StrictModel):
+    services: list[MCPServiceCatalogItem]
+    count: int
+
+
+class MCPServiceCatalogResponse(StrictModel):
+    meta: MCPMeta
+    data: MCPServiceCatalogData
+
+
+class MCPServiceLookupData(StrictModel):
+    query: str
+    matches: list[MCPServiceCatalogItem]
+    count: int
+    message: Optional[str] = None
+
+
+class MCPServiceLookupResponse(StrictModel):
+    meta: MCPMeta
+    data: MCPServiceLookupData
+
+
+class MCPInviteListItem(StrictModel):
+    id: str
+    code: str
+    email: Optional[EmailStr] = None
+    status: str
+    created_at: datetime
+    expires_at: datetime
+    accepted_at: Optional[datetime] = None
+
+
+class MCPInviteListData(StrictModel):
+    invites: list[MCPInviteListItem]
+    count: int
+    next_cursor: Optional[str] = None
+
+
+class MCPInviteListResponse(StrictModel):
+    meta: MCPMeta
+    data: MCPInviteListData
+
+
+class MCPInviteStatusEvent(StrictModel):
+    status: str
+    timestamp: datetime
+
+
+class MCPInviteDetailData(StrictModel):
+    id: str
+    code: str
+    email: Optional[EmailStr] = None
+    status: str
+    created_at: datetime
+    expires_at: datetime
+    accepted_at: Optional[datetime] = None
+    used_by_user_id: Optional[str] = None
+    role: str
+    grant_founding_status: bool
+    metadata: Optional[dict[str, Any]] = None
+    status_history: list[MCPInviteStatusEvent]
+
+
+class MCPInviteDetailResponse(StrictModel):
+    meta: MCPMeta
+    data: MCPInviteDetailData

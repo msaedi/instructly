@@ -3594,6 +3594,15 @@ export interface InviteSendRequest {
   to_email: string;
 }
 
+export type InviteStatus = (typeof InviteStatus)[keyof typeof InviteStatus];
+
+export const InviteStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  expired: 'expired',
+  revoked: 'revoked',
+} as const;
+
 export interface InviteValidateResponse {
   code?: string | null;
   email?: string | null;
@@ -4027,6 +4036,54 @@ export interface MCPInstructorListResponse {
   next_cursor?: string | null;
 }
 
+export type MCPInviteDetailDataMetadata = { [key: string]: unknown } | null;
+
+export interface MCPInviteStatusEvent {
+  status: string;
+  timestamp: string;
+}
+
+export interface MCPInviteDetailData {
+  accepted_at?: string | null;
+  code: string;
+  created_at: string;
+  email?: string | null;
+  expires_at: string;
+  grant_founding_status: boolean;
+  id: string;
+  metadata?: MCPInviteDetailDataMetadata;
+  role: string;
+  status: string;
+  status_history: MCPInviteStatusEvent[];
+  used_by_user_id?: string | null;
+}
+
+export interface MCPInviteDetailResponse {
+  data: MCPInviteDetailData;
+  meta: MCPMeta;
+}
+
+export interface MCPInviteListItem {
+  accepted_at?: string | null;
+  code: string;
+  created_at: string;
+  email?: string | null;
+  expires_at: string;
+  id: string;
+  status: string;
+}
+
+export interface MCPInviteListData {
+  count: number;
+  invites: MCPInviteListItem[];
+  next_cursor?: string | null;
+}
+
+export interface MCPInviteListResponse {
+  data: MCPInviteListData;
+  meta: MCPMeta;
+}
+
 export interface MCPInvitePreview {
   expires_at: string;
   founding_cap_remaining: number;
@@ -4105,6 +4162,25 @@ export interface MCPMetricResponse {
   meta: MCPMeta;
 }
 
+export interface MCPServiceCatalogItem {
+  category_name?: string | null;
+  category_slug?: string | null;
+  id: string;
+  is_active: boolean;
+  name: string;
+  slug: string;
+}
+
+export interface MCPServiceCatalogData {
+  count: number;
+  services: MCPServiceCatalogItem[];
+}
+
+export interface MCPServiceCatalogResponse {
+  data: MCPServiceCatalogData;
+  meta: MCPMeta;
+}
+
 export interface MCPServiceCoverageData {
   group_by: string;
   labels: string[];
@@ -4115,6 +4191,18 @@ export interface MCPServiceCoverageData {
 
 export interface MCPServiceCoverageResponse {
   data: MCPServiceCoverageData;
+  meta: MCPMeta;
+}
+
+export interface MCPServiceLookupData {
+  count: number;
+  matches: MCPServiceCatalogItem[];
+  message?: string | null;
+  query: string;
+}
+
+export interface MCPServiceLookupResponse {
+  data: MCPServiceLookupData;
   meta: MCPMeta;
 }
 
@@ -7617,6 +7705,35 @@ export const GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetGroupBy = {
   service: 'service',
 } as const;
 
+export type ListInvitesApiV1AdminMcpInvitesGetParams = {
+  /**
+   * Filter by recipient email
+   */
+  email?: string | null;
+  /**
+   * Filter by status: pending, accepted, expired, revoked
+   */
+  status?: InviteStatus | null;
+  /**
+   * Filter by created_at start date (YYYY-MM-DD)
+   */
+  start_date?: string | null;
+  /**
+   * Filter by created_at end date (YYYY-MM-DD)
+   */
+  end_date?: string | null;
+  /**
+   * Max results (max 200)
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+  /**
+   * Pagination cursor
+   */
+  cursor?: string | null;
+};
+
 export type GetRecentBookingsApiV1AdminMcpOpsBookingsRecentGetParams = {
   /**
    * Filter by status: confirmed, completed, cancelled, pending
@@ -7691,6 +7808,14 @@ export type GetZeroResultQueriesApiV1AdminMcpSearchZeroResultsGetParams = {
    * @maximum 200
    */
   limit?: number;
+};
+
+export type LookupServiceCatalogApiV1AdminMcpServicesLookupGetParams = {
+  /**
+   * Service name or slug to resolve
+   * @minLength 2
+   */
+  q: string;
 };
 
 export type ExportAnalyticsApiV1AnalyticsExportPostParams = {

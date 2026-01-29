@@ -259,6 +259,11 @@ class TestRoutingInvariants:
             # MCP instructors: static coverage route defined before dynamic {identifier}
             ("/api/v1/admin/mcp/instructors/coverage", "/api/v1/admin/mcp/instructors/{identifier}"),
             ("/api/v1/admin/mcp/instructors/{identifier}", "/api/v1/admin/mcp/instructors/coverage"),
+            # MCP invites: static preview/send defined before dynamic {identifier}
+            ("/api/v1/admin/mcp/invites/preview", "/api/v1/admin/mcp/invites/{identifier}"),
+            ("/api/v1/admin/mcp/invites/{identifier}", "/api/v1/admin/mcp/invites/preview"),
+            ("/api/v1/admin/mcp/invites/send", "/api/v1/admin/mcp/invites/{identifier}"),
+            ("/api/v1/admin/mcp/invites/{identifier}", "/api/v1/admin/mcp/invites/send"),
         }
 
         for path1, path2 in combinations(v1_paths, 2):

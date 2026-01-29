@@ -5,16 +5,27 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
+  DataTag,
+  DefinedInitialDataOptions,
+  DefinedUseQueryResult,
   MutationFunction,
   QueryClient,
+  QueryFunction,
+  QueryKey,
+  UndefinedInitialDataOptions,
   UseMutationOptions,
   UseMutationResult,
+  UseQueryOptions,
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
   HTTPValidationError,
+  ListInvitesApiV1AdminMcpInvitesGetParams,
+  MCPInviteDetailResponse,
+  MCPInviteListResponse,
   MCPInvitePreviewRequest,
   MCPInvitePreviewResponse,
   MCPInviteSendRequest,
@@ -25,6 +36,157 @@ import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * List invite history with optional filters.
+ * @summary List Invites
+ */
+export const getListInvitesApiV1AdminMcpInvitesGetUrl = (
+  params?: ListInvitesApiV1AdminMcpInvitesGetParams
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/mcp/invites?${stringifiedParams}`
+    : `/api/v1/admin/mcp/invites`;
+};
+
+export const listInvitesApiV1AdminMcpInvitesGet = async (
+  params?: ListInvitesApiV1AdminMcpInvitesGetParams,
+  options?: RequestInit
+): Promise<MCPInviteListResponse> => {
+  return customFetch<MCPInviteListResponse>(getListInvitesApiV1AdminMcpInvitesGetUrl(params), {
+    ...options,
+    method: 'GET',
+  });
+};
+
+export const getListInvitesApiV1AdminMcpInvitesGetQueryKey = (
+  params?: ListInvitesApiV1AdminMcpInvitesGetParams
+) => {
+  return [`/api/v1/admin/mcp/invites`, ...(params ? [params] : [])] as const;
+};
+
+export const getListInvitesApiV1AdminMcpInvitesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListInvitesApiV1AdminMcpInvitesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListInvitesApiV1AdminMcpInvitesGetQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>> = ({
+    signal,
+  }) => listInvitesApiV1AdminMcpInvitesGet(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListInvitesApiV1AdminMcpInvitesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>
+>;
+export type ListInvitesApiV1AdminMcpInvitesGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListInvitesApiV1AdminMcpInvitesGet<
+  TData = Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | ListInvitesApiV1AdminMcpInvitesGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListInvitesApiV1AdminMcpInvitesGet<
+  TData = Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListInvitesApiV1AdminMcpInvitesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListInvitesApiV1AdminMcpInvitesGet<
+  TData = Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListInvitesApiV1AdminMcpInvitesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Invites
+ */
+
+export function useListInvitesApiV1AdminMcpInvitesGet<
+  TData = Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListInvitesApiV1AdminMcpInvitesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listInvitesApiV1AdminMcpInvitesGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListInvitesApiV1AdminMcpInvitesGetQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Preview Invites
@@ -208,3 +370,167 @@ export const useSendInvitesApiV1AdminMcpInvitesSendPost = <
     queryClient
   );
 };
+/**
+ * Get full invite details by invite ID or code.
+ * @summary Get Invite Detail
+ */
+export const getGetInviteDetailApiV1AdminMcpInvitesIdentifierGetUrl = (identifier: string) => {
+  return `/api/v1/admin/mcp/invites/${identifier}`;
+};
+
+export const getInviteDetailApiV1AdminMcpInvitesIdentifierGet = async (
+  identifier: string,
+  options?: RequestInit
+): Promise<MCPInviteDetailResponse> => {
+  return customFetch<MCPInviteDetailResponse>(
+    getGetInviteDetailApiV1AdminMcpInvitesIdentifierGetUrl(identifier),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getGetInviteDetailApiV1AdminMcpInvitesIdentifierGetQueryKey = (identifier: string) => {
+  return [`/api/v1/admin/mcp/invites/${identifier}`] as const;
+};
+
+export const getGetInviteDetailApiV1AdminMcpInvitesIdentifierGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  identifier: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetInviteDetailApiV1AdminMcpInvitesIdentifierGetQueryKey(identifier);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>
+  > = ({ signal }) =>
+    getInviteDetailApiV1AdminMcpInvitesIdentifierGet(identifier, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, enabled: !!identifier, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetInviteDetailApiV1AdminMcpInvitesIdentifierGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>
+>;
+export type GetInviteDetailApiV1AdminMcpInvitesIdentifierGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetInviteDetailApiV1AdminMcpInvitesIdentifierGet<
+  TData = Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  identifier: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>,
+          TError,
+          Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetInviteDetailApiV1AdminMcpInvitesIdentifierGet<
+  TData = Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  identifier: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>,
+          TError,
+          Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetInviteDetailApiV1AdminMcpInvitesIdentifierGet<
+  TData = Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  identifier: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Invite Detail
+ */
+
+export function useGetInviteDetailApiV1AdminMcpInvitesIdentifierGet<
+  TData = Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  identifier: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInviteDetailApiV1AdminMcpInvitesIdentifierGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetInviteDetailApiV1AdminMcpInvitesIdentifierGetQueryOptions(
+    identifier,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

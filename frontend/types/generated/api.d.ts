@@ -1441,6 +1441,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mcp/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Invites
+         * @description List invite history with optional filters.
+         */
+        get: operations["list_invites_api_v1_admin_mcp_invites_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/mcp/invites/preview": {
         parameters: {
             query?: never;
@@ -1469,6 +1489,26 @@ export type paths = {
         put?: never;
         /** Send Invites */
         post: operations["send_invites_api_v1_admin_mcp_invites_send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/invites/{identifier}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Invite Detail
+         * @description Get full invite details by invite ID or code.
+         */
+        get: operations["get_invite_detail_api_v1_admin_mcp_invites__identifier__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1651,6 +1691,46 @@ export type paths = {
         };
         /** Get Zero Result Queries */
         get: operations["get_zero_result_queries_api_v1_admin_mcp_search_zero_results_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/services/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Service Catalog
+         * @description List all services with canonical slugs and category mappings.
+         */
+        get: operations["list_service_catalog_api_v1_admin_mcp_services_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/services/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lookup Service Catalog
+         * @description Resolve a service name or slug to canonical service records.
+         */
+        get: operations["lookup_service_catalog_api_v1_admin_mcp_services_lookup_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12154,6 +12234,11 @@ export type components = {
             /** Welcome Url */
             welcome_url: string;
         };
+        /**
+         * InviteStatus
+         * @enum {string}
+         */
+        InviteStatus: "pending" | "accepted" | "expired" | "revoked";
         /** InviteValidateResponse */
         InviteValidateResponse: {
             /** Code */
@@ -12849,6 +12934,83 @@ export type components = {
             /** Response Rate */
             response_rate?: number | null;
         };
+        /** MCPInviteDetailData */
+        MCPInviteDetailData: {
+            /** Accepted At */
+            accepted_at?: string | null;
+            /** Code */
+            code: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Email */
+            email?: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Grant Founding Status */
+            grant_founding_status: boolean;
+            /** Id */
+            id: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            } | null;
+            /** Role */
+            role: string;
+            /** Status */
+            status: string;
+            /** Status History */
+            status_history: components["schemas"]["MCPInviteStatusEvent"][];
+            /** Used By User Id */
+            used_by_user_id?: string | null;
+        };
+        /** MCPInviteDetailResponse */
+        MCPInviteDetailResponse: {
+            data: components["schemas"]["MCPInviteDetailData"];
+            meta: components["schemas"]["MCPMeta"];
+        };
+        /** MCPInviteListData */
+        MCPInviteListData: {
+            /** Count */
+            count: number;
+            /** Invites */
+            invites: components["schemas"]["MCPInviteListItem"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** MCPInviteListItem */
+        MCPInviteListItem: {
+            /** Accepted At */
+            accepted_at?: string | null;
+            /** Code */
+            code: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Email */
+            email?: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Id */
+            id: string;
+            /** Status */
+            status: string;
+        };
+        /** MCPInviteListResponse */
+        MCPInviteListResponse: {
+            data: components["schemas"]["MCPInviteListData"];
+            meta: components["schemas"]["MCPMeta"];
+        };
         /** MCPInvitePreview */
         MCPInvitePreview: {
             /**
@@ -12949,6 +13111,16 @@ export type components = {
             /** Status */
             status: string;
         };
+        /** MCPInviteStatusEvent */
+        MCPInviteStatusEvent: {
+            /** Status */
+            status: string;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp: string;
+        };
         /** MCPMeta */
         MCPMeta: {
             actor: components["schemas"]["MCPActor"];
@@ -12978,6 +13150,33 @@ export type components = {
             data: components["schemas"]["MCPMetricDefinition"];
             meta: components["schemas"]["MCPMeta"];
         };
+        /** MCPServiceCatalogData */
+        MCPServiceCatalogData: {
+            /** Count */
+            count: number;
+            /** Services */
+            services: components["schemas"]["MCPServiceCatalogItem"][];
+        };
+        /** MCPServiceCatalogItem */
+        MCPServiceCatalogItem: {
+            /** Category Name */
+            category_name?: string | null;
+            /** Category Slug */
+            category_slug?: string | null;
+            /** Id */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
+        /** MCPServiceCatalogResponse */
+        MCPServiceCatalogResponse: {
+            data: components["schemas"]["MCPServiceCatalogData"];
+            meta: components["schemas"]["MCPMeta"];
+        };
         /** MCPServiceCoverageData */
         MCPServiceCoverageData: {
             /** Group By */
@@ -12994,6 +13193,22 @@ export type components = {
         /** MCPServiceCoverageResponse */
         MCPServiceCoverageResponse: {
             data: components["schemas"]["MCPServiceCoverageData"];
+            meta: components["schemas"]["MCPMeta"];
+        };
+        /** MCPServiceLookupData */
+        MCPServiceLookupData: {
+            /** Count */
+            count: number;
+            /** Matches */
+            matches: components["schemas"]["MCPServiceCatalogItem"][];
+            /** Message */
+            message?: string | null;
+            /** Query */
+            query: string;
+        };
+        /** MCPServiceLookupResponse */
+        MCPServiceLookupResponse: {
+            data: components["schemas"]["MCPServiceLookupData"];
             meta: components["schemas"]["MCPMeta"];
         };
         /** MCPStuckInstructor */
@@ -20639,6 +20854,48 @@ export interface operations {
             };
         };
     };
+    list_invites_api_v1_admin_mcp_invites_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by recipient email */
+                email?: string | null;
+                /** @description Filter by status: pending, accepted, expired, revoked */
+                status?: components["schemas"]["InviteStatus"] | null;
+                /** @description Filter by created_at start date (YYYY-MM-DD) */
+                start_date?: string | null;
+                /** @description Filter by created_at end date (YYYY-MM-DD) */
+                end_date?: string | null;
+                /** @description Max results (max 200) */
+                limit?: number;
+                /** @description Pagination cursor */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPInviteListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     preview_invites_api_v1_admin_mcp_invites_preview_post: {
         parameters: {
             query?: never;
@@ -20694,6 +20951,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MCPInviteSendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_invite_detail_api_v1_admin_mcp_invites__identifier__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPInviteDetailResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20978,6 +21266,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MCPZeroResultsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_service_catalog_api_v1_admin_mcp_services_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPServiceCatalogResponse"];
+                };
+            };
+        };
+    };
+    lookup_service_catalog_api_v1_admin_mcp_services_lookup_get: {
+        parameters: {
+            query: {
+                /** @description Service name or slug to resolve */
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPServiceLookupResponse"];
                 };
             };
             /** @description Validation Error */

@@ -1135,6 +1135,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/invites": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_invites_api_v1_admin_mcp_invites_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/mcp/invites/preview": {
  parameters: {
  query?: never;
@@ -1161,6 +1177,22 @@ export type paths = {
  get?: never;
  put?: never;
  post: operations["send_invites_api_v1_admin_mcp_invites_send_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/invites/{identifier}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_invite_detail_api_v1_admin_mcp_invites__identifier__get"];
+ put?: never;
+ post?: never;
  delete?: never;
  options?: never;
  head?: never;
@@ -1303,6 +1335,38 @@ export type paths = {
  cookie?: never;
  };
  get: operations["get_zero_result_queries_api_v1_admin_mcp_search_zero_results_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/services/catalog": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_service_catalog_api_v1_admin_mcp_services_catalog_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/services/lookup": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["lookup_service_catalog_api_v1_admin_mcp_services_lookup_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -6722,6 +6786,7 @@ export type components = {
  join_url: string;
  welcome_url: string;
  };
+ InviteStatus: "pending" | "accepted" | "expired" | "revoked";
  InviteValidateResponse: {
  code?: string | null;
  email?: string | null;
@@ -6999,6 +7064,44 @@ export type components = {
  rating_count: number;
  response_rate?: number | null;
  };
+ MCPInviteDetailData: {
+ accepted_at?: string | null;
+ code: string;
+ created_at: string;
+ email?: string | null;
+ expires_at: string;
+ grant_founding_status: boolean;
+ id: string;
+ metadata?: {
+ [key: string]: unknown;
+ } | null;
+ role: string;
+ status: string;
+ status_history: components["schemas"]["MCPInviteStatusEvent"][];
+ used_by_user_id?: string | null;
+ };
+ MCPInviteDetailResponse: {
+ data: components["schemas"]["MCPInviteDetailData"];
+ meta: components["schemas"]["MCPMeta"];
+ };
+ MCPInviteListData: {
+ count: number;
+ invites: components["schemas"]["MCPInviteListItem"][];
+ next_cursor?: string | null;
+ };
+ MCPInviteListItem: {
+ accepted_at?: string | null;
+ code: string;
+ created_at: string;
+ email?: string | null;
+ expires_at: string;
+ id: string;
+ status: string;
+ };
+ MCPInviteListResponse: {
+ data: components["schemas"]["MCPInviteListData"];
+ meta: components["schemas"]["MCPMeta"];
+ };
  MCPInvitePreview: {
  expires_at: string;
  founding_cap_remaining: number;
@@ -7047,6 +7150,10 @@ export type components = {
  email: string;
  status: string;
  };
+ MCPInviteStatusEvent: {
+ status: string;
+ timestamp: string;
+ };
  MCPMeta: {
  actor: components["schemas"]["MCPActor"];
  generated_at: string;
@@ -7063,6 +7170,22 @@ export type components = {
  data: components["schemas"]["MCPMetricDefinition"];
  meta: components["schemas"]["MCPMeta"];
  };
+ MCPServiceCatalogData: {
+ count: number;
+ services: components["schemas"]["MCPServiceCatalogItem"][];
+ };
+ MCPServiceCatalogItem: {
+ category_name?: string | null;
+ category_slug?: string | null;
+ id: string;
+ is_active: boolean;
+ name: string;
+ slug: string;
+ };
+ MCPServiceCatalogResponse: {
+ data: components["schemas"]["MCPServiceCatalogData"];
+ meta: components["schemas"]["MCPMeta"];
+ };
  MCPServiceCoverageData: {
  group_by: string;
  labels: string[];
@@ -7072,6 +7195,16 @@ export type components = {
  };
  MCPServiceCoverageResponse: {
  data: components["schemas"]["MCPServiceCoverageData"];
+ meta: components["schemas"]["MCPMeta"];
+ };
+ MCPServiceLookupData: {
+ count: number;
+ matches: components["schemas"]["MCPServiceCatalogItem"][];
+ message?: string | null;
+ query: string;
+ };
+ MCPServiceLookupResponse: {
+ data: components["schemas"]["MCPServiceLookupData"];
  meta: components["schemas"]["MCPMeta"];
  };
  MCPStuckInstructor: {
@@ -10919,6 +11052,40 @@ export interface operations {
  };
  };
  };
+ list_invites_api_v1_admin_mcp_invites_get: {
+ parameters: {
+ query?: {
+ email?: string | null;
+ status?: components["schemas"]["InviteStatus"] | null;
+ start_date?: string | null;
+ end_date?: string | null;
+ limit?: number;
+ cursor?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPInviteListResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  preview_invites_api_v1_admin_mcp_invites_preview_post: {
  parameters: {
  query?: never;
@@ -10971,6 +11138,35 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["MCPInviteSendResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_invite_detail_api_v1_admin_mcp_invites__identifier__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ identifier: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPInviteDetailResponse"];
  };
  };
  422: {
@@ -11231,6 +11427,54 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["MCPZeroResultsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_service_catalog_api_v1_admin_mcp_services_catalog_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPServiceCatalogResponse"];
+ };
+ };
+ };
+ };
+ lookup_service_catalog_api_v1_admin_mcp_services_lookup_get: {
+ parameters: {
+ query: {
+ q: string;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPServiceLookupResponse"];
  };
  };
  422: {

@@ -374,6 +374,88 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
 
         return cast(List[ServiceCatalog], query.all())
 
+    def list_services_with_categories(
+        self,
+        *,
+        include_inactive: bool = False,
+    ) -> List[ServiceCatalog]:
+        """
+        List catalog services with categories eagerly loaded.
+
+        Args:
+            include_inactive: Whether to include inactive/deleted services
+
+        Returns:
+            List of ServiceCatalog objects with categories loaded
+        """
+        query = self.db.query(ServiceCatalog).options(joinedload(ServiceCatalog.category))
+        if not include_inactive:
+            query = _apply_active_catalog_predicate(query)
+        query = query.order_by(ServiceCatalog.display_order, ServiceCatalog.name)
+        return cast(List[ServiceCatalog], query.all())
+
+    def search_services_with_categories(
+        self,
+        query_text: str,
+        *,
+        include_inactive: bool = False,
+        limit: int = 25,
+    ) -> List[ServiceCatalog]:
+        """
+        Search services with categories eagerly loaded (includes slug + search_terms).
+
+        Args:
+            query_text: Text to search in name, slug, description, and search_terms
+            include_inactive: Whether to include inactive/deleted services
+            limit: Maximum results
+
+        Returns:
+            List of matching services
+        """
+        query = self.db.query(ServiceCatalog).options(joinedload(ServiceCatalog.category))
+        if not include_inactive:
+            query = _apply_active_catalog_predicate(query)
+
+        search_pattern = f"%{query_text}%"
+        if self._pg_trgm_available:
+            query = query.filter(
+                or_(
+                    text(
+                        "(service_catalog.name % :q) OR (similarity(service_catalog.name, :q) >= 0.3)"
+                    ).params(q=query_text),
+                    text(
+                        "(service_catalog.slug % :q) OR (similarity(service_catalog.slug, :q) >= 0.3)"
+                    ).params(q=query_text),
+                    text(
+                        "(service_catalog.description IS NOT NULL AND ((service_catalog.description % :q) OR (similarity(service_catalog.description, :q) >= 0.3)))"
+                    ).params(q=query_text),
+                    text(
+                        "EXISTS (SELECT 1 FROM unnest(service_catalog.search_terms) AS term WHERE lower(term) LIKE lower(:pattern))"
+                    ).params(pattern=search_pattern),
+                )
+            )
+            query = query.order_by(
+                text(
+                    "GREATEST(similarity(service_catalog.name, :q), similarity(service_catalog.slug, :q)) DESC"
+                ).params(q=query_text),
+                ServiceCatalog.display_order,
+                ServiceCatalog.name,
+            )
+        else:
+            query = query.filter(
+                or_(
+                    ServiceCatalog.name.ilike(search_pattern),
+                    ServiceCatalog.slug.ilike(search_pattern),
+                    ServiceCatalog.description.ilike(search_pattern),
+                    text(
+                        "EXISTS (SELECT 1 FROM unnest(search_terms) AS term WHERE lower(term) LIKE lower(:pattern))"
+                    ).params(pattern=search_pattern),
+                )
+            )
+            query = query.order_by(ServiceCatalog.display_order, ServiceCatalog.name)
+
+        return cast(List[ServiceCatalog], query.limit(limit).all())
+
     def count_active_instructors(self, service_catalog_id: str) -> int:
         """
         Count the number of active instructors offering a specific service.

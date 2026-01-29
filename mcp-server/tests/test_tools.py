@@ -1,6 +1,6 @@
 import pytest
 from fastmcp import FastMCP
-from instainstru_mcp.tools import founding, instructors, invites, metrics, search
+from instainstru_mcp.tools import founding, instructors, invites, metrics, search, services
 
 
 class FakeClient:
@@ -55,6 +55,14 @@ class FakeClient:
         )
         return {"ok": True}
 
+    async def list_invites(self, **filters):
+        self.calls.append(("list_invites", (), filters))
+        return {"ok": True}
+
+    async def get_invite_detail(self, identifier):
+        self.calls.append(("get_invite_detail", (identifier,), {}))
+        return {"ok": True}
+
     async def get_top_queries(self, **filters):
         self.calls.append(("get_top_queries", (), filters))
         return {"ok": True}
@@ -65,6 +73,14 @@ class FakeClient:
 
     async def get_metric(self, metric_name):
         self.calls.append(("get_metric", (metric_name,), {}))
+        return {"ok": True}
+
+    async def get_services_catalog(self):
+        self.calls.append(("get_services_catalog", (), {}))
+        return {"ok": True}
+
+    async def lookup_service(self, query):
+        self.calls.append(("lookup_service", (query,), {}))
         return {"ok": True}
 
 
@@ -139,6 +155,39 @@ async def test_invite_tools_call_client():
     assert result == {"ok": True}
     assert client.calls[1][0] == "send_invites"
     assert client.calls[1][1] == ("token", "idem")
+
+    result = await tools["instainstru_invites_list"](
+        email="a@example.com",
+        status="pending",
+        start_date="2026-01-01",
+        end_date="2026-01-31",
+        limit=25,
+        cursor="cursor",
+    )
+    assert result == {"ok": True}
+    assert client.calls[2][0] == "list_invites"
+    assert client.calls[2][2]["email"] == "a@example.com"
+
+    result = await tools["instainstru_invites_detail"]("INVITE1")
+    assert result == {"ok": True}
+    assert client.calls[3][0] == "get_invite_detail"
+    assert client.calls[3][1][0] == "INVITE1"
+
+
+@pytest.mark.asyncio
+async def test_services_tools_call_client():
+    client = FakeClient()
+    mcp = FastMCP("test")
+    tools = services.register_tools(mcp, client)
+
+    result = await tools["instainstru_services_catalog"]()
+    assert result == {"ok": True}
+    assert client.calls[0][0] == "get_services_catalog"
+
+    result = await tools["instainstru_service_lookup"]("swim")
+    assert result == {"ok": True}
+    assert client.calls[1][0] == "lookup_service"
+    assert client.calls[1][1][0] == "swim"
 
 
 @pytest.mark.asyncio

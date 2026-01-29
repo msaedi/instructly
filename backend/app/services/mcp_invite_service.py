@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
+from app.models.beta import BetaInvite
 from app.models.user import User
 from app.principal import Principal
+from app.repositories.beta_repository import BetaInviteRepository
 from app.repositories.factory import RepositoryFactory
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.services.base import BaseService
@@ -19,6 +23,7 @@ class MCPInviteService(BaseService):
     def __init__(self, db: Session):
         super().__init__(db)
         self._audit_repo = RepositoryFactory.create_audit_repository(db)
+        self._beta_invite_repo = BetaInviteRepository(db)
         self._profile_repo = InstructorProfileRepository(db)
         self._config_service = ConfigService(db)
         self._user_repo = RepositoryFactory.create_user_repository(db)
@@ -99,3 +104,88 @@ class MCPInviteService(BaseService):
         from ulid import ULID
 
         return str(ULID())
+
+    @BaseService.measure_operation("mcp_invites.list")
+    def list_invites(
+        self,
+        *,
+        email: str | None = None,
+        status: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> dict[str, object]:
+        now = datetime.now(timezone.utc)
+        invites, next_cursor = self._beta_invite_repo.list_invites(
+            email=email,
+            status=status,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            cursor=cursor,
+            now=now,
+        )
+
+        items = [self._invite_to_dict(invite, now) for invite in invites]
+        return {
+            "invites": items,
+            "count": len(items),
+            "next_cursor": next_cursor,
+        }
+
+    @BaseService.measure_operation("mcp_invites.detail")
+    def get_invite_detail(self, identifier: str) -> dict[str, object]:
+        now = datetime.now(timezone.utc)
+        invite = self._beta_invite_repo.get_by_id(identifier)
+        if not invite:
+            invite = self._beta_invite_repo.get_by_code(identifier)
+        if not invite:
+            return {}
+        return self._invite_to_detail(invite, now)
+
+    def _invite_to_dict(self, invite: BetaInvite, now: datetime) -> dict[str, object]:
+        return {
+            "id": invite.id,
+            "code": invite.code,
+            "email": invite.email,
+            "status": self._resolve_status(invite, now),
+            "created_at": invite.created_at,
+            "expires_at": invite.expires_at,
+            "accepted_at": invite.used_at,
+        }
+
+    def _invite_to_detail(self, invite: BetaInvite, now: datetime) -> dict[str, object]:
+        history = [
+            {
+                "status": "pending",
+                "timestamp": invite.created_at,
+            }
+        ]
+        if invite.used_at:
+            history.append({"status": "accepted", "timestamp": invite.used_at})
+        elif invite.expires_at and invite.expires_at < now:
+            history.append({"status": "expired", "timestamp": invite.expires_at})
+
+        return {
+            "id": invite.id,
+            "code": invite.code,
+            "email": invite.email,
+            "status": self._resolve_status(invite, now),
+            "created_at": invite.created_at,
+            "expires_at": invite.expires_at,
+            "accepted_at": invite.used_at,
+            "used_by_user_id": invite.used_by_user_id,
+            "role": invite.role,
+            "grant_founding_status": bool(getattr(invite, "grant_founding_status", False)),
+            "metadata": invite.metadata_json,
+            "status_history": history,
+        }
+
+    @staticmethod
+    def _resolve_status(invite: BetaInvite, now: datetime) -> str:
+        if invite.used_at:
+            return "accepted"
+        if invite.expires_at and invite.expires_at < now:
+            return "expired"
+        return "pending"
