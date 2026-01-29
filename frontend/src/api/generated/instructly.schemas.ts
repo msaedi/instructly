@@ -296,6 +296,30 @@ export interface AdminBookingStatusUpdateResponse {
   success: boolean;
 }
 
+export type AdminBookingSummaryByStatus = { [key: string]: number };
+
+/**
+ * A category with booking count.
+ */
+export interface TopCategory {
+  category: string;
+  count: number;
+}
+
+/**
+ * Summary statistics for bookings in a time period.
+ */
+export interface AdminBookingSummary {
+  avg_booking_value_cents: number;
+  by_status: AdminBookingSummaryByStatus;
+  new_students: number;
+  period: string;
+  repeat_students: number;
+  top_categories: TopCategory[];
+  total_bookings: number;
+  total_revenue_cents: number;
+}
+
 export interface AdminCancelBookingRequest {
   note?: string | null;
   /** @maxLength 100 */
@@ -1720,6 +1744,24 @@ export interface BookingCreateResponse {
 }
 
 /**
+ * A booking in a list view with privacy-safe names.
+ */
+export interface BookingListItem {
+  booking_date: string;
+  booking_id: string;
+  category: string;
+  created_at: string;
+  end_time: string;
+  instructor_name: string;
+  location_type: string;
+  service_name: string;
+  start_time: string;
+  status: string;
+  student_name: string;
+  total_cents: number;
+}
+
+/**
  * Request to update a booking's payment method, with optional default flag.
  */
 export interface BookingPaymentMethodUpdate {
@@ -1728,6 +1770,16 @@ export interface BookingPaymentMethodUpdate {
   /** Whether to save as default for the student */
   set_as_default?: boolean;
 }
+
+export type BookingPeriod = (typeof BookingPeriod)[keyof typeof BookingPeriod];
+
+export const BookingPeriod = {
+  today: 'today',
+  yesterday: 'yesterday',
+  this_week: 'this_week',
+  last_7_days: 'last_7_days',
+  this_month: 'this_month',
+} as const;
 
 export type BookingPreviewResponseLocationType =
   (typeof BookingPreviewResponseLocationType)[keyof typeof BookingPreviewResponseLocationType];
@@ -1879,6 +1931,14 @@ export interface BookingSummary {
   id: string;
   service_name: string;
   start_time: string;
+}
+
+/**
+ * Response for booking summary endpoint.
+ */
+export interface BookingSummaryResponse {
+  checked_at: string;
+  summary: AdminBookingSummary;
 }
 
 /**
@@ -3678,6 +3738,48 @@ export interface MCPActor {
 }
 
 /**
+ * Information about a currently running Celery task.
+ */
+export interface MCPCeleryActiveTask {
+  args?: string | null;
+  kwargs?: string | null;
+  started_at?: string | null;
+  task_id: string;
+  task_name: string;
+  worker: string;
+}
+
+/**
+ * Response for active tasks endpoint.
+ */
+export interface MCPCeleryActiveTasksResponse {
+  checked_at: string;
+  count: number;
+  tasks: MCPCeleryActiveTask[];
+}
+
+/**
+ * Information about a scheduled periodic task.
+ */
+export interface MCPCeleryScheduledTask {
+  enabled?: boolean;
+  last_run?: string | null;
+  name: string;
+  next_run?: string | null;
+  schedule: string;
+  task: string;
+}
+
+/**
+ * Response for beat schedule endpoint.
+ */
+export interface MCPCeleryBeatScheduleResponse {
+  checked_at: string;
+  count: number;
+  tasks: MCPCeleryScheduledTask[];
+}
+
+/**
  * Information about a failed Celery task.
  */
 export interface MCPCeleryFailedTask {
@@ -3748,6 +3850,34 @@ export interface MCPCeleryQueuesResponse {
   checked_at: string;
   queues: MCPCeleryQueueInfo[];
   total_depth: number;
+}
+
+/**
+ * Information about a historical Celery task execution.
+ */
+export interface MCPCeleryTaskHistoryItem {
+  exception?: string | null;
+  received_at?: string | null;
+  result?: string | null;
+  retries?: number;
+  runtime_seconds?: number | null;
+  started_at?: string | null;
+  state: string;
+  succeeded_at?: string | null;
+  task_id: string;
+  task_name: string;
+}
+
+export type MCPCeleryTaskHistoryResponseFiltersApplied = { [key: string]: unknown };
+
+/**
+ * Response for task history endpoint.
+ */
+export interface MCPCeleryTaskHistoryResponse {
+  checked_at: string;
+  count: number;
+  filters_applied: MCPCeleryTaskHistoryResponseFiltersApplied;
+  tasks: MCPCeleryTaskHistoryItem[];
 }
 
 /**
@@ -4848,6 +4978,26 @@ export interface PaymentMethodResponse {
   last4: string;
 }
 
+/**
+ * Response for payment pipeline status endpoint.
+ */
+export interface PaymentPipelineResponse {
+  authorized: number;
+  captured: number;
+  checked_at: string;
+  failed: number;
+  instructor_payouts_cents: number;
+  net_revenue_cents: number;
+  overdue_authorizations: number;
+  overdue_captures: number;
+  pending_authorization: number;
+  pending_capture: number;
+  platform_fees_cents: number;
+  refunded: number;
+  total_captured_cents: number;
+  total_refunded_cents: number;
+}
+
 export interface PayoutSummary {
   /** Amount in cents */
   amount_cents: number;
@@ -4888,6 +5038,28 @@ export interface PayoutScheduleResponse {
   ok: boolean;
   /** Stripe payout schedule settings that were applied */
   settings?: PayoutScheduleResponseSettings;
+}
+
+/**
+ * An instructor with pending payout.
+ */
+export interface PendingPayoutItem {
+  completed_lessons: number;
+  instructor_id: string;
+  instructor_name: string;
+  oldest_pending_date: string;
+  pending_amount_cents: number;
+  stripe_connected: boolean;
+}
+
+/**
+ * Response for pending payouts endpoint.
+ */
+export interface PendingPayoutsResponse {
+  checked_at: string;
+  instructor_count: number;
+  payouts: PendingPayoutItem[];
+  total_pending_cents: number;
 }
 
 /**
@@ -5646,6 +5818,18 @@ export interface RecentAlertsResponse {
   hours: number;
   /** Total number of alerts in the time period */
   total: number;
+}
+
+export type RecentBookingsResponseFiltersApplied = { [key: string]: unknown };
+
+/**
+ * Response for recent bookings endpoint.
+ */
+export interface RecentBookingsResponse {
+  bookings: BookingListItem[];
+  checked_at: string;
+  count: number;
+  filters_applied: RecentBookingsResponseFiltersApplied;
 }
 
 /**
@@ -6826,6 +7010,18 @@ export interface UpdatePreferenceRequest {
 }
 
 /**
+ * Response for user booking history endpoint.
+ */
+export interface UserBookingHistoryResponse {
+  bookings: BookingListItem[];
+  checked_at: string;
+  total_count: number;
+  user_id: string;
+  user_name: string;
+  user_role: string;
+}
+
+/**
  * Metadata provided during user registration.
  */
 export interface UserRegistrationMetadata {
@@ -6884,11 +7080,44 @@ export interface UserDataDeletionResponse {
   status: string;
 }
 
+/**
+ * User information for admin lookup.
+ */
+export interface UserInfo {
+  created_at: string;
+  email: string;
+  instructor_status?: string | null;
+  is_founding: boolean;
+  is_verified: boolean;
+  last_login?: string | null;
+  name: string;
+  phone?: string | null;
+  rating?: number | null;
+  review_count?: number | null;
+  role: string;
+  stripe_account_id?: string | null;
+  stripe_customer_id?: string | null;
+  total_bookings: number;
+  total_earned_cents?: number | null;
+  total_lessons?: number | null;
+  total_spent_cents: number;
+  user_id: string;
+}
+
 export interface UserLogin {
   captcha_token?: string | null;
   email: string;
   guest_session_id?: string | null;
   password: string;
+}
+
+/**
+ * Response for user lookup endpoint.
+ */
+export interface UserLookupResponse {
+  checked_at: string;
+  found: boolean;
+  user?: UserInfo | null;
 }
 
 export interface UserUpdate {
@@ -7305,6 +7534,29 @@ export type GetFailedTasksApiV1AdminMcpCeleryFailedGetParams = {
   limit?: number;
 };
 
+export type GetTaskHistoryApiV1AdminMcpCeleryTasksHistoryGetParams = {
+  /**
+   * Filter by task name (partial match)
+   */
+  task_name?: string | null;
+  /**
+   * Filter by state (SUCCESS, FAILURE, PENDING, STARTED, RETRY)
+   */
+  state?: string | null;
+  /**
+   * Look back window in hours (max 24)
+   * @minimum 1
+   * @maximum 24
+   */
+  hours?: number;
+  /**
+   * Max results (max 500)
+   * @minimum 1
+   * @maximum 500
+   */
+  limit?: number;
+};
+
 export type GetFunnelSummaryApiV1AdminMcpFoundingFunnelGetParams = {
   start_date?: string | null;
   end_date?: string | null;
@@ -7364,6 +7616,57 @@ export const GetServiceCoverageApiV1AdminMcpInstructorsCoverageGetGroupBy = {
   category: 'category',
   service: 'service',
 } as const;
+
+export type GetRecentBookingsApiV1AdminMcpOpsBookingsRecentGetParams = {
+  /**
+   * Filter by status: confirmed, completed, cancelled, pending
+   */
+  status?: string | null;
+  /**
+   * Max results (max 100)
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+  /**
+   * Look back window in hours (max 168 = 1 week)
+   * @minimum 1
+   * @maximum 168
+   */
+  hours?: number;
+};
+
+export type GetBookingSummaryApiV1AdminMcpOpsBookingsSummaryGetParams = {
+  /**
+   * Time period: today, yesterday, this_week, last_7_days, this_month
+   */
+  period?: BookingPeriod;
+};
+
+export type GetPendingPayoutsApiV1AdminMcpOpsPaymentsPendingPayoutsGetParams = {
+  /**
+   * Max results (max 100)
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+};
+
+export type LookupUserApiV1AdminMcpOpsUsersLookupGetParams = {
+  /**
+   * Email, phone number, or user ID
+   */
+  identifier: string;
+};
+
+export type GetUserBookingHistoryApiV1AdminMcpOpsUsersUserIdBookingsGetParams = {
+  /**
+   * Max results (max 100)
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+};
 
 export type GetTopQueriesApiV1AdminMcpSearchTopQueriesGetParams = {
   start_date?: string | null;

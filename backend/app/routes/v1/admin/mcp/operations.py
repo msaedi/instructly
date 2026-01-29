@@ -6,6 +6,8 @@ All endpoints require a valid MCP service token with mcp:read scope.
 
 from __future__ import annotations
 
+from enum import Enum
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -14,8 +16,8 @@ from app.dependencies.mcp_auth import require_mcp_scope
 from app.principal import Principal
 from app.ratelimit.dependency import rate_limit
 from app.schemas.admin_ops import (
+    AdminBookingSummary,
     BookingListItem,
-    BookingSummary,
     BookingSummaryResponse,
     PaymentPipelineResponse,
     PendingPayoutItem,
@@ -34,14 +36,22 @@ router = APIRouter(tags=["MCP Admin - Operations"])
 # ==================== Bookings ====================
 
 
+class BookingPeriod(str, Enum):
+    TODAY = "today"
+    YESTERDAY = "yesterday"
+    THIS_WEEK = "this_week"
+    LAST_7_DAYS = "last_7_days"
+    THIS_MONTH = "this_month"
+
+
 @router.get(
     "/bookings/summary",
     response_model=BookingSummaryResponse,
     dependencies=[Depends(rate_limit("admin_mcp"))],
 )
 async def get_booking_summary(
-    period: str = Query(
-        default="today",
+    period: BookingPeriod = Query(
+        default=BookingPeriod.TODAY,
         description="Time period: today, yesterday, this_week, last_7_days, this_month",
     ),
     principal: Principal = Depends(require_mcp_scope("mcp:read")),
@@ -53,13 +63,13 @@ async def get_booking_summary(
     Returns total bookings, revenue, breakdown by status, and top categories.
     """
     service = AdminOpsService(db)
-    result = await service.get_booking_summary(period=period)
+    result = await service.get_booking_summary(period=period.value)
 
     summary_data = result["summary"]
     top_categories = [TopCategory(**tc) for tc in summary_data["top_categories"]]
 
     return BookingSummaryResponse(
-        summary=BookingSummary(
+        summary=AdminBookingSummary(
             period=summary_data["period"],
             total_bookings=summary_data["total_bookings"],
             by_status=summary_data["by_status"],

@@ -47,6 +47,15 @@ class TestAdminOpsRepositoryErrorHandling:
 
         assert "Failed to get first booking date" in str(exc_info.value)
 
+    def test_get_first_booking_dates_raises_on_db_error(self, repo, mock_db):
+        """Test get_first_booking_dates_for_students raises RepositoryException on DB error."""
+        mock_db.query.side_effect = SQLAlchemyError("Query timeout")
+
+        with pytest.raises(RepositoryException) as exc_info:
+            repo.get_first_booking_dates_for_students(["student_123"])
+
+        assert "Failed to get first booking dates" in str(exc_info.value)
+
     def test_get_recent_bookings_raises_on_db_error(self, repo, mock_db):
         """Test get_recent_bookings_with_details raises RepositoryException on DB error."""
         mock_db.query.side_effect = SQLAlchemyError("Connection pool exhausted")
@@ -99,9 +108,7 @@ class TestAdminOpsRepositoryErrorHandling:
         mock_db.query.side_effect = SQLAlchemyError("Server unreachable")
 
         with pytest.raises(RepositoryException) as exc_info:
-            repo.count_overdue_authorizations(
-                datetime.now(timezone.utc), datetime.now(timezone.utc)
-            )
+            repo.count_overdue_authorizations(datetime.now(timezone.utc))
 
         assert "Failed to count overdue authorizations" in str(exc_info.value)
 

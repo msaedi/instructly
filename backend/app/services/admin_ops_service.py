@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class AdminOpsService(BaseService):
     """Service for admin operations via MCP - bookings, payments, user support."""
 
+    VALID_PERIODS = {"today", "yesterday", "this_week", "last_7_days", "this_month"}
     MAX_RECENT_BOOKINGS_LIMIT = 100
     MAX_RECENT_BOOKINGS_HOURS = 168  # 1 week
     MAX_PAYOUTS_LIMIT = 100
@@ -43,6 +44,11 @@ class AdminOpsService(BaseService):
     @staticmethod
     def _get_period_dates(period: str) -> tuple[date, date]:
         """Get start and end dates for a period string."""
+        if period not in AdminOpsService.VALID_PERIODS:
+            raise ValueError(
+                f"Invalid period: {period}. Valid options: {AdminOpsService.VALID_PERIODS}"
+            )
+
         today = datetime.now(timezone.utc).date()
 
         if period == "today":
@@ -91,11 +97,15 @@ class AdminOpsService(BaseService):
         unique_students = set(student_ids)
 
         # A "new" student is one whose first booking is in this period
+        first_booking_dates = self.repository.get_first_booking_dates_for_students(
+            list(unique_students)
+        )
+
         new_students = 0
         repeat_students = 0
 
         for student_id in unique_students:
-            first_booking_date = self.repository.get_first_booking_date_for_student(student_id)
+            first_booking_date = first_booking_dates.get(str(student_id))
             if first_booking_date and first_booking_date >= start_date:
                 new_students += 1
             else:
@@ -260,8 +270,7 @@ class AdminOpsService(BaseService):
 
         # Alerts: overdue authorizations
         overdue_authorizations = self.repository.count_overdue_authorizations(
-            cutoff_time=cutoff_24h,
-            current_time=now,
+            cutoff_time=cutoff_24h
         )
 
         # Overdue captures (completed > 24h ago but still authorized)

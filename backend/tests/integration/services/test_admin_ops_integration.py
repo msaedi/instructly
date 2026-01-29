@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.booking import Booking
+from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.user import User
 from app.repositories.admin_ops_repository import AdminOpsRepository
 from app.services.admin_ops_service import AdminOpsService
+
+try:  # pragma: no cover - support running from repo root or backend/
+    from backend.tests.factories.booking_builders import create_booking_pg_safe
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.factories.booking_builders import create_booking_pg_safe
 
 
 @pytest.fixture
@@ -68,6 +73,18 @@ class TestAdminOpsRepositoryIntegration:
             test_booking.student_id
         )
         assert result is not None
+
+    def test_get_first_booking_dates_for_students(
+        self,
+        admin_ops_repo: AdminOpsRepository,
+        test_booking: Booking,
+        test_student: User,
+    ):
+        """Test returns mapping of first booking dates for multiple students."""
+        result = admin_ops_repo.get_first_booking_dates_for_students(
+            [test_booking.student_id, test_student.id]
+        )
+        assert str(test_booking.student_id) in result
 
     def test_get_recent_bookings_with_details_empty(
         self, admin_ops_repo: AdminOpsRepository
@@ -139,10 +156,43 @@ class TestAdminOpsRepositoryIntegration:
         now = datetime.now(timezone.utc)
         result = admin_ops_repo.count_overdue_authorizations(
             cutoff_time=now + timedelta(hours=24),
-            current_time=now,
         )
         assert isinstance(result, int)
         assert result >= 0
+
+    def test_count_overdue_authorizations_includes_started_booking(
+        self,
+        admin_ops_repo: AdminOpsRepository,
+        db: Session,
+        test_booking: Booking,
+    ):
+        """Test overdue authorizations include already-started bookings."""
+        now = datetime.now(timezone.utc)
+        cutoff = now + timedelta(hours=24)
+        baseline = admin_ops_repo.count_overdue_authorizations(cutoff_time=cutoff)
+
+        create_booking_pg_safe(
+            db,
+            student_id=test_booking.student_id,
+            instructor_id=test_booking.instructor_id,
+            instructor_service_id=test_booking.instructor_service_id,
+            booking_date=now.date() - timedelta(days=1),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            status=BookingStatus.CONFIRMED,
+            payment_status=PaymentStatus.SCHEDULED.value,
+            service_name=test_booking.service_name,
+            hourly_rate=test_booking.hourly_rate,
+            total_price=test_booking.total_price,
+            duration_minutes=60,
+            meeting_location=test_booking.meeting_location,
+            service_area=test_booking.service_area,
+            allow_overlap=True,
+        )
+        db.flush()
+
+        result = admin_ops_repo.count_overdue_authorizations(cutoff_time=cutoff)
+        assert result == baseline + 1
 
     def test_count_overdue_captures(self, admin_ops_repo: AdminOpsRepository):
         """Test counts overdue captures."""

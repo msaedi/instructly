@@ -354,7 +354,7 @@ class TestGetPaymentHealthWithTaskHistory:
         """Test payment health with task run history from Flower."""
         task_data = {
             "task-123": {
-                "name": "app.tasks.payment_tasks.authorize_scheduled_payments",
+                "name": "app.tasks.payment_tasks.process_scheduled_authorizations",
                 "state": "SUCCESS",
                 "received": 1704067200,
             },
@@ -370,7 +370,7 @@ class TestGetPaymentHealthWithTaskHistory:
         # Check that at least one has data
         auth_task = next(
             t for t in result["last_task_runs"]
-            if t["task_name"] == "authorize_scheduled_payments"
+            if t["task_name"] == "process_scheduled_authorizations"
         )
         assert auth_task["status"] == "SUCCESS"
         assert auth_task["last_run_at"] is not None
@@ -380,7 +380,7 @@ class TestGetPaymentHealthWithTaskHistory:
         """Test payment health handles invalid task timestamps."""
         task_data = {
             "task-123": {
-                "name": "app.tasks.payment_tasks.capture_completed_bookings",
+                "name": "app.tasks.payment_tasks.capture_completed_lessons",
                 "state": "SUCCESS",
                 "received": "invalid",
             },
@@ -392,7 +392,7 @@ class TestGetPaymentHealthWithTaskHistory:
 
         capture_task = next(
             t for t in result["last_task_runs"]
-            if t["task_name"] == "capture_completed_bookings"
+            if t["task_name"] == "capture_completed_lessons"
         )
         assert capture_task["last_run_at"] is None
         assert capture_task["status"] == "SUCCESS"

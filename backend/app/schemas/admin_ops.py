@@ -17,7 +17,7 @@ class TopCategory(StrictModel):
     count: int
 
 
-class BookingSummary(StrictModel):
+class AdminBookingSummary(StrictModel):
     """Summary statistics for bookings in a time period."""
 
     period: str
@@ -33,7 +33,7 @@ class BookingSummary(StrictModel):
 class BookingSummaryResponse(StrictModel):
     """Response for booking summary endpoint."""
 
-    summary: BookingSummary
+    summary: AdminBookingSummary
     checked_at: datetime
 
 

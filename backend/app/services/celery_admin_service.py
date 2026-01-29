@@ -251,9 +251,7 @@ class CeleryAdminService(BaseService):
     def _query_overdue_authorizations(self, now: datetime) -> int:
         """Query overdue authorizations count (sync helper for asyncio.to_thread)."""
         cutoff_24h = now + timedelta(hours=24)
-        return self.repository.count_overdue_authorizations(
-            cutoff_time=cutoff_24h, current_time=now
-        )
+        return self.repository.count_overdue_authorizations(cutoff_time=cutoff_24h)
 
     def _query_pending_captures(self) -> int:
         """Query pending captures count (sync helper for asyncio.to_thread)."""
@@ -322,9 +320,9 @@ class CeleryAdminService(BaseService):
         # Check Flower for payment task history
         last_task_runs: list[dict[str, Any]] = []
         payment_task_names = [
-            "app.tasks.payment_tasks.authorize_scheduled_payments",
-            "app.tasks.payment_tasks.capture_completed_bookings",
-            "app.tasks.payment_tasks.retry_failed_payments",
+            "app.tasks.payment_tasks.process_scheduled_authorizations",
+            "app.tasks.payment_tasks.capture_completed_lessons",
+            "app.tasks.payment_tasks.retry_failed_authorizations",
         ]
 
         for task_name in payment_task_names:

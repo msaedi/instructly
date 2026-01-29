@@ -85,6 +85,35 @@ class AdminOpsRepository(BaseRepository[Booking]):
             self.logger.error(f"Error getting first booking date: {str(e)}")
             raise RepositoryException(f"Failed to get first booking date: {str(e)}")
 
+    def get_first_booking_dates_for_students(self, student_ids: list[str]) -> dict[str, date]:
+        """
+        Get the first booking date for multiple students in one query.
+
+        Args:
+            student_ids: List of student user IDs
+
+        Returns:
+            Mapping of student ID to their first booking date
+        """
+        if not student_ids:
+            return {}
+
+        try:
+            results = (
+                self.db.query(Booking.student_id, func.min(Booking.booking_date))
+                .filter(Booking.student_id.in_(student_ids))
+                .group_by(Booking.student_id)
+                .all()
+            )
+            return {
+                str(student_id): booking_date
+                for student_id, booking_date in results
+                if booking_date
+            }
+        except Exception as e:
+            self.logger.error(f"Error getting first booking dates: {str(e)}")
+            raise RepositoryException(f"Failed to get first booking dates: {str(e)}")
+
     # ==================== Recent Bookings Queries ====================
 
     def get_recent_bookings_with_details(
@@ -240,13 +269,12 @@ class AdminOpsRepository(BaseRepository[Booking]):
             self.logger.error(f"Error counting refunded bookings: {str(e)}")
             raise RepositoryException(f"Failed to count refunded bookings: {str(e)}")
 
-    def count_overdue_authorizations(self, cutoff_time: datetime, current_time: datetime) -> int:
+    def count_overdue_authorizations(self, cutoff_time: datetime) -> int:
         """
         Count bookings that are overdue for authorization.
 
         Args:
             cutoff_time: Booking start must be before this time
-            current_time: Booking start must be after this time
 
         Returns:
             Count of overdue authorizations
@@ -258,7 +286,6 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 .filter(
                     Booking.payment_status == PaymentStatus.SCHEDULED.value,
                     Booking.booking_start_utc <= cutoff_time,
-                    Booking.booking_start_utc > current_time,
                     Booking.status == BookingStatus.CONFIRMED.value,
                 )
                 .scalar()

@@ -78,12 +78,10 @@ class TestGetPeriodDates:
         assert start == today.replace(day=1)
         assert end == today
 
-    def test_period_unknown_defaults_to_today(self):
-        """Test unknown period defaults to today."""
-        start, end = AdminOpsService._get_period_dates("unknown_period")
-        today = datetime.now(timezone.utc).date()
-        assert start == today
-        assert end == today
+    def test_period_unknown_raises(self):
+        """Test unknown period raises ValueError."""
+        with pytest.raises(ValueError):
+            AdminOpsService._get_period_dates("unknown_period")
 
 
 class TestGetBookingSummary:
