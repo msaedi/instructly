@@ -130,6 +130,15 @@ class TestAdminOpsRepositoryErrorHandling:
 
         assert "Failed to sum captured amounts" in str(exc_info.value)
 
+    def test_sum_platform_fees_raises_on_db_error(self, repo, mock_db):
+        """Test sum_platform_fees raises RepositoryException on DB error."""
+        mock_db.query.side_effect = SQLAlchemyError("Memory limit exceeded")
+
+        with pytest.raises(RepositoryException) as exc_info:
+            repo.sum_platform_fees(date.today(), date.today())
+
+        assert "Failed to sum platform fees" in str(exc_info.value)
+
     def test_get_instructors_with_pending_payouts_raises_on_db_error(
         self, repo, mock_db
     ):

@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session, joinedload
 from ..core.exceptions import RepositoryException
 from ..models.booking import Booking, BookingStatus, PaymentStatus
 from ..models.instructor import InstructorProfile
+from ..models.payment import PaymentIntent
 from ..models.user import User
 from .base_repository import BaseRepository
 
@@ -440,7 +441,9 @@ class AdminOpsRepository(BaseRepository[Booking]):
             User with instructor_profile loaded, or None
         """
         try:
-            clean_phone = phone.replace("-", "").replace(" ", "")
+            # Note: Takes last 10 digits for US phone matching.
+            # Platform is NYC-only; adjust if expanding internationally.
+            clean_phone = "".join(c for c in phone if c.isdigit())
             return cast(
                 Optional[User],
                 self.db.query(User)
@@ -461,6 +464,24 @@ class AdminOpsRepository(BaseRepository[Booking]):
         except Exception as e:
             self.logger.error(f"Error getting user by phone: {str(e)}")
             raise RepositoryException(f"Failed to get user by phone: {str(e)}")
+
+    def sum_platform_fees(self, start_date: date, end_date: date) -> int:
+        """Sum actual platform fees from captured bookings in date range."""
+        try:
+            total = (
+                self.db.query(func.coalesce(func.sum(PaymentIntent.application_fee), 0))
+                .join(Booking, Booking.id == PaymentIntent.booking_id)
+                .filter(
+                    Booking.payment_status == PaymentStatus.SETTLED.value,
+                    Booking.booking_date >= start_date,
+                    Booking.booking_date <= end_date,
+                )
+                .scalar()
+            )
+            return int(total or 0)
+        except Exception as e:
+            self.logger.error(f"Error summing platform fees: {str(e)}")
+            raise RepositoryException(f"Failed to sum platform fees: {str(e)}")
 
     def get_user_by_id_with_profile(self, user_id: str) -> Optional[User]:
         """

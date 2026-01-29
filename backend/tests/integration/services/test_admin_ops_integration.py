@@ -7,7 +7,9 @@ from datetime import datetime, time, timedelta, timezone
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.payment import PaymentIntent
 from app.models.user import User
 from app.repositories.admin_ops_repository import AdminOpsRepository
 from app.services.admin_ops_service import AdminOpsService
@@ -207,6 +209,67 @@ class TestAdminOpsRepositoryIntegration:
         result = admin_ops_repo.sum_captured_amount(updated_since=cutoff)
         assert isinstance(result, (int, float))
         assert result >= 0
+
+    def test_sum_platform_fees_returns_total(
+        self,
+        admin_ops_repo: AdminOpsRepository,
+        db: Session,
+        test_booking: Booking,
+    ):
+        """Test that sum_platform_fees returns actual fees from settled bookings."""
+        today = datetime.now(timezone.utc).date()
+
+        test_booking.booking_date = today
+        test_booking.payment_status = PaymentStatus.SETTLED.value
+        test_booking.payment_intent_id = test_booking.payment_intent_id or f"pi_{generate_ulid()}"
+        db.add(
+            PaymentIntent(
+                booking_id=test_booking.id,
+                stripe_payment_intent_id=test_booking.payment_intent_id,
+                amount=10000,
+                application_fee=1200,
+                status="succeeded",
+            )
+        )
+
+        second_booking = create_booking_pg_safe(
+            db,
+            student_id=test_booking.student_id,
+            instructor_id=test_booking.instructor_id,
+            instructor_service_id=test_booking.instructor_service_id,
+            booking_date=today,
+            start_time=time(13, 0),
+            end_time=time(14, 0),
+            status=BookingStatus.COMPLETED,
+            payment_status=PaymentStatus.SETTLED.value,
+            service_name=test_booking.service_name,
+            hourly_rate=test_booking.hourly_rate,
+            total_price=test_booking.total_price,
+            duration_minutes=60,
+            meeting_location=test_booking.meeting_location,
+            service_area=test_booking.service_area,
+            allow_overlap=True,
+        )
+        second_booking.payment_intent_id = f"pi_{generate_ulid()}"
+        db.add(
+            PaymentIntent(
+                booking_id=second_booking.id,
+                stripe_payment_intent_id=second_booking.payment_intent_id,
+                amount=8000,
+                application_fee=900,
+                status="succeeded",
+            )
+        )
+        db.commit()
+
+        result = admin_ops_repo.sum_platform_fees(start_date=today, end_date=today)
+        assert result == 2100
+
+    def test_sum_platform_fees_empty_range(self, admin_ops_repo: AdminOpsRepository):
+        """Test that sum_platform_fees returns 0 when no bookings exist."""
+        future = datetime.now(timezone.utc).date() + timedelta(days=365)
+        result = admin_ops_repo.sum_platform_fees(start_date=future, end_date=future)
+        assert result == 0
 
     def test_get_instructors_with_pending_payouts(
         self, admin_ops_repo: AdminOpsRepository

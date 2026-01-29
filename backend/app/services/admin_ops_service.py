@@ -283,8 +283,8 @@ class AdminOpsService(BaseService):
         captured_sum = self.repository.sum_captured_amount(updated_since=seven_days_ago)
         total_captured_cents = int(captured_sum * 100) if captured_sum else 0
 
-        # Estimate platform fees (15% average tier)
-        platform_fees_cents = int(total_captured_cents * 0.15)
+        # Sum actual platform fees from settled bookings in last 7 days
+        platform_fees_cents = self.repository.sum_platform_fees(seven_days_ago.date(), now.date())
         instructor_payouts_cents = total_captured_cents - platform_fees_cents
 
         # Refunded amount estimate (would need more specific tracking)
