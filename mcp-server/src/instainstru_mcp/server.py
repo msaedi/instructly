@@ -21,9 +21,20 @@ from starlette.routing import Route
 
 from .client import InstaInstruClient
 from .config import Settings
+from .grafana_client import GrafanaCloudClient
 from .oauth.crypto import build_jwks, normalize_pem
 from .oauth.endpoints import attach_oauth_routes
-from .tools import celery, founding, instructors, invites, metrics, operations, search, services
+from .tools import (
+    celery,
+    founding,
+    instructors,
+    invites,
+    metrics,
+    observability,
+    operations,
+    search,
+    services,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -486,6 +497,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     settings = settings or _load_settings()
     auth = MCPAuth(settings)
     client = InstaInstruClient(settings, auth)
+    grafana = GrafanaCloudClient(settings)
 
     mcp = FastMCP("iNSTAiNSTRU Admin")
 
@@ -497,6 +509,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     search.register_tools(mcp, client)
     metrics.register_tools(mcp, client)
     services.register_tools(mcp, client)
+    observability.register_tools(mcp, grafana)
 
     return mcp
 

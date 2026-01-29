@@ -11,6 +11,9 @@ class Settings(BaseSettings):
 
     api_base_url: str = "https://api.instainstru.com"
     api_service_token: SecretStr = SecretStr("")
+    grafana_cloud_url: str = ""
+    grafana_cloud_api_key: SecretStr = SecretStr("")
+    grafana_prometheus_datasource_uid: str = "prometheus"
     workos_domain: str | None = None
     workos_client_id: str | None = None
     workos_client_secret: str | None = None

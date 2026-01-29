@@ -24,18 +24,19 @@ repos:
 
   # Ruff is the single import sorter; isort hook removed
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.7
+    rev: v0.14.8
     hooks:
       - id: ruff
         name: ruff (backend/app)
         args: ["--fix", "--select", "F", "--select", "I"]
-        additional_dependencies: ["ruff==0.5.7"]
+        additional_dependencies: ["ruff==0.14.8"]
         files: ^backend/app/.*\.py$
       - id: ruff
         name: ruff (mcp-server)
-        args: ["--config", "mcp-server/pyproject.toml", "--fix", "--select", "F", "--select", "I"]
-        additional_dependencies: ["ruff==0.5.7"]
-        files: ^mcp-server/(src|tests)/.*\.py$
+        files: ^mcp-server/
+        pass_filenames: false
+        args: ["--config", "mcp-server/pyproject.toml", "--fix", "mcp-server"]
+        additional_dependencies: ["ruff==0.14.8"]
       - id: ruff
         name: ruff (backend)
         args: ["backend"]

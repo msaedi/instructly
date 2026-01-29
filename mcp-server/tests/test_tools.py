@@ -1,6 +1,15 @@
 import pytest
 from fastmcp import FastMCP
-from instainstru_mcp.tools import founding, instructors, invites, metrics, search, services
+from instainstru_mcp.tools import (
+    celery,
+    founding,
+    instructors,
+    invites,
+    metrics,
+    operations,
+    search,
+    services,
+)
 
 
 class FakeClient:
@@ -81,6 +90,66 @@ class FakeClient:
 
     async def lookup_service(self, query):
         self.calls.append(("lookup_service", (query,), {}))
+        return {"ok": True}
+
+    async def get_celery_workers(self):
+        self.calls.append(("get_celery_workers", (), {}))
+        return {"ok": True}
+
+    async def get_celery_queues(self):
+        self.calls.append(("get_celery_queues", (), {}))
+        return {"ok": True}
+
+    async def get_celery_failed_tasks(self, limit=50):
+        self.calls.append(("get_celery_failed_tasks", (), {"limit": limit}))
+        return {"ok": True}
+
+    async def get_celery_payment_health(self):
+        self.calls.append(("get_celery_payment_health", (), {}))
+        return {"ok": True}
+
+    async def get_celery_active_tasks(self):
+        self.calls.append(("get_celery_active_tasks", (), {}))
+        return {"ok": True}
+
+    async def get_celery_task_history(self, task_name=None, state=None, hours=1, limit=100):
+        self.calls.append(
+            (
+                "get_celery_task_history",
+                (),
+                {"task_name": task_name, "state": state, "hours": hours, "limit": limit},
+            )
+        )
+        return {"ok": True}
+
+    async def get_celery_beat_schedule(self):
+        self.calls.append(("get_celery_beat_schedule", (), {}))
+        return {"ok": True}
+
+    async def get_booking_summary(self, period="today"):
+        self.calls.append(("get_booking_summary", (), {"period": period}))
+        return {"ok": True}
+
+    async def get_recent_bookings(self, status=None, limit=20, hours=24):
+        self.calls.append(
+            ("get_recent_bookings", (), {"status": status, "limit": limit, "hours": hours})
+        )
+        return {"ok": True}
+
+    async def get_payment_pipeline(self):
+        self.calls.append(("get_payment_pipeline", (), {}))
+        return {"ok": True}
+
+    async def get_pending_payouts(self, limit=20):
+        self.calls.append(("get_pending_payouts", (), {"limit": limit}))
+        return {"ok": True}
+
+    async def lookup_user(self, identifier):
+        self.calls.append(("lookup_user", (), {"identifier": identifier}))
+        return {"ok": True}
+
+    async def get_user_booking_history(self, user_id, limit=20):
+        self.calls.append(("get_user_booking_history", (), {"user_id": user_id, "limit": limit}))
         return {"ok": True}
 
 
@@ -224,3 +293,63 @@ async def test_metrics_tool_call_client():
     assert result == {"ok": True}
     assert client.calls[0][0] == "get_metric"
     assert client.calls[0][1][0] == "instructor.live"
+
+
+@pytest.mark.asyncio
+async def test_celery_tools_call_client():
+    client = FakeClient()
+    mcp = FastMCP("test")
+    tools = celery.register_tools(mcp, client)
+
+    result = await tools["instainstru_celery_worker_status"]()
+    assert result == {"ok": True}
+    result = await tools["instainstru_celery_queue_depth"]()
+    assert result == {"ok": True}
+    result = await tools["instainstru_celery_failed_tasks"](limit=5)
+    assert result == {"ok": True}
+    result = await tools["instainstru_celery_payment_health"]()
+    assert result == {"ok": True}
+    result = await tools["instainstru_celery_active_tasks"]()
+    assert result == {"ok": True}
+    result = await tools["instainstru_celery_task_history"](
+        task_name="task", state="FAILURE", hours=2, limit=10
+    )
+    assert result == {"ok": True}
+    result = await tools["instainstru_celery_beat_schedule"]()
+    assert result == {"ok": True}
+
+    assert client.calls[0][0] == "get_celery_workers"
+    assert client.calls[1][0] == "get_celery_queues"
+    assert client.calls[2][2]["limit"] == 5
+    assert client.calls[3][0] == "get_celery_payment_health"
+    assert client.calls[4][0] == "get_celery_active_tasks"
+    assert client.calls[5][2]["task_name"] == "task"
+    assert client.calls[6][0] == "get_celery_beat_schedule"
+
+
+@pytest.mark.asyncio
+async def test_operations_tools_call_client():
+    client = FakeClient()
+    mcp = FastMCP("test")
+    tools = operations.register_tools(mcp, client)
+
+    result = await tools["instainstru_bookings_summary"](period="last_7_days")
+    assert result == {"ok": True}
+    result = await tools["instainstru_bookings_recent"](status="confirmed", limit=10, hours=48)
+    assert result == {"ok": True}
+    result = await tools["instainstru_payments_pipeline"]()
+    assert result == {"ok": True}
+    result = await tools["instainstru_payments_pending_payouts"](limit=5)
+    assert result == {"ok": True}
+    result = await tools["instainstru_users_lookup"](identifier="user@example.com")
+    assert result == {"ok": True}
+    result = await tools["instainstru_users_booking_history"](user_id="01USER", limit=15)
+    assert result == {"ok": True}
+
+    assert client.calls[0][0] == "get_booking_summary"
+    assert client.calls[0][2]["period"] == "last_7_days"
+    assert client.calls[1][2]["status"] == "confirmed"
+    assert client.calls[2][0] == "get_payment_pipeline"
+    assert client.calls[3][2]["limit"] == 5
+    assert client.calls[4][2]["identifier"] == "user@example.com"
+    assert client.calls[5][2]["user_id"] == "01USER"

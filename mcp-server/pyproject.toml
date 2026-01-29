@@ -21,6 +21,7 @@ dev = [
     "mypy>=1.8.0",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
     "ruff==0.14.8",
     "respx>=0.21.0",
 ]
@@ -33,6 +34,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+addopts = "--cov=instainstru_mcp --cov-report=term-missing --cov-fail-under=94"
 
 [tool.black]
 line-length = 100

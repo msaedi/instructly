@@ -67,6 +67,24 @@ def test_oauth_protected_resource_points_to_workos():
     assert payload["client_id"] == "workos-client"
 
 
+def test_oauth_protected_resource_base_url_uses_host_header():
+    settings = Settings(
+        api_service_token="token",
+        workos_domain="workos.test",
+        workos_client_id="workos-client",
+        workos_client_secret="secret",
+        oauth_issuer="",
+    )
+    client = _build_app(settings)
+
+    response = client.get(
+        "/.well-known/oauth-protected-resource",
+        headers={"Host": "http://localhost:8001"},
+    )
+    assert response.status_code == 200
+    assert response.json()["resource"] == "http://localhost:8001/mcp"
+
+
 def test_openid_configuration_proxies_workos():
     settings = _settings()
     client = _build_app(settings)
@@ -125,3 +143,26 @@ def test_userinfo_proxies_workos():
 
     assert response.status_code == 200
     assert response.json()["sub"] == "user123"
+
+
+def test_userinfo_requires_bearer_token():
+    settings = _settings()
+    client = _build_app(settings)
+
+    response = client.get("/oauth2/userinfo")
+    assert response.status_code == 401
+    assert response.json()["error"] == "invalid_request"
+
+
+def test_openid_configuration_error_returns_502():
+    settings = _settings()
+    client = _build_app(settings)
+
+    mock_client = AsyncMock()
+    mock_client.get.side_effect = RuntimeError("boom")
+
+    with patch("instainstru_mcp.oauth.endpoints.httpx.AsyncClient") as mock_async_client:
+        mock_async_client.return_value.__aenter__.return_value = mock_client
+        response = client.get("/.well-known/openid-configuration")
+
+    assert response.status_code == 502

@@ -1,6 +1,16 @@
 """Tool registration for InstaInstru MCP server."""
 
-from . import celery, founding, instructors, invites, metrics, operations, search, services
+from . import (
+    celery,
+    founding,
+    instructors,
+    invites,
+    metrics,
+    observability,
+    operations,
+    search,
+    services,
+)
 
 __all__ = [
     "celery",
@@ -8,6 +18,7 @@ __all__ = [
     "instructors",
     "invites",
     "metrics",
+    "observability",
     "operations",
     "search",
     "services",
