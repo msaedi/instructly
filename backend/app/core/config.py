@@ -932,6 +932,33 @@ class Settings(BaseSettings):
     prometheus_bearer_token: str = Field(
         default="", description="Optional bearer token for Prometheus API"
     )
+
+    # Flower (Celery monitoring) configuration
+    flower_url: str = Field(
+        default="http://localhost:5555",
+        alias="FLOWER_URL",
+        description="Flower monitoring URL",
+    )
+    flower_basic_auth: str | None = Field(
+        default=None,
+        alias="FLOWER_BASIC_AUTH",
+        description="Flower HTTP Basic Auth in format 'username:password'",
+    )
+
+    @property
+    def flower_user(self) -> str | None:
+        """Extract username from FLOWER_BASIC_AUTH."""
+        if self.flower_basic_auth and ":" in self.flower_basic_auth:
+            return self.flower_basic_auth.split(":", 1)[0]
+        return None
+
+    @property
+    def flower_password(self) -> str | None:
+        """Extract password from FLOWER_BASIC_AUTH."""
+        if self.flower_basic_auth and ":" in self.flower_basic_auth:
+            return self.flower_basic_auth.split(":", 1)[1]
+        return None
+
     email_enabled: bool = Field(default=True, description="Flag to enable/disable email sending")
 
     @property

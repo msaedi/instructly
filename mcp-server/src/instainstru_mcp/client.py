@@ -292,3 +292,111 @@ class InstaInstruClient:
             "GET",
             f"/api/v1/admin/mcp/metrics/{metric_name}",
         )
+
+    async def get_celery_workers(self) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/workers",
+        )
+
+    async def get_celery_queues(self) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/queues",
+        )
+
+    async def get_celery_failed_tasks(self, limit: int = 50) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/failed",
+            params={"limit": limit},
+        )
+
+    async def get_celery_payment_health(self) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/payment-health",
+        )
+
+    # Tier 2 Celery endpoints
+
+    async def get_celery_active_tasks(self) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/tasks/active",
+        )
+
+    async def get_celery_task_history(
+        self,
+        task_name: str | None = None,
+        state: str | None = None,
+        hours: int = 1,
+        limit: int = 100,
+    ) -> dict:
+        params: dict[str, Any] = {"hours": hours, "limit": limit}
+        if task_name:
+            params["task_name"] = task_name
+        if state:
+            params["state"] = state
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/tasks/history",
+            params=params,
+        )
+
+    async def get_celery_beat_schedule(self) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/celery/schedule",
+        )
+
+    # ==================== Operations endpoints ====================
+
+    async def get_booking_summary(self, period: str = "today") -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/ops/bookings/summary",
+            params={"period": period},
+        )
+
+    async def get_recent_bookings(
+        self,
+        status: str | None = None,
+        limit: int = 20,
+        hours: int = 24,
+    ) -> dict:
+        params: dict[str, Any] = {"limit": limit, "hours": hours}
+        if status:
+            params["status"] = status
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/ops/bookings/recent",
+            params=params,
+        )
+
+    async def get_payment_pipeline(self) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/ops/payments/pipeline",
+        )
+
+    async def get_pending_payouts(self, limit: int = 20) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/ops/payments/pending-payouts",
+            params={"limit": limit},
+        )
+
+    async def lookup_user(self, identifier: str) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/ops/users/lookup",
+            params={"identifier": identifier},
+        )
+
+    async def get_user_booking_history(self, user_id: str, limit: int = 20) -> dict:
+        return await self.call(
+            "GET",
+            f"/api/v1/admin/mcp/ops/users/{user_id}/bookings",
+            params={"limit": limit},
+        )

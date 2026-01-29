@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 import logging
 import secrets
-from typing import Callable
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -96,7 +96,7 @@ async def get_mcp_principal(
     )
 
 
-def require_mcp_scope(required_scope: str) -> Callable[[Principal], Principal]:
+def require_mcp_scope(required_scope: str) -> Callable[..., Awaitable[Principal]]:
     """Dependency factory that requires a specific scope."""
 
     async def _check_scope(principal: Principal = Depends(get_mcp_principal)) -> Principal:

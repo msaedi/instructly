@@ -139,3 +139,55 @@ def test_reload_config_module(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "local")
     reloaded = importlib.reload(config_module)
     assert reloaded.settings.site_mode == "local"
+
+
+class TestFlowerConfigProperties:
+    """Tests for Flower configuration properties."""
+
+    def test_flower_user_with_basic_auth(self):
+        """Test flower_user extracts username from FLOWER_BASIC_AUTH."""
+        cfg = Settings()
+        cfg.flower_basic_auth = "admin:secret123"
+        assert cfg.flower_user == "admin"
+
+    def test_flower_password_with_basic_auth(self):
+        """Test flower_password extracts password from FLOWER_BASIC_AUTH."""
+        cfg = Settings()
+        cfg.flower_basic_auth = "admin:secret123"
+        assert cfg.flower_password == "secret123"
+
+    def test_flower_password_with_colon_in_password(self):
+        """Test flower_password handles passwords containing colons."""
+        cfg = Settings()
+        cfg.flower_basic_auth = "admin:secret:with:colons"
+        assert cfg.flower_user == "admin"
+        assert cfg.flower_password == "secret:with:colons"
+
+    def test_flower_user_no_basic_auth(self):
+        """Test flower_user returns None when FLOWER_BASIC_AUTH not set."""
+        cfg = Settings()
+        cfg.flower_basic_auth = None
+        assert cfg.flower_user is None
+
+    def test_flower_password_no_basic_auth(self):
+        """Test flower_password returns None when FLOWER_BASIC_AUTH not set."""
+        cfg = Settings()
+        cfg.flower_basic_auth = None
+        assert cfg.flower_password is None
+
+    def test_flower_user_no_colon(self):
+        """Test flower_user returns None when FLOWER_BASIC_AUTH has no colon."""
+        cfg = Settings()
+        cfg.flower_basic_auth = "invalid-no-colon"
+        assert cfg.flower_user is None
+
+    def test_flower_password_no_colon(self):
+        """Test flower_password returns None when FLOWER_BASIC_AUTH has no colon."""
+        cfg = Settings()
+        cfg.flower_basic_auth = "invalid-no-colon"
+        assert cfg.flower_password is None
+
+    def test_flower_url_default(self):
+        """Test flower_url has correct default value."""
+        cfg = Settings()
+        assert cfg.flower_url == "http://localhost:5555"

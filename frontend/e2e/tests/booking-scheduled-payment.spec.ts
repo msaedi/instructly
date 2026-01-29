@@ -1,6 +1,8 @@
 import { test, expect, type Route } from '@playwright/test';
 import { setupAllMocks, TEST_ULIDS } from '../fixtures/api-mocks';
 
+test.use({ storageState: { cookies: [], origins: [] } });
+
 const respondWithCors = async (route: Route, payload: unknown, status = 200) => {
   const origin = route.request().headers()['origin'] || 'http://localhost:3100';
   await route.fulfill({

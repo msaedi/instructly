@@ -1181,6 +1181,171 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mcp/celery/failed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Failed Tasks
+         * @description Get failed Celery tasks from Flower.
+         *
+         *     Returns a list of failed tasks with exception and traceback info.
+         *     Traceback is truncated to 1000 characters, args/kwargs to 200 characters.
+         */
+        get: operations["get_failed_tasks_api_v1_admin_mcp_celery_failed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/celery/payment-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Payment Health
+         * @description Get payment pipeline health status.
+         *
+         *     Combines Celery task status from Flower with database queries
+         *     for booking payment status to provide a health overview.
+         *
+         *     Checks:
+         *     - Pending authorizations (scheduled but not yet processed)
+         *     - Overdue authorizations (within 24h of booking but not authorized)
+         *     - Pending captures (authorized but not yet captured after completion)
+         *     - Failed payments in last 24 hours
+         */
+        get: operations["get_payment_health_api_v1_admin_mcp_celery_payment_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/celery/queues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Queues
+         * @description Get Celery queue depths from Flower.
+         *
+         *     Returns a list of queues with their current depth.
+         */
+        get: operations["get_queues_api_v1_admin_mcp_celery_queues_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/celery/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Beat Schedule
+         * @description Get Celery Beat schedule.
+         *
+         *     Returns all configured periodic tasks with human-readable schedule descriptions.
+         *     This reads from the static configuration for accuracy.
+         */
+        get: operations["get_beat_schedule_api_v1_admin_mcp_celery_schedule_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/celery/tasks/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Active Tasks
+         * @description Get currently running Celery tasks.
+         *
+         *     Returns a list of tasks that are currently being executed across all workers.
+         */
+        get: operations["get_active_tasks_api_v1_admin_mcp_celery_tasks_active_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/celery/tasks/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Task History
+         * @description Get recent Celery task history.
+         *
+         *     Query recent task executions with optional filters for task name, state,
+         *     and time window. Returns timing information and results/errors.
+         */
+        get: operations["get_task_history_api_v1_admin_mcp_celery_tasks_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/celery/workers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Workers
+         * @description Get Celery worker status from Flower.
+         *
+         *     Returns a list of workers with their status, active tasks,
+         *     and processing statistics.
+         */
+        get: operations["get_workers_api_v1_admin_mcp_celery_workers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/mcp/founding/funnel": {
         parameters: {
             query?: never;
@@ -1319,6 +1484,139 @@ export type paths = {
         };
         /** Get Metric Definition */
         get: operations["get_metric_definition_api_v1_admin_mcp_metrics__metric_name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/ops/bookings/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Recent Bookings
+         * @description Get recent bookings with optional filters.
+         *
+         *     Returns a list of bookings with privacy-safe names.
+         */
+        get: operations["get_recent_bookings_api_v1_admin_mcp_ops_bookings_recent_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/ops/bookings/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Booking Summary
+         * @description Get booking summary for a time period.
+         *
+         *     Returns total bookings, revenue, breakdown by status, and top categories.
+         */
+        get: operations["get_booking_summary_api_v1_admin_mcp_ops_bookings_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/ops/payments/pending-payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Pending Payouts
+         * @description Get instructors with pending payouts.
+         *
+         *     Returns instructors awaiting transfer with amount and lesson count.
+         */
+        get: operations["get_pending_payouts_api_v1_admin_mcp_ops_payments_pending_payouts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/ops/payments/pipeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Payment Pipeline
+         * @description Get payment pipeline status.
+         *
+         *     Returns counts of payments in each state, alerts, and revenue metrics.
+         */
+        get: operations["get_payment_pipeline_api_v1_admin_mcp_ops_payments_pipeline_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/ops/users/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lookup User
+         * @description Look up a user by email, phone, or ID.
+         *
+         *     Returns user profile and stats for support purposes.
+         *     Full name is shown (admin access).
+         */
+        get: operations["lookup_user_api_v1_admin_mcp_ops_users_lookup_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/ops/users/{user_id}/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get User Booking History
+         * @description Get a user's booking history.
+         *
+         *     Returns bookings as student or instructor depending on user role.
+         */
+        get: operations["get_user_booking_history_api_v1_admin_mcp_ops_users__user_id__bookings_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6960,6 +7258,30 @@ export type components = {
             /** Success */
             success: boolean;
         };
+        /**
+         * AdminBookingSummary
+         * @description Summary statistics for bookings in a time period.
+         */
+        AdminBookingSummary: {
+            /** Avg Booking Value Cents */
+            avg_booking_value_cents: number;
+            /** By Status */
+            by_status: {
+                [key: string]: number;
+            };
+            /** New Students */
+            new_students: number;
+            /** Period */
+            period: string;
+            /** Repeat Students */
+            repeat_students: number;
+            /** Top Categories */
+            top_categories: components["schemas"]["TopCategory"][];
+            /** Total Bookings */
+            total_bookings: number;
+            /** Total Revenue Cents */
+            total_revenue_cents: number;
+        };
         /** AdminBookingTimelineEvent */
         AdminBookingTimelineEvent: {
             /** Amount */
@@ -8932,6 +9254,36 @@ export type components = {
             total_price: number;
         };
         /**
+         * BookingListItem
+         * @description A booking in a list view with privacy-safe names.
+         */
+        BookingListItem: {
+            /** Booking Date */
+            booking_date: string;
+            /** Booking Id */
+            booking_id: string;
+            /** Category */
+            category: string;
+            /** Created At */
+            created_at: string;
+            /** End Time */
+            end_time: string;
+            /** Instructor Name */
+            instructor_name: string;
+            /** Location Type */
+            location_type: string;
+            /** Service Name */
+            service_name: string;
+            /** Start Time */
+            start_time: string;
+            /** Status */
+            status: string;
+            /** Student Name */
+            student_name: string;
+            /** Total Cents */
+            total_cents: number;
+        };
+        /**
          * BookingPaymentMethodUpdate
          * @description Request to update a booking's payment method, with optional default flag.
          */
@@ -8948,6 +9300,11 @@ export type components = {
              */
             set_as_default: boolean;
         };
+        /**
+         * BookingPeriod
+         * @enum {string}
+         */
+        BookingPeriod: "today" | "yesterday" | "this_week" | "last_7_days" | "this_month";
         /**
          * BookingPreviewResponse
          * @description Response for booking preview with privacy protection.
@@ -9209,6 +9566,18 @@ export type components = {
             service_name: string;
             /** Start Time */
             start_time: string;
+        };
+        /**
+         * BookingSummaryResponse
+         * @description Response for booking summary endpoint.
+         */
+        BookingSummaryResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            summary: components["schemas"]["AdminBookingSummary"];
         };
         /**
          * BookingUpdate
@@ -12027,6 +12396,288 @@ export type components = {
             email: string;
             /** Id */
             id: string;
+            /**
+             * Principal Type
+             * @default service
+             * @enum {string}
+             */
+            principal_type: "user" | "service";
+        };
+        /**
+         * MCPCeleryActiveTask
+         * @description Information about a currently running Celery task.
+         */
+        MCPCeleryActiveTask: {
+            /** Args */
+            args?: string | null;
+            /** Kwargs */
+            kwargs?: string | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Task Id */
+            task_id: string;
+            /** Task Name */
+            task_name: string;
+            /** Worker */
+            worker: string;
+        };
+        /**
+         * MCPCeleryActiveTasksResponse
+         * @description Response for active tasks endpoint.
+         */
+        MCPCeleryActiveTasksResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Count */
+            count: number;
+            /** Tasks */
+            tasks: components["schemas"]["MCPCeleryActiveTask"][];
+        };
+        /**
+         * MCPCeleryBeatScheduleResponse
+         * @description Response for beat schedule endpoint.
+         */
+        MCPCeleryBeatScheduleResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Count */
+            count: number;
+            /** Tasks */
+            tasks: components["schemas"]["MCPCeleryScheduledTask"][];
+        };
+        /**
+         * MCPCeleryFailedTask
+         * @description Information about a failed Celery task.
+         */
+        MCPCeleryFailedTask: {
+            /** Exception */
+            exception?: string | null;
+            /** Failed At */
+            failed_at?: string | null;
+            /** Queue */
+            queue?: string | null;
+            /** Task Args */
+            task_args?: string | null;
+            /** Task Id */
+            task_id: string;
+            /** Task Kwargs */
+            task_kwargs?: string | null;
+            /** Task Name */
+            task_name: string;
+            /** Traceback */
+            traceback?: string | null;
+        };
+        /**
+         * MCPCeleryFailedTasksResponse
+         * @description Response for failed tasks endpoint.
+         */
+        MCPCeleryFailedTasksResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Count */
+            count: number;
+            /** Failed Tasks */
+            failed_tasks: components["schemas"]["MCPCeleryFailedTask"][];
+        };
+        /**
+         * MCPCeleryLastTaskRun
+         * @description Information about the last run of a payment task.
+         */
+        MCPCeleryLastTaskRun: {
+            /** Last Run At */
+            last_run_at?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Task Name */
+            task_name: string;
+        };
+        /**
+         * MCPCeleryPaymentHealthIssue
+         * @description A payment health issue.
+         */
+        MCPCeleryPaymentHealthIssue: {
+            /** Count */
+            count: number;
+            /** Message */
+            message: string;
+            /** Severity */
+            severity: string;
+        };
+        /**
+         * MCPCeleryPaymentHealthResponse
+         * @description Response for payment health endpoint.
+         */
+        MCPCeleryPaymentHealthResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Failed Payments 24H */
+            failed_payments_24h: number;
+            /** Healthy */
+            healthy: boolean;
+            /** Issues */
+            issues: components["schemas"]["MCPCeleryPaymentHealthIssue"][];
+            /** Last Task Runs */
+            last_task_runs: components["schemas"]["MCPCeleryLastTaskRun"][];
+            /** Overdue Authorizations */
+            overdue_authorizations: number;
+            /** Pending Authorizations */
+            pending_authorizations: number;
+            /** Pending Captures */
+            pending_captures: number;
+        };
+        /**
+         * MCPCeleryQueueInfo
+         * @description Information about a single Celery queue.
+         */
+        MCPCeleryQueueInfo: {
+            /** Consumers */
+            consumers: number;
+            /** Depth */
+            depth: number;
+            /** Name */
+            name: string;
+        };
+        /**
+         * MCPCeleryQueuesResponse
+         * @description Response for Celery queues endpoint.
+         */
+        MCPCeleryQueuesResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Queues */
+            queues: components["schemas"]["MCPCeleryQueueInfo"][];
+            /** Total Depth */
+            total_depth: number;
+        };
+        /**
+         * MCPCeleryScheduledTask
+         * @description Information about a scheduled periodic task.
+         */
+        MCPCeleryScheduledTask: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Last Run */
+            last_run?: string | null;
+            /** Name */
+            name: string;
+            /** Next Run */
+            next_run?: string | null;
+            /** Schedule */
+            schedule: string;
+            /** Task */
+            task: string;
+        };
+        /**
+         * MCPCeleryTaskHistoryItem
+         * @description Information about a historical Celery task execution.
+         */
+        MCPCeleryTaskHistoryItem: {
+            /** Exception */
+            exception?: string | null;
+            /** Received At */
+            received_at?: string | null;
+            /** Result */
+            result?: string | null;
+            /**
+             * Retries
+             * @default 0
+             */
+            retries: number;
+            /** Runtime Seconds */
+            runtime_seconds?: number | null;
+            /** Started At */
+            started_at?: string | null;
+            /** State */
+            state: string;
+            /** Succeeded At */
+            succeeded_at?: string | null;
+            /** Task Id */
+            task_id: string;
+            /** Task Name */
+            task_name: string;
+        };
+        /**
+         * MCPCeleryTaskHistoryResponse
+         * @description Response for task history endpoint.
+         */
+        MCPCeleryTaskHistoryResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Count */
+            count: number;
+            /** Filters Applied */
+            filters_applied: {
+                [key: string]: unknown;
+            };
+            /** Tasks */
+            tasks: components["schemas"]["MCPCeleryTaskHistoryItem"][];
+        };
+        /**
+         * MCPCeleryWorkerInfo
+         * @description Information about a single Celery worker.
+         */
+        MCPCeleryWorkerInfo: {
+            /** Active Tasks */
+            active_tasks: number;
+            /** Concurrency */
+            concurrency: number;
+            /** Hostname */
+            hostname: string;
+            /** Processed Total */
+            processed_total: number;
+            /** Queues */
+            queues: string[];
+            /** Status */
+            status: string;
+        };
+        /**
+         * MCPCeleryWorkersResponse
+         * @description Response for Celery workers endpoint.
+         */
+        MCPCeleryWorkersResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            summary: components["schemas"]["MCPCeleryWorkersSummary"];
+            /** Workers */
+            workers: components["schemas"]["MCPCeleryWorkerInfo"][];
+        };
+        /**
+         * MCPCeleryWorkersSummary
+         * @description Summary counts for workers.
+         */
+        MCPCeleryWorkersSummary: {
+            /** Offline Workers */
+            offline_workers: number;
+            /** Online Workers */
+            online_workers: number;
+            /** Total Active Tasks */
+            total_active_tasks: number;
+            /** Total Workers */
+            total_workers: number;
         };
         /** MCPConversionRate */
         MCPConversionRate: {
@@ -13423,6 +14074,43 @@ export type components = {
             last4: string;
         };
         /**
+         * PaymentPipelineResponse
+         * @description Response for payment pipeline status endpoint.
+         */
+        PaymentPipelineResponse: {
+            /** Authorized */
+            authorized: number;
+            /** Captured */
+            captured: number;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Failed */
+            failed: number;
+            /** Instructor Payouts Cents */
+            instructor_payouts_cents: number;
+            /** Net Revenue Cents */
+            net_revenue_cents: number;
+            /** Overdue Authorizations */
+            overdue_authorizations: number;
+            /** Overdue Captures */
+            overdue_captures: number;
+            /** Pending Authorization */
+            pending_authorization: number;
+            /** Pending Capture */
+            pending_capture: number;
+            /** Platform Fees Cents */
+            platform_fees_cents: number;
+            /** Refunded */
+            refunded: number;
+            /** Total Captured Cents */
+            total_captured_cents: number;
+            /** Total Refunded Cents */
+            total_refunded_cents: number;
+        };
+        /**
          * PaymentSummary
          * @description Student-facing payment breakdown for a booking.
          */
@@ -13530,6 +14218,41 @@ export type components = {
              * @description Payout status (pending, in_transit, paid, failed, canceled)
              */
             status: string;
+        };
+        /**
+         * PendingPayoutItem
+         * @description An instructor with pending payout.
+         */
+        PendingPayoutItem: {
+            /** Completed Lessons */
+            completed_lessons: number;
+            /** Instructor Id */
+            instructor_id: string;
+            /** Instructor Name */
+            instructor_name: string;
+            /** Oldest Pending Date */
+            oldest_pending_date: string;
+            /** Pending Amount Cents */
+            pending_amount_cents: number;
+            /** Stripe Connected */
+            stripe_connected: boolean;
+        };
+        /**
+         * PendingPayoutsResponse
+         * @description Response for pending payouts endpoint.
+         */
+        PendingPayoutsResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Instructor Count */
+            instructor_count: number;
+            /** Payouts */
+            payouts: components["schemas"]["PendingPayoutItem"][];
+            /** Total Pending Cents */
+            total_pending_cents: number;
         };
         /**
          * PerformanceCacheStats
@@ -14598,6 +15321,25 @@ export type components = {
              * @description Total number of alerts in the time period
              */
             total: number;
+        };
+        /**
+         * RecentBookingsResponse
+         * @description Response for recent bookings endpoint.
+         */
+        RecentBookingsResponse: {
+            /** Bookings */
+            bookings: components["schemas"]["BookingListItem"][];
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Count */
+            count: number;
+            /** Filters Applied */
+            filters_applied: {
+                [key: string]: unknown;
+            };
         };
         /**
          * RedisActiveConnections
@@ -16764,6 +17506,16 @@ export type components = {
             start_time: string;
         };
         /**
+         * TopCategory
+         * @description A category with booking count.
+         */
+        TopCategory: {
+            /** Category */
+            category: string;
+            /** Count */
+            count: number;
+        };
+        /**
          * TopCategoryItem
          * @description Top services grouped under a category.
          */
@@ -17051,6 +17803,27 @@ export type components = {
             last_initial: string;
         };
         /**
+         * UserBookingHistoryResponse
+         * @description Response for user booking history endpoint.
+         */
+        UserBookingHistoryResponse: {
+            /** Bookings */
+            bookings: components["schemas"]["BookingListItem"][];
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Total Count */
+            total_count: number;
+            /** User Id */
+            user_id: string;
+            /** User Name */
+            user_name: string;
+            /** User Role */
+            user_role: string;
+        };
+        /**
          * UserBreakdown
          * @description User type breakdown.
          */
@@ -17151,6 +17924,48 @@ export type components = {
              */
             status: string;
         };
+        /**
+         * UserInfo
+         * @description User information for admin lookup.
+         */
+        UserInfo: {
+            /** Created At */
+            created_at: string;
+            /** Email */
+            email: string;
+            /** Instructor Status */
+            instructor_status?: string | null;
+            /** Is Founding */
+            is_founding: boolean;
+            /** Is Verified */
+            is_verified: boolean;
+            /** Last Login */
+            last_login?: string | null;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone?: string | null;
+            /** Rating */
+            rating?: number | null;
+            /** Review Count */
+            review_count?: number | null;
+            /** Role */
+            role: string;
+            /** Stripe Account Id */
+            stripe_account_id?: string | null;
+            /** Stripe Customer Id */
+            stripe_customer_id?: string | null;
+            /** Total Bookings */
+            total_bookings: number;
+            /** Total Earned Cents */
+            total_earned_cents?: number | null;
+            /** Total Lessons */
+            total_lessons?: number | null;
+            /** Total Spent Cents */
+            total_spent_cents: number;
+            /** User Id */
+            user_id: string;
+        };
         /** UserLogin */
         UserLogin: {
             /** Captcha Token */
@@ -17164,6 +17979,20 @@ export type components = {
             guest_session_id?: string | null;
             /** Password */
             password: string;
+        };
+        /**
+         * UserLookupResponse
+         * @description Response for user lookup endpoint.
+         */
+        UserLookupResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Found */
+            found: boolean;
+            user?: components["schemas"]["UserInfo"] | null;
         };
         /**
          * UserRegistrationMetadata
@@ -19476,15 +20305,182 @@ export interface operations {
             };
         };
     };
+    get_failed_tasks_api_v1_admin_mcp_celery_failed_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPCeleryFailedTasksResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_payment_health_api_v1_admin_mcp_celery_payment_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPCeleryPaymentHealthResponse"];
+                };
+            };
+        };
+    };
+    get_queues_api_v1_admin_mcp_celery_queues_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPCeleryQueuesResponse"];
+                };
+            };
+        };
+    };
+    get_beat_schedule_api_v1_admin_mcp_celery_schedule_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPCeleryBeatScheduleResponse"];
+                };
+            };
+        };
+    };
+    get_active_tasks_api_v1_admin_mcp_celery_tasks_active_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPCeleryActiveTasksResponse"];
+                };
+            };
+        };
+    };
+    get_task_history_api_v1_admin_mcp_celery_tasks_history_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by task name (partial match) */
+                task_name?: string | null;
+                /** @description Filter by state (SUCCESS, FAILURE, PENDING, STARTED, RETRY) */
+                state?: string | null;
+                /** @description Look back window in hours (max 24) */
+                hours?: number;
+                /** @description Max results (max 500) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPCeleryTaskHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_workers_api_v1_admin_mcp_celery_workers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPCeleryWorkersResponse"];
+                };
+            };
+        };
+    };
     get_funnel_summary_api_v1_admin_mcp_founding_funnel_get: {
         parameters: {
             query?: {
                 start_date?: string | null;
                 end_date?: string | null;
             };
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -19517,9 +20513,7 @@ export interface operations {
                 stage?: string | null;
                 limit?: number;
             };
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -19555,9 +20549,7 @@ export interface operations {
                 limit?: number;
                 cursor?: string | null;
             };
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -19590,9 +20582,7 @@ export interface operations {
                 group_by?: "category" | "service";
                 top?: number;
             };
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -19621,9 +20611,7 @@ export interface operations {
     get_instructor_detail_api_v1_admin_mcp_instructors__identifier__get: {
         parameters: {
             query?: never;
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path: {
                 identifier: string;
             };
@@ -19654,9 +20642,7 @@ export interface operations {
     preview_invites_api_v1_admin_mcp_invites_preview_post: {
         parameters: {
             query?: never;
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -19691,7 +20677,6 @@ export interface operations {
             query?: never;
             header?: {
                 "Idempotency-Key"?: string | null;
-                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -19725,9 +20710,7 @@ export interface operations {
     get_metric_definition_api_v1_admin_mcp_metrics__metric_name__get: {
         parameters: {
             query?: never;
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path: {
                 metric_name: string;
             };
@@ -19755,6 +20738,192 @@ export interface operations {
             };
         };
     };
+    get_recent_bookings_api_v1_admin_mcp_ops_bookings_recent_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by status: confirmed, completed, cancelled, pending */
+                status?: string | null;
+                /** @description Max results (max 100) */
+                limit?: number;
+                /** @description Look back window in hours (max 168 = 1 week) */
+                hours?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecentBookingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_booking_summary_api_v1_admin_mcp_ops_bookings_summary_get: {
+        parameters: {
+            query?: {
+                /** @description Time period: today, yesterday, this_week, last_7_days, this_month */
+                period?: components["schemas"]["BookingPeriod"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_pending_payouts_api_v1_admin_mcp_ops_payments_pending_payouts_get: {
+        parameters: {
+            query?: {
+                /** @description Max results (max 100) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingPayoutsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_payment_pipeline_api_v1_admin_mcp_ops_payments_pipeline_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentPipelineResponse"];
+                };
+            };
+        };
+    };
+    lookup_user_api_v1_admin_mcp_ops_users_lookup_get: {
+        parameters: {
+            query: {
+                /** @description Email, phone number, or user ID */
+                identifier: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserLookupResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_user_booking_history_api_v1_admin_mcp_ops_users__user_id__bookings_get: {
+        parameters: {
+            query?: {
+                /** @description Max results (max 100) */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserBookingHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_top_queries_api_v1_admin_mcp_search_top_queries_get: {
         parameters: {
             query?: {
@@ -19763,9 +20932,7 @@ export interface operations {
                 limit?: number;
                 min_count?: number;
             };
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -19798,9 +20965,7 @@ export interface operations {
                 end_date?: string | null;
                 limit?: number;
             };
-            header?: {
-                Authorization?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };

@@ -1,5 +1,5 @@
 """Tool registration for InstaInstru MCP server."""
 
-from . import founding, instructors, invites, metrics, search
+from . import celery, founding, instructors, invites, metrics, operations, search
 
-__all__ = ["founding", "instructors", "invites", "metrics", "search"]
+__all__ = ["celery", "founding", "instructors", "invites", "metrics", "operations", "search"]

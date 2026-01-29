@@ -943,6 +943,118 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/celery/failed": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_failed_tasks_api_v1_admin_mcp_celery_failed_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/celery/payment-health": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_payment_health_api_v1_admin_mcp_celery_payment_health_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/celery/queues": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_queues_api_v1_admin_mcp_celery_queues_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/celery/schedule": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_beat_schedule_api_v1_admin_mcp_celery_schedule_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/celery/tasks/active": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_active_tasks_api_v1_admin_mcp_celery_tasks_active_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/celery/tasks/history": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_task_history_api_v1_admin_mcp_celery_tasks_history_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/celery/workers": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_workers_api_v1_admin_mcp_celery_workers_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/mcp/founding/funnel": {
  parameters: {
  query?: never;
@@ -1063,6 +1175,102 @@ export type paths = {
  cookie?: never;
  };
  get: operations["get_metric_definition_api_v1_admin_mcp_metrics__metric_name__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/ops/bookings/recent": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_recent_bookings_api_v1_admin_mcp_ops_bookings_recent_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/ops/bookings/summary": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_booking_summary_api_v1_admin_mcp_ops_bookings_summary_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/ops/payments/pending-payouts": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_pending_payouts_api_v1_admin_mcp_ops_payments_pending_payouts_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/ops/payments/pipeline": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_payment_pipeline_api_v1_admin_mcp_ops_payments_pipeline_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/ops/users/lookup": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["lookup_user_api_v1_admin_mcp_ops_users_lookup_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/ops/users/{user_id}/bookings": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_user_booking_history_api_v1_admin_mcp_ops_users__user_id__bookings_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -4853,6 +5061,18 @@ export type components = {
  booking_status: string;
  success: boolean;
  };
+ AdminBookingSummary: {
+ avg_booking_value_cents: number;
+ by_status: {
+ [key: string]: number;
+ };
+ new_students: number;
+ period: string;
+ repeat_students: number;
+ top_categories: components["schemas"]["TopCategory"][];
+ total_bookings: number;
+ total_revenue_cents: number;
+ };
  AdminBookingTimelineEvent: {
  amount?: number | null;
  event: string;
@@ -5554,10 +5774,25 @@ export type components = {
  student_timezone?: string | null;
  total_price: number;
  };
+ BookingListItem: {
+ booking_date: string;
+ booking_id: string;
+ category: string;
+ created_at: string;
+ end_time: string;
+ instructor_name: string;
+ location_type: string;
+ service_name: string;
+ start_time: string;
+ status: string;
+ student_name: string;
+ total_cents: number;
+ };
  BookingPaymentMethodUpdate: {
  payment_method_id: string;
  set_as_default: boolean;
  };
+ BookingPeriod: "today" | "yesterday" | "this_week" | "last_7_days" | "this_month";
  BookingPreviewResponse: {
  booking_date: string;
  booking_id: string;
@@ -5665,6 +5900,10 @@ export type components = {
  id: string;
  service_name: string;
  start_time: string;
+ };
+ BookingSummaryResponse: {
+ checked_at: string;
+ summary: components["schemas"]["AdminBookingSummary"];
  };
  BookingUpdate: {
  instructor_note?: string | null;
@@ -6556,6 +6795,117 @@ export type components = {
  MCPActor: {
  email: string;
  id: string;
+ principal_type: "user" | "service";
+ };
+ MCPCeleryActiveTask: {
+ args?: string | null;
+ kwargs?: string | null;
+ started_at?: string | null;
+ task_id: string;
+ task_name: string;
+ worker: string;
+ };
+ MCPCeleryActiveTasksResponse: {
+ checked_at: string;
+ count: number;
+ tasks: components["schemas"]["MCPCeleryActiveTask"][];
+ };
+ MCPCeleryBeatScheduleResponse: {
+ checked_at: string;
+ count: number;
+ tasks: components["schemas"]["MCPCeleryScheduledTask"][];
+ };
+ MCPCeleryFailedTask: {
+ exception?: string | null;
+ failed_at?: string | null;
+ queue?: string | null;
+ task_args?: string | null;
+ task_id: string;
+ task_kwargs?: string | null;
+ task_name: string;
+ traceback?: string | null;
+ };
+ MCPCeleryFailedTasksResponse: {
+ checked_at: string;
+ count: number;
+ failed_tasks: components["schemas"]["MCPCeleryFailedTask"][];
+ };
+ MCPCeleryLastTaskRun: {
+ last_run_at?: string | null;
+ status?: string | null;
+ task_name: string;
+ };
+ MCPCeleryPaymentHealthIssue: {
+ count: number;
+ message: string;
+ severity: string;
+ };
+ MCPCeleryPaymentHealthResponse: {
+ checked_at: string;
+ failed_payments_24h: number;
+ healthy: boolean;
+ issues: components["schemas"]["MCPCeleryPaymentHealthIssue"][];
+ last_task_runs: components["schemas"]["MCPCeleryLastTaskRun"][];
+ overdue_authorizations: number;
+ pending_authorizations: number;
+ pending_captures: number;
+ };
+ MCPCeleryQueueInfo: {
+ consumers: number;
+ depth: number;
+ name: string;
+ };
+ MCPCeleryQueuesResponse: {
+ checked_at: string;
+ queues: components["schemas"]["MCPCeleryQueueInfo"][];
+ total_depth: number;
+ };
+ MCPCeleryScheduledTask: {
+ enabled: boolean;
+ last_run?: string | null;
+ name: string;
+ next_run?: string | null;
+ schedule: string;
+ task: string;
+ };
+ MCPCeleryTaskHistoryItem: {
+ exception?: string | null;
+ received_at?: string | null;
+ result?: string | null;
+ retries: number;
+ runtime_seconds?: number | null;
+ started_at?: string | null;
+ state: string;
+ succeeded_at?: string | null;
+ task_id: string;
+ task_name: string;
+ };
+ MCPCeleryTaskHistoryResponse: {
+ checked_at: string;
+ count: number;
+ filters_applied: {
+ [key: string]: unknown;
+ };
+ tasks: components["schemas"]["MCPCeleryTaskHistoryItem"][];
+ };
+ MCPCeleryWorkerInfo: {
+ active_tasks: number;
+ concurrency: number;
+ hostname: string;
+ processed_total: number;
+ queues: string[];
+ status: string;
+ };
+ MCPCeleryWorkersResponse: {
+ checked_at: string;
+ summary: components["schemas"]["MCPCeleryWorkersSummary"];
+ workers: components["schemas"]["MCPCeleryWorkerInfo"][];
+ };
+ MCPCeleryWorkersSummary: {
+ offline_workers: number;
+ online_workers: number;
+ total_active_tasks: number;
+ total_workers: number;
  };
  MCPConversionRate: {
  from_stage: string;
@@ -7067,6 +7417,22 @@ export type components = {
  is_default: boolean;
  last4: string;
  };
+ PaymentPipelineResponse: {
+ authorized: number;
+ captured: number;
+ checked_at: string;
+ failed: number;
+ instructor_payouts_cents: number;
+ net_revenue_cents: number;
+ overdue_authorizations: number;
+ overdue_captures: number;
+ pending_authorization: number;
+ pending_capture: number;
+ platform_fees_cents: number;
+ refunded: number;
+ total_captured_cents: number;
+ total_refunded_cents: number;
+ };
  PaymentSummary: {
  credit_applied: number;
  lesson_amount: number;
@@ -7099,6 +7465,20 @@ export type components = {
  failure_message?: string | null;
  id: string;
  status: string;
+ };
+ PendingPayoutItem: {
+ completed_lessons: number;
+ instructor_id: string;
+ instructor_name: string;
+ oldest_pending_date: string;
+ pending_amount_cents: number;
+ stripe_connected: boolean;
+ };
+ PendingPayoutsResponse: {
+ checked_at: string;
+ instructor_count: number;
+ payouts: components["schemas"]["PendingPayoutItem"][];
+ total_pending_cents: number;
  };
  PerformanceCacheStats: {
  hit_rate: string;
@@ -7444,6 +7824,14 @@ export type components = {
  alerts: components["schemas"]["AlertDetail"][];
  hours: number;
  total: number;
+ };
+ RecentBookingsResponse: {
+ bookings: components["schemas"]["BookingListItem"][];
+ checked_at: string;
+ count: number;
+ filters_applied: {
+ [key: string]: unknown;
+ };
  };
  RedisActiveConnections: {
  local_redis: number;
@@ -8102,6 +8490,10 @@ export type components = {
  instructor_id: string;
  start_time: string;
  };
+ TopCategory: {
+ category: string;
+ count: number;
+ };
  TopCategoryItem: {
  icon_name?: string | null;
  id: string;
@@ -8189,6 +8581,14 @@ export type components = {
  id: string;
  last_initial: string;
  };
+ UserBookingHistoryResponse: {
+ bookings: components["schemas"]["BookingListItem"][];
+ checked_at: string;
+ total_count: number;
+ user_id: string;
+ user_name: string;
+ user_role: string;
+ };
  UserBreakdown: {
  authenticated: number;
  converted_guests: number;
@@ -8220,11 +8620,36 @@ export type components = {
  message: string;
  status: string;
  };
+ UserInfo: {
+ created_at: string;
+ email: string;
+ instructor_status?: string | null;
+ is_founding: boolean;
+ is_verified: boolean;
+ last_login?: string | null;
+ name: string;
+ phone?: string | null;
+ rating?: number | null;
+ review_count?: number | null;
+ role: string;
+ stripe_account_id?: string | null;
+ stripe_customer_id?: string | null;
+ total_bookings: number;
+ total_earned_cents?: number | null;
+ total_lessons?: number | null;
+ total_spent_cents: number;
+ user_id: string;
+ };
  UserLogin: {
  captcha_token?: string | null;
  email: string;
  guest_session_id?: string | null;
  password: string;
+ };
+ UserLookupResponse: {
+ checked_at: string;
+ found: boolean;
+ user?: components["schemas"]["UserInfo"] | null;
  };
  UserRegistrationMetadata: {
  campaign?: string | null;
@@ -10183,15 +10608,169 @@ export interface operations {
  };
  };
  };
+ get_failed_tasks_api_v1_admin_mcp_celery_failed_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPCeleryFailedTasksResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_payment_health_api_v1_admin_mcp_celery_payment_health_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPCeleryPaymentHealthResponse"];
+ };
+ };
+ };
+ };
+ get_queues_api_v1_admin_mcp_celery_queues_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPCeleryQueuesResponse"];
+ };
+ };
+ };
+ };
+ get_beat_schedule_api_v1_admin_mcp_celery_schedule_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPCeleryBeatScheduleResponse"];
+ };
+ };
+ };
+ };
+ get_active_tasks_api_v1_admin_mcp_celery_tasks_active_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPCeleryActiveTasksResponse"];
+ };
+ };
+ };
+ };
+ get_task_history_api_v1_admin_mcp_celery_tasks_history_get: {
+ parameters: {
+ query?: {
+ task_name?: string | null;
+ state?: string | null;
+ hours?: number;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPCeleryTaskHistoryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_workers_api_v1_admin_mcp_celery_workers_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPCeleryWorkersResponse"];
+ };
+ };
+ };
+ };
  get_funnel_summary_api_v1_admin_mcp_founding_funnel_get: {
  parameters: {
  query?: {
  start_date?: string | null;
  end_date?: string | null;
  };
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path?: never;
  cookie?: never;
  };
@@ -10222,9 +10801,7 @@ export interface operations {
  stage?: string | null;
  limit?: number;
  };
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path?: never;
  cookie?: never;
  };
@@ -10258,9 +10835,7 @@ export interface operations {
  limit?: number;
  cursor?: string | null;
  };
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path?: never;
  cookie?: never;
  };
@@ -10291,9 +10866,7 @@ export interface operations {
  group_by?: "category" | "service";
  top?: number;
  };
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path?: never;
  cookie?: never;
  };
@@ -10320,9 +10893,7 @@ export interface operations {
  get_instructor_detail_api_v1_admin_mcp_instructors__identifier__get: {
  parameters: {
  query?: never;
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path: {
  identifier: string;
  };
@@ -10351,9 +10922,7 @@ export interface operations {
  preview_invites_api_v1_admin_mcp_invites_preview_post: {
  parameters: {
  query?: never;
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path?: never;
  cookie?: never;
  };
@@ -10386,7 +10955,6 @@ export interface operations {
  query?: never;
  header?: {
  "Idempotency-Key"?: string | null;
- Authorization?: string | null;
  };
  path?: never;
  cookie?: never;
@@ -10418,9 +10986,7 @@ export interface operations {
  get_metric_definition_api_v1_admin_mcp_metrics__metric_name__get: {
  parameters: {
  query?: never;
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path: {
  metric_name: string;
  };
@@ -10446,6 +11012,174 @@ export interface operations {
  };
  };
  };
+ get_recent_bookings_api_v1_admin_mcp_ops_bookings_recent_get: {
+ parameters: {
+ query?: {
+ status?: string | null;
+ limit?: number;
+ hours?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RecentBookingsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_booking_summary_api_v1_admin_mcp_ops_bookings_summary_get: {
+ parameters: {
+ query?: {
+ period?: components["schemas"]["BookingPeriod"];
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingSummaryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_pending_payouts_api_v1_admin_mcp_ops_payments_pending_payouts_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PendingPayoutsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_payment_pipeline_api_v1_admin_mcp_ops_payments_pipeline_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PaymentPipelineResponse"];
+ };
+ };
+ };
+ };
+ lookup_user_api_v1_admin_mcp_ops_users_lookup_get: {
+ parameters: {
+ query: {
+ identifier: string;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["UserLookupResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_user_booking_history_api_v1_admin_mcp_ops_users__user_id__bookings_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: never;
+ path: {
+ user_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["UserBookingHistoryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  get_top_queries_api_v1_admin_mcp_search_top_queries_get: {
  parameters: {
  query?: {
@@ -10454,9 +11188,7 @@ export interface operations {
  limit?: number;
  min_count?: number;
  };
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path?: never;
  cookie?: never;
  };
@@ -10487,9 +11219,7 @@ export interface operations {
  end_date?: string | null;
  limit?: number;
  };
- header?: {
- Authorization?: string | null;
- };
+ header?: never;
  path?: never;
  cookie?: never;
  };
