@@ -292,6 +292,22 @@ async def test_validate_workos_token_invalid(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_validate_workos_token_missing_signing_key(monkeypatch):
+    settings = Settings(
+        api_service_token="token",
+        workos_domain="workos.test",
+        workos_client_id="client",
+        workos_client_secret="secret",
+    )
+    middleware = _build_middleware(settings)
+
+    monkeypatch.setattr(pyjwt, "get_unverified_header", lambda _token: {"kid": "kid1"})
+    monkeypatch.setattr(middleware, "_get_workos_signing_key", AsyncMock(return_value=None))
+
+    assert await middleware._validate_workos_token("token") is None
+
+
+@pytest.mark.asyncio
 async def test_validate_workos_token_logs_unexpected_error(monkeypatch):
     settings = Settings(
         api_service_token="token",
@@ -330,6 +346,24 @@ async def test_authenticate_removes_expired_cache_entry(monkeypatch):
     result = await middleware._authenticate("token", "https://mcp.instainstru.com")
     assert result is None
     assert cache_key not in middleware._auth_cache
+
+
+@pytest.mark.asyncio
+async def test_authenticate_calls_workos_when_configured(monkeypatch):
+    settings = Settings(
+        api_service_token="",
+        workos_domain="workos.test",
+        workos_client_id="client",
+        workos_client_secret="secret",
+    )
+    middleware = _build_middleware(settings)
+
+    validate_mock = AsyncMock(return_value={"method": "workos", "claims": {"sub": "user"}})
+    monkeypatch.setattr(middleware, "_validate_workos_token", validate_mock)
+
+    result = await middleware._authenticate("token", "https://mcp.instainstru.com")
+    assert result["method"] == "workos"
+    validate_mock.assert_awaited_once()
 
 
 @pytest.mark.asyncio

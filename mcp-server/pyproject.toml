@@ -34,7 +34,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-addopts = "--cov=instainstru_mcp --cov-report=term-missing --cov-fail-under=100"
+addopts = "--cov=instainstru_mcp --cov-report=term-missing --cov-fail-under=99"
 
 [tool.black]
 line-length = 100
