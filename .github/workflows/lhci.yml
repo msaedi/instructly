@@ -47,6 +47,8 @@ jobs:
 
       - name: Run Lighthouse CI (hard gate)
         working-directory: frontend
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
         run: npx lhci autorun --config=lhci.config.js
 
       - name: Upload LHCI artifacts
