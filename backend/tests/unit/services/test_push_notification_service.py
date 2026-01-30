@@ -1,5 +1,7 @@
 """Tests for PushNotificationService."""
 
+import json
+import logging
 from unittest.mock import Mock, patch
 
 from pywebpush import WebPushException
@@ -75,6 +77,23 @@ class TestPushNotificationService:
 
         assert result is False
 
+    def test_unsubscribe_all_removes_subscriptions(self, db, test_student):
+        """Test unsubscribing all removes all subscriptions."""
+        service = PushNotificationService(db)
+
+        for i in range(2):
+            service.subscribe(
+                user_id=test_student.id,
+                endpoint=f"https://fcm.googleapis.com/fcm/send/device{i}",
+                p256dh_key=f"key{i}",
+                auth_key=f"auth{i}",
+            )
+
+        deleted = service.unsubscribe_all(test_student.id)
+
+        assert deleted == 2
+        assert service.get_user_subscriptions(test_student.id) == []
+
     def test_get_user_subscriptions_returns_all(self, db, test_student):
         """Test getting all subscriptions for a user."""
         service = PushNotificationService(db)
@@ -142,6 +161,135 @@ class TestPushNotificationService:
 
         assert result["expired"] == 1
         assert len(service.get_user_subscriptions(test_student.id)) == 0
+
+    def test_send_push_notification_not_configured_skips(self, db, test_student, caplog):
+        """If VAPID keys missing, sending should warn and skip."""
+        service = PushNotificationService(db)
+
+        with patch.object(PushNotificationService, "is_configured", return_value=False):
+            with caplog.at_level(logging.WARNING):
+                result = service.send_push_notification(
+                    user_id=test_student.id,
+                    title="Test",
+                    body="Test",
+                )
+
+        assert result == {"sent": 0, "failed": 0, "expired": 0}
+        assert "Push notifications not configured" in caplog.text
+
+    @patch("app.services.push_notification_service.webpush")
+    def test_send_push_notification_no_subscriptions(self, mock_webpush, db, test_student):
+        """Configured sends with no subscriptions should no-op."""
+        service = PushNotificationService(db)
+
+        with patch.object(PushNotificationService, "is_configured", return_value=True):
+            result = service.send_push_notification(
+                user_id=test_student.id,
+                title="Test",
+                body="Test",
+            )
+
+        assert result == {"sent": 0, "failed": 0, "expired": 0}
+        mock_webpush.assert_not_called()
+
+    @patch("app.services.push_notification_service.webpush")
+    def test_send_push_notification_webpush_error_counts_failed(
+        self, mock_webpush, db, test_student, caplog
+    ):
+        """Non-expired WebPushException increments failed count."""
+        service = PushNotificationService(db)
+        service.subscribe(
+            user_id=test_student.id,
+            endpoint="https://fcm.googleapis.com/fcm/send/fail",
+            p256dh_key="key",
+            auth_key="auth",
+        )
+
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_webpush.side_effect = WebPushException("Server error", response=mock_response)
+
+        with patch.object(PushNotificationService, "is_configured", return_value=True):
+            with caplog.at_level(logging.ERROR):
+                result = service.send_push_notification(
+                    user_id=test_student.id,
+                    title="Test",
+                    body="Test",
+                )
+
+        assert result["failed"] == 1
+        assert result["expired"] == 0
+        assert "Push send failed" in caplog.text
+
+    @patch("app.services.push_notification_service.webpush")
+    def test_send_push_notification_generic_exception_counts_failed(
+        self, mock_webpush, db, test_student, caplog
+    ):
+        """Unexpected errors should log and increment failed count."""
+        service = PushNotificationService(db)
+        service.subscribe(
+            user_id=test_student.id,
+            endpoint="https://fcm.googleapis.com/fcm/send/fail",
+            p256dh_key="key",
+            auth_key="auth",
+        )
+
+        mock_webpush.side_effect = RuntimeError("Boom")
+
+        with patch.object(PushNotificationService, "is_configured", return_value=True):
+            with caplog.at_level(logging.ERROR):
+                result = service.send_push_notification(
+                    user_id=test_student.id,
+                    title="Test",
+                    body="Test",
+                )
+
+        assert result["failed"] == 1
+        assert result["expired"] == 0
+        assert "Push send failed" in caplog.text
+
+    def test_resolve_asset_url_variants(self, db):
+        """Resolve asset URLs with/without base and absolute URLs."""
+        service = PushNotificationService(db)
+        service._frontend_base = "https://frontend.test"
+
+        assert (
+            service._resolve_asset_url("icons/alert.png")
+            == "https://frontend.test/icons/alert.png"
+        )
+        assert (
+            service._resolve_asset_url("https://cdn.test/icon.png")
+            == "https://cdn.test/icon.png"
+        )
+
+        service._frontend_base = ""
+        assert service._resolve_asset_url("/icons/icon.png") == "/icons/icon.png"
+
+    def test_build_payload_merges_data_and_url(self, db):
+        """Payload should merge data/url and resolve assets."""
+        with patch("app.services.push_notification_service.settings") as mock_settings:
+            mock_settings.frontend_url = "https://frontend.test/"
+            mock_settings.vapid_private_key = "key"
+            mock_settings.vapid_claims_email = "mailto:test@example.com"
+            mock_settings.vapid_public_key = "pub"
+
+            service = PushNotificationService(db)
+            payload = service._build_payload(
+                title="Hello",
+                body="World",
+                url="https://example.com",
+                icon="icons/custom.png",
+                badge="https://cdn.test/badge.png",
+                tag="tag-1",
+                data={"foo": "bar"},
+            )
+
+        parsed = json.loads(payload)
+        assert parsed["icon"] == "https://frontend.test/icons/custom.png"
+        assert parsed["badge"] == "https://cdn.test/badge.png"
+        assert parsed["tag"] == "tag-1"
+        assert parsed["data"]["foo"] == "bar"
+        assert parsed["data"]["url"] == "https://example.com"
 
     def test_is_configured_without_keys(self):
         """Test is_configured returns False without VAPID keys."""
