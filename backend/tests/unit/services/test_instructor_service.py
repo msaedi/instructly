@@ -6,7 +6,11 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from app.core.enums import RoleName
-from app.core.exceptions import BusinessRuleException, ForbiddenException, NotFoundException, ServiceException
+from app.core.exceptions import (
+    BusinessRuleException,
+    ForbiddenException,
+    NotFoundException,
+)
 from app.schemas.instructor import InstructorProfileCreate, InstructorProfileUpdate, ServiceCreate
 from app.services.instructor_service import InstructorService, get_instructor_service
 
