@@ -8,13 +8,13 @@ from unittest.mock import AsyncMock, Mock, patch
 from jinja2.exceptions import TemplateNotFound
 import pytest
 
+from app.core.exceptions import ServiceException
 from app.models.notification import Notification
 from app.repositories.notification_repository import NotificationRepository
+from app.services.cache_service import CacheService
 from app.services.notification_service import NotificationService, retry
 from app.services.notification_templates import STUDENT_BOOKING_CONFIRMED
 from app.services.sms_templates import PAYMENT_FAILED
-from app.core.exceptions import ServiceException
-from app.services.cache_service import CacheService
 
 
 @pytest.mark.asyncio
