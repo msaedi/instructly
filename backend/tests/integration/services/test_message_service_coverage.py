@@ -180,14 +180,22 @@ def test_delete_message_rules(
     with pytest.raises(ForbiddenException):
         message_service.delete_message(msg_id, test_instructor_with_availability.id)
 
+    assert message_service.delete_message(msg_id, test_student.id) is True
     msg = message_repo.get_by_id(msg_id)
     assert msg is not None
-    msg.created_at = datetime.now(timezone.utc) - timedelta(minutes=10)
-    db.commit()
-
-    assert message_service.delete_message(msg_id, test_student.id) is True
     db.refresh(msg)
     assert msg.is_deleted is True
+
+    expired_id = _create_message(
+        db, message_repo, conversation.id, test_student.id, "Expired delete"
+    )
+    expired_msg = message_repo.get_by_id(expired_id)
+    assert expired_msg is not None
+    expired_msg.created_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+    db.commit()
+
+    with pytest.raises(ValidationException):
+        message_service.delete_message(expired_id, test_student.id)
 
 
 def test_delete_message_with_context_expired(

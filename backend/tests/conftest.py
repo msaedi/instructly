@@ -93,6 +93,18 @@ def anyio_backend():
     return "asyncio"
 
 
+@pytest.fixture(autouse=True)
+def clear_base_service_metrics():
+    """Clear BaseService metrics before each test to prevent state leakage."""
+    from app.services.base import BaseService
+
+    if hasattr(BaseService, "_class_metrics"):
+        BaseService._class_metrics.clear()
+    yield
+    if hasattr(BaseService, "_class_metrics"):
+        BaseService._class_metrics.clear()
+
+
 @pytest.fixture
 def event_loop():
     """Create an event loop for async tests and close Redis clients before teardown."""
