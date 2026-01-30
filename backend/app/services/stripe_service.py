@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 import logging
+import math
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 from urllib.parse import ParseResult, urljoin, urlparse
@@ -2396,7 +2397,7 @@ class StripeService(BaseService):
                     )
                 amount = int(amount_cents)
                 # Fallback: use generic platform fee percentage to compute transfer amount
-                platform_retained_cents = int(amount * self.platform_fee_percentage)
+                platform_retained_cents = math.ceil(amount * self.platform_fee_percentage)
                 transfer_amount_cents = amount - platform_retained_cents
                 metadata = {
                     "booking_id": booking_id,
@@ -2481,7 +2482,7 @@ class StripeService(BaseService):
         """
         try:
             # Calculate platform retained amount and instructor transfer amount
-            platform_retained_cents = int(amount_cents * self.platform_fee_percentage)
+            platform_retained_cents = math.ceil(amount_cents * self.platform_fee_percentage)
             transfer_amount_cents = amount_cents - platform_retained_cents
 
             pi = stripe.PaymentIntent.create(
