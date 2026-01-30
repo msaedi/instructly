@@ -10,7 +10,14 @@ import jwt as pyjwt
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from instainstru_mcp.oauth.crypto import build_jwks, generate_code, sign_jwt, verify_pkce
+from instainstru_mcp.oauth.crypto import (
+    build_jwks,
+    generate_code,
+    load_rsa_keys,
+    normalize_pem,
+    sign_jwt,
+    verify_pkce,
+)
 
 
 def _generate_keys() -> tuple[str, str]:
@@ -80,3 +87,34 @@ def test_generate_code_returns_value():
     code = generate_code()
     assert isinstance(code, str)
     assert len(code) > 0
+
+
+def test_normalize_pem_replaces_newlines():
+    raw = "line1\\r\\nline2\\nline3"
+    normalized = normalize_pem(raw)
+    assert "\r" not in normalized
+    assert normalized.splitlines() == ["line1", "line2", "line3"]
+
+
+def test_load_rsa_keys_roundtrip():
+    private_pem, public_pem = _generate_keys()
+    private_key, public_key = load_rsa_keys(private_pem, public_pem)
+
+    now = datetime.now(timezone.utc)
+    payload = {
+        "iss": "https://issuer.example",
+        "sub": "user123",
+        "aud": "https://issuer.example",
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(minutes=5)).timestamp()),
+    }
+
+    token = sign_jwt(payload, private_key, "test-key")
+    decoded = pyjwt.decode(
+        token,
+        public_key,
+        algorithms=["RS256"],
+        issuer="https://issuer.example",
+        audience="https://issuer.example",
+    )
+    assert decoded["sub"] == "user123"

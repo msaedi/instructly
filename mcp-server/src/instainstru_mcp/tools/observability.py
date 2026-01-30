@@ -18,6 +18,90 @@ from ..grafana_client import (
     GrafanaRequestError,
 )
 
+QUESTION_ALIASES: dict[str, str] = {
+    "p99 latency": "p99",
+    "p99": "p99",
+    "latency": "p99",
+    "response time": "p99",
+    "p50 latency": "p50",
+    "p50": "p50",
+    "median latency": "p50",
+    "request rate": "request_rate",
+    "rps": "request_rate",
+    "traffic": "request_rate",
+    "throughput": "request_rate",
+    "error rate": "error_rate",
+    "errors": "error_rate",
+    "5xx": "error_rate",
+    "5xx rate": "error_rate",
+    "requests by endpoint": "requests_by_endpoint",
+    "latency by endpoint": "latency_by_endpoint",
+    "endpoint latency": "latency_by_endpoint",
+    "slowest endpoints": "slowest_endpoints",
+    "slow endpoints": "slowest_endpoints",
+}
+
+
+GOLDEN_QUERIES: dict[str, dict[str, Any]] = {
+    "p99": {
+        "description": "99th percentile latency",
+        "unit": "seconds",
+        "format": "latency_ms",
+        "template": (
+            "histogram_quantile(0.99, sum by (le) "
+            "(rate(instainstru_http_request_duration_seconds_bucket{filters}[{window}])))"
+        ),
+    },
+    "p50": {
+        "description": "Median latency",
+        "unit": "seconds",
+        "format": "latency_ms",
+        "template": (
+            "histogram_quantile(0.50, sum by (le) "
+            "(rate(instainstru_http_request_duration_seconds_bucket{filters}[{window}])))"
+        ),
+    },
+    "request_rate": {
+        "description": "Request rate",
+        "unit": "requests/second",
+        "format": "rps",
+        "template": "sum(rate(instainstru_http_requests_total{filters}[{window}]))",
+    },
+    "error_rate": {
+        "description": "Error rate (5xx / total)",
+        "unit": "ratio",
+        "format": "percent",
+        "template": (
+            "sum(rate(instainstru_http_requests_total{error_filters}[{window}])) "
+            "/ sum(rate(instainstru_http_requests_total{filters}[{window}]))"
+        ),
+    },
+    "requests_by_endpoint": {
+        "description": "Request rate per endpoint",
+        "unit": "requests/second",
+        "format": "table",
+        "template": "sum by (endpoint) (rate(instainstru_http_requests_total{filters}[{window}]))",
+    },
+    "latency_by_endpoint": {
+        "description": "P99 latency per endpoint",
+        "unit": "seconds",
+        "format": "table",
+        "template": (
+            "histogram_quantile(0.99, sum by (le, endpoint) "
+            "(rate(instainstru_http_request_duration_seconds_bucket{filters}[{window}])))"
+        ),
+    },
+    "slowest_endpoints": {
+        "description": "Top 10 slowest endpoints by P99 latency",
+        "unit": "seconds",
+        "format": "table",
+        "template": (
+            "topk(10, histogram_quantile(0.99, sum by (le, endpoint) "
+            "(rate(instainstru_http_request_duration_seconds_bucket{filters}[{window}]))))"
+        ),
+    },
+}
+
 
 def register_tools(mcp: FastMCP, grafana: GrafanaCloudClient) -> dict[str, object]:
     async def instainstru_prometheus_query(query: str, time: str | None = None) -> dict:
@@ -108,6 +192,53 @@ def register_tools(mcp: FastMCP, grafana: GrafanaCloudClient) -> dict[str, objec
         except Exception as exc:  # pragma: no cover - handled by helper
             return _handle_error(exc)
 
+    async def instainstru_metrics_query(
+        question: str,
+        time_window: str = "5m",
+        exclude_health_endpoints: bool = True,
+    ) -> dict:
+        """Answer common observability questions using golden queries."""
+        try:
+            _require_scope("mcp:read")
+            resolved_key = _resolve_question(question)
+            query_info = GOLDEN_QUERIES.get(resolved_key)
+            if not query_info:
+                return {
+                    "error": "unknown_question",
+                    "message": "Unsupported question. Try: p99 latency, error rate, request rate.",
+                    "supported_questions": sorted(QUESTION_ALIASES.keys()),
+                }
+
+            promql = _build_promql(
+                resolved_key,
+                time_window=time_window,
+                exclude_health_endpoints=exclude_health_endpoints,
+            )
+            result = await grafana.query_prometheus(query=promql)
+            results = result.get("results", [])
+            format_style = query_info.get("format")
+            if format_style == "table":
+                numeric_value = None
+                formatted = "table"
+            else:
+                numeric_value = _extract_instant_value(results)
+                formatted = _format_value(numeric_value, format_style)
+
+            response: dict[str, Any] = {
+                "question": question,
+                "resolved_question": resolved_key,
+                "description": query_info.get("description"),
+                "promql": promql,
+                "time_window": time_window,
+                "unit": query_info.get("unit"),
+                "value": numeric_value,
+                "formatted": formatted,
+                "results": results,
+            }
+            return response
+        except Exception as exc:  # pragma: no cover - handled by helper
+            return _handle_error(exc)
+
     mcp.tool()(instainstru_prometheus_query)
     mcp.tool()(instainstru_prometheus_query_range)
     mcp.tool()(instainstru_dashboards_list)
@@ -115,6 +246,7 @@ def register_tools(mcp: FastMCP, grafana: GrafanaCloudClient) -> dict[str, objec
     mcp.tool()(instainstru_alerts_list)
     mcp.tool()(instainstru_alert_silence)
     mcp.tool()(instainstru_silences_list)
+    mcp.tool()(instainstru_metrics_query)
 
     return {
         "instainstru_prometheus_query": instainstru_prometheus_query,
@@ -124,6 +256,7 @@ def register_tools(mcp: FastMCP, grafana: GrafanaCloudClient) -> dict[str, objec
         "instainstru_alerts_list": instainstru_alerts_list,
         "instainstru_alert_silence": instainstru_alert_silence,
         "instainstru_silences_list": instainstru_silences_list,
+        "instainstru_metrics_query": instainstru_metrics_query,
     }
 
 
@@ -163,6 +296,72 @@ def _handle_error(exc: Exception) -> dict:
     if isinstance(exc, ValueError):
         return {"error": "invalid_request", "message": str(exc)}
     return {"error": "unknown_error", "message": str(exc)}
+
+
+def _normalize_question(question: str) -> str:
+    return question.strip().lower()
+
+
+def _resolve_question(question: str) -> str:
+    key = _normalize_question(question)
+    return QUESTION_ALIASES.get(key, key)
+
+
+def _render_filters(filters: list[str]) -> str:
+    if not filters:
+        return ""
+    return "{" + ",".join(filters) + "}"
+
+
+def _build_promql(
+    key: str,
+    *,
+    time_window: str,
+    exclude_health_endpoints: bool,
+) -> str:
+    base_filter_list: list[str] = []
+    if exclude_health_endpoints:
+        base_filter_list.append('endpoint!~"/api/v1/(health|ready)"')
+    base_filters = _render_filters(base_filter_list)
+    template = GOLDEN_QUERIES.get(key, {}).get("template", "")
+    if not template:
+        return ""
+    if key == "error_rate":
+        error_filters = _render_filters(base_filter_list + ['status_code=~"5.."'])
+        return template.format(
+            filters=base_filters,
+            error_filters=error_filters,
+            window=time_window,
+        )
+    return template.format(filters=base_filters, window=time_window)
+
+
+def _extract_instant_value(results: list[dict[str, Any]]) -> float | None:
+    values: list[float] = []
+    for item in results:
+        value = item.get("value")
+        if isinstance(value, (list, tuple)) and len(value) >= 2:
+            try:
+                values.append(float(value[1]))
+            except (TypeError, ValueError):
+                continue
+    if not values:
+        return None
+    if len(values) == 1:
+        return values[0]
+    return sum(values)
+
+
+def _format_value(value: float | None, formatter: str | None) -> str:
+    if value is None:
+        return "no data"
+    if formatter == "latency_ms":
+        return f"{value * 1000:.1f}ms"
+    if formatter == "percent":
+        return f"{value * 100:.2f}%"
+    if formatter == "rps":
+        return f"{value:.2f} req/s"
+    return str(value)
 
 
 def _extract_panels(panels: list[Any]) -> list[dict[str, Any]]:

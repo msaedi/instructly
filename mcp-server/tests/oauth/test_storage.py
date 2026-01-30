@@ -41,6 +41,40 @@ def test_session_ttl_expired():
     assert storage.get_session("session123") is None
 
 
+def test_session_returns_when_not_expired_and_naive_datetime():
+    storage = InMemoryStorage()
+    session = OAuthSession(
+        session_id="session-live",
+        client_id="client123",
+        redirect_uri="https://example.com/callback",
+        code_challenge="challenge",
+        code_challenge_method="S256",
+        original_state="state123",
+        resource=None,
+        scope="openid",
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    storage.save_session(session)
+    assert storage.get_session("session-live") == session
+
+
+def test_delete_session():
+    storage = InMemoryStorage()
+    session = OAuthSession(
+        session_id="session-delete",
+        client_id="client123",
+        redirect_uri="https://example.com/callback",
+        code_challenge="challenge",
+        code_challenge_method="S256",
+        original_state="state123",
+        resource=None,
+        scope="openid",
+    )
+    storage.save_session(session)
+    storage.delete_session("session-delete")
+    assert storage.get_session("session-delete") is None
+
+
 def test_auth_code_ttl_expired():
     storage = InMemoryStorage()
     code = AuthorizationCode(
@@ -70,6 +104,20 @@ def test_refresh_token_ttl_expired():
     )
     storage.save_refresh_token(token)
     assert storage.get_refresh_token("refresh123") is None
+
+
+def test_delete_refresh_token():
+    storage = InMemoryStorage()
+    token = RefreshToken(
+        token="refresh-delete",
+        user_id="user123",
+        user_email="user@example.com",
+        client_id="client123",
+        scope="openid",
+    )
+    storage.save_refresh_token(token)
+    storage.delete_refresh_token("refresh-delete")
+    assert storage.get_refresh_token("refresh-delete") is None
 
 
 def test_delete_auth_code():

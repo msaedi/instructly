@@ -7,11 +7,14 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import parse_qs
 
+import httpx
 import jwt as pyjwt
 import pytest
 from instainstru_mcp.config import Settings
 from instainstru_mcp.server import (
     DualAuthMiddleware,
+    _load_settings,
+    _noop_receive,
     _normalize_mcp_path,
     _normalize_session_query,
     _normalize_uuid,
@@ -31,6 +34,11 @@ def test_normalize_uuid_inserts_dashes():
     assert _normalize_uuid(value) == "01234567-89ab-cdef-0123-456789abcdef"
 
 
+def test_normalize_uuid_returns_original_for_non_hex():
+    value = "not-a-uuid"
+    assert _normalize_uuid(value) == value
+
+
 def test_normalize_session_query_updates_uuid_params():
     scope = {
         "path": "/messages/1",
@@ -43,6 +51,24 @@ def test_normalize_session_query_updates_uuid_params():
 
 def test_normalize_session_query_ignores_invalid_bytes():
     scope = {"path": "/messages/1", "query_string": b"\xff"}
+    assert _normalize_session_query(scope) is scope
+
+
+def test_normalize_session_query_returns_scope_when_query_empty():
+    scope = {"path": "/messages/1", "query_string": b""}
+    assert _normalize_session_query(scope) is scope
+
+
+def test_normalize_session_query_returns_scope_without_session_id():
+    scope = {"path": "/messages/1", "query_string": b"foo=bar"}
+    assert _normalize_session_query(scope) is scope
+
+
+def test_normalize_session_query_returns_scope_when_already_normalized():
+    scope = {
+        "path": "/messages/1",
+        "query_string": b"session_id=01234567-89ab-cdef-0123-456789abcdef",
+    }
     assert _normalize_session_query(scope) is scope
 
 
@@ -119,6 +145,23 @@ def test_mcp_json_auth_required_returns_error_payload():
     assert "mcp/www_authenticate" in payload["result"]["_meta"]
 
 
+def test_mcp_invalid_json_body_returns_auth_error_payload():
+    settings = Settings(api_service_token="")
+    middleware = _build_middleware(settings)
+    client = TestClient(middleware, raise_server_exceptions=False)
+
+    response = client.post(
+        "/sse",
+        content="{not-json",
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["id"] is None
+    assert payload["result"]["isError"] is True
+
+
 def test_mcp_tools_list_allows_unauthenticated_call():
     settings = Settings(api_service_token="")
     middleware = _build_middleware(settings)
@@ -191,7 +234,7 @@ async def test_workos_signing_key_missing_returns_none(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_workos_signing_key_returns_none_when_not_configured():
-    settings = Settings(api_service_token="token")
+    settings = Settings(api_service_token="token", workos_domain=None)
     middleware = _build_middleware(settings)
     assert await middleware._get_workos_signing_key("kid1") is None
 
@@ -249,6 +292,23 @@ async def test_validate_workos_token_invalid(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_validate_workos_token_logs_unexpected_error(monkeypatch):
+    settings = Settings(
+        api_service_token="token",
+        workos_domain="workos.test",
+        workos_client_id="client",
+        workos_client_secret="secret",
+    )
+    middleware = _build_middleware(settings)
+
+    def _raise(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(pyjwt, "get_unverified_header", _raise)
+    assert await middleware._validate_workos_token("token") is None
+
+
+@pytest.mark.asyncio
 async def test_authenticate_uses_cache():
     settings = Settings(api_service_token="token")
     middleware = _build_middleware(settings)
@@ -257,6 +317,107 @@ async def test_authenticate_uses_cache():
 
     result = await middleware._authenticate("token", "https://mcp.instainstru.com")
     assert result == {"method": "simple_token"}
+
+
+@pytest.mark.asyncio
+async def test_authenticate_removes_expired_cache_entry(monkeypatch):
+    monkeypatch.delenv("INSTAINSTRU_MCP_API_SERVICE_TOKEN", raising=False)
+    settings = Settings(api_service_token="")
+    middleware = _build_middleware(settings)
+    cache_key = hashlib.sha256(b"token").hexdigest()
+    middleware._auth_cache[cache_key] = (time.time() - 1, {"method": "simple_token"})
+
+    result = await middleware._authenticate("token", "https://mcp.instainstru.com")
+    assert result is None
+    assert cache_key not in middleware._auth_cache
+
+
+@pytest.mark.asyncio
+async def test_authenticate_rejects_mismatched_jwt_kid(monkeypatch):
+    monkeypatch.delenv("INSTAINSTRU_MCP_API_SERVICE_TOKEN", raising=False)
+    settings = Settings(api_service_token="")
+    middleware = _build_middleware(settings)
+    middleware.jwt_signing_key = "signing-key"
+    middleware.jwt_key_id = "kid-expected"
+
+    monkeypatch.setattr(pyjwt, "get_unverified_header", lambda _token: {"kid": "kid-other"})
+
+    result = await middleware._authenticate("token", "https://mcp.instainstru.com")
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_workos_signing_key_expired_cache_clears_and_handles_fetch_error(monkeypatch):
+    settings = Settings(
+        api_service_token="token",
+        workos_domain="workos.test",
+        workos_client_id="client",
+        workos_client_secret="secret",
+    )
+    middleware = _build_middleware(settings)
+    middleware._jwks_cache["kid1"] = (time.time() - 1, "old-key")
+
+    mock_client = AsyncMock()
+    mock_client.get.side_effect = httpx.HTTPError("boom")
+
+    with patch("instainstru_mcp.server.httpx.AsyncClient") as mock_async_client:
+        mock_async_client.return_value.__aenter__.return_value = mock_client
+        assert await middleware._get_workos_signing_key("kid1") is None
+
+    assert "kid1" not in middleware._jwks_cache
+
+
+def test_cache_auth_cleans_expired_entries(monkeypatch):
+    settings = Settings(api_service_token="token")
+    middleware = _build_middleware(settings)
+    now = time.time()
+    middleware._auth_cache = {
+        "expired": (now - 1, {"method": "simple_token"}),
+        "fresh": (now + 60, {"method": "simple_token"}),
+    }
+
+    monkeypatch.setattr(DualAuthMiddleware, "_AUTH_CACHE_MAX_SIZE", 1)
+    middleware._cache_auth("new", {"method": "simple_token"}, now)
+
+    assert "expired" not in middleware._auth_cache
+    assert "fresh" in middleware._auth_cache
+    assert "new" in middleware._auth_cache
+
+
+def test_load_settings_returns_settings():
+    settings = _load_settings()
+    assert isinstance(settings, Settings)
+
+
+@pytest.mark.asyncio
+async def test_noop_receive_returns_empty_body():
+    message = await _noop_receive()
+    assert message["body"] == b""
+
+
+def test_jwt_public_key_invalid_logs_warning(caplog):
+    with caplog.at_level("WARNING"):
+        _build_middleware(
+            Settings(
+                api_service_token="token",
+                jwt_public_key="not-a-key",
+                jwt_key_id="kid-1",
+            )
+        )
+    assert any("Failed to load JWT public key" in msg for msg in caplog.messages)
+
+
+def test_no_auth_configured_logs_warning(monkeypatch, caplog):
+    monkeypatch.delenv("INSTAINSTRU_MCP_API_SERVICE_TOKEN", raising=False)
+    with caplog.at_level("WARNING"):
+        _build_middleware(
+            Settings(
+                api_service_token="",
+                workos_domain=None,
+                jwt_public_key="",
+            )
+        )
+    assert any("No authentication configured" in msg for msg in caplog.messages)
 
 
 def test_main_invokes_uvicorn(monkeypatch):

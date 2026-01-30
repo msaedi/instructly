@@ -296,6 +296,28 @@ async def test_metrics_tool_call_client():
 
 
 @pytest.mark.asyncio
+async def test_metrics_describe_alias_returns_local_definition():
+    client = FakeClient()
+    mcp = FastMCP("test")
+    tools = metrics.register_tools(mcp, client)
+
+    result = await tools["instainstru_metrics_describe"]("p99 latency")
+    assert result["metric"]["name"] == "instainstru_http_request_duration_seconds"
+    assert client.calls == []
+
+
+@pytest.mark.asyncio
+async def test_metrics_describe_lists_metrics_when_empty():
+    client = FakeClient()
+    mcp = FastMCP("test")
+    tools = metrics.register_tools(mcp, client)
+
+    result = await tools["instainstru_metrics_describe"]()
+    assert result["count"] > 0
+    assert "supported_questions" in result
+
+
+@pytest.mark.asyncio
 async def test_celery_tools_call_client():
     client = FakeClient()
     mcp = FastMCP("test")

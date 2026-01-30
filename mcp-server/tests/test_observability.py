@@ -1,4 +1,5 @@
 from datetime import datetime
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -13,6 +14,8 @@ from instainstru_mcp.grafana_client import (
     GrafanaNotFoundError,
     GrafanaRateLimitError,
     GrafanaRequestError,
+    _extract_error_message,
+    _parse_retry_after,
     _secret_value,
 )
 from instainstru_mcp.tools import observability
@@ -49,6 +52,26 @@ async def test_prometheus_query_success():
     assert result["result_type"] == "vector"
     assert result["results"][0]["metric"]["job"] == "instainstru-api"
     assert result["results"][0]["value"][1] == "1"
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_prometheus_query_uses_time_param():
+    settings = Settings(
+        grafana_cloud_url="https://grafana.test",
+        grafana_cloud_api_key="token",
+        grafana_prometheus_datasource_uid="prometheus",
+    )
+    client = GrafanaCloudClient(settings)
+
+    route = respx.get(
+        "https://grafana.test/api/datasources/proxy/uid/prometheus/api/v1/query"
+    ).respond(200, json={"status": "success", "data": {"resultType": "vector", "result": []}})
+
+    await client.query_prometheus("up", time="2026-01-01T00:00:00Z")
+    assert route.calls[0].request.url.params.get("time") == "2026-01-01T00:00:00Z"
 
     await client.aclose()
 
@@ -133,6 +156,43 @@ async def test_list_dashboards_structured():
     assert dashboards[0]["uid"] == "instainstru-api-health"
     assert dashboards[1]["title"] == "BGC Overview"
     assert dashboards[0]["folder"] == "InstaInstru"
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_grafana_request_updates_headers():
+    settings = Settings(
+        grafana_cloud_url="https://grafana.test",
+        grafana_cloud_api_key="token",
+    )
+    client = GrafanaCloudClient(settings)
+
+    response = httpx.Response(200, json={"ok": True})
+    request_mock = AsyncMock(return_value=response)
+    client.http.request = request_mock
+
+    await client._request("GET", "/api/search", headers={"X-Test": "1"})
+    assert request_mock.call_args.kwargs["headers"]["X-Test"] == "1"
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_get_dashboard_handles_non_dict_response(monkeypatch):
+    settings = Settings(
+        grafana_cloud_url="https://grafana.test",
+        grafana_cloud_api_key="token",
+    )
+    client = GrafanaCloudClient(settings)
+
+    async def fake_request(*_args, **_kwargs):
+        return ["not-a-dict"]
+
+    monkeypatch.setattr(client, "_request", fake_request)
+    result = await client.get_dashboard("dash-1")
+    assert result["uid"] is None
+    assert result["meta"]["folder"] is None
 
     await client.aclose()
 
@@ -368,6 +428,32 @@ async def test_alert_silence_requires_write_scope(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_alert_silence_allows_write_scope(monkeypatch):
+    class FakeGrafana:
+        async def create_silence(self, **_kwargs):
+            return {"silence_id": "sil-1"}
+
+    def fake_request():
+        class Dummy:
+            scope = {"auth": {"claims": {"scope": "mcp:read mcp:write"}}}
+
+        return Dummy()
+
+    monkeypatch.setattr(observability, "get_http_request", fake_request)
+
+    mcp = FastMCP("test")
+    tools = observability.register_tools(mcp, FakeGrafana())
+
+    result = await tools["instainstru_alert_silence"](
+        matchers=[{"name": "alertname", "value": "HighLatency", "isRegex": False}],
+        duration_minutes=30,
+        comment="investigating",
+    )
+
+    assert result["silence_id"] == "sil-1"
+
+
+@pytest.mark.asyncio
 async def test_grafana_not_configured(monkeypatch):
     settings = Settings(grafana_cloud_url="", grafana_cloud_api_key="")
     grafana = GrafanaCloudClient(settings)
@@ -418,6 +504,112 @@ async def test_alerts_and_silences_tools_success(monkeypatch):
     assert silences["count"] == 1
     dashboards = await tools["instainstru_dashboards_list"]()
     assert dashboards["count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_metrics_query_p99_latency_builds_query(monkeypatch):
+    captured: dict[str, str] = {}
+
+    class FakeGrafana:
+        async def query_prometheus(self, query, time=None):
+            captured["query"] = query
+            return {
+                "query": query,
+                "result_type": "vector",
+                "results": [{"value": [1700000000, "0.12"]}],
+            }
+
+    def fake_request():
+        class Dummy:
+            scope = {"auth": {"method": "simple_token"}}
+
+        return Dummy()
+
+    monkeypatch.setattr(observability, "get_http_request", fake_request)
+
+    mcp = FastMCP("test")
+    tools = observability.register_tools(mcp, FakeGrafana())
+
+    result = await tools["instainstru_metrics_query"]("p99 latency")
+    assert "histogram_quantile" in captured["query"]
+    assert "endpoint!~" in captured["query"]
+    assert result["formatted"].endswith("ms")
+
+
+@pytest.mark.asyncio
+async def test_metrics_query_error_rate_includes_5xx_filter(monkeypatch):
+    captured: dict[str, str] = {}
+
+    class FakeGrafana:
+        async def query_prometheus(self, query, time=None):
+            captured["query"] = query
+            return {
+                "query": query,
+                "result_type": "vector",
+                "results": [{"value": [1700000000, "0.01"]}],
+            }
+
+    def fake_request():
+        class Dummy:
+            scope = {"auth": {"method": "simple_token"}}
+
+        return Dummy()
+
+    monkeypatch.setattr(observability, "get_http_request", fake_request)
+
+    mcp = FastMCP("test")
+    tools = observability.register_tools(mcp, FakeGrafana())
+
+    result = await tools["instainstru_metrics_query"]("error rate")
+    assert 'status_code=~"5.."' in captured["query"]
+    assert result["formatted"].endswith("%")
+
+
+@pytest.mark.asyncio
+async def test_metrics_query_unknown_question(monkeypatch):
+    class FakeGrafana:
+        async def query_prometheus(self, query, time=None):
+            return {}
+
+    def fake_request():
+        class Dummy:
+            scope = {"auth": {"method": "simple_token"}}
+
+        return Dummy()
+
+    monkeypatch.setattr(observability, "get_http_request", fake_request)
+
+    mcp = FastMCP("test")
+    tools = observability.register_tools(mcp, FakeGrafana())
+
+    result = await tools["instainstru_metrics_query"]("mystery metric")
+    assert result["error"] == "unknown_question"
+
+
+@pytest.mark.asyncio
+async def test_metrics_query_table_format(monkeypatch):
+    class FakeGrafana:
+        async def query_prometheus(self, query, time=None):
+            return {
+                "query": query,
+                "result_type": "vector",
+                "results": [{"metric": {"endpoint": "/api/v1/bookings"}, "value": [0, "0.5"]}],
+            }
+
+    def fake_request():
+        class Dummy:
+            scope = {"auth": {"method": "simple_token"}}
+
+        return Dummy()
+
+    monkeypatch.setattr(observability, "get_http_request", fake_request)
+
+    mcp = FastMCP("test")
+    tools = observability.register_tools(mcp, FakeGrafana())
+
+    result = await tools["instainstru_metrics_query"]("latency by endpoint")
+    assert result["formatted"] == "table"
+    assert result["value"] is None
 
 
 def test_handle_error_maps_grafana_errors():
@@ -652,3 +844,59 @@ async def test_grafana_request_non_json_fallback():
     assert result["text"] == "not-json"
 
     await client.aclose()
+
+
+def test_extract_error_message_non_json():
+    response = httpx.Response(500, content=b"not-json")
+    assert _extract_error_message(response) == "grafana_error_500"
+
+
+def test_parse_retry_after_none():
+    assert _parse_retry_after(None) is None
+
+
+def test_render_filters_empty():
+    assert observability._render_filters([]) == ""
+
+
+def test_build_promql_no_filters():
+    promql = observability._build_promql(
+        "p99",
+        time_window="5m",
+        exclude_health_endpoints=False,
+    )
+    assert "endpoint!~" not in promql
+    assert "bucket{" not in promql
+
+
+def test_build_promql_unknown_key_returns_empty():
+    assert (
+        observability._build_promql(
+            "unknown",
+            time_window="5m",
+            exclude_health_endpoints=True,
+        )
+        == ""
+    )
+
+
+def test_extract_instant_value_skips_bad_values():
+    results = [{"value": [0, "bad"]}]
+    assert observability._extract_instant_value(results) is None
+
+
+def test_extract_instant_value_sums_multiple_values():
+    results = [{"value": [0, "1.5"]}, {"value": [0, "2.0"]}]
+    assert observability._extract_instant_value(results) == 3.5
+
+
+def test_format_value_handles_no_data_and_rps():
+    assert observability._format_value(None, "percent") == "no data"
+    assert observability._format_value(1.234, "rps") == "1.23 req/s"
+    assert observability._format_value(2.0, None) == "2.0"
+
+
+def test_resolve_relative_time_supports_minutes_and_days():
+    now = datetime(2026, 1, 1, 12, 0, 0)
+    assert observability._resolve_relative_time("5m", now)
+    assert observability._resolve_relative_time("2d", now)

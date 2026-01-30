@@ -39,6 +39,30 @@ async def test_client_success():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_client_call_passes_custom_headers():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    route = respx.get("https://api.instainstru.test/api/v1/admin/mcp/founding/funnel").respond(
+        200, json={"data": {"ok": True}}
+    )
+
+    await client.call(
+        "GET",
+        "/api/v1/admin/mcp/founding/funnel",
+        headers={"X-Custom": "yes"},
+    )
+    assert route.calls[0].request.headers.get("X-Custom") == "yes"
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_client_auth_error():
     settings = Settings(
         api_base_url="https://api.instainstru.test",
@@ -202,6 +226,63 @@ async def test_client_timeout_uses_explicit_timeout_value():
 
 
 @pytest.mark.asyncio
+async def test_client_timeout_uses_httpx_timeout_read_value():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    with patch.object(
+        client.http, "request", new=AsyncMock(side_effect=httpx.TimeoutException("boom"))
+    ):
+        timeout = httpx.Timeout(4.0)
+        with pytest.raises(BackendConnectionError, match="4.0s"):
+            await client.call("GET", "/api/v1/admin/mcp/founding/funnel", timeout=timeout)
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_timeout_uses_client_default_timeout():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+    client.http.timeout = httpx.Timeout(7.0)
+
+    with patch.object(
+        client.http, "request", new=AsyncMock(side_effect=httpx.TimeoutException("boom"))
+    ):
+        with pytest.raises(BackendConnectionError, match="7.0s"):
+            await client.call("GET", "/api/v1/admin/mcp/founding/funnel")
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_timeout_without_read_timeout_message(monkeypatch):
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+    client.http.timeout = httpx.Timeout(None)
+
+    with patch.object(
+        client.http, "request", new=AsyncMock(side_effect=httpx.TimeoutException("boom"))
+    ):
+        with pytest.raises(BackendConnectionError, match="timed out"):
+            await client.call("GET", "/api/v1/admin/mcp/founding/funnel")
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
 @respx.mock
 async def test_client_returns_text_when_response_is_not_json():
     settings = Settings(
@@ -259,6 +340,29 @@ async def test_client_missing_tokens_raises_auth_error(monkeypatch):
 
     with pytest.raises(AuthenticationError):
         await client._get_bearer_token()
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_static_token_used_when_no_m2m(monkeypatch):
+    monkeypatch.delenv("INSTAINSTRU_MCP_WORKOS_M2M_CLIENT_ID", raising=False)
+    monkeypatch.delenv("INSTAINSTRU_MCP_WORKOS_M2M_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("INSTAINSTRU_MCP_WORKOS_M2M_TOKEN_URL", raising=False)
+    monkeypatch.delenv("INSTAINSTRU_MCP_WORKOS_M2M_AUDIENCE", raising=False)
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+        workos_m2m_client_id="",
+        workos_m2m_client_secret="",
+        workos_m2m_token_url="",
+        workos_m2m_audience="",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    token = await client._get_bearer_token()
+    assert token == "svc"
 
     await client.aclose()
 
