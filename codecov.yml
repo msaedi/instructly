@@ -41,6 +41,10 @@ comment:
   require_head: yes
   show_carryforward_flags: true
 
+flag_management:
+  default_rules:
+    carryforward: true
+
 ignore:
   - "**/tests/**"
   - "**/test_*.py"
