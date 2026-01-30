@@ -1251,6 +1251,12 @@ def read_root() -> RootResponse:
     )
 
 
+@app.get("/sentry-debug")
+def trigger_sentry_debug() -> None:
+    """Trigger a test exception to verify Sentry integration."""
+    raise RuntimeError("Sentry debug endpoint")
+
+
 # Health endpoints moved to v1/health.py - available at /api/v1/health and /api/v1/health/lite
 
 

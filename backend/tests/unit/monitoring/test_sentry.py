@@ -1,6 +1,7 @@
 # backend/tests/unit/monitoring/test_sentry.py
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -39,7 +40,15 @@ def test_init_sentry_enabled_when_dsn_set(monkeypatch):
     monkeypatch.setenv("ENV", "production")
     monkeypatch.setenv("GIT_SHA", "gitsha")
 
-    with patch("app.monitoring.sentry.sentry_sdk.init") as mock_init:
+    with patch("app.monitoring.sentry.sentry_sdk.init") as mock_init, patch.object(
+        sentry_module, "FastApiIntegration"
+    ) as mock_integration, patch.object(
+        sentry_module, "LoggingIntegration"
+    ) as mock_logging_integration:
+        mock_instance = object()
+        mock_logging_instance = object()
+        mock_integration.return_value = mock_instance
+        mock_logging_integration.return_value = mock_logging_instance
         enabled = sentry_module.init_sentry()
 
     assert enabled is True
@@ -48,6 +57,18 @@ def test_init_sentry_enabled_when_dsn_set(monkeypatch):
     assert kwargs["dsn"] == "https://example@o0.ingest.sentry.io/0"
     assert kwargs["environment"] == "production"
     assert kwargs["release"] == "gitsha"
+    assert kwargs["send_default_pii"] is True
+    assert kwargs["profiles_sample_rate"] == sentry_module.DEFAULT_PROFILES_SAMPLE_RATE
+    assert kwargs["enable_logs"] is True
+    assert kwargs["integrations"] == [mock_logging_instance, mock_instance]
+    mock_integration.assert_called_once_with(
+        transaction_style="endpoint",
+        failed_request_status_codes=sentry_module.FAILED_REQUEST_STATUS_CODES,
+    )
+    mock_logging_integration.assert_called_once_with(
+        level=logging.INFO,
+        event_level=logging.ERROR,
+    )
 
 
 def test_init_sentry_disabled_without_dsn(monkeypatch):
@@ -58,6 +79,15 @@ def test_init_sentry_disabled_without_dsn(monkeypatch):
 
     assert enabled is False
     mock_init.assert_not_called()
+
+
+def test_resolve_release_uses_git_sha_fallback(monkeypatch):
+    monkeypatch.delenv("GIT_SHA", raising=False)
+    monkeypatch.delenv("RENDER_GIT_COMMIT", raising=False)
+
+    with patch("app.monitoring.sentry.subprocess.check_output") as mock_output:
+        mock_output.return_value = "abc123\n"
+        assert sentry_module._resolve_release() == "abc123"
 
 
 def test_apply_scope_context_attaches_request_and_user():

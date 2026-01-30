@@ -1,5 +1,7 @@
 // frontend/lib/logger.ts
 
+import * as Sentry from '@sentry/nextjs';
+
 import { env } from '@/lib/env';
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -43,6 +45,18 @@ class Logger {
 
   private currentLevel: LogLevel = getDefaultLogLevel();
 
+  private shouldSendToSentry(): boolean {
+    return !this.isDevelopment && this.isEnabled;
+  }
+
+  private toSentryData(context?: LogContext): Record<string, unknown> | undefined {
+    if (!context) return undefined;
+    if (typeof context === 'object') {
+      return { ...(context as Record<string, unknown>) };
+    }
+    return { context };
+  }
+
   private shouldLog(level: LogLevel): boolean {
     // Check if logging is enabled at all
     if (!this.isEnabled) return false;
@@ -71,11 +85,29 @@ class Logger {
     if (this.shouldLog('info')) {
       console.info(this.formatMessage('info', message, context));
     }
+
+    if (this.shouldSendToSentry()) {
+      const sentryData = this.toSentryData(context);
+      const breadcrumb = sentryData
+        ? { category: 'logger', message, level: 'info' as const, data: sentryData }
+        : { category: 'logger', message, level: 'info' as const };
+      Sentry.addBreadcrumb(breadcrumb);
+      Sentry.logger.info(message, sentryData);
+    }
   }
 
   warn(message: string, context?: LogContext): void {
     if (this.shouldLog('warn')) {
       console.warn(this.formatMessage('warn', message, context));
+    }
+
+    if (this.shouldSendToSentry()) {
+      const sentryData = this.toSentryData(context);
+      const breadcrumb = sentryData
+        ? { category: 'logger', message, level: 'warning' as const, data: sentryData }
+        : { category: 'logger', message, level: 'warning' as const };
+      Sentry.addBreadcrumb(breadcrumb);
+      Sentry.logger.warn(message, sentryData);
     }
   }
 
@@ -93,10 +125,23 @@ class Logger {
       console.error(this.formatMessage('error', message, errorContext));
     }
 
-    // In production, you might want to send this to an error tracking service
-    if (!this.isDevelopment && typeof window !== 'undefined') {
-      // Example: Sentry, LogRocket, etc.
-      // window.Sentry?.captureException(error);
+    if (this.shouldSendToSentry()) {
+      const sentryContext = this.toSentryData(context);
+      const logData = { ...(sentryContext ?? {}), hasError: Boolean(error) };
+      Sentry.addBreadcrumb({
+        category: 'logger',
+        message,
+        level: 'error',
+        data: logData,
+      });
+      Sentry.logger.error(message, logData);
+
+      if (error instanceof Error) {
+        const captureContext = sentryContext
+          ? { extra: sentryContext, tags: { source: 'logger' } }
+          : { tags: { source: 'logger' } };
+        Sentry.captureException(error, captureContext);
+      }
     }
   }
 

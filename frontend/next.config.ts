@@ -71,12 +71,17 @@ const sentryBuildOptions = {
   ...(sentryOrg ? { org: sentryOrg } : {}),
   ...(sentryProject ? { project: sentryProject } : {}),
   ...(releaseName ? { release: { name: releaseName } } : {}),
+  tunnelRoute: '/monitoring',
   silent: true,
   sourcemaps: {
     disable: !shouldUploadSourceMaps,
   },
   widenClientFileUpload: true,
-  disableLogger: true,
+  webpack: {
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
 };
 
 export default withSentryConfig(nextConfig, sentryBuildOptions);

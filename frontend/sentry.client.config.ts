@@ -10,7 +10,10 @@ Sentry.init({
   enabled: isProd && Boolean(SENTRY_DSN),
   environment,
   release: process.env['VERCEL_GIT_COMMIT_SHA'],
+  sendDefaultPii: true,
   tracesSampleRate: 0.1,
   replaysOnErrorSampleRate: 1.0,
   replaysSessionSampleRate: 0.1,
+  integrations: [Sentry.replayIntegration()],
+  enableLogs: true,
 });

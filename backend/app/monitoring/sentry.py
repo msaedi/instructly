@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
 from typing import Any, Mapping
 
 from fastapi import Request
@@ -10,20 +11,26 @@ from fastapi import Request
 try:  # pragma: no cover - optional dependency in some test environments
     import sentry_sdk as _sentry_sdk
     from sentry_sdk.integrations.fastapi import FastApiIntegration as _FastApiIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration as _LoggingIntegration
 except Exception:  # pragma: no cover
     sentry_sdk: Any | None = None
     FastApiIntegration: Any | None = None
+    LoggingIntegration: Any | None = None
 else:
     sentry_sdk = _sentry_sdk
     FastApiIntegration = _FastApiIntegration
+    LoggingIntegration = _LoggingIntegration
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_TRACES_SAMPLE_RATE = 0.1
+DEFAULT_PROFILES_SAMPLE_RATE = 0.1
+FAILED_REQUEST_STATUS_CODES = {403, *range(500, 600)}
 
-_HEALTHCHECK_PATH_PREFIXES = (
-    "/api/v1/health",
-    "/api/v1/ready",
+_HEALTHCHECK_PATH_SUFFIXES = (
+    "/health",
+    "/health/lite",
+    "/ready",
 )
 
 
@@ -44,14 +51,29 @@ def _resolve_environment() -> str | None:
 
 
 def _resolve_release() -> str | None:
-    return (os.getenv("GIT_SHA") or os.getenv("RENDER_GIT_COMMIT") or "").strip() or None
+    release = (os.getenv("GIT_SHA") or os.getenv("RENDER_GIT_COMMIT") or "").strip()
+    if release:
+        return release
+    return _resolve_git_sha()
+
+
+def _resolve_git_sha() -> str | None:
+    try:
+        output = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+        return output or None
+    except Exception:
+        return None
 
 
 def _is_healthcheck_path(path: str | None) -> bool:
     if not path:
         return False
     normalized = path.rstrip("/") or "/"
-    return any(normalized.startswith(prefix) for prefix in _HEALTHCHECK_PATH_PREFIXES)
+    return any(normalized.endswith(suffix) for suffix in _HEALTHCHECK_PATH_SUFFIXES)
 
 
 def _extract_sampling_path(sampling_context: Mapping[str, Any]) -> str | None:
@@ -87,13 +109,27 @@ def init_sentry() -> bool:
         logger.debug("Sentry disabled: SENTRY_DSN not set")
         return False
 
+    integrations: list[Any] = []
+    if LoggingIntegration:
+        integrations.append(LoggingIntegration(level=logging.INFO, event_level=logging.ERROR))
+    if FastApiIntegration:
+        integrations.append(
+            FastApiIntegration(
+                transaction_style="endpoint",
+                failed_request_status_codes=FAILED_REQUEST_STATUS_CODES,
+            )
+        )
+
     sentry_sdk.init(
         dsn=dsn,
         environment=_resolve_environment(),
         release=_resolve_release(),
-        integrations=[FastApiIntegration()] if FastApiIntegration else None,
+        integrations=integrations or None,
+        send_default_pii=True,
         traces_sample_rate=DEFAULT_TRACES_SAMPLE_RATE,
         traces_sampler=_traces_sampler,
+        profiles_sample_rate=DEFAULT_PROFILES_SAMPLE_RATE,
+        enable_logs=True,
     )
     logger.info("Sentry initialized")
     return True
