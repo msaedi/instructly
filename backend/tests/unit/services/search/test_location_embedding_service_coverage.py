@@ -138,3 +138,306 @@ def test_client_recreates_when_retry_count_changes(monkeypatch) -> None:
     client_second = service.client
     assert client_second.max_retries == 3
     assert client_second is not client_first
+
+
+def test_client_handles_invalid_max_retries(monkeypatch) -> None:
+    """Lines 54-55: Handle invalid max_retries gracefully (TypeError/ValueError)."""
+
+    class DummyOpenAI:
+        def __init__(self, timeout: float, max_retries: int) -> None:
+            self.timeout = timeout
+            self.max_retries = max_retries
+            self.embeddings = SimpleNamespace(create=AsyncMock())
+
+    # Test with non-numeric max_retries
+    cfg = SimpleNamespace(max_retries="invalid_string")
+    monkeypatch.setattr(les_module, "AsyncOpenAI", DummyOpenAI)
+    monkeypatch.setattr(les_module, "get_search_config", lambda: cfg)
+
+    service = LocationEmbeddingService(repository=_RepoStub())
+    client = service.client
+    assert client.max_retries == 2  # Should fallback to default
+
+
+def test_client_handles_none_max_retries(monkeypatch) -> None:
+    """Lines 54-55: Handle None max_retries gracefully."""
+
+    class DummyOpenAI:
+        def __init__(self, timeout: float, max_retries: int) -> None:
+            self.timeout = timeout
+            self.max_retries = max_retries
+            self.embeddings = SimpleNamespace(create=AsyncMock())
+
+    cfg = SimpleNamespace(max_retries=None)
+    monkeypatch.setattr(les_module, "AsyncOpenAI", DummyOpenAI)
+    monkeypatch.setattr(les_module, "get_search_config", lambda: cfg)
+
+    service = LocationEmbeddingService(repository=_RepoStub())
+    client = service.client
+    assert client.max_retries == 2  # Should fallback to default
+
+
+def test_client_handles_negative_max_retries(monkeypatch) -> None:
+    """max_retries should be clamped to minimum 0."""
+
+    class DummyOpenAI:
+        def __init__(self, timeout: float, max_retries: int) -> None:
+            self.timeout = timeout
+            self.max_retries = max_retries
+            self.embeddings = SimpleNamespace(create=AsyncMock())
+
+    cfg = SimpleNamespace(max_retries=-5)
+    monkeypatch.setattr(les_module, "AsyncOpenAI", DummyOpenAI)
+    monkeypatch.setattr(les_module, "get_search_config", lambda: cfg)
+
+    service = LocationEmbeddingService(repository=_RepoStub())
+    client = service.client
+    assert client.max_retries == 0  # Should be clamped to 0
+
+
+@pytest.mark.asyncio
+async def test_get_candidates_returns_empty_when_embedding_fails(monkeypatch) -> None:
+    """Line 98: Return empty list when embedding returns None."""
+    repo = _RepoStub()
+    service = LocationEmbeddingService(repository=repo)
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    service._embed_location_text = AsyncMock(return_value=None)
+
+    candidates = await service.get_candidates("midtown")
+    assert candidates == []
+
+
+@pytest.mark.asyncio
+async def test_get_candidates_returns_empty_when_no_pairs(monkeypatch) -> None:
+    """Line 106: Return empty list when repository returns empty pairs."""
+    repo = _RepoStub()
+    repo._pairs = []  # No results from repository
+    service = LocationEmbeddingService(repository=repo)
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    service._embed_location_text = AsyncMock(return_value=[0.1] * 1536)
+
+    candidates = await service.get_candidates("nonexistent place")
+    assert candidates == []
+
+
+@pytest.mark.asyncio
+async def test_get_candidates_handles_invalid_similarity(monkeypatch) -> None:
+    """Lines 113-115: Handle similarity that can't be converted to float."""
+    repo = _RepoStub()
+    service = LocationEmbeddingService(repository=repo)
+
+    region = _make_region("RID-1", "Test Region", "Manhattan")
+    # Use an object that can't be converted to float properly
+    repo._pairs = [(region, "not_a_number"), (region, 0.9)]
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    service._embed_location_text = AsyncMock(return_value=[0.1] * 1536)
+
+    candidates = await service.get_candidates("test", threshold=0.8)
+    # Should skip the invalid one but include the valid one
+    assert len(candidates) == 1
+    assert candidates[0]["similarity"] == 0.9
+
+
+def test_pick_best_or_ambiguous_empty_candidates() -> None:
+    """Return (None, None) for empty candidates."""
+    best, ambiguous = LocationEmbeddingService.pick_best_or_ambiguous([])
+    assert best is None
+    assert ambiguous is None
+
+
+def test_pick_best_or_ambiguous_single_candidate() -> None:
+    """Single candidate should be returned as best."""
+    candidates = [{"region_id": "1", "similarity": 0.9}]
+    best, ambiguous = LocationEmbeddingService.pick_best_or_ambiguous(candidates)
+    assert best is not None
+    assert best["region_id"] == "1"
+    assert ambiguous is None
+
+
+def test_build_candidates_from_embeddings_empty_query() -> None:
+    """Lines 172-173: Empty query embedding should return empty list."""
+    result = LocationEmbeddingService.build_candidates_from_embeddings(
+        [],
+        [{"region_id": "1", "embedding": [1.0], "norm": 1.0}],
+    )
+    assert result == []
+
+
+def test_build_candidates_from_embeddings_empty_regions() -> None:
+    """Lines 172-173: Empty region embeddings should return empty list."""
+    result = LocationEmbeddingService.build_candidates_from_embeddings(
+        [1.0, 0.0],
+        [],
+    )
+    assert result == []
+
+
+def test_build_candidates_from_embeddings_zero_query_norm() -> None:
+    """Lines 176-177: Zero query norm should return empty list."""
+    result = LocationEmbeddingService.build_candidates_from_embeddings(
+        [0.0, 0.0, 0.0],  # Zero vector
+        [{"region_id": "1", "embedding": [1.0, 0.0, 0.0], "norm": 1.0}],
+    )
+    assert result == []
+
+
+def test_build_candidates_from_embeddings_zero_region_norm() -> None:
+    """Lines 185-186: Region with zero norm should be skipped."""
+    result = LocationEmbeddingService.build_candidates_from_embeddings(
+        [1.0, 0.0],
+        [
+            {
+                "region_id": "RID-1",
+                "region_name": "Bad Region",
+                "borough": "Test",
+                "embedding": [1.0, 0.0],
+                "norm": 0.0,  # Zero norm
+            },
+            {
+                "region_id": "RID-2",
+                "region_name": "Good Region",
+                "borough": "Test",
+                "embedding": [1.0, 0.0],
+                "norm": 1.0,
+            },
+        ],
+        threshold=0.5,
+    )
+    # Should only include the region with valid norm
+    assert len(result) == 1
+    assert result[0]["region_id"] == "RID-2"
+
+
+def test_build_candidates_from_embeddings_missing_embedding() -> None:
+    """Line 185: Region with missing embedding should be skipped."""
+    result = LocationEmbeddingService.build_candidates_from_embeddings(
+        [1.0, 0.0],
+        [
+            {
+                "region_id": "RID-1",
+                "region_name": "No Embedding",
+                "borough": "Test",
+                "embedding": None,  # Missing embedding
+                "norm": 1.0,
+            },
+            {
+                "region_id": "RID-2",
+                "region_name": "Good Region",
+                "borough": "Test",
+                "embedding": [1.0, 0.0],
+                "norm": 1.0,
+            },
+        ],
+        threshold=0.5,
+    )
+    assert len(result) == 1
+    assert result[0]["region_id"] == "RID-2"
+
+
+def test_build_candidates_from_embeddings_below_threshold_filtered() -> None:
+    """Lines 194-195: Candidates below threshold should be filtered out."""
+    result = LocationEmbeddingService.build_candidates_from_embeddings(
+        [1.0, 0.0],
+        [
+            {
+                "region_id": "RID-1",
+                "region_name": "Similar",
+                "borough": "Test",
+                "embedding": [1.0, 0.0],  # Exact match
+                "norm": 1.0,
+            },
+            {
+                "region_id": "RID-2",
+                "region_name": "Orthogonal",
+                "borough": "Test",
+                "embedding": [0.0, 1.0],  # 90 degree angle
+                "norm": 1.0,
+            },
+        ],
+        threshold=0.9,
+    )
+    # Orthogonal vector has cosine sim = 0, normalized = 0.5, should be filtered
+    assert len(result) == 1
+    assert result[0]["region_id"] == "RID-1"
+
+
+def test_build_candidates_from_embeddings_respects_limit() -> None:
+    """Line 207: Should respect limit parameter."""
+    result = LocationEmbeddingService.build_candidates_from_embeddings(
+        [1.0, 0.0],
+        [
+            {
+                "region_id": f"RID-{i}",
+                "region_name": f"Region {i}",
+                "borough": "Test",
+                "embedding": [1.0, 0.0],
+                "norm": 1.0,
+            }
+            for i in range(10)
+        ],
+        limit=3,
+        threshold=0.5,
+    )
+    assert len(result) == 3
+
+
+def test_build_candidates_from_embeddings_sorted_by_similarity() -> None:
+    """Line 206: Candidates should be sorted by similarity descending."""
+    result = LocationEmbeddingService.build_candidates_from_embeddings(
+        [1.0, 0.0],
+        [
+            {
+                "region_id": "RID-low",
+                "region_name": "Low Sim",
+                "borough": "Test",
+                "embedding": [0.6, 0.8],  # Lower similarity
+                "norm": 1.0,
+            },
+            {
+                "region_id": "RID-high",
+                "region_name": "High Sim",
+                "borough": "Test",
+                "embedding": [1.0, 0.0],  # Higher similarity
+                "norm": 1.0,
+            },
+        ],
+        threshold=0.0,  # Low threshold to include both
+    )
+    assert len(result) == 2
+    assert result[0]["region_id"] == "RID-high"  # Higher sim first
+    assert result[0]["similarity"] > result[1]["similarity"]
+
+
+def test_build_candidates_uses_default_threshold() -> None:
+    """Should use SIMILARITY_THRESHOLD when threshold is None."""
+    result = LocationEmbeddingService.build_candidates_from_embeddings(
+        [1.0, 0.0],
+        [
+            {
+                "region_id": "RID-1",
+                "region_name": "Test",
+                "borough": "Test",
+                "embedding": [1.0, 0.0],
+                "norm": 1.0,
+            },
+        ],
+        threshold=None,  # Use default
+    )
+    # Should use default threshold (0.82)
+    assert len(result) == 1
+
+
+@pytest.mark.asyncio
+async def test_embed_location_text_calls_internal_method(monkeypatch) -> None:
+    """Lines 227-229: _embed_location_text calls embed_location_text."""
+    service = LocationEmbeddingService(repository=_RepoStub())
+
+    # Mock embed_location_text
+    service.embed_location_text = AsyncMock(return_value=[0.5] * 1536)
+
+    result = await service._embed_location_text("test query")
+    assert result == [0.5] * 1536
+    service.embed_location_text.assert_awaited_once_with("test query")

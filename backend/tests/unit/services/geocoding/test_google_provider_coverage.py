@@ -248,3 +248,281 @@ def test_format_and_strip_provider_id() -> None:
     assert google_provider.GoogleMapsProvider._format_provider_id("") == ""
     assert google_provider.GoogleMapsProvider._format_provider_id("pid") == "google:pid"
     assert google_provider.GoogleMapsProvider._strip_prefix("google:pid") == "pid"
+
+
+# ============================================================================
+# Additional coverage tests for missed lines
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_geocode_error_status_raises(monkeypatch) -> None:
+    """Line 47: geocode raises GeocodingProviderError on error status."""
+    _patch_settings(monkeypatch)
+    resp = _FakeResponse(200, {"status": "INVALID_REQUEST", "error_message": "bad request"})
+    monkeypatch.setattr(google_provider.httpx, "AsyncClient", lambda **_kw: _FakeAsyncClient(resp))
+
+    provider = google_provider.GoogleMapsProvider()
+    with pytest.raises(GeocodingProviderError) as exc:
+        await provider.geocode("invalid")
+
+    assert exc.value.status == "INVALID_REQUEST"
+
+
+@pytest.mark.asyncio
+async def test_reverse_geocode_http_error(monkeypatch) -> None:
+    """Line 61: reverse_geocode raises on non-200 HTTP status."""
+    _patch_settings(monkeypatch)
+    resp = _FakeResponse(500, {})
+    monkeypatch.setattr(google_provider.httpx, "AsyncClient", lambda **_kw: _FakeAsyncClient(resp))
+
+    provider = google_provider.GoogleMapsProvider()
+    with pytest.raises(GeocodingProviderError) as exc:
+        await provider.reverse_geocode(40.7, -74.0)
+
+    assert exc.value.status == "HTTP_500"
+
+
+@pytest.mark.asyncio
+async def test_reverse_geocode_ok_with_results(monkeypatch) -> None:
+    """Lines 73, 75: reverse_geocode returns parsed result when OK with results."""
+    _patch_settings(monkeypatch)
+    resp = _FakeResponse(200, {"status": "OK", "results": [_sample_google_result()]})
+    monkeypatch.setattr(google_provider.httpx, "AsyncClient", lambda **_kw: _FakeAsyncClient(resp))
+
+    provider = google_provider.GoogleMapsProvider()
+    result = await provider.reverse_geocode(37.422, -122.084)
+
+    assert result is not None
+    assert result.city == "Mountain View"
+    assert result.state == "CA"
+
+
+@pytest.mark.asyncio
+async def test_reverse_geocode_zero_results(monkeypatch) -> None:
+    """Line 75: reverse_geocode returns None on ZERO_RESULTS status."""
+    _patch_settings(monkeypatch)
+    resp = _FakeResponse(200, {"status": "ZERO_RESULTS", "results": []})
+    monkeypatch.setattr(google_provider.httpx, "AsyncClient", lambda **_kw: _FakeAsyncClient(resp))
+
+    provider = google_provider.GoogleMapsProvider()
+    result = await provider.reverse_geocode(0.0, 0.0)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_autocomplete_location_bias_valid_radius(monkeypatch) -> None:
+    """Lines 101->107: autocomplete with valid numeric radius in location_bias."""
+    _patch_settings(monkeypatch)
+    resp = _FakeResponse(200, {"status": "OK", "predictions": []})
+    client = _FakeAsyncClient(resp)
+    monkeypatch.setattr(google_provider.httpx, "AsyncClient", lambda **_kw: client)
+
+    provider = google_provider.GoogleMapsProvider()
+    await provider.autocomplete(
+        "main",
+        location_bias={"lat": 40.0, "lng": -73.0, "radius_m": 10000},
+    )
+
+    _, params = client.calls[0]
+    assert params["locationbias"] == "circle:10000@40.0,-73.0"
+
+
+@pytest.mark.asyncio
+async def test_autocomplete_location_bias_small_radius_enforces_minimum(monkeypatch) -> None:
+    """Lines 101->107: autocomplete enforces minimum radius of 1000."""
+    _patch_settings(monkeypatch)
+    resp = _FakeResponse(200, {"status": "OK", "predictions": []})
+    client = _FakeAsyncClient(resp)
+    monkeypatch.setattr(google_provider.httpx, "AsyncClient", lambda **_kw: client)
+
+    provider = google_provider.GoogleMapsProvider()
+    await provider.autocomplete(
+        "main",
+        location_bias={"lat": 40.0, "lng": -73.0, "radius_m": 100},  # Less than 1000
+    )
+
+    _, params = client.calls[0]
+    assert params["locationbias"] == "circle:1000@40.0,-73.0"
+
+
+@pytest.mark.asyncio
+async def test_get_place_details_http_error(monkeypatch) -> None:
+    """Line 154: get_place_details returns None on non-200 HTTP status."""
+    _patch_settings(monkeypatch)
+    resp = _FakeResponse(500, {})
+    monkeypatch.setattr(google_provider.httpx, "AsyncClient", lambda **_kw: _FakeAsyncClient(resp))
+
+    provider = google_provider.GoogleMapsProvider()
+    result = await provider.get_place_details("google:pid")
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_place_details_no_result_in_response(monkeypatch) -> None:
+    """Line 158: get_place_details returns None when no result in response."""
+    _patch_settings(monkeypatch)
+    resp = _FakeResponse(200, {"result": None})
+    monkeypatch.setattr(google_provider.httpx, "AsyncClient", lambda **_kw: _FakeAsyncClient(resp))
+
+    provider = google_provider.GoogleMapsProvider()
+    result = await provider.get_place_details("google:pid")
+    assert result is None
+
+
+def test_parse_result_address_component_with_short_name() -> None:
+    """Lines 174->176, 176->173: _parse_result extracts short_name from components."""
+    result_data = {
+        "formatted_address": "123 Main St",
+        "place_id": "test",
+        "geometry": {"location": {"lat": 40.7, "lng": -74.0}},
+        "address_components": [
+            {"long_name": "123", "short_name": "123", "types": ["street_number"]},
+            {"long_name": "Main Street", "short_name": "Main St", "types": ["route"]},
+            {"long_name": "New York", "short_name": "NY", "types": ["administrative_area_level_1"]},
+            {"long_name": "United States", "short_name": "US", "types": ["country"]},
+        ],
+    }
+    provider = google_provider.GoogleMapsProvider()
+    result = provider._parse_result(result_data)
+
+    assert result.state == "NY"  # Uses short_name
+    assert result.country == "US"  # Uses short_name (2 chars)
+
+
+def test_parse_result_country_normalization_long_name() -> None:
+    """Lines 187-190: _parse_result normalizes long country names to ISO codes."""
+    for country_name in ["United States", "United States of America", "USA"]:
+        result_data = {
+            "formatted_address": "123 Main St",
+            "place_id": "test",
+            "geometry": {"location": {"lat": 40.7, "lng": -74.0}},
+            "address_components": [
+                {"long_name": country_name, "short_name": country_name, "types": ["country"]},
+            ],
+        }
+        provider = google_provider.GoogleMapsProvider()
+        result = provider._parse_result(result_data)
+        assert result.country == "US", f"Failed for country name: {country_name}"
+
+
+def test_parse_result_country_truncation() -> None:
+    """Lines 187-190: _parse_result truncates unknown long country names."""
+    result_data = {
+        "formatted_address": "123 Main St",
+        "place_id": "test",
+        "geometry": {"location": {"lat": 51.5, "lng": -0.1}},
+        "address_components": [
+            {
+                "long_name": "United Kingdom",
+                "short_name": "United Kingdom",  # Long short_name (unusual)
+                "types": ["country"],
+            },
+        ],
+    }
+    provider = google_provider.GoogleMapsProvider()
+    result = provider._parse_result(result_data)
+    assert result.country == "UN"  # First 2 chars uppercased
+
+
+def test_parse_result_city_fallback_to_postal_town() -> None:
+    """Line 203: _parse_result uses postal_town as city fallback."""
+    result_data = {
+        "formatted_address": "123 Main St, London",
+        "place_id": "test",
+        "geometry": {"location": {"lat": 51.5, "lng": -0.1}},
+        "address_components": [
+            {"long_name": "London", "short_name": "London", "types": ["postal_town"]},
+            {"long_name": "GB", "short_name": "GB", "types": ["country"]},
+        ],
+    }
+    provider = google_provider.GoogleMapsProvider()
+    result = provider._parse_result(result_data)
+    assert result.city == "London"
+
+
+def test_parse_result_city_fallback_to_sublocality() -> None:
+    """Line 203: _parse_result uses sublocality as city fallback."""
+    result_data = {
+        "formatted_address": "123 Main St, Brooklyn",
+        "place_id": "test",
+        "geometry": {"location": {"lat": 40.6, "lng": -73.9}},
+        "address_components": [
+            {"long_name": "Brooklyn", "short_name": "Brooklyn", "types": ["sublocality"]},
+            {"long_name": "US", "short_name": "US", "types": ["country"]},
+        ],
+    }
+    provider = google_provider.GoogleMapsProvider()
+    result = provider._parse_result(result_data)
+    assert result.city == "Brooklyn"
+
+
+def test_strip_prefix_without_google_prefix() -> None:
+    """Line 224: _strip_prefix returns original id when no google: prefix."""
+    assert google_provider.GoogleMapsProvider._strip_prefix("pid") == "pid"
+    assert google_provider.GoogleMapsProvider._strip_prefix("") == ""
+    assert google_provider.GoogleMapsProvider._strip_prefix("other:pid") == "other:pid"
+
+
+def test_parse_result_with_empty_address_components() -> None:
+    """Test _parse_result handles empty address_components gracefully."""
+    result_data = {
+        "formatted_address": "Somewhere",
+        "place_id": "test",
+        "geometry": {"location": {"lat": 0.0, "lng": 0.0}},
+        "address_components": [],
+    }
+    provider = google_provider.GoogleMapsProvider()
+    result = provider._parse_result(result_data)
+
+    assert result.street_number is None
+    assert result.street_name is None
+    assert result.city is None
+
+
+def test_parse_result_uses_address_component_key() -> None:
+    """Line 169: _parse_result supports alternate address_component key."""
+    result_data = {
+        "formatted_address": "123 Main St",
+        "place_id": "test",
+        "geometry": {"location": {"lat": 40.7, "lng": -74.0}},
+        "address_component": [  # Note: singular form
+            {"long_name": "123", "short_name": "123", "types": ["street_number"]},
+        ],
+    }
+    provider = google_provider.GoogleMapsProvider()
+    result = provider._parse_result(result_data)
+    assert result.street_number == "123"
+
+
+def test_parse_result_missing_geometry() -> None:
+    """Lines 178-179: _parse_result handles missing geometry."""
+    result_data = {
+        "formatted_address": "123 Main St",
+        "place_id": "test",
+        "address_components": [],
+    }
+    provider = google_provider.GoogleMapsProvider()
+    result = provider._parse_result(result_data)
+
+    assert result.latitude == 0.0
+    assert result.longitude == 0.0
+
+
+def test_parse_result_country_two_char_long_name() -> None:
+    """Lines 187-188: _parse_result handles 2-char long_name without short_name."""
+    result_data = {
+        "formatted_address": "123 Main St",
+        "place_id": "test",
+        "geometry": {"location": {"lat": 40.7, "lng": -74.0}},
+        "address_components": [
+            {
+                "long_name": "us",  # 2-char long_name
+                "short_name": "",  # Empty short_name (will be filtered)
+                "types": ["country"],
+            },
+        ],
+    }
+    provider = google_provider.GoogleMapsProvider()
+    result = provider._parse_result(result_data)
+    assert result.country == "US"  # Should be uppercased
