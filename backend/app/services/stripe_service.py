@@ -712,7 +712,9 @@ class StripeService(BaseService):
                 )
 
             # Calculate platform fee from tier (or derive from payment data for legacy)
-            platform_fee_cents = int(lesson_price_cents * actual_tier_pct)
+            platform_fee_cents = math.ceil(
+                Decimal(lesson_price_cents) * Decimal(str(actual_tier_pct))
+            )
 
             # Calculate student fee for display
             student_fee_cents_calc = int(

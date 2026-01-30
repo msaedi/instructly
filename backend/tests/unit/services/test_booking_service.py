@@ -695,3 +695,247 @@ def test_abort_pending_booking_handles_exception(booking_service: BookingService
     booking_service.repository.get_by_id.side_effect = Exception("boom")
 
     assert booking_service.abort_pending_booking(generate_ulid()) is False
+
+
+# --- actor payload / audit helpers ---
+
+
+def test_resolve_actor_payload_uses_roles_list(booking_service: BookingService) -> None:
+    actor = SimpleNamespace(id="actor-1", roles=[SimpleNamespace(name="admin")])
+
+    payload = booking_service._resolve_actor_payload(actor, default_role="system")
+
+    assert payload == {"id": "actor-1", "role": "admin"}
+
+
+# --- reschedule booking payment reuse ---
+
+
+def test_create_rescheduled_booking_with_existing_payment_skips_non_str_fields(
+    booking_service: BookingService, mock_repository: MagicMock
+) -> None:
+    student = SimpleNamespace(id=generate_ulid())
+    booking_data = SimpleNamespace(
+        instructor_id=generate_ulid(),
+        booking_date=date(2030, 1, 1),
+        start_time=time(10, 0),
+        end_time=None,
+    )
+    service = SimpleNamespace(duration_options=[60])
+    instructor_profile = SimpleNamespace()
+
+    booking = make_booking(payment_method_id=None, payment_status=None)
+    old_booking = make_booking(instructor_id=booking_data.instructor_id)
+
+    booking_service._validate_booking_prerequisites = Mock(return_value=(service, instructor_profile))
+    booking_service._calculate_and_validate_end_time = Mock(return_value=time(11, 0))
+    booking_service._validate_against_availability_bits = Mock()
+    booking_service._check_conflicts_and_rules = Mock()
+    booking_service._enqueue_booking_outbox_event = Mock()
+    booking_service._write_booking_audit = Mock()
+    booking_service._snapshot_booking = Mock(return_value={})
+    booking_service._handle_post_booking_tasks = Mock()
+    booking_service._get_booking_start_utc = Mock(
+        return_value=datetime(2030, 1, 1, 10, 0, tzinfo=timezone.utc)
+    )
+    booking_service._create_booking_record = Mock(return_value=booking)
+    mock_repository.transaction.return_value = _transaction_cm()
+
+    def _get_by_id(booking_id: str):
+        return old_booking if booking_id == old_booking.id else None
+
+    mock_repository.get_by_id.side_effect = _get_by_id
+
+    with patch(
+        "app.services.booking_service.RepositoryFactory.create_credit_repository"
+    ) as credit_repo, patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
+        credit_repo.return_value.get_reserved_credits_for_booking.return_value = []
+        payment_repo.return_value.get_payment_by_intent_id.return_value = None
+
+        result = booking_service.create_rescheduled_booking_with_existing_payment(
+            student,
+            booking_data,
+            selected_duration=60,
+            original_booking_id=old_booking.id,
+            payment_intent_id="pi_123",
+            payment_status=None,
+            payment_method_id=None,
+        )
+
+    assert result.payment_intent_id == "pi_123"
+    assert result.payment_method_id is None
+    assert result.payment_status is None
+    assert result.rescheduled_from_booking_id == old_booking.id
+
+
+# --- confirm booking payment branches ---
+
+
+def test_confirm_booking_payment_gaming_reschedule_success_fallback_message(
+    booking_service: BookingService, mock_repository: MagicMock
+) -> None:
+    student = SimpleNamespace(id=generate_ulid())
+    booking = make_booking(
+        status=BookingStatus.PENDING,
+        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        rescheduled_from_booking_id=generate_ulid(),
+        original_lesson_datetime=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc),
+        created_at=datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc),
+    )
+    booking.instructor_service = SimpleNamespace(name="Piano")
+    student.id = booking.student_id
+
+    mock_repository.get_by_id.side_effect = [booking, booking, None]
+    booking_service._get_booking_start_utc = Mock(
+        return_value=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
+    )
+    booking_service._determine_auth_timing = Mock(
+        return_value={
+            "immediate": False,
+            "scheduled_for": None,
+            "initial_payment_status": PaymentStatus.SCHEDULED.value,
+            "hours_until_lesson": 5.0,
+        }
+    )
+    booking_service.transaction = MagicMock(return_value=_transaction_cm())
+    booking_service.repository.refresh = Mock(side_effect=Exception("refresh failed"))
+    booking_service.system_message_service.create_booking_created_message = Mock(
+        side_effect=Exception("boom")
+    )
+    booking_service.system_message_service.create_booking_rescheduled_message = Mock()
+    booking_service._invalidate_booking_caches = Mock()
+
+    with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo, patch(
+        "app.tasks.payment_tasks._process_authorization_for_booking",
+        return_value={"success": True},
+    ):
+        payment_repo.return_value.create_payment_event = Mock()
+        booking_service.confirm_booking_payment(
+            booking_id=booking.id,
+            student=student,
+            payment_method_id="pm_123",
+        )
+
+    assert booking.status == BookingStatus.CONFIRMED
+    assert booking_service.system_message_service.create_booking_created_message.called
+
+
+# --- cancellation context branches ---
+
+
+def test_build_cancellation_context_reschedule_time_missing(
+    booking_service: BookingService,
+) -> None:
+    booking = make_booking(
+        rescheduled_from_booking_id=generate_ulid(),
+        original_lesson_datetime=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc),
+        created_at=None,
+        payment_intent_id="pi_123",
+        payment_status=PaymentStatus.AUTHORIZED.value,
+        hourly_rate=50,
+        duration_minutes=60,
+    )
+    user = SimpleNamespace(id=booking.student_id)
+
+    booking_service._get_booking_start_utc = Mock(
+        return_value=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
+    )
+    with patch("app.services.booking_service.TimezoneService.hours_until", return_value=30):
+        with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
+            payment_repo.return_value.get_connected_account_by_instructor_id.return_value = None
+            ctx = booking_service._build_cancellation_context(booking, user)
+
+    assert ctx["was_gaming_reschedule"] is False
+    assert ctx["scenario"] == "over_24h_regular"
+
+
+def test_build_cancellation_context_gaming_requires_authorized_payment(
+    booking_service: BookingService,
+) -> None:
+    booking = make_booking(
+        rescheduled_from_booking_id=generate_ulid(),
+        original_lesson_datetime=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc),
+        created_at=datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc),
+        payment_intent_id="pi_123",
+        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        hourly_rate=50,
+        duration_minutes=60,
+    )
+    user = SimpleNamespace(id=booking.student_id)
+
+    booking_service._get_booking_start_utc = Mock(
+        return_value=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
+    )
+    with patch("app.services.booking_service.TimezoneService.hours_until", return_value=30):
+        with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
+            payment_repo.return_value.get_connected_account_by_instructor_id.return_value = None
+            with pytest.raises(BusinessRuleException):
+                booking_service._build_cancellation_context(booking, user)
+
+
+# --- cancel without stripe ---
+
+
+def test_cancel_booking_without_stripe_keeps_payment_intent(
+    booking_service: BookingService, mock_repository: MagicMock
+) -> None:
+    booking = make_booking(payment_intent_id="pi_123", is_cancellable=True)
+    booking.cancel = Mock()
+    user = SimpleNamespace(id=booking.student_id)
+
+    mock_repository.get_booking_with_details.return_value = booking
+    mock_repository.transaction.return_value = _transaction_cm()
+    booking_service._snapshot_booking = Mock(return_value={})
+    booking_service._write_booking_audit = Mock()
+    booking_service._enqueue_booking_outbox_event = Mock()
+    booking_service._post_cancellation_actions = Mock()
+
+    booking_service.cancel_booking_without_stripe(booking.id, user, clear_payment_intent=False)
+
+    assert booking.payment_intent_id == "pi_123"
+    booking.cancel.assert_called_once()
+
+
+# --- instructor mark complete ---
+
+
+def test_instructor_mark_complete_sets_notes_and_category_slug(
+    booking_service: BookingService, mock_repository: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    instructor = SimpleNamespace(id=generate_ulid())
+    booking = make_booking(
+        instructor_id=instructor.id,
+        status=BookingStatus.CONFIRMED,
+        confirmed_at=datetime(2030, 1, 1, 9, 0, tzinfo=timezone.utc),
+        created_at=datetime(2030, 1, 1, 8, 0, tzinfo=timezone.utc),
+    )
+    booking.instructor_service = SimpleNamespace(
+        catalog_entry=SimpleNamespace(category=SimpleNamespace(slug="piano"))
+    )
+
+    mock_repository.get_by_id.side_effect = [booking, booking]
+    booking_service.transaction = MagicMock(return_value=_transaction_cm())
+
+    fixed_now = datetime(2030, 1, 1, 12, 0, tzinfo=timezone.utc)
+    _freeze_time(monkeypatch, fixed_now)
+    booking_service._get_booking_end_utc = Mock(
+        return_value=fixed_now - timedelta(hours=1)
+    )
+
+    with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo, patch(
+        "app.services.badge_award_service.BadgeAwardService"
+    ) as badge_service, patch(
+        "app.services.referral_service.ReferralService"
+    ) as referral_service:
+        payment_repo.return_value.create_payment_event = Mock()
+        badge_service.return_value.check_and_award_on_lesson_completed = Mock()
+        referral_service.return_value.on_instructor_lesson_completed.side_effect = Exception("boom")
+
+        result = booking_service.instructor_mark_complete(
+            booking.id, instructor, notes="Great job"
+        )
+
+    assert result.status == BookingStatus.COMPLETED
+    assert result.instructor_note == "Great job"
+    _, kwargs = badge_service.return_value.check_and_award_on_lesson_completed.call_args
+    assert kwargs["category_slug"] == "piano"

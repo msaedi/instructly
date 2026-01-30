@@ -194,7 +194,7 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         directory: ./backend
-        files: ./backend/coverage.xml
+        files: coverage.xml
         flags: backend
         fail_ci_if_error: false
         verbose: true
@@ -250,7 +250,7 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         directory: ./mcp-server
-        files: ./mcp-server/coverage.xml
+        files: coverage.xml
         flags: mcp-server
         fail_ci_if_error: false
         verbose: true
