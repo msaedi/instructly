@@ -54,6 +54,7 @@ stripe==14.2.0
 
 # Monitoring & Utilities
 prometheus-client==0.24.1
+sentry-sdk[fastapi]==2.51.0
 psutil==7.2.1
 python-ulid==3.1.0
 python-dotenv==1.2.1

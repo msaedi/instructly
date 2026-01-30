@@ -59,6 +59,7 @@ from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
 from .middleware.performance import PerformanceMiddleware
 from .middleware.prometheus_middleware import PrometheusMiddleware
+from .monitoring.sentry import SentryContextMiddleware, init_sentry
 from .schemas.audit import AuditLogView
 from .schemas.availability_window import (
     ValidateWeekRequest,
@@ -183,6 +184,8 @@ logging.basicConfig(
 
 
 logger = logging.getLogger(__name__)
+
+_SENTRY_ENABLED = init_sentry()
 
 
 try:  # pragma: no cover - optional dependency for warmup
@@ -989,6 +992,10 @@ app.add_middleware(MonitoringMiddleware)
 if perf_counters_enabled():
     app.add_middleware(PerfCounterMiddleware)
 
+# Attach Sentry context before performance middleware so request IDs are available.
+if _SENTRY_ENABLED:
+    app.add_middleware(SentryContextMiddleware)
+
 # Performance and metrics middleware with SSE support
 # These middlewares now properly detect and bypass SSE endpoints
 app.add_middleware(PerformanceMiddleware)  # Performance monitoring with SSE bypass
@@ -1268,6 +1275,10 @@ def _prewarm_metrics_cache() -> None:
 # Wrap with ASGI middleware for production
 wrapped_app: ASGIApp = TimingMiddlewareASGI(app)
 wrapped_app = RateLimitMiddlewareASGI(wrapped_app)
+if _SENTRY_ENABLED:
+    from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
+
+    wrapped_app = SentryAsgiMiddleware(wrapped_app)
 app = wrapped_app
 
 # Export what's needed

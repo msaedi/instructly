@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { withSentryConfig } from '@sentry/nextjs';
 
 const nextConfig: NextConfig = {
   distDir: process.env['NEXT_DIST_DIR'] || '.next',
@@ -58,4 +59,24 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+const isProd = process.env.NODE_ENV === 'production';
+const sentryAuthToken = process.env['SENTRY_AUTH_TOKEN'];
+const sentryOrg = process.env['SENTRY_ORG'];
+const sentryProject = process.env['SENTRY_PROJECT'];
+const releaseName = process.env['VERCEL_GIT_COMMIT_SHA'];
+const shouldUploadSourceMaps = Boolean(isProd && sentryAuthToken && sentryOrg && sentryProject);
+
+const sentryBuildOptions = {
+  ...(sentryAuthToken ? { authToken: sentryAuthToken } : {}),
+  ...(sentryOrg ? { org: sentryOrg } : {}),
+  ...(sentryProject ? { project: sentryProject } : {}),
+  ...(releaseName ? { release: { name: releaseName } } : {}),
+  silent: true,
+  sourcemaps: {
+    disable: !shouldUploadSourceMaps,
+  },
+  widenClientFileUpload: true,
+  disableLogger: true,
+};
+
+export default withSentryConfig(nextConfig, sentryBuildOptions);

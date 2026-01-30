@@ -5,6 +5,7 @@ declare namespace NodeJS {
 
     // Optional
     NEXT_PUBLIC_APP_ENV?: 'local' | 'preview' | 'beta' | 'ci' | 'e2e' | 'production';
+    NEXT_PUBLIC_ENV?: 'local' | 'preview' | 'beta' | 'development' | 'production';
     NEXT_PUBLIC_USE_PROXY?: 'true' | 'false';
     NEXT_PUBLIC_APP_URL?: string;
     NEXT_PUBLIC_ENABLE_LOGGING?: string;
@@ -15,6 +16,7 @@ declare namespace NodeJS {
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?: string;
     NEXT_PUBLIC_IS_STAFF_PREVIEW?: string;
     NEXT_PUBLIC_TURNSTILE_SITE_KEY?: string;
+    NEXT_PUBLIC_SENTRY_DSN?: string;
 
     // Node environment
     NODE_ENV?: 'development' | 'production' | 'test';

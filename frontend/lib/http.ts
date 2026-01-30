@@ -5,6 +5,7 @@
 import { logger } from '@/lib/logger';
 import { getApiBase } from '@/lib/apiBase';
 import { APP_URL } from '@/lib/publicEnv';
+import { captureFetchError } from '@/lib/sentry';
 import type { ApiErrorResponse } from '@/features/shared/api/types';
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -84,7 +85,13 @@ export async function http<T = unknown>(method: HttpMethod, url: string, options
       ? (typeof body === 'string' ? body : JSON.stringify(body))
       : body as BodyInit;
   }
-  const resp = await fetch(u.toString(), init);
+  let resp: Response;
+  try {
+    resp = await fetch(u.toString(), init);
+  } catch (error) {
+    captureFetchError({ url: u.toString(), method, error });
+    throw error;
+  }
 
   let data: unknown = null;
   try {
@@ -118,7 +125,9 @@ export async function http<T = unknown>(method: HttpMethod, url: string, options
     if (status >= 400 && status < 500) {
       throw new ClientError(message, status, data, resp.headers);
     }
-    throw new ApiError(message, status, data, resp.headers);
+    const serverError = new ApiError(message, status, data, resp.headers);
+    captureFetchError({ url: u.toString(), method, status, error: serverError });
+    throw serverError;
   }
 
   return data as T;

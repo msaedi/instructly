@@ -9,16 +9,20 @@
 
 const RAW_API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? '';
 const RAW_APP_ENV = process.env.NEXT_PUBLIC_APP_ENV;
+const RAW_PUBLIC_ENV = process.env.NEXT_PUBLIC_ENV;
 const RAW_USE_PROXY = process.env.NEXT_PUBLIC_USE_PROXY ?? '';
 const RAW_APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+const RAW_SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN ?? '';
 
 // Required environment variables
 export const API_BASE = RAW_API_BASE || undefined;
 
 // Optional environment variables with defaults
 export const APP_ENV = RAW_APP_ENV ?? 'local';
+export const PUBLIC_ENV = RAW_PUBLIC_ENV ?? '';
 export const USE_PROXY = RAW_USE_PROXY === 'true';
 export const APP_URL = RAW_APP_URL;
+export const SENTRY_DSN = RAW_SENTRY_DSN || undefined;
 
 // Logging configuration
 export const ENABLE_LOGGING = process.env.NEXT_PUBLIC_ENABLE_LOGGING === 'true';
@@ -44,6 +48,8 @@ export const IS_CI = process.env.CI === 'true';
 export const publicEnv = {
   NEXT_PUBLIC_API_BASE: RAW_API_BASE,
   NEXT_PUBLIC_APP_ENV: RAW_APP_ENV ?? '',
+  NEXT_PUBLIC_ENV: RAW_PUBLIC_ENV ?? '',
+  NEXT_PUBLIC_SENTRY_DSN: RAW_SENTRY_DSN,
   NEXT_PUBLIC_USE_PROXY: RAW_USE_PROXY,
   NEXT_PUBLIC_APP_URL: RAW_APP_URL,
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: TURNSTILE_SITE_KEY ?? '',

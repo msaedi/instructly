@@ -15,6 +15,7 @@ import {
   clearGuestSession,
 } from '@/lib/searchTracking';
 import { IS_PRODUCTION } from '@/lib/publicEnv';
+import { clearSentryUser, setSentryUser } from '@/lib/sentry';
 // Using generated types from API schema
 // Note: We define User interface manually for now to maintain compatibility
 // with existing code that expects undefined instead of null for optional fields
@@ -106,6 +107,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [userQuery.data, userQuery.isError, userQuery.error, userQuery.isLoading]);
 
+  useEffect(() => {
+    if (user) {
+      setSentryUser(user);
+    } else {
+      clearSentryUser();
+    }
+  }, [user]);
+
   const checkAuth = useCallback(async () => {
     (window as unknown as { __checkAuthCount?: number }).__checkAuthCount = ((window as unknown as { __checkAuthCount?: number }).__checkAuthCount || 0) + 1;
     if (!IS_PRODUCTION) {
@@ -184,6 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Clear auth state locally
     setUser(null);
     clearGuestSession();
+    clearSentryUser();
 
     const nav = typeof navigator !== 'undefined'
       ? (navigator as Navigator & { userActivation?: { isActive?: boolean; hasBeenActive?: boolean } })

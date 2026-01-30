@@ -5,6 +5,8 @@ process.env.NEXT_PUBLIC_USE_PROXY = 'false';
 process.env.NEXT_PUBLIC_API_BASE = 'http://localhost:8000';
 process.env.NEXT_PUBLIC_ENABLE_LOGGING ??= 'false';
 
+jest.mock('@sentry/nextjs');
+
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(() => ({
