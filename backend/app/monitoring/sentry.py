@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
-import subprocess
+import subprocess  # nosec B404 - subprocess used with hardcoded safe command
 from typing import Any, Mapping
 
 from fastapi import Request
@@ -59,7 +59,7 @@ def _resolve_release() -> str | None:
 
 def _resolve_git_sha() -> str | None:
     try:
-        output = subprocess.check_output(
+        output = subprocess.check_output(  # nosec B603 B607 - hardcoded git command, no user input
             ["git", "rev-parse", "--short", "HEAD"],
             stderr=subprocess.DEVNULL,
             text=True,

@@ -66,14 +66,17 @@ def test_init_sentry_initializes_with_dsn():
     assert kwargs["environment"] == "test"
     assert kwargs["release"] == "abc123"
     assert kwargs["send_default_pii"] is True
+    assert kwargs["enable_logs"] is True
     assert kwargs["traces_sample_rate"] == 0.1
     assert kwargs["profiles_sample_rate"] == 0.1
 
     integrations = kwargs["integrations"]
-    assert len(integrations) == 1
+    assert len(integrations) == 2
     from sentry_sdk.integrations.mcp import MCPIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
 
-    assert isinstance(integrations[0], MCPIntegration)
+    assert isinstance(integrations[0], StarletteIntegration)
+    assert isinstance(integrations[1], MCPIntegration)
 
 
 def test_settings_defaults_for_sentry():

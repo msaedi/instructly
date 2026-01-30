@@ -18,6 +18,7 @@ import sentry_sdk
 from cryptography.hazmat.primitives import serialization
 from jwt import PyJWK
 from sentry_sdk.integrations.mcp import MCPIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -72,8 +73,15 @@ def _init_sentry(settings: Settings) -> None:
         dsn=settings.sentry_dsn,
         environment=settings.environment,
         release=get_git_sha(),
-        integrations=[MCPIntegration()],
+        integrations=[
+            StarletteIntegration(
+                transaction_style="endpoint",
+                failed_request_status_codes={403, *range(500, 600)},
+            ),
+            MCPIntegration(),
+        ],
         send_default_pii=True,
+        enable_logs=True,
         traces_sample_rate=0.1,
         profiles_sample_rate=0.1,
     )

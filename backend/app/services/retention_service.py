@@ -23,7 +23,7 @@ from sqlalchemy import Table, and_, delete, func, select, tuple_
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.models.availability_day import AvailabilityDay
 from app.models.booking import Booking
 from app.services.retention_metrics import (
@@ -37,6 +37,7 @@ from .base import BaseService
 from .cache_service import CacheServiceSyncAdapter
 
 logger = logging.getLogger(__name__)
+_DEFAULT_SETTINGS = settings
 
 
 @dataclass(frozen=True)
@@ -306,9 +307,10 @@ class RetentionService(BaseService):
             * no bookings exist for the instructor on that date
         """
 
-        ttl_days = max(0, settings.availability_retention_days)
-        keep_recent_days = max(0, settings.availability_retention_keep_recent_days)
-        dry_run = bool(settings.availability_retention_dry_run)
+        runtime_settings = _get_runtime_settings()
+        ttl_days = max(0, runtime_settings.availability_retention_days)
+        keep_recent_days = max(0, runtime_settings.availability_retention_keep_recent_days)
+        dry_run = bool(runtime_settings.availability_retention_dry_run)
         base_today = today or datetime.now(timezone.utc).date()
         result: RetentionResult = {
             "inspected_days": 0,
@@ -319,7 +321,7 @@ class RetentionService(BaseService):
             "cutoff_date": base_today,
         }
 
-        if not settings.availability_retention_enabled:
+        if not runtime_settings.availability_retention_enabled:
             return result
 
         db = session or self.db
@@ -384,13 +386,25 @@ class RetentionService(BaseService):
             dry_run,
         )
 
-        site_mode_label = (settings.site_mode or "unknown").strip() or "unknown"
+        site_mode_label = (runtime_settings.site_mode or "unknown").strip() or "unknown"
         try:
             availability_days_purged_total.labels(site_mode=site_mode_label).inc(purged)
         except Exception:
             logger.debug("availability_retention: metrics not registered")
 
         return result
+
+
+def _get_runtime_settings() -> Settings:
+    """Resolve settings with support for test-time monkeypatching."""
+    if settings is not _DEFAULT_SETTINGS:
+        return settings
+    try:
+        from app.core import config as config_module
+
+        return getattr(config_module, "settings", settings)
+    except Exception:
+        return settings
 
 
 class RetentionResult(TypedDict):
