@@ -108,6 +108,10 @@ services:
         sync: false
       - key: INSTAINSTRU_MCP_AUTH0_AUDIENCE
         sync: false
+      - key: INSTAINSTRU_MCP_SENTRY_DSN
+        sync: false
+      - key: INSTAINSTRU_MCP_ENVIRONMENT
+        value: production
     healthCheckPath: /api/v1/health
     autoDeploy: false
 

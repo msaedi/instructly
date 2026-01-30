@@ -78,6 +78,8 @@ All variables are prefixed with `INSTAINSTRU_MCP_`.
 | `INSTAINSTRU_MCP_API_BASE_URL` | Yes | Backend API URL (e.g., `https://api.instainstru.com`) |
 | `INSTAINSTRU_MCP_AUTH0_DOMAIN` | No | Auth0 domain for OAuth (e.g., `instainstru-admin.us.auth0.com`) |
 | `INSTAINSTRU_MCP_AUTH0_AUDIENCE` | No | Auth0 API audience (e.g., `https://mcp.instainstru.com`) |
+| `INSTAINSTRU_MCP_SENTRY_DSN` | No | Sentry DSN for MCP error tracking |
+| `INSTAINSTRU_MCP_ENVIRONMENT` | No | Sentry environment name (default: `development`) |
 
 **Note:** For Auth0 OAuth support, both `INSTAINSTRU_MCP_AUTH0_DOMAIN` and `INSTAINSTRU_MCP_AUTH0_AUDIENCE` must be set.
 
@@ -101,6 +103,10 @@ uvicorn instainstru_mcp.server:get_app --factory --host 0.0.0.0 --port $PORT
 Required env vars in Render:
 - `INSTAINSTRU_MCP_API_BASE_URL`
 - `INSTAINSTRU_MCP_API_SERVICE_TOKEN`
+
+Optional Sentry env vars in Render:
+- `INSTAINSTRU_MCP_SENTRY_DSN`
+- `INSTAINSTRU_MCP_ENVIRONMENT`
 
 ## Testing
 ```bash

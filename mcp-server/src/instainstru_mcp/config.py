@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     grafana_cloud_url: str = ""
     grafana_cloud_api_key: SecretStr = SecretStr("")
     grafana_prometheus_datasource_uid: str = "prometheus"
+    sentry_dsn: str | None = None
+    environment: str = "development"
     workos_domain: str | None = None
     workos_client_id: str | None = None
     workos_client_secret: str | None = None

@@ -7,14 +7,17 @@ import json
 import logging
 import os
 import secrets
+import subprocess
 import time
 from typing import TYPE_CHECKING, Any, Tuple
 from urllib.parse import parse_qs, urlencode
 
 import httpx
 import jwt as pyjwt
+import sentry_sdk
 from cryptography.hazmat.primitives import serialization
 from jwt import PyJWK
+from sentry_sdk.integrations.mcp import MCPIntegration
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -47,6 +50,34 @@ ALLOWED_EMAILS = {
     "faeze@instainstru.com",
     "mehdi@instainstru.com",
 }
+
+
+def get_git_sha() -> str:
+    """Get short git SHA for release tracking."""
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception:
+        return "unknown"
+
+
+def _init_sentry(settings: Settings) -> None:
+    if not settings.sentry_dsn:
+        return
+
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.environment,
+        release=get_git_sha(),
+        integrations=[MCPIntegration()],
+        send_default_pii=True,
+        traces_sample_rate=0.1,
+        profiles_sample_rate=0.1,
+    )
+    print(f"Sentry initialized for environment: {settings.environment}")
 
 
 class DualAuthMiddleware:
@@ -495,6 +526,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     from .auth import MCPAuth
 
     settings = settings or _load_settings()
+    _init_sentry(settings)
     auth = MCPAuth(settings)
     client = InstaInstruClient(settings, auth)
     grafana = GrafanaCloudClient(settings)
