@@ -34,10 +34,10 @@ const customJestConfig = {
   // Coverage threshold to prevent regression
   coverageThreshold: {
     global: {
-      statements: 92,
-      branches: 80,
-      functions: 93,
-      lines: 93,
+      statements: 93.5,
+      branches: 82,
+      functions: 94.5,
+      lines: 95,
     },
   },
 };

@@ -246,4 +246,126 @@ describe('CancelBookingModal', () => {
     // Check state is reset
     expect(screen.getByPlaceholderText(/please let us know/i)).toHaveValue('');
   });
+
+  describe('validation', () => {
+    it('button is disabled when reason is empty - defensive validation is unreachable', () => {
+      const onConfirm = jest.fn();
+      render(<CancelBookingModal {...defaultProps} onConfirm={onConfirm} />);
+
+      // The button is disabled when reason is empty, preventing clicks
+      // This means the internal validation check (lines 54-56) is defensive/redundant code
+      const submitButton = screen.getByRole('button', { name: /cancel booking/i });
+      expect(submitButton).toBeDisabled();
+
+      // Verify the disabled attribute uses the same condition as the internal validation
+      // Button: disabled={isLoading || !reason.trim()}
+      // Handler: if (!reason.trim()) { ... }
+      // These are redundant - the handler check can never be reached via UI
+    });
+
+    it('button is disabled when reason is whitespace-only', async () => {
+      const user = userEvent.setup();
+      const onConfirm = jest.fn();
+      render(<CancelBookingModal {...defaultProps} onConfirm={onConfirm} />);
+
+      // Type whitespace only
+      const textarea = screen.getByPlaceholderText(/please let us know/i);
+      await user.type(textarea, '   ');
+
+      // Button should still be disabled (reason.trim() is empty)
+      const submitButton = screen.getByRole('button', { name: /cancel booking/i });
+      expect(submitButton).toBeDisabled();
+
+      expect(onConfirm).not.toHaveBeenCalled();
+    });
+
+    it('clears validation error when typing', async () => {
+      const user = userEvent.setup();
+      render(
+        <CancelBookingModal {...defaultProps} error="Initial error" />
+      );
+
+      const textarea = screen.getByPlaceholderText(/please let us know/i);
+      expect(textarea).toHaveAttribute('aria-invalid', 'true');
+
+      // Type something - should clear error styling
+      await user.type(textarea, 'New reason');
+
+      // External error still shows, but validation error would be cleared
+      expect(screen.getByText('Initial error')).toBeInTheDocument();
+    });
+  });
+
+  describe('error handling', () => {
+    it('handles API error during cancellation', async () => {
+      const user = userEvent.setup();
+      const onConfirm = jest.fn().mockRejectedValue(new Error('API Error'));
+      render(<CancelBookingModal {...defaultProps} onConfirm={onConfirm} />);
+
+      await user.type(
+        screen.getByPlaceholderText(/please let us know/i),
+        'Need to cancel'
+      );
+      await user.click(screen.getByRole('button', { name: /cancel booking/i }));
+
+      // Wait for error to be handled
+      await waitFor(() => {
+        expect(onConfirm).toHaveBeenCalled();
+      });
+
+      // After error, loading state should be reset
+      await waitFor(() => {
+        const submitButton = screen.getByRole('button', { name: /cancel booking/i });
+        expect(submitButton).not.toBeDisabled();
+      });
+    });
+
+    it('does not clear reason after failed cancellation', async () => {
+      const user = userEvent.setup();
+      const onConfirm = jest.fn().mockRejectedValue(new Error('API Error'));
+      render(<CancelBookingModal {...defaultProps} onConfirm={onConfirm} />);
+
+      const textarea = screen.getByPlaceholderText(/please let us know/i);
+      await user.type(textarea, 'My reason for cancelling');
+      await user.click(screen.getByRole('button', { name: /cancel booking/i }));
+
+      await waitFor(() => {
+        expect(onConfirm).toHaveBeenCalled();
+      });
+
+      // Reason should still be present after error
+      await waitFor(() => {
+        expect(textarea).toHaveValue('My reason for cancelling');
+      });
+    });
+  });
+
+  describe('accessibility', () => {
+    it('textarea is disabled during loading', async () => {
+      const user = userEvent.setup();
+      let resolveConfirm: () => void;
+      const onConfirm = jest.fn(
+        () => new Promise<void>((resolve) => (resolveConfirm = resolve))
+      );
+      render(<CancelBookingModal {...defaultProps} onConfirm={onConfirm} />);
+
+      await user.type(
+        screen.getByPlaceholderText(/please let us know/i),
+        'Reason'
+      );
+      await user.click(screen.getByRole('button', { name: /cancel booking/i }));
+
+      const textarea = screen.getByPlaceholderText(/please let us know/i);
+      expect(textarea).toBeDisabled();
+
+      resolveConfirm!();
+    });
+
+    it('has required label for reason field', () => {
+      render(<CancelBookingModal {...defaultProps} />);
+
+      expect(screen.getByText('Cancellation reason')).toBeInTheDocument();
+      expect(screen.getByText('*')).toBeInTheDocument();
+    });
+  });
 });

@@ -177,4 +177,126 @@ describe('useCredits', () => {
 
     expect(result.current.data?.expires_at).toBeNull();
   });
+
+  describe('retry behavior', () => {
+    // Create wrapper that allows retries to test retry logic
+    function createRetryWrapper() {
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: {
+            // Use default retry (respects custom retry logic in hook)
+            gcTime: 0,
+          },
+        },
+      });
+      return function Wrapper({ children }: { children: React.ReactNode }) {
+        return React.createElement(QueryClientProvider, { client: queryClient }, children);
+      };
+    }
+
+    it('does not retry on 4xx client errors (covers lines 42-44)', async () => {
+      // Create error with status property (simulating HTTP 400 response)
+      const clientError = Object.assign(new Error('Bad Request'), { status: 400 });
+      mockGetCreditBalance.mockRejectedValue(clientError);
+
+      const { result } = renderHook(() => useCredits(), {
+        wrapper: createRetryWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      // Should only be called once (no retries for 4xx)
+      expect(mockGetCreditBalance).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not retry on 401 unauthorized', async () => {
+      const unauthorizedError = Object.assign(new Error('Unauthorized'), { status: 401 });
+      mockGetCreditBalance.mockRejectedValue(unauthorizedError);
+
+      const { result } = renderHook(() => useCredits(), {
+        wrapper: createRetryWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      // No retries for 401
+      expect(mockGetCreditBalance).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not retry on 404 not found', async () => {
+      const notFoundError = Object.assign(new Error('Not Found'), { status: 404 });
+      mockGetCreditBalance.mockRejectedValue(notFoundError);
+
+      const { result } = renderHook(() => useCredits(), {
+        wrapper: createRetryWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      expect(mockGetCreditBalance).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not retry on 422 validation error', async () => {
+      const validationError = Object.assign(new Error('Validation Error'), { status: 422 });
+      mockGetCreditBalance.mockRejectedValue(validationError);
+
+      const { result } = renderHook(() => useCredits(), {
+        wrapper: createRetryWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      expect(mockGetCreditBalance).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries on 5xx server errors up to 2 times', async () => {
+      const serverError = Object.assign(new Error('Internal Server Error'), { status: 500 });
+      mockGetCreditBalance.mockRejectedValue(serverError);
+
+      const { result } = renderHook(() => useCredits(), {
+        wrapper: createRetryWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 5000 });
+
+      // Initial + 2 retries = 3 total calls
+      expect(mockGetCreditBalance).toHaveBeenCalledTimes(3);
+    });
+
+    it('retries on network error (no status)', async () => {
+      const networkError = new Error('Network failure');
+      mockGetCreditBalance.mockRejectedValue(networkError);
+
+      const { result } = renderHook(() => useCredits(), {
+        wrapper: createRetryWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 5000 });
+
+      // Should retry for network errors (no status means not a client error)
+      expect(mockGetCreditBalance).toHaveBeenCalledTimes(3);
+    });
+
+    it('succeeds after retrying on transient 5xx error', async () => {
+      const serverError = Object.assign(new Error('Server Error'), { status: 503 });
+
+      // First call fails, second succeeds
+      mockGetCreditBalance
+        .mockRejectedValueOnce(serverError)
+        .mockResolvedValueOnce(mockBalance);
+
+      const { result } = renderHook(() => useCredits(), {
+        wrapper: createRetryWrapper(),
+      });
+
+      // Wait for data to be the actual fetched balance (not placeholder)
+      await waitFor(
+        () => expect(result.current.data?.available).toBe(mockBalance.available),
+        { timeout: 5000 }
+      );
+
+      expect(result.current.data).toEqual(mockBalance);
+      expect(mockGetCreditBalance).toHaveBeenCalledTimes(2);
+    });
+  });
 });

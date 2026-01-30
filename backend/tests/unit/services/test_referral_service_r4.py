@@ -125,6 +125,31 @@ def test_attribute_signup_missing_code(referral_service):
     )
 
 
+def test_attribute_signup_self_referral_blocked(referral_service):
+    """User cannot use their own referral code (proactive prevention)."""
+    referral_service._assert_enabled = Mock(return_value={"enabled": True})
+    referral_service.referral_attribution_repo.exists_for_user.return_value = False
+    # Code belongs to user_1 (same as the referred_user_id)
+    referral_service.referral_code_repo.get_by_code.return_value = Mock(
+        id="code-1",
+        code="MYCODE",
+        referrer_user_id="user_1",  # Same as the user trying to sign up
+    )
+
+    assert (
+        referral_service.attribute_signup(
+            referred_user_id="user_1",  # Same user as the code owner
+            code="MYCODE",
+            source="test",
+            ts=datetime.now(timezone.utc),
+        )
+        is False
+    )
+
+    # Ensure attribution was NOT created since this is self-referral
+    referral_service.referral_attribution_repo.create_if_absent.assert_not_called()
+
+
 def test_attribute_signup_create_if_absent_false(referral_service):
     referral_service._assert_enabled = Mock(return_value={"enabled": True})
     referral_service.referral_attribution_repo.exists_for_user.return_value = False

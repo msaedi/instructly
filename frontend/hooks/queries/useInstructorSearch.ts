@@ -193,5 +193,7 @@ const fetchInstructorSearch = async (
     return { mode: 'catalog', data: validated };
   }
 
+  // Defensive: Should never reach here due to query.enabled check,
+  // but guards against future code changes
   throw toSearchError('Missing search criteria');
 };

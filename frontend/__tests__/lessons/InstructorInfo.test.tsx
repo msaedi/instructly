@@ -168,4 +168,230 @@ describe('InstructorInfo', () => {
     expect(screen.queryByText('4.9')).not.toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
+
+  describe('reviews link navigation', () => {
+    it('renders reviews link with correct aria label', () => {
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={mockInstructor}
+          rating={4.8}
+          reviewCount={50}
+          onChat={mockOnChat}
+        />
+      );
+
+      const reviewsLink = screen.getByRole('button', { name: /see all reviews/i });
+      expect(reviewsLink).toBeInTheDocument();
+      expect(reviewsLink).toHaveClass('cursor-pointer');
+    });
+
+    it('renders review count text in the reviews link', () => {
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={mockInstructor}
+          rating={4.8}
+          reviewCount={50}
+          onChat={mockOnChat}
+        />
+      );
+
+      expect(screen.getByText('(50 reviews)')).toBeInTheDocument();
+    });
+
+    it('handles zero review count', () => {
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={mockInstructor}
+          rating={4.8}
+          reviewCount={0}
+          onChat={mockOnChat}
+        />
+      );
+
+      expect(screen.getByText('(0 reviews)')).toBeInTheDocument();
+    });
+
+    it('displays rating with one decimal place', () => {
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={mockInstructor}
+          rating={4.567}
+          reviewCount={25}
+          onChat={mockOnChat}
+        />
+      );
+
+      expect(screen.getByText('4.6')).toBeInTheDocument();
+    });
+
+    it('does not render reviews link when rating is not provided', () => {
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={mockInstructor}
+          onChat={mockOnChat}
+        />
+      );
+
+      expect(screen.queryByRole('button', { name: /see all reviews/i })).not.toBeInTheDocument();
+    });
+
+    it('does not render reviews link when reviewCount is not provided', () => {
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={mockInstructor}
+          rating={4.5}
+          onChat={mockOnChat}
+        />
+      );
+
+      expect(screen.queryByRole('button', { name: /see all reviews/i })).not.toBeInTheDocument();
+    });
+
+    it('calls onViewReviews callback when provided and reviews link is clicked', () => {
+      const mockOnViewReviews = jest.fn();
+
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={mockInstructor}
+          rating={4.8}
+          reviewCount={50}
+          onChat={mockOnChat}
+          onViewReviews={mockOnViewReviews}
+        />
+      );
+
+      const reviewsLink = screen.getByRole('button', { name: /see all reviews/i });
+      fireEvent.click(reviewsLink);
+
+      expect(mockOnViewReviews).toHaveBeenCalledTimes(1);
+      expect(mockOnViewReviews).toHaveBeenCalledWith(1); // instructor.id
+    });
+
+    it('passes correct instructor id to onViewReviews for string ids', () => {
+      const mockOnViewReviews = jest.fn();
+      const instructorWithStringId = { ...mockInstructor, id: 'instructor-abc-123' };
+
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={instructorWithStringId}
+          rating={4.8}
+          reviewCount={50}
+          onChat={mockOnChat}
+          onViewReviews={mockOnViewReviews}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /see all reviews/i }));
+
+      expect(mockOnViewReviews).toHaveBeenCalledWith('instructor-abc-123');
+    });
+  });
+
+  describe('book again button', () => {
+    it('shows book again button when showBookAgainButton is true', () => {
+      const mockOnBookAgain = jest.fn();
+
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={mockInstructor}
+          onChat={mockOnChat}
+          showBookAgainButton={true}
+          onBookAgain={mockOnBookAgain}
+        />
+      );
+
+      const bookAgainButton = screen.getByRole('button', { name: /book again/i });
+      expect(bookAgainButton).toBeInTheDocument();
+
+      fireEvent.click(bookAgainButton);
+      expect(mockOnBookAgain).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows chat history button instead of chat when showBookAgainButton is true', () => {
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={mockInstructor}
+          onChat={mockOnChat}
+          showBookAgainButton={true}
+          onBookAgain={jest.fn()}
+        />
+      );
+
+      // Should show "Chat history" instead of just "Chat"
+      expect(screen.getByRole('button', { name: /chat history/i })).toBeInTheDocument();
+    });
+  });
+
+  describe('reviewed state', () => {
+    it('shows Reviewed badge when reviewed is true', () => {
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={mockInstructor}
+          onChat={mockOnChat}
+          showReviewButton={true}
+          onReview={jest.fn()}
+          reviewed={true}
+        />
+      );
+
+      expect(screen.getByText('Reviewed')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /review & tip/i })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('edge cases and bug hunting', () => {
+    it('handles instructor with missing first_name', () => {
+      const noFirstName = { ...mockInstructor, first_name: undefined };
+
+      renderWithQueryClient(<InstructorInfo instructor={noFirstName} onChat={mockOnChat} />);
+
+      // Should render gracefully with empty name
+      expect(screen.queryByText('Jane S.')).not.toBeInTheDocument();
+    });
+
+    it('handles instructor with missing last_initial', () => {
+      const noLastInitial = { ...mockInstructor, last_initial: undefined };
+
+      renderWithQueryClient(<InstructorInfo instructor={noLastInitial} onChat={mockOnChat} />);
+
+      // Should show just first name without initial
+      expect(screen.getByText('Jane')).toBeInTheDocument();
+    });
+
+    it('handles instructor with empty strings', () => {
+      const emptyStrings = { ...mockInstructor, first_name: '', last_initial: '' };
+
+      renderWithQueryClient(<InstructorInfo instructor={emptyStrings} onChat={mockOnChat} />);
+
+      // Should render gracefully
+      expect(document.body).toBeInTheDocument();
+    });
+
+    it('handles rating of 0', () => {
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={mockInstructor}
+          rating={0}
+          reviewCount={0}
+          onChat={mockOnChat}
+        />
+      );
+
+      // Rating of 0 with 0 reviews - should still display
+      expect(screen.getByText('0.0')).toBeInTheDocument();
+      expect(screen.getByText('(0 reviews)')).toBeInTheDocument();
+    });
+
+    it('handles very high lesson count', () => {
+      renderWithQueryClient(
+        <InstructorInfo
+          instructor={mockInstructor}
+          lessonsCompleted={10000}
+          onChat={mockOnChat}
+        />
+      );
+
+      expect(screen.getByText('10000 lessons completed')).toBeInTheDocument();
+    });
+  });
 });

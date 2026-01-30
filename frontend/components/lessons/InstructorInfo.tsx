@@ -23,6 +23,8 @@ interface InstructorInfoProps {
   reviewed?: boolean;
   showBookAgainButton?: boolean;
   onBookAgain?: (e?: React.MouseEvent) => void;
+  /** Optional callback for viewing reviews. If provided, called instead of navigating. */
+  onViewReviews?: (instructorId: string | number) => void;
 }
 
 // Helper to get instructor display name with privacy (FirstName L.)
@@ -43,6 +45,7 @@ export function InstructorInfo({
   reviewed,
   showBookAgainButton,
   onBookAgain,
+  onViewReviews,
 }: InstructorInfoProps) {
   if (!instructor) {
     return null;
@@ -79,7 +82,11 @@ export function InstructorInfo({
                   onClick={(e) => {
                     e.preventDefault();
                     if (instructor?.id) {
-                      window.location.href = `/instructors/${instructor.id}/reviews`;
+                      if (onViewReviews) {
+                        onViewReviews(instructor.id);
+                      } else {
+                        window.location.href = `/instructors/${instructor.id}/reviews`;
+                      }
                     }
                   }}
                   className="underline-offset-2 hover:underline cursor-pointer"

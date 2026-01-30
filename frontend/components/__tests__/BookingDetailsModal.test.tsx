@@ -165,6 +165,78 @@ describe('BookingDetailsModal', () => {
       );
       expect(screen.getByText('Total: $75.50')).toBeInTheDocument();
     });
+
+    it('handles non-numeric string price gracefully', () => {
+      // Lines 75-78: Catch block in formatPrice
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({ total_price: 'invalid' as unknown as number })}
+        />
+      );
+      // Should show $0.00 for invalid price
+      expect(screen.getByText('Total: $0.00')).toBeInTheDocument();
+    });
+
+    it('handles null price gracefully', () => {
+      // Lines 75-78: Edge case for formatPrice
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({ total_price: null as unknown as number })}
+        />
+      );
+      // Should show $0.00 for null price
+      expect(screen.getByText('Total: $0.00')).toBeInTheDocument();
+    });
+
+    it('handles undefined price gracefully', () => {
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({ total_price: undefined as unknown as number })}
+        />
+      );
+      // Should show $0.00 for undefined price
+      expect(screen.getByText('Total: $0.00')).toBeInTheDocument();
+    });
+  });
+
+  describe('formatMetaDate edge cases', () => {
+    it('returns empty string for null date value', () => {
+      // Line 84: Return empty string when value is null
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({ created_at: null as unknown as string })}
+        />
+      );
+      // Should render without crashing, created_at text won't appear
+      expect(screen.getByText('Booking Details')).toBeInTheDocument();
+    });
+
+    it('returns empty string for undefined date value', () => {
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({ created_at: undefined as unknown as string })}
+        />
+      );
+      // Should render without crashing
+      expect(screen.getByText('Booking Details')).toBeInTheDocument();
+    });
+
+    it('returns original value for invalid date string', () => {
+      // Line 88: Return value if parsing fails
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({ created_at: 'not-a-date' })}
+        />
+      );
+      // Should show the original value when date parsing fails
+      expect(screen.getByText(/not-a-date|Booked on/)).toBeInTheDocument();
+    });
   });
 
   describe('Date and time', () => {

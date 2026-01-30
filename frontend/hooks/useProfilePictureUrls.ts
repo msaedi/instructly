@@ -267,3 +267,13 @@ export function useProfilePictureUrls(
     return { ...fallbackMap, ...fetchedUrls };
   }, [dedupedRequests.length, fallbackMap, fetchedUrls]);
 }
+
+/** @internal Test helper - clears avatar cache between tests */
+export function __clearAvatarCacheForTesting(): void {
+  avatarCache.clear();
+  pendingQueue = [];
+  if (flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+}

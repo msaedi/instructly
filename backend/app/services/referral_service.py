@@ -203,6 +203,15 @@ class ReferralService(BaseService):
                 logger.warning("Signup attribution failed: code %s not active", code)
                 return False
 
+            # Proactive self-referral prevention - block before creating attribution
+            if code_row.referrer_user_id == user_id:
+                logger.warning(
+                    "Self-referral attempt blocked: user %s tried to use own code %s",
+                    user_id,
+                    code,
+                )
+                return False
+
             created = self.referral_attribution_repo.create_if_absent(
                 code_id=code_row.id,
                 referred_user_id=user_id,

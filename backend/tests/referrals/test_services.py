@@ -185,18 +185,16 @@ def test_global_cap_blocks_additional_rewards(db, referral_service, monkeypatch)
     assert total_rewards == 0
 
 
-def test_self_referral_voids_rewards(db, referral_service, capture_events, monkeypatch):
+def test_self_referral_blocked_at_signup(db, referral_service, capture_events, monkeypatch):
+    """Proactive self-referral prevention: user cannot use their own referral code."""
     user = _create_user(db, "self")
     code = referral_service.issue_code(referrer_user_id=user.id)
 
-    monkeypatch.setattr(
-        "app.services.referral_fraud.is_self_referral",
-        lambda **_: True,
-    )
-
     now = datetime.now(timezone.utc)
     referral_service.record_click(code=code.code, device_fp_hash="dup", ip_hash="dup", channel="share")
-    referral_service.attribute_signup(
+
+    # User tries to use their own code - should be blocked at signup
+    result = referral_service.attribute_signup(
         referred_user_id=user.id,
         code=code.code,
         source="web_click",
@@ -204,6 +202,16 @@ def test_self_referral_voids_rewards(db, referral_service, capture_events, monke
         device_fp_hash="dup",
         ip_hash="dup",
     )
+
+    # Attribution should fail (returns False)
+    assert result is False
+
+    # No attribution should be created
+    attribution = referral_service.referral_attribution_repo.get_by_referred_user_id(str(user.id))
+    assert attribution is None
+
+    # Attempting first booking completion should not create any rewards
+    # (because no attribution exists)
     referral_service.on_first_booking_completed(
         user_id=user.id,
         booking_id=str(ulid.ULID()),
@@ -211,9 +219,54 @@ def test_self_referral_voids_rewards(db, referral_service, capture_events, monke
         completed_at=now,
     )
 
+    # No rewards should be created since attribution was blocked
     rewards = db.query(ReferralReward).all()
-    assert len(rewards) == 1
-    assert rewards[0].status == RewardStatus.VOID
+    assert len(rewards) == 0
+
+
+def test_self_referral_fingerprint_detection_voids_rewards(db, referral_service, capture_events, monkeypatch):
+    """
+    Fingerprint-based self-referral detection (defense-in-depth).
+
+    Even if proactive blocking is bypassed (e.g., different user IDs but same device),
+    fingerprint detection at booking completion still voids rewards.
+    """
+    referrer = _create_user(db, "referrer")
+    referred = _create_user(db, "referred")  # Different user ID
+    code = referral_service.issue_code(referrer_user_id=referrer.id)
+
+    # Force fingerprint-based detection to trigger
+    monkeypatch.setattr(
+        "app.services.referral_fraud.is_self_referral",
+        lambda **_: True,
+    )
+
+    now = datetime.now(timezone.utc)
+    referral_service.record_click(code=code.code, device_fp_hash="dup", ip_hash="dup", channel="share")
+
+    # Attribution succeeds (different user IDs)
+    result = referral_service.attribute_signup(
+        referred_user_id=referred.id,
+        code=code.code,
+        source="web_click",
+        ts=now,
+        device_fp_hash="dup",
+        ip_hash="dup",
+    )
+    assert result is True
+
+    # Booking completion triggers fingerprint check, voids rewards
+    referral_service.on_first_booking_completed(
+        user_id=referred.id,
+        booking_id=str(ulid.ULID()),
+        amount_cents=9000,
+        completed_at=now,
+    )
+
+    rewards = db.query(ReferralReward).all()
+    # Rewards are created but voided due to fingerprint detection
+    assert len(rewards) == 2  # Student and referrer rewards (both voided)
+    assert all(r.status == RewardStatus.VOID for r in rewards)
 
     void_events = [event for event in capture_events if event.__class__.__name__ == "RewardVoided"]
     assert any(event.reason == "self_referral" for event in void_events)

@@ -49,7 +49,8 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate reason
+    // Defensive validation: Button is disabled when reason.trim() is empty,
+    // but this guards against programmatic calls or future UI changes
     if (!reason.trim()) {
       setValidationError('Please provide a reason for cancellation');
       logger.warn('Cancellation attempted without reason', { bookingId: booking.id });

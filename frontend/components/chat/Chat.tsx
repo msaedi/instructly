@@ -34,6 +34,7 @@ import type { ConversationMessage } from '@/types/conversation';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { MessageBubble, normalizeStudentMessage, formatRelativeTimestamp, useReactions, useReadReceipts, useLiveTimestamp, useSSEHandlers, type NormalizedMessage, type NormalizedReaction, type ReactionMutations } from '@/components/messaging';
+import { mergeReactions } from './utils/mergeReactions';
 
 // Connection status enum (internal to Chat component)
 enum ConnectionStatus {
@@ -670,27 +671,13 @@ export function Chat({
         else readTimestampLabel = `Read on ${format(readAt, 'MMM d')} at ${format(readAt, 'h:mm a')}`;
       }
 
-	      const displayReactions: Record<string, number> = { ...message.reactions };
-	      const localReaction = userReactions[message.id];
-	      const serverReaction = message.my_reactions[0];
-
-      if (localReaction !== undefined && localReaction !== serverReaction) {
-        if (serverReaction) {
-          displayReactions[serverReaction] = Math.max(0, (displayReactions[serverReaction] || 0) - 1);
-          if (displayReactions[serverReaction] === 0) delete displayReactions[serverReaction];
-        }
-        if (localReaction) {
-          displayReactions[localReaction] = (displayReactions[localReaction] || 0) + 1;
-        }
-      }
-
-      const delta = reactionDeltas[message.id];
-      if (delta) {
-        Object.entries(delta).forEach(([emoji, change]) => {
-          displayReactions[emoji] = Math.max(0, (displayReactions[emoji] || 0) + change);
-          if (displayReactions[emoji] === 0) delete displayReactions[emoji];
-        });
-      }
+      // Merge server reactions with local optimistic updates and SSE deltas
+      const displayReactions = mergeReactions({
+        serverReactions: message.reactions,
+        localReaction: userReactions[message.id],
+        serverUserReaction: message.my_reactions[0],
+        reactionDeltas: reactionDeltas[message.id],
+      });
 
       const reactions: NormalizedReaction[] = Object.entries(displayReactions)
         .filter(([, count]) => count > 0)
@@ -700,10 +687,11 @@ export function Chat({
           isMine: hasReacted(message.id, emoji),
         }));
 
-	      const currentReaction =
-	        localReaction !== undefined
-	          ? localReaction
-	          : message.my_reactions[0] ?? null;
+      const localReaction = userReactions[message.id];
+      const currentReaction =
+        localReaction !== undefined
+          ? localReaction
+          : message.my_reactions[0] ?? null;
 
       return normalizeStudentMessage(message, currentUserId, {
         reactions,

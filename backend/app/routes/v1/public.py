@@ -17,6 +17,7 @@ import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 import hashlib
 import logging
+import re
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypedDict, Union, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -26,6 +27,7 @@ import ulid
 from ...core.config import settings
 from ...core.timezone_utils import get_user_today
 from ...database import get_db
+from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...schemas.public_availability import (
     NextAvailableSlotResponse,
     PublicDayAvailability,
@@ -46,6 +48,10 @@ from ...utils.time_helpers import string_to_time
 from ...utils.time_utils import time_to_minutes
 
 logger = logging.getLogger(__name__)
+
+# Email validation regex (matches frontend InviteByEmail.tsx validation)
+EMAIL_REGEX = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", re.IGNORECASE)
+MAX_REFERRAL_EMAILS_PER_REQUEST = 10
 
 # V1 router - mounted at /api/v1/public
 router = APIRouter(tags=["public"])
@@ -702,7 +708,9 @@ async def get_next_available_slot(
     summary="Send referral invites",
     description="Send referral invitation emails to one or more recipients.",
 )
+@rate_limit("5/hour", key_type=RateLimitKeyType.IP)
 async def send_referral_invites(
+    request: Request,
     payload: ReferralSendRequest,
     db: Session = Depends(get_db),
 ) -> ReferralSendResponse:
@@ -720,8 +728,30 @@ async def send_referral_invites(
             status_code=status.HTTP_400_BAD_REQUEST, detail="No recipient emails provided"
         )
 
+    # Backend validation: max 10 emails per request
+    if len(emails) > MAX_REFERRAL_EMAILS_PER_REQUEST:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Maximum {MAX_REFERRAL_EMAILS_PER_REQUEST} emails per request",
+        )
+
+    # Backend validation: email format
+    valid_emails: List[str] = []
+    invalid_emails: List[str] = []
+    for email in emails:
+        if EMAIL_REGEX.match(email):
+            valid_emails.append(email)
+        else:
+            invalid_emails.append(email)
+
+    if not valid_emails:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No valid email addresses provided",
+        )
+
     logger.info(
-        f"[Referrals] Sending invites: count={len(emails)} link={referral_link} from={from_name}"
+        f"[Referrals] Sending invites: count={len(valid_emails)} link={referral_link} from={from_name}"
     )
     email_service = EmailService(db)
     try:
@@ -734,9 +764,14 @@ async def send_referral_invites(
         )
 
     sent = 0
-    failures = 0
+    failures = len(invalid_emails)  # Count invalid emails as failures
     error_details: list[ReferralSendError] = []
-    for to_email in emails:
+
+    # Add invalid emails to error details
+    for invalid_email in invalid_emails:
+        error_details.append(ReferralSendError(email=invalid_email, error="Invalid email format"))
+
+    for to_email in valid_emails:
         try:
             await asyncio.to_thread(
                 email_service.send_referral_invite,

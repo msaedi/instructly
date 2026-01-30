@@ -128,4 +128,100 @@ describe('useInstructorSearch', () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error?.status).toBe(500);
   });
+
+  it('throws when NL search response has no data', async () => {
+    searchWithNaturalLanguageMock.mockResolvedValue({
+      status: 200,
+      data: null,
+    });
+
+    const { result } = renderHook(
+      () => useInstructorSearch({ searchQuery: 'piano' }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.message).toBe('No data in response');
+  });
+
+  it('throws when NL search returns an error message', async () => {
+    searchWithNaturalLanguageMock.mockResolvedValue({
+      status: 400,
+      error: 'Bad query format',
+    });
+
+    const { result } = renderHook(
+      () => useInstructorSearch({ searchQuery: 'invalid<<>>' }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.message).toBe('Bad query format');
+    expect(result.current.error?.status).toBe(400);
+  });
+
+  it('surfaces rate limit metadata on catalog search', async () => {
+    searchInstructorsMock.mockResolvedValue({
+      status: 429,
+      error: 'Rate limited',
+      retryAfterSeconds: 30,
+    });
+
+    const { result } = renderHook(
+      () => useInstructorSearch({ serviceCatalogId: 'svc-1' }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.status).toBe(429);
+    expect(result.current.error?.retryAfterSeconds).toBe(30);
+  });
+
+  it('throws when catalog search response has no data', async () => {
+    searchInstructorsMock.mockResolvedValue({
+      status: 200,
+      data: null,
+    });
+
+    const { result } = renderHook(
+      () => useInstructorSearch({ serviceCatalogId: 'svc-1' }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.message).toBe('No data in response');
+  });
+
+  it('uses default error message for rate limit without custom message', async () => {
+    searchWithNaturalLanguageMock.mockResolvedValue({
+      status: 429,
+      // No error message provided, should use default
+      retryAfterSeconds: 5,
+    });
+
+    const { result } = renderHook(
+      () => useInstructorSearch({ searchQuery: 'piano' }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.message).toBe('Our hamsters are sprinting. Please try again shortly.');
+  });
+
+  it('uses default error message for catalog rate limit without custom message', async () => {
+    searchInstructorsMock.mockResolvedValue({
+      status: 429,
+      // No error message provided, should use default
+      retryAfterSeconds: 10,
+    });
+
+    const { result } = renderHook(
+      () => useInstructorSearch({ serviceCatalogId: 'svc-1' }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.message).toBe('Our hamsters are sprinting. Please try again shortly.');
+    expect(result.current.error?.retryAfterSeconds).toBe(10);
+  });
 });

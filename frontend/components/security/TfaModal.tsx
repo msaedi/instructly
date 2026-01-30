@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { fetchWithAuth } from '@/lib/api';
 import { toast } from 'sonner';
 import { useTfaStatus } from '@/hooks/queries/useTfaStatus';
+import Modal from '@/components/Modal';
 import type { ApiErrorResponse, components } from '@/features/shared/api/types';
 
 type TfaSetupInitiateResponse = components['schemas']['TFASetupInitiateResponse'];
@@ -17,7 +17,6 @@ type Props = {
 };
 
 export default function TfaModal({ onClose, onChanged }: Props) {
-  const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<'idle' | 'show' | 'verify' | 'enabled' | 'disabled'>('idle');
   const [qr, setQr] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
@@ -31,17 +30,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
   // Use React Query hook for 2FA status (deduplicates calls)
   const { data: tfaStatus, isSuccess: tfaStatusLoaded } = useTfaStatus();
 
-  // Handle keyboard escape
-  useEffect(() => {
-    setMounted(true);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [onClose]);
+  // Note: Escape key handling is now managed by Modal (Radix Dialog)
 
   // Determine initial step based on 2FA status from hook
   useEffect(() => {
@@ -151,20 +140,25 @@ export default function TfaModal({ onClose, onChanged }: Props) {
     }
   };
 
-  if (!mounted) return null;
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="Two-Factor Authentication"
+      description="Manage two-factor authentication settings for your account"
+      size="md"
+      autoHeight
+      closeOnEscape={!loading}
+      closeOnBackdrop={!loading}
+    >
+      <div className="space-y-4">
+        {error && <p className="text-sm text-red-600">{error}</p>}
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Two-Factor Authentication</h3>
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-        </div>
         {step === 'show' && (
-          <div className="space-y-4">
+          <>
             {qr && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={qr} alt="QR code" className="mx-auto h-40 w-40" />
+              <img src={qr} alt="QR code for authenticator app" className="mx-auto h-40 w-40" />
             )}
             {secret && (
               <div className="text-sm text-gray-700">
@@ -173,8 +167,11 @@ export default function TfaModal({ onClose, onChanged }: Props) {
               </div>
             )}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Enter 6-digit code</label>
+              <label htmlFor="tfa-code" className="block text-xs text-gray-500 mb-1">
+                Enter 6-digit code
+              </label>
               <input
+                id="tfa-code"
                 className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
@@ -185,33 +182,54 @@ export default function TfaModal({ onClose, onChanged }: Props) {
                   }
                 }}
                 placeholder="123 456"
+                autoComplete="one-time-code"
+                inputMode="numeric"
               />
             </div>
             <div className="flex justify-end gap-3">
-              <button className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 active:bg-gray-200 transition-colors" onClick={onClose}>Close</button>
-              <button className={`rounded-md px-4 py-2 text-sm text-white transition-colors ${loading ? 'bg-purple-300' : 'bg-[#7E22CE] hover:bg-[#7E22CE] active:bg-purple-900'}`} onClick={verify} disabled={loading}>
+              <button
+                type="button"
+                className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                onClick={onClose}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className={`rounded-md px-4 py-2 text-sm text-white transition-colors ${loading ? 'bg-purple-300' : 'bg-[#7E22CE] hover:bg-[#7E22CE] active:bg-purple-900'}`}
+                onClick={verify}
+                disabled={loading}
+              >
                 {loading ? 'Verifying…' : 'Verify & Enable'}
               </button>
             </div>
-          </div>
+          </>
         )}
+
         {step === 'enabled' && (
-          <div className="space-y-4">
+          <>
             <p className="text-sm text-green-700">Two-factor authentication is now enabled.</p>
             {backupCodes && backupCodes.length > 0 && (
               <div className="text-sm text-gray-700">
                 <p className="font-medium mb-1">Backup codes (store securely):</p>
-                <ul className="list-disc pl-5 space-y-0.5">
-                  {backupCodes.map((c) => (<li key={c} className="font-mono text-xs">{c}</li>))}
+                <ul className="list-disc pl-5 space-y-0.5" aria-label="Backup codes">
+                  {backupCodes.map((c) => (
+                    <li key={c} className="font-mono text-xs">{c}</li>
+                  ))}
                 </ul>
                 <div className="mt-2 flex gap-2">
                   <button
+                    type="button"
                     className="rounded-md border px-3 py-1 text-xs hover:bg-gray-100 active:bg-gray-200 transition-colors"
-                    onClick={() => { void navigator.clipboard.writeText(backupCodes.join('\n')); toast.success('Backup codes copied'); }}
+                    onClick={() => {
+                      void navigator.clipboard.writeText(backupCodes.join('\n'));
+                      toast.success('Backup codes copied');
+                    }}
                   >
                     Copy
                   </button>
                   <button
+                    type="button"
                     className={`rounded-md border px-3 py-1 text-xs transition-colors ${loading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100 active:bg-gray-200'}`}
                     onClick={() => void regen()}
                     disabled={loading}
@@ -221,42 +239,60 @@ export default function TfaModal({ onClose, onChanged }: Props) {
                 </div>
               </div>
             )}
-          </div>
+            <div className="mt-6 border-t pt-4 space-y-3">
+              <p className="text-sm text-gray-700">To disable 2FA, confirm your password.</p>
+              <input
+                type="password"
+                id="disable-password"
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                placeholder="Current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !loading && currentPassword.trim().length > 0) {
+                    e.preventDefault();
+                    void disable();
+                  }
+                }}
+                autoComplete="current-password"
+              />
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                  onClick={onClose}
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-md px-4 py-2 text-sm text-white transition-colors ${loading ? 'bg-red-300' : 'bg-red-600 hover:bg-red-700 active:bg-red-800'}`}
+                  onClick={() => void disable()}
+                  disabled={loading}
+                >
+                  {loading ? 'Disabling…' : 'Disable 2FA'}
+                </button>
+              </div>
+            </div>
+          </>
         )}
+
         {step === 'disabled' && (
-          <div className="space-y-4">
+          <>
             <p className="text-sm text-gray-700">Two-factor authentication has been disabled.</p>
             <div className="flex justify-end gap-3">
-              <button autoFocus className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 active:bg-gray-200 transition-colors" onClick={onClose}>Close</button>
-            </div>
-          </div>
-        )}
-        {step === 'enabled' && (
-          <div className="mt-6 border-t pt-4 space-y-3">
-            <p className="text-sm text-gray-700">To disable 2FA, confirm your password.</p>
-            <input
-              type="password"
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              placeholder="Current password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !loading && currentPassword.trim().length > 0) {
-                  e.preventDefault();
-                  void disable();
-                }
-              }}
-            />
-            <div className="flex justify-end gap-3">
-              <button className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 active:bg-gray-200 transition-colors" onClick={onClose}>Close</button>
-              <button className={`rounded-md px-4 py-2 text-sm text-white transition-colors ${loading ? 'bg-red-300' : 'bg-red-600 hover:bg-red-700 active:bg-red-800'}`} onClick={() => void disable()} disabled={loading}>
-                {loading ? 'Disabling…' : 'Disable 2FA'}
+              <button
+                type="button"
+                autoFocus
+                className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                onClick={onClose}
+              >
+                Close
               </button>
             </div>
-          </div>
+          </>
         )}
       </div>
-    </div>,
-    document.body
+    </Modal>
   );
 }

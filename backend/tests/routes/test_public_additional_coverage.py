@@ -477,16 +477,18 @@ async def test_send_referral_invites_validation_and_partial_failure(monkeypatch)
         referral_link="https://instainstru.com/ref/ABC",
         from_name="Tester",
     )
-    result = await public_routes.send_referral_invites(payload=payload, db=None)
+    mock_request = _make_request()
+    result = await public_routes.send_referral_invites(request=mock_request, payload=payload, db=None)
     assert result.sent == 1
     assert result.failed == 1
 
 
 @pytest.mark.asyncio
 async def test_send_referral_invites_empty_and_config_error(monkeypatch):
+    mock_request = _make_request()
     payload = ReferralSendRequest(emails=[], referral_link="https://instainstru.com/ref/ABC")
     with pytest.raises(HTTPException) as exc:
-        await public_routes.send_referral_invites(payload=payload, db=None)
+        await public_routes.send_referral_invites(request=mock_request, payload=payload, db=None)
     assert exc.value.status_code == 400
 
     class FailingEmailService:
@@ -503,8 +505,53 @@ async def test_send_referral_invites_empty_and_config_error(monkeypatch):
         from_name=None,
     )
     with pytest.raises(HTTPException) as exc:
-        await public_routes.send_referral_invites(payload=payload, db=None)
+        await public_routes.send_referral_invites(request=mock_request, payload=payload, db=None)
     assert exc.value.status_code == 500
+
+
+@pytest.mark.asyncio
+async def test_send_referral_invites_max_emails_exceeded(monkeypatch):
+    """Backend validation: reject more than 10 emails per request."""
+    mock_request = _make_request()
+    # Generate 11 valid emails (exceeds MAX_REFERRAL_EMAILS_PER_REQUEST)
+    emails = [f"user{i}@example.com" for i in range(11)]
+    payload = ReferralSendRequest(
+        emails=emails,
+        referral_link="https://instainstru.com/ref/ABC",
+        from_name="Tester",
+    )
+    with pytest.raises(HTTPException) as exc:
+        await public_routes.send_referral_invites(request=mock_request, payload=payload, db=None)
+    assert exc.value.status_code == 400
+    assert "Maximum 10 emails" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_send_referral_invites_exactly_10_emails_allowed(monkeypatch):
+    """Backend validation: exactly 10 emails should be allowed."""
+    class StubEmailService:
+        def __init__(self, _db) -> None:
+            pass
+
+        def validate_email_config(self) -> None:
+            return None
+
+        def send_referral_invite(self, *, to_email: str, referral_link: str, inviter_name: str):
+            pass
+
+    monkeypatch.setattr(public_routes, "EmailService", StubEmailService)
+
+    mock_request = _make_request()
+    # Generate exactly 10 valid emails (at the limit)
+    emails = [f"user{i}@example.com" for i in range(10)]
+    payload = ReferralSendRequest(
+        emails=emails,
+        referral_link="https://instainstru.com/ref/ABC",
+        from_name="Tester",
+    )
+    result = await public_routes.send_referral_invites(request=mock_request, payload=payload, db=None)
+    assert result.sent == 10
+    assert result.failed == 0
 
 
 @pytest.mark.asyncio
