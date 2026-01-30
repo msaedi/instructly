@@ -8,6 +8,7 @@ from instainstru_mcp.tools import (
     metrics,
     operations,
     search,
+    sentry_debug,
     services,
 )
 
@@ -375,3 +376,11 @@ async def test_operations_tools_call_client():
     assert client.calls[3][2]["limit"] == 5
     assert client.calls[4][2]["identifier"] == "user@example.com"
     assert client.calls[5][2]["user_id"] == "01USER"
+
+
+def test_sentry_debug_tool_raises():
+    mcp = FastMCP("test")
+    tools = sentry_debug.register_tools(mcp)
+
+    with pytest.raises(RuntimeError, match="Sentry debug endpoint - intentional test error"):
+        tools["instainstru_sentry_debug"]()

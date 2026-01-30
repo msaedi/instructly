@@ -6,6 +6,11 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_LH_CI: process.env['NEXT_PUBLIC_LH_CI'] || '',
   },
+  rewrites: async () => ({
+    beforeFiles: [],
+    afterFiles: [],
+    fallback: [],
+  }),
   // outputFileTracingRoot must stay scoped to this app directory to avoid Vercel's /path0/path0 issue.
   outputFileTracingRoot: process.cwd(),
   // Allow dev asset loading from local beta host for testing

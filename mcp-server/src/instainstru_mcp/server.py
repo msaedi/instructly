@@ -37,6 +37,7 @@ from .tools import (
     observability,
     operations,
     search,
+    sentry_debug,
     services,
 )
 
@@ -550,6 +551,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     metrics.register_tools(mcp, client)
     services.register_tools(mcp, client)
     observability.register_tools(mcp, grafana)
+    sentry_debug.register_tools(mcp)
 
     return mcp
 
