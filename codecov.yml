@@ -56,6 +56,7 @@ ignore:
 # Fix paths if needed (since your code is in backend/)
 fixes:
   - "backend/::"  # Remove 'backend/' prefix from paths
+  - "mcp-server/::"  # Remove 'mcp-server/' prefix from paths
 
 # Component configuration to track different parts separately
 component_management:

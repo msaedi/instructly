@@ -11,6 +11,7 @@ on:
       - 'backend/requirements*.txt'
       - 'backend/alembic/**'
       - 'backend/typings/**'
+      - 'mcp-server/**'
       - '.github/workflows/backend-ci.yml'
       - '.pre-commit-config.yaml'
       - '.github/workflows/**'
@@ -24,6 +25,7 @@ on:
       - 'backend/requirements*.txt'
       - 'backend/alembic/**'
       - 'backend/typings/**'
+      - 'mcp-server/**'
       - '.pre-commit-config.yaml'
       - '.github/workflows/**'
 concurrency:
@@ -240,4 +242,14 @@ jobs:
       env:
         INSTAINSTRU_MCP_API_SERVICE_TOKEN: test-token-for-ci
         INSTAINSTRU_MCP_API_BASE_URL: https://api.example.com
-      run: pytest tests/ -v
+      run: pytest tests/ -v --cov-report=xml
+
+    - name: Upload MCP coverage to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        directory: ./mcp-server
+        files: ./mcp-server/coverage.xml
+        flags: mcp-server
+        fail_ci_if_error: false
+        verbose: true
