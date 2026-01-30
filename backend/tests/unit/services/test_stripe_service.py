@@ -9,9 +9,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-import stripe
-
 from sqlalchemy.exc import IntegrityError
+import stripe
 
 from app.core.exceptions import ServiceException
 from app.models.booking import BookingStatus, PaymentStatus
