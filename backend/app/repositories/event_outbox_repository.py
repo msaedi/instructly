@@ -173,7 +173,7 @@ class EventOutboxRepository:
 
     def mark_failed(
         self,
-        event_id: int,
+        event_id: str,
         *,
         attempt_count: int,
         backoff_seconds: int,
@@ -197,7 +197,7 @@ class EventOutboxRepository:
         self.db.execute(update(EventOutbox).where(EventOutbox.id == event_id).values(**values))
         self.db.flush()
 
-    def reset_failed(self, event_ids: Iterable[int]) -> None:
+    def reset_failed(self, event_ids: Iterable[str]) -> None:
         """Reset failed rows back to pending (maintenance helper)."""
         ids = list(event_ids)
         if not ids:
