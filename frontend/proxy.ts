@@ -17,6 +17,7 @@ function isPublicAssetPath(pathname: string): boolean {
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/static/') ||
     pathname.startsWith('/api/') ||
+    pathname.startsWith('/monitoring') ||
     pathname === '/robots.txt' ||
     pathname === '/logout' ||
     pathname === STAFF_LOGIN_PATH ||
@@ -164,5 +165,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/|api/|static/|staff-login).*)'],
+  matcher: ['/((?!_next/|api/|static/|staff-login|monitoring).*)'],
 };

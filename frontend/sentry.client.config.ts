@@ -7,6 +7,7 @@ const environment = PUBLIC_ENV || process.env['VERCEL_ENV'] || 'development';
 
 Sentry.init({
   dsn: SENTRY_DSN,
+  tunnel: '/monitoring',
   enabled: isProd && Boolean(SENTRY_DSN),
   environment,
   release: process.env['VERCEL_GIT_COMMIT_SHA'],
