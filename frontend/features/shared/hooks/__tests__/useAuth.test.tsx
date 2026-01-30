@@ -50,6 +50,26 @@ const transferGuestSearchesToAccountMock = transferGuestSearchesToAccount as jes
 const clearGuestSessionMock = clearGuestSession as jest.Mock;
 const useRouterMock = useRouter as jest.Mock;
 
+// Suppress JSDOM "Not implemented: navigation" errors during logout tests
+// JSDOM doesn't fully implement window.location.assign/replace, but the tests still work
+const originalError = console.error;
+
+beforeAll(() => {
+  console.error = (...args: unknown[]) => {
+    // Filter out JSDOM navigation errors (can be string or Error object)
+    const firstArg = args[0];
+    const message = firstArg instanceof Error ? firstArg.message : String(firstArg);
+    if (message.includes('Not implemented: navigation')) {
+      return;
+    }
+    originalError.apply(console, args);
+  };
+});
+
+afterAll(() => {
+  console.error = originalError;
+});
+
 const mockUser = {
   id: 'user-1',
   email: 'test@example.com',
@@ -193,6 +213,7 @@ describe('useAuth', () => {
 
     expect(clearGuestSessionMock).toHaveBeenCalled();
     expect(httpMock).not.toHaveBeenCalled();
+    // Navigation happens via window.location.assign('/') - JSDOM suppresses the error
   });
 
   it('redirects to login with encoded return URL', () => {
@@ -261,6 +282,7 @@ describe('useAuth', () => {
     // Should call backend logout when user is activated
     expect(httpMock).toHaveBeenCalledWith('POST', '/api/v1/public/logout');
     expect(clearGuestSessionMock).toHaveBeenCalled();
+    // Navigation happens via window.location.assign('/') after logout
   });
 
   it('throws error when useAuth is used outside AuthProvider (line 275)', () => {
@@ -357,6 +379,7 @@ describe('useAuth', () => {
 
     // Should still call backend logout when hasBeenActive
     expect(httpMock).toHaveBeenCalledWith('POST', '/api/v1/public/logout');
+    // Navigation happens via window.location.assign('/') after logout
   });
 
   it('handles no userActivation API (line 201 - hasActivationSignal false)', async () => {
@@ -378,5 +401,6 @@ describe('useAuth', () => {
 
     // Without userActivation API, should still allow logout
     expect(httpMock).toHaveBeenCalledWith('POST', '/api/v1/public/logout');
+    // Navigation happens via window.location.assign('/') after logout
   });
 });
