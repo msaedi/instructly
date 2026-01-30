@@ -238,6 +238,8 @@ class MessageService(BaseService):
                 minutes=window_minutes
             ):
                 raise ValidationException("Delete window has expired")
+        except ValidationException:
+            raise
         except Exception:
             logger.debug("Non-fatal error ignored", exc_info=True)
         with self.transaction():
@@ -337,6 +339,8 @@ class MessageService(BaseService):
                 minutes=window_minutes
             ):
                 raise ValidationException("Edit window has expired")
+        except ValidationException:
+            raise
         except Exception:
             logger.debug("Non-fatal error ignored", exc_info=True)
         with self.transaction():
