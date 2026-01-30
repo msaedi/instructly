@@ -36,6 +36,7 @@ from app.services.booking_service import BookingService
 from app.utils.time_utils import time_to_minutes
 from tests._utils.bitmap_avail import seed_day
 from tests.factories.booking_builders import create_booking_pg_safe
+from tests.utils.time import now_trimmed, start_just_over_24h, start_within_24h
 
 
 def create_test_booking(
@@ -1749,8 +1750,7 @@ class TestConfirmBookingPaymentIntegration:
         instructor_service: Service,
     ):
         """Lessons >24h schedule authorization and confirm booking."""
-        now = datetime.now(timezone.utc)
-        start_utc = now + timedelta(hours=48)
+        start_utc = start_just_over_24h()
         end_utc = start_utc + timedelta(hours=1)
 
         booking = create_test_booking(
@@ -1793,10 +1793,10 @@ class TestConfirmBookingPaymentIntegration:
         """Gaming reschedule triggers immediate authorization."""
         from unittest.mock import MagicMock, patch
 
-        now = datetime.now(timezone.utc)
-        original_start_utc = now + timedelta(hours=6)
+        now = now_trimmed()
+        original_start_utc = start_within_24h(base=now, hours=6)
         original_end_utc = original_start_utc + timedelta(hours=1)
-        start_utc = now + timedelta(hours=48)
+        start_utc = start_just_over_24h(base=now)
         end_utc = start_utc + timedelta(hours=1)
 
         original_booking = create_test_booking(
