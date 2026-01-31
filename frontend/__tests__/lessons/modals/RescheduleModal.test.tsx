@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RescheduleModal } from '@/components/lessons/modals/RescheduleModal';
 import type { Booking } from '@/features/shared/api/types';
-import { addDays, format } from 'date-fns';
+import { addDays, format, parse } from 'date-fns';
 import { AuthProvider } from '@/features/shared/hooks/useAuth';
 import * as myLessonsHooks from '@/hooks/useMyLessons';
 
@@ -113,6 +113,62 @@ describe('RescheduleModal', () => {
     );
   };
 
+  const getCalendarMonthLabel = () => {
+    const monthHeadings = screen.getAllByText((content, element) => {
+      const text = content?.trim() ?? '';
+      return /^[A-Za-z]+ \d{4}$/.test(text) && element?.tagName.toLowerCase() === 'h3';
+    });
+    const label = monthHeadings[0]?.textContent?.trim();
+    if (!label) {
+      throw new Error('Calendar month heading not found');
+    }
+    return label;
+  };
+
+  const navigateToMonth = async (targetDate: Date) => {
+    const currentLabel = getCalendarMonthLabel();
+    const currentDate = parse(currentLabel, 'MMMM yyyy', new Date());
+    if (Number.isNaN(currentDate.getTime())) {
+      throw new Error(`Unable to parse calendar month label: ${currentLabel}`);
+    }
+
+    const diffMonths =
+      (targetDate.getFullYear() - currentDate.getFullYear()) * 12 +
+      (targetDate.getMonth() - currentDate.getMonth());
+
+    if (diffMonths === 0) {
+      return;
+    }
+
+    const directionLabel = diffMonths > 0 ? /Next month/i : /Previous month/i;
+    const steps = Math.abs(diffMonths);
+    for (let i = 0; i < steps; i += 1) {
+      const buttons = screen.getAllByLabelText(directionLabel);
+      const button = buttons[0];
+      if (!button) {
+        throw new Error(`Calendar navigation button not found for ${directionLabel}`);
+      }
+      await act(async () => {
+        fireEvent.click(button);
+        await Promise.resolve();
+      });
+    }
+
+    const targetLabel = format(targetDate, 'MMMM yyyy');
+    await waitFor(() => {
+      expect(screen.getAllByText(targetLabel).length).toBeGreaterThan(0);
+    });
+  };
+
+  const getSelectableDayButton = async (dateIso: string) => {
+    const dayButtons = (await screen.findAllByTestId(`cal-day-${dateIso}`)) as HTMLButtonElement[];
+    const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
+    if (!dayButton) {
+      throw new Error(`No selectable calendar button found for ${dateIso}`);
+    }
+    return dayButton;
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     // Default successful reschedule response
@@ -201,25 +257,8 @@ describe('RescheduleModal', () => {
     const tomorrow = addDays(new Date(), 1);
     const tomorrowIso = format(tomorrow, 'yyyy-MM-dd');
 
-    // Navigate to tomorrow's month if it's different from current month
-    const today = new Date();
-    if (tomorrow.getMonth() !== today.getMonth()) {
-      const nextMonthButtons = screen.getAllByLabelText(/Next month/i);
-      const nextMonthButton = nextMonthButtons[0];
-      if (!nextMonthButton) {
-        throw new Error('Next month button not found');
-      }
-      await act(async () => {
-        fireEvent.click(nextMonthButton);
-        await Promise.resolve();
-      });
-    }
-
-    const dayButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
-    const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
-    if (!dayButton) {
-      throw new Error(`No selectable calendar button found for ${tomorrowIso}`);
-    }
+    await navigateToMonth(tomorrow);
+    const dayButton = await getSelectableDayButton(tomorrowIso);
     expect(dayButton).toBeEnabled();
     fireEvent.click(dayButton);
 
@@ -248,25 +287,8 @@ describe('RescheduleModal', () => {
       expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
     });
 
-    // Navigate to tomorrow's month if it's different from current month
-    const today = new Date();
-    if (tomorrow.getMonth() !== today.getMonth()) {
-      const nextMonthButtons = screen.getAllByLabelText(/Next month/i);
-      const nextMonthButton = nextMonthButtons[0];
-      if (!nextMonthButton) {
-        throw new Error('Next month button not found');
-      }
-      await act(async () => {
-        fireEvent.click(nextMonthButton);
-        await Promise.resolve();
-      });
-    }
-
-    const dayButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
-    const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
-    if (!dayButton) {
-      throw new Error(`No selectable calendar button found for ${tomorrowIso}`);
-    }
+    await navigateToMonth(tomorrow);
+    const dayButton = await getSelectableDayButton(tomorrowIso);
     expect(dayButton).toBeEnabled();
     fireEvent.click(dayButton);
 
@@ -336,25 +358,8 @@ describe('RescheduleModal', () => {
       expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
     });
 
-    // Navigate to tomorrow's month if it's different from current month
-    const today = new Date();
-    if (tomorrow.getMonth() !== today.getMonth()) {
-      const nextMonthButtons = screen.getAllByLabelText(/Next month/i);
-      const nextMonthButton = nextMonthButtons[0];
-      if (!nextMonthButton) {
-        throw new Error('Next month button not found');
-      }
-      await act(async () => {
-        fireEvent.click(nextMonthButton);
-        await Promise.resolve();
-      });
-    }
-
-    const dateButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
-    const dateButton = dateButtons.find((btn) => !btn.disabled) ?? dateButtons[0];
-    if (!dateButton) {
-      throw new Error(`No selectable calendar button found for ${tomorrowIso}`);
-    }
+    await navigateToMonth(tomorrow);
+    const dateButton = await getSelectableDayButton(tomorrowIso);
     expect(dateButton).toBeEnabled();
     fireEvent.click(dateButton);
 
@@ -414,23 +419,9 @@ describe('RescheduleModal', () => {
         expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
       });
 
-      const today = new Date();
-      if (tomorrow.getMonth() !== today.getMonth()) {
-        const nextMonthButtons = screen.getAllByLabelText(/Next month/i);
-        const nextMonthButton = nextMonthButtons[0];
-        if (nextMonthButton) {
-          await act(async () => {
-            fireEvent.click(nextMonthButton);
-            await Promise.resolve();
-          });
-        }
-      }
-
-      const dayButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
-      const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
-      if (dayButton) {
-        fireEvent.click(dayButton);
-      }
+      await navigateToMonth(tomorrow);
+      const dayButton = await getSelectableDayButton(tomorrowIso);
+      fireEvent.click(dayButton);
 
       const confirmButtons = screen.getAllByRole('button', { name: /select and continue/i });
       await act(async () => {
@@ -707,11 +698,9 @@ describe('RescheduleModal', () => {
       const tomorrow = addDays(new Date(), 1);
       const tomorrowIso = format(tomorrow, 'yyyy-MM-dd');
 
-      const dayButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
-      const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
-      if (dayButton) {
-        fireEvent.click(dayButton);
-      }
+      await navigateToMonth(tomorrow);
+      const dayButton = await getSelectableDayButton(tomorrowIso);
+      fireEvent.click(dayButton);
 
       // Confirm button should be clickable
       const confirmButtons = screen.getAllByRole('button', { name: /select and continue/i });
@@ -758,11 +747,9 @@ describe('RescheduleModal', () => {
         expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
       });
 
-      const dayButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
-      const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
-      if (dayButton) {
-        fireEvent.click(dayButton);
-      }
+      await navigateToMonth(tomorrow);
+      const dayButton = await getSelectableDayButton(tomorrowIso);
+      fireEvent.click(dayButton);
 
       const confirmButtons = screen.getAllByRole('button', { name: /select and continue/i });
       await act(async () => {
@@ -800,11 +787,9 @@ describe('RescheduleModal', () => {
         expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
       });
 
-      const dayButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
-      const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
-      if (dayButton) {
-        fireEvent.click(dayButton);
-      }
+      await navigateToMonth(tomorrow);
+      const dayButton = await getSelectableDayButton(tomorrowIso);
+      fireEvent.click(dayButton);
 
       const confirmButtons = screen.getAllByRole('button', { name: /select and continue/i });
       await act(async () => {
@@ -838,11 +823,9 @@ describe('RescheduleModal', () => {
         expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
       });
 
-      const dayButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
-      const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
-      if (dayButton) {
-        fireEvent.click(dayButton);
-      }
+      await navigateToMonth(tomorrow);
+      const dayButton = await getSelectableDayButton(tomorrowIso);
+      fireEvent.click(dayButton);
 
       const confirmButtons = screen.getAllByRole('button', { name: /select and continue/i });
       await act(async () => {
@@ -875,11 +858,9 @@ describe('RescheduleModal', () => {
         expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
       });
 
-      const dayButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
-      const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
-      if (dayButton) {
-        fireEvent.click(dayButton);
-      }
+      await navigateToMonth(tomorrow);
+      const dayButton = await getSelectableDayButton(tomorrowIso);
+      fireEvent.click(dayButton);
 
       const confirmButtons = screen.getAllByRole('button', { name: /select and continue/i });
       await act(async () => {
