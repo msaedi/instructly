@@ -21,6 +21,18 @@ else:
     FastApiIntegration = _FastApiIntegration
     LoggingIntegration = _LoggingIntegration
 
+try:  # pragma: no cover - optional dependency in some test environments
+    from sentry_sdk.integrations.celery import CeleryIntegration as _CeleryIntegration
+except Exception:  # pragma: no cover
+    CeleryIntegration: Any | None = None
+else:
+    CeleryIntegration = _CeleryIntegration
+
+try:
+    from app.monitoring.sentry_crons import CRITICAL_BEAT_MONITOR_EXCLUDES
+except Exception:
+    CRITICAL_BEAT_MONITOR_EXCLUDES = ()
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_TRACES_SAMPLE_RATE = 0.1
@@ -117,6 +129,13 @@ def init_sentry() -> bool:
             FastApiIntegration(
                 transaction_style="endpoint",
                 failed_request_status_codes=FAILED_REQUEST_STATUS_CODES,
+            )
+        )
+    if CeleryIntegration:
+        integrations.append(
+            CeleryIntegration(
+                monitor_beat_tasks=True,
+                exclude_beat_tasks=list(CRITICAL_BEAT_MONITOR_EXCLUDES),
             )
         )
 

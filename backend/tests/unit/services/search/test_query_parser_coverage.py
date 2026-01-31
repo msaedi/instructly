@@ -437,7 +437,12 @@ class TestUserIdHandling:
 
             result = parser.parse("piano lessons today")
             assert result.date is not None
-            assert result.date == date.today()
+            from datetime import datetime
+
+            import pytz
+
+            nyc_today = datetime.now(pytz.timezone("America/New_York")).date()
+            assert result.date == nyc_today
 
 
 class TestPriceThresholdLoading:

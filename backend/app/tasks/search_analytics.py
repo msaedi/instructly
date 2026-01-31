@@ -14,6 +14,7 @@ from celery.app.task import Task
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.monitoring.sentry_crons import monitor_if_configured
 from app.repositories.search_event_repository import SearchEventRepository
 from app.tasks.celery_app import typed_task
 
@@ -80,6 +81,7 @@ def process_search_event(self: "Task[Any, Any]", event_id: int) -> Dict[str, Any
     name="app.tasks.search_analytics.calculate_search_metrics",
     bind=True,
 )
+@monitor_if_configured("calculate-search-metrics")
 def calculate_search_metrics(self: "Task[Any, Any]", hours_back: int = 24) -> Dict[str, Any]:
     """
     Calculate aggregate search metrics for the specified time period.

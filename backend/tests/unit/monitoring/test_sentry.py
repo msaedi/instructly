@@ -44,11 +44,15 @@ def test_init_sentry_enabled_when_dsn_set(monkeypatch):
         sentry_module, "FastApiIntegration"
     ) as mock_integration, patch.object(
         sentry_module, "LoggingIntegration"
-    ) as mock_logging_integration:
+    ) as mock_logging_integration, patch.object(
+        sentry_module, "CeleryIntegration"
+    ) as mock_celery_integration:
         mock_instance = object()
         mock_logging_instance = object()
+        mock_celery_instance = object()
         mock_integration.return_value = mock_instance
         mock_logging_integration.return_value = mock_logging_instance
+        mock_celery_integration.return_value = mock_celery_instance
         enabled = sentry_module.init_sentry()
 
     assert enabled is True
@@ -60,7 +64,7 @@ def test_init_sentry_enabled_when_dsn_set(monkeypatch):
     assert kwargs["send_default_pii"] is True
     assert kwargs["profiles_sample_rate"] == sentry_module.DEFAULT_PROFILES_SAMPLE_RATE
     assert kwargs["enable_logs"] is True
-    assert kwargs["integrations"] == [mock_logging_instance, mock_instance]
+    assert kwargs["integrations"] == [mock_logging_instance, mock_instance, mock_celery_instance]
     mock_integration.assert_called_once_with(
         transaction_style="endpoint",
         failed_request_status_codes=sentry_module.FAILED_REQUEST_STATUS_CODES,

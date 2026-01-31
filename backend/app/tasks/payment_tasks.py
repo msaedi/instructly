@@ -34,6 +34,7 @@ from app.database import get_db
 from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.payment import PaymentEvent
 from app.models.user import User
+from app.monitoring.sentry_crons import monitor_if_configured
 from app.repositories.factory import RepositoryFactory
 from app.services.booking_service import BookingService
 from app.services.config_service import ConfigService
@@ -2630,6 +2631,7 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
 
 
 @typed_task(name="app.tasks.payment_tasks.resolve_undisputed_no_shows")
+@monitor_if_configured("resolve-undisputed-no-shows")
 def resolve_undisputed_no_shows() -> NoShowResolutionResults:
     """
     Auto-resolve no-show reports that were not disputed within 24 hours.

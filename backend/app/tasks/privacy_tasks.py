@@ -14,6 +14,7 @@ from celery.app.task import Task
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..monitoring.sentry_crons import monitor_if_configured
 from ..services.privacy_service import PrivacyService
 from ..services.search_history_cleanup_service import SearchHistoryCleanupService
 from .celery_app import celery_app
@@ -96,6 +97,7 @@ class DatabaseTask(DatabaseTaskBase):
 
 
 @typed_task(bind=True, base=DatabaseTask, name="privacy.apply_retention_policies")
+@monitor_if_configured("apply-data-retention-policies")
 def apply_retention_policies(self: DatabaseTask) -> Dict[str, int]:
     """
     Apply data retention policies across all data types.

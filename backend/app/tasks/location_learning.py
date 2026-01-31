@@ -10,6 +10,7 @@ from celery.app.task import Task
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.monitoring.sentry_crons import monitor_if_configured
 from app.services.search.alias_learning_service import AliasLearningService
 from app.tasks.celery_app import typed_task
 
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
     bind=True,
     max_retries=0,
 )
+@monitor_if_configured("learn-location-aliases")
 def process_location_learning(self: "Task[Any, Any]", limit: int = 500) -> Dict[str, Any]:
     """Process learnable unresolved location queries and create aliases."""
     db: Optional[Session] = None

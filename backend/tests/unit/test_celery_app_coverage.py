@@ -92,3 +92,13 @@ def test_run_availability_retention_enabled(monkeypatch):
 
     assert payload == {"purged_days": 5}
     fake_session.close.assert_called_once()
+
+
+def test_celery_sentry_signal_handlers_call_init(monkeypatch):
+    mock_init = Mock()
+    monkeypatch.setattr(celery_module, "init_sentry", mock_init)
+
+    celery_module._init_sentry_worker()
+    celery_module._init_sentry_beat()
+
+    assert mock_init.call_count == 2

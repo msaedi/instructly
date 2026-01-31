@@ -19,11 +19,12 @@ from typing import (
     cast,
 )
 
-from celery import Celery, Task
+from celery import Celery, Task, signals
 from celery.schedules import crontab
 from celery.signals import setup_logging
 
 from app.core.config import settings
+from app.monitoring.sentry import init_sentry
 
 if TYPE_CHECKING:
     from app.services.retention_service import RetentionResult
@@ -271,6 +272,16 @@ celery_app = create_celery_app()
 
 # Task modules are imported via autodiscovery in create_celery_app()
 # and also via the force imports list in celery_app.conf.imports
+
+
+@signals.celeryd_init.connect
+def _init_sentry_worker(**kwargs: Any) -> None:
+    init_sentry()
+
+
+@signals.beat_init.connect
+def _init_sentry_beat(**kwargs: Any) -> None:
+    init_sentry()
 
 
 P = ParamSpec("P")
