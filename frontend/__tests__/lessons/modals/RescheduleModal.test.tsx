@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RescheduleModal } from '@/components/lessons/modals/RescheduleModal';
 import type { Booking } from '@/features/shared/api/types';
-import { addDays, format, parse } from 'date-fns';
+import { addDays, format } from 'date-fns';
 import { AuthProvider } from '@/features/shared/hooks/useAuth';
 import * as myLessonsHooks from '@/hooks/useMyLessons';
 
@@ -15,6 +15,30 @@ jest.mock('@/hooks/useMyLessons', () => ({
     isPending: false,
   })),
 }));
+
+jest.mock('@/features/shared/booking/ui/Calendar', () => {
+  return function MockCalendar({
+    availableDates,
+    onDateSelect,
+  }: {
+    availableDates: string[];
+    onDateSelect: (date: string) => void;
+  }) {
+    return (
+      <div data-testid="calendar">
+        {availableDates.map((date) => (
+          <button
+            key={date}
+            data-testid={`cal-day-${date}`}
+            onClick={() => onDateSelect(date)}
+          >
+            {date}
+          </button>
+        ))}
+      </div>
+    );
+  };
+});
 
 // Shared router mock so we can assert navigation
 const pushMock = jest.fn();
@@ -113,53 +137,6 @@ describe('RescheduleModal', () => {
     );
   };
 
-  const getCalendarMonthLabel = () => {
-    const monthHeadings = screen.getAllByText((content, element) => {
-      const text = content?.trim() ?? '';
-      return /^[A-Za-z]+ \d{4}$/.test(text) && element?.tagName.toLowerCase() === 'h3';
-    });
-    const label = monthHeadings[0]?.textContent?.trim();
-    if (!label) {
-      throw new Error('Calendar month heading not found');
-    }
-    return label;
-  };
-
-  const navigateToMonth = async (targetDate: Date) => {
-    const currentLabel = getCalendarMonthLabel();
-    const currentDate = parse(currentLabel, 'MMMM yyyy', new Date());
-    if (Number.isNaN(currentDate.getTime())) {
-      throw new Error(`Unable to parse calendar month label: ${currentLabel}`);
-    }
-
-    const diffMonths =
-      (targetDate.getFullYear() - currentDate.getFullYear()) * 12 +
-      (targetDate.getMonth() - currentDate.getMonth());
-
-    if (diffMonths === 0) {
-      return;
-    }
-
-    const directionLabel = diffMonths > 0 ? /Next month/i : /Previous month/i;
-    const steps = Math.abs(diffMonths);
-    for (let i = 0; i < steps; i += 1) {
-      const buttons = screen.getAllByLabelText(directionLabel);
-      const button = buttons[0];
-      if (!button) {
-        throw new Error(`Calendar navigation button not found for ${directionLabel}`);
-      }
-      await act(async () => {
-        fireEvent.click(button);
-        await Promise.resolve();
-      });
-    }
-
-    const targetLabel = format(targetDate, 'MMMM yyyy');
-    await waitFor(() => {
-      expect(screen.getAllByText(targetLabel).length).toBeGreaterThan(0);
-    });
-  };
-
   const getSelectableDayButton = async (dateIso: string) => {
     const dayButtons = (await screen.findAllByTestId(`cal-day-${dateIso}`)) as HTMLButtonElement[];
     const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
@@ -237,10 +214,9 @@ describe('RescheduleModal', () => {
       expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
     });
 
-    // Check that calendar is displayed with current month
-    const currentMonth = format(new Date(), 'MMMM yyyy');
-    const monthEls = screen.getAllByText(currentMonth);
-    expect(monthEls.length).toBeGreaterThan(0);
+    const tomorrowIso = format(addDays(new Date(), 1), 'yyyy-MM-dd');
+    const dayButtons = await screen.findAllByTestId(`cal-day-${tomorrowIso}`);
+    expect(dayButtons.length).toBeGreaterThan(0);
   });
 
   it('allows selecting a date', async () => {
@@ -257,7 +233,6 @@ describe('RescheduleModal', () => {
     const tomorrow = addDays(new Date(), 1);
     const tomorrowIso = format(tomorrow, 'yyyy-MM-dd');
 
-    await navigateToMonth(tomorrow);
     const dayButton = await getSelectableDayButton(tomorrowIso);
     expect(dayButton).toBeEnabled();
     fireEvent.click(dayButton);
@@ -287,7 +262,6 @@ describe('RescheduleModal', () => {
       expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
     });
 
-    await navigateToMonth(tomorrow);
     const dayButton = await getSelectableDayButton(tomorrowIso);
     expect(dayButton).toBeEnabled();
     fireEvent.click(dayButton);
@@ -358,7 +332,6 @@ describe('RescheduleModal', () => {
       expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
     });
 
-    await navigateToMonth(tomorrow);
     const dateButton = await getSelectableDayButton(tomorrowIso);
     expect(dateButton).toBeEnabled();
     fireEvent.click(dateButton);
@@ -419,7 +392,6 @@ describe('RescheduleModal', () => {
         expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
       });
 
-      await navigateToMonth(tomorrow);
       const dayButton = await getSelectableDayButton(tomorrowIso);
       fireEvent.click(dayButton);
 
@@ -698,7 +670,6 @@ describe('RescheduleModal', () => {
       const tomorrow = addDays(new Date(), 1);
       const tomorrowIso = format(tomorrow, 'yyyy-MM-dd');
 
-      await navigateToMonth(tomorrow);
       const dayButton = await getSelectableDayButton(tomorrowIso);
       fireEvent.click(dayButton);
 
@@ -747,7 +718,6 @@ describe('RescheduleModal', () => {
         expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
       });
 
-      await navigateToMonth(tomorrow);
       const dayButton = await getSelectableDayButton(tomorrowIso);
       fireEvent.click(dayButton);
 
@@ -787,7 +757,6 @@ describe('RescheduleModal', () => {
         expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
       });
 
-      await navigateToMonth(tomorrow);
       const dayButton = await getSelectableDayButton(tomorrowIso);
       fireEvent.click(dayButton);
 
@@ -823,7 +792,6 @@ describe('RescheduleModal', () => {
         expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
       });
 
-      await navigateToMonth(tomorrow);
       const dayButton = await getSelectableDayButton(tomorrowIso);
       fireEvent.click(dayButton);
 
@@ -858,7 +826,6 @@ describe('RescheduleModal', () => {
         expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
       });
 
-      await navigateToMonth(tomorrow);
       const dayButton = await getSelectableDayButton(tomorrowIso);
       fireEvent.click(dayButton);
 
