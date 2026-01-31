@@ -44,11 +44,11 @@ def test_dispatch_pending_enqueues_events(db):
         key="booking:booking-2:booking.created",
     )
 
-    with patch("app.tasks.notification_tasks.deliver_event.apply_async") as mocked_apply:
+    with patch("app.tasks.notification_tasks.enqueue_task") as mocked_enqueue:
         scheduled = dispatch_pending()
 
     assert scheduled == 2
-    called_ids = {call.args[0][0] for call in mocked_apply.call_args_list}
+    called_ids = {call.kwargs["args"][0] for call in mocked_enqueue.call_args_list}
     assert {event1.id, event2.id} == called_ids
 
 

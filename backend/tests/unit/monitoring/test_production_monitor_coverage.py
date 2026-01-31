@@ -71,12 +71,11 @@ def test_send_alert_respects_cooldown(monkeypatch):
     monitor = monitor_module.PerformanceMonitor()
     calls = {}
 
-    class _Task:
-        def apply_async(self, **_kwargs):
-            calls["count"] = calls.get("count", 0) + 1
-
     monkeypatch.setattr(monitor_module, "CELERY_AVAILABLE", True)
-    monkeypatch.setattr(monitor_module, "process_monitoring_alert", _Task())
+    def _enqueue(*_args, **_kwargs):
+        calls["count"] = calls.get("count", 0) + 1
+
+    monkeypatch.setattr(monitor_module, "enqueue_task", _enqueue)
 
     monitor._send_alert("extremely_slow_request", "first")
     monitor._send_alert("extremely_slow_request", "second")

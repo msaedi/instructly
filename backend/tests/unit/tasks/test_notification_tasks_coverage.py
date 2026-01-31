@@ -392,7 +392,7 @@ class TestDispatchPending:
 
         with patch("app.tasks.notification_tasks._session_scope") as mock_scope:
             with patch("app.tasks.notification_tasks.EventOutboxRepository") as mock_repo_class:
-                with patch("app.tasks.notification_tasks.deliver_event") as mock_deliver:
+                with patch("app.tasks.notification_tasks.enqueue_task") as mock_enqueue:
                     mock_session = MagicMock()
                     mock_scope.return_value.__enter__.return_value = mock_session
 
@@ -406,7 +406,9 @@ class TestDispatchPending:
                     result = dispatch_pending()
 
                     assert result == 3
-                    assert mock_deliver.apply_async.call_count == 3
+                    assert mock_enqueue.call_count == 3
+                    for call in mock_enqueue.call_args_list:
+                        assert call.args[0] == "outbox.deliver_event"
 
     def test_dispatch_pending_no_events(self):
         """Test dispatch_pending with no pending events."""

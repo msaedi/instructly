@@ -16,7 +16,6 @@ import ulid
 
 from app.core.config import settings
 from app.core.enums import RoleName
-from app.core.request_context import with_request_id_header
 from app.database import SessionLocal
 from app.models import User
 from app.models.monitoring import AlertHistory
@@ -24,6 +23,7 @@ from app.models.rbac import Role
 from app.services.email import EmailService
 from app.services.email_config import EmailConfigService
 from app.tasks.celery_app import celery_app
+from app.tasks.enqueue import enqueue_task
 
 TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
 if TYPE_CHECKING:
@@ -156,16 +156,16 @@ def process_monitoring_alert(
 
         # Send email for critical alerts
         if severity == "critical":
-            cast(Any, send_alert_email).apply_async(
+            enqueue_task(
+                "app.tasks.monitoring_tasks.send_alert_email",
                 args=(alert.id,),
-                headers=with_request_id_header(),
             )
 
         # Create GitHub issue for persistent problems
         if should_create_github_issue(self.db, alert_type, severity):
-            cast(Any, create_github_issue_for_alert).apply_async(
+            enqueue_task(
+                "app.tasks.monitoring_tasks.create_github_issue_for_alert",
                 args=(alert.id,),
-                headers=with_request_id_header(),
             )
 
         logger.info(f"Processed {severity} alert: {title}")

@@ -26,6 +26,7 @@ from celery.signals import setup_logging
 
 from app.core.config import settings
 from app.core.request_context import attach_request_id_filter, reset_request_id, set_request_id
+from app.monitoring.otel import init_otel, instrument_additional_libraries, shutdown_otel
 from app.monitoring.sentry import init_sentry
 
 if TYPE_CHECKING:
@@ -320,6 +321,20 @@ def _init_sentry_beat(**kwargs: Any) -> None:
 
 signals.celeryd_init.connect(_init_sentry_worker)
 signals.beat_init.connect(_init_sentry_beat)
+
+
+def _init_otel_worker(**kwargs: Any) -> None:
+    service_name = os.getenv("OTEL_SERVICE_NAME", "instainstru-worker")
+    if init_otel(service_name=service_name):
+        instrument_additional_libraries()
+
+
+def _shutdown_otel_worker(**kwargs: Any) -> None:
+    shutdown_otel()
+
+
+signals.worker_process_init.connect(_init_otel_worker)
+signals.worker_shutdown.connect(_shutdown_otel_worker)
 
 
 P = ParamSpec("P")

@@ -122,6 +122,16 @@ def init_otel(service_name: Optional[str] = None) -> bool:
         # IMPORTANT: set_logging_format=False to avoid conflicting with existing JSON logging
         LoggingInstrumentor().instrument(set_logging_format=False)
 
+        try:
+            from opentelemetry.instrumentation.celery import CeleryInstrumentor
+
+            CeleryInstrumentor().instrument()
+            logger.debug("Celery instrumented")
+        except ImportError:
+            pass
+        except Exception as exc:
+            logger.warning("Failed to instrument Celery: %s", exc)
+
         _initialized = True
         logger.info(
             "OpenTelemetry initialized: service=%s environment=%s endpoint=%s",

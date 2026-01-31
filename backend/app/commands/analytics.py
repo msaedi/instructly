@@ -32,7 +32,7 @@ from sqlalchemy import desc, func
 from app.core.config import settings
 from app.database import get_db
 from app.models.service_catalog import ServiceAnalytics
-from app.tasks.analytics import calculate_analytics
+from app.tasks.enqueue import enqueue_task
 
 # Configure logging
 logging.basicConfig(
@@ -65,7 +65,10 @@ class AnalyticsCommand:
         if async_mode:
             # Run via Celery (async)
             logger.info("Submitting analytics task to Celery queue...")
-            result = calculate_analytics.delay(days_back=days_back)
+            result = enqueue_task(
+                "app.tasks.analytics.calculate_analytics",
+                kwargs={"days_back": days_back},
+            )
 
             # Store task ID for status checking
             self._store_last_run_info(

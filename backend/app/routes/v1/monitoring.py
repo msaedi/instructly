@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from app.repositories.payment_monitoring_repository import PaymentMonitoringRepository
 
 from app.core.config import settings
-from app.core.request_context import with_request_id_header
 from app.database import get_db, get_db_pool_status
 from app.models.booking import PaymentStatus
 from app.monitoring.production_monitor import monitor
@@ -30,6 +29,7 @@ from app.schemas.monitoring_responses import (
     SlowRequestsResponse,
 )
 from app.services.cache_service import get_cache_service
+from app.tasks.enqueue import enqueue_task
 
 router = APIRouter(
     tags=["Monitoring"],
@@ -322,10 +322,8 @@ async def trigger_payment_health_check(
     """
     # datetime already available where needed above; avoid re-import
     try:
-        from app.tasks.payment_tasks import check_authorization_health
-
         # Trigger the task asynchronously
-        task = check_authorization_health.apply_async(headers=with_request_id_header())
+        task = enqueue_task("app.tasks.payment_tasks.check_authorization_health")
 
         return PaymentHealthCheckTriggerResponse(
             status="triggered",

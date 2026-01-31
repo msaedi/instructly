@@ -153,7 +153,7 @@ class TestInstructorReferralFullFlow:
             db, instructor=referred, student=test_student
         )
 
-        with patch("app.tasks.referral_tasks.process_instructor_referral_payout.apply_async"):
+        with patch("app.services.referral_service.enqueue_task"):
             payout_id = referral_service.on_instructor_lesson_completed(
                 instructor_user_id=referred.id,
                 booking_id=booking_id,
@@ -216,7 +216,7 @@ class TestInstructorReferralFullFlow:
         db.add(existing_payout)
         db.flush()
 
-        with patch("app.tasks.referral_tasks.process_instructor_referral_payout.apply_async"):
+        with patch("app.services.referral_service.enqueue_task"):
             result = referral_service.on_instructor_lesson_completed(
                 instructor_user_id=referred.id,
                 booking_id=second_booking_id,

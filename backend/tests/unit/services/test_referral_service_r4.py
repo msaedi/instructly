@@ -445,13 +445,10 @@ def test_instructor_referral_task_queue_failure(referral_service, monkeypatch):
         id="payout-1"
     )
 
-    class FailingTask:
-        def apply_async(self, *_args, **_kwargs):
-            raise RuntimeError("boom")
+    def _fail_enqueue(*_args, **_kwargs):
+        raise RuntimeError("boom")
 
-    monkeypatch.setattr(
-        "app.tasks.referral_tasks.process_instructor_referral_payout", FailingTask()
-    )
+    monkeypatch.setattr("app.services.referral_service.enqueue_task", _fail_enqueue)
 
     result = referral_service.on_instructor_lesson_completed(
         instructor_user_id="inst_1",
@@ -487,13 +484,7 @@ def test_instructor_referral_task_queue_success(referral_service, monkeypatch):
         id="payout-2"
     )
 
-    class HealthyTask:
-        def apply_async(self, *_args, **_kwargs):
-            return None
-
-    monkeypatch.setattr(
-        "app.tasks.referral_tasks.process_instructor_referral_payout", HealthyTask()
-    )
+    monkeypatch.setattr("app.services.referral_service.enqueue_task", lambda *_a, **_k: None)
 
     result = referral_service.on_instructor_lesson_completed(
         instructor_user_id="inst_2",

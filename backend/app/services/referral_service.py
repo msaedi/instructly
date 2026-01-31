@@ -14,7 +14,6 @@ import ulid
 from app.constants.pricing_defaults import PRICING_DEFAULTS
 from app.core.config import resolve_referrals_step
 from app.core.exceptions import RepositoryException, ServiceException
-from app.core.request_context import with_request_id_header
 from app.events.referral_events import (
     emit_first_booking_completed,
     emit_referral_code_issued,
@@ -45,6 +44,7 @@ from app.services.config_service import ConfigService
 from app.services.referral_unlocker import get_last_success_timestamp
 from app.services.referrals_config_service import ReferralsEffectiveConfig, get_effective_config
 from app.tasks.celery_app import celery_app
+from app.tasks.enqueue import enqueue_task
 
 logger = logging.getLogger(__name__)
 
@@ -442,11 +442,9 @@ class ReferralService(BaseService):
 
         if payout_id:
             try:
-                from app.tasks.referral_tasks import process_instructor_referral_payout
-
-                process_instructor_referral_payout.apply_async(
+                enqueue_task(
+                    "app.tasks.referral_tasks.process_instructor_referral_payout",
                     args=(payout_id,),
-                    headers=with_request_id_header(),
                 )
                 logger.info("Queued referral payout task for payout_id=%s", payout_id)
             except Exception as exc:

@@ -30,7 +30,6 @@ import stripe
 from app.core.booking_lock import booking_lock_sync
 from app.core.config import settings
 from app.core.exceptions import ServiceException
-from app.core.request_context import with_request_id_header
 from app.database import get_db
 from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.payment import PaymentEvent
@@ -45,6 +44,7 @@ from app.services.stripe_service import StripeService
 from app.services.student_credit_service import StudentCreditService
 from app.services.timezone_service import TimezoneService
 from app.tasks.celery_app import celery_app
+from app.tasks.enqueue import enqueue_task
 
 P = ParamSpec("P")
 R = TypeVar("R", covariant=True)
@@ -476,10 +476,10 @@ def _process_authorization_for_booking(
 
     if not stripe_result.get("success") and hours_until_lesson < 24:
         try:
-            check_immediate_auth_timeout.apply_async(
-                args=[booking_id],
+            enqueue_task(
+                "app.tasks.payment_tasks.check_immediate_auth_timeout",
+                args=(booking_id,),
                 countdown=30 * 60,
-                headers=with_request_id_header(),
             )
         except Exception:
             logger.debug("Non-fatal error ignored", exc_info=True)

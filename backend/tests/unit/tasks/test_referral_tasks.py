@@ -147,8 +147,8 @@ class TestRetryFailedPayouts:
     """Tests for the retry failed payouts periodic task."""
 
     @patch("app.tasks.referral_tasks.get_db_session")
-    @patch("app.tasks.referral_tasks.process_instructor_referral_payout")
-    def test_retries_recent_failures(self, mock_process_task, mock_db_session):
+    @patch("app.tasks.referral_tasks.enqueue_task")
+    def test_retries_recent_failures(self, mock_enqueue, mock_db_session):
         mock_db = MagicMock()
         mock_db_session.return_value.__enter__.return_value = mock_db
 
@@ -162,13 +162,18 @@ class TestRetryFailedPayouts:
         result = retry_failed_instructor_referral_payouts.run()
 
         assert result["retried"] == 2
-        assert mock_process_task.apply_async.call_count == 2
+        assert mock_enqueue.call_count == 2
+        task_calls = {(call.args[0], call.kwargs.get("args")) for call in mock_enqueue.call_args_list}
+        assert task_calls == {
+            ("app.tasks.referral_tasks.process_instructor_referral_payout", ("payout_1",)),
+            ("app.tasks.referral_tasks.process_instructor_referral_payout", ("payout_2",)),
+        }
         assert mock_payout1.stripe_transfer_status == "pending"
         assert mock_payout1.failed_at is None
 
     @patch("app.tasks.referral_tasks.get_db_session")
-    @patch("app.tasks.referral_tasks.process_instructor_referral_payout")
-    def test_no_failures_to_retry(self, mock_process_task, mock_db_session):
+    @patch("app.tasks.referral_tasks.enqueue_task")
+    def test_no_failures_to_retry(self, mock_enqueue, mock_db_session):
         mock_db = MagicMock()
         mock_db_session.return_value.__enter__.return_value = mock_db
         mock_db.query.return_value.filter.return_value.all.return_value = []
@@ -176,15 +181,15 @@ class TestRetryFailedPayouts:
         result = retry_failed_instructor_referral_payouts.run()
 
         assert result["retried"] == 0
-        mock_process_task.apply_async.assert_not_called()
+        mock_enqueue.assert_not_called()
 
 
 class TestCheckPendingPayouts:
     """Tests for the pending payout safety net task."""
 
     @patch("app.tasks.referral_tasks.get_db_session")
-    @patch("app.tasks.referral_tasks.process_instructor_referral_payout")
-    def test_queues_stale_pending_payouts(self, mock_process_task, mock_db_session):
+    @patch("app.tasks.referral_tasks.enqueue_task")
+    def test_queues_stale_pending_payouts(self, mock_enqueue, mock_db_session):
         mock_db = MagicMock()
         mock_db_session.return_value.__enter__.return_value = mock_db
 
@@ -194,4 +199,7 @@ class TestCheckPendingPayouts:
         result = check_pending_instructor_referral_payouts.run()
 
         assert result["queued"] == 1
-        mock_process_task.apply_async.assert_called_once_with(args=("payout_1",), headers=None)
+        mock_enqueue.assert_called_once_with(
+            "app.tasks.referral_tasks.process_instructor_referral_payout",
+            args=("payout_1",),
+        )
