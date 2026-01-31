@@ -274,14 +274,16 @@ celery_app = create_celery_app()
 # and also via the force imports list in celery_app.conf.imports
 
 
-@signals.celeryd_init.connect
 def _init_sentry_worker(**kwargs: Any) -> None:
     init_sentry()
 
 
-@signals.beat_init.connect
 def _init_sentry_beat(**kwargs: Any) -> None:
     init_sentry()
+
+
+signals.celeryd_init.connect(_init_sentry_worker)
+signals.beat_init.connect(_init_sentry_beat)
 
 
 P = ParamSpec("P")

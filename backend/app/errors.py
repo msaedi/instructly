@@ -63,6 +63,25 @@ def _parse_detail(detail: Any) -> tuple[Optional[str], Optional[str], Optional[A
     return str(detail), None, None
 
 
+def _extract_request_id(request: Request) -> Optional[str]:
+    request_id = getattr(request.state, "request_id", None)
+    if request_id:
+        return str(request_id)
+    header_id = request.headers.get("x-request-id")
+    return str(header_id) if header_id else None
+
+
+def _with_request_id_header(
+    headers: Optional[Dict[str, str]],
+    request_id: Optional[str],
+) -> Optional[Dict[str, str]]:
+    if not request_id:
+        return headers
+    merged = dict(headers or {})
+    merged.setdefault("X-Request-ID", request_id)
+    return merged
+
+
 def register_error_handlers(app: FastAPI) -> None:
     strict_schemas = os.getenv("STRICT_SCHEMAS", "").strip().lower() in {
         "1",
@@ -74,6 +93,7 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        request_id = _extract_request_id(request)
         detail_text, code, errors = _parse_detail(exc.detail)
         override_title: Optional[str] = None
         extras: Dict[str, Any] = {}
@@ -111,6 +131,7 @@ def register_error_handlers(app: FastAPI) -> None:
             detail=detail_text,
             instance=request.url.path,
             code=code,
+            request_id=request_id,
             errors=jsonable_encoder(errors) if errors is not None else None,
         )
         if extras:
@@ -119,13 +140,14 @@ def register_error_handlers(app: FastAPI) -> None:
             problem,
             status_code=exc.status_code,
             media_type=default_media_type,
-            headers=exc.headers,
+            headers=_with_request_id_header(exc.headers, request_id),
         )
 
     @app.exception_handler(StarletteHTTPException)
     async def starlette_http_exception_handler(
         request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
+        request_id = _extract_request_id(request)
         detail_text, code, errors = _parse_detail(exc.detail)
         override_title: Optional[str] = None
         extras: Dict[str, Any] = {}
@@ -154,6 +176,7 @@ def register_error_handlers(app: FastAPI) -> None:
             detail=detail_text,
             instance=request.url.path,
             code=code,
+            request_id=request_id,
             errors=jsonable_encoder(errors) if errors is not None else None,
         )
         if extras:
@@ -162,13 +185,14 @@ def register_error_handlers(app: FastAPI) -> None:
             problem,
             status_code=exc.status_code,
             media_type=default_media_type,
-            headers=exc.headers,
+            headers=_with_request_id_header(exc.headers, request_id),
         )
 
     @app.exception_handler(RequestValidationError)
     async def request_validation_exception_handler(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
+        request_id = _extract_request_id(request)
         if strict_schemas:
             problem = _problem(
                 status=422,
@@ -177,9 +201,15 @@ def register_error_handlers(app: FastAPI) -> None:
                 detail="Request validation failed",
                 instance=request.url.path,
                 code="validation_error",
+                request_id=request_id,
                 errors=jsonable_encoder(exc.errors()),
             )
-            return JSONResponse(problem, status_code=422, media_type=default_media_type)
+            return JSONResponse(
+                problem,
+                status_code=422,
+                media_type=default_media_type,
+                headers=_with_request_id_header(None, request_id),
+            )
         detail_list = jsonable_encoder(exc.errors())
         return JSONResponse(
             content={
@@ -189,14 +219,17 @@ def register_error_handlers(app: FastAPI) -> None:
                 "detail": detail_list,
                 "instance": request.url.path,
                 "code": "validation_error",
+                "request_id": request_id,
                 "errors": detail_list,
             },
             status_code=422,
             media_type="application/json",
+            headers=_with_request_id_header(None, request_id),
         )
 
     @app.exception_handler(ValidationError)
     async def validation_exception_handler(request: Request, exc: ValidationError) -> JSONResponse:
+        request_id = _extract_request_id(request)
         if strict_schemas:
             problem = _problem(
                 status=422,
@@ -205,9 +238,15 @@ def register_error_handlers(app: FastAPI) -> None:
                 detail="Validation failed",
                 instance=request.url.path,
                 code="validation_error",
+                request_id=request_id,
                 errors=jsonable_encoder(exc.errors()),
             )
-            return JSONResponse(problem, status_code=422, media_type=default_media_type)
+            return JSONResponse(
+                problem,
+                status_code=422,
+                media_type=default_media_type,
+                headers=_with_request_id_header(None, request_id),
+            )
         detail_list = jsonable_encoder(exc.errors())
         return JSONResponse(
             content={
@@ -217,18 +256,27 @@ def register_error_handlers(app: FastAPI) -> None:
                 "detail": detail_list,
                 "instance": request.url.path,
                 "code": "validation_error",
+                "request_id": request_id,
                 "errors": detail_list,
             },
             status_code=422,
             media_type="application/json",
+            headers=_with_request_id_header(None, request_id),
         )
 
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        request_id = _extract_request_id(request)
         problem = _problem(
             status=500,
             detail="Internal Server Error",
             instance=request.url.path,
             code="internal_server_error",
+            request_id=request_id,
         )
-        return JSONResponse(problem, status_code=500, media_type=default_media_type)
+        return JSONResponse(
+            problem,
+            status_code=500,
+            media_type=default_media_type,
+            headers=_with_request_id_header(None, request_id),
+        )

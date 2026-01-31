@@ -5,6 +5,7 @@ import type { ErrorInfo, ReactNode } from 'react';
 import { QueryErrorResetBoundary } from '@tanstack/react-query';
 import { isAuthError, isNetworkError } from '@/lib/react-query/api';
 import { ApiError } from '@/lib/http';
+import { formatSupportCode, getSupportCode } from '@/lib/errors/supportCode';
 import { logger } from '@/lib/logger';
 import { IS_DEVELOPMENT } from '@/lib/publicEnv';
 
@@ -54,6 +55,7 @@ function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
   };
 
   const { title, message, action, actionHref } = getErrorDetails();
+  const supportCode = getSupportCode(error);
 
   const handleAction = () => {
     if (actionHref) {
@@ -85,6 +87,12 @@ function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
 
         <h2 className="text-xl font-semibold text-gray-900 mb-2">{title}</h2>
         <p className="text-gray-600 mb-6">{message}</p>
+        {supportCode && (
+          <p className="text-xs text-gray-500 mb-6">
+            If you need help, reference code:{' '}
+            <span className="font-mono text-gray-700">{formatSupportCode(supportCode)}</span>
+          </p>
+        )}
 
         <button
           onClick={handleAction}
