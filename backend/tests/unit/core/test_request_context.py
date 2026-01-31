@@ -56,7 +56,7 @@ def test_logging_filter_injects_request_id() -> None:
     logger.setLevel(logging.INFO)
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
-    handler.setFormatter(logging.Formatter("%(request_id)s %(message)s"))
+    handler.setFormatter(logging.Formatter("%(request_id)s %(otelTraceID)s %(otelSpanID)s %(message)s"))
     handler.addFilter(RequestIdFilter())
     logger.addHandler(handler)
     logger.propagate = False
@@ -71,4 +71,6 @@ def test_logging_filter_injects_request_id() -> None:
 
     lines = stream.getvalue().strip().splitlines()
     assert lines[0].startswith("req-555 ")
+    assert "no-trace" in lines[0]
+    assert "no-span" in lines[0]
     assert lines[1].startswith("no-request ")

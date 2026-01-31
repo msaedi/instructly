@@ -31,6 +31,7 @@ def _problem(
     type_: str = "about:blank",
     code: Optional[str] = None,
     request_id: Optional[str] = None,
+    trace_id: Optional[str] = None,
     errors: Optional[Any] = None,
 ) -> Dict[str, Any]:
     problem: Dict[str, Any] = {
@@ -44,6 +45,8 @@ def _problem(
         problem["code"] = code
     if request_id:
         problem["request_id"] = request_id
+    if trace_id:
+        problem["trace_id"] = trace_id
     if errors is not None:
         problem["errors"] = errors
     return problem
@@ -71,6 +74,16 @@ def _extract_request_id(request: Request) -> Optional[str]:
     return str(header_id) if header_id else None
 
 
+def _extract_trace_id() -> Optional[str]:
+    try:
+        from app.monitoring.otel import get_current_trace_id, is_otel_enabled
+    except Exception:
+        return None
+    if not is_otel_enabled():
+        return None
+    return get_current_trace_id()
+
+
 def _with_request_id_header(
     headers: Optional[Dict[str, str]],
     request_id: Optional[str],
@@ -94,6 +107,7 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
         request_id = _extract_request_id(request)
+        trace_id = _extract_trace_id()
         detail_text, code, errors = _parse_detail(exc.detail)
         override_title: Optional[str] = None
         extras: Dict[str, Any] = {}
@@ -132,6 +146,7 @@ def register_error_handlers(app: FastAPI) -> None:
             instance=request.url.path,
             code=code,
             request_id=request_id,
+            trace_id=trace_id,
             errors=jsonable_encoder(errors) if errors is not None else None,
         )
         if extras:
@@ -148,6 +163,7 @@ def register_error_handlers(app: FastAPI) -> None:
         request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
         request_id = _extract_request_id(request)
+        trace_id = _extract_trace_id()
         detail_text, code, errors = _parse_detail(exc.detail)
         override_title: Optional[str] = None
         extras: Dict[str, Any] = {}
@@ -177,6 +193,7 @@ def register_error_handlers(app: FastAPI) -> None:
             instance=request.url.path,
             code=code,
             request_id=request_id,
+            trace_id=trace_id,
             errors=jsonable_encoder(errors) if errors is not None else None,
         )
         if extras:
@@ -193,6 +210,7 @@ def register_error_handlers(app: FastAPI) -> None:
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
         request_id = _extract_request_id(request)
+        trace_id = _extract_trace_id()
         if strict_schemas:
             problem = _problem(
                 status=422,
@@ -202,6 +220,7 @@ def register_error_handlers(app: FastAPI) -> None:
                 instance=request.url.path,
                 code="validation_error",
                 request_id=request_id,
+                trace_id=trace_id,
                 errors=jsonable_encoder(exc.errors()),
             )
             return JSONResponse(
@@ -220,6 +239,7 @@ def register_error_handlers(app: FastAPI) -> None:
                 "instance": request.url.path,
                 "code": "validation_error",
                 "request_id": request_id,
+                "trace_id": trace_id,
                 "errors": detail_list,
             },
             status_code=422,
@@ -230,6 +250,7 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ValidationError)
     async def validation_exception_handler(request: Request, exc: ValidationError) -> JSONResponse:
         request_id = _extract_request_id(request)
+        trace_id = _extract_trace_id()
         if strict_schemas:
             problem = _problem(
                 status=422,
@@ -239,6 +260,7 @@ def register_error_handlers(app: FastAPI) -> None:
                 instance=request.url.path,
                 code="validation_error",
                 request_id=request_id,
+                trace_id=trace_id,
                 errors=jsonable_encoder(exc.errors()),
             )
             return JSONResponse(
@@ -257,6 +279,7 @@ def register_error_handlers(app: FastAPI) -> None:
                 "instance": request.url.path,
                 "code": "validation_error",
                 "request_id": request_id,
+                "trace_id": trace_id,
                 "errors": detail_list,
             },
             status_code=422,
@@ -267,12 +290,14 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         request_id = _extract_request_id(request)
+        trace_id = _extract_trace_id()
         problem = _problem(
             status=500,
             detail="Internal Server Error",
             instance=request.url.path,
             code="internal_server_error",
             request_id=request_id,
+            trace_id=trace_id,
         )
         return JSONResponse(
             problem,

@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from app import errors
 
 REQUEST_ID = "req-test-123"
+TRACE_ID = "0af7651916cd43dd8448eb211c80319c"
 
 
 def _make_app(monkeypatch, strict: bool) -> FastAPI:
@@ -46,6 +47,11 @@ def _assert_request_id(response) -> None:
     assert response.headers["x-request-id"] == REQUEST_ID
 
 
+def _assert_trace_id(response) -> None:
+    payload = response.json()
+    assert payload["trace_id"] == TRACE_ID
+
+
 def test_http_exception_includes_request_id(monkeypatch) -> None:
     client = TestClient(_make_app(monkeypatch, strict=True))
     response = client.get("/bad-request")
@@ -65,3 +71,15 @@ def test_unhandled_exception_includes_request_id(monkeypatch) -> None:
     response = client.get("/boom")
     assert response.status_code == 500
     _assert_request_id(response)
+
+
+def test_http_exception_includes_trace_id_when_enabled(monkeypatch) -> None:
+    monkeypatch.setattr("app.monitoring.otel.is_otel_enabled", lambda: True)
+    monkeypatch.setattr("app.monitoring.otel.get_current_trace_id", lambda: TRACE_ID)
+
+    client = TestClient(_make_app(monkeypatch, strict=True))
+    response = client.get("/bad-request")
+
+    assert response.status_code == 400
+    _assert_request_id(response)
+    _assert_trace_id(response)

@@ -19,6 +19,7 @@ from starlette.types import ASGIApp
 
 from ..core.constants import SSE_PATH_PREFIX
 from ..core.request_context import reset_request_id, set_request_id
+from ..monitoring.otel import get_current_trace_id, is_otel_enabled
 from ..monitoring.production_monitor import monitor
 
 
@@ -77,6 +78,10 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
             response.headers["X-Correlation-ID"] = correlation_id
             if duration_ms:
                 response.headers["X-Response-Time-MS"] = str(int(duration_ms))
+            if is_otel_enabled():
+                trace_id = get_current_trace_id()
+                if trace_id:
+                    response.headers["X-Trace-ID"] = trace_id
 
             # Add performance metrics to response headers (useful for debugging)
             if hasattr(request.state, "query_count"):

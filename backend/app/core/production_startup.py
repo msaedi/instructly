@@ -73,6 +73,8 @@ class ProductionStartup:
                         "logger": record.name,
                         "message": record.getMessage(),
                         "request_id": getattr(record, "request_id", get_request_id_value()),
+                        "otelTraceID": getattr(record, "otelTraceID", "no-trace"),
+                        "otelSpanID": getattr(record, "otelSpanID", "no-span"),
                     }
                     if hasattr(record, "extra"):
                         log_obj.update(record.extra)

@@ -6,10 +6,19 @@ export class ApiProblemError extends Error {
   readonly problem: Problem;
   readonly response: Response;
   readonly requestId?: string;
+  readonly traceId?: string;
   constructor(problem: Problem, response: Response) {
     super(problem.title || 'API error');
     this.problem = problem;
     this.response = response;
+    const resolvedTraceId =
+      problem.trace_id ||
+      response.headers?.get?.('x-trace-id') ||
+      response.headers?.get?.('X-Trace-ID') ||
+      '';
+    if (resolvedTraceId) {
+      this.traceId = resolvedTraceId;
+    }
     const resolvedRequestId =
       problem.request_id ||
       response.headers?.get?.('x-request-id') ||

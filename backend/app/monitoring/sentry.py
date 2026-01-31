@@ -145,8 +145,8 @@ def init_sentry() -> bool:
         release=_resolve_release(),
         integrations=integrations or None,
         send_default_pii=True,
-        traces_sample_rate=DEFAULT_TRACES_SAMPLE_RATE,
-        traces_sampler=_traces_sampler,
+        traces_sample_rate=0.0,
+        traces_sampler=None,
         profiles_sample_rate=DEFAULT_PROFILES_SAMPLE_RATE,
         enable_logs=True,
     )
@@ -160,6 +160,16 @@ def _extract_request_id(request: Request) -> str | None:
         return str(request_id)
     header_id = request.headers.get("x-request-id")
     return str(header_id) if header_id else None
+
+
+def _extract_otel_trace_id() -> str | None:
+    try:
+        from app.monitoring.otel import get_current_trace_id, is_otel_enabled
+    except Exception:
+        return None
+    if not is_otel_enabled():
+        return None
+    return get_current_trace_id()
 
 
 def _extract_user_context(request: Request) -> tuple[str | None, str | None]:
@@ -182,6 +192,10 @@ def _apply_scope_context(scope: Any, request: Request) -> None:
     if request_id:
         scope.set_tag("request_id", request_id)
 
+    trace_id = _extract_otel_trace_id()
+    if trace_id:
+        scope.set_tag("otel_trace_id", trace_id)
+
     user_id, user_email = _extract_user_context(request)
     if user_id or user_email:
         user_payload: dict[str, str] = {}
@@ -197,6 +211,11 @@ def _apply_event_context(event: dict[str, Any], request: Request) -> dict[str, A
     if request_id:
         tags = event.setdefault("tags", {})
         tags.setdefault("request_id", request_id)
+
+    trace_id = _extract_otel_trace_id()
+    if trace_id:
+        tags = event.setdefault("tags", {})
+        tags.setdefault("otel_trace_id", trace_id)
 
     user_id, user_email = _extract_user_context(request)
     if user_id or user_email:

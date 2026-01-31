@@ -290,7 +290,10 @@ def config_loggers(*args: Any, **kwargs: Any) -> None:
     # Set up basic logging configuration
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - [%(request_id)s] %(message)s",
+        format=(
+            "%(asctime)s - %(name)s - %(levelname)s - [%(request_id)s] "
+            "[trace=%(otelTraceID)s span=%(otelSpanID)s] %(message)s"
+        ),
     )
     attach_request_id_filter()
 
