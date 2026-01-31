@@ -11,7 +11,11 @@ export default function SentryExamplePage() {
     <main style={{ padding: '2rem' }}>
       <h1>Sentry Example Page</h1>
       <p>Click the button below to send a test event to Sentry.</p>
-      <button type="button" onClick={triggerError}>
+      <button
+        type="button"
+        onClick={triggerError}
+        className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+      >
         Trigger Sentry Error
       </button>
     </main>

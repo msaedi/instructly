@@ -15,6 +15,7 @@ module.exports = {
   addBreadcrumb: jest.fn(),
   captureException: jest.fn(),
   captureMessage: jest.fn(),
+  getClient: jest.fn(),
   replayIntegration: jest.fn(() => ({ name: 'Replay' })),
   setUser: jest.fn(),
   withScope: (callback) => callback(mockScope),
