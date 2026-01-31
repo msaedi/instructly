@@ -1,9 +1,9 @@
 # InstaInstru System Capabilities & State
-*Last Updated: December 2025 (Session v121)*
+*Last Updated: January 2026 (Session v129)*
 
-## 🚨 Platform State: 100% COMPLETE + PRODUCTION HARDENED ✅
+## 🚨 Platform State: READY FOR LAUNCH ✅
 
-All core systems operational. Platform ready for beta launch with security audit remaining. Load testing verified (150 users).
+All core systems complete. Platform production-ready with enterprise-grade observability and 95%+ test coverage.
 
 ---
 
@@ -11,18 +11,21 @@ All core systems operational. Platform ready for beta launch with security audit
 
 | Feature | Status | Key Details |
 |---------|--------|-------------|
-| **Search** | ✅ Complete | NL Search with self-learning aliases, 5-tier location, 6-signal ranking (v118-v119) |
-| **Booking** | ✅ Complete | Instant booking, 24hr pre-auth, conflict detection |
-| **Payments** | ✅ Complete | Stripe Connect, saved cards, platform credits |
+| **Search** | ✅ Complete | NL Search, self-learning aliases, inline filters, sorting |
+| **Booking** | ✅ Complete | Instant booking, 24hr pre-auth, location selection |
+| **Payments** | ✅ Complete | Stripe Connect, saved cards, platform credits, tips |
 | **Profile** | ✅ Complete | View instructor profiles, photos, reviews, ratings |
 | **Favorites** | ✅ Complete | Heart icons, optimistic UI, 5-min cache |
 | **Reviews** | ✅ Complete | 5-star ratings, optional text, instructor responses |
 | **Tips** | ✅ Complete | Post-lesson tipping via Stripe |
 | **Addresses** | ✅ Complete | Google Places autocomplete, multiple addresses |
-| **Messaging** | ✅ Complete | Real-time SSE, reactions, typing indicators, archive/trash |
+| **Messaging** | ✅ Complete | Real-time SSE, reactions, typing, archive/trash |
 | **Referrals** | ✅ Complete | "Give $20, Get $20" with fraud detection |
 | **Achievements** | ✅ Complete | 7 badge types, gamification |
-| **Reschedule** | ⚠️ Partial | Basic flow works, needs polish |
+| **Notifications** | ✅ Complete | Multi-channel (email, SMS, push, in-app) |
+| **Location Types** | ✅ Complete | Student/Instructor/Online/Neutral location |
+| **My Lessons** | ✅ Complete | Lesson management with pagination |
+| **Reschedule** | ✅ Complete | Reschedule with LOCK anti-gaming |
 
 ---
 
@@ -33,15 +36,17 @@ All core systems operational. Platform ready for beta launch with security audit
 | **Profile Setup** | ✅ Complete | Photo upload (R2), bio, services, pricing |
 | **Availability** | ✅ Complete | Bitmap-based weekly editing, ETag conflict resolution |
 | **Service Areas** | ✅ Complete | PostGIS maps, neighborhood selection |
+| **Location Capabilities** | ✅ Complete | 3-toggle UI (Travel/Studio/Online) |
 | **Bookings** | ✅ Complete | View, accept (auto), cancel, complete |
-| **Earnings** | ✅ Complete | Stripe Connect payouts, tiered commissions (15→12→10%) |
+| **Earnings** | ✅ Complete | Stripe Connect payouts, tiered commissions |
 | **Messaging** | ✅ Complete | Real-time chat, archive/trash/restore |
 | **Reviews** | ✅ Complete | View ratings, respond to reviews |
 | **Identity** | ✅ Complete | Stripe Identity verification |
 | **Background Checks** | ✅ Complete | Checkr integration, adverse action workflow |
 | **2FA** | ✅ Complete | TOTP authenticator app, backup codes |
-| **Referrals** | ✅ Complete | Earn rewards for student sign-ups |
-| **Founding Status** | ✅ Complete | 8% lifetime fee, search boost, tier immunity (v121) |
+| **Referrals** | ✅ Complete | Earn $75 (founding) or $50 (standard) cash |
+| **Founding Status** | ✅ Complete | 8% lifetime fee, search boost, tier immunity |
+| **Notifications** | ✅ Complete | Preference toggles, phone verification |
 
 ---
 
@@ -49,16 +54,20 @@ All core systems operational. Platform ready for beta launch with security audit
 
 | System | Status | Technology | Key Details |
 |--------|--------|-----------|-------------|
-| **Payments** | ✅ Complete | Stripe Connect | 24hr pre-auth, platform credits, refunds, tips |
+| **Payments** | ✅ Complete | Stripe Connect | 24hr pre-auth, credits, defense-in-depth (v2.1.1) |
 | **Authentication** | ✅ Complete | JWT + RBAC | 30 permissions, 2FA with TOTP |
 | **Rate Limiting** | ✅ Complete | GCRA (Redis) | Shadow mode, triple financial protection |
-| **Search** | ✅ Complete | pg_trgm + pgvector | Typo tolerance, morphology, <50ms |
-| **Spatial** | ✅ Complete | PostGIS | Region boundaries, coverage areas, distance |
+| **Search** | ✅ Complete | pg_trgm + pgvector | Inline filters, sorting, lesson type, near me |
+| **Spatial** | ✅ Complete | PostGIS | Location types, privacy jittering, coverage areas |
 | **Caching** | ✅ Complete | Redis | 80%+ hit rate, ETag versioning |
-| **Email** | ✅ Complete | Resend API | 8 templates, transactional |
+| **Email** | ✅ Complete | Resend API | 8+ templates, transactional |
+| **SMS** | ✅ Complete | Twilio | Verification, notifications, rate limiting |
+| **Push** | ✅ Complete | Web Push API | VAPID keys, subscription management |
 | **Background Jobs** | ✅ Complete | Celery + Beat | Analytics, retention, scheduled tasks |
-| **Monitoring** | ✅ Complete | Prometheus | Performance, slow queries, Redis metrics |
+| **Observability** | ✅ Complete | Sentry | Error tracking, performance, session replay |
+| **Metrics** | ✅ Complete | Prometheus | Dashboards, alerting, semantic queries |
 | **Asset Storage** | ✅ Complete | Cloudflare R2 | Private profiles, image optimization |
+| **MCP Admin** | ✅ Complete | FastMCP | 36 tools, OAuth2 M2M, AI-powered ops |
 
 ---
 
@@ -66,12 +75,14 @@ All core systems operational. Platform ready for beta launch with security audit
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Platform Fee** | ✅ Complete | 22-27% (varies by service type) |
+| **Platform Fee** | ✅ Complete | Student: 12% booking fee; Instructor: 8-15% commission (varies by tier, not service type) |
 | **Instructor Commission** | ✅ Complete | Tiered: 15% → 12% → 10% (based on volume) |
+| **Founding Bonus** | ✅ Complete | 8% lifetime fee for founding instructors |
 | **Price Floors** | ✅ Complete | $80 in-person, $60 remote (dynamic by category) |
-| **Pre-Authorization** | ✅ Complete | Authorize T-24hr, capture T+24hr, auto-refund if fails |
-| **Platform Credits** | ✅ Complete | Apply at checkout, track balances, auto-top-ups |
-| **Referral Program** | ✅ Complete | Give $20, Get $20 with fraud detection |
+| **Pre-Authorization** | ✅ Complete | Authorize T-24hr, capture T+24hr |
+| **Platform Credits** | ✅ Complete | Apply at checkout, track balances |
+| **Student Referrals** | ✅ Complete | Give $20, Get $20 with fraud detection |
+| **Instructor Referrals** | ✅ Complete | $75 founding / $50 standard cash payouts |
 | **Tipping** | ✅ Complete | Post-lesson optional tips (100% to instructor) |
 
 ---
@@ -81,19 +92,25 @@ All core systems operational. Platform ready for beta launch with security audit
 ### Backend (Grade: A+)
 - **Repository Pattern**: 100% (17+ repositories)
 - **Service Layer**: 16+ services, 8.5/10 avg quality
-- **Test Coverage**: 3,090+ tests, 100% pass rate
-- **API**: ALL 235 endpoints under `/api/v1/*` (v121)
+- **Test Coverage**: 95.45% (2,516+ tests, CI locked)
+- **API**: ALL 333 endpoints under `/api/v1/*`
 - **Type Safety**: mypy strict ~95%
 - **Performance**: <100ms response times
-- **Load Tested**: 150 concurrent users (v120)
+- **Load Tested**: 150 concurrent users
 - **Database**: 3-tier safety (INT/STG/PROD)
 
 ### Frontend (Grade: A)
 - **TypeScript**: Strictest config, 0 errors
 - **Architecture**: Service-first (270+ services)
 - **Caching**: React Query (5min-1hr TTLs)
-- **Testing**: 483+ tests, E2E coverage
+- **Test Coverage**: 95.08% (8,806+ tests)
 - **Type Safety**: API contract enforcement
+
+### MCP Server (Grade: A+)
+- **Tools**: 36 across 11 modules
+- **Auth**: OAuth2 M2M (WorkOS JWT)
+- **Test Coverage**: 100% (163+ tests)
+- **Observability**: Sentry integrated
 
 ---
 
@@ -101,31 +118,33 @@ All core systems operational. Platform ready for beta launch with security audit
 
 | Metric | Value |
 |--------|-------|
-| **Tests** | 3,090+ (100% passing) |
-| **API Endpoints** | 235 (all `/api/v1/*`) |
+| **Total Tests** | 11,485+ (100% passing) |
+| **Backend Coverage** | 95.45% (CI locked) |
+| **Frontend Coverage** | 95.08% |
+| **MCP Coverage** | 100% |
+| **API Endpoints** | 333 (all `/api/v1/*`) |
+| **MCP Tools** | 36 |
 | **Load Capacity** | 150 concurrent users |
 | **Response Time** | <100ms average |
 | **Cache Hit Rate** | 80%+ |
-| **Infrastructure Cost** | $53/month |
-| **Repositories** | 17+ (100% pattern compliance) |
-| **Services** | 16+ backend, 270+ frontend |
+| **Infrastructure Cost** | $60/month |
 
 ---
 
 ## 🚀 Pre-Launch Security Status
 
-| Task | Status | Details |
-|------|--------|---------|
-| **Load Testing** | ✅ Complete | 150 concurrent users verified (v120) |
-| **Dependency Auditing** | ✅ Complete | pip-audit, npm audit in every CI run |
-| **Static Analysis (SAST)** | ✅ Complete | Bandit scans in CI |
-| **API Fuzzing** | ✅ Complete | Schemathesis runs daily against preview/beta |
-| **Runtime Verification** | ✅ Complete | env-contract workflow verifies headers, CORS, rate limiting |
-| **Privacy Audit** | ✅ Complete | Automated in CI |
-| **OWASP ZAP Scan** | ✅ Complete | Weekly automated scans |
-| **Dependabot** | ✅ Complete | Auto-PRs for dependency updates |
-| **Security Headers** | ✅ Complete | HSTS, CSP, X-Content-Type-Options |
-| **Beta Smoke Test** | 🟡 Ready | Manual verification of critical flows |
+| Task | Status |
+|------|--------|
+| **Load Testing** | ✅ Complete (150 concurrent users) |
+| **Dependency Auditing** | ✅ Complete (pip-audit, npm audit) |
+| **Static Analysis (SAST)** | ✅ Complete (Bandit, 0 issues) |
+| **API Fuzzing** | ✅ Complete (Schemathesis daily) |
+| **Runtime Verification** | ✅ Complete (env-contract workflow) |
+| **OWASP ZAP Scan** | ✅ Complete (weekly automated) |
+| **Dependabot** | ✅ Complete (auto-PRs) |
+| **Full-Stack Observability** | ✅ Complete (Sentry) |
+| **Test Coverage 95%+** | ✅ Complete (CI enforced) |
+| **Beta Smoke Test** | 🟡 Ready |
 
 ---
 
@@ -141,18 +160,8 @@ All core systems operational. Platform ready for beta launch with security audit
 | **HTTPS** | HTTPSRedirectMiddleware + HSTS (1 year, preload) |
 | **Security Headers** | X-Content-Type-Options, CSP, X-Frame-Options |
 | **Input Validation** | Pydantic v2 strict mode |
-| **Secrets** | Environment-based, SecretStr for sensitive values |
-
----
-
-## 🐛 Known Issues
-
-### Critical
-- None
-
-### Minor
-- Reschedule flow needs polish
-- Some mobile optimization needed
+| **Token Comparison** | Timing-safe (`secrets.compare_digest`) |
+| **M2M Auth** | OAuth2 JWT via WorkOS (MCP) |
 
 ---
 
@@ -166,10 +175,10 @@ All core systems operational. Platform ready for beta launch with security audit
 4. **24hr Pre-Authorization** - Reduce chargeback risk
 5. **Per-User Conversation State** - Independent archive/trash
 6. **GCRA Rate Limiting** - Consistent, observable protection
-7. **API v1 Single Rule** - ALL routes under `/api/v1/*` (v121)
+7. **API v1 Single Rule** - ALL routes under `/api/v1/*`
 8. **Repository Pattern** - 100% enforced via pre-commit hooks
 9. **Database Safety** - 3-tier with INT default
-10. **Schema-Owned Privacy** - Context-aware data visibility
-11. **NL Search Hybrid Parsing** - Regex + LLM for complex queries (v118)
-12. **Advisory Locks** - Founding cap atomicity (v121)
-13. **Shared Origin Validation** - Security-critical single implementation (v121)
+10. **Location Types** - 4 canonical types with privacy jittering (v127)
+11. **Defense-in-Depth Payments** - Redis mutex + row locks (v123)
+12. **OAuth2 M2M Auth** - Principal-based for MCP (v128)
+13. **Full-Stack Observability** - Sentry across all components (v129)

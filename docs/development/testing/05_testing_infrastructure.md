@@ -1,5 +1,5 @@
 # InstaInstru Testing Infrastructure
-*Last Updated: December 2025 (Session v121)*
+*Last Updated: January 2026 (Session v129)*
 
 ## 🧪 Testing Framework & Tools
 
@@ -12,57 +12,73 @@
 - **Mocking**: unittest.mock (with global email mocking)
 - **Database**: PostgreSQL (same as production) for tests
 - **Fixtures**: Comprehensive conftest.py
-- **CI/CD Integration**: Pre-commit hooks + GitHub Actions
+- **CI/CD Integration**: Pre-commit hooks + GitHub Actions + Codecov
 
 ### Frontend Testing Stack
-- **Framework**: Jest
+- **Framework**: Jest 30.2.0
 - **Component Testing**: React Testing Library
-- **E2E Testing**: Playwright (COMPLETE)
+- **E2E Testing**: Playwright (Complete)
+- **Coverage**: Jest coverage with threshold enforcement
+
+### MCP Server Testing Stack
+- **Framework**: pytest
+- **Coverage**: 100% enforced
+- **Auth Testing**: Full OAuth2 M2M flow testing
 
 ## 📊 Current Test Status
 
-### Test Metrics (v118-v121)
-- **Total Tests**: 3,090+ (Frontend: 483+, Backend: 2,607+)
-- **Pass Rate**: 100%
-- **Code Coverage**: 79%+
-- **CI/CD**: Fully operational with PostgreSQL 17 + Redis 7
-- **Contract Testing**: Schemathesis tests
-- **Load Testing**: Locust infrastructure (v120)
-- **Recent Additions**:
-  - v121: URL validation (21), founding cap race (5), registration (4), Stripe idempotency
-  - v120: Load testing infrastructure (Locust)
-  - v119: NL Search production tests
-  - v118: NL Search 306 tests (10 phases)
-  - v117: Messaging state management (25)
+### Test Metrics (v129)
 
-### Coverage by Priority
+| Stack | Tests | Coverage | CI Threshold |
+|-------|-------|----------|--------------|
+| **Backend** | 2,516+ | 95.45% | 95% (locked) |
+| **Frontend** | 8,806+ | 95.08% | 92% |
+| **MCP Server** | 163+ | 100% | 100% |
+| **Total** | **11,485+** | 95%+ | CI enforced |
 
-#### Excellent Coverage (95%+)
-- ConflictChecker: 99%
-- BaseService: 98%
-- SlotManager: 97%
-- BookingService: 97%
-- BulkOperationService: 95%
+**Pass Rate**: 100%
 
-#### Medium Coverage (60-79%)
-- AvailabilityService: 63%
-- NotificationService: 69%
-- Auth Dependencies: 64%
+### Coverage by Domain (Backend)
 
-#### Low Coverage (<60%)
-- Repositories: 36-54% (normal for abstraction layers)
-- CacheService: 45%
-- Routes: 27-38% (covered by integration tests)
+| Domain | Coverage |
+|--------|----------|
+| **Payments** | 98%+ |
+| **Referrals** | 99.18% |
+| **Notifications** | 97%+ |
+| **Search** | 95%+ |
+| **Booking** | 97%+ |
+| **Instructors** | 96%+ |
+| **Admin/Workflow** | 98%+ |
+| **Schemas** | 95%+ |
+
+### Coverage Evolution
+
+| Session | Backend | Frontend | Total Tests |
+|---------|---------|----------|-------------|
+| v121 | 79% | ~45% | 3,090 |
+| v126 | 92% | 92% | 11,254 |
+| v129 | **95.45%** | **95.08%** | **11,485+** |
 
 ## 🔧 Test Configuration
 
-### Database Setup
+### Backend (pytest.ini)
 ```python
-# Test database with transaction isolation
-test_engine = create_engine(
-    settings.test_database_url,  # NOT production URL!
-    poolclass=None,  # Disable pooling for tests
-)
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"  # Prevents basename collisions
+testpaths = ["tests"]
+asyncio_mode = "auto"
+```
+
+### Frontend (jest.config.js)
+```javascript
+coverageThreshold: {
+  global: {
+    statements: 92,
+    branches: 80,
+    functions: 92,
+    lines: 92,
+  },
+}
 ```
 
 ### Core Fixtures (conftest.py)
@@ -88,12 +104,18 @@ backend/tests/
 │   └── services/                  # Service integration tests
 ├── routes/                        # Route tests
 ├── models/                        # Model tests
-└── repositories/                  # Repository tests
+├── repositories/                  # Repository tests
+└── ratelimit/                     # Rate limiter tests
+
+mcp-server/tests/
+├── test_auth_middleware.py        # 45+ auth tests
+├── test_*.py                      # Tool-specific tests
+└── conftest.py                    # MCP fixtures
 ```
 
 ## 🛠️ Test Commands
 
-### Basic Execution
+### Backend
 ```bash
 pytest                           # All tests
 pytest -v                        # Verbose output
@@ -101,21 +123,50 @@ pytest -m unit                   # Unit tests only
 pytest -m integration            # Integration tests
 pytest tests/test_file.py        # Single file
 pytest -k "test_name"           # Single test
-```
-
-### Coverage
-```bash
 pytest --cov=app --cov-report=term-missing
-pytest --cov=app --cov-report=html
-pytest --cov=app --cov-fail-under=79
+pytest --cov=app --cov-fail-under=95  # CI threshold
 ```
 
-### Debugging
+### Frontend
 ```bash
-pytest -x                        # Stop on first failure
-pytest -s                        # Show print statements
-pytest --tb=long                 # Full traceback
-pytest --pdb                     # Drop into debugger
+npm test                         # All tests
+npm run test:coverage            # With coverage
+npm run test:e2e                 # Playwright E2E
+```
+
+### MCP Server
+```bash
+cd mcp-server
+pytest tests/ -v
+pytest --cov=src --cov-report=xml
+```
+
+## 📈 CI/CD Configuration
+
+### Backend (GitHub Actions)
+```yaml
+pytest tests/ --cov=app --cov-report=xml --cov-fail-under=95
+```
+
+### Frontend
+```yaml
+npm run test:coverage
+```
+
+### Codecov Multi-Project
+```yaml
+# Separate uploads for backend + MCP server
+- name: Upload backend coverage
+  uses: codecov/codecov-action@v5
+  with:
+    flags: backend
+    file: backend/coverage.xml
+
+- name: Upload MCP coverage
+  uses: codecov/codecov-action@v5
+  with:
+    flags: mcp
+    file: mcp-server/coverage.xml
 ```
 
 ## 🔍 Common Test Patterns
@@ -138,42 +189,24 @@ from tests.fixtures.unique_test_data import unique_data
 email = unique_data.unique_email("instructor")  # instructor.abc123@example.com
 ```
 
-### Common Fixes for Test Failures
-- **Missing specific_date**: Use `specific_date=target_date` not `date=`
-- **Import errors**: `BaseRepositoryService` → `BaseService`
-- **Method renames**: `get_booked_slots_for_date` → `get_booked_times_for_date`
+### Timing-Safe Tests
+```python
+# Avoid cross-midnight flakiness
+from datetime import datetime, timedelta
+future_date = datetime.now() + timedelta(days=7)  # Always in future
+```
 
-## 📈 Testing Best Practices
+## 🎯 Testing Goals (Achieved)
 
-### Unit Tests
-- Mock all dependencies
-- Test business logic only
-- Use repository mocks, not database
-
-### Integration Tests
-- Use real database with transactions
-- Test complete workflows
-- Verify side effects (cache, notifications)
-
-### Test Data
-- Use UUID-based unique data generation
-- Never hardcode IDs or emails
-- Clean up after tests
-
-## 🎯 Testing Goals
-
-### Current State (v121)
 - ✅ 100% test pass rate
-- ✅ 3,090+ comprehensive tests
+- ✅ 11,485+ comprehensive tests
+- ✅ 95%+ coverage (CI enforced)
 - ✅ CI/CD fully operational
 - ✅ Repository pattern testing complete
-- ✅ NL Search fully tested (306 tests)
-- ✅ Load testing complete (150 users verified)
-
-### Target State
-- Maintain 100% pass rate
-- Increase coverage to 85%+
-- Security testing (OWASP)
+- ✅ NL Search fully tested
+- ✅ Load testing complete (150 users)
+- ✅ MCP server 100% covered
+- ✅ Codecov multi-project reporting
 
 ## 🚨 Critical Notes
 
@@ -181,3 +214,5 @@ email = unique_data.unique_email("instructor")  # instructor.abc123@example.com
 2. **Email Mocking**: All emails mocked globally (won't send real emails)
 3. **Cache Mocking**: Redis auto-mocked in tests
 4. **CI Database**: Custom image with PostGIS + pgvector required
+5. **Import Mode**: `--import-mode=importlib` prevents basename collisions
+6. **Coverage Carryforward**: Codecov tracks partial runs accurately

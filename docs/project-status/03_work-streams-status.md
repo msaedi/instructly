@@ -1,66 +1,59 @@
 # InstaInstru Work Streams Status
-*Last Updated: December 2025 (Session v121)*
+*Last Updated: January 2026 (Session v129)*
 
-## Platform Status: 100% COMPLETE + SECURITY HARDENED
+## Platform Status: READY FOR LAUNCH ✅
 
-All major work streams complete. Security automation in place. Platform ready for beta launch.
-
-## Recently Completed (v118-v121)
-
-| Work Stream | Session | Key Achievement |
-|-------------|---------|-----------------|
-| **Founding Instructor System** | v121 | 8% lifetime fee, cap enforcement, badge |
-| **Legacy Route Cleanup** | v121 | ~14K LOC removed, single `/api/v1/*` rule |
-| **Payment System Audit** | v121 | Race conditions fixed, origin validation |
-| **Migration Reorganization** | v121 | Kitchen-sink split into domain files |
-| **Load Testing** | v120 | 150 users verified, production hardening |
-| **Admin Dashboard Enhancements** | v120 | Pipeline timeline, runtime config |
-| **NL Search Production Ready** | v119 | Self-learning aliases, admin UI |
-| **NL Search Complete** | v118 | 306 tests, 10-phase implementation |
-| **Messaging Enhancement** | v117 | Archive/trash management |
-| **API v1 Migration** | v116 | 100+ endpoints versioned |
-
-## Pre-Launch Requirements
-
-| Task | Status | Notes |
-|------|--------|-------|
-| **Load Testing** | ✅ Complete | 150 concurrent users verified (v120) |
-| **Security Automation** | ✅ Complete | Bandit, pip-audit, npm audit, Schemathesis, ZAP, Dependabot |
-| **Beta Smoke Test** | 🟡 Ready | Final manual verification |
-
-## Current Priorities
-
-1. **Beta Smoke Test** - Manual verification of critical flows
-2. **Instructor Profile Page** - Critical for booking flow
-3. **My Lessons Tab** - Student lesson management
-4. **Beta Launch** - Ready after smoke test
+All development work streams complete. Platform production-ready with enterprise-grade quality.
 
 ## Platform Metrics
 
 | Metric | Value |
 |--------|-------|
-| **Tests** | 3,090+ (100% passing) |
-| **API Endpoints** | 235 (all `/api/v1/*`) |
+| **Total Tests** | 11,485+ (100% passing) |
+| **Backend Coverage** | 95.45% (CI locked) |
+| **Frontend Coverage** | 95.08% |
+| **MCP Coverage** | 100% |
+| **API Endpoints** | 333 (all `/api/v1/*`) |
+| **MCP Tools** | 36 across 11 modules |
 | **Load Capacity** | 150 concurrent users |
-| **Response Time** | <100ms average |
-| **Cache Hit Rate** | 80%+ |
-| **Infrastructure** | $53/month |
+| **Infrastructure** | $60/month |
 
-## Completed Systems (Cumulative)
+## Completed Systems (v117-v129)
 
-All core systems operational:
+All core systems operational and production-tested:
 
-- **NL Search** - Semantic search with self-learning (v118-v119)
-- **Payments** - Stripe Connect, 24hr pre-auth, credits, tips
-- **Reviews** - 5-star ratings, text reviews, responses
-- **Referrals** - Give $20/Get $20, fraud detection
-- **Achievements** - 7 badge types, gamification
-- **Background Checks** - Checkr integration
-- **2FA** - TOTP + backup codes
-- **Rate Limiting** - GCRA with runtime config
-- **Messaging** - Real-time SSE, archive/trash
-- **Availability** - Bitmap-based scheduling
-- **Founding Instructors** - Lifetime benefits (v121)
+| System | Session | Key Achievement |
+|--------|---------|-----------------|
+| **MCP Admin Copilot** | v128-v129 | 36 AI tools, OAuth2 M2M auth, 100% coverage |
+| **Full-Stack Observability** | v129 | Sentry integration (Backend, Frontend, MCP, Celery) |
+| **Test Coverage 95%+** | v126-v129 | 11,485+ tests, CI enforcement |
+| **Location System** | v127 | 4 canonical types, privacy protection, service areas |
+| **Inline Search Filters** | v127 | Zocdoc-style dropdowns, sorting, infinite scroll |
+| **Notifications** | v125 | Email, SMS, push, in-app, phone verification |
+| **Instructor Referrals** | v124 | $75/$50 cash payouts via Stripe Transfer |
+| **Payment Policy v2.1.1** | v123 | 12 phases, defense-in-depth protection |
+| **Cache Invalidation** | v122 | 5 bugs fixed, 16 regression tests |
+| **NL Search Enhanced** | v122 | Lesson type + "near me" filters |
+| **Founding Instructor** | v121 | 8% lifetime fee, cap enforcement |
+| **Load Testing** | v120 | 150 users verified, production hardening |
+| **NL Search Complete** | v118-v119 | Self-learning aliases, 5-tier location |
+| **Messaging** | v117 | Archive/trash with auto-restore |
+| **Payments** | Complete | Stripe Connect, 24hr pre-auth, credits, tips |
+| **Reviews** | Complete | 5-star ratings, instructor responses |
+| **Background Checks** | Complete | Checkr integration, adverse action |
+| **2FA** | Complete | TOTP + backup codes |
+| **Rate Limiting** | Complete | GCRA with runtime config |
+| **Achievements** | Complete | 7 badge types, gamification |
+
+## Pre-Launch Checklist
+
+| Task | Status |
+|------|--------|
+| Load Testing | ✅ Complete |
+| Security Automation | ✅ Complete |
+| Test Coverage 95%+ | ✅ Complete |
+| Full-Stack Observability | ✅ Complete |
+| Beta Smoke Test | 🟡 Ready |
 
 ## Post-MVP (Future)
 

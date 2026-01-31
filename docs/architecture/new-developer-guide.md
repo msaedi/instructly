@@ -70,7 +70,7 @@ InstaInstru follows **Clean Architecture** principles with clear separation of c
 - **Alembic** - Database migrations
 
 ### Frontend
-- **Next.js 15** - React framework with App Router
+- **Next.js 16** - React framework with App Router
 - **TypeScript** - Type safety
 - **Tailwind CSS v4** - Styling
 - **React Query (TanStack Query v5)** - Data fetching and caching

@@ -1,16 +1,16 @@
 # InstaInstru Architecture State
-*Last Updated: December 2025 (Session v121)*
+*Last Updated: January 2026 (Session v129)*
 
 ## 🗏 Service Layer Architecture (100% COMPLETE)
 
 Service layer fully implemented with complete separation of concerns. All routes use services for business logic, all services use repositories for data access.
 
 ### Service Excellence Metrics
-- **16 services** at 8.5/10 average quality
+- **16+ services** at 8.5/10 average quality
 - **All singletons eliminated** - 100% dependency injection
-- **98 performance metrics** added (79% coverage)
+- **98 performance metrics** added
 - **All methods under 50 lines**
-- **Test coverage**: 79%
+- **Test coverage**: 95.45% (CI locked)
 
 ### Service Directory Structure
 ```
@@ -36,6 +36,53 @@ backend/app/services/
 3. **Business Logic**: Routes only handle HTTP, services handle logic
 4. **Performance Monitoring**: @measure_operation decorator, slow query detection
 
+## 🤖 MCP Admin Copilot (v128-v129)
+
+AI-powered admin interface for natural language operations through LLM clients.
+
+### MCP Server Architecture
+| Property | Value |
+|----------|-------|
+| **Total Tools** | 36 |
+| **Modules** | 11 |
+| **Auth** | OAuth2 M2M (WorkOS JWT) + static token fallback |
+| **Framework** | FastMCP 2.14.3+ |
+| **Transport** | Streamable HTTP with JSON responses |
+| **Test Coverage** | 100% (163+ tests) |
+
+### Tool Modules
+| Module | Tools | Purpose |
+|--------|-------|---------|
+| **Celery Monitoring** | 7 | Worker status, queue depth, failed tasks, payment health |
+| **Grafana Observability** | 8 | PromQL queries, dashboards, alerts, silences |
+| **Sentry Tracking** | 4 | Top issues, issue details, event lookup, debug |
+| **Admin Operations** | 6 | Bookings, payments pipeline, user lookup |
+| **Service Catalog** | 2 | Services list, service lookup |
+| **Instructor Mgmt** | 3 | List, coverage, detail |
+| **Founding Funnel** | 2 | Funnel summary, stuck instructors |
+| **Invite Management** | 4 | Preview, send, confirmation workflow |
+| **Search Analytics** | 2 | Top queries, zero-result gaps |
+| **Metrics Dictionary** | 1 | 50+ metric definitions with PromQL |
+
+### Semantic Metrics Layer
+Natural language metric queries via `instainstru_metrics_query`:
+- "p99 latency" → `histogram_quantile(0.99, ...)`
+- "error rate" → 5xx / total
+- "slowest endpoints" → `topk(10, histogram_quantile(...))`
+
+## 📊 Full-Stack Observability (v129)
+
+### Sentry Integration
+| Component | Integration | Key Features |
+|-----------|-------------|--------------|
+| **Backend** | `sentry-sdk[fastapi]` | Performance monitoring, transaction tracing |
+| **Frontend** | `@sentry/nextjs` | Session replay, error boundaries |
+| **MCP Server** | `MCPIntegration()` | Error tracking with git SHA releases |
+| **Celery Beat** | Sentry Crons | Periodic task monitoring |
+
+### Monitoring Tunnel
+Frontend `/monitoring` route bypasses ad blockers for client-side error reporting.
+
 ## 🗄️ Repository Layer (100% COMPLETE)
 
 Repository Pattern fully implemented across all services with pre-commit enforcement.
@@ -56,10 +103,10 @@ Repository Pattern fully implemented across all services with pre-commit enforce
 - FavoritesRepository (Student favorites)
 - ConversationStateRepository (Messaging archive/trash management)
 - MessageRepository (Message persistence with delivered_at/read_by)
-- RetrieverRepository (NL Search vector + text SQL, v118)
-- FilterRepository (PostGIS + availability filtering, v118)
-- RankingRepository (Instructor metrics, v118)
-- SearchAnalyticsRepository (Query tracking, v118)
+- RetrieverRepository (NL Search vector + text SQL)
+- FilterRepository (PostGIS + availability filtering)
+- RankingRepository (Instructor metrics)
+- SearchAnalyticsRepository (Query tracking)
 
 ## 🎨 Frontend Architecture (SERVICE-FIRST COMPLETE)
 
@@ -116,13 +163,12 @@ export const availabilityService = {
 
 ## 📌 API Architecture
 
-### API Versioning (v121: Single Rule Achieved)
+### API Versioning (Single Rule)
 **ALL routes under `/api/v1/*`** - No exceptions (except /docs, /redoc, /openapi.json).
 
-- **235 endpoints** total
-- **~14,000 LOC legacy code removed** (v121)
-- **36 dead route files deleted**
-- Infrastructure routes also migrated: `/api/v1/health`, `/api/v1/ready`, `/api/v1/metrics/*`
+- **333 endpoints** total
+- Infrastructure routes: `/api/v1/health`, `/api/v1/ready`, `/api/v1/metrics/*`
+- Contract testing enforces OpenAPI compliance
 
 ### Route Organization (v121)
 ```
@@ -161,6 +207,30 @@ Response Model (Pydantic)
 Client Response
 ```
 
+## 🗺️ Location System (v127)
+
+### Canonical Location Types
+```
+student_location    - Instructor travels to student
+instructor_location - Student goes to instructor's studio
+online              - Virtual lesson
+neutral_location    - Meet at neutral location (park, library, etc.)
+```
+
+### Privacy Protection
+- `jitter_coordinates()` adds 25-50m random offset using `secrets.SystemRandom()`
+- Teaching locations expose only `approx_lat`, `approx_lng`, `neighborhood`
+- Exact addresses never exposed in public APIs
+
+### Instructor Capabilities
+- `offers_travel` - Instructor travels to student locations
+- `offers_at_location` - Instructor teaches at their studio
+- `offers_online` - Instructor offers virtual lessons
+
+### Service Area Validation
+- PostGIS `ST_Covers` validates student location within instructor coverage
+- Bulk coverage check endpoint with HTTP caching
+
 ## 🛏 Architectural Patterns
 
 ### Implemented Patterns
@@ -172,19 +242,23 @@ Client Response
 6. **Layer Independence** - Availability and bookings separate
 7. **Dependency Injection** - No global instances
 8. **Service-First Frontend** - 270+ services
-9. **Hybrid NL Search** - Regex fast-path + LLM for complex queries (v118)
-10. **Request Budget** - Progressive degradation under load (v120)
-11. **Advisory Locks** - Founding cap atomicity (v121)
+9. **Hybrid NL Search** - Regex fast-path + LLM for complex queries
+10. **Request Budget** - Progressive degradation under load
+11. **Advisory Locks** - Founding cap atomicity
+12. **Defense-in-Depth Payments** - Redis mutex + PostgreSQL row locks (v123)
+13. **Principal-Based Auth** - User and Service principals for MCP (v128)
 
 ## 🔐 Security & Privacy
 
 ### Security Implementation
-- **bcrypt** password hashing
+- **Argon2id** password hashing (OWASP-recommended)
 - **JWT authentication** with RBAC (30 permissions)
 - **Pydantic validation** on all inputs
-- **Rate limiting** across endpoints
+- **GCRA rate limiting** across endpoints
 - **SSL/HTTPS** in production
 - **Database safety** - 3-tier protection (INT/STG/PROD)
+- **Timing-safe comparisons** for tokens (`secrets.compare_digest`)
+- **OAuth2 M2M** for service-to-service auth (MCP)
 
 ### Privacy Framework
 - **GDPR compliance** with data export
@@ -210,7 +284,7 @@ Client Response
 - **Per-OpenAI semaphore** - Fast queries never blocked
 
 ### Infrastructure
-- **Backend**: Render ($53/month total)
+- **Backend**: Render ($60/month total)
 - **Frontend**: Vercel (Preview + Beta)
 - **Database**: Supabase PostgreSQL
 - **Cache**: Redis
@@ -244,24 +318,36 @@ Client Response
 - Caching Strategy ✅
 - Authentication/RBAC ✅
 - Error Handling ✅
-- Test Infrastructure ✅ (3,090+ tests)
+- Test Infrastructure ✅ (2,516+ tests, 95.45% coverage)
 - Performance Monitoring ✅
-- Load Tested ✅ (150 users, v120)
+- Load Tested ✅ (150 users)
+- Full-Stack Observability ✅ (Sentry)
 
 ### Frontend: A Grade
 - TypeScript Strictest Config ✅ (0 errors)
 - Service-First Architecture (270+ services) ✅
 - React Query Integration ✅
-- Natural Language Search ✅ (self-learning, v119)
+- Natural Language Search ✅ (self-learning)
 - API Contract Enforcement ✅
+- Test Coverage ✅ (8,806+ tests, 95.08% coverage)
+
+### MCP Server: A+ Grade
+- OAuth2 M2M Authentication ✅
+- Principal-Based Authorization ✅
+- 36 Tools Across 11 Modules ✅
+- 100% Test Coverage ✅ (163+ tests)
+- Semantic Metrics Layer ✅
 
 ## 🏗️ Domain-Specific Architectures
 
-### Payments (Stripe Connect)
+### Payments (Stripe Connect) - Policy v2.1.1 (v123)
 - **Pre-Authorization**: Authorize T-24hr, capture T+24hr
 - **Platform Credits**: Auto-apply at checkout, balance tracking
 - **Tiered Commissions**: 15% → 12% → 10% based on volume
-- **Idempotency**: Request ID tracking for financial operations
+- **Defense-in-Depth**: Redis mutex + PostgreSQL row locks
+- **LOCK Mechanism**: 12-24h reschedule triggers anti-gaming protection
+- **Credit Double-Spend**: SELECT FOR UPDATE + idempotency check
+- **Checkout Race**: Fresh read after payment, cancel detection
 
 ### Rate Limiting (GCRA Algorithm)
 - **Identity Chain**: User ID → IP fallback
@@ -270,30 +356,44 @@ Client Response
 - **Shadow Mode**: Observe before enforce
 
 ### Referral System
-- **Give $20/Get $20**: Student and referrer both get credits
-- **Fraud Detection**: Device fingerprinting, household limits
+- **Student Referrals**: Give $20/Get $20 platform credits
+- **Instructor Referrals**: $75 founding / $50 standard cash via Stripe Transfer (v124)
+- **Fraud Detection**: Device fingerprinting, household limits, self-referral prevention
 - **Attribution**: First-touch, email/phone verification
+
+### Notifications (v125)
+- **Multi-Channel**: Email (Resend), SMS (Twilio), Push (Web Push API), In-App (SSE)
+- **User Preferences**: Per-category toggles (6 categories), per-channel control
+- **Security Bypass**: Critical security notifications ignore preferences
+- **Phone Verification**: 6-digit codes, rate limiting, brute-force protection
 
 ### Achievements (Gamification)
 - **7 Badge Types**: Milestones, habits, excellence, verified
 - **Event-Driven**: Trigger-based awarding on booking/review events
 - **Hold Mechanism**: Quality badges require admin approval
 
-### NL Search (v118-v119)
+### NL Search
 - **Hybrid Parsing**: Regex fast-path + GPT-4o-mini for complex queries
 - **5-Tier Location**: Exact → Alias → Substring → Fuzzy → Embedding → LLM
 - **Self-Learning**: Click tracking creates location aliases automatically
 - **6-Signal Ranking**: Relevance, quality, distance, price, freshness, completeness
-- **4-Layer Caching**: Response, parsed query, embedding, location
+- **Lesson Type Filter**: Online/in-person filter via `instructor_services.location_types` (v122)
+- **"Near Me" Search**: User address lookup, reverse geocoding via PostGIS (v122)
 
-### Founding Instructor System (v121)
+### Founding Instructor System
 - **Lifetime 8% Platform Fee**: vs 15% standard
 - **Search Ranking Boost**: 1.5x multiplier
 - **Tier Immunity**: Exempt from commission downgrades
 - **Cap Enforcement**: PostgreSQL advisory locks for atomicity
 
+### Inline Search Filters (v127)
+- **Zocdoc-Style**: Pill buttons + dropdown filters in top bar
+- **Draft State Pattern**: Changes apply on "Apply" click
+- **Portal Rendering**: z-index stacking solved
+- **Sorting**: Recommended, Price, Rating with null handling
+
 ## 📝 Architecture Decision Records
 
 *See `architecture-decisions.md` for full rationale and implementation details*
 
-Key decisions: ULID IDs, Bitmap Availability, 24hr Pre-Auth, Per-User State, GCRA Rate Limiting, API v1 Versioning (single rule v121), Dual Environments, Repository Pattern, Database Safety, Privacy Framework, NL Search Hybrid Parsing (v118), Advisory Locks for Founding Cap (v121), Shared Origin Validation (v121)
+Key decisions: ULID IDs, Bitmap Availability, 24hr Pre-Auth, Per-User State, GCRA Rate Limiting, API v1 Versioning, Dual Environments, Repository Pattern, Database Safety, Privacy Framework, NL Search Hybrid Parsing, Advisory Locks for Founding Cap, Location System Privacy (v127), Defense-in-Depth Payments (v123), OAuth2 M2M Auth (v128), Principal-Based Authorization (v128)

@@ -5,19 +5,19 @@
 
 The "Uber of instruction" - A marketplace platform for instantly booking private instructors in NYC.
 
-**Platform Status**: 100% Complete | **Tests**: 3,090+ | **Load Tested**: 150 users | **API**: 235 endpoints
+**Platform Status**: 100% Complete | **Tests**: 11,485+ | **Load Tested**: 150 users | **API**: 333 endpoints
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
 | **Backend** | FastAPI + PostgreSQL 17 (Supabase) + SQLAlchemy 2.0 |
-| **Frontend** | Next.js 15 + TypeScript (strictest) + Tailwind CSS v4 |
+| **Frontend** | Next.js 16 + TypeScript (strictest) + Tailwind CSS v4 |
 | **Cache** | Redis (caching + Celery broker) |
 | **Search** | pgvector + pg_trgm (NL Search with self-learning) |
 | **Payments** | Stripe Connect (pre-auth, payouts, credits) |
 | **Email** | Resend API |
-| **Infrastructure** | Render ($53/mo) + Vercel + Cloudflare R2 |
+| **Infrastructure** | Render ($60/mo) + Vercel + Cloudflare R2 |
 | **Security** | Argon2id, JWT+RBAC (30 permissions), 2FA (TOTP) |
 
 ## Quick Start
@@ -74,7 +74,7 @@ After seeding (Password: `Test1234`):
 ## Testing
 
 ```bash
-# Backend (3,090+ tests)
+# Backend (2,516+ tests)
 cd backend && pytest tests/ -v
 
 # Frontend
@@ -88,7 +88,7 @@ cd frontend && CI_LOCAL_E2E=1 npx playwright test --project=instructor
 
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
-- **All endpoints under `/api/v1/*`** (235 total)
+- **All endpoints under `/api/v1/*`** (333 total)
 
 ## Project Structure
 
@@ -101,9 +101,9 @@ instructly/
 │   │   ├── repositories/ # Data access (17+ repositories)
 │   │   ├── models/       # Database models
 │   │   └── schemas/      # Pydantic schemas
-│   └── tests/            # 2,600+ backend tests
+│   └── tests/            # 2,516+ backend tests
 ├── frontend/
-│   ├── app/              # Next.js 15 App Router
+│   ├── app/              # Next.js 16 App Router
 │   ├── features/         # Feature modules
 │   ├── components/       # Shared React components
 │   └── e2e/              # Playwright E2E tests

@@ -1,15 +1,15 @@
 # Project Documentation Index
-*Last Updated: December 2025 (Session v121)*
+*Last Updated: January 2026 (Session v129)*
 
 ## Quick Reference
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 3,090+ |
-| API Endpoints | 235 (all `/api/v1/*`) |
+| Total Tests | 11,485+ |
+| API Endpoints | 333 (all `/api/v1/*`) |
 | Pass Rate | 100% |
 | Load Capacity | 150 concurrent users |
-| Infrastructure | $53/month |
+| Infrastructure | $60/month |
 
 ## Core Project Docs
 
@@ -21,6 +21,10 @@
 | `project-status/04_system-capabilities.md` | Feature status, known issues |
 | `development/testing/05_testing_infrastructure.md` | Test setup, coverage, commands |
 | `architecture/06_repository_pattern_architecture.md` | Repository pattern guide |
+| `architecture/07_codebase_structure.md` | Monorepo structure, key files, navigation guide |
+| `project-overview/08_business_rules.md` | Platform fees, credits, founding program, policies |
+| `api/09_api_endpoints.md` | Complete API endpoint reference (333 endpoints) |
+| `infrastructure/10_external_integrations.md` | External services (Stripe, Checkr, Sentry, etc.) |
 | `architecture/architecture-decisions.md` | ADRs and technical decisions |
 
 ## Architecture Documentation
@@ -147,11 +151,11 @@ Latest 5 sessions (full history in `session-handoffs/`):
 
 | Session | Key Achievements |
 |---------|-----------------|
-| v121 | Founding Instructor System, ~14K LOC cleanup, all routes `/api/v1/*` |
-| v120 | Load testing (150 users), production hardening, admin dashboard |
-| v119 | NL Search production ready, self-learning aliases, admin UI |
-| v118 | NL Search complete (306 tests), 10-phase implementation |
-| v117 | Messaging archive/trash management |
+| v129 | MCP expansion (36 tools), 95%+ coverage, Sentry full-stack, security fixes |
+| v128 | MCP Admin Copilot, OAuth2 M2M auth, Principal-based authorization |
+| v127 | Location system redesign, inline filters, 3-toggle instructor UI |
+| v126 | Test coverage sprint (92% → 95%), frontend coverage boost |
+| v125 | Notifications system (email, SMS, push, in-app), phone verification |
 
 ## Temporary/Working Docs
 

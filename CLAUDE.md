@@ -189,7 +189,7 @@ Every PR must pass these automated checks:
 - **Backend Types**: mypy strict compliance
 - **Bundle Size**: Within defined limits (size-limit)
 - **Security**: No High/Critical vulnerabilities (pip-audit, npm audit)
-- **Tests**: 100% passing (3,090+ tests)
+- **Tests**: 100% passing (11,485+ tests)
 - **Pre-commit hooks**: Repository pattern, timezone usage
 
 ## 🚨 MANDATORY: Post-Change Verification
@@ -241,7 +241,7 @@ Automated env-contract workflows verify:
 
 InstaInstru is a marketplace platform for instantly booking private instructors in NYC. It's a full-stack application with:
 - **Backend**: FastAPI (Python) with PostgreSQL, SQLAlchemy, and Redis caching
-- **Frontend**: Next.js 15 with TypeScript and Tailwind CSS v4
+- **Frontend**: Next.js 16 with TypeScript and Tailwind CSS v4
 - **Architecture**: Clean architecture with separated services, repositories, and route handlers
 
 ## 🔴 CRITICAL: ULID Architecture - ALL IDs are Strings!
@@ -437,7 +437,7 @@ useEffect(() => {
 ### Critical Context
 - **Mission**: Building for MEGAWATTS of energy allocation - quality over speed
 - **Platform Status**: 100% COMPLETE + PRODUCTION HARDENED (ready for beta launch)
-- **Test Coverage**: 3,090+ tests passing (100%), zero flakes, deterministic behavior
+- **Test Coverage**: 11,485+ tests passing (100%), zero flakes, deterministic behavior
 - **Engineering Quality**: TypeScript strictest mode (0 errors), mypy strict (~95%), automated guardrails
 - **Load Tested**: 150 concurrent users verified (v120)
 
@@ -450,6 +450,8 @@ useEffect(() => {
 - **Zero Engineering Debt**: Platform is pristine with FAANG-level code quality
 - **NL Search**: Self-learning aliases, 5-tier location resolution (v118-v119)
 - **Founding Instructor System**: 8% lifetime fee, cap enforcement with advisory locks (v121)
+- **MCP Admin Copilot**: 36 tools across 11 modules for AI-assisted operations (v129)
+- **Full-Stack Observability**: Sentry integration across backend, frontend, MCP, and Celery Beat (v129)
 
 ### Pre-Launch Requirements
 1. **✅ Load Testing**: 150 concurrent users verified (v120)
@@ -493,7 +495,7 @@ useEffect(() => {
 
 ## 📋 API Versioning (v1) - SINGLE RULE
 
-**ALL API routes are under `/api/v1/*`** - 235 endpoints, NO exceptions (v121).
+**ALL API routes are under `/api/v1/*`** - 333 endpoints, NO exceptions (v129).
 
 This includes auth, admin, health, metrics - everything except `/docs`, `/redoc`, `/openapi.json`.
 
@@ -731,7 +733,7 @@ All images served via Cloudflare R2:
 - **Celery Beat**: instructly-celery-beat (Background Worker)
 - **Flower**: instructly-flower (Web Service for monitoring)
 - **Database**: Supabase PostgreSQL (external)
-- **Total Cost**: $53/month
+- **Total Cost**: $60/month
 
 ### Key Infrastructure Updates
 - Redis handles all caching, Celery broker, and session needs
@@ -878,7 +880,7 @@ celery -A app.tasks.celery_app flower  # Monitoring UI
 4. **Models Layer**: Database schema definitions
 5. **Schemas Layer**: Pydantic models for validation
 
-### Frontend Architecture (Next.js 15)
+### Frontend Architecture (Next.js 16)
 - **App Directory**: Page routing and layouts
 - **Components**: Reusable UI components
 - **Hooks**: Custom React hooks for shared logic

@@ -1,6 +1,6 @@
-# InstaInstru Documentation
+# iNSTAiNSTRU Documentation
 
-Welcome to the InstaInstru documentation. This guide helps you navigate all project documentation, now consolidated under `/docs/`.
+Welcome to the iNSTAiNSTRU documentation. This guide helps you navigate all project documentation, now consolidated under `/docs/`.
 
 ## 📁 Documentation Structure
 
@@ -10,6 +10,7 @@ Welcome to the InstaInstru documentation. This guide helps you navigate all proj
 ### 🏗️ [Architecture](./architecture/)
 - [Architecture State](./architecture/02_architecture_state.md) - Current system architecture
 - [Repository Pattern Architecture](./architecture/06_repository_pattern_architecture.md) - Repository implementation patterns
+- [Codebase Structure](./07_codebase_structure.md) - Directory structure and navigation guide
 - [Architecture Decisions](./architecture/architecture-decisions.md) - Key design choices
 - [Repository Pattern Implementation](./architecture/repository-pattern-implementation.md) - Implementation details
 - [Service Layer Transformation Report](./architecture/service-layer-transformation-report.md) - Service refactoring details
@@ -32,6 +33,7 @@ Design team deliverables and mockups:
   - Planning documents
 
 ### 📡 [API Documentation](./api/)
+- [API Endpoint Reference](./api/09_api_endpoints.md) - Complete endpoint reference (333 endpoints)
 - [API Usage Guide](./api/instainstru-api-guide.md) - Complete endpoint documentation
 - [OpenAPI Specification](./api/instainstru-openapi.yaml) - Machine-readable API spec
 - [Postman Collection](./api/instainstru-postman.json) - Import into Postman
@@ -44,6 +46,7 @@ Design team deliverables and mockups:
 - [Test Suite Reorganization Report](./development/testing/Test%20Suite%20Reorganization%20Report%20-%20Session%20v61%20(Updated%20v64).md)
 
 ### 🔧 [Infrastructure](./infrastructure/)
+- [External Service Integrations](./10_external_integrations.md) - Complete mapping of all external services
 - [SSL Implementation Summary](./infrastructure/ssl_implementation_summary.md) - HTTPS setup overview
 - [SSL Configuration Summary](./infrastructure/ssl-config-summary.md) - SSL configuration details
 - [Test Database Safety](./infrastructure/test-database-safety.md) - Protecting production data
@@ -52,24 +55,28 @@ Design team deliverables and mockups:
 ### 🔄 [User Flows](./flows/)
 - [Flow Analysis](./flows/analysis/) - User flow analysis and corrections
 - [Navigation Map](./flows/navigation-map.html) - Visual navigation structure
-- [Authentication Flows](./flows/shared/auth-flows.mmd) - Auth flow diagrams
-- [Student Booking Flow](./flows/student/booking-flow.mmd) - Booking process flow
+- [Authentication Flows](./flows/shared/auth-flows.md) - Auth flow diagrams
+- [Student Booking Flow](./flows/student/booking-flow.md) - Booking process flow
 
 ## 🚀 Quick Start
 
 1. **New to the project?** Start with [Core Project Information](./project-overview/01_core_project_info.md)
-2. **Setting up locally?** Follow the [Setup Guide](./development/setup-guide.md)
-3. **Understanding the architecture?** Read [Architecture State](./architecture/02_architecture_state.md)
-4. **Working on student features?** Check [Student Booking Implementation Guide](./a-team-deliverables/student-booking-implementation-guide.md)
+2. **Navigating the codebase?** See [Codebase Structure](./07_codebase_structure.md) for directory layout
+3. **Setting up locally?** Follow the [Setup Guide](./development/setup-guide.md)
+4. **Understanding the architecture?** Read [Architecture State](./architecture/02_architecture_state.md)
+5. **Working on student features?** Check [Student Booking Implementation Guide](./a-team-deliverables/student-booking-implementation-guide.md)
 
 ## 📋 Document Organization
 
-The documentation follows a logical structure where numbered files (01-06) are distributed by topic:
+The documentation follows a logical structure where numbered files (01-10) are distributed by topic:
 - **01** - Project overview documentation
 - **02** - Architecture documentation
 - **03, 04** - Project status documentation
 - **05** - Testing documentation
 - **06** - Architecture patterns documentation
+- **07** - Codebase structure documentation
+- **09** - API endpoint reference
+- **10** - External service integrations
 
 ## 🔍 Finding Information
 

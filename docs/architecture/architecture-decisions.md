@@ -1,5 +1,5 @@
 # InstaInstru Architecture Decisions
-*Last Updated: December 2025 (Session v121)*
+*Last Updated: January 2026 (Session v129)*
 
 ## Core Architecture Decisions
 
@@ -38,6 +38,14 @@
 | **Advisory Locks for Cap** | ✅ Active | PostgreSQL advisory locks for founding cap | TOCTOU race condition prevention (v121) |
 | **Single API Version Rule** | ✅ Active | ALL routes under `/api/v1/*` | No confusion, single rule (v121) |
 | **Shared Origin Validation** | ✅ Active | Single `is_allowed_origin()` utility | Security-critical single implementation (v121) |
+| **Transaction Before Invalidation** | ✅ Active | Commit DB before clearing cache | Prevents race conditions (v122) |
+| **First-Lesson Referral Trigger** | ✅ Active | Payout on first completed lesson | Faster reward experience (v124) |
+| **Security Notifications Bypass** | ✅ Active | Critical alerts ignore preferences | Security > user preference (v125) |
+| **Location System Canonical Types** | ✅ Active | 4 types with privacy jittering | Clear semantics, address privacy (v127) |
+| **OAuth2 M2M Auth** | ✅ Active | WorkOS JWT for MCP-to-backend | Service-to-service security (v128) |
+| **Principal-Based Authorization** | ✅ Active | User and Service principals | Unified audit logging (v128) |
+| **Full-Stack Sentry** | ✅ Active | Sentry across all components | Unified observability (v129) |
+| **Timing-Safe Comparisons** | ✅ Active | `secrets.compare_digest()` everywhere | Prevents timing attacks (v129) |
 
 ## Defensive Measures (Preventing Regression)
 
@@ -110,7 +118,7 @@ class InstructorInfo:
 | **Background Jobs** | Celery + Beat | Async processing, scheduled tasks |
 | **Email** | Resend API | Simple, reliable |
 | **Assets** | Cloudflare R2 | 80% bandwidth reduction |
-| **Hosting** | Render + Vercel | $53/month total |
+| **Hosting** | Render + Vercel | $60/month total |
 | **CI Database** | Custom image with PostGIS + pgvector | Required for spatial + NL search |
 
 ## Critical Rules
@@ -355,3 +363,166 @@ with self.transaction():
 | `confirm_payment_intent` | 200-400ms | 10-20ms |
 
 **Added**: December 2025 (v123)
+
+## Cache Invalidation Decisions (v122)
+
+### Transaction Before Invalidation
+**Decision**: Always commit transaction before cache invalidation.
+
+**Pattern**:
+```python
+with self.transaction():
+    # Database operations
+    pass
+# After block exits (commit done)
+invalidate_cache(keys)
+```
+
+**Rationale**: Prevents race condition where cache is cleared but DB not yet visible.
+
+### No Browser Caching for Availability
+**Decision**: Use `Cache-Control: private, no-cache, must-revalidate` for availability.
+
+**Rationale**:
+- `max-age=300` was causing 5-minute stale windows
+- Server-side Redis cache still provides performance
+- ETag enables efficient 304 responses
+
+## Instructor Referral Decisions (v124)
+
+### Platform-Funded Transfers
+**Decision**: Referral bonuses are Stripe Transfers from platform balance, not tied to specific booking payments.
+
+**Rationale**: Unlike instructor payouts from lessons (which come from captured PaymentIntents), referral bonuses are platform marketing spend.
+
+### First-Lesson Trigger
+**Decision**: Payout triggers on first completed lesson, not after 3 lessons.
+
+**Rationale**: Faster reward = better referrer experience. First lesson proves instructor viability.
+
+### Cash Payout (Not Platform Credits)
+**Decision**: Instructors receive cash via Stripe Transfer, not platform credits.
+
+**Rationale**: Cash is more valuable/motivating for instructors. Different from student referrals which give platform credits.
+
+## Notification System Decisions (v125)
+
+### Multi-Channel Delivery
+**Decision**: Support Email (Resend), SMS (Twilio), Push (Web Push API), In-App (SSE).
+
+**Rationale**: Different users prefer different channels. Critical notifications use multiple channels.
+
+### Security Notifications Bypass Preferences
+**Decision**: Always-on security notifications (new device login, password changed, 2FA changes, payment failed) ignore user preferences.
+
+**Rationale**: Security > user preference. Users must know about account security events.
+
+### Phone Verification Protection
+**Decision**: 5-attempt limit with code invalidation, timing-safe comparison.
+
+**Rationale**: Prevents brute-force attacks. `secrets.compare_digest()` prevents timing attacks.
+
+## Location System Decisions (v127)
+
+### Four Canonical Location Types
+**Decision**: Normalize to `student_location`, `instructor_location`, `online`, `neutral_location`.
+
+**Previous State**: Mixed values like `in_person`, `remote`, `student_home`.
+
+**Rationale**: Clear semantics, consistent API responses, no ambiguity.
+
+### Privacy-Safe Coordinate Jittering
+**Decision**: Add 25-50m random offset to teaching location coordinates using `secrets.SystemRandom()`.
+
+**Implementation**:
+```python
+def jitter_coordinates(lat, lng):
+    # Cryptographically secure random offset
+    offset = secrets.SystemRandom().uniform(0.00025, 0.0005)
+    return approx_lat, approx_lng
+```
+
+**Rationale**: Protects instructor home addresses while still enabling "Where They Teach" maps.
+
+### Instructor Capability Flags
+**Decision**: Three boolean flags on `instructor_services`: `offers_travel`, `offers_at_location`, `offers_online`.
+
+**Rationale**: Simpler than location_types array. Clear UI mapping to 3-toggle interface.
+
+## MCP Server Decisions (v128-v129)
+
+### OAuth2 M2M Authentication
+**Decision**: Use WorkOS M2M JWT tokens for service-to-service auth between MCP server and backend.
+
+**Flow**:
+1. MCP server fetches JWT from WorkOS (client_credentials grant)
+2. JWT sent as Bearer token to backend
+3. Backend verifies via JWKS with 1-hour cache
+
+**Rationale**: Short-lived JWTs, automatic rotation, scope enforcement. Same provider as user auth.
+
+### Principal-Based Authorization
+**Decision**: Backend uses Principal abstraction to handle both human (UserPrincipal) and service (ServicePrincipal) actors.
+
+```python
+@runtime_checkable
+class Principal(Protocol):
+    @property
+    def id(self) -> str: ...  # For audit trails
+    @property
+    def identifier(self) -> str: ...  # Email or client_id
+    @property
+    def principal_type(self) -> Literal["user", "service"]: ...
+```
+
+**Rationale**: Decouples auth from User model, enables service actors, unified audit logging.
+
+### Semantic Metrics Layer
+**Decision**: Map natural language metric queries to PromQL.
+
+**Example**:
+```python
+"p99 latency" → histogram_quantile(0.99, ...)
+"error rate" → 5xx / total
+```
+
+**Rationale**: AI agents can query metrics without knowing PromQL.
+
+### Unauthenticated Discovery Methods
+**Decision**: Allow `initialize`, `notifications/initialized`, `tools/list` without authentication.
+
+**Rationale**: ChatGPT's "mixed-auth" pattern requires tool discovery before authentication.
+
+## Sentry Integration Decisions (v129)
+
+### Full-Stack Observability
+**Decision**: Integrate Sentry across all components: Backend, Frontend, MCP Server, Celery Beat.
+
+**Rationale**: Unified error tracking, performance monitoring, session replay across entire stack.
+
+### Frontend Monitoring Tunnel
+**Decision**: Add `/monitoring` route to tunnel client-side Sentry reports.
+
+**Rationale**: Bypasses ad blockers that block direct Sentry connections.
+
+### Celery Beat with Sentry Crons
+**Decision**: Use Sentry Crons for periodic task monitoring.
+
+**Rationale**: Visibility into scheduled task health (missed runs, failures, duration).
+
+## Security Hardening Decisions (v129)
+
+### Timing-Safe Token Comparison
+**Decision**: Use `secrets.compare_digest()` for all token comparisons.
+
+**Rationale**: Prevents timing attacks on service tokens and verification codes.
+
+### Self-Referral Prevention
+**Decision**: Proactive check in `attribute_signup()` to block users using their own referral code.
+
+**Rationale**: Previous approach only caught this post-hoc via device fingerprinting.
+
+### Rate Limiting on Public Invite Endpoint
+**Decision**: Add `@rate_limit("5/hour", key_type=IP)` to `POST /api/v1/public/referrals/send`.
+
+**Rationale**: Unauthenticated endpoint was potential email bombing/spam vector.

@@ -116,7 +116,7 @@
 3. **Frontend Organization**
    - Legacy patterns properly moved to legacy-patterns directory
    - Good separation of concerns in features directory
-   - Proper use of Next.js 15 app router
+   - Proper use of Next.js 16 app router
 
 ## 10. Overall Audit Conclusion
 

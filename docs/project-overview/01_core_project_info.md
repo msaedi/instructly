@@ -1,5 +1,5 @@
 # InstaInstru Core Project Information
-*Last Updated: December 2025 (Session v121)*
+*Last Updated: January 2026 (Session v129)*
 
 ## Identity & Role
 
@@ -33,30 +33,41 @@ We are building InstaInstru to earn massive allocations of energy (megawatts of 
 
 ## Current Platform State
 
-### Platform Status: 100% COMPLETE + PRODUCTION HARDENED
+### Platform Status: READY FOR LAUNCH ✅
 
-**Recent Major Achievements (v118-v121):**
-- **v121**: Founding Instructor System complete, ~14K LOC legacy cleanup, ALL routes under `/api/v1/*`
-- **v120**: Load testing verified (150 users), production hardening, admin dashboard
-- **v119**: NL Search production ready, self-learning aliases, admin UI
-- **v118**: NL Search complete (306 tests), 10-phase implementation
-- **v117**: Messaging system enhanced - Archive/trash management
+The platform achieved production-ready status in v129 with enterprise-grade observability, 95%+ test coverage, and comprehensive admin tooling.
 
-**Infrastructure Excellence (All Systems Operational):**
-- NL Search System - pgvector + pg_trgm, typo tolerance, self-learning
-- Founding Instructor System - 8% lifetime fee, search boost, advisory locks
-- Messaging System - Archive/trash with auto-restore
-- API Architecture - ALL 235 endpoints under `/api/v1/*`
-- Availability System - Bitmap-based, optimized
-- Payments - Stripe Connect with 24hr pre-auth
-- Rate Limiting - GCRA with runtime config
-- Engineering Quality - 3,090+ tests, TypeScript strict
+**Platform Metrics:**
+| Metric | Value |
+|--------|-------|
+| **Total Tests** | 11,485+ (100% passing) |
+| **Backend Tests** | 2,516+ |
+| **Frontend Tests** | 8,806+ |
+| **MCP Server Tests** | 163+ |
+| **Backend Coverage** | 95.45% (CI locked) |
+| **Frontend Coverage** | 95.08% |
+| **MCP Coverage** | 100% |
+| **API Endpoints** | 333 (all `/api/v1/*`) |
+| **MCP Tools** | 36 across 11 modules |
+| **Load Capacity** | 150 concurrent users |
 
-**Pre-Launch Requirements:**
+**All Systems Complete:**
+- NL Search - Semantic search, self-learning aliases, lesson type + "near me" filters
+- Location System - 4 canonical types, privacy-safe coordinate jittering
+- Payment Policy v2.1.1 - 12 phases, enterprise-grade protection
+- Instructor Referrals - $75/$50 cash payouts via Stripe Transfer
+- Notifications - Multi-channel (email, SMS, push, in-app)
+- MCP Admin Copilot - 36 tools for AI-powered operations
+- Sentry Integration - Full-stack observability (Backend, Frontend, MCP, Celery)
+- Inline Search Filters - Zocdoc-style dropdowns, sorting, infinite scroll
+
+**Pre-Launch Status:**
 | Task | Status |
 |------|--------|
 | Load Testing | ✅ Complete (150 users verified) |
 | Security Automation | ✅ Complete (Bandit, pip-audit, npm audit, Schemathesis, ZAP, Dependabot) |
+| Test Coverage 95%+ | ✅ Complete (CI enforced) |
+| Full-Stack Observability | ✅ Complete (Sentry integration) |
 | Beta Smoke Test | 🟡 Ready |
 
 ## Project Overview
@@ -93,7 +104,7 @@ InstaInstru (iNSTAiNSTRU) is the "Uber of instruction" - a marketplace platform 
 ### Frontend (Next.js/TypeScript)
 | Component | Technology | Details |
 |-----------|------------|---------|
-| **Framework** | Next.js 15 | App Router, Server Components |
+| **Framework** | Next.js 16 | App Router, Server Components |
 | **Language** | TypeScript | Strictest config (noUncheckedIndexedAccess, etc.) |
 | **Styling** | Tailwind CSS v4 | Utility-first, custom design system |
 | **Data Fetching** | React Query v5 | Mandatory for all API calls, 5min-1hr TTLs |
@@ -105,15 +116,17 @@ InstaInstru (iNSTAiNSTRU) is the "Uber of instruction" - a marketplace platform 
 ### Infrastructure & DevOps
 | Component | Technology | Details |
 |-----------|------------|---------|
-| **Backend Hosting** | Render | $53/month total (API, Celery, Redis, Flower) |
+| **Backend Hosting** | Render | $60/month total (API, Celery, Redis, Flower, MCP) |
 | **Frontend Hosting** | Vercel | Preview + Beta environments |
 | **Database** | Supabase | PostgreSQL 17, PostGIS, pgvector |
 | **Cache/Broker** | Redis | Caching + Celery broker + sessions |
 | **Asset Storage** | Cloudflare R2 | Profile photos, 80% bandwidth reduction |
-| **Monitoring** | Prometheus + Grafana | Custom metrics, alerting |
-| **CI/CD** | GitHub Actions | Tests, type-checking, security scans |
+| **Observability** | Sentry | Error tracking, performance monitoring, session replay |
+| **Metrics** | Prometheus + Grafana | Custom metrics, alerting, dashboards |
+| **CI/CD** | GitHub Actions | Tests, type-checking, security scans, Codecov |
 | **Pre-commit** | Hooks | Repository pattern, timezone checks |
 | **CI Database** | Custom Image | PostGIS + pgvector in CI |
+| **MCP Server** | FastMCP | AI admin copilot with OAuth2 M2M auth |
 
 ### Security & Quality
 | Component | Details |
@@ -138,14 +151,16 @@ InstaInstru (iNSTAiNSTRU) is the "Uber of instruction" - a marketplace platform 
 3. **ULID Architecture** - All IDs are 26-character strings, not integers
 4. **Time-Based Booking** - No slot IDs, just time ranges
 5. **Bitmap Availability** - 1440-bit per day, 70% storage reduction
-6. **API v1 Versioning** - ALL routes under `/api/v1/*` (single rule, v121)
+6. **API v1 Versioning** - ALL routes under `/api/v1/*` (single rule)
 7. **24hr Pre-Authorization** - Authorize T-24hr, capture T+24hr
 8. **GCRA Rate Limiting** - Runtime config, shadow mode, financial protection
 9. **Per-User Conversation State** - Independent archive/trash per participant
 10. **Database Safety** - 3-tier INT/STG/PROD protection
-11. **NL Search** - Hybrid regex/LLM parsing, 5-tier location resolution (v118)
-12. **Founding Instructor System** - Advisory locks for cap enforcement (v121)
-13. **Production Hardening** - Request budgets, progressive degradation (v120)
+11. **NL Search** - Hybrid regex/LLM parsing, 5-tier location resolution
+12. **Location System** - 4 canonical types with privacy-safe coordinate jittering (v127)
+13. **Payment Policy v2.1.1** - Defense-in-depth (Redis mutex + PostgreSQL locks) (v123)
+14. **MCP Admin Copilot** - OAuth2 M2M auth, Principal-based authorization (v128-v129)
+15. **Full-Stack Observability** - Sentry integration across all components (v129)
 
 ## Database & Environment
 
@@ -172,7 +187,7 @@ See `docs/PROJECT_DOCS_INDEX.md` for complete documentation map.
 7. `architecture-decisions.md` - ADRs
 
 ### Session Handoffs
-Detailed history in `docs/session-handoffs/`. Latest: v121.
+Detailed history in `docs/session-handoffs/`. Latest: v129.
 
 ## Working Style Requirements
 
@@ -187,11 +202,9 @@ When working with the human:
 
 ## Current Priorities
 
-1. **Beta Smoke Testing** - Final manual verification of critical flows
-2. **Instructor Profile Page** - Critical for booking flow
-3. **My Lessons Tab** - Student lesson management
-4. **Beta Launch** - Ready after smoke test
+1. **Beta Smoke Test** - Final manual verification of critical flows
+2. **Beta Launch** - Platform ready after smoke test
 
 ---
 
-**Remember: We're building for MEGAWATTS! Platform 100% complete, 3,090+ tests, 150 user capacity verified, security automation in place. Ready for beta launch!**
+**Remember: We're building for MEGAWATTS! Platform 100% complete, 11,485+ tests at 95%+ coverage, 150 user capacity verified, full-stack observability in place. READY FOR LAUNCH!**

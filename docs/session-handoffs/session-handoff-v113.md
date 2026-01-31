@@ -298,7 +298,7 @@ A platform that's:
 - **Configuration Control**: 100%
 
 ### Business Metrics
-- **Platform Take Rate**: 22-27%
+- **Platform Take Rate**: 20-27% (12% student fee + 8-15% instructor commission)
 - **Instructor Retention Path**: 15% → 10%
 - **Student Fee Acceptance**: 12%
 - **Circumvention Risk**: <10%

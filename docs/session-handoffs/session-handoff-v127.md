@@ -213,7 +213,7 @@ Replaced sidebar filter with inline pill buttons + dropdowns:
 | **Total Tests** | **11,322+** |
 | **Backend Coverage** | 92% |
 | **Frontend Coverage** | 92% |
-| **API Endpoints** | 240 (all `/api/v1/*`) |
+| **API Endpoints** | 333 (all `/api/v1/*`) |
 | **Load Capacity** | 150 concurrent users |
 | **Bandit Issues** | 0 |
 | **npm audit** | 0 high vulnerabilities |
