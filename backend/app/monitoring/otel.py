@@ -23,7 +23,9 @@ OTEL_ENABLED = os.getenv("ENABLE_OTEL", "false").lower() == "true"
 
 # Lazy imports to avoid loading OTel when disabled
 _tracer_provider: Optional["TracerProvider"] = None
-_initialized = False
+_otel_initialized = False
+_sqlalchemy_engine: Optional[Any] = None
+_sqlalchemy_instrumented = False
 
 
 def is_otel_enabled() -> bool:
@@ -54,9 +56,9 @@ def init_otel(service_name: Optional[str] = None) -> bool:
     Returns:
         True if initialization succeeded, False if disabled or failed
     """
-    global _tracer_provider, _initialized
+    global _tracer_provider, _otel_initialized
 
-    if _initialized:
+    if _otel_initialized:
         logger.debug("OTel already initialized, skipping")
         return True
 
@@ -100,10 +102,14 @@ def init_otel(service_name: Optional[str] = None) -> bool:
                     "X-Axiom-Dataset": axiom_dataset,
                 }
 
-        otlp_endpoint = os.getenv(
-            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-            os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://api.axiom.co") + "/v1/traces",
-        )
+        # Canonical OTLP endpoint strategy:
+        # Treat OTEL_EXPORTER_OTLP_ENDPOINT as the base URL and append /v1/traces here.
+        # This avoids ambiguity between base vs. explicit trace endpoint settings.
+        base_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://api.axiom.co").rstrip("/")
+        if base_endpoint.endswith("/v1/traces"):
+            otlp_endpoint = base_endpoint
+        else:
+            otlp_endpoint = f"{base_endpoint}/v1/traces"
 
         exporter = OTLPSpanExporter(
             endpoint=otlp_endpoint,
@@ -132,7 +138,10 @@ def init_otel(service_name: Optional[str] = None) -> bool:
         except Exception as exc:
             logger.warning("Failed to instrument Celery: %s", exc)
 
-        _initialized = True
+        if _sqlalchemy_engine is not None:
+            _instrument_sqlalchemy(_sqlalchemy_engine)
+
+        _otel_initialized = True
         logger.info(
             "OpenTelemetry initialized: service=%s environment=%s endpoint=%s",
             svc_name,
@@ -193,6 +202,40 @@ def instrument_fastapi(app: Any) -> bool:
         return False
 
 
+def _instrument_sqlalchemy(engine: Any) -> None:
+    global _sqlalchemy_instrumented
+
+    if _sqlalchemy_instrumented:
+        return
+
+    try:
+        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
+        SQLAlchemyInstrumentor().instrument(engine=engine)
+        _sqlalchemy_instrumented = True
+        logger.debug("SQLAlchemy instrumented with engine")
+    except ImportError:
+        pass
+    except Exception as exc:
+        logger.warning("Failed to instrument SQLAlchemy: %s", exc)
+
+
+def instrument_database(engine: Any) -> None:
+    """
+    Register and instrument the SQLAlchemy engine for OTel spans.
+
+    This should be called after the engine is created. If OTel is not yet
+    initialized, the engine is stored and instrumented when init_otel() runs.
+    """
+    global _sqlalchemy_engine
+
+    _sqlalchemy_engine = engine
+    if not OTEL_ENABLED or not _otel_initialized:
+        return
+
+    _instrument_sqlalchemy(engine)
+
+
 def instrument_additional_libraries() -> None:
     """
     Instrument additional libraries used by the application.
@@ -201,15 +244,8 @@ def instrument_additional_libraries() -> None:
     if not OTEL_ENABLED:
         return
 
-    try:
-        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-
-        SQLAlchemyInstrumentor().instrument()
-        logger.debug("SQLAlchemy instrumented")
-    except ImportError:
-        pass
-    except Exception as exc:
-        logger.warning("Failed to instrument SQLAlchemy: %s", exc)
+    if _sqlalchemy_engine is not None:
+        _instrument_sqlalchemy(_sqlalchemy_engine)
 
     try:
         from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
@@ -234,7 +270,10 @@ def instrument_additional_libraries() -> None:
 
 def shutdown_otel() -> None:
     """Gracefully shutdown OpenTelemetry (flush pending spans)."""
-    global _tracer_provider, _initialized
+    global _tracer_provider, _otel_initialized, _sqlalchemy_instrumented
+
+    if not _otel_initialized:
+        return
 
     if _tracer_provider is not None:
         try:
@@ -243,7 +282,8 @@ def shutdown_otel() -> None:
         except Exception as exc:
             logger.error("Error during OTel shutdown: %s", exc)
 
-    _initialized = False
+    _otel_initialized = False
+    _sqlalchemy_instrumented = False
     _tracer_provider = None
 
 
@@ -311,6 +351,9 @@ def create_span(name: str, attributes: Optional[dict[str, Any]] = None) -> Itera
         with create_span("process_payment", {"payment.amount": 100}):
             # ... do work ...
     """
+    # WARNING: Do not add high-cardinality attributes as span names.
+    # User emails, phone numbers, payment IDs should be attributes only,
+    # not span names. Scrub PII where appropriate.
     if not OTEL_ENABLED:
         yield None
         return

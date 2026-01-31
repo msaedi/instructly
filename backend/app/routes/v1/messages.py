@@ -32,6 +32,8 @@ import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 import logging
+from types import SimpleNamespace
+from uuid import uuid4
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -44,6 +46,7 @@ from ...core.auth_cache import user_has_cached_permission
 from ...core.config import settings
 from ...core.enums import PermissionName
 from ...core.exceptions import ForbiddenException, NotFoundException, ValidationException
+from ...core.request_context import set_request_id
 from ...database import SessionLocal, get_db
 from ...dependencies.permissions import require_permission
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
@@ -140,6 +143,12 @@ async def stream_user_messages(
 
     Requires VIEW_MESSAGES permission.
     """
+    request_id = request.headers.get("X-Request-ID") or str(uuid4())
+    if not hasattr(request, "state"):
+        request.state = SimpleNamespace()
+    request.state.request_id = request_id
+    set_request_id(request_id)
+
     # Log SSE connection attempt
     logger.info(
         "[SSE] Connection attempt",
@@ -246,6 +255,7 @@ async def stream_user_messages(
             "Content-Type": "text/event-stream",
             "Pragma": "no-cache",
             "Expires": "0",
+            "X-Request-ID": request_id,
         },
         media_type="text/event-stream",
     )

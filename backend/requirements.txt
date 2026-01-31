@@ -55,16 +55,19 @@ stripe==14.2.0
 # Monitoring & Utilities
 prometheus-client==0.24.1
 sentry-sdk[fastapi]==2.51.0
-opentelemetry-api>=1.22.0
-opentelemetry-sdk>=1.22.0
-opentelemetry-semantic-conventions>=0.43b0
-opentelemetry-exporter-otlp-proto-http>=1.22.0
-opentelemetry-instrumentation-fastapi>=0.43b0
-opentelemetry-instrumentation-celery>=0.43b0
-opentelemetry-instrumentation-redis>=0.43b0
-opentelemetry-instrumentation-sqlalchemy>=0.43b0
-opentelemetry-instrumentation-httpx>=0.43b0
-opentelemetry-instrumentation-logging>=0.43b0
+# OpenTelemetry Core - PIN TO SAME MINOR VERSION
+opentelemetry-api==1.39.1
+opentelemetry-sdk==1.39.1
+opentelemetry-semantic-conventions==0.60b1
+# OTLP Exporter
+opentelemetry-exporter-otlp-proto-http==1.39.1
+# Auto-instrumentation - ALL SAME MINOR (0.43b0)
+opentelemetry-instrumentation-fastapi==0.60b1
+opentelemetry-instrumentation-celery==0.60b1
+opentelemetry-instrumentation-redis==0.60b1
+opentelemetry-instrumentation-sqlalchemy==0.60b1
+opentelemetry-instrumentation-httpx==0.60b1
+opentelemetry-instrumentation-logging==0.60b1
 psutil==7.2.1
 python-ulid==3.1.0
 python-dotenv==1.2.1
