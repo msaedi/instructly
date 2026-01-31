@@ -9,6 +9,7 @@ from . import (
     observability,
     operations,
     search,
+    sentry,
     sentry_debug,
     services,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "observability",
     "operations",
     "search",
+    "sentry",
     "sentry_debug",
     "services",
 ]

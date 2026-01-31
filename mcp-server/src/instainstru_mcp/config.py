@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     grafana_cloud_api_key: SecretStr = SecretStr("")
     grafana_prometheus_datasource_uid: str = "prometheus"
     sentry_dsn: str | None = None
+    sentry_api_token: SecretStr = Field(
+        default=SecretStr(""), alias="INSTAINSTRU_MCP_SENTRY_API_TOKEN"
+    )
+    sentry_org: str = Field(default="instainstru", alias="INSTAINSTRU_MCP_SENTRY_ORG")
     environment: str = "development"
     workos_domain: str | None = None
     workos_client_id: str | None = None

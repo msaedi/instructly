@@ -24,6 +24,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from .client import InstaInstruClient
+from .clients.sentry_client import SentryClient
 from .config import Settings
 from .grafana_client import GrafanaCloudClient
 from .oauth.crypto import build_jwks, normalize_pem
@@ -37,6 +38,7 @@ from .tools import (
     observability,
     operations,
     search,
+    sentry,
     sentry_debug,
     services,
 )
@@ -539,6 +541,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     auth = MCPAuth(settings)
     client = InstaInstruClient(settings, auth)
     grafana = GrafanaCloudClient(settings)
+    sentry_client = SentryClient(settings.sentry_api_token, settings.sentry_org)
 
     mcp = FastMCP("iNSTAiNSTRU Admin")
 
@@ -551,6 +554,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     metrics.register_tools(mcp, client)
     services.register_tools(mcp, client)
     observability.register_tools(mcp, grafana)
+    sentry.register_tools(mcp, sentry_client)
     sentry_debug.register_tools(mcp)
 
     return mcp
