@@ -30,6 +30,7 @@ import stripe
 from app.core.booking_lock import booking_lock_sync
 from app.core.config import settings
 from app.core.exceptions import ServiceException
+from app.core.request_context import with_request_id_header
 from app.database import get_db
 from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.payment import PaymentEvent
@@ -475,7 +476,11 @@ def _process_authorization_for_booking(
 
     if not stripe_result.get("success") and hours_until_lesson < 24:
         try:
-            check_immediate_auth_timeout.apply_async(args=[booking_id], countdown=30 * 60)
+            check_immediate_auth_timeout.apply_async(
+                args=[booking_id],
+                countdown=30 * 60,
+                headers=with_request_id_header(),
+            )
         except Exception:
             logger.debug("Non-fatal error ignored", exc_info=True)
     return stripe_result

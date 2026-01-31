@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, ParamSpec, Protocol, TypeVar, cast
 
 from celery.result import AsyncResult
 
+from app.core.request_context import with_request_id_header
 from app.database import get_db_session
 from app.models.referrals import InstructorReferralPayout
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
@@ -181,7 +182,10 @@ def retry_failed_instructor_referral_payouts() -> Dict[str, Any]:
             payout.stripe_transfer_status = "pending"
             payout.failed_at = None
             payout.failure_reason = None
-            process_instructor_referral_payout.delay(payout.id)
+            process_instructor_referral_payout.apply_async(
+                args=(payout.id,),
+                headers=with_request_id_header(),
+            )
             retried += 1
 
         logger.info("Queued %s failed payouts for retry", retried)
@@ -209,7 +213,10 @@ def check_pending_instructor_referral_payouts() -> Dict[str, Any]:
 
         queued = 0
         for payout in pending_payouts:
-            process_instructor_referral_payout.delay(payout.id)
+            process_instructor_referral_payout.apply_async(
+                args=(payout.id,),
+                headers=with_request_id_header(),
+            )
             queued += 1
 
         logger.info("Queued %s pending payouts for processing", queued)

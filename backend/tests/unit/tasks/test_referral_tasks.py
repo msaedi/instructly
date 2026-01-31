@@ -162,7 +162,7 @@ class TestRetryFailedPayouts:
         result = retry_failed_instructor_referral_payouts.run()
 
         assert result["retried"] == 2
-        assert mock_process_task.delay.call_count == 2
+        assert mock_process_task.apply_async.call_count == 2
         assert mock_payout1.stripe_transfer_status == "pending"
         assert mock_payout1.failed_at is None
 
@@ -176,7 +176,7 @@ class TestRetryFailedPayouts:
         result = retry_failed_instructor_referral_payouts.run()
 
         assert result["retried"] == 0
-        mock_process_task.delay.assert_not_called()
+        mock_process_task.apply_async.assert_not_called()
 
 
 class TestCheckPendingPayouts:
@@ -194,4 +194,4 @@ class TestCheckPendingPayouts:
         result = check_pending_instructor_referral_payouts.run()
 
         assert result["queued"] == 1
-        mock_process_task.delay.assert_called_once_with("payout_1")
+        mock_process_task.apply_async.assert_called_once_with(args=("payout_1",), headers=None)

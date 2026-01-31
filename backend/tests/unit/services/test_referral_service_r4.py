@@ -446,7 +446,7 @@ def test_instructor_referral_task_queue_failure(referral_service, monkeypatch):
     )
 
     class FailingTask:
-        def delay(self, *_args, **_kwargs):
+        def apply_async(self, *_args, **_kwargs):
             raise RuntimeError("boom")
 
     monkeypatch.setattr(
@@ -488,7 +488,7 @@ def test_instructor_referral_task_queue_success(referral_service, monkeypatch):
     )
 
     class HealthyTask:
-        def delay(self, *_args, **_kwargs):
+        def apply_async(self, *_args, **_kwargs):
             return None
 
     monkeypatch.setattr(

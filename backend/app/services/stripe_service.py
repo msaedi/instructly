@@ -43,6 +43,7 @@ from ..core.exceptions import (
     BookingNotFoundException,
     ServiceException,
 )
+from ..core.request_context import with_request_id_header
 from ..models.booking import BookingStatus, PaymentStatus
 from ..models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
 from ..models.user import User
@@ -3190,7 +3191,11 @@ class StripeService(BaseService):
                 try:
                     from app.tasks.payment_tasks import check_immediate_auth_timeout
 
-                    check_immediate_auth_timeout.apply_async(args=[booking_id], countdown=30 * 60)
+                    check_immediate_auth_timeout.apply_async(
+                        args=[booking_id],
+                        countdown=30 * 60,
+                        headers=with_request_id_header(),
+                    )
                 except Exception:
                     logger.debug("Non-fatal error ignored", exc_info=True)
             if immediate_auth:

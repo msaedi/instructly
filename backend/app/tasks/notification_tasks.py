@@ -19,6 +19,7 @@ from celery.app.task import Task  # noqa: F401 - used for type hints
 from celery.utils.log import get_task_logger
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.request_context import with_request_id_header
 from app.database import SessionLocal
 from app.models.booking import Booking, BookingStatus
 from app.monitoring.prometheus_metrics import PrometheusMetrics
@@ -75,7 +76,11 @@ def dispatch_pending() -> int:
         repo = EventOutboxRepository(session)
         pending = repo.fetch_pending(limit=200)
         for event in pending:
-            deliver_event.apply_async((event.id,), queue="notifications")
+            deliver_event.apply_async(
+                (event.id,),
+                queue="notifications",
+                headers=with_request_id_header(),
+            )
         scheduled: int = len(pending)
         if scheduled:
             logger.info("Scheduled %s outbox events for delivery", scheduled)

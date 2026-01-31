@@ -27,6 +27,7 @@ import psutil
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
+from ..core.request_context import with_request_id_header
 from ..database import get_db_pool_status
 
 logger = logging.getLogger(__name__)
@@ -306,12 +307,15 @@ class PerformanceMonitor:
         # Dispatch to Celery if available
         if CELERY_AVAILABLE:
             try:
-                process_monitoring_alert.delay(
-                    alert_type=alert_type,
-                    severity=severity,
-                    title=f"Performance Alert: {alert_type.replace('_', ' ').title()}",
-                    message=message,
-                    details=details or {},
+                process_monitoring_alert.apply_async(
+                    kwargs={
+                        "alert_type": alert_type,
+                        "severity": severity,
+                        "title": f"Performance Alert: {alert_type.replace('_', ' ').title()}",
+                        "message": message,
+                        "details": details or {},
+                    },
+                    headers=with_request_id_header(),
                 )
                 logger.info(f"Alert dispatched to Celery: {alert_type}")
             except Exception as e:

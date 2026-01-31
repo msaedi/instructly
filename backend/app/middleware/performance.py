@@ -18,6 +18,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
 from ..core.constants import SSE_PATH_PREFIX
+from ..core.request_context import reset_request_id, set_request_id
 from ..monitoring.production_monitor import monitor
 
 
@@ -56,6 +57,8 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
         # Track request start
         monitor.track_request_start(request_id, request)
         start_time = time.time()
+
+        request_id_token = set_request_id(request_id)
 
         # Add monitoring context
         request.state.query_count = 0
@@ -97,3 +100,5 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
 
             # Re-raise exception
             raise
+        finally:
+            reset_request_id(request_id_token)

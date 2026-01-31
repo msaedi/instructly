@@ -12,6 +12,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Mapping,
     Optional,
     ParamSpec,
     Protocol,
@@ -24,6 +25,7 @@ from celery.schedules import crontab
 from celery.signals import setup_logging
 
 from app.core.config import settings
+from app.core.request_context import attach_request_id_filter, reset_request_id, set_request_id
 from app.monitoring.sentry import init_sentry
 
 if TYPE_CHECKING:
@@ -32,6 +34,9 @@ if TYPE_CHECKING:
     class BaseTaskType:
         name: str
         request: Any
+
+        def before_start(self, task_id: str, args: Any, kwargs: Any) -> None:
+            ...
 
         def on_failure(
             self, exc: Exception, task_id: str, args: Any, kwargs: Any, einfo: Any
@@ -44,6 +49,17 @@ if TYPE_CHECKING:
             ...
 
         def on_success(self, retval: Any, task_id: str, args: Any, kwargs: Any) -> None:
+            ...
+
+        def after_return(
+            self,
+            status: str,
+            retval: Any,
+            task_id: str,
+            args: Any,
+            kwargs: Any,
+            einfo: Any,
+        ) -> None:
             ...
 
         def retry(self, *args: Any, **kwargs: Any) -> Any:
@@ -251,6 +267,21 @@ def _connect_setup_logging(func: F) -> F:
     return func
 
 
+def _resolve_task_request_id(
+    task_id: str | None,
+    headers: Mapping[str, Any] | None,
+    kwargs: Mapping[str, Any] | None,
+) -> str:
+    request_id: Any | None = None
+    if headers:
+        request_id = headers.get("request_id") or headers.get("x-request-id")
+    if not request_id and kwargs:
+        request_id = kwargs.get("request_id")
+    if not request_id:
+        return f"task-{task_id}" if task_id else "task-unknown"
+    return str(request_id)
+
+
 @_connect_setup_logging
 def config_loggers(*args: Any, **kwargs: Any) -> None:
     """Configure logging to integrate with the application's logging setup."""
@@ -258,8 +289,10 @@ def config_loggers(*args: Any, **kwargs: Any) -> None:
 
     # Set up basic logging configuration
     logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - [%(request_id)s] %(message)s",
     )
+    attach_request_id_filter()
 
     # Reduce verbosity of Celery beat scheduler logs (keep task logs at INFO)
     # Beat scheduler logs "Sending due task" every time it dispatches - suppress these
@@ -299,6 +332,32 @@ class BaseTask(BaseTaskType):
     retry_backoff = True
     retry_backoff_max = 600  # Max 10 minutes between retries
     retry_jitter = True
+    _request_id_token: Any | None = None
+
+    def before_start(self, task_id: str, args: Any, kwargs: Any) -> None:
+        headers = getattr(self.request, "headers", None)
+        request_id = _resolve_task_request_id(
+            task_id,
+            headers if isinstance(headers, Mapping) else None,
+            kwargs if isinstance(kwargs, Mapping) else None,
+        )
+        self._request_id_token = set_request_id(request_id)
+        super().before_start(task_id, args, kwargs)
+
+    def after_return(
+        self,
+        status: str,
+        retval: Any,
+        task_id: str,
+        args: Any,
+        kwargs: Any,
+        einfo: Any,
+    ) -> None:
+        token = self._request_id_token
+        if token is not None:
+            reset_request_id(token)
+            self._request_id_token = None
+        super().after_return(status, retval, task_id, args, kwargs, einfo)
 
     def on_failure(self, exc: Exception, task_id: str, args: Any, kwargs: Any, einfo: Any) -> None:
         """Log task failures."""

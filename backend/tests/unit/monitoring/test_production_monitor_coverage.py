@@ -72,7 +72,7 @@ def test_send_alert_respects_cooldown(monkeypatch):
     calls = {}
 
     class _Task:
-        def delay(self, **_kwargs):
+        def apply_async(self, **_kwargs):
             calls["count"] = calls.get("count", 0) + 1
 
     monkeypatch.setattr(monitor_module, "CELERY_AVAILABLE", True)

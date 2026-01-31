@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from app.repositories.payment_monitoring_repository import PaymentMonitoringRepository
 
 from app.core.config import settings
+from app.core.request_context import with_request_id_header
 from app.database import get_db, get_db_pool_status
 from app.models.booking import PaymentStatus
 from app.monitoring.production_monitor import monitor
@@ -324,7 +325,7 @@ async def trigger_payment_health_check(
         from app.tasks.payment_tasks import check_authorization_health
 
         # Trigger the task asynchronously
-        task = check_authorization_health.delay()
+        task = check_authorization_health.apply_async(headers=with_request_id_header())
 
         return PaymentHealthCheckTriggerResponse(
             status="triggered",

@@ -218,7 +218,7 @@ async def test_trigger_payment_health_check(monkeypatch) -> None:
     with patch(
         "app.tasks.payment_tasks.check_authorization_health", autospec=True
     ) as mock_check:
-        mock_check.delay.return_value = _Task()
+        mock_check.apply_async.return_value = _Task()
         response = await monitoring_routes.trigger_payment_health_check()
 
     assert response.task_id == "task-123"

@@ -46,8 +46,10 @@ def _create_alert(db, alert_type: str = "slow_query", severity: str = "warning")
 
 
 def test_process_monitoring_alert_warning_records(db, _task_db) -> None:
-    with patch.object(monitoring_tasks.send_alert_email, "delay") as mock_email, patch.object(
-        monitoring_tasks.create_github_issue_for_alert, "delay"
+    with patch.object(
+        monitoring_tasks.send_alert_email, "apply_async"
+    ) as mock_email, patch.object(
+        monitoring_tasks.create_github_issue_for_alert, "apply_async"
     ) as mock_issue, patch.object(
         monitoring_tasks, "should_create_github_issue", return_value=False
     ):
@@ -62,8 +64,10 @@ def test_process_monitoring_alert_warning_records(db, _task_db) -> None:
 
 
 def test_process_monitoring_alert_critical_triggers_tasks(db, _task_db) -> None:
-    with patch.object(monitoring_tasks.send_alert_email, "delay") as mock_email, patch.object(
-        monitoring_tasks.create_github_issue_for_alert, "delay"
+    with patch.object(
+        monitoring_tasks.send_alert_email, "apply_async"
+    ) as mock_email, patch.object(
+        monitoring_tasks.create_github_issue_for_alert, "apply_async"
     ) as mock_issue, patch.object(
         monitoring_tasks, "should_create_github_issue", return_value=True
     ):

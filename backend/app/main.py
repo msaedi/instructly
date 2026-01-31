@@ -52,6 +52,7 @@ from .core.metrics import (
     BGC_PENDING_7D,
     METRICS_AUTH_FAILURE_TOTAL,
 )
+from .core.request_context import attach_request_id_filter
 from .database import SessionLocal
 from .middleware.beta_phase_header import BetaPhaseHeaderMiddleware
 from .middleware.csrf_asgi import CsrfOriginMiddlewareASGI
@@ -179,8 +180,10 @@ except Exception:  # pragma: no cover
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - [%(request_id)s] %(message)s",
 )
+attach_request_id_filter()
 
 
 logger = logging.getLogger(__name__)
