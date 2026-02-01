@@ -50,7 +50,7 @@ def enqueue_task(
         except Exception:
             # Trace propagation is best-effort - don't fail task enqueue
             # if OTel context injection fails.
-            logger.debug(
+            logger.warning(
                 "Failed to inject OTel trace context into task headers",
                 exc_info=True,
             )

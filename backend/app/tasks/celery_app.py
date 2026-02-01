@@ -378,7 +378,19 @@ class BaseTask(BaseTaskType):
         super().after_return(status, retval, task_id, args, kwargs, einfo)
 
     def on_failure(self, exc: Exception, task_id: str, args: Any, kwargs: Any, einfo: Any) -> None:
-        """Log task failures."""
+        """Log task failures and clean up request context."""
+        token = getattr(self.request, "request_id_token", None)
+        if token is not None:
+            try:
+                reset_request_id(token)
+            except Exception:
+                import logging
+
+                logging.getLogger(__name__).debug(
+                    "Failed to reset request context after task failure",
+                    exc_info=True,
+                )
+            self.request.request_id_token = None
         import logging
 
         logger = logging.getLogger(__name__)
@@ -392,7 +404,9 @@ class BaseTask(BaseTaskType):
                 "task_kwargs": str(kwargs),  # Renamed to avoid conflict
             },
         )
-        super().on_failure(exc, task_id, args, kwargs, einfo)
+        super_on_failure = getattr(super(), "on_failure", None)
+        if super_on_failure:
+            super_on_failure(exc, task_id, args, kwargs, einfo)
 
     def on_retry(self, exc: Exception, task_id: str, args: Any, kwargs: Any, einfo: Any) -> None:
         """Log task retries."""

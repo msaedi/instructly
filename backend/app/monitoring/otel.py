@@ -12,6 +12,7 @@ from contextlib import contextmanager
 import logging
 import os
 from typing import TYPE_CHECKING, Any, Optional
+from urllib.parse import unquote
 
 if TYPE_CHECKING:
     from opentelemetry.sdk.trace import TracerProvider
@@ -33,16 +34,33 @@ def is_otel_enabled() -> bool:
     return OTEL_ENABLED
 
 
-def _parse_otlp_headers(raw: str) -> dict[str, str]:
+def _parse_otlp_headers(raw: str | None) -> dict[str, str]:
     headers: dict[str, str] = {}
+    if not raw:
+        return headers
+
     for entry in raw.split(","):
-        if not entry.strip() or "=" not in entry:
+        entry = entry.strip()
+        if not entry:
             continue
+        if "=" not in entry:
+            logger.warning(
+                "Malformed OTLP header entry (missing '='): %r",
+                entry,
+            )
+            continue
+
         key, value = entry.split("=", 1)
         key = key.strip()
         value = value.strip()
-        if key:
-            headers[key] = value
+        if not key:
+            logger.warning(
+                "Malformed OTLP header entry (empty key): %r",
+                entry,
+            )
+            continue
+
+        headers[key] = unquote(value)
     return headers
 
 

@@ -385,18 +385,31 @@ def _ensure_region_boundary(db: Session, borough: str) -> RegionBoundary:
         _ensure_boundary_columns(db, existing, normalized)
         return existing
 
-    by_parent = (
-        db.query(RegionBoundary)
-        .filter(RegionBoundary.parent_region == normalized)
-        .first()
-    )
-    if by_parent:
-        if _ensure_boundary_geometry(by_parent, normalized):
-            db.flush()
-        _ensure_boundary_columns(db, by_parent, normalized)
-        return by_parent
-
     lon, lat = BOROUGH_CENTROID.get(normalized, BOROUGH_CENTROID["Manhattan"])
+    if db.bind and db.bind.dialect.name != "sqlite":
+        try:
+            candidate_id = db.execute(
+                text(
+                    """
+                    SELECT id
+                    FROM region_boundaries
+                    WHERE parent_region = :parent_region
+                      AND boundary IS NOT NULL
+                      AND ST_Covers(
+                          boundary::geometry,
+                          ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geometry
+                      )
+                    LIMIT 1
+                    """
+                ),
+                {"parent_region": normalized, "lng": lon, "lat": lat},
+            ).scalar()
+            if candidate_id:
+                candidate = db.get(RegionBoundary, candidate_id)
+                if candidate:
+                    return candidate
+        except Exception:
+            pass
 
     boundary = RegionBoundary(
         id=region_id,

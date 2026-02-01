@@ -46,7 +46,7 @@ from ...core.auth_cache import user_has_cached_permission
 from ...core.config import settings
 from ...core.enums import PermissionName
 from ...core.exceptions import ForbiddenException, NotFoundException, ValidationException
-from ...core.request_context import set_request_id
+from ...core.request_context import reset_request_id, set_request_id
 from ...database import SessionLocal, get_db
 from ...dependencies.permissions import require_permission
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
@@ -152,129 +152,149 @@ async def stream_user_messages(
         logger.debug("Request missing state attribute, creating SimpleNamespace")
         request.state = SimpleNamespace()
     request.state.request_id = request_id
-    set_request_id(request_id)
+    token = set_request_id(request_id)
 
-    # Log SSE connection attempt
-    logger.info(
-        "[SSE] Connection attempt",
-        extra={
-            "user_id": current_user.id,
-            "user_email": current_user.email,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        },
-    )
-
-    # =========================================================================
-    # PHASE 1: DB OPERATIONS (via service layer with manual session)
-    #
-    # CRITICAL: We use manual session management here instead of Depends(get_db)
-    # because FastAPI's dependency cleanup only runs AFTER the response completes.
-    # For SSE streams that run 30+ seconds, this would hold DB connections in
-    # "idle in transaction" state, exhausting the connection pool.
-    #
-    # By manually closing the session BEFORE returning EventSourceResponse,
-    # we ensure DB connections are released immediately after the initial queries.
-    # =========================================================================
-
-    user_id = current_user.id
-    last_event_id = request.headers.get("Last-Event-ID")
-
-    # Check permission using cached data (no DB query for transient users)
-    # This avoids the redundant user lookup that was happening in get_stream_context
-    cached_has_permission = user_has_cached_permission(current_user, PermissionName.VIEW_MESSAGES)
-
-    # Service layer handles missed message fetch (permission pre-checked above)
-    db = SessionLocal()
     try:
-        await ensure_db_health(db)
-        message_service = MessageService(db)
-        context: SSEStreamContext = await asyncio.to_thread(
-            message_service.get_stream_context,
-            user_id=current_user.id,
-            last_event_id=last_event_id,
-            has_permission=cached_has_permission,  # Pass pre-computed permission
-        )
-    finally:
-        # CRITICAL: Explicitly rollback and close DB session BEFORE starting the SSE stream.
-        # Rollback is needed because autocommit=False means a transaction was started.
-        # Without rollback, the connection returns to the pool in "idle in transaction" state,
-        # which Supabase will kill after its idle_in_transaction_session_timeout.
-        # async-blocking-ignore: SSE cleanup <1ms
-        db.rollback()  # db-access-ok: SSE requires explicit session cleanup to prevent idle-in-transaction  # async-blocking-ignore
-        db.close()  # db-access-ok: SSE requires explicit session close
-        logger.debug(
-            "[SSE] DB session closed before streaming",
-            extra={"user_id": user_id},
-        )
-
-    # Check permission result from service
-    if not context.has_permission:
-        logger.warning(
-            "[SSE] Permission denied",
-            extra={"user_id": current_user.id, "permission": "VIEW_MESSAGES"},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to view messages",
-        )
-
-    # Log reconnection info if applicable
-    if last_event_id:
+        # Log SSE connection attempt
         logger.info(
-            "[SSE] Client reconnecting with Last-Event-ID",
+            "[SSE] Connection attempt",
             extra={
                 "user_id": current_user.id,
-                "last_event_id": last_event_id,
-                "missed_count": len(context.missed_messages),
+                "user_email": current_user.email,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
 
-    # =========================================================================
-    # PHASE 2: SSE STREAM (DB-free, via Broadcaster)
-    # At this point, the DB session is closed. The stream runs purely via
-    # the shared Broadcaster connection (1 Redis connection per worker).
-    # =========================================================================
+        # =========================================================================
+        # PHASE 1: DB OPERATIONS (via service layer with manual session)
+        #
+        # CRITICAL: We use manual session management here instead of Depends(get_db)
+        # because FastAPI's dependency cleanup only runs AFTER the response completes.
+        # For SSE streams that run 30+ seconds, this would hold DB connections in
+        # "idle in transaction" state, exhausting the connection pool.
+        #
+        # By manually closing the session BEFORE returning EventSourceResponse,
+        # we ensure DB connections are released immediately after the initial queries.
+        # =========================================================================
 
-    async def event_generator() -> AsyncGenerator[dict[str, str], None]:
-        """Generate SSE events using Broadcaster multiplexer (no DB access)."""
-        async for event in create_sse_stream(
-            user_id=user_id,
-            missed_messages=context.missed_messages,
-        ):
-            # Early exit if client disconnected
-            if await request.is_disconnected():
-                logger.info(
-                    "[SSE] Client disconnected, stopping stream",
-                    extra={"user_id": user_id},
-                )
-                break
-            yield event
+        user_id = current_user.id
+        last_event_id = request.headers.get("Last-Event-ID")
 
-    # Create EventSourceResponse with appropriate headers
-    response_headers = {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "X-Accel-Buffering": "no",
-        "Connection": "keep-alive",
-        "Content-Type": "text/event-stream",
-        "Pragma": "no-cache",
-        "Expires": "0",
-        "X-Request-ID": request_id,
-    }
-    try:
-        from app.monitoring.otel import get_current_trace_id, is_otel_enabled
+        # Check permission using cached data (no DB query for transient users)
+        # This avoids the redundant user lookup that was happening in get_stream_context
+        cached_has_permission = user_has_cached_permission(
+            current_user, PermissionName.VIEW_MESSAGES
+        )
 
-        if is_otel_enabled():
-            trace_id = get_current_trace_id()
-            if trace_id:
-                response_headers["X-Trace-ID"] = trace_id
+        # Service layer handles missed message fetch (permission pre-checked above)
+        db = SessionLocal()
+        try:
+            await ensure_db_health(db)
+            message_service = MessageService(db)
+            context: SSEStreamContext = await asyncio.to_thread(
+                message_service.get_stream_context,
+                user_id=current_user.id,
+                last_event_id=last_event_id,
+                has_permission=cached_has_permission,  # Pass pre-computed permission
+            )
+        finally:
+            # CRITICAL: Explicitly rollback and close DB session BEFORE starting the SSE stream.
+            # Rollback is needed because autocommit=False means a transaction was started.
+            # Without rollback, the connection returns to the pool in "idle in transaction" state,
+            # which Supabase will kill after its idle_in_transaction_session_timeout.
+            # async-blocking-ignore: SSE cleanup <1ms
+            db.rollback()  # db-access-ok: SSE requires explicit session cleanup to prevent idle-in-transaction  # async-blocking-ignore
+            db.close()  # db-access-ok: SSE requires explicit session close
+            logger.debug(
+                "[SSE] DB session closed before streaming",
+                extra={"user_id": user_id},
+            )
+
+        # Check permission result from service
+        if not context.has_permission:
+            logger.warning(
+                "[SSE] Permission denied",
+                extra={"user_id": current_user.id, "permission": "VIEW_MESSAGES"},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to view messages",
+            )
+
+        # Log reconnection info if applicable
+        if last_event_id:
+            logger.info(
+                "[SSE] Client reconnecting with Last-Event-ID",
+                extra={
+                    "user_id": current_user.id,
+                    "last_event_id": last_event_id,
+                    "missed_count": len(context.missed_messages),
+                },
+            )
+
+        # =========================================================================
+        # PHASE 2: SSE STREAM (DB-free, via Broadcaster)
+        # At this point, the DB session is closed. The stream runs purely via
+        # the shared Broadcaster connection (1 Redis connection per worker).
+        # =========================================================================
+
+        async def event_generator() -> AsyncGenerator[dict[str, str], None]:
+            """Generate SSE events using Broadcaster multiplexer (no DB access)."""
+            async for event in create_sse_stream(
+                user_id=user_id,
+                missed_messages=context.missed_messages,
+            ):
+                # Early exit if client disconnected
+                if await request.is_disconnected():
+                    logger.info(
+                        "[SSE] Client disconnected, stopping stream",
+                        extra={"user_id": user_id},
+                    )
+                    break
+                yield event
+
+        async def event_generator_with_cleanup() -> AsyncGenerator[dict[str, str], None]:
+            """Wrap event generator with request context cleanup."""
+            try:
+                async for event in event_generator():
+                    yield event
+            finally:
+                try:
+                    reset_request_id(token)
+                except Exception:
+                    logger.debug("Failed to reset request_id on SSE cleanup", exc_info=True)
+
+        # Create EventSourceResponse with appropriate headers
+        response_headers = {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+            "Content-Type": "text/event-stream",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "X-Request-ID": request_id,
+        }
+        try:
+            from app.monitoring.otel import get_current_trace_id, is_otel_enabled
+
+            if is_otel_enabled():
+                trace_id = get_current_trace_id()
+                if trace_id:
+                    response_headers["X-Trace-ID"] = trace_id
+        except Exception:
+            logger.debug("Failed to add X-Trace-ID to SSE response", exc_info=True)
+
+        return EventSourceResponse(
+            event_generator_with_cleanup(),
+            headers=response_headers,
+            media_type="text/event-stream",
+        )
     except Exception:
-        logger.debug("Failed to add X-Trace-ID to SSE response", exc_info=True)
-
-    return EventSourceResponse(
-        event_generator(),
-        headers=response_headers,
-        media_type="text/event-stream",
-    )
+        try:
+            reset_request_id(token)
+        except Exception:
+            logger.debug("Failed to reset request_id after SSE setup error", exc_info=True)
+        raise
 
 
 @router.get(
