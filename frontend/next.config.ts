@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
+import { withAxiom } from 'next-axiom';
 
 const nextConfig: NextConfig = {
   distDir: process.env['NEXT_DIST_DIR'] || '.next',
@@ -89,4 +90,4 @@ const sentryBuildOptions = {
   },
 };
 
-export default withSentryConfig(nextConfig, sentryBuildOptions);
+export default withAxiom(withSentryConfig(nextConfig, sentryBuildOptions));

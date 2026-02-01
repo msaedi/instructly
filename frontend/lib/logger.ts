@@ -1,6 +1,7 @@
 // frontend/lib/logger.ts
 
 import * as Sentry from '@sentry/nextjs';
+import { log as axiomLog } from 'next-axiom';
 
 import { env } from '@/lib/env';
 
@@ -57,6 +58,22 @@ class Logger {
     return { context };
   }
 
+  private toAxiomData(
+    context?: LogContext,
+    error?: Error | unknown
+  ): Record<string, unknown> | undefined {
+    const base = this.toSentryData(context) ?? {};
+
+    if (error instanceof Error) {
+      base['errorMessage'] = error.message;
+      base['errorStack'] = error.stack;
+    } else if (typeof error !== 'undefined') {
+      base['error'] = error as unknown;
+    }
+
+    return Object.keys(base).length > 0 ? base : undefined;
+  }
+
   private shouldLog(level: LogLevel): boolean {
     // Check if logging is enabled at all
     if (!this.isEnabled) return false;
@@ -77,12 +94,14 @@ class Logger {
 
   debug(message: string, context?: LogContext): void {
     if (this.shouldLog('debug')) {
+      axiomLog.debug(message, this.toAxiomData(context));
       console.log(this.formatMessage('debug', message, context));
     }
   }
 
   info(message: string, context?: LogContext): void {
     if (this.shouldLog('info')) {
+      axiomLog.info(message, this.toAxiomData(context));
       console.info(this.formatMessage('info', message, context));
     }
 
@@ -98,6 +117,7 @@ class Logger {
 
   warn(message: string, context?: LogContext): void {
     if (this.shouldLog('warn')) {
+      axiomLog.warn(message, this.toAxiomData(context));
       console.warn(this.formatMessage('warn', message, context));
     }
 
@@ -122,6 +142,7 @@ class Logger {
         base['error'] = error as unknown as Record<string, unknown>;
       }
       const errorContext = base;
+      axiomLog.error(message, this.toAxiomData(context, error));
       console.error(this.formatMessage('error', message, errorContext));
     }
 
@@ -226,6 +247,7 @@ class Logger {
 
 // Export singleton instance
 export const logger = new Logger();
+export { log } from 'next-axiom';
 
 // At the bottom, add this for debugging:
 if (typeof window !== 'undefined') {
