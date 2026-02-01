@@ -1,3 +1,15 @@
+/**
+ * API fetch helper.
+ *
+ * TRACE PROPAGATION:
+ * This helper uses native fetch(), which is automatically instrumented by
+ * @vercel/otel (configured in instrumentation.ts). The traceparent header
+ * is injected into requests matching these patterns:
+ * - https://api.instainstru.com/*
+ * - https://*.onrender.com/*
+ *
+ * No manual header injection is needed.
+ */
 import { withApiBase } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
 import { parseProblem, normalizeProblem, type Problem } from '@/lib/errors/problem';
@@ -5,10 +17,28 @@ import { parseProblem, normalizeProblem, type Problem } from '@/lib/errors/probl
 export class ApiProblemError extends Error {
   readonly problem: Problem;
   readonly response: Response;
+  readonly requestId?: string;
+  readonly traceId?: string;
   constructor(problem: Problem, response: Response) {
     super(problem.title || 'API error');
     this.problem = problem;
     this.response = response;
+    const resolvedTraceId =
+      problem.trace_id ||
+      response.headers?.get?.('x-trace-id') ||
+      response.headers?.get?.('X-Trace-ID') ||
+      '';
+    if (resolvedTraceId) {
+      this.traceId = resolvedTraceId;
+    }
+    const resolvedRequestId =
+      problem.request_id ||
+      response.headers?.get?.('x-request-id') ||
+      response.headers?.get?.('X-Request-ID') ||
+      '';
+    if (resolvedRequestId) {
+      this.requestId = resolvedRequestId;
+    }
   }
 }
 
@@ -37,6 +67,8 @@ export async function fetchJson<T = unknown>(endpoint: string, init: FetchOption
   const maxRetries = init.retries ?? 1;
 
   const run = async () => {
+    // Note: @vercel/otel automatically injects traceparent headers into fetch()
+    // calls matching propagateContextUrls (see instrumentation.ts).
     const res = await fetch(url, { credentials: 'include', ...init });
     if (res.status === 429) {
       if (init.financial) return res;

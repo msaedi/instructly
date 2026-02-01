@@ -12,6 +12,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Mapping,
     Optional,
     ParamSpec,
     Protocol,
@@ -24,6 +25,8 @@ from celery.schedules import crontab
 from celery.signals import setup_logging
 
 from app.core.config import settings
+from app.core.request_context import attach_request_id_filter, reset_request_id, set_request_id
+from app.monitoring.otel import init_otel, instrument_additional_libraries, shutdown_otel
 from app.monitoring.sentry import init_sentry
 
 if TYPE_CHECKING:
@@ -32,6 +35,9 @@ if TYPE_CHECKING:
     class BaseTaskType:
         name: str
         request: Any
+
+        def before_start(self, task_id: str, args: Any, kwargs: Any) -> None:
+            ...
 
         def on_failure(
             self, exc: Exception, task_id: str, args: Any, kwargs: Any, einfo: Any
@@ -44,6 +50,17 @@ if TYPE_CHECKING:
             ...
 
         def on_success(self, retval: Any, task_id: str, args: Any, kwargs: Any) -> None:
+            ...
+
+        def after_return(
+            self,
+            status: str,
+            retval: Any,
+            task_id: str,
+            args: Any,
+            kwargs: Any,
+            einfo: Any,
+        ) -> None:
             ...
 
         def retry(self, *args: Any, **kwargs: Any) -> Any:
@@ -251,6 +268,21 @@ def _connect_setup_logging(func: F) -> F:
     return func
 
 
+def _resolve_task_request_id(
+    task_id: str | None,
+    headers: Mapping[str, Any] | None,
+    kwargs: Mapping[str, Any] | None,
+) -> str:
+    request_id: Any | None = None
+    if headers:
+        request_id = headers.get("request_id") or headers.get("x-request-id")
+    if not request_id and kwargs:
+        request_id = kwargs.get("request_id")
+    if not request_id:
+        return f"task-{task_id}" if task_id else "task-unknown"
+    return str(request_id)
+
+
 @_connect_setup_logging
 def config_loggers(*args: Any, **kwargs: Any) -> None:
     """Configure logging to integrate with the application's logging setup."""
@@ -258,8 +290,13 @@ def config_loggers(*args: Any, **kwargs: Any) -> None:
 
     # Set up basic logging configuration
     logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        level=logging.INFO,
+        format=(
+            "%(asctime)s - %(name)s - %(levelname)s - [%(request_id)s] "
+            "[trace=%(otelTraceID)s span=%(otelSpanID)s] %(message)s"
+        ),
     )
+    attach_request_id_filter()
 
     # Reduce verbosity of Celery beat scheduler logs (keep task logs at INFO)
     # Beat scheduler logs "Sending due task" every time it dispatches - suppress these
@@ -274,14 +311,30 @@ celery_app = create_celery_app()
 # and also via the force imports list in celery_app.conf.imports
 
 
-@signals.celeryd_init.connect
 def _init_sentry_worker(**kwargs: Any) -> None:
     init_sentry()
 
 
-@signals.beat_init.connect
 def _init_sentry_beat(**kwargs: Any) -> None:
     init_sentry()
+
+
+signals.celeryd_init.connect(_init_sentry_worker)
+signals.beat_init.connect(_init_sentry_beat)
+
+
+def _init_otel_worker(**kwargs: Any) -> None:
+    service_name = os.getenv("OTEL_SERVICE_NAME", "instainstru-worker")
+    if init_otel(service_name=service_name):
+        instrument_additional_libraries()
+
+
+def _shutdown_otel_worker(**kwargs: Any) -> None:
+    shutdown_otel()
+
+
+signals.worker_process_init.connect(_init_otel_worker)
+signals.worker_shutdown.connect(_shutdown_otel_worker)
 
 
 P = ParamSpec("P")
@@ -298,8 +351,46 @@ class BaseTask(BaseTaskType):
     retry_backoff_max = 600  # Max 10 minutes between retries
     retry_jitter = True
 
+    def before_start(self, task_id: str, args: Any, kwargs: Any) -> None:
+        headers = getattr(self.request, "headers", None)
+        request_id = _resolve_task_request_id(
+            task_id,
+            headers if isinstance(headers, Mapping) else None,
+            kwargs if isinstance(kwargs, Mapping) else None,
+        )
+        token = set_request_id(request_id)
+        self.request.request_id_token = token
+        super().before_start(task_id, args, kwargs)
+
+    def after_return(
+        self,
+        status: str,
+        retval: Any,
+        task_id: str,
+        args: Any,
+        kwargs: Any,
+        einfo: Any,
+    ) -> None:
+        token = getattr(self.request, "request_id_token", None)
+        if token is not None:
+            reset_request_id(token)
+            self.request.request_id_token = None
+        super().after_return(status, retval, task_id, args, kwargs, einfo)
+
     def on_failure(self, exc: Exception, task_id: str, args: Any, kwargs: Any, einfo: Any) -> None:
-        """Log task failures."""
+        """Log task failures and clean up request context."""
+        token = getattr(self.request, "request_id_token", None)
+        if token is not None:
+            try:
+                reset_request_id(token)
+            except Exception:
+                import logging
+
+                logging.getLogger(__name__).debug(
+                    "Failed to reset request context after task failure",
+                    exc_info=True,
+                )
+            self.request.request_id_token = None
         import logging
 
         logger = logging.getLogger(__name__)
@@ -313,7 +404,9 @@ class BaseTask(BaseTaskType):
                 "task_kwargs": str(kwargs),  # Renamed to avoid conflict
             },
         )
-        super().on_failure(exc, task_id, args, kwargs, einfo)
+        super_on_failure = getattr(super(), "on_failure", None)
+        if super_on_failure:
+            super_on_failure(exc, task_id, args, kwargs, einfo)
 
     def on_retry(self, exc: Exception, task_id: str, args: Any, kwargs: Any, einfo: Any) -> None:
         """Log task retries."""

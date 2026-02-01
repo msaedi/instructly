@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, TypeVar, cast
 
 try:  # pragma: no cover - optional dependency in some test environments
     from sentry_sdk.crons import monitor as _monitor
@@ -53,4 +53,4 @@ def monitor_if_configured(slug: str) -> Callable[[F], F]:
             return func
 
         return decorator
-    return _monitor(monitor_slug=slug, monitor_config=monitor_config)
+    return cast(Callable[[F], F], _monitor(monitor_slug=slug, monitor_config=monitor_config))

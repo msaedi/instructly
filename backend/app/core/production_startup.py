@@ -63,6 +63,8 @@ class ProductionStartup:
         if os.getenv("STRUCTURED_LOGS", "true").lower() == "true":
             import json
 
+            from app.core.request_context import attach_request_id_filter, get_request_id_value
+
             class StructuredFormatter(logging.Formatter):
                 def format(self, record: logging.LogRecord) -> str:
                     log_obj = {
@@ -70,6 +72,9 @@ class ProductionStartup:
                         "level": record.levelname,
                         "logger": record.name,
                         "message": record.getMessage(),
+                        "request_id": getattr(record, "request_id", get_request_id_value()),
+                        "otelTraceID": getattr(record, "otelTraceID", "no-trace"),
+                        "otelSpanID": getattr(record, "otelSpanID", "no-span"),
                     }
                     if hasattr(record, "extra"):
                         log_obj.update(record.extra)
@@ -79,6 +84,7 @@ class ProductionStartup:
             handler = logging.StreamHandler()
             handler.setFormatter(StructuredFormatter())
             logging.root.handlers = [handler]
+            attach_request_id_filter()
 
     @staticmethod
     async def _verify_services() -> None:

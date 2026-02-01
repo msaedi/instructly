@@ -9,6 +9,7 @@ import pytest
 
 from app.core.enums import PermissionName
 from app.core.exceptions import ForbiddenException, NotFoundException, ValidationException
+from app.core.request_context import get_request_id
 from app.models.conversation import Conversation
 from app.repositories.message_repository import MessageRepository
 from app.routes.v1 import messages as messages_routes
@@ -659,6 +660,69 @@ async def test_stream_user_messages_emits_events(
     response = await messages_routes.stream_user_messages.__wrapped__(request, test_student)
     events = [chunk async for chunk in response.body_iterator]
     assert events
+
+
+@pytest.mark.asyncio
+async def test_stream_user_messages_sets_request_id(monkeypatch, test_student):
+    async def fake_create_sse_stream(*, user_id, missed_messages):
+        yield {"event": "message", "data": "ok"}
+
+    async def fake_ensure_db_health(_db):
+        return None
+
+    monkeypatch.setattr(messages_routes, "create_sse_stream", fake_create_sse_stream)
+    monkeypatch.setattr(messages_routes, "ensure_db_health", fake_ensure_db_health)
+    monkeypatch.setattr(
+        messages_routes,
+        "user_has_cached_permission",
+        lambda user, perm: True,
+    )
+
+    request = SimpleNamespace(
+        headers={"X-Request-ID": "req-123"},
+        state=SimpleNamespace(),
+    )
+
+    async def is_disconnected():
+        return True
+
+    request.is_disconnected = is_disconnected
+
+    response = await messages_routes.stream_user_messages.__wrapped__(request, test_student)
+    assert request.state.request_id == "req-123"
+    assert response.headers.get("X-Request-ID") == "req-123"
+
+
+@pytest.mark.asyncio
+async def test_stream_user_messages_cleans_request_context(monkeypatch, test_student):
+    async def fake_create_sse_stream(*, user_id, missed_messages):
+        yield {"event": "message", "data": "ok"}
+
+    async def fake_ensure_db_health(_db):
+        return None
+
+    monkeypatch.setattr(messages_routes, "create_sse_stream", fake_create_sse_stream)
+    monkeypatch.setattr(messages_routes, "ensure_db_health", fake_ensure_db_health)
+    monkeypatch.setattr(
+        messages_routes,
+        "user_has_cached_permission",
+        lambda user, perm: True,
+    )
+
+    request = SimpleNamespace(
+        headers={"X-Request-ID": "req-456"},
+        state=SimpleNamespace(),
+    )
+
+    async def is_disconnected():
+        return False
+
+    request.is_disconnected = is_disconnected
+
+    response = await messages_routes.stream_user_messages.__wrapped__(request, test_student)
+    events = [chunk async for chunk in response.body_iterator]
+    assert events
+    assert get_request_id() is None
 
 
 @pytest.mark.asyncio

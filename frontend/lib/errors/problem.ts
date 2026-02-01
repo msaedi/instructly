@@ -5,6 +5,7 @@ export type Problem = {
   status: number;
   code?: string;
   request_id?: string;
+  trace_id?: string;
   instance?: string;
   errors?: unknown;
 };
@@ -57,6 +58,7 @@ export function normalizeProblem(problem: Record<string, unknown>, fallbackStatu
   const instanceValue = problem['instance'];
   const codeValue = problem['code'];
   const requestIdValue = problem['request_id'];
+  const traceIdValue = problem['trace_id'];
   const errors = problem['errors'];
 
   const result: Problem = {
@@ -77,6 +79,9 @@ export function normalizeProblem(problem: Record<string, unknown>, fallbackStatu
   }
   if (typeof requestIdValue === 'string' && requestIdValue.length > 0) {
     result.request_id = requestIdValue;
+  }
+  if (typeof traceIdValue === 'string' && traceIdValue.length > 0) {
+    result.trace_id = traceIdValue;
   }
   if (errors !== undefined) {
     result.errors = errors;

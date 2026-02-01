@@ -23,6 +23,7 @@ from app.models.rbac import Role
 from app.services.email import EmailService
 from app.services.email_config import EmailConfigService
 from app.tasks.celery_app import celery_app
+from app.tasks.enqueue import enqueue_task
 
 TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
 if TYPE_CHECKING:
@@ -155,11 +156,17 @@ def process_monitoring_alert(
 
         # Send email for critical alerts
         if severity == "critical":
-            cast(Any, send_alert_email).delay(alert.id)
+            enqueue_task(
+                "app.tasks.monitoring_tasks.send_alert_email",
+                args=(alert.id,),
+            )
 
         # Create GitHub issue for persistent problems
         if should_create_github_issue(self.db, alert_type, severity):
-            cast(Any, create_github_issue_for_alert).delay(alert.id)
+            enqueue_task(
+                "app.tasks.monitoring_tasks.create_github_issue_for_alert",
+                args=(alert.id,),
+            )
 
         logger.info(f"Processed {severity} alert: {title}")
 

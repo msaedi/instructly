@@ -14,6 +14,7 @@ import { getBetaConfigFromHeaders } from '@/lib/beta-config';
 import { headers } from 'next/headers';
 import { BackgroundProvider } from '@/lib/config/backgroundProvider';
 import { APP_URL, APP_ENV, NODE_ENV, ENABLE_LOGGING } from '@/lib/publicEnv';
+import { AxiomWebVitals } from 'next-axiom';
 // Analytics moved to client-only Providers to avoid SSR hydration mismatch
 
 /**
@@ -176,6 +177,7 @@ export default async function RootLayout({
               {children}
               <Analytics />
               <SpeedInsights />
+              <AxiomWebVitals />
             </Providers>
           </BetaProvider>
         </BackgroundProvider>

@@ -67,4 +67,9 @@ describe("problem+json parser", () => {
     expect(normalized.detail).toBe("");
     expect(normalized.code).toBe("SOME_CODE");
   });
+
+  test("normalizer preserves trace_id", () => {
+    const normalized = normalizeProblem({ trace_id: "trace-123" }, 500);
+    expect(normalized.trace_id).toBe("trace-123");
+  });
 });

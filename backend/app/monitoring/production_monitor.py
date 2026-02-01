@@ -31,12 +31,12 @@ from ..database import get_db_pool_status
 
 logger = logging.getLogger(__name__)
 
-# Import Celery tasks if available
+# Import Celery enqueue helper if available
 try:
-    from app.tasks.monitoring_tasks import process_monitoring_alert as _process_monitoring_alert
+    from app.tasks.enqueue import enqueue_task as _enqueue_task
 
     CELERY_AVAILABLE = True
-    process_monitoring_alert = cast(Any, _process_monitoring_alert)
+    enqueue_task = cast(Any, _enqueue_task)
 except ImportError:
     CELERY_AVAILABLE = False
     logger.warning("Celery tasks not available - alerts will only be logged")
@@ -306,12 +306,15 @@ class PerformanceMonitor:
         # Dispatch to Celery if available
         if CELERY_AVAILABLE:
             try:
-                process_monitoring_alert.delay(
-                    alert_type=alert_type,
-                    severity=severity,
-                    title=f"Performance Alert: {alert_type.replace('_', ' ').title()}",
-                    message=message,
-                    details=details or {},
+                enqueue_task(
+                    "app.tasks.monitoring_tasks.process_monitoring_alert",
+                    kwargs={
+                        "alert_type": alert_type,
+                        "severity": severity,
+                        "title": f"Performance Alert: {alert_type.replace('_', ' ').title()}",
+                        "message": message,
+                        "details": details or {},
+                    },
                 )
                 logger.info(f"Alert dispatched to Celery: {alert_type}")
             except Exception as e:

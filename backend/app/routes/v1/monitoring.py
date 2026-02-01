@@ -29,6 +29,7 @@ from app.schemas.monitoring_responses import (
     SlowRequestsResponse,
 )
 from app.services.cache_service import get_cache_service
+from app.tasks.enqueue import enqueue_task
 
 router = APIRouter(
     tags=["Monitoring"],
@@ -321,10 +322,8 @@ async def trigger_payment_health_check(
     """
     # datetime already available where needed above; avoid re-import
     try:
-        from app.tasks.payment_tasks import check_authorization_health
-
         # Trigger the task asynchronously
-        task = check_authorization_health.delay()
+        task = enqueue_task("app.tasks.payment_tasks.check_authorization_health")
 
         return PaymentHealthCheckTriggerResponse(
             status="triggered",

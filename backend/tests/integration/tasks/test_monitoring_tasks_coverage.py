@@ -46,9 +46,9 @@ def _create_alert(db, alert_type: str = "slow_query", severity: str = "warning")
 
 
 def test_process_monitoring_alert_warning_records(db, _task_db) -> None:
-    with patch.object(monitoring_tasks.send_alert_email, "delay") as mock_email, patch.object(
-        monitoring_tasks.create_github_issue_for_alert, "delay"
-    ) as mock_issue, patch.object(
+    with patch.object(
+        monitoring_tasks, "enqueue_task"
+    ) as mock_enqueue, patch.object(
         monitoring_tasks, "should_create_github_issue", return_value=False
     ):
         monitoring_tasks.process_monitoring_alert.run(
@@ -57,22 +57,25 @@ def test_process_monitoring_alert_warning_records(db, _task_db) -> None:
 
     alert = db.query(AlertHistory).filter_by(alert_type="slow_query").first()
     assert alert is not None
-    mock_email.assert_not_called()
-    mock_issue.assert_not_called()
+    mock_enqueue.assert_not_called()
 
 
 def test_process_monitoring_alert_critical_triggers_tasks(db, _task_db) -> None:
-    with patch.object(monitoring_tasks.send_alert_email, "delay") as mock_email, patch.object(
-        monitoring_tasks.create_github_issue_for_alert, "delay"
-    ) as mock_issue, patch.object(
+    with patch.object(
+        monitoring_tasks, "enqueue_task"
+    ) as mock_enqueue, patch.object(
         monitoring_tasks, "should_create_github_issue", return_value=True
     ):
         monitoring_tasks.process_monitoring_alert.run(
             "high_memory", "critical", "High memory", "Memory usage high"
         )
 
-    mock_email.assert_called_once()
-    mock_issue.assert_called_once()
+    assert mock_enqueue.call_count == 2
+    task_names = {call.args[0] for call in mock_enqueue.call_args_list}
+    assert task_names == {
+        "app.tasks.monitoring_tasks.send_alert_email",
+        "app.tasks.monitoring_tasks.create_github_issue_for_alert",
+    }
 
 
 def test_process_monitoring_alert_retries_on_failure(db, _task_db) -> None:

@@ -1,5 +1,14 @@
 /* frontend/lib/http.ts
  * Unified HTTP client for browser + SSR.
+ *
+ * TRACE PROPAGATION:
+ * This client uses native fetch(), which is automatically instrumented by
+ * @vercel/otel (configured in instrumentation.ts). The traceparent header
+ * is injected into requests matching these patterns:
+ * - https://api.instainstru.com/*
+ * - https://*.onrender.com/*
+ *
+ * No manual header injection is needed.
  */
 
 import { logger } from '@/lib/logger';
@@ -11,11 +20,19 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export class ApiError extends Error {
   public headers: Headers | undefined;
+  public requestId: string | undefined;
 
-  constructor(message: string, public status: number, public data?: unknown, headers?: Headers) {
+  constructor(
+    message: string,
+    public status: number,
+    public data?: unknown,
+    headers?: Headers,
+    requestId?: string
+  ) {
     super(message);
     this.name = 'ApiError';
     this.headers = headers;
+    this.requestId = requestId;
   }
 }
 
@@ -87,6 +104,8 @@ export async function http<T = unknown>(method: HttpMethod, url: string, options
   }
   let resp: Response;
   try {
+    // Note: @vercel/otel automatically injects traceparent headers into fetch()
+    // calls matching propagateContextUrls (see instrumentation.ts).
     resp = await fetch(u.toString(), init);
   } catch (error) {
     captureFetchError({ url: u.toString(), method, error });
@@ -119,13 +138,19 @@ export async function http<T = unknown>(method: HttpMethod, url: string, options
     const status = resp.status;
     const errorData = data as ApiErrorResponse;
     const message = errorData?.detail || errorData?.message || `HTTP ${status}`;
+    const requestIdFromBody =
+      typeof (errorData as Record<string, unknown> | null)?.['request_id'] === 'string'
+        ? (errorData as Record<string, unknown>)['request_id']
+        : undefined;
+    const requestIdFromHeaders = resp.headers.get('x-request-id') || resp.headers.get('X-Request-ID');
+    const requestId = (requestIdFromBody as string | undefined) || requestIdFromHeaders || undefined;
     if (status === 401 || status === 403 || status === 419) {
-      throw new AuthError(message, status, data, resp.headers);
+      throw new AuthError(message, status, data, resp.headers, requestId);
     }
     if (status >= 400 && status < 500) {
-      throw new ClientError(message, status, data, resp.headers);
+      throw new ClientError(message, status, data, resp.headers, requestId);
     }
-    const serverError = new ApiError(message, status, data, resp.headers);
+    const serverError = new ApiError(message, status, data, resp.headers, requestId);
     captureFetchError({ url: u.toString(), method, status, error: serverError });
     throw serverError;
   }

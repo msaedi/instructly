@@ -37,6 +37,7 @@ from app.services.notification_templates import (
 )
 from app.services.sms_templates import REMINDER_1H, REMINDER_24H, SMSTemplate
 from app.tasks.celery_app import typed_task
+from app.tasks.enqueue import enqueue_task
 
 logger = get_task_logger(__name__)
 
@@ -75,7 +76,11 @@ def dispatch_pending() -> int:
         repo = EventOutboxRepository(session)
         pending = repo.fetch_pending(limit=200)
         for event in pending:
-            deliver_event.apply_async((event.id,), queue="notifications")
+            enqueue_task(
+                "outbox.deliver_event",
+                args=(event.id,),
+                queue="notifications",
+            )
         scheduled: int = len(pending)
         if scheduled:
             logger.info("Scheduled %s outbox events for delivery", scheduled)

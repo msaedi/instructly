@@ -62,6 +62,8 @@ def test_init_sentry_enabled_when_dsn_set(monkeypatch):
     assert kwargs["environment"] == "production"
     assert kwargs["release"] == "gitsha"
     assert kwargs["send_default_pii"] is True
+    assert kwargs["traces_sample_rate"] == 0.0
+    assert kwargs["traces_sampler"] is None
     assert kwargs["profiles_sample_rate"] == sentry_module.DEFAULT_PROFILES_SAMPLE_RATE
     assert kwargs["enable_logs"] is True
     assert kwargs["integrations"] == [mock_logging_instance, mock_instance, mock_celery_instance]
@@ -100,9 +102,11 @@ def test_apply_scope_context_attaches_request_and_user():
     request.state.current_user = SimpleNamespace(id="user-1", email="user@example.com")
 
     scope = DummyScope()
-    sentry_module._apply_scope_context(scope, request)
+    with patch.object(sentry_module, "_extract_otel_trace_id", return_value="trace-abc"):
+        sentry_module._apply_scope_context(scope, request)
 
     assert scope.tags["request_id"] == "req-123"
+    assert scope.tags["otel_trace_id"] == "trace-abc"
     assert scope.user == {"id": "user-1", "email": "user@example.com"}
 
 
@@ -112,9 +116,11 @@ def test_apply_event_context_attaches_request_and_user():
     request.state.user_email = "user2@example.com"
 
     event: dict[str, object] = {}
-    sentry_module._apply_event_context(event, request)
+    with patch.object(sentry_module, "_extract_otel_trace_id", return_value="trace-xyz"):
+        sentry_module._apply_event_context(event, request)
 
     assert event["tags"]["request_id"] == "req-456"
+    assert event["tags"]["otel_trace_id"] == "trace-xyz"
     assert event["user"]["id"] == "user-2"
     assert event["user"]["email"] == "user2@example.com"
 

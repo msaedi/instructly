@@ -673,6 +673,7 @@ describe('InstructorCoverageMap', () => {
     });
 
     it('handles multiple locate button clicks gracefully', async () => {
+      jest.useFakeTimers();
       const mockGeolocation = {
         getCurrentPosition: jest.fn((success) => {
           // Simulate delayed response
@@ -705,6 +706,11 @@ describe('InstructorCoverageMap', () => {
 
       // Geolocation should have been requested
       expect(mockGeolocation.getCurrentPosition).toHaveBeenCalled();
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+      jest.useRealTimers();
     });
 
     it('removes custom controls on unmount', () => {

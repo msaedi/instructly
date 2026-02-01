@@ -15,6 +15,7 @@ from app.services.config_service import ConfigService
 from app.services.pricing_service import PricingService
 from app.services.stripe_service import StripeService
 from app.tasks.celery_app import celery_app
+from app.tasks.enqueue import enqueue_task
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +182,10 @@ def retry_failed_instructor_referral_payouts() -> Dict[str, Any]:
             payout.stripe_transfer_status = "pending"
             payout.failed_at = None
             payout.failure_reason = None
-            process_instructor_referral_payout.delay(payout.id)
+            enqueue_task(
+                "app.tasks.referral_tasks.process_instructor_referral_payout",
+                args=(payout.id,),
+            )
             retried += 1
 
         logger.info("Queued %s failed payouts for retry", retried)
@@ -209,7 +213,10 @@ def check_pending_instructor_referral_payouts() -> Dict[str, Any]:
 
         queued = 0
         for payout in pending_payouts:
-            process_instructor_referral_payout.delay(payout.id)
+            enqueue_task(
+                "app.tasks.referral_tasks.process_instructor_referral_payout",
+                args=(payout.id,),
+            )
             queued += 1
 
         logger.info("Queued %s pending payouts for processing", queued)

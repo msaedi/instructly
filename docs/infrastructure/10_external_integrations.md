@@ -379,6 +379,43 @@ VERCEL_GIT_COMMIT_SHA=...               # Release from Vercel
 
 ---
 
+## OpenTelemetry (Axiom)
+
+### Purpose
+Backend distributed tracing with Axiom as the trace/logs backend. Sentry remains for errors only.
+
+### Environment Variables
+
+```bash
+# Feature flag
+ENABLE_OTEL=true|false
+
+# Service identity
+OTEL_SERVICE_NAME=instainstru-api
+
+# OTLP exporter endpoint (Axiom)
+OTEL_EXPORTER_OTLP_ENDPOINT=https://api.axiom.co
+
+# Auth headers for Axiom ingest (no spaces around commas)
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer ${AXIOM_API_TOKEN},X-Axiom-Dataset=instainstru-traces
+
+# Sampling
+OTEL_TRACES_SAMPLER=parentbased_traceidratio
+OTEL_TRACES_SAMPLER_ARG=0.5
+
+# Optional (used by init_otel when OTEL_EXPORTER_OTLP_HEADERS not set)
+AXIOM_API_TOKEN=...
+AXIOM_TRACES_DATASET=instainstru-traces
+AXIOM_LOGS_DATASET=instainstru-logs
+```
+
+### Key Files
+- [backend/app/monitoring/otel.py](backend/app/monitoring/otel.py) - OTel initialization/instrumentation
+- [backend/app/middleware/performance.py](backend/app/middleware/performance.py) - X-Trace-ID response header
+- [backend/app/errors.py](backend/app/errors.py) - trace_id in error responses
+
+---
+
 ## Cloudflare R2
 
 ### Purpose

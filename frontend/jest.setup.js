@@ -34,25 +34,29 @@ jest.mock('@/hooks/useSavedAddresses', () => {
   };
 });
 
-// Mock localStorage
-const localStorageMock = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn(),
-};
+if (typeof window !== 'undefined') {
+  // Mock localStorage
+  const localStorageMock = {
+    getItem: jest.fn(),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+    clear: jest.fn(),
+  };
 
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock,
-});
+  Object.defineProperty(window, 'localStorage', {
+    value: localStorageMock,
+  });
+}
 
-Object.defineProperty(HTMLFormElement.prototype, 'requestSubmit', {
-  configurable: true,
-  value: function requestSubmit() {
-    const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
-    this.dispatchEvent(submitEvent);
-  },
-});
+if (typeof HTMLFormElement !== 'undefined') {
+  Object.defineProperty(HTMLFormElement.prototype, 'requestSubmit', {
+    configurable: true,
+    value: function requestSubmit() {
+      const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+      this.dispatchEvent(submitEvent);
+    },
+  });
+}
 
 // Reset all mocks before each test
 beforeEach(() => {

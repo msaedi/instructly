@@ -52,6 +52,7 @@ from .core.metrics import (
     BGC_PENDING_7D,
     METRICS_AUTH_FAILURE_TOTAL,
 )
+from .core.request_context import attach_request_id_filter
 from .database import SessionLocal
 from .middleware.beta_phase_header import BetaPhaseHeaderMiddleware
 from .middleware.csrf_asgi import CsrfOriginMiddlewareASGI
@@ -59,6 +60,12 @@ from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
 from .middleware.performance import PerformanceMiddleware
 from .middleware.prometheus_middleware import PrometheusMiddleware
+from .monitoring.otel import (
+    init_otel,
+    instrument_additional_libraries,
+    instrument_fastapi,
+    shutdown_otel,
+)
 from .monitoring.sentry import SentryContextMiddleware, init_sentry
 from .schemas.audit import AuditLogView
 from .schemas.availability_window import (
@@ -179,8 +186,13 @@ except Exception:  # pragma: no cover
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format=(
+        "%(asctime)s - %(name)s - %(levelname)s - [%(request_id)s] "
+        "[trace=%(otelTraceID)s span=%(otelSpanID)s] %(message)s"
+    ),
 )
+attach_request_id_filter()
 
 
 logger = logging.getLogger(__name__)
@@ -322,6 +334,14 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         f"Environment: {settings.environment} (SITE_MODE={os.getenv('SITE_MODE','') or 'unset'})"
     )
 
+    # Initialize OpenTelemetry after Sentry (errors only)
+    try:
+        if init_otel():
+            instrument_fastapi(app)
+            instrument_additional_libraries()
+    except Exception as e:
+        logger.error("OpenTelemetry initialization failed: %s", e, exc_info=True)
+
     # Wire the running event loop for sync→async cache bridging (CacheServiceSyncAdapter).
     try:
         from .services.cache_service import set_cache_event_loop
@@ -439,6 +459,8 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Shutdown
     logger.info(f"{BRAND_NAME} API shutting down...")
+
+    shutdown_otel()
 
     if job_worker_task is not None:
         if job_worker_stop_event is not None:

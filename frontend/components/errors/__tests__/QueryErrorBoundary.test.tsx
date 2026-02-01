@@ -148,6 +148,19 @@ describe('QueryErrorBoundary', () => {
       expect(screen.getByText('Resource not found')).toBeInTheDocument();
     });
 
+    it('renders support code when available on ApiError', () => {
+      const apiError = new ApiError('Request failed', 500, undefined, undefined, 'req-12345');
+
+      renderWithProviders(
+        <QueryErrorBoundary>
+          <ThrowError error={apiError} />
+        </QueryErrorBoundary>
+      );
+
+      expect(screen.getByText(/reference code/i)).toBeInTheDocument();
+      expect(screen.getByText('req-12345')).toBeInTheDocument();
+    });
+
     it('shows generic message when ApiError has no message', () => {
       const apiError = new ApiError('', 500);
 

@@ -34,6 +34,8 @@ import stripe
 from stripe._refund import Refund as StripeRefund
 from stripe._transfer import Transfer as StripeTransfer
 
+from app.tasks.enqueue import enqueue_task
+
 from ..constants.payment_status import map_payment_status
 from ..constants.pricing_defaults import PRICING_DEFAULTS
 from ..core.booking_lock import booking_lock_sync
@@ -3188,9 +3190,11 @@ class StripeService(BaseService):
             )
             if immediate_failed:
                 try:
-                    from app.tasks.payment_tasks import check_immediate_auth_timeout
-
-                    check_immediate_auth_timeout.apply_async(args=[booking_id], countdown=30 * 60)
+                    enqueue_task(
+                        "app.tasks.payment_tasks.check_immediate_auth_timeout",
+                        args=(booking_id,),
+                        countdown=30 * 60,
+                    )
                 except Exception:
                     logger.debug("Non-fatal error ignored", exc_info=True)
             if immediate_auth:

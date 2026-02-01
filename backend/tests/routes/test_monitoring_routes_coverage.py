@@ -215,19 +215,17 @@ async def test_trigger_payment_health_check(monkeypatch) -> None:
     class _Task:
         id = "task-123"
 
-    with patch(
-        "app.tasks.payment_tasks.check_authorization_health", autospec=True
-    ) as mock_check:
-        mock_check.delay.return_value = _Task()
+    with patch("app.routes.v1.monitoring.enqueue_task", return_value=_Task()) as mock_enqueue:
         response = await monitoring_routes.trigger_payment_health_check()
 
     assert response.task_id == "task-123"
+    mock_enqueue.assert_called_once_with("app.tasks.payment_tasks.check_authorization_health")
 
 
 @pytest.mark.asyncio
 async def test_trigger_payment_health_check_error(monkeypatch) -> None:
     with patch(
-        "app.tasks.payment_tasks.check_authorization_health",
+        "app.routes.v1.monitoring.enqueue_task",
         side_effect=RuntimeError("boom"),
     ):
         with pytest.raises(HTTPException) as exc:

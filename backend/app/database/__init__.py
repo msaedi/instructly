@@ -112,6 +112,11 @@ db_url = settings.get_database_url()
 # so every connection here is multiplexed through Supabase's pooler.
 engine: Engine = create_engine(db_url, poolclass=QueuePool, **_build_engine_kwargs(db_url))
 
+# Register SQLAlchemy engine for OTel instrumentation (if enabled).
+from app.monitoring.otel import instrument_database
+
+instrument_database(engine)
+
 
 @event.listens_for(Engine, "after_cursor_execute", retval=False)
 def _perf_after_cursor_execute(

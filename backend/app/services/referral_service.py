@@ -44,6 +44,7 @@ from app.services.config_service import ConfigService
 from app.services.referral_unlocker import get_last_success_timestamp
 from app.services.referrals_config_service import ReferralsEffectiveConfig, get_effective_config
 from app.tasks.celery_app import celery_app
+from app.tasks.enqueue import enqueue_task
 
 logger = logging.getLogger(__name__)
 
@@ -441,9 +442,10 @@ class ReferralService(BaseService):
 
         if payout_id:
             try:
-                from app.tasks.referral_tasks import process_instructor_referral_payout
-
-                process_instructor_referral_payout.delay(payout_id)
+                enqueue_task(
+                    "app.tasks.referral_tasks.process_instructor_referral_payout",
+                    args=(payout_id,),
+                )
                 logger.info("Queued referral payout task for payout_id=%s", payout_id)
             except Exception as exc:
                 logger.error(

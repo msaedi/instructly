@@ -38,11 +38,15 @@ def test_run_analytics_async(monkeypatch):
     cmd = analytics_mod.AnalyticsCommand()
     task = SimpleNamespace(id="task_123")
 
-    with patch.object(analytics_mod.calculate_analytics, "delay", return_value=task):
+    with patch.object(analytics_mod, "enqueue_task", return_value=task) as mock_enqueue:
         result = cmd.run_analytics(days_back=30, async_mode=True)
 
     assert result["status"] == "submitted"
     redis_client.set.assert_called_once()
+    mock_enqueue.assert_called_once_with(
+        "app.tasks.analytics.calculate_analytics",
+        kwargs={"days_back": 30},
+    )
 
 
 def test_run_analytics_sync_success(monkeypatch):

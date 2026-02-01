@@ -118,6 +118,7 @@ class ErrorResponse(StrictModel):
 
     error: ErrorDetail = Field(description="Error details")
     request_id: Optional[str] = Field(default=None, description="Request ID for tracking")
+    trace_id: Optional[str] = Field(default=None, description="Trace ID for distributed tracing")
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc), description="Error timestamp"
     )
@@ -131,6 +132,7 @@ class ErrorResponse(StrictModel):
                     "field": None,
                 },
                 "request_id": "req_123abc",
+                "trace_id": "0af7651916cd43dd8448eb211c80319c",
                 "timestamp": "2025-01-20T10:30:00Z",
             }
         }
