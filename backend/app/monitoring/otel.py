@@ -19,9 +19,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Feature flag - allows quick disable without redeploy
-OTEL_ENABLED = os.getenv("ENABLE_OTEL", "false").lower() == "true"
-
 # Lazy imports to avoid loading OTel when disabled
 _tracer_provider: Optional["TracerProvider"] = None
 _otel_initialized = False
@@ -29,9 +26,16 @@ _sqlalchemy_engine: Optional[Any] = None
 _sqlalchemy_instrumented = False
 
 
+def _is_truthy_env(value: str | None) -> bool:
+    if value is None:
+        return False
+    normalized = value.strip().lower()
+    return normalized in {"1", "true", "yes", "y", "on"}
+
+
 def is_otel_enabled() -> bool:
     """Check if OpenTelemetry is enabled."""
-    return OTEL_ENABLED
+    return _is_truthy_env(os.getenv("ENABLE_OTEL"))
 
 
 def _parse_otlp_headers(raw: str | None) -> dict[str, str]:
@@ -94,8 +98,8 @@ def init_otel(service_name: Optional[str] = None) -> bool:
         logger.debug("OTel already initialized, skipping")
         return True
 
-    if not OTEL_ENABLED:
-        logger.info("OpenTelemetry disabled (ENABLE_OTEL != 'true')")
+    if not is_otel_enabled():
+        logger.info("OpenTelemetry disabled (ENABLE_OTEL=%r)", os.getenv("ENABLE_OTEL"))
         return False
 
     try:
@@ -203,7 +207,7 @@ def instrument_fastapi(app: Any) -> bool:
     Returns:
         True if instrumentation succeeded
     """
-    if not OTEL_ENABLED:
+    if not is_otel_enabled():
         return False
 
     if getattr(app, "_otel_instrumented", False):
@@ -268,7 +272,7 @@ def instrument_database(engine: Any) -> None:
     global _sqlalchemy_engine
 
     _sqlalchemy_engine = engine
-    if not OTEL_ENABLED or not _otel_initialized:
+    if not is_otel_enabled() or not _otel_initialized:
         return
 
     _instrument_sqlalchemy(engine)
@@ -279,7 +283,7 @@ def instrument_additional_libraries() -> None:
     Instrument additional libraries used by the application.
     Call after init_otel().
     """
-    if not OTEL_ENABLED:
+    if not is_otel_enabled():
         return
 
     if _sqlalchemy_engine is not None:
@@ -333,7 +337,7 @@ def get_current_trace_id() -> Optional[str]:
     Returns:
         32-character hex trace ID, or None if no active span
     """
-    if not OTEL_ENABLED:
+    if not is_otel_enabled():
         return None
 
     try:
@@ -360,7 +364,7 @@ def get_current_span_id() -> Optional[str]:
     Returns:
         16-character hex span ID, or None if no active span
     """
-    if not OTEL_ENABLED:
+    if not is_otel_enabled():
         return None
 
     try:
@@ -392,7 +396,7 @@ def create_span(name: str, attributes: Optional[dict[str, Any]] = None) -> Itera
     # WARNING: Do not add high-cardinality attributes as span names.
     # User emails, phone numbers, payment IDs should be attributes only,
     # not span names. Scrub PII where appropriate.
-    if not OTEL_ENABLED:
+    if not is_otel_enabled():
         yield None
         return
 
