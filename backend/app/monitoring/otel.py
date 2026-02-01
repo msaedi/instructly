@@ -86,6 +86,10 @@ def init_otel(service_name: Optional[str] = None) -> bool:
             }
         )
 
+        # Sampling is configured via standard OTel environment variables:
+        # - OTEL_TRACES_SAMPLER (e.g., "parentbased_traceidratio")
+        # - OTEL_TRACES_SAMPLER_ARG (e.g., "0.5" for 50% sampling)
+        # If not set, defaults to AlwaysOn (100% sampling).
         _tracer_provider = TracerProvider(resource=resource)
         trace.set_tracer_provider(_tracer_provider)
 
@@ -116,11 +120,13 @@ def init_otel(service_name: Optional[str] = None) -> bool:
             headers=exporter_headers or None,
         )
 
+        # BatchSpanProcessor settings can be tuned via env vars:
+        # OTEL_BSP_MAX_QUEUE_SIZE, OTEL_BSP_MAX_EXPORT_BATCH_SIZE, OTEL_BSP_SCHEDULE_DELAY_MILLIS
         span_processor = BatchSpanProcessor(
             exporter,
-            max_queue_size=2048,
-            max_export_batch_size=512,
-            schedule_delay_millis=5000,
+            max_queue_size=int(os.getenv("OTEL_BSP_MAX_QUEUE_SIZE", "2048")),
+            max_export_batch_size=int(os.getenv("OTEL_BSP_MAX_EXPORT_BATCH_SIZE", "512")),
+            schedule_delay_millis=int(os.getenv("OTEL_BSP_SCHEDULE_DELAY_MILLIS", "5000")),
         )
         _tracer_provider.add_span_processor(span_processor)
 

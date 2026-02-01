@@ -7,12 +7,15 @@ to ensure trace context propagates from HTTP requests to Celery tasks.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, Optional, Tuple
 
 from celery import current_app
 
 from app.core.request_context import get_request_id
 from app.monitoring.otel import is_otel_enabled
+
+logger = logging.getLogger(__name__)
 
 
 def enqueue_task(
@@ -45,7 +48,12 @@ def enqueue_task(
 
             propagate.inject(headers)
         except Exception:
-            pass
+            # Trace propagation is best-effort - don't fail task enqueue
+            # if OTel context injection fails.
+            logger.debug(
+                "Failed to inject OTel trace context into task headers",
+                exc_info=True,
+            )
 
     request_id = get_request_id()
     if request_id and request_id != "no-request":

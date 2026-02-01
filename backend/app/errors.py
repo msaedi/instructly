@@ -76,12 +76,42 @@ def _extract_request_id(request: Request) -> Optional[str]:
 
 def _extract_trace_id() -> Optional[str]:
     try:
+        # Lazy import to avoid circular dependencies and ensure OTel
+        # modules are only loaded when actually needed.
         from app.monitoring.otel import get_current_trace_id, is_otel_enabled
     except Exception:
         return None
     if not is_otel_enabled():
         return None
     return get_current_trace_id()
+
+
+def _extract_detail_extras(detail: Any) -> tuple[Optional[str], Dict[str, Any]]:
+    override_title: Optional[str] = None
+    extras: Dict[str, Any] = {}
+    if not isinstance(detail, dict):
+        return override_title, extras
+
+    maybe_title = detail.get("title")
+    if isinstance(maybe_title, str) and maybe_title.strip():
+        override_title = maybe_title
+    error_value = detail.get("error")
+    if isinstance(error_value, str):
+        extras["error"] = error_value
+    current_version = detail.get("current_version")
+    if isinstance(current_version, str):
+        extras["current_version"] = current_version
+    checkr_error = detail.get("checkr_error")
+    if checkr_error is not None:
+        extras["checkr_error"] = jsonable_encoder(checkr_error)
+    provider_error = detail.get("provider_error")
+    if provider_error is not None:
+        extras["provider_error"] = jsonable_encoder(provider_error)
+    debug_info = detail.get("debug")
+    if debug_info is not None:
+        extras["debug"] = jsonable_encoder(debug_info)
+
+    return override_title, extras
 
 
 def _with_request_id_header(
@@ -109,36 +139,7 @@ def register_error_handlers(app: FastAPI) -> None:
         request_id = _extract_request_id(request)
         trace_id = _extract_trace_id()
         detail_text, code, errors = _parse_detail(exc.detail)
-        override_title: Optional[str] = None
-        extras: Dict[str, Any] = {}
-        if isinstance(exc.detail, dict):
-            maybe_title = exc.detail.get("title")
-            if isinstance(maybe_title, str) and maybe_title.strip():
-                override_title = maybe_title
-            error_value = exc.detail.get("error")
-            if isinstance(error_value, str):
-                extras["error"] = error_value
-            current_version = exc.detail.get("current_version")
-            if isinstance(current_version, str):
-                extras["current_version"] = current_version
-            checkr_error = exc.detail.get("checkr_error")
-            if checkr_error is not None:
-                extras["checkr_error"] = jsonable_encoder(checkr_error)
-            provider_error = exc.detail.get("provider_error")
-            if provider_error is not None:
-                extras["provider_error"] = jsonable_encoder(provider_error)
-            debug_info = exc.detail.get("debug")
-            if debug_info is not None:
-                extras["debug"] = jsonable_encoder(debug_info)
-            provider_error = exc.detail.get("provider_error")
-            if provider_error is not None:
-                extras["provider_error"] = jsonable_encoder(provider_error)
-            debug_info = exc.detail.get("debug")
-            if debug_info is not None:
-                extras["debug"] = jsonable_encoder(debug_info)
-            debug_info = exc.detail.get("debug")
-            if debug_info is not None:
-                extras["debug"] = jsonable_encoder(debug_info)
+        override_title, extras = _extract_detail_extras(exc.detail)
         problem = _problem(
             status=exc.status_code,
             title=override_title,
@@ -165,27 +166,7 @@ def register_error_handlers(app: FastAPI) -> None:
         request_id = _extract_request_id(request)
         trace_id = _extract_trace_id()
         detail_text, code, errors = _parse_detail(exc.detail)
-        override_title: Optional[str] = None
-        extras: Dict[str, Any] = {}
-        if isinstance(exc.detail, dict):
-            maybe_title = exc.detail.get("title")
-            if isinstance(maybe_title, str) and maybe_title.strip():
-                override_title = maybe_title
-            error_value = exc.detail.get("error")
-            if isinstance(error_value, str):
-                extras["error"] = error_value
-            current_version = exc.detail.get("current_version")
-            if isinstance(current_version, str):
-                extras["current_version"] = current_version
-            checkr_error = exc.detail.get("checkr_error")
-            if checkr_error is not None:
-                extras["checkr_error"] = jsonable_encoder(checkr_error)
-            provider_error = exc.detail.get("provider_error")
-            if provider_error is not None:
-                extras["provider_error"] = jsonable_encoder(provider_error)
-            debug_info = exc.detail.get("debug")
-            if debug_info is not None:
-                extras["debug"] = jsonable_encoder(debug_info)
+        override_title, extras = _extract_detail_extras(exc.detail)
         problem = _problem(
             status=exc.status_code,
             title=override_title,

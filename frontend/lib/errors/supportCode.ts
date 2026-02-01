@@ -22,6 +22,16 @@ function getString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+/**
+ * Extract a support code from an error for user-facing display.
+ *
+ * Priority order:
+ * 1. trace_id - OpenTelemetry distributed trace ID (preferred)
+ * 2. request_id - Backend-generated request correlation ID
+ * 3. X-Trace-ID/X-Request-ID from response headers
+ *
+ * Returns null if no support code can be extracted.
+ */
 export function getSupportCode(error: unknown): string | null {
   if (!isRecord(error)) return null;
 

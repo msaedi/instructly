@@ -143,6 +143,9 @@ async def stream_user_messages(
 
     Requires VIEW_MESSAGES permission.
     """
+    # SSE streams bypass the normal request lifecycle (middleware runs once at start,
+    # but the connection persists). We manually set request_id here so logs during
+    # the long-lived stream are correlated. This also sets X-Request-ID response header.
     request_id = request.headers.get("X-Request-ID") or str(uuid4())
     if not hasattr(request, "state"):
         request.state = SimpleNamespace()
