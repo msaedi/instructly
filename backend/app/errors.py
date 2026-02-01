@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Any, Dict, Optional
 
@@ -7,6 +8,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+logger = logging.getLogger(__name__)
 
 
 def _title_from_status(status_code: int) -> str:
@@ -80,6 +83,7 @@ def _extract_trace_id() -> Optional[str]:
         # modules are only loaded when actually needed.
         from app.monitoring.otel import get_current_trace_id, is_otel_enabled
     except Exception:
+        logger.debug("Failed to extract OTel trace ID", exc_info=True)
         return None
     if not is_otel_enabled():
         return None

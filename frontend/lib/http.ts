@@ -1,5 +1,14 @@
 /* frontend/lib/http.ts
  * Unified HTTP client for browser + SSR.
+ *
+ * TRACE PROPAGATION:
+ * This client uses native fetch(), which is automatically instrumented by
+ * @vercel/otel (configured in instrumentation.ts). The traceparent header
+ * is injected into requests matching these patterns:
+ * - https://api.instainstru.com/*
+ * - https://*.onrender.com/*
+ *
+ * No manual header injection is needed.
  */
 
 import { logger } from '@/lib/logger';
@@ -95,6 +104,8 @@ export async function http<T = unknown>(method: HttpMethod, url: string, options
   }
   let resp: Response;
   try {
+    // Note: @vercel/otel automatically injects traceparent headers into fetch()
+    // calls matching propagateContextUrls (see instrumentation.ts).
     resp = await fetch(u.toString(), init);
   } catch (error) {
     captureFetchError({ url: u.toString(), method, error });

@@ -148,6 +148,8 @@ async def stream_user_messages(
     # the long-lived stream are correlated. This also sets X-Request-ID response header.
     request_id = request.headers.get("X-Request-ID") or str(uuid4())
     if not hasattr(request, "state"):
+        # This shouldn't happen in FastAPI but log if it does.
+        logger.debug("Request missing state attribute, creating SimpleNamespace")
         request.state = SimpleNamespace()
     request.state.request_id = request_id
     set_request_id(request_id)
@@ -249,17 +251,28 @@ async def stream_user_messages(
             yield event
 
     # Create EventSourceResponse with appropriate headers
+    response_headers = {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "X-Accel-Buffering": "no",
+        "Connection": "keep-alive",
+        "Content-Type": "text/event-stream",
+        "Pragma": "no-cache",
+        "Expires": "0",
+        "X-Request-ID": request_id,
+    }
+    try:
+        from app.monitoring.otel import get_current_trace_id, is_otel_enabled
+
+        if is_otel_enabled():
+            trace_id = get_current_trace_id()
+            if trace_id:
+                response_headers["X-Trace-ID"] = trace_id
+    except Exception:
+        logger.debug("Failed to add X-Trace-ID to SSE response", exc_info=True)
+
     return EventSourceResponse(
         event_generator(),
-        headers={
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-            "Content-Type": "text/event-stream",
-            "Pragma": "no-cache",
-            "Expires": "0",
-            "X-Request-ID": request_id,
-        },
+        headers=response_headers,
         media_type="text/event-stream",
     )
 

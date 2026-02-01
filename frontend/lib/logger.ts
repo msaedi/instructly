@@ -252,8 +252,8 @@ export { log } from 'next-axiom';
 // At the bottom, add this for debugging:
 // Only expose logger on window in development for debugging.
 if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-  (window as unknown as Record<string, unknown>)['logger'] = logger;
-  (window as unknown as Record<string, unknown>)['log'] = axiomLog;
+  (window as unknown as Record<string, unknown>)['__instainstru_logger'] = logger;
+  (window as unknown as Record<string, unknown>)['__instainstru_log'] = axiomLog;
   (window as unknown as Record<string, unknown>)['setLogLevel'] = (level: LogLevel) => logger.setLevel(level);
   (window as unknown as Record<string, unknown>)['setLoggingEnabled'] = (enabled: boolean) => logger.setEnabled(enabled);
   (window as unknown as Record<string, unknown>)['getLoggerStatus'] = () => logger.getStatus();

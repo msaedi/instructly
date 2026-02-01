@@ -350,7 +350,6 @@ class BaseTask(BaseTaskType):
     retry_backoff = True
     retry_backoff_max = 600  # Max 10 minutes between retries
     retry_jitter = True
-    _request_id_token: Any | None = None
 
     def before_start(self, task_id: str, args: Any, kwargs: Any) -> None:
         headers = getattr(self.request, "headers", None)
@@ -359,7 +358,8 @@ class BaseTask(BaseTaskType):
             headers if isinstance(headers, Mapping) else None,
             kwargs if isinstance(kwargs, Mapping) else None,
         )
-        self._request_id_token = set_request_id(request_id)
+        token = set_request_id(request_id)
+        self.request.request_id_token = token
         super().before_start(task_id, args, kwargs)
 
     def after_return(
@@ -371,10 +371,10 @@ class BaseTask(BaseTaskType):
         kwargs: Any,
         einfo: Any,
     ) -> None:
-        token = self._request_id_token
+        token = getattr(self.request, "request_id_token", None)
         if token is not None:
             reset_request_id(token)
-            self._request_id_token = None
+            self.request.request_id_token = None
         super().after_return(status, retval, task_id, args, kwargs, einfo)
 
     def on_failure(self, exc: Exception, task_id: str, args: Any, kwargs: Any, einfo: Any) -> None:
