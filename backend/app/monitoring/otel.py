@@ -236,6 +236,10 @@ def instrument_fastapi(app: Any) -> bool:
         )
 
         setattr(app, "_otel_instrumented", True)
+        # If the middleware stack was already built (e.g., lifespan startup),
+        # force a rebuild so OTel middleware is included.
+        if getattr(app, "middleware_stack", None) is not None:
+            app.middleware_stack = None
         logger.info("FastAPI instrumented with OTel (excluded: %s)", excluded_urls)
         return True
 

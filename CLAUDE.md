@@ -28,6 +28,11 @@ These defensive measures ensure our hard-won architectural improvements are perm
 
 ## 🛡️ Engineering Guardrails & Quality Standards
 
+### Repository Metrics History (DO NOT REVERT)
+- `metrics_history.json` is intentionally versioned and updated regularly.
+- Always keep and commit changes to `metrics_history.json`; never revert or drop it.
+- If it appears modified, assume the update is expected and should be preserved.
+
 ### TypeScript Configuration (Strictest Possible)
 The frontend uses TypeScript's strictest configuration with ZERO errors allowed:
 ```json

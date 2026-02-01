@@ -9,13 +9,11 @@ Integrates with the production monitor to track:
 - Track database queries per request
 """
 
-import time
-from typing import Awaitable, Callable
 import uuid
 
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp
+from fastapi import Request
+from starlette.datastructures import MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from ..core.constants import SSE_PATH_PREFIX
 from ..core.request_context import reset_request_id, set_request_id
@@ -23,7 +21,7 @@ from ..monitoring.otel import get_current_trace_id, is_otel_enabled
 from ..monitoring.production_monitor import monitor
 
 
-class PerformanceMiddleware(BaseHTTPMiddleware):
+class PerformanceMiddleware:
     """
     Middleware for comprehensive performance monitoring.
 
@@ -34,76 +32,84 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
     - Automatic slow request detection
     """
 
-    def __init__(self, app: ASGIApp):
+    def __init__(self, app: ASGIApp) -> None:
         """Initialize performance middleware."""
-        super().__init__(app)
+        self.app = app
 
-    async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        """Process request with performance monitoring."""
-        # Skip monitoring for SSE endpoints to avoid interfering with streaming
-        # EventSourceResponse needs direct passthrough to work properly
-        if request.url.path.startswith(SSE_PATH_PREFIX):
-            return await call_next(request)
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """ASGI entrypoint for request performance monitoring."""
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        # Skip monitoring for SSE endpoints to avoid interfering with streaming.
+        if path.startswith(SSE_PATH_PREFIX):
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope, receive)
 
         # Generate or extract request ID
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         correlation_id = request.headers.get("X-Correlation-ID", request_id)
 
         # Store in request state for access in handlers
-        request.state.request_id = request_id
-        request.state.correlation_id = correlation_id
+        state = scope.setdefault("state", {})
+        state["request_id"] = request_id
+        state["correlation_id"] = correlation_id
+
+        # Add monitoring context defaults
+        state.setdefault("query_count", 0)
+        state.setdefault("cache_hits", 0)
+        state.setdefault("cache_misses", 0)
 
         # Track request start
         monitor.track_request_start(request_id, request)
-        start_time = time.time()
-
         request_id_token = set_request_id(request_id)
+        response_started = False
 
-        # Add monitoring context
-        request.state.query_count = 0
-        request.state.cache_hits = 0
-        request.state.cache_misses = 0
+        async def send_wrapper(message: Message) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+                status_code = message["status"]
+
+                # Track request end
+                duration_ms = monitor.track_request_end(request_id, status_code)
+
+                headers = MutableHeaders(scope=message)
+                headers["X-Request-ID"] = request_id
+                headers["X-Correlation-ID"] = correlation_id
+                if duration_ms:
+                    headers["X-Response-Time-MS"] = str(int(duration_ms))
+
+                trace_id: str | None = None
+                if is_otel_enabled():
+                    trace_id = get_current_trace_id()
+                if trace_id:
+                    headers["X-Trace-ID"] = trace_id
+
+                # Add performance metrics to response headers (useful for debugging)
+                db_count = state.get("query_count")
+                if db_count is not None:
+                    headers.setdefault("x-db-query-count", str(db_count))
+                    headers["X-DB-Query-Count"] = headers["x-db-query-count"]
+                hits = state.get("cache_hits")
+                misses = state.get("cache_misses")
+                if hits is not None and misses is not None:
+                    headers.setdefault("x-cache-hits", str(hits))
+                    headers.setdefault("x-cache-misses", str(misses))
+                    headers["X-Cache-Hits"] = headers["x-cache-hits"]
+                    headers["X-Cache-Misses"] = headers["x-cache-misses"]
+
+            await send(message)
 
         try:
-            # Process request
-            response = await call_next(request)
-
-            # Track request end
-            duration_ms = monitor.track_request_end(request_id, response.status_code)
-
-            # Add performance headers
-            response.headers["X-Request-ID"] = request_id
-            response.headers["X-Correlation-ID"] = correlation_id
-            if duration_ms:
-                response.headers["X-Response-Time-MS"] = str(int(duration_ms))
-            if is_otel_enabled():
-                trace_id = get_current_trace_id()
-                if trace_id:
-                    response.headers["X-Trace-ID"] = trace_id
-
-            # Add performance metrics to response headers (useful for debugging)
-            if hasattr(request.state, "query_count"):
-                db_count = str(request.state.query_count)
-                response.headers.setdefault("x-db-query-count", db_count)
-                response.headers["X-DB-Query-Count"] = response.headers["x-db-query-count"]
-            if hasattr(request.state, "cache_hits"):
-                hits = str(request.state.cache_hits)
-                misses = str(request.state.cache_misses)
-                response.headers.setdefault("x-cache-hits", hits)
-                response.headers.setdefault("x-cache-misses", misses)
-                response.headers["X-Cache-Hits"] = response.headers["x-cache-hits"]
-                response.headers["X-Cache-Misses"] = response.headers["x-cache-misses"]
-
-            return response
-
+            await self.app(scope, receive, send_wrapper)
         except Exception:
-            # Track failed request
-            duration_ms = (time.time() - start_time) * 1000
-            monitor.track_request_end(request_id, 500)
-
-            # Re-raise exception
+            if not response_started:
+                monitor.track_request_end(request_id, 500)
             raise
         finally:
             reset_request_id(request_id_token)
