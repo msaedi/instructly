@@ -190,14 +190,12 @@ class Logger {
   }
 
   timeEnd(label: string): void {
-    if (this.shouldLog('debug')) {
-      // Only log timing if debug logging is enabled
-      const startTime = this.timers.get(label);
-      if (startTime) {
-        const duration = performance.now() - startTime;
-        this.timers.delete(label);
-        console.log(`[TIMER] ${label}: ${duration.toFixed(2)}ms`);
-      }
+    const startTime = this.timers.get(label);
+    this.timers.delete(label);
+
+    if (this.shouldLog('debug') && startTime !== undefined) {
+      const duration = performance.now() - startTime;
+      this.debug(`${label}: ${duration.toFixed(2)}ms`);
     }
   }
 

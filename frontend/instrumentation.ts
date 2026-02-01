@@ -10,6 +10,7 @@ const OTEL_PROPAGATION_URLS = [
   /^https?:\/\/api\.instainstru\.com/,
   /^https?:\/\/.*\.onrender\.com/,
   /^https?:\/\/localhost:8000/,
+  /^https?:\/\/127\.0\.0\.1:8000/,
 ];
 
 function registerServerOtel(): void {

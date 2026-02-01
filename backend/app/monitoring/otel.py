@@ -64,6 +64,20 @@ def _parse_otlp_headers(raw: str | None) -> dict[str, str]:
     return headers
 
 
+def _safe_int(env_var: str, default: int) -> int:
+    """Safely parse integer env var with fallback to default."""
+    try:
+        value = os.getenv(env_var)
+        return int(value) if value else default
+    except (TypeError, ValueError):
+        logger.warning(
+            "Invalid integer value for %s, using default %d",
+            env_var,
+            default,
+        )
+        return default
+
+
 def init_otel(service_name: Optional[str] = None) -> bool:
     """
     Initialize OpenTelemetry tracing for the application.
@@ -142,9 +156,9 @@ def init_otel(service_name: Optional[str] = None) -> bool:
         # OTEL_BSP_MAX_QUEUE_SIZE, OTEL_BSP_MAX_EXPORT_BATCH_SIZE, OTEL_BSP_SCHEDULE_DELAY_MILLIS
         span_processor = BatchSpanProcessor(
             exporter,
-            max_queue_size=int(os.getenv("OTEL_BSP_MAX_QUEUE_SIZE", "2048")),
-            max_export_batch_size=int(os.getenv("OTEL_BSP_MAX_EXPORT_BATCH_SIZE", "512")),
-            schedule_delay_millis=int(os.getenv("OTEL_BSP_SCHEDULE_DELAY_MILLIS", "5000")),
+            max_queue_size=_safe_int("OTEL_BSP_MAX_QUEUE_SIZE", 2048),
+            max_export_batch_size=_safe_int("OTEL_BSP_MAX_EXPORT_BATCH_SIZE", 512),
+            schedule_delay_millis=_safe_int("OTEL_BSP_SCHEDULE_DELAY_MILLIS", 5000),
         )
         _tracer_provider.add_span_processor(span_processor)
 
