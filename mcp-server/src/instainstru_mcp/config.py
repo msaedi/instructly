@@ -33,4 +33,8 @@ class Settings(BaseSettings):
     jwt_key_id: str = "mcp-key-1"
     oauth_issuer: str | None = None
 
-    model_config = SettingsConfigDict(env_prefix="INSTAINSTRU_MCP_", env_file=".env")
+    model_config = SettingsConfigDict(
+        env_prefix="INSTAINSTRU_MCP_",
+        env_file=".env",
+        extra="ignore",
+    )

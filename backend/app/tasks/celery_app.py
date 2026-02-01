@@ -337,6 +337,16 @@ signals.worker_process_init.connect(_init_otel_worker)
 signals.worker_shutdown.connect(_shutdown_otel_worker)
 
 
+def _init_otel_beat(**kwargs: Any) -> None:
+    service_name = os.getenv("OTEL_SERVICE_NAME", "instainstru-beat")
+    if init_otel(service_name=service_name):
+        instrument_additional_libraries()
+
+
+signals.beat_init.connect(_init_otel_beat)
+signals.beat_embedded_init.connect(_init_otel_beat)
+
+
 P = ParamSpec("P")
 R = TypeVar("R", covariant=True)
 

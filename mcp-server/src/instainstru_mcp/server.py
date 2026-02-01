@@ -29,6 +29,7 @@ from .config import Settings
 from .grafana_client import GrafanaCloudClient
 from .oauth.crypto import build_jwks, normalize_pem
 from .oauth.endpoints import attach_oauth_routes
+from .otel import init_otel, instrument_app
 from .tools import (
     celery,
     founding,
@@ -571,6 +572,7 @@ def _attach_health_route(app: Any) -> None:
 
 def create_app(settings: Settings | None = None):
     settings = settings or _load_settings()
+    init_otel(service_name=os.getenv("OTEL_SERVICE_NAME", "instainstru-mcp"))
     mcp = create_mcp(settings=settings)
     app_instance = mcp.http_app(
         path="/mcp",
@@ -581,9 +583,9 @@ def create_app(settings: Settings | None = None):
     _attach_health_route(app_instance)
     attach_oauth_routes(app_instance, settings)
 
-    app_with_auth = DualAuthMiddleware(app_instance, settings)
+    app_with_auth: Any = DualAuthMiddleware(app_instance, settings)
     if os.getenv("ENABLE_CORS", "false").lower() == "true":
-        return CORSMiddleware(
+        app_with_auth = CORSMiddleware(
             app_with_auth,
             allow_origins=["*"],
             allow_credentials=True,
@@ -591,7 +593,7 @@ def create_app(settings: Settings | None = None):
             allow_headers=["Authorization", "Content-Type", "Accept"],
             expose_headers=["*"],
         )
-    return app_with_auth
+    return instrument_app(app_with_auth)
 
 
 _app: Any | None = None
