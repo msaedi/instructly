@@ -23,7 +23,7 @@ import requests
 # Configuration from environment (same as locustfile.py)
 BASE_URL = os.getenv("LOADTEST_BASE_URL", "https://preview-api.instainstru.com")
 FRONTEND_ORIGIN = os.getenv("LOADTEST_FRONTEND_ORIGIN", "https://preview.instainstru.com")
-PASSWORD = os.getenv("LOADTEST_PASSWORD", "TestPassword123!")
+PASSWORD = os.getenv("LOADTEST_PASSWORD", "Test1234")
 USERS = [
     u.strip()
     for u in os.getenv("LOADTEST_USERS", "sarah.chen@example.com,emma.johnson@example.com").split(",")
