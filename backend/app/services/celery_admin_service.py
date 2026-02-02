@@ -245,28 +245,27 @@ class CeleryAdminService(BaseService):
             "checked_at": now,
         }
 
-    def _query_pending_authorizations(self, now: datetime) -> int:
-        """Query pending authorizations count (sync helper for asyncio.to_thread)."""
-        return self.repository.count_pending_authorizations(from_date=now.date())
-
-    def _query_overdue_authorizations(self, now: datetime) -> int:
-        """Query overdue authorizations count (sync helper for asyncio.to_thread)."""
-        cutoff_24h = now + timedelta(hours=24)
-        return self.repository.count_overdue_authorizations(cutoff_time=cutoff_24h)
-
-    def _query_pending_captures(self) -> int:
-        """Query pending captures count (sync helper for asyncio.to_thread)."""
+    def _query_payment_health_counts(self, now: datetime) -> dict[str, int]:
+        """Query payment health counts (sync helper for asyncio.to_thread)."""
         from app.models.booking import BookingStatus, PaymentStatus
 
-        return self.repository.count_bookings_by_payment_and_status(
+        cutoff_24h = now + timedelta(hours=24)
+        cutoff_24h_ago = now - timedelta(hours=24)
+
+        pending_auth_count = self.repository.count_pending_authorizations(from_date=now.date())
+        overdue_auth_count = self.repository.count_overdue_authorizations(cutoff_time=cutoff_24h)
+        pending_capture_count = self.repository.count_bookings_by_payment_and_status(
             payment_status=PaymentStatus.AUTHORIZED.value,
             booking_status=BookingStatus.COMPLETED.value,
         )
+        failed_24h_count = self.repository.count_failed_payments(updated_since=cutoff_24h_ago)
 
-    def _query_failed_payments_24h(self, now: datetime) -> int:
-        """Query failed payments in last 24h count (sync helper for asyncio.to_thread)."""
-        cutoff_24h_ago = now - timedelta(hours=24)
-        return self.repository.count_failed_payments(updated_since=cutoff_24h_ago)
+        return {
+            "pending_authorizations": pending_auth_count,
+            "overdue_authorizations": overdue_auth_count,
+            "pending_captures": pending_capture_count,
+            "failed_payments_24h": failed_24h_count,
+        }
 
     @BaseService.measure_operation("get_payment_health")
     async def get_payment_health(self) -> dict[str, Any]:
@@ -277,46 +276,57 @@ class CeleryAdminService(BaseService):
         now = datetime.now(timezone.utc)
         issues: list[dict[str, Any]] = []
 
-        # Run all DB queries in parallel using asyncio.to_thread
-        (
-            pending_auth_count,
-            overdue_auth_count,
-            pending_capture_count,
-            failed_24h_count,
-        ) = await asyncio.gather(
-            asyncio.to_thread(self._query_pending_authorizations, now),
-            asyncio.to_thread(self._query_overdue_authorizations, now),
-            asyncio.to_thread(self._query_pending_captures),
-            asyncio.to_thread(self._query_failed_payments_24h, now),
-        )
+        pending_auth_count = 0
+        overdue_auth_count = 0
+        pending_capture_count = 0
+        failed_24h_count = 0
 
-        # Build issues list
-        if overdue_auth_count > 0:
+        counts_ready = False
+        try:
+            counts = await asyncio.to_thread(self._query_payment_health_counts, now)
+            pending_auth_count = counts["pending_authorizations"]
+            overdue_auth_count = counts["overdue_authorizations"]
+            pending_capture_count = counts["pending_captures"]
+            failed_24h_count = counts["failed_payments_24h"]
+            counts_ready = True
+        except Exception as exc:
+            logger.exception("Payment health DB query failed: %s", exc)
             issues.append(
                 {
                     "severity": "critical",
-                    "message": "Bookings within 24 hours without authorization",
-                    "count": overdue_auth_count,
+                    "message": f"Payment health DB query failed: {exc}",
+                    "count": 1,
                 }
             )
 
-        if pending_capture_count > 10:
-            issues.append(
-                {
-                    "severity": "warning",
-                    "message": "Completed bookings pending capture",
-                    "count": pending_capture_count,
-                }
-            )
+        # Build issues list from DB counts
+        if counts_ready:
+            if overdue_auth_count > 0:
+                issues.append(
+                    {
+                        "severity": "critical",
+                        "message": "Bookings within 24 hours without authorization",
+                        "count": overdue_auth_count,
+                    }
+                )
 
-        if failed_24h_count > 0:
-            issues.append(
-                {
-                    "severity": "warning",
-                    "message": "Failed payments in last 24 hours",
-                    "count": failed_24h_count,
-                }
-            )
+            if pending_capture_count > 10:
+                issues.append(
+                    {
+                        "severity": "warning",
+                        "message": "Completed bookings pending capture",
+                        "count": pending_capture_count,
+                    }
+                )
+
+            if failed_24h_count > 0:
+                issues.append(
+                    {
+                        "severity": "warning",
+                        "message": "Failed payments in last 24 hours",
+                        "count": failed_24h_count,
+                    }
+                )
 
         # Check Flower for payment task history
         last_task_runs: list[dict[str, Any]] = []

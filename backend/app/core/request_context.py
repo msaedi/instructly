@@ -40,9 +40,11 @@ class RequestIdFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         if not hasattr(record, "request_id"):
             record.request_id = get_request_id_value()
-        if not hasattr(record, "otelTraceID"):
+        trace_id = getattr(record, "otelTraceID", None)
+        if _is_empty_otel_value(trace_id):
             record.otelTraceID = "no-trace"
-        if not hasattr(record, "otelSpanID"):
+        span_id = getattr(record, "otelSpanID", None)
+        if _is_empty_otel_value(span_id):
             record.otelSpanID = "no-span"
         return True
 
@@ -51,3 +53,14 @@ def attach_request_id_filter(logger: Optional[logging.Logger] = None) -> None:
     target = logger or logging.getLogger()
     for handler in target.handlers:
         handler.addFilter(RequestIdFilter())
+
+
+def _is_empty_otel_value(value: object) -> bool:
+    if not value:
+        return True
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return True
+        return all(char == "0" for char in stripped)
+    return False
