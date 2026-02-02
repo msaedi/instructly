@@ -14,6 +14,7 @@ from . import (
     sentry,
     sentry_debug,
     services,
+    support,
 )
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "sentry",
     "sentry_debug",
     "services",
+    "support",
 ]

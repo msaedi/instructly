@@ -44,6 +44,7 @@ from .tools import (
     sentry,
     sentry_debug,
     services,
+    support,
 )
 
 logger = logging.getLogger(__name__)
@@ -561,6 +562,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     sentry_debug.register_tools(mcp)
     command_center.register_tools(mcp, client, grafana, sentry_client)
     deploy.register_tools(mcp)
+    support.register_tools(mcp, client)
 
     return mcp
 
