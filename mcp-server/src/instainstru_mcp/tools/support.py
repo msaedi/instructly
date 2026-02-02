@@ -389,13 +389,13 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             return_exceptions=True,
         )
         bookings_payload_raw = results[0]
-        if isinstance(bookings_payload_raw, BaseException):
-            bookings_payload: dict[str, Any] = {
+        if isinstance(bookings_payload_raw, dict):
+            bookings_payload = bookings_payload_raw
+        else:
+            bookings_payload = {
                 "bookings": [],
                 "total_count": 0,
             }
-        else:
-            bookings_payload = bookings_payload_raw
 
         raw_bookings = bookings_payload.get("bookings", [])
         formatted_bookings = [_format_booking_item(item) for item in raw_bookings]

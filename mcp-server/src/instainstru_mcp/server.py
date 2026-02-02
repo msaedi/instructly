@@ -35,6 +35,7 @@ from .tools import (
     command_center,
     deploy,
     founding,
+    growth,
     instructors,
     invites,
     metrics,
@@ -562,6 +563,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     sentry_debug.register_tools(mcp)
     command_center.register_tools(mcp, client, grafana, sentry_client)
     deploy.register_tools(mcp)
+    growth.register_tools(mcp, client)
     support.register_tools(mcp, client)
 
     return mcp
