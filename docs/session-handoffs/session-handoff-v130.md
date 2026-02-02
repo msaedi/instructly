@@ -108,12 +108,12 @@ This session implemented full end-to-end distributed tracing across all InstaIns
 class PerformanceMiddleware:
     async def __call__(self, scope, receive, send):
         trace_id = get_current_trace_id()  # Captured while span active
-        
+
         async def send_wrapper(message):
             if message["type"] == "http.response.start":
                 headers.append("X-Trace-ID", trace_id)
             await send(message)
-        
+
         await self.app(scope, receive, send_wrapper)
 ```
 

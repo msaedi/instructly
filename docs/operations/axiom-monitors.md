@@ -13,7 +13,7 @@
 5. Axiom does not have a built-in severity selector; encode severity in the monitor name and/or route to different notifiers.
 
 ## Monitor 1: Error Spike (OTel status)
-APL query (current dataset fields use `status.code` as a string): 
+APL query (current dataset fields use `status.code` as a string):
 
 ```apl
 ['instainstru-logs']
