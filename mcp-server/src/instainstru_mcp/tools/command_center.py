@@ -568,7 +568,7 @@ def register_tools(
         environment = env_value if env_value in {"production", "preview"} else "production"
         query = sentry_tools._build_issue_query("unresolved", None)
         issues = await sentry.list_issues(
-            project="-1",
+            project="all",
             environment=environment,
             stats_period="1h",
             status="unresolved",
