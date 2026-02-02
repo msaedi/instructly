@@ -241,6 +241,16 @@ def test_overall_severity():
     assert severity == 2
 
 
+def test_auth_header_without_bearer_prefix():
+    client = command_center.AxiomClient(token="xaat-abc123")
+    assert client._auth_header() == {"Authorization": "Bearer xaat-abc123"}
+
+
+def test_auth_header_with_bearer_prefix():
+    client = command_center.AxiomClient(token="Bearer xaat-abc123")
+    assert client._auth_header() == {"Authorization": "Bearer xaat-abc123"}
+
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_axiom_client_query_success():

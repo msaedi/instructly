@@ -8,6 +8,7 @@ payment health, and business metrics into one structured response.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import re
 from datetime import datetime, timezone
@@ -41,6 +42,8 @@ THRESHOLDS = {
     "payout_age_warn_hours": 48,
     "payout_age_critical_hours": 168,
 }
+
+logger = logging.getLogger(__name__)
 
 
 class AxiomClientError(Exception):
@@ -93,7 +96,10 @@ class AxiomClient:
         return bool(self.token.strip())
 
     def _auth_header(self) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.token.strip()}"}
+        token = self.token.strip()
+        if token.lower().startswith("bearer "):
+            return {"Authorization": token}
+        return {"Authorization": f"Bearer {token}"}
 
     async def _request(
         self,
@@ -125,6 +131,11 @@ class AxiomClient:
             raise AxiomConnectionError(f"axiom_connection_failed: {exc}") from exc
 
         if response.status_code in {401, 403}:
+            logger.warning(
+                "Axiom auth failed: status=%s, body=%s",
+                response.status_code,
+                (response.text or "")[:200],
+            )
             raise AxiomAuthError("axiom_auth_failed")
         if response.status_code == 429:
             raise AxiomRateLimitError("axiom_rate_limited")
