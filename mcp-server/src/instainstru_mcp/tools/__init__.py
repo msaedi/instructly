@@ -3,6 +3,7 @@
 from . import (
     celery,
     command_center,
+    deploy,
     founding,
     instructors,
     invites,
@@ -18,6 +19,7 @@ from . import (
 __all__ = [
     "celery",
     "command_center",
+    "deploy",
     "founding",
     "instructors",
     "invites",

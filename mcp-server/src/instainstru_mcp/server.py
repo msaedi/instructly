@@ -33,6 +33,7 @@ from .otel import init_otel, instrument_app
 from .tools import (
     celery,
     command_center,
+    deploy,
     founding,
     instructors,
     invites,
@@ -559,6 +560,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     sentry.register_tools(mcp, sentry_client)
     sentry_debug.register_tools(mcp)
     command_center.register_tools(mcp, client, grafana, sentry_client)
+    deploy.register_tools(mcp)
 
     return mcp
 
