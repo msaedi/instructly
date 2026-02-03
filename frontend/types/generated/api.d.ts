@@ -21607,7 +21607,11 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Time period: today, yesterday, this_week, last_7_days, this_month */
-                period?: components["schemas"]["BookingPeriod"];
+                period?: components["schemas"]["BookingPeriod"] | null;
+                /** @description Start date (YYYY-MM-DD) for a custom range (inclusive). */
+                start_date?: string | null;
+                /** @description End date (YYYY-MM-DD) for a custom range (inclusive). */
+                end_date?: string | null;
             };
             header?: never;
             path?: never;

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -132,6 +132,35 @@ class TestGetBookingSummary:
         assert result["summary"]["total_bookings"] == 5
         assert result["summary"]["total_revenue_cents"] == 50000
         assert result["summary"]["new_students"] == 2
+
+    @pytest.mark.asyncio
+    async def test_get_booking_summary_custom_range(self, service):
+        """Test summary with an explicit date range."""
+        start = date(2026, 1, 1)
+        end = date(2026, 1, 7)
+        with patch.object(
+            service, "_query_booking_summary", return_value={
+                "total_bookings": 1,
+                "by_status": {"COMPLETED": 1},
+                "total_revenue_cents": 15000,
+                "avg_booking_value_cents": 15000,
+                "new_students": 1,
+                "repeat_students": 0,
+                "top_categories": [],
+            }
+        ) as mock_query:
+            result = await service.get_booking_summary(start_date=start, end_date=end)
+
+        assert result["summary"]["period"] == "custom_range"
+        assert result["summary"]["total_bookings"] == 1
+        assert mock_query.call_args[0] == (start, end)
+
+    @pytest.mark.asyncio
+    async def test_get_booking_summary_custom_range_requires_both(self, service):
+        """Test missing end_date raises ValueError."""
+        start = date(2026, 1, 1)
+        with pytest.raises(ValueError):
+            await service.get_booking_summary(start_date=start)
 
 
 class TestGetRecentBookings:

@@ -11645,7 +11645,9 @@ export interface operations {
  get_booking_summary_api_v1_admin_mcp_ops_bookings_summary_get: {
  parameters: {
  query?: {
- period?: components["schemas"]["BookingPeriod"];
+ period?: components["schemas"]["BookingPeriod"] | null;
+ start_date?: string | null;
+ end_date?: string | null;
  };
  header?: never;
  path?: never;

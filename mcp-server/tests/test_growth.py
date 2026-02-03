@@ -35,9 +35,12 @@ class FakeClient:
         self.funnel_payload = funnel_payload or {}
         self.raise_on = set(raise_on or [])
 
-    async def get_booking_summary(self, period="today"):
+    async def get_booking_summary(self, period="today", *, start_date=None, end_date=None):
         if "get_booking_summary" in self.raise_on:
             raise RuntimeError("boom")
+        if start_date or end_date:
+            key = f"{start_date}:{end_date}"
+            return self.booking_payloads.get(key, {})
         return self.booking_payloads.get(period, {})
 
     async def get_top_queries(self, **_filters):
@@ -243,8 +246,10 @@ def test_generate_summary_variants():
 @pytest.mark.asyncio
 async def test_growth_snapshot_full(monkeypatch):
     _set_auth(monkeypatch, {"method": "simple_token"})
+    fixed_now = datetime(2026, 2, 3, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(growth, "_utc_now", lambda: fixed_now)
     booking_payloads = {
-        "today": {
+        "2026-02-03:2026-02-03": {
             "summary": {
                 "total_bookings": 10,
                 "by_status": {"completed": 8, "cancelled": 1, "pending": 1},
@@ -253,7 +258,7 @@ async def test_growth_snapshot_full(monkeypatch):
                 "top_categories": [{"category": "Music", "count": 2}],
             }
         },
-        "yesterday": {
+        "2026-02-02:2026-02-02": {
             "summary": {
                 "total_bookings": 8,
                 "by_status": {"completed": 6, "cancelled": 1, "pending": 1},
@@ -302,10 +307,53 @@ async def test_growth_snapshot_full(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_growth_snapshot_previous_period_range(monkeypatch):
+    _set_auth(monkeypatch, {"method": "simple_token"})
+    fixed_now = datetime(2026, 2, 3, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(growth, "_utc_now", lambda: fixed_now)
+    booking_payloads = {
+        "2026-01-28:2026-02-03": {
+            "summary": {
+                "total_bookings": 5,
+                "by_status": {"completed": 4},
+                "total_revenue_cents": 5000,
+                "avg_booking_value_cents": 1000,
+                "top_categories": [],
+            }
+        },
+        "2026-01-21:2026-01-27": {
+            "summary": {
+                "total_bookings": 3,
+                "by_status": {"completed": 2},
+                "total_revenue_cents": 3000,
+                "avg_booking_value_cents": 1000,
+                "top_categories": [],
+            }
+        },
+    }
+    client = FakeClient(booking_payloads=booking_payloads)
+    mcp = FastMCP("test")
+    tools = growth.register_tools(mcp, client)
+
+    result = await tools["instainstru_growth_snapshot"](
+        period="last_7_days",
+        compare_to="previous_period",
+        include_search_analytics=False,
+        include_supply_metrics=False,
+    )
+
+    assert result["bookings"]["current_period"]["total"] == 5
+    assert result["bookings"]["comparison_period"]["total"] == 3
+    assert result["bookings"]["delta"]["total"]["abs"] == 2
+
+
+@pytest.mark.asyncio
 async def test_growth_snapshot_no_compare_no_extras(monkeypatch):
     _set_auth(monkeypatch, {"method": "simple_token"})
+    fixed_now = datetime(2026, 2, 3, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(growth, "_utc_now", lambda: fixed_now)
     booking_payloads = {
-        "yesterday": {
+        "2026-02-02:2026-02-02": {
             "summary": {
                 "total_bookings": 4,
                 "by_status": {"completed": 2},

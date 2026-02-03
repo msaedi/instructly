@@ -7975,7 +7975,15 @@ export type GetBookingSummaryApiV1AdminMcpOpsBookingsSummaryGetParams = {
   /**
    * Time period: today, yesterday, this_week, last_7_days, this_month
    */
-  period?: BookingPeriod;
+  period?: BookingPeriod | null;
+  /**
+   * Start date (YYYY-MM-DD) for a custom range (inclusive).
+   */
+  start_date?: string | null;
+  /**
+   * End date (YYYY-MM-DD) for a custom range (inclusive).
+   */
+  end_date?: string | null;
 };
 
 export type GetPendingPayoutsApiV1AdminMcpOpsPaymentsPendingPayoutsGetParams = {

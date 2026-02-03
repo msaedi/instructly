@@ -139,16 +139,32 @@ class AdminOpsService(BaseService):
         }
 
     @BaseService.measure_operation("get_booking_summary")
-    async def get_booking_summary(self, period: str = "today") -> dict[str, Any]:
-        """Get booking summary for a time period."""
+    async def get_booking_summary(
+        self,
+        period: str | None = "today",
+        *,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        period_label: str | None = None,
+    ) -> dict[str, Any]:
+        """Get booking summary for a time period or explicit date range."""
         now = datetime.now(timezone.utc)
-        start_date, end_date = self._get_period_dates(period)
 
-        result = await asyncio.to_thread(self._query_booking_summary, start_date, end_date)
+        if start_date or end_date:
+            if not start_date or not end_date:
+                raise ValueError("start_date and end_date must be provided together")
+            query_start = start_date
+            query_end = end_date
+            period_value = period_label or "custom_range"
+        else:
+            period_value = period or "today"
+            query_start, query_end = self._get_period_dates(period_value)
+
+        result = await asyncio.to_thread(self._query_booking_summary, query_start, query_end)
 
         return {
             "summary": {
-                "period": period,
+                "period": period_value,
                 **result,
             },
             "checked_at": now,

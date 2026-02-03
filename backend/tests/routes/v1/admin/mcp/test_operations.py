@@ -1,5 +1,6 @@
 """Tests for Admin Operations MCP endpoints."""
 
+from datetime import date
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -64,6 +65,51 @@ class TestBookingSummaryEndpoint:
 
             assert res.status_code == 200
             assert res.json()["summary"]["period"] == period
+
+    def test_get_booking_summary_custom_range(self, client: TestClient, db, mcp_service_headers):
+        """Test custom date range parameters."""
+        mock_summary = {
+            "total_bookings": 2,
+            "by_status": {"COMPLETED": 2},
+            "total_revenue_cents": 20000,
+            "avg_booking_value_cents": 10000,
+            "new_students": 1,
+            "repeat_students": 1,
+            "top_categories": [],
+        }
+
+        with patch(
+            "app.services.admin_ops_service.AdminOpsService._query_booking_summary",
+            return_value=mock_summary,
+        ) as mock_query:
+            res = client.get(
+                "/api/v1/admin/mcp/ops/bookings/summary"
+                "?start_date=2026-01-01&end_date=2026-01-07",
+                headers=mcp_service_headers,
+            )
+
+        assert res.status_code == 200
+        data = res.json()
+        assert data["summary"]["period"] == "custom_range"
+        assert data["summary"]["total_bookings"] == 2
+        assert mock_query.call_args[0] == (date(2026, 1, 1), date(2026, 1, 7))
+
+    def test_get_booking_summary_custom_range_validation(
+        self, client: TestClient, db, mcp_service_headers
+    ):
+        """Test custom range validation errors."""
+        res = client.get(
+            "/api/v1/admin/mcp/ops/bookings/summary?start_date=2026-01-01",
+            headers=mcp_service_headers,
+        )
+        assert res.status_code == 422
+
+        res = client.get(
+            "/api/v1/admin/mcp/ops/bookings/summary"
+            "?start_date=2026-01-07&end_date=2026-01-01",
+            headers=mcp_service_headers,
+        )
+        assert res.status_code == 422
 
     def test_get_booking_summary_requires_auth(self, client: TestClient):
         """Test that endpoint requires authentication."""

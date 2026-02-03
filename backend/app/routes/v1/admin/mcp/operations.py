@@ -6,9 +6,10 @@ All endpoints require a valid MCP service token with mcp:read scope.
 
 from __future__ import annotations
 
+from datetime import date
 from enum import Enum
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.database import get_db
@@ -50,9 +51,20 @@ class BookingPeriod(str, Enum):
     dependencies=[Depends(rate_limit("admin_mcp"))],
 )
 async def get_booking_summary(
-    period: BookingPeriod = Query(
-        default=BookingPeriod.TODAY,
+    period: BookingPeriod
+    | None = Query(
+        default=None,
         description="Time period: today, yesterday, this_week, last_7_days, this_month",
+    ),
+    start_date: date
+    | None = Query(
+        default=None,
+        description="Start date (YYYY-MM-DD) for a custom range (inclusive).",
+    ),
+    end_date: date
+    | None = Query(
+        default=None,
+        description="End date (YYYY-MM-DD) for a custom range (inclusive).",
     ),
     principal: Principal = Depends(require_mcp_scope("mcp:read")),
     db: Session = Depends(get_db),
@@ -62,8 +74,23 @@ async def get_booking_summary(
 
     Returns total bookings, revenue, breakdown by status, and top categories.
     """
+    if (start_date and not end_date) or (end_date and not start_date):
+        raise HTTPException(
+            status_code=422,
+            detail="start_date and end_date must be provided together",
+        )
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(
+            status_code=422,
+            detail="start_date must be on or before end_date",
+        )
+
     service = AdminOpsService(db)
-    result = await service.get_booking_summary(period=period.value)
+    if start_date and end_date:
+        result = await service.get_booking_summary(start_date=start_date, end_date=end_date)
+    else:
+        effective_period = period or BookingPeriod.TODAY
+        result = await service.get_booking_summary(period=effective_period.value)
 
     summary_data = result["summary"]
     top_categories = [TopCategory(**tc) for tc in summary_data["top_categories"]]

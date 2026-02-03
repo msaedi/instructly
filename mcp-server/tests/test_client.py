@@ -418,6 +418,7 @@ async def test_client_wrapper_methods_call_expected_paths():
         await client.get_celery_task_history(task_name="task", state="SUCCESS", hours=2, limit=10)
         await client.get_celery_beat_schedule()
         await client.get_booking_summary(period="last_7_days")
+        await client.get_booking_summary(start_date="2026-01-01", end_date="2026-01-07")
         await client.get_recent_bookings(status="confirmed", limit=10, hours=48)
         await client.get_payment_pipeline()
         await client.get_pending_payouts(limit=5)
@@ -499,6 +500,11 @@ async def test_client_wrapper_methods_call_expected_paths():
             "GET",
             "/api/v1/admin/mcp/ops/bookings/summary",
             params={"period": "last_7_days"},
+        ),
+        call(
+            "GET",
+            "/api/v1/admin/mcp/ops/bookings/summary",
+            params={"start_date": "2026-01-01", "end_date": "2026-01-07"},
         ),
         call(
             "GET",
@@ -650,8 +656,28 @@ async def test_client_celery_failed_tasks_clamps_limit():
 
     await client.get_celery_failed_tasks(limit=200)
     await client.get_celery_failed_tasks(limit=20.0)
+    await client.get_celery_failed_tasks(limit="bad")
 
     assert failed_route.calls[0].request.url.params["limit"] == "100"
     assert failed_route.calls[1].request.url.params["limit"] == "20"
+    assert failed_route.calls[2].request.url.params["limit"] == "50"
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_booking_summary_requires_dates():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    with pytest.raises(ValueError):
+        await client.get_booking_summary(start_date="2026-01-01")
+
+    with pytest.raises(ValueError):
+        await client.get_booking_summary(end_date="2026-01-07")
 
     await client.aclose()

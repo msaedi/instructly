@@ -384,11 +384,25 @@ class InstaInstruClient:
 
     # ==================== Operations endpoints ====================
 
-    async def get_booking_summary(self, period: str = "today") -> dict:
+    async def get_booking_summary(
+        self,
+        period: str | None = "today",
+        *,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict:
+        params: dict[str, Any] = {}
+        if start_date or end_date:
+            if not start_date or not end_date:
+                raise ValueError("start_date and end_date must be provided together")
+            params["start_date"] = start_date
+            params["end_date"] = end_date
+        else:
+            params["period"] = period or "today"
         return await self.call(
             "GET",
             "/api/v1/admin/mcp/ops/bookings/summary",
-            params={"period": period},
+            params=params,
         )
 
     async def get_recent_bookings(

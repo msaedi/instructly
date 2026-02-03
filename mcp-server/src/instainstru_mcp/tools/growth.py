@@ -28,14 +28,6 @@ CompareLiteral = Literal[
     "same_period_last_month",
 ]
 
-BOOKINGS_PERIOD_MAP: dict[str, str] = {
-    "today": "today",
-    "yesterday": "yesterday",
-    "last_7_days": "last_7_days",
-    "this_month": "this_month",
-    "last_30_days": "this_month",
-}
-
 DEFAULT_TAKE_RATE = 0.20
 
 
@@ -391,18 +383,28 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         period_start, period_end = _get_period_range(period)
         compare_start, compare_end = _get_comparison_range(period_start, period_end, compare_to)
 
-        bookings_period = BOOKINGS_PERIOD_MAP.get(period)
-        compare_period = BOOKINGS_PERIOD_MAP.get(period)
-        if compare_to == "previous_period" and period == "today":
-            compare_period = "yesterday"
-        elif compare_to == "previous_period" and period == "yesterday":
-            compare_period = None
-
         tasks: list[tuple[str, Any]] = []
-        if bookings_period:
-            tasks.append(("bookings_current", client.get_booking_summary(period=bookings_period)))
-        if compare_period:
-            tasks.append(("bookings_compare", client.get_booking_summary(period=compare_period)))
+        current_start = period_start.date().isoformat()
+        current_end = period_end.date().isoformat()
+        tasks.append(
+            (
+                "bookings_current",
+                client.get_booking_summary(start_date=current_start, end_date=current_end),
+            )
+        )
+
+        include_compare = not (compare_to == "previous_period" and period == "yesterday")
+        if include_compare:
+            compare_start_date = compare_start.date().isoformat()
+            compare_end_date = compare_end.date().isoformat()
+            tasks.append(
+                (
+                    "bookings_compare",
+                    client.get_booking_summary(
+                        start_date=compare_start_date, end_date=compare_end_date
+                    ),
+                )
+            )
         if include_search_analytics:
             start_date = period_start.date().isoformat()
             end_date = period_end.date().isoformat()
