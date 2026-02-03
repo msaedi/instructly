@@ -21,6 +21,7 @@ from ..core.exceptions import RepositoryException
 from ..models.booking import Booking, BookingStatus, PaymentStatus
 from ..models.instructor import InstructorProfile
 from ..models.payment import PaymentIntent
+from ..models.service_catalog import InstructorService, ServiceCatalog
 from ..models.user import User
 from .base_repository import BaseRepository
 
@@ -58,7 +59,11 @@ class AdminOpsRepository(BaseRepository[Booking]):
                     Booking.booking_date >= start_date,
                     Booking.booking_date <= end_date,
                 )
-                .options(joinedload(Booking.instructor_service))
+                .options(
+                    joinedload(Booking.instructor_service)
+                    .joinedload(InstructorService.catalog_entry)
+                    .joinedload(ServiceCatalog.category)
+                )
                 .all(),
             )
         except Exception as e:
