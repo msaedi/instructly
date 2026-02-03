@@ -632,3 +632,26 @@ async def test_client_audit_endpoints():
     assert recent_route.calls[0].request.url.params["limit"] == "10"
 
     await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_client_celery_failed_tasks_clamps_limit():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    failed_route = respx.get("https://api.instainstru.test/api/v1/admin/mcp/celery/failed").respond(
+        200, json={"ok": True}
+    )
+
+    await client.get_celery_failed_tasks(limit=200)
+    await client.get_celery_failed_tasks(limit=20.0)
+
+    assert failed_route.calls[0].request.url.params["limit"] == "100"
+    assert failed_route.calls[1].request.url.params["limit"] == "20"
+
+    await client.aclose()

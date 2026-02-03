@@ -333,10 +333,15 @@ class InstaInstruClient:
         )
 
     async def get_celery_failed_tasks(self, limit: int = 50) -> dict:
+        try:
+            normalized_limit = int(limit)
+        except (TypeError, ValueError):
+            normalized_limit = 50
+        normalized_limit = max(1, min(normalized_limit, 100))
         return await self.call(
             "GET",
             "/api/v1/admin/mcp/celery/failed",
-            params={"limit": limit},
+            params={"limit": normalized_limit},
         )
 
     async def get_celery_payment_health(self) -> dict:
