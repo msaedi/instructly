@@ -35,6 +35,7 @@ from app.schemas.admin_bookings import (
     AdminBookingTimelineEvent,
 )
 from app.services.audit_redaction import redact
+from app.services.audit_service import AuditService
 from app.services.base import BaseService
 from app.services.config_service import ConfigService
 from app.services.pricing_service import PricingService
@@ -369,6 +370,41 @@ class AdminBookingService(BaseService):
                         after=audit_after,
                     )
                     self.audit_repo.write(refund_entry)
+                try:
+                    AuditService(self.db).log_changes(
+                        action="booking.cancel",
+                        resource_type="booking",
+                        resource_id=booking.id,
+                        old_values=audit_before,
+                        new_values=audit_after,
+                        actor=actor,
+                        actor_type="user",
+                        description="Admin cancelled booking",
+                        metadata={
+                            "initiated_by": "admin",
+                            "refund": bool(refund),
+                            "refund_amount_cents": amount_cents,
+                            "reason": reason,
+                        },
+                    )
+                    if refund and amount_cents is not None:
+                        AuditService(self.db).log_changes(
+                            action="payment.refund",
+                            resource_type="payment",
+                            resource_id=booking.id,
+                            old_values=audit_before,
+                            new_values=audit_after,
+                            actor=actor,
+                            actor_type="user",
+                            description="Admin refund issued",
+                            metadata={
+                                "initiated_by": "admin",
+                                "refund_amount_cents": amount_cents,
+                                "stripe_reason": self._stripe_reason_for_cancel(reason),
+                            },
+                        )
+                except Exception:
+                    logger.debug("Non-fatal error ignored", exc_info=True)
 
             return booking, refund_id
 
@@ -421,6 +457,25 @@ class AdminBookingService(BaseService):
                     after=audit_after,
                 )
                 self.audit_repo.write(entry)
+                try:
+                    action_label = (
+                        "booking.complete"
+                        if status == BookingStatus.COMPLETED
+                        else "booking.status_change"
+                    )
+                    AuditService(self.db).log_changes(
+                        action=action_label,
+                        resource_type="booking",
+                        resource_id=booking.id,
+                        old_values=audit_before,
+                        new_values=audit_after,
+                        actor=actor,
+                        actor_type="user",
+                        description="Admin updated booking status",
+                        metadata={"initiated_by": "admin", "status_note": note},
+                    )
+                except Exception:
+                    logger.debug("Non-fatal error ignored", exc_info=True)
 
             return booking
 

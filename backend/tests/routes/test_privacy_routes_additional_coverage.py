@@ -17,6 +17,10 @@ class _AuthServiceStub:
         return self._user
 
 
+def _dummy_request():
+    return SimpleNamespace(headers={}, client=None)
+
+
 @pytest.mark.asyncio
 async def test_get_current_user_raises_not_found():
     with pytest.raises(HTTPException) as exc:
@@ -42,6 +46,7 @@ async def test_delete_my_data_value_error(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         await routes.delete_my_data(
             request=UserDataDeletionRequest(delete_account=True),
+            http_request=_dummy_request(),
             current_user=SimpleNamespace(id="user-1"),
             db=None,
         )
@@ -63,6 +68,7 @@ async def test_delete_my_data_anonymize_failure(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         await routes.delete_my_data(
             request=UserDataDeletionRequest(delete_account=False),
+            http_request=_dummy_request(),
             current_user=SimpleNamespace(id="user-1"),
             db=None,
         )
@@ -140,8 +146,88 @@ async def test_delete_user_data_admin_error(monkeypatch):
         await routes.delete_user_data_admin(
             user_id="user-1",
             request=UserDataDeletionRequest(delete_account=True),
+            http_request=_dummy_request(),
             current_user=SimpleNamespace(),
             db=None,
         )
 
     assert exc.value.status_code == 500
+
+
+@pytest.mark.asyncio
+async def test_delete_my_data_audit_failure_delete_account(monkeypatch):
+    class _ServiceStub:
+        def __init__(self, _db):
+            pass
+
+        def delete_user_data(self, *_args, **_kwargs):
+            return {"ok": True}
+
+    monkeypatch.setattr(routes, "PrivacyService", _ServiceStub)
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("audit failed")
+
+    monkeypatch.setattr(routes.AuditService, "log", _boom)
+
+    response = await routes.delete_my_data(
+        request=UserDataDeletionRequest(delete_account=True),
+        http_request=_dummy_request(),
+        current_user=SimpleNamespace(id="user-1"),
+        db=None,
+    )
+
+    assert response.account_deleted is True
+
+
+@pytest.mark.asyncio
+async def test_delete_my_data_audit_failure_anonymize(monkeypatch):
+    class _ServiceStub:
+        def __init__(self, _db):
+            pass
+
+        def anonymize_user(self, *_args, **_kwargs):
+            return True
+
+    monkeypatch.setattr(routes, "PrivacyService", _ServiceStub)
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("audit failed")
+
+    monkeypatch.setattr(routes.AuditService, "log", _boom)
+
+    response = await routes.delete_my_data(
+        request=UserDataDeletionRequest(delete_account=False),
+        http_request=_dummy_request(),
+        current_user=SimpleNamespace(id="user-1"),
+        db=None,
+    )
+
+    assert response.account_deleted is False
+
+
+@pytest.mark.asyncio
+async def test_delete_user_data_admin_audit_failure(monkeypatch):
+    class _ServiceStub:
+        def __init__(self, _db):
+            pass
+
+        def delete_user_data(self, *_args, **_kwargs):
+            return {"ok": True}
+
+    monkeypatch.setattr(routes, "PrivacyService", _ServiceStub)
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("audit failed")
+
+    monkeypatch.setattr(routes.AuditService, "log", _boom)
+
+    response = await routes.delete_user_data_admin(
+        user_id="user-1",
+        request=UserDataDeletionRequest(delete_account=True),
+        http_request=_dummy_request(),
+        current_user=SimpleNamespace(),
+        db=None,
+    )
+
+    assert response.account_deleted is True

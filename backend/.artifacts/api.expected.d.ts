@@ -943,6 +943,70 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/audit/admin-actions/recent": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["audit_recent_admin_actions_api_v1_admin_mcp_audit_admin_actions_recent_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/audit/resources/{resource_type}/{resource_id}/history": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["audit_resource_history_api_v1_admin_mcp_audit_resources__resource_type___resource_id__history_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/audit/search": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["audit_search_api_v1_admin_mcp_audit_search_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/audit/users/{user_email}/activity": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["audit_user_activity_api_v1_admin_mcp_audit_users__user_email__activity_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/mcp/celery/failed": {
  parameters: {
  query?: never;
@@ -5459,6 +5523,24 @@ export type components = {
  windows_created: number;
  written_dates?: string[];
  };
+ AuditActor: {
+ email?: string | null;
+ id?: string | null;
+ type: string;
+ };
+ AuditEntry: {
+ action: string;
+ actor: components["schemas"]["AuditActor"];
+ changes?: {
+ [key: string]: unknown;
+ } | null;
+ description?: string | null;
+ id: string;
+ request_id?: string | null;
+ resource: components["schemas"]["AuditResource"];
+ status: string;
+ timestamp: string;
+ };
  AuditLogListResponse: {
  items: components["schemas"]["AuditLogView"][];
  limit: number;
@@ -5479,6 +5561,31 @@ export type components = {
  entity_type: string;
  id: string;
  occurred_at: string;
+ };
+ AuditResource: {
+ id?: string | null;
+ type: string;
+ };
+ AuditSearchMeta: {
+ returned_count: number;
+ since_hours: number;
+ total_count: number;
+ };
+ AuditSearchResponse: {
+ entries: components["schemas"]["AuditEntry"][];
+ meta: components["schemas"]["AuditSearchMeta"];
+ summary: components["schemas"]["AuditSearchSummary"];
+ };
+ AuditSearchSummary: {
+ by_action: {
+ [key: string]: number;
+ };
+ by_actor_type: {
+ [key: string]: number;
+ };
+ by_status: {
+ [key: string]: number;
+ };
  };
  AuthUserResponse: {
  email: string;
@@ -10895,6 +11002,136 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AdminLocationLearningDismissQueryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ audit_recent_admin_actions_api_v1_admin_mcp_audit_admin_actions_recent_get: {
+ parameters: {
+ query?: {
+ since_hours?: number;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AuditSearchResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ audit_resource_history_api_v1_admin_mcp_audit_resources__resource_type___resource_id__history_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: never;
+ path: {
+ resource_type: string;
+ resource_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AuditSearchResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ audit_search_api_v1_admin_mcp_audit_search_get: {
+ parameters: {
+ query?: {
+ actor_email?: string | null;
+ actor_id?: string | null;
+ action?: string | null;
+ resource_type?: string | null;
+ resource_id?: string | null;
+ status?: string | null;
+ since_hours?: number;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AuditSearchResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ audit_user_activity_api_v1_admin_mcp_audit_users__user_email__activity_get: {
+ parameters: {
+ query?: {
+ since_days?: number;
+ limit?: number;
+ };
+ header?: never;
+ path: {
+ user_email: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AuditSearchResponse"];
  };
  };
  422: {

@@ -106,6 +106,10 @@ class _RepoStub:
         return None
 
 
+def _dummy_request():
+    return SimpleNamespace(headers={}, client=None)
+
+
 def test_parse_event_filters_handles_mappings():
     exact, prefixes = bgc_routes._parse_event_filters(
         ["report.", "error", "custom.", "report.completed"]
@@ -359,6 +363,7 @@ def test_bgc_review_override_paths(monkeypatch):
     response = asyncio_run(
         bgc_routes.bgc_review_override(
             instructor_id="profile-1",
+            request=_dummy_request(),
             payload=bgc_routes.OverridePayload(action="approve"),
             repo=repo,
             _=None,
@@ -372,6 +377,7 @@ def test_bgc_review_override_paths(monkeypatch):
         asyncio_run(
             bgc_routes.bgc_review_override(
                 instructor_id="profile-1",
+                request=_dummy_request(),
                 payload=bgc_routes.OverridePayload(action="reject"),
                 repo=repo,
                 _=None,
@@ -497,12 +503,42 @@ def test_bgc_review_override_not_found():
         asyncio_run(
             bgc_routes.bgc_review_override(
                 instructor_id="missing",
+                request=_dummy_request(),
                 payload=bgc_routes.OverridePayload(action="approve"),
                 repo=repo,
                 _=None,
             )
         )
     assert exc.value.status_code == 404
+
+
+def test_bgc_review_override_audit_failure(monkeypatch):
+    profile = SimpleNamespace(
+        id="profile-1",
+        bgc_in_dispute=False,
+        bgc_report_id="rpt_1",
+        bgc_env=None,
+        bgc_completed_at=None,
+    )
+
+    repo = _RepoStub(_FakeQuery([]))
+    repo.get_by_id = lambda *_args, **_kwargs: profile
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("audit failed")
+
+    monkeypatch.setattr(bgc_routes.AuditService, "log", _boom)
+
+    response = asyncio_run(
+        bgc_routes.bgc_review_override(
+            instructor_id="profile-1",
+            request=_dummy_request(),
+            payload=bgc_routes.OverridePayload(action="approve"),
+            repo=repo,
+            _=None,
+        )
+    )
+    assert response.new_status == "passed"
 
 
 def test_bgc_dispute_open_handles_repo_error():

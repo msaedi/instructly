@@ -916,6 +916,31 @@ export interface ApplyToDateRangeResponse {
   written_dates?: string[];
 }
 
+export interface AuditActor {
+  email?: string | null;
+  id?: string | null;
+  type: string;
+}
+
+export type AuditEntryChanges = { [key: string]: unknown } | null;
+
+export interface AuditResource {
+  id?: string | null;
+  type: string;
+}
+
+export interface AuditEntry {
+  action: string;
+  actor: AuditActor;
+  changes?: AuditEntryChanges;
+  description?: string | null;
+  id: string;
+  request_id?: string | null;
+  resource: AuditResource;
+  status: string;
+  timestamp: string;
+}
+
 export type AuditLogViewAfter = { [key: string]: unknown } | null;
 
 export type AuditLogViewBefore = { [key: string]: unknown } | null;
@@ -943,6 +968,30 @@ export interface AuditLogListResponse {
   limit: number;
   offset: number;
   total: number;
+}
+
+export interface AuditSearchMeta {
+  returned_count: number;
+  since_hours: number;
+  total_count: number;
+}
+
+export type AuditSearchSummaryByAction = { [key: string]: number };
+
+export type AuditSearchSummaryByActorType = { [key: string]: number };
+
+export type AuditSearchSummaryByStatus = { [key: string]: number };
+
+export interface AuditSearchSummary {
+  by_action: AuditSearchSummaryByAction;
+  by_actor_type: AuditSearchSummaryByActorType;
+  by_status: AuditSearchSummaryByStatus;
+}
+
+export interface AuditSearchResponse {
+  entries: AuditEntry[];
+  meta: AuditSearchMeta;
+  summary: AuditSearchSummary;
 }
 
 /**
@@ -7722,6 +7771,60 @@ export type ListRegionsApiV1AdminLocationLearningRegionsGetParams = {
 };
 
 export type ListUnresolvedLocationQueriesApiV1AdminLocationLearningUnresolvedGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 500
+   */
+  limit?: number;
+};
+
+export type AuditRecentAdminActionsApiV1AdminMcpAuditAdminActionsRecentGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 720
+   */
+  since_hours?: number;
+  /**
+   * @minimum 1
+   * @maximum 500
+   */
+  limit?: number;
+};
+
+export type AuditResourceHistoryApiV1AdminMcpAuditResourcesResourceTypeResourceIdHistoryGetParams =
+  {
+    /**
+     * @minimum 1
+     * @maximum 500
+     */
+    limit?: number;
+  };
+
+export type AuditSearchApiV1AdminMcpAuditSearchGetParams = {
+  actor_email?: string | null;
+  actor_id?: string | null;
+  action?: string | null;
+  resource_type?: string | null;
+  resource_id?: string | null;
+  status?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 720
+   */
+  since_hours?: number;
+  /**
+   * @minimum 1
+   * @maximum 500
+   */
+  limit?: number;
+};
+
+export type AuditUserActivityApiV1AdminMcpAuditUsersUserEmailActivityGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  since_days?: number;
   /**
    * @minimum 1
    * @maximum 500

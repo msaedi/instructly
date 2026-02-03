@@ -237,7 +237,7 @@ from app.models import SearchEvent, SearchHistory
 
 # Ensure address and region models are registered so Base.metadata.create_all creates their tables
 from app.models.address import InstructorServiceArea, NYCNeighborhood, UserAddress  # noqa: F401
-from app.models.audit_log import AuditLog
+from app.models.audit_log import AuditLog, AuditLogEntry
 from app.models.availability_day import AvailabilityDay  # noqa: F401
 from app.models.badge import (  # noqa: F401 ensures badge tables
     BadgeDefinition,
@@ -1017,6 +1017,7 @@ def cleanup_test_database() -> None:
         cleanup_db.query(EventOutbox).delete()
         cleanup_db.query(WebhookEvent).delete()
         cleanup_db.query(AuditLog).delete()
+        cleanup_db.query(AuditLogEntry).delete()
         # Beta tables (BetaAccess has FK to BetaInvite.code, so delete Access first)
         cleanup_db.query(BetaAccess).delete()
         cleanup_db.query(BetaInvite).delete()

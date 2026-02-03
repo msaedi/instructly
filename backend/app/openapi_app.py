@@ -70,6 +70,7 @@ from app.routes.v1.admin import (
     search_config as admin_search_config_v1,
 )
 from app.routes.v1.admin.mcp import (
+    audit as admin_mcp_audit_v1,
     celery as admin_mcp_celery_v1,
     founding as admin_mcp_founding_v1,
     instructors as admin_mcp_instructors_v1,
@@ -168,6 +169,7 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(admin_mcp_operations_v1.router, prefix="/admin/mcp/ops")  # type: ignore[attr-defined]
     api_v1.include_router(admin_mcp_services_v1.router, prefix="/admin/mcp/services")  # type: ignore[attr-defined]
     api_v1.include_router(admin_mcp_webhooks_v1.router, prefix="/admin/mcp/webhooks")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_mcp_audit_v1.router, prefix="/admin/mcp/audit")  # type: ignore[attr-defined]
     api_v1.include_router(referrals_v1.admin_router, prefix="/admin/referrals")  # type: ignore[attr-defined]
 
     # Webhook routes

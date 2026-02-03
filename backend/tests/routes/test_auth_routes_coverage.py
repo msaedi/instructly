@@ -943,7 +943,13 @@ async def test_change_password_error_paths(monkeypatch, test_student, db):
     auth_service = _StubAuthService(user_obj=user)
     request = PasswordChangeRequest(current_password="wrongpw", new_password="Strong123")
     with pytest.raises(HTTPException):
-        await auth_routes.change_password(request, user.email, auth_service, db)
+        await auth_routes.change_password(
+            request,
+            _DummyRequest(),
+            user.email,
+            auth_service,
+            db,
+        )
 
     async def _true_password(*_args, **_kwargs):
         return True
@@ -951,7 +957,13 @@ async def test_change_password_error_paths(monkeypatch, test_student, db):
     monkeypatch.setattr(auth_routes, "verify_password_async", _true_password)
     weak_request = PasswordChangeRequest(current_password="password", new_password="weakpass")
     with pytest.raises(HTTPException):
-        await auth_routes.change_password(weak_request, user.email, auth_service, db)
+        await auth_routes.change_password(
+            weak_request,
+            _DummyRequest(),
+            user.email,
+            auth_service,
+            db,
+        )
 
     class _Repo:
         def update_password(self, *_args, **_kwargs):
@@ -963,7 +975,13 @@ async def test_change_password_error_paths(monkeypatch, test_student, db):
     )
     strong_request = PasswordChangeRequest(current_password="password", new_password="Strong123")
     with pytest.raises(HTTPException):
-        await auth_routes.change_password(strong_request, user.email, auth_service, db)
+        await auth_routes.change_password(
+            strong_request,
+            _DummyRequest(),
+            user.email,
+            auth_service,
+            db,
+        )
 
 
 @pytest.mark.asyncio
@@ -983,7 +1001,40 @@ async def test_change_password_notification_failure(monkeypatch, test_student, d
     auth_service = _StubAuthService(user_obj=user)
     request = PasswordChangeRequest(current_password="password", new_password="Strong123")
 
-    response = await auth_routes.change_password(request, user.email, auth_service, db)
+    response = await auth_routes.change_password(
+        request,
+        _DummyRequest(),
+        user.email,
+        auth_service,
+        db,
+    )
+    assert response.message == "Password changed successfully"
+
+
+@pytest.mark.asyncio
+async def test_change_password_audit_failure(monkeypatch, test_student, db):
+    user = test_student
+
+    async def _true_password(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(auth_routes, "verify_password_async", _true_password)
+
+    def _audit_boom(*_args, **_kwargs):
+        raise RuntimeError("audit failed")
+
+    monkeypatch.setattr(auth_routes.AuditService, "log", _audit_boom)
+
+    auth_service = _StubAuthService(user_obj=user)
+    request = PasswordChangeRequest(current_password="password", new_password="Strong123")
+
+    response = await auth_routes.change_password(
+        request,
+        _DummyRequest(),
+        user.email,
+        auth_service,
+        db,
+    )
     assert response.message == "Password changed successfully"
 
 
@@ -1058,7 +1109,9 @@ async def test_update_current_user_not_found(monkeypatch, test_student, db):
     payload = auth_routes.UserUpdate(first_name="New")
 
     with pytest.raises(HTTPException) as exc:
-        await auth_routes.update_current_user(payload, user.email, auth_service, db)
+        await auth_routes.update_current_user(
+            _DummyRequest(), payload, user.email, auth_service, db
+        )
     assert exc.value.status_code == 404
 
 
@@ -1074,7 +1127,9 @@ async def test_update_current_user_updates_phone_and_zip(monkeypatch, test_stude
     auth_service = _StubAuthService(user_obj=user)
     payload = auth_routes.UserUpdate(phone="+15551234567", zip_code="10001")
 
-    response = await auth_routes.update_current_user(payload, user.email, auth_service, db)
+    response = await auth_routes.update_current_user(
+        _DummyRequest(), payload, user.email, auth_service, db
+    )
     assert response.phone == "+15551234567"
     assert response.timezone == "America/New_York"
 
@@ -1092,5 +1147,7 @@ async def test_update_current_user_unexpected_error(monkeypatch, test_student, d
     payload = auth_routes.UserUpdate(first_name="New")
 
     with pytest.raises(HTTPException) as exc:
-        await auth_routes.update_current_user(payload, user.email, auth_service, db)
+        await auth_routes.update_current_user(
+            _DummyRequest(), payload, user.email, auth_service, db
+        )
     assert exc.value.status_code == 500

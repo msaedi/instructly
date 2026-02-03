@@ -18,6 +18,7 @@ from app.auth import create_access_token, get_current_user
 from app.core.config import settings
 from app.database import get_db
 from app.middleware.rate_limiter import RateLimitKeyType, rate_limit
+from app.services.audit_service import AuditService
 from app.services.auth_service import AuthService
 from app.services.notification_service import NotificationService
 from app.services.search_history_service import SearchHistoryService
@@ -70,11 +71,13 @@ def setup_initiate(
 def setup_verify(
     req: TFASetupVerifyRequest,
     response: Response,
+    request: Request,
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
 ) -> TFASetupVerifyResponse:
     user = auth_service.get_current_user(email=current_user)
+    was_enabled = bool(getattr(user, "totp_enabled", False))
     try:
         backup_codes = tfa_service.setup_verify(user, req.code)
         # On successful re-setup, ensure trust cookie is cleared; user can re-trust on next verify
@@ -94,6 +97,20 @@ def setup_verify(
             )
         except Exception as exc:
             logger.warning("Failed to send 2FA enabled notification for %s: %s", user.id, exc)
+        try:
+            AuditService(tfa_service.db).log_changes(
+                action="user.2fa_enable",
+                resource_type="user",
+                resource_id=user.id,
+                old_values={"totp_enabled": was_enabled},
+                new_values={"totp_enabled": True},
+                actor=user,
+                actor_type="user",
+                description="Two-factor authentication enabled",
+                request=request,
+            )
+        except Exception:
+            logger.warning("Audit log write failed for 2FA enable", exc_info=True)
         return TFASetupVerifyResponse(enabled=True, backup_codes=backup_codes)
     except ValueError:
         # Return a user-friendly message without exposing internals
@@ -107,11 +124,13 @@ def setup_verify(
 def disable(
     req: TFADisableRequest,
     response: Response,
+    request: Request,
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     tfa_service: TwoFactorAuthService = Depends(get_tfa_service),
 ) -> TFADisableResponse:
     user = auth_service.get_current_user(email=current_user)
+    was_enabled = bool(getattr(user, "totp_enabled", False))
     try:
         tfa_service.disable(user, req.current_password)
         # Invalidate any trusted-browser cookie on disable
@@ -131,6 +150,20 @@ def disable(
             )
         except Exception as exc:
             logger.warning("Failed to send 2FA disabled notification for %s: %s", user.id, exc)
+        try:
+            AuditService(tfa_service.db).log_changes(
+                action="user.2fa_disable",
+                resource_type="user",
+                resource_id=user.id,
+                old_values={"totp_enabled": was_enabled},
+                new_values={"totp_enabled": False},
+                actor=user,
+                actor_type="user",
+                description="Two-factor authentication disabled",
+                request=request,
+            )
+        except Exception:
+            logger.warning("Audit log write failed for 2FA disable", exc_info=True)
         return TFADisableResponse(message="Two-factor authentication disabled")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -261,5 +294,19 @@ def verify_login(
             path="/",
         )
     from app.core.constants import BEARER_SCHEME
+
+    try:
+        AuditService(tfa_service.db).log(
+            action="user.login",
+            resource_type="user",
+            resource_id=user.id,
+            actor_type="user",
+            actor_id=user.id,
+            actor_email=user.email,
+            description="User login (2FA)",
+            request=request,
+        )
+    except Exception:
+        logger.warning("Audit log write failed for 2FA login", exc_info=True)
 
     return TFAVerifyLoginResponse(access_token=access_token, token_type=BEARER_SCHEME)

@@ -31,6 +31,7 @@ from .oauth.crypto import build_jwks, normalize_pem
 from .oauth.endpoints import attach_oauth_routes
 from .otel import init_otel, instrument_app
 from .tools import (
+    audit,
     celery,
     command_center,
     deploy,
@@ -552,6 +553,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     mcp = FastMCP("iNSTAiNSTRU Admin")
 
     celery.register_tools(mcp, client)
+    audit.register_tools(mcp, client)
     founding.register_tools(mcp, client)
     instructors.register_tools(mcp, client)
     invites.register_tools(mcp, client)

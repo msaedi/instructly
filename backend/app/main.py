@@ -54,6 +54,7 @@ from .core.metrics import (
 )
 from .core.request_context import attach_request_id_filter
 from .database import SessionLocal
+from .dependencies.mcp_auth import audit_mcp_request
 from .middleware.beta_phase_header import BetaPhaseHeaderMiddleware
 from .middleware.csrf_asgi import CsrfOriginMiddlewareASGI
 from .middleware.https_redirect import create_https_redirect_middleware
@@ -156,6 +157,7 @@ from .routes.v1.admin import (
     search_config as admin_search_config_v1,
 )
 from .routes.v1.admin.mcp import (
+    audit as admin_mcp_audit_v1,
     celery as admin_mcp_celery_v1,
     founding as admin_mcp_founding_v1,
     instructors as admin_mcp_instructors_v1,
@@ -1100,15 +1102,56 @@ api_v1.include_router(admin_auth_blocks_v1.router, prefix="/admin/auth-blocks") 
 api_v1.include_router(admin_location_learning_v1.router, prefix="/admin/location-learning")  # type: ignore[attr-defined]
 api_v1.include_router(admin_bookings_v1.router, prefix="/admin")  # type: ignore[attr-defined]
 api_v1.include_router(admin_refunds_v1.router, prefix="/admin/bookings")  # type: ignore[attr-defined]
-api_v1.include_router(admin_mcp_founding_v1.router, prefix="/admin/mcp/founding")  # type: ignore[attr-defined]
-api_v1.include_router(admin_mcp_instructors_v1.router, prefix="/admin/mcp/instructors")  # type: ignore[attr-defined]
-api_v1.include_router(admin_mcp_invites_v1.router, prefix="/admin/mcp/invites")  # type: ignore[attr-defined]
-api_v1.include_router(admin_mcp_search_v1.router, prefix="/admin/mcp/search")  # type: ignore[attr-defined]
-api_v1.include_router(admin_mcp_metrics_v1.router, prefix="/admin/mcp/metrics")  # type: ignore[attr-defined]
-api_v1.include_router(admin_mcp_celery_v1.router, prefix="/admin/mcp/celery")  # type: ignore[attr-defined]
-api_v1.include_router(admin_mcp_operations_v1.router, prefix="/admin/mcp/ops")  # type: ignore[attr-defined]
-api_v1.include_router(admin_mcp_services_v1.router, prefix="/admin/mcp/services")  # type: ignore[attr-defined]
-api_v1.include_router(admin_mcp_webhooks_v1.router, prefix="/admin/mcp/webhooks")  # type: ignore[attr-defined]
+api_v1.include_router(  # type: ignore[attr-defined]
+    admin_mcp_founding_v1.router,
+    prefix="/admin/mcp/founding",
+    dependencies=[Depends(audit_mcp_request)],
+)
+api_v1.include_router(  # type: ignore[attr-defined]
+    admin_mcp_instructors_v1.router,
+    prefix="/admin/mcp/instructors",
+    dependencies=[Depends(audit_mcp_request)],
+)
+api_v1.include_router(  # type: ignore[attr-defined]
+    admin_mcp_invites_v1.router,
+    prefix="/admin/mcp/invites",
+    dependencies=[Depends(audit_mcp_request)],
+)
+api_v1.include_router(  # type: ignore[attr-defined]
+    admin_mcp_search_v1.router,
+    prefix="/admin/mcp/search",
+    dependencies=[Depends(audit_mcp_request)],
+)
+api_v1.include_router(  # type: ignore[attr-defined]
+    admin_mcp_metrics_v1.router,
+    prefix="/admin/mcp/metrics",
+    dependencies=[Depends(audit_mcp_request)],
+)
+api_v1.include_router(  # type: ignore[attr-defined]
+    admin_mcp_celery_v1.router,
+    prefix="/admin/mcp/celery",
+    dependencies=[Depends(audit_mcp_request)],
+)
+api_v1.include_router(  # type: ignore[attr-defined]
+    admin_mcp_operations_v1.router,
+    prefix="/admin/mcp/ops",
+    dependencies=[Depends(audit_mcp_request)],
+)
+api_v1.include_router(  # type: ignore[attr-defined]
+    admin_mcp_services_v1.router,
+    prefix="/admin/mcp/services",
+    dependencies=[Depends(audit_mcp_request)],
+)
+api_v1.include_router(  # type: ignore[attr-defined]
+    admin_mcp_webhooks_v1.router,
+    prefix="/admin/mcp/webhooks",
+    dependencies=[Depends(audit_mcp_request)],
+)
+api_v1.include_router(  # type: ignore[attr-defined]
+    admin_mcp_audit_v1.router,
+    prefix="/admin/mcp/audit",
+    dependencies=[Depends(audit_mcp_request)],
+)
 # Phase 23 v1 webhooks router
 api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
 # Phase 24.5 v1 admin operations routers

@@ -52,6 +52,7 @@ from ..schemas.booking import BookingCreate, BookingUpdate
 from ..utils.time_helpers import string_to_time
 from ..utils.time_utils import time_to_minutes
 from .audit_redaction import redact
+from .audit_service import AuditService
 from .base import BaseService
 from .cache_service import CacheService, CacheServiceSyncAdapter
 from .config_service import ConfigService
@@ -327,6 +328,39 @@ class BookingService(BaseService):
         )
         if AUDIT_ENABLED:
             self.audit_repository.write(audit_entry)
+            try:
+                normalized_action = action.lower()
+                if "cancel" in normalized_action:
+                    audit_action = "booking.cancel"
+                elif "complete" in normalized_action:
+                    audit_action = "booking.complete"
+                elif normalized_action == "create":
+                    audit_action = "booking.create"
+                else:
+                    audit_action = f"booking.{action}"
+                    if normalized_action == "status_change" and isinstance(after, dict):
+                        status_value = after.get("status")
+                        if status_value:
+                            normalized_status = str(status_value).lower()
+                            if normalized_status in {"completed", "complete"}:
+                                audit_action = "booking.complete"
+                            elif normalized_status in {"cancelled", "canceled"}:
+                                audit_action = "booking.cancel"
+
+                AuditService(self.db).log_changes(
+                    action=audit_action,
+                    resource_type="booking",
+                    resource_id=booking.id,
+                    old_values=before,
+                    new_values=after,
+                    actor=actor if isinstance(actor, User) else None,
+                    actor_type="user" if actor is not None else "system",
+                    actor_id=actor_payload.get("id") if actor is not None else None,
+                    description=f"Booking {action}",
+                    metadata={"legacy_action": action},
+                )
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
 
     def _calculate_and_validate_end_time(
         self,

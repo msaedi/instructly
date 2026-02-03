@@ -1,6 +1,7 @@
 """Tool registration for InstaInstru MCP server."""
 
 from . import (
+    audit,
     celery,
     command_center,
     deploy,
@@ -36,4 +37,5 @@ __all__ = [
     "services",
     "support",
     "webhooks",
+    "audit",
 ]

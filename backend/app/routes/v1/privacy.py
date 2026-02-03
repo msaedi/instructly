@@ -8,7 +8,7 @@ Provides user data export, deletion, and privacy management endpoints.
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from ...api.dependencies.services import get_auth_service
@@ -24,6 +24,7 @@ from ...schemas.privacy import (
     UserDataDeletionRequest,
     UserDataDeletionResponse,
 )
+from ...services.audit_service import AuditService
 from ...services.auth_service import AuthService
 from ...services.privacy_service import PrivacyService
 
@@ -86,6 +87,7 @@ async def export_my_data(
 @router.post("/delete/me", response_model=UserDataDeletionResponse)
 async def delete_my_data(
     request: UserDataDeletionRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> UserDataDeletionResponse:
@@ -102,6 +104,19 @@ async def delete_my_data(
             deletion_stats = await asyncio.to_thread(
                 privacy_service.delete_user_data, current_user.id, delete_account=True
             )
+            try:
+                AuditService(db).log(
+                    action="user.delete",
+                    resource_type="user",
+                    resource_id=current_user.id,
+                    actor=current_user,
+                    actor_type="user",
+                    description="User deleted account",
+                    metadata={"delete_account": True},
+                    request=http_request,
+                )
+            except Exception:
+                logger.warning("Audit log write failed for user delete", exc_info=True)
             return UserDataDeletionResponse(
                 status="success",
                 message="Account and all associated data deleted",
@@ -112,6 +127,19 @@ async def delete_my_data(
             # Anonymize only
             success = await asyncio.to_thread(privacy_service.anonymize_user, current_user.id)
             if success:
+                try:
+                    AuditService(db).log(
+                        action="user.delete",
+                        resource_type="user",
+                        resource_id=current_user.id,
+                        actor=current_user,
+                        actor_type="user",
+                        description="User anonymized account data",
+                        metadata={"delete_account": False},
+                        request=http_request,
+                    )
+                except Exception:
+                    logger.warning("Audit log write failed for user anonymize", exc_info=True)
                 return UserDataDeletionResponse(
                     status="success",
                     message="Personal data anonymized",
@@ -222,6 +250,7 @@ async def export_user_data_admin(
 async def delete_user_data_admin(
     user_id: str,
     request: UserDataDeletionRequest,
+    http_request: Request,
     current_user: User = Depends(require_permission(PermissionName.MANAGE_USERS)),
     db: Session = Depends(get_db),
 ) -> UserDataDeletionResponse:
@@ -236,6 +265,19 @@ async def delete_user_data_admin(
         deletion_stats = await asyncio.to_thread(
             privacy_service.delete_user_data, user_id, delete_account=request.delete_account
         )
+        try:
+            AuditService(db).log(
+                action="user.delete",
+                resource_type="user",
+                resource_id=user_id,
+                actor=current_user,
+                actor_type="user",
+                description="Admin deleted user data",
+                metadata={"delete_account": request.delete_account, "initiated_by": "admin"},
+                request=http_request,
+            )
+        except Exception:
+            logger.warning("Audit log write failed for admin user delete", exc_info=True)
         return UserDataDeletionResponse(
             status="success",
             message=f"Data deleted for user {user_id}",

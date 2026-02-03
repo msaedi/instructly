@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from fastapi import HTTPException
 import pytest
 
@@ -67,11 +69,17 @@ class DummyAccountService:
         return {"account_status": "active", "can_login": True, "can_receive_bookings": True}
 
 
+def _dummy_request():
+    return SimpleNamespace(headers={}, client=None)
+
+
 @pytest.mark.asyncio
 async def test_suspend_account_for_student_forbidden(db, test_student):
     service = AccountLifecycleService(db, cache_service=DummyCacheService())
     with pytest.raises(HTTPException) as exc:
-        await account_routes.suspend_account(current_user=test_student, account_service=service)
+        await account_routes.suspend_account(
+            request=_dummy_request(), current_user=test_student, account_service=service
+        )
     assert exc.value.status_code == 403
 
 
@@ -80,7 +88,9 @@ async def test_suspend_and_reactivate_account(db, test_instructor_with_availabil
     service = AccountLifecycleService(db, cache_service=DummyCacheService())
 
     suspend = await account_routes.suspend_account(
-        current_user=test_instructor_with_availability, account_service=service
+        request=_dummy_request(),
+        current_user=test_instructor_with_availability,
+        account_service=service,
     )
     assert suspend.success is True
 
@@ -88,7 +98,9 @@ async def test_suspend_and_reactivate_account(db, test_instructor_with_availabil
     db.commit()
 
     reactivated = await account_routes.reactivate_account(
-        current_user=test_instructor_with_availability, account_service=service
+        request=_dummy_request(),
+        current_user=test_instructor_with_availability,
+        account_service=service,
     )
     assert reactivated.success is True
 
@@ -98,6 +110,7 @@ async def test_suspend_and_deactivate_business_rule_exceptions(test_instructor_w
     service = DummyAccountService(has_future=True, exception=BusinessRuleException("blocked"))
     with pytest.raises(HTTPException) as exc:
         await account_routes.suspend_account(
+            request=_dummy_request(),
             current_user=test_instructor_with_availability, account_service=service
         )
     assert exc.value.status_code == 409
@@ -105,6 +118,7 @@ async def test_suspend_and_deactivate_business_rule_exceptions(test_instructor_w
     service = DummyAccountService(has_future=False, exception=BusinessRuleException("blocked"))
     with pytest.raises(HTTPException) as exc:
         await account_routes.suspend_account(
+            request=_dummy_request(),
             current_user=test_instructor_with_availability, account_service=service
         )
     assert exc.value.status_code == 400
@@ -112,6 +126,7 @@ async def test_suspend_and_deactivate_business_rule_exceptions(test_instructor_w
     service = DummyAccountService(has_future=True, exception=BusinessRuleException("blocked"))
     with pytest.raises(HTTPException) as exc:
         await account_routes.deactivate_account(
+            request=_dummy_request(),
             current_user=test_instructor_with_availability, account_service=service
         )
     assert exc.value.status_code == 409
@@ -122,9 +137,64 @@ async def test_reactivate_validation_error(test_instructor_with_availability):
     service = DummyAccountService(exception=ValidationException("bad"))
     with pytest.raises(HTTPException) as exc:
         await account_routes.reactivate_account(
+            request=_dummy_request(),
             current_user=test_instructor_with_availability, account_service=service
         )
     assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_suspend_audit_failure_does_not_break(db, test_instructor_with_availability, monkeypatch):
+    service = AccountLifecycleService(db, cache_service=DummyCacheService())
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("audit failed")
+
+    monkeypatch.setattr(account_routes.AuditService, "log_changes", _boom)
+
+    response = await account_routes.suspend_account(
+        request=_dummy_request(),
+        current_user=test_instructor_with_availability,
+        account_service=service,
+    )
+    assert response.success is True
+
+
+@pytest.mark.asyncio
+async def test_deactivate_audit_failure_does_not_break(db, test_instructor_with_availability, monkeypatch):
+    service = AccountLifecycleService(db, cache_service=DummyCacheService())
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("audit failed")
+
+    monkeypatch.setattr(account_routes.AuditService, "log_changes", _boom)
+
+    response = await account_routes.deactivate_account(
+        request=_dummy_request(),
+        current_user=test_instructor_with_availability,
+        account_service=service,
+    )
+    assert response.success is True
+
+
+@pytest.mark.asyncio
+async def test_reactivate_audit_failure_does_not_break(db, test_instructor_with_availability, monkeypatch):
+    service = AccountLifecycleService(db, cache_service=DummyCacheService())
+
+    test_instructor_with_availability.account_status = "suspended"
+    db.commit()
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("audit failed")
+
+    monkeypatch.setattr(account_routes.AuditService, "log_changes", _boom)
+
+    response = await account_routes.reactivate_account(
+        request=_dummy_request(),
+        current_user=test_instructor_with_availability,
+        account_service=service,
+    )
+    assert response.success is True
 
 
 @pytest.mark.asyncio

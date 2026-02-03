@@ -9,7 +9,7 @@ import logging
 import math
 from typing import Any, Literal, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Query as SAQuery
@@ -41,6 +41,7 @@ from app.schemas.admin_background_checks import (
     BGCWebhookLogListResponse,
     BGCWebhookStatsResponse,
 )
+from app.services.audit_service import AuditService
 from app.services.background_check_workflow_service import (
     BackgroundCheckWorkflowService,
 )
@@ -579,12 +580,14 @@ async def bgc_webhook_stats(
 @router.post("/{instructor_id}/override", response_model=BGCOverrideResponse)
 async def bgc_review_override(
     instructor_id: str,
+    request: Request,
     payload: OverridePayload = Body(...),
     repo: InstructorProfileRepository = Depends(get_instructor_repo),
-    _: None = Depends(require_admin),
+    _: User | None = Depends(require_admin),
 ) -> BGCOverrideResponse:
     """Approve or reject a background check under admin review."""
 
+    admin_user = _
     profile = repo.get_by_id(instructor_id, load_relationships=False)
     if not profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
@@ -607,6 +610,19 @@ async def bgc_review_override(
         )
         profile.bgc_completed_at = profile.bgc_completed_at or now
         repo.commit()
+        try:
+            AuditService(repo.db).log(
+                action="instructor.approve",
+                resource_type="instructor",
+                resource_id=instructor_id,
+                actor=admin_user,
+                actor_type="user",
+                description="Instructor background check approved",
+                metadata={"bgc_status": "passed"},
+                request=request,
+            )
+        except Exception:
+            logger.warning("Audit log write failed for instructor approve", exc_info=True)
         response_payload = {"ok": True, "new_status": "passed"}
         return BGCOverrideResponse(**model_filter(BGCOverrideResponse, response_payload))
 
@@ -625,6 +641,19 @@ async def bgc_review_override(
     )
     profile.bgc_completed_at = now
     repo.commit()
+    try:
+        AuditService(repo.db).log(
+            action="instructor.reject",
+            resource_type="instructor",
+            resource_id=instructor_id,
+            actor=admin_user,
+            actor_type="user",
+            description="Instructor background check rejected",
+            metadata={"bgc_status": "failed"},
+            request=request,
+        )
+    except Exception:
+        logger.warning("Audit log write failed for instructor reject", exc_info=True)
     response_payload = {"ok": True, "new_status": "failed"}
     return BGCOverrideResponse(**model_filter(BGCOverrideResponse, response_payload))
 

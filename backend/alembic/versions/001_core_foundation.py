@@ -470,6 +470,52 @@ def upgrade() -> None:
             ["action", "occurred_at"],
         )
 
+    print("Creating audit_logs table...")
+    op.create_table(
+        "audit_logs",
+        sa.Column("id", sa.String(length=26), primary_key=True, nullable=False),
+        sa.Column(
+            "timestamp",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column("actor_type", sa.String(length=20), nullable=False),
+        sa.Column("actor_id", sa.String(length=64), nullable=True),
+        sa.Column("actor_email", sa.String(length=255), nullable=True),
+        sa.Column("actor_ip", sa.String(length=45), nullable=True),
+        sa.Column("actor_user_agent", sa.String(length=500), nullable=True),
+        sa.Column("action", sa.String(length=100), nullable=False),
+        sa.Column("resource_type", sa.String(length=50), nullable=False),
+        sa.Column("resource_id", sa.String(length=26), nullable=True),
+        sa.Column("description", sa.Text(), nullable=True),
+        sa.Column("changes", json_type, nullable=True),
+        sa.Column("metadata", json_type, nullable=True),
+        sa.Column(
+            "status",
+            sa.String(length=20),
+            nullable=False,
+            server_default="success",
+        ),
+        sa.Column("error_message", sa.Text(), nullable=True),
+        sa.Column("request_id", sa.String(length=36), nullable=True),
+        sa.Column("trace_id", sa.String(length=32), nullable=True),
+        sa.Column("session_id", sa.String(length=64), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+    )
+
+    op.create_index("ix_audit_logs_timestamp", "audit_logs", ["timestamp"])
+    op.create_index("ix_audit_logs_actor_id", "audit_logs", ["actor_id"])
+    op.create_index("ix_audit_logs_actor_email", "audit_logs", ["actor_email"])
+    op.create_index("ix_audit_logs_action", "audit_logs", ["action"])
+    op.create_index("ix_audit_logs_resource", "audit_logs", ["resource_type", "resource_id"])
+    op.create_index("ix_audit_logs_request_id", "audit_logs", ["request_id"])
+
     # Password reset tokens
     op.create_table(
         "password_reset_tokens",
@@ -515,6 +561,14 @@ def downgrade() -> None:
         op.drop_index("ix_audit_log_actor", table_name="audit_log")
         op.drop_index("ix_audit_log_entity", table_name="audit_log")
         op.drop_table("audit_log")
+
+    op.drop_index("ix_audit_logs_request_id", table_name="audit_logs")
+    op.drop_index("ix_audit_logs_resource", table_name="audit_logs")
+    op.drop_index("ix_audit_logs_action", table_name="audit_logs")
+    op.drop_index("ix_audit_logs_actor_email", table_name="audit_logs")
+    op.drop_index("ix_audit_logs_actor_id", table_name="audit_logs")
+    op.drop_index("ix_audit_logs_timestamp", table_name="audit_logs")
+    op.drop_table("audit_logs")
 
     op.drop_table("platform_config")
 

@@ -96,6 +96,7 @@ def test_setup_verify_success_and_failure(db, test_student, monkeypatch):
     response = routes.setup_verify(
         TFASetupVerifyRequest(code="123456"),
         Response(),
+        _make_request(),
         current_user=test_student.email,
         auth_service=auth_service,
         tfa_service=tfa_service,
@@ -110,6 +111,7 @@ def test_setup_verify_success_and_failure(db, test_student, monkeypatch):
         routes.setup_verify(
             TFASetupVerifyRequest(code="123456"),
             Response(),
+            _make_request(),
             current_user=test_student.email,
             auth_service=auth_service,
             tfa_service=_BadService(db),
@@ -132,6 +134,7 @@ def test_disable_success_and_failure(db, test_student, monkeypatch):
     response = routes.disable(
         TFADisableRequest(current_password="password"),
         Response(),
+        _make_request(),
         current_user=test_student.email,
         auth_service=auth_service,
         tfa_service=_TFAService(db),
@@ -146,11 +149,52 @@ def test_disable_success_and_failure(db, test_student, monkeypatch):
         routes.disable(
             TFADisableRequest(current_password="bad"),
             Response(),
+            _make_request(),
             current_user=test_student.email,
             auth_service=auth_service,
             tfa_service=_BadService(db),
         )
     assert exc.value.status_code == 400
+
+
+def test_setup_verify_audit_failure(db, test_student, monkeypatch):
+    auth_service = _AuthService(test_student)
+    tfa_service = _TFAService(db)
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("audit failed")
+
+    monkeypatch.setattr(routes.AuditService, "log_changes", _boom)
+
+    response = routes.setup_verify(
+        TFASetupVerifyRequest(code="123456"),
+        Response(),
+        _make_request(),
+        current_user=test_student.email,
+        auth_service=auth_service,
+        tfa_service=tfa_service,
+    )
+    assert response.enabled is True
+
+
+def test_disable_audit_failure(db, test_student, monkeypatch):
+    auth_service = _AuthService(test_student)
+    tfa_service = _TFAService(db)
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("audit failed")
+
+    monkeypatch.setattr(routes.AuditService, "log_changes", _boom)
+
+    response = routes.disable(
+        TFADisableRequest(current_password="password"),
+        Response(),
+        _make_request(),
+        current_user=test_student.email,
+        auth_service=auth_service,
+        tfa_service=tfa_service,
+    )
+    assert response.message
 
 
 def test_regenerate_backup_codes(db, test_student):

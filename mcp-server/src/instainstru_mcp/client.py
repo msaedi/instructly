@@ -478,3 +478,40 @@ class InstaInstruClient:
             f"/api/v1/admin/mcp/webhooks/{quote(event_id)}/replay",
             params={"dry_run": dry_run},
         )
+
+    # ==================== Audit endpoints ====================
+
+    async def audit_search(self, **filters: Any) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/audit/search",
+            params={k: v for k, v in filters.items() if v is not None},
+        )
+
+    async def audit_user_activity(
+        self, user_email: str, since_days: int = 30, limit: int = 100
+    ) -> dict:
+        return await self.call(
+            "GET",
+            f"/api/v1/admin/mcp/audit/users/{quote(user_email)}/activity",
+            params={"since_days": since_days, "limit": limit},
+        )
+
+    async def audit_resource_history(
+        self,
+        resource_type: str,
+        resource_id: str,
+        limit: int = 50,
+    ) -> dict:
+        return await self.call(
+            "GET",
+            f"/api/v1/admin/mcp/audit/resources/{quote(resource_type)}/{quote(resource_id)}/history",
+            params={"limit": limit},
+        )
+
+    async def audit_recent_admin_actions(self, since_hours: int = 24, limit: int = 100) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/audit/admin-actions/recent",
+            params={"since_hours": since_hours, "limit": limit},
+        )

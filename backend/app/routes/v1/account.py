@@ -18,7 +18,7 @@ import re
 import secrets
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from ...api.dependencies.auth import get_current_active_user
@@ -39,6 +39,7 @@ from ...schemas.phone import (
     PhoneVerifyResponse,
 )
 from ...services.account_lifecycle_service import AccountLifecycleService
+from ...services.audit_service import AuditService
 from ...services.cache_service import CacheService
 from ...services.sms_service import SMSService, SMSStatus
 
@@ -57,6 +58,7 @@ PHONE_CONFIRM_WINDOW_SECONDS = 300
 
 @router.post("/suspend", response_model=AccountStatusChangeResponse)
 async def suspend_account(
+    request: Request,
     current_user: User = Depends(get_current_active_user),
     account_service: AccountLifecycleService = Depends(get_account_lifecycle_service),
 ) -> AccountStatusChangeResponse:
@@ -75,9 +77,24 @@ async def suspend_account(
         )
 
     try:
+        previous_status = getattr(current_user, "account_status", None)
         result: Dict[str, Any] = await asyncio.to_thread(
             account_service.suspend_instructor_account, current_user
         )
+        try:
+            AuditService(account_service.db).log_changes(
+                action="instructor.suspend",
+                resource_type="instructor",
+                resource_id=current_user.id,
+                old_values={"account_status": previous_status},
+                new_values={"account_status": "suspended"},
+                actor=current_user,
+                actor_type="user",
+                description="Instructor account suspended",
+                request=request,
+            )
+        except Exception:
+            logger.warning("Audit log write failed for instructor suspend", exc_info=True)
         return AccountStatusChangeResponse(**result)
     except BusinessRuleException as e:
         # Extract future bookings info if available
@@ -93,6 +110,7 @@ async def suspend_account(
 
 @router.post("/deactivate", response_model=AccountStatusChangeResponse)
 async def deactivate_account(
+    request: Request,
     current_user: User = Depends(get_current_active_user),
     account_service: AccountLifecycleService = Depends(get_account_lifecycle_service),
 ) -> AccountStatusChangeResponse:
@@ -111,9 +129,24 @@ async def deactivate_account(
         )
 
     try:
+        previous_status = getattr(current_user, "account_status", None)
         result: Dict[str, Any] = await asyncio.to_thread(
             account_service.deactivate_instructor_account, current_user
         )
+        try:
+            AuditService(account_service.db).log_changes(
+                action="instructor.deactivate",
+                resource_type="instructor",
+                resource_id=current_user.id,
+                old_values={"account_status": previous_status},
+                new_values={"account_status": "deactivated"},
+                actor=current_user,
+                actor_type="user",
+                description="Instructor account deactivated",
+                request=request,
+            )
+        except Exception:
+            logger.warning("Audit log write failed for instructor deactivate", exc_info=True)
         return AccountStatusChangeResponse(**result)
     except BusinessRuleException as e:
         # Extract future bookings info if available
@@ -129,6 +162,7 @@ async def deactivate_account(
 
 @router.post("/reactivate", response_model=AccountStatusChangeResponse)
 async def reactivate_account(
+    request: Request,
     current_user: User = Depends(get_current_active_user),
     account_service: AccountLifecycleService = Depends(get_account_lifecycle_service),
 ) -> AccountStatusChangeResponse:
@@ -147,9 +181,24 @@ async def reactivate_account(
         )
 
     try:
+        previous_status = getattr(current_user, "account_status", None)
         result: Dict[str, Any] = await asyncio.to_thread(
             account_service.reactivate_instructor_account, current_user
         )
+        try:
+            AuditService(account_service.db).log_changes(
+                action="instructor.reactivate",
+                resource_type="instructor",
+                resource_id=current_user.id,
+                old_values={"account_status": previous_status},
+                new_values={"account_status": "active"},
+                actor=current_user,
+                actor_type="user",
+                description="Instructor account reactivated",
+                request=request,
+            )
+        except Exception:
+            logger.warning("Audit log write failed for instructor reactivate", exc_info=True)
         return AccountStatusChangeResponse(**result)
     except ValidationException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

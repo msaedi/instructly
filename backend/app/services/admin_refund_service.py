@@ -16,6 +16,7 @@ from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 from app.schemas.admin_refunds import AdminRefundReason
 from app.services.audit_redaction import redact
+from app.services.audit_service import AuditService
 from app.services.base import BaseService
 
 AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes"}
@@ -129,5 +130,24 @@ class AdminRefundService(BaseService):
                     after=audit_after,
                 )
                 self.audit_repo.write(audit_entry)
+                try:
+                    AuditService(self.db).log_changes(
+                        action="payment.refund",
+                        resource_type="payment",
+                        resource_id=booking.id,
+                        old_values=audit_before,
+                        new_values=audit_after,
+                        actor=actor,
+                        actor_type="user",
+                        description="Admin refund applied",
+                        metadata={
+                            "initiated_by": "admin",
+                            "refund_amount_cents": amount_cents,
+                            "stripe_reason": stripe_reason,
+                            "refund_id": refund_id,
+                        },
+                    )
+                except Exception:
+                    logger.debug("Non-fatal error ignored", exc_info=True)
 
             return booking

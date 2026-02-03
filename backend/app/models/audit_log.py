@@ -93,6 +93,60 @@ class AuditLog(Base):
         )
 
 
+class AuditLogEntry(Base):
+    """Governance audit log entry with enriched actor/context fields."""
+
+    __tablename__ = "audit_logs"
+
+    id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
+    timestamp = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=_now_utc,
+        server_default=func.now(),
+    )
+
+    # Who
+    actor_type = Column(String(20), nullable=False)
+    actor_id = Column(String(64), nullable=True)
+    actor_email = Column(String(255), nullable=True)
+    actor_ip = Column(String(45), nullable=True)
+    actor_user_agent = Column(String(500), nullable=True)
+
+    # What
+    action = Column(String(100), nullable=False)
+    resource_type = Column(String(50), nullable=False)
+    resource_id = Column(String(26), nullable=True)
+
+    # Details
+    description = Column(Text, nullable=True)
+    changes = Column(
+        JSONB(astext_type=Text()).with_variant(JSON(), "sqlite"),
+        nullable=True,
+    )
+    metadata_json = Column(
+        "metadata",
+        JSONB(astext_type=Text()).with_variant(JSON(), "sqlite"),
+        nullable=True,
+    )
+
+    # Outcome
+    status = Column(String(20), nullable=False, default="success")
+    error_message = Column(Text, nullable=True)
+
+    # Context
+    request_id = Column(String(36), nullable=True)
+    trace_id = Column(String(32), nullable=True)
+    session_id = Column(String(64), nullable=True)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=_now_utc,
+        server_default=func.now(),
+    )
+
+
 def _first_attr(obj: Any, names: tuple[str, ...]) -> Any | None:
     for name in names:
         if hasattr(obj, name):

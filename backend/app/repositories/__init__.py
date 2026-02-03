@@ -45,6 +45,7 @@ from .bulk_operation_repository import BulkOperationRepository
 from .conflict_checker_repository import ConflictCheckerRepository
 from .conversation_repository import ConversationRepository
 from .factory import RepositoryFactory
+from .governance_audit_repository import GovernanceAuditRepository
 from .instructor_profile_repository import InstructorProfileRepository
 from .nl_search_repository import PriceThresholdRepository
 from .referral_repository import (
@@ -72,6 +73,7 @@ __all__ = [
     "BulkOperationRepository",
     "BookingRepository",
     "ConversationRepository",
+    "GovernanceAuditRepository",
     "WeekOperationRepository",
     "InstructorProfileRepository",
     "SearchEventRepository",

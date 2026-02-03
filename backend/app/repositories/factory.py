@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from .conversation_repository import ConversationRepository
     from .credit_repository import CreditRepository
     from .event_outbox_repository import EventOutboxRepository
+    from .governance_audit_repository import GovernanceAuditRepository
     from .instructor_lifecycle_repository import InstructorLifecycleRepository
     from .instructor_preferred_place_repository import InstructorPreferredPlaceRepository
     from .instructor_profile_repository import InstructorProfileRepository
@@ -127,6 +128,13 @@ class RepositoryFactory:
         from .audit_repository import AuditRepository
 
         return AuditRepository(db)
+
+    @staticmethod
+    def create_governance_audit_repository(db: Session) -> "GovernanceAuditRepository":
+        """Create repository for governance audit log operations."""
+        from .governance_audit_repository import GovernanceAuditRepository
+
+        return GovernanceAuditRepository(db)
 
     @staticmethod
     def create_notification_delivery_repository(db: Session) -> "NotificationDeliveryRepository":

@@ -58,6 +58,7 @@ from ...schemas.user import (
     UserLogin,
     UserUpdate,
 )
+from ...services.audit_service import AuditService
 from ...services.auth_service import AuthService
 from ...services.beta_service import BetaService
 from ...services.cache_service import CacheService
@@ -326,6 +327,20 @@ async def register(
         }
         user_payload = AuthUserResponse(**model_filter(AuthUserResponse, response_data))
 
+        try:
+            AuditService(db).log(
+                action="user.create",
+                resource_type="user",
+                resource_id=db_user.id,
+                actor=db_user,
+                actor_type="user",
+                description="User registered",
+                metadata={"role": payload.role or RoleName.STUDENT.value},
+                request=request,
+            )
+        except Exception:
+            logger.warning("Audit log write failed for user registration", exc_info=True)
+
         # Clear invite verification cookie after successful registration
         response.delete_cookie(
             key=invite_cookie_name(),
@@ -360,6 +375,7 @@ async def login(
     response: Response,  # Add this to set cookies
     form_data: OAuth2PasswordRequestForm = Depends(),
     auth_service: AuthService = Depends(get_auth_service),
+    db: Session = Depends(get_db),
     cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> LoginResponse:
     """
@@ -541,12 +557,28 @@ async def login(
 
     from app.core.constants import BEARER_SCHEME
 
+    try:
+        if user_id:
+            AuditService(db).log(
+                action="user.login",
+                resource_type="user",
+                resource_id=user_id,
+                actor_type="user",
+                actor_id=user_id,
+                actor_email=user_email,
+                description="User login",
+                request=request,
+            )
+    except Exception:
+        logger.warning("Audit log write failed for user login", exc_info=True)
+
     return LoginResponse(access_token=access_token, token_type=BEARER_SCHEME, requires_2fa=False)
 
 
 @router.post("/change-password", response_model=PasswordChangeResponse)
 async def change_password(
-    request: PasswordChangeRequest,
+    payload: PasswordChangeRequest,
+    http_request: Request,
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
@@ -562,13 +594,13 @@ async def change_password(
     # Verify current password - use async version for bcrypt
     from app.auth import get_password_hash
 
-    if not await verify_password_async(request.current_password, user.hashed_password):
+    if not await verify_password_async(payload.current_password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect"
         )
 
     # Basic strength checks
-    new_pw = request.new_password
+    new_pw = payload.new_password
     if len(new_pw) < 8 or new_pw.lower() == new_pw or not any(c.isdigit() for c in new_pw):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="New password is too weak"
@@ -593,6 +625,20 @@ async def change_password(
         )
     except Exception as exc:
         logger.warning("Failed to send password change notification: %s", exc)
+
+    try:
+        AuditService(db).log(
+            action="user.password_change",
+            resource_type="user",
+            resource_id=user.id,
+            actor_type="user",
+            actor_id=user.id,
+            actor_email=user.email,
+            description="Password changed",
+            request=http_request,
+        )
+    except Exception:
+        logger.warning("Audit log write failed for password change", exc_info=True)
 
     return PasswordChangeResponse(message="Password changed successfully")
 
@@ -795,6 +841,20 @@ async def login_with_session(
         "token_type": OAUTH2_TOKEN_TYPE,
         "requires_2fa": False,
     }
+    try:
+        if user_id:
+            AuditService(db).log(
+                action="user.login",
+                resource_type="user",
+                resource_id=user_id,
+                actor_type="user",
+                actor_id=user_id,
+                actor_email=user_email,
+                description="User login (guest conversion)",
+                request=request,
+            )
+    except Exception:
+        logger.warning("Audit log write failed for user login", exc_info=True)
     return LoginResponse(**model_filter(LoginResponse, response_payload))
 
 
@@ -888,6 +948,7 @@ async def read_users_me(
 
 @router.patch("/me", response_model=AuthUserWithPermissionsResponse)
 async def update_current_user(
+    request: Request,
     user_update: UserUpdate = Body(...),
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
@@ -921,12 +982,16 @@ async def update_current_user(
 
             # Prepare update data
             upd_data: dict[str, Any] = {}
+            audit_before: dict[str, Any] = {}
             if user_update.first_name is not None:
+                audit_before["first_name"] = getattr(u, "first_name", None)
                 upd_data["first_name"] = user_update.first_name
             if user_update.last_name is not None:
+                audit_before["last_name"] = getattr(u, "last_name", None)
                 upd_data["last_name"] = user_update.last_name
             if user_update.phone is not None:
                 old_phone = getattr(u, "phone", None)
+                audit_before["phone"] = old_phone
                 upd_data["phone"] = user_update.phone
                 if user_update.phone != old_phone:
                     upd_data["phone_verified"] = False
@@ -934,6 +999,8 @@ async def update_current_user(
             # Handle zip code change with automatic timezone update
             if user_update.zip_code is not None:
                 old_zip = u.zip_code
+                audit_before["zip_code"] = old_zip
+                audit_before["timezone"] = getattr(u, "timezone", None)
                 upd_data["zip_code"] = user_update.zip_code
 
                 # Auto-update timezone when zip code changes
@@ -948,6 +1015,7 @@ async def update_current_user(
 
             # Allow manual timezone override
             if user_update.timezone is not None:
+                audit_before["timezone"] = getattr(u, "timezone", None)
                 upd_data["timezone"] = user_update.timezone
 
             # Update using repository
@@ -960,9 +1028,12 @@ async def update_current_user(
             perm_svc = PermissionService(db)
             perms = perm_svc.get_user_permissions(upd_user.id)
             r = perm_svc.get_user_roles(upd_user.id)
-            return upd_user, perms, r
+            audit_after = {key: getattr(upd_user, key, None) for key in audit_before.keys()}
+            return upd_user, perms, r, audit_before, audit_after
 
-        updated_user, permissions, roles = await asyncio.to_thread(_update_user_profile)
+        updated_user, permissions, roles, audit_before, audit_after = await asyncio.to_thread(
+            _update_user_profile
+        )
 
         response_data = {
             "id": updated_user.id,
@@ -979,6 +1050,21 @@ async def update_current_user(
             "profile_picture_version": getattr(updated_user, "profile_picture_version", 0),
             "has_profile_picture": getattr(updated_user, "has_profile_picture", False),
         }
+
+        try:
+            AuditService(db).log_changes(
+                action="user.update",
+                resource_type="user",
+                resource_id=updated_user.id,
+                old_values=audit_before,
+                new_values=audit_after,
+                actor=updated_user,
+                actor_type="user",
+                description="User profile updated",
+                request=request,
+            )
+        except Exception:
+            logger.warning("Audit log write failed for user update", exc_info=True)
 
         return AuthUserWithPermissionsResponse(
             **model_filter(AuthUserWithPermissionsResponse, response_data)

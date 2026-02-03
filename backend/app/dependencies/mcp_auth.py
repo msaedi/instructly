@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
+from contextlib import suppress
 import logging
 import secrets
 
@@ -12,9 +13,11 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies.database import get_db
 from app.core.config import settings
+from app.database import get_db_session
 from app.m2m_auth import verify_m2m_token
 from app.principal import Principal, ServicePrincipal, UserPrincipal
 from app.repositories.user_repository import UserRepository
+from app.services.audit_service import AuditService, Status
 
 logger = logging.getLogger(__name__)
 
@@ -117,3 +120,67 @@ def require_mcp_scope(required_scope: str) -> Callable[..., Awaitable[Principal]
         return principal
 
     return _check_scope
+
+
+async def audit_mcp_request(
+    request: Request,
+    principal: Principal = Depends(get_mcp_principal),
+) -> AsyncGenerator[None, None]:
+    """Audit MCP requests after they complete."""
+    error_message: str | None = None
+    status_value: Status = "success"
+    try:
+        yield
+    except Exception as exc:
+        status_value = "failed"
+        error_message = str(exc)
+        raise
+    finally:
+        with suppress(Exception):
+            with get_db_session() as db:
+                AuditService(db).log(
+                    action=_mcp_action_from_path(request.url.path),
+                    resource_type="mcp",
+                    resource_id=_mcp_resource_id(request.url.path),
+                    actor_type="mcp",
+                    actor_id=principal.id,
+                    actor_email=principal.identifier
+                    if principal.principal_type == "user"
+                    else None,
+                    description=f"MCP {request.method} {request.url.path}",
+                    metadata={
+                        "method": request.method,
+                        "path": request.url.path,
+                        "principal_type": principal.principal_type,
+                    },
+                    status=status_value,
+                    error_message=error_message,
+                    request=request,
+                )
+
+
+def _mcp_action_from_path(path: str) -> str:
+    prefix = "/api/v1/admin/mcp"
+    if not (path == prefix or path.startswith(prefix + "/")):
+        return "mcp.unknown"
+    suffix = path[len(prefix) :].strip("/")
+    if not suffix:
+        return "mcp.root"
+    return "mcp." + suffix.replace("/", ".")
+
+
+def _mcp_resource_id(path: str) -> str | None:
+    prefix = "/api/v1/admin/mcp"
+    if not (path == prefix or path.startswith(prefix + "/")):
+        return None
+    parts = [part for part in path[len(prefix) :].split("/") if part]
+    if not parts:
+        return None
+    last = parts[-1]
+    if last.isdigit():
+        return last
+    if len(last) < 6:
+        return None
+    if any(char.isdigit() for char in last):
+        return last
+    return None

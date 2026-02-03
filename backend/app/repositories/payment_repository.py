@@ -35,6 +35,7 @@ from ..models.payment import (
     StripeConnectedAccount,
     StripeCustomer,
 )
+from ..services.audit_service import AuditService, Status
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -991,6 +992,26 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 logger.debug("Non-fatal error ignored", exc_info=True)
             self.db.add(event)
             self.db.flush()
+            try:
+                audit_action = _payment_event_to_audit_action(event_type)
+                if audit_action:
+                    status: Status = "failed" if _event_indicates_failure(event_type) else "success"
+                    AuditService(self.db).log(
+                        action=audit_action,
+                        resource_type="payment",
+                        resource_id=booking_id,
+                        actor_type="system",
+                        actor_id="payment_tasks",
+                        description=f"Payment event: {event_type}",
+                        metadata={
+                            "event_type": event_type,
+                            "event_data": event_data or {},
+                            "booking_id": booking_id,
+                        },
+                        status=status,
+                    )
+            except Exception:
+                logger.debug("Non-fatal error ignored", exc_info=True)
             return event
         except Exception as e:
             self.logger.error(f"Failed to create payment event: {str(e)}")
@@ -1572,3 +1593,19 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         except Exception as e:
             self.logger.error(f"Failed to mark credit as used: {str(e)}")
             raise RepositoryException(f"Failed to mark credit as used: {str(e)}")
+
+
+def _payment_event_to_audit_action(event_type: str) -> str | None:
+    normalized = (event_type or "").lower()
+    if "refund" in normalized:
+        return "payment.refund"
+    if "capture" in normalized:
+        return "payment.capture"
+    if "auth" in normalized or "authorize" in normalized:
+        return "payment.authorize"
+    return None
+
+
+def _event_indicates_failure(event_type: str) -> bool:
+    normalized = (event_type or "").lower()
+    return any(token in normalized for token in ("failed", "failure", "error", "denied"))

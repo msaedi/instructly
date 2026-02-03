@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from sqlalchemy.orm import Session
 import ulid
 
+from ...auth import decode_access_token
 from ...core.config import settings
 from ...core.timezone_utils import get_user_today
 from ...database import get_db
@@ -37,6 +38,7 @@ from ...schemas.public_availability import (
 from ...schemas.public_session import GuestSessionResponse
 from ...schemas.referrals import ReferralSendError, ReferralSendRequest, ReferralSendResponse
 from ...services import availability_service as availability_service_module
+from ...services.audit_service import AuditService
 from ...services.availability_service import AvailabilityService
 from ...services.cache_service import CacheService
 from ...services.conflict_checker import ConflictChecker
@@ -210,7 +212,9 @@ def create_guest_session(
 
 # openapi-exempt: 204 No Content - no response body
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
-def public_logout(response_obj: Response, request: Request) -> Response:
+def public_logout(
+    response_obj: Response, request: Request, db: Session = Depends(get_db)
+) -> Response:
     """Clear known session cookies. Public to support cross-origin preview logout.
 
     This does not revoke server sessions; it only instructs the browser to drop cookies.
@@ -253,6 +257,27 @@ def public_logout(response_obj: Response, request: Request) -> Response:
             if legacy_name.startswith("__Host-"):
                 legacy_domain = None
             _delete_session_cookie(legacy_name, domain=legacy_domain)
+    try:
+        token = None
+        if hasattr(request, "cookies"):
+            cookies = cast(Mapping[str, str], request.cookies)
+            for name in session_cookie_candidates(settings.site_mode):
+                token = cookies.get(name)
+                if token:
+                    break
+        if token:
+            payload = decode_access_token(token, enforce_audience=False)
+            email = payload.get("sub")
+            AuditService(db).log(
+                action="user.logout",
+                resource_type="user",
+                actor_type="user",
+                actor_email=email,
+                description="User logout",
+                request=request,
+            )
+    except Exception:
+        logger.warning("Audit log write failed for logout", exc_info=True)
     return resp
 
 

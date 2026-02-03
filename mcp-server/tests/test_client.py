@@ -588,3 +588,47 @@ async def test_client_webhook_endpoints():
     assert replay_route.calls[0].request.url.params["dry_run"] == "false"
 
     await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_client_audit_endpoints():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    search_route = respx.get("https://api.instainstru.test/api/v1/admin/mcp/audit/search").respond(
+        200, json={"ok": True}
+    )
+    user_route = respx.get(
+        "https://api.instainstru.test/api/v1/admin/mcp/audit/users/user%40example.com/activity"
+    ).respond(200, json={"ok": True})
+    resource_route = respx.get(
+        "https://api.instainstru.test/api/v1/admin/mcp/audit/resources/booking/01HXY1234567890ABCDEFGHJKL/history"
+    ).respond(200, json={"ok": True})
+    recent_route = respx.get(
+        "https://api.instainstru.test/api/v1/admin/mcp/audit/admin-actions/recent"
+    ).respond(200, json={"ok": True})
+
+    await client.audit_search(actor_email="user@example.com", action="booking.cancel", limit=5)
+    await client.audit_user_activity("user@example.com", since_days=7, limit=5)
+    await client.audit_resource_history(
+        "booking",
+        "01HXY1234567890ABCDEFGHJKL",
+        limit=3,
+    )
+    await client.audit_recent_admin_actions(since_hours=6, limit=10)
+
+    assert search_route.calls[0].request.url.params["actor_email"] == "user@example.com"
+    assert search_route.calls[0].request.url.params["action"] == "booking.cancel"
+    assert search_route.calls[0].request.url.params["limit"] == "5"
+    assert user_route.calls[0].request.url.params["since_days"] == "7"
+    assert user_route.calls[0].request.url.params["limit"] == "5"
+    assert resource_route.calls[0].request.url.params["limit"] == "3"
+    assert recent_route.calls[0].request.url.params["since_hours"] == "6"
+    assert recent_route.calls[0].request.url.params["limit"] == "10"
+
+    await client.aclose()

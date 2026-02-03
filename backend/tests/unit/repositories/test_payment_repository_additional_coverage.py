@@ -9,7 +9,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.core.exceptions import RepositoryException
-from app.repositories.payment_repository import PaymentRepository
+from app.repositories.payment_repository import (
+    PaymentRepository,
+    _event_indicates_failure,
+    _payment_event_to_audit_action,
+)
 
 
 def _build_query_chain(mock_db: MagicMock) -> MagicMock:
@@ -137,3 +141,19 @@ def test_get_credits_used_by_booking_handles_invalid_amounts() -> None:
     mock_db.query.side_effect = [credit_query, event_query]
 
     assert repo.get_credits_used_by_booking("booking") == [("credit-3", 5)]
+
+
+def test_payment_event_to_audit_action_matches_keywords() -> None:
+    assert _payment_event_to_audit_action("payment_refund_succeeded") == "payment.refund"
+    assert _payment_event_to_audit_action("capture_succeeded") == "payment.capture"
+    assert _payment_event_to_audit_action("auth_succeeded") == "payment.authorize"
+    assert _payment_event_to_audit_action("authorize_failed") == "payment.authorize"
+    assert _payment_event_to_audit_action("unknown_event") is None
+
+
+def test_event_indicates_failure_tokens() -> None:
+    assert _event_indicates_failure("payment_failed") is True
+    assert _event_indicates_failure("payment_failure") is True
+    assert _event_indicates_failure("payment_error") is True
+    assert _event_indicates_failure("payment_denied") is True
+    assert _event_indicates_failure("payment_succeeded") is False
