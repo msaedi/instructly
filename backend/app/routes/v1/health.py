@@ -26,12 +26,24 @@ def _apply_health_headers(response: Response) -> None:
     site_mode = os.getenv("SITE_MODE", "").lower().strip() or "unset"
     response.headers["X-Site-Mode"] = site_mode
     response.headers["X-Phase"] = os.getenv("BETA_PHASE", "beta")
-    response.headers["X-Commit-Sha"] = os.getenv("COMMIT_SHA", "dev")
+    response.headers["X-Commit-Sha"] = _resolve_git_sha()
     try:
         if site_mode == "local" and bool(getattr(settings, "is_testing", False)):
             response.headers["X-Testing"] = "1"
     except Exception:
         logger.debug("Non-fatal error ignored", exc_info=True)
+
+
+def _resolve_git_sha() -> str:
+    candidates = [
+        os.getenv("RENDER_GIT_COMMIT"),
+        os.getenv("GIT_SHA"),
+        os.getenv("COMMIT_SHA"),
+    ]
+    for candidate in candidates:
+        if candidate and candidate.strip():
+            return candidate.strip()
+    return "unknown"
 
 
 def _health_payload() -> HealthResponse:
@@ -42,6 +54,7 @@ def _health_payload() -> HealthResponse:
         version=API_VERSION,
         environment=settings.environment,
         timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        git_sha=_resolve_git_sha(),
     )
 
 

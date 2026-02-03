@@ -32,16 +32,23 @@ async def test_webhooks_list_calls_client():
     mcp = FastMCP("test")
     tools = webhooks.register_tools(mcp, client)
 
-    await tools["instainstru_webhooks_list"](
+    response = await tools["instainstru_webhooks_list"](
         source="stripe",
         status="failed",
         event_type="payment_intent.failed",
         since_hours=12,
+        start_time="2026-01-01T00:00:00Z",
+        end_time="2026-01-02T00:00:00Z",
         limit=5,
     )
 
     assert client.calls[0][0] == "get_webhooks"
     assert client.calls[0][1]["source"] == "stripe"
+    assert client.calls[0][1]["start_time"] == "2026-01-01T00:00:00Z"
+    assert client.calls[0][1]["end_time"] == "2026-01-02T00:00:00Z"
+    assert response["meta"]["time_window"]["source"] == (
+        "start_time=2026-01-01T00:00:00Z,end_time=2026-01-02T00:00:00Z"
+    )
 
 
 @pytest.mark.asyncio
@@ -50,10 +57,21 @@ async def test_webhooks_failed_calls_client():
     mcp = FastMCP("test")
     tools = webhooks.register_tools(mcp, client)
 
-    await tools["instainstru_webhooks_failed"](source="checkr", since_hours=48, limit=10)
+    response = await tools["instainstru_webhooks_failed"](
+        source="checkr",
+        since_hours=48,
+        start_time="2026-01-01T00:00:00Z",
+        end_time="2026-01-02T00:00:00Z",
+        limit=10,
+    )
 
     assert client.calls[0][0] == "get_failed_webhooks"
     assert client.calls[0][1]["source"] == "checkr"
+    assert client.calls[0][1]["start_time"] == "2026-01-01T00:00:00Z"
+    assert client.calls[0][1]["end_time"] == "2026-01-02T00:00:00Z"
+    assert response["meta"]["time_window"]["source"] == (
+        "start_time=2026-01-01T00:00:00Z,end_time=2026-01-02T00:00:00Z"
+    )
 
 
 @pytest.mark.asyncio

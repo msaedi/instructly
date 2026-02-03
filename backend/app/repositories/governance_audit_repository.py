@@ -33,13 +33,24 @@ class GovernanceAuditRepository:
         resource_id: Optional[str] = None,
         status: Optional[str] = None,
         since_hours: int = 24,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         limit: int = 100,
     ) -> tuple[Sequence[AuditLogEntry], int, dict[str, dict[str, int]]]:
         limit = max(0, min(limit, 500))
-        now = datetime.now(timezone.utc)
-        start = now - timedelta(hours=max(0, since_hours))
+        if start_time or end_time:
+            start = start_time
+            end = end_time
+        else:
+            now = datetime.now(timezone.utc)
+            start = now - timedelta(hours=max(0, since_hours))
+            end = now
 
-        conditions = [AuditLogEntry.timestamp >= start]
+        conditions = []
+        if start is not None:
+            conditions.append(AuditLogEntry.timestamp >= start)
+        if end is not None:
+            conditions.append(AuditLogEntry.timestamp <= end)
         if actor_email:
             conditions.append(AuditLogEntry.actor_email == actor_email)
         if actor_id:
@@ -79,16 +90,21 @@ class GovernanceAuditRepository:
         *,
         resource_type: str,
         resource_id: str,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         limit: int = 50,
     ) -> Sequence[AuditLogEntry]:
+        conditions = [
+            AuditLogEntry.resource_type == resource_type,
+            AuditLogEntry.resource_id == resource_id,
+        ]
+        if start_time is not None:
+            conditions.append(AuditLogEntry.timestamp >= start_time)
+        if end_time is not None:
+            conditions.append(AuditLogEntry.timestamp <= end_time)
         stmt = (
             select(AuditLogEntry)
-            .where(
-                and_(
-                    AuditLogEntry.resource_type == resource_type,
-                    AuditLogEntry.resource_id == resource_id,
-                )
-            )
+            .where(and_(*conditions))
             .order_by(AuditLogEntry.timestamp.desc())
             .limit(max(0, min(limit, 500)))
         )

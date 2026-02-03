@@ -93,6 +93,8 @@ class WebhookLedgerService(BaseService):
         status: str | None = None,
         event_type: str | None = None,
         since_hours: int = 24,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         limit: int = 50,
     ) -> list[WebhookEvent]:
         """Return recent webhook events filtered by criteria."""
@@ -101,6 +103,8 @@ class WebhookLedgerService(BaseService):
             status=status,
             event_type=event_type,
             since_hours=since_hours,
+            start_time=start_time,
+            end_time=end_time,
             limit=limit,
         )
 
@@ -109,24 +113,42 @@ class WebhookLedgerService(BaseService):
         self,
         *,
         since_hours: int = 24,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> int:
-        return self.repository.count_events(since_hours=since_hours)
+        return self.repository.count_events(
+            since_hours=since_hours,
+            start_time=start_time,
+            end_time=end_time,
+        )
 
     @BaseService.measure_operation("webhook_ledger.summarize_by_status")
     def summarize_by_status(
         self,
         *,
         since_hours: int = 24,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> dict[str, int]:
-        return self.repository.summarize_by_status(since_hours=since_hours)
+        return self.repository.summarize_by_status(
+            since_hours=since_hours,
+            start_time=start_time,
+            end_time=end_time,
+        )
 
     @BaseService.measure_operation("webhook_ledger.summarize_by_source")
     def summarize_by_source(
         self,
         *,
         since_hours: int = 24,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> dict[str, int]:
-        return self.repository.summarize_by_source(since_hours=since_hours)
+        return self.repository.summarize_by_source(
+            since_hours=since_hours,
+            start_time=start_time,
+            end_time=end_time,
+        )
 
     @BaseService.measure_operation("webhook_ledger.get_event")
     def get_event(self, event_id: str) -> WebhookEvent | None:
@@ -138,11 +160,15 @@ class WebhookLedgerService(BaseService):
         *,
         source: str | None = None,
         since_hours: int = 24,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         limit: int = 50,
     ) -> list[WebhookEvent]:
         return self.repository.get_failed_events(
             source=source,
             since_hours=since_hours,
+            start_time=start_time,
+            end_time=end_time,
             limit=limit,
         )
 

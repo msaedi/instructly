@@ -14,6 +14,7 @@ from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_request
 
 from ..client import InstaInstruClient
+from .common import format_rfc3339, resolve_time_window
 
 PeriodLiteral = Literal[
     "today",
@@ -361,6 +362,9 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         compare_to: CompareLiteral = "previous_period",
         include_search_analytics: bool = True,
         include_supply_metrics: bool = True,
+        since_hours: int | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
     ) -> dict:
         """
         Get a business health snapshot.
@@ -380,7 +384,18 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         """
         _require_scope("mcp:read")
 
-        period_start, period_end = _get_period_range(period)
+        if start_time or end_time or since_hours is not None:
+            period_start, period_end, source_label = resolve_time_window(
+                since_hours=since_hours,
+                start_time=start_time,
+                end_time=end_time,
+                default_hours=24,
+            )
+            period_label: str = "custom_range"
+        else:
+            period_start, period_end = _get_period_range(period)
+            source_label = f"period={period}"
+            period_label = period
         compare_start, compare_end = _get_comparison_range(period_start, period_end, compare_to)
 
         tasks: list[tuple[str, Any]] = []
@@ -393,7 +408,7 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             )
         )
 
-        include_compare = not (compare_to == "previous_period" and period == "yesterday")
+        include_compare = not (compare_to == "previous_period" and period_label == "yesterday")
         if include_compare:
             compare_start_date = compare_start.date().isoformat()
             compare_end_date = compare_end.date().isoformat()
@@ -499,10 +514,15 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
 
         meta = {
             "generated_at": _utc_now().isoformat(),
-            "period": period,
+            "period": period_label,
             "period_start": period_start.isoformat(),
             "period_end": period_end.isoformat(),
             "compare_to": compare_to,
+            "time_window": {
+                "start": format_rfc3339(period_start),
+                "end": format_rfc3339(period_end),
+                "source": source_label,
+            },
         }
 
         return {

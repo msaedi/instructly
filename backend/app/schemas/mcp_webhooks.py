@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import Field
 
 from ._strict_base import StrictModel
+from .mcp import MCPTimeWindow
 
 
 class MCPWebhookEventItem(StrictModel):
@@ -30,6 +31,7 @@ class MCPWebhookListMeta(StrictModel):
     since_hours: int
     total_count: int
     returned_count: int
+    time_window: MCPTimeWindow
 
 
 class MCPWebhookListSummary(StrictModel):
@@ -48,6 +50,7 @@ class MCPWebhookFailedMeta(StrictModel):
     generated_at: datetime
     since_hours: int
     returned_count: int
+    time_window: MCPTimeWindow
 
 
 class MCPWebhookFailedItem(MCPWebhookEventItem):

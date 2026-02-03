@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from ..client import InstaInstruClient
+from .common import format_rfc3339, resolve_time_window
 
 
 def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]:
@@ -12,29 +13,71 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         source: str | None = None,
         status: str | None = None,
         event_type: str | None = None,
-        since_hours: int = 24,
+        since_hours: int | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
         limit: int = 50,
     ) -> dict:
         """List webhook events from the ledger."""
-        return await client.get_webhooks(
+        start_dt, end_dt, source_label = resolve_time_window(
+            since_hours=since_hours,
+            start_time=start_time,
+            end_time=end_time,
+            default_hours=24,
+        )
+        response = await client.get_webhooks(
             source=source,
             status=status,
             event_type=event_type,
-            since_hours=since_hours,
+            start_time=format_rfc3339(start_dt),
+            end_time=format_rfc3339(end_dt),
             limit=limit,
         )
+        meta = response.get("meta", {})
+        time_window = meta.get("time_window", {})
+        time_window.update(
+            {
+                "start": format_rfc3339(start_dt),
+                "end": format_rfc3339(end_dt),
+                "source": source_label,
+            }
+        )
+        meta["time_window"] = time_window
+        response["meta"] = meta
+        return response
 
     async def instainstru_webhooks_failed(
         source: str | None = None,
-        since_hours: int = 24,
+        since_hours: int | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
         limit: int = 50,
     ) -> dict:
         """List failed webhooks for review/replay."""
-        return await client.get_failed_webhooks(
-            source=source,
+        start_dt, end_dt, source_label = resolve_time_window(
             since_hours=since_hours,
+            start_time=start_time,
+            end_time=end_time,
+            default_hours=24,
+        )
+        response = await client.get_failed_webhooks(
+            source=source,
+            start_time=format_rfc3339(start_dt),
+            end_time=format_rfc3339(end_dt),
             limit=limit,
         )
+        meta = response.get("meta", {})
+        time_window = meta.get("time_window", {})
+        time_window.update(
+            {
+                "start": format_rfc3339(start_dt),
+                "end": format_rfc3339(end_dt),
+                "source": source_label,
+            }
+        )
+        meta["time_window"] = time_window
+        response["meta"] = meta
+        return response
 
     async def instainstru_webhook_detail(event_id: str) -> dict:
         """Get full details of a webhook event."""

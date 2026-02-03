@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from ._strict_base import StrictModel
+from .mcp import MCPTimeWindow
 
 
 class AuditActor(StrictModel):
@@ -35,6 +36,7 @@ class AuditSearchMeta(StrictModel):
     since_hours: int
     total_count: int
     returned_count: int
+    time_window: MCPTimeWindow
 
 
 class AuditSearchSummary(StrictModel):

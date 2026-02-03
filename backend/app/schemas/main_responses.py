@@ -34,6 +34,7 @@ class HealthResponse(StrictModel):
     version: str = Field(description="API version")
     environment: str = Field(description="Environment name")
     timestamp: str = Field(description="UTC ISO8601Z timestamp of the health response")
+    git_sha: str = Field(description="Short git SHA for the running service")
 
 
 class HealthLiteResponse(StrictModel):

@@ -38,11 +38,20 @@ class WebhookEventRepository(BaseRepository[WebhookEvent]):
         status: str | None = None,
         event_type: str | None = None,
         since_hours: int = 24,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         limit: int = 50,
     ) -> list[WebhookEvent]:
         """Return recent webhook events filtered by criteria."""
-        cutoff = self._cutoff(since_hours)
-        query = self._build_query().filter(WebhookEvent.received_at >= cutoff)
+        if start_time or end_time:
+            query = self._build_query()
+            if start_time is not None:
+                query = query.filter(WebhookEvent.received_at >= start_time)
+            if end_time is not None:
+                query = query.filter(WebhookEvent.received_at <= end_time)
+        else:
+            cutoff = self._cutoff(since_hours)
+            query = self._build_query().filter(WebhookEvent.received_at >= cutoff)
         if source:
             query = query.filter(WebhookEvent.source == source)
         if status:
@@ -52,38 +61,64 @@ class WebhookEventRepository(BaseRepository[WebhookEvent]):
         query = query.order_by(WebhookEvent.received_at.desc()).limit(limit)
         return self._execute_query(query)
 
-    def count_events(self, *, since_hours: int = 24) -> int:
-        cutoff = self._cutoff(since_hours)
-        query = self.db.query(func.count(WebhookEvent.id)).filter(
-            WebhookEvent.received_at >= cutoff
-        )
+    def count_events(
+        self,
+        *,
+        since_hours: int = 24,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> int:
+        query = self.db.query(func.count(WebhookEvent.id))
+        if start_time is not None:
+            query = query.filter(WebhookEvent.received_at >= start_time)
+        elif end_time is None:
+            cutoff = self._cutoff(since_hours)
+            query = query.filter(WebhookEvent.received_at >= cutoff)
+        if end_time is not None:
+            query = query.filter(WebhookEvent.received_at <= end_time)
         count_value = self._execute_scalar(query)
         return int(count_value or 0)
 
-    def summarize_by_status(self, *, since_hours: int = 24) -> dict[str, int]:
-        cutoff = self._cutoff(since_hours)
+    def summarize_by_status(
+        self,
+        *,
+        since_hours: int = 24,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> dict[str, int]:
         try:
-            rows = (
-                self.db.query(WebhookEvent.status, func.count(WebhookEvent.id))
-                .filter(WebhookEvent.received_at >= cutoff)
-                .group_by(WebhookEvent.status)
-                .all()
-            )
+            query = self.db.query(WebhookEvent.status, func.count(WebhookEvent.id))
+            if start_time is not None:
+                query = query.filter(WebhookEvent.received_at >= start_time)
+            elif end_time is None:
+                cutoff = self._cutoff(since_hours)
+                query = query.filter(WebhookEvent.received_at >= cutoff)
+            if end_time is not None:
+                query = query.filter(WebhookEvent.received_at <= end_time)
+            rows = query.group_by(WebhookEvent.status).all()
         except SQLAlchemyError as exc:
             self.logger.error("Failed to summarize webhook status counts: %s", str(exc))
             raise RepositoryException("Failed to summarize webhook status counts") from exc
         typed_rows = cast(list[tuple[str | None, int]], rows)
         return {row[0] or "unknown": int(row[1] or 0) for row in typed_rows}
 
-    def summarize_by_source(self, *, since_hours: int = 24) -> dict[str, int]:
-        cutoff = self._cutoff(since_hours)
+    def summarize_by_source(
+        self,
+        *,
+        since_hours: int = 24,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> dict[str, int]:
         try:
-            rows = (
-                self.db.query(WebhookEvent.source, func.count(WebhookEvent.id))
-                .filter(WebhookEvent.received_at >= cutoff)
-                .group_by(WebhookEvent.source)
-                .all()
-            )
+            query = self.db.query(WebhookEvent.source, func.count(WebhookEvent.id))
+            if start_time is not None:
+                query = query.filter(WebhookEvent.received_at >= start_time)
+            elif end_time is None:
+                cutoff = self._cutoff(since_hours)
+                query = query.filter(WebhookEvent.received_at >= cutoff)
+            if end_time is not None:
+                query = query.filter(WebhookEvent.received_at <= end_time)
+            rows = query.group_by(WebhookEvent.source).all()
         except SQLAlchemyError as exc:
             self.logger.error("Failed to summarize webhook source counts: %s", str(exc))
             raise RepositoryException("Failed to summarize webhook source counts") from exc
@@ -102,13 +137,18 @@ class WebhookEventRepository(BaseRepository[WebhookEvent]):
         *,
         source: str | None = None,
         since_hours: int = 24,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         limit: int = 50,
     ) -> list[WebhookEvent]:
-        cutoff = self._cutoff(since_hours)
-        query = self._build_query().filter(
-            WebhookEvent.status == "failed",
-            WebhookEvent.received_at >= cutoff,
-        )
+        query = self._build_query().filter(WebhookEvent.status == "failed")
+        if start_time is not None:
+            query = query.filter(WebhookEvent.received_at >= start_time)
+        elif end_time is None:
+            cutoff = self._cutoff(since_hours)
+            query = query.filter(WebhookEvent.received_at >= cutoff)
+        if end_time is not None:
+            query = query.filter(WebhookEvent.received_at <= end_time)
         if source:
             query = query.filter(WebhookEvent.source == source)
         query = query.order_by(WebhookEvent.received_at.desc()).limit(limit)

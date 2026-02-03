@@ -396,6 +396,36 @@ async def test_growth_snapshot_handles_exceptions(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_growth_snapshot_since_hours_time_window(monkeypatch):
+    _set_auth(monkeypatch, {"method": "simple_token"})
+    fixed_now = datetime(2026, 2, 3, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(growth, "_utc_now", lambda: fixed_now)
+    booking_payloads = {
+        "2026-02-02:2026-02-03": {
+            "summary": {
+                "total_bookings": 2,
+                "by_status": {"completed": 2},
+                "total_revenue_cents": 2000,
+                "avg_booking_value_cents": 1000,
+                "top_categories": [],
+            }
+        }
+    }
+    client = FakeClient(booking_payloads=booking_payloads)
+    mcp = FastMCP("test")
+    tools = growth.register_tools(mcp, client)
+
+    result = await tools["instainstru_growth_snapshot"](
+        since_hours=24,
+        include_search_analytics=False,
+        include_supply_metrics=False,
+    )
+
+    assert result["meta"]["period"] == "custom_range"
+    assert result["meta"]["time_window"]["source"] == "since_hours=24"
+
+
+@pytest.mark.asyncio
 async def test_growth_snapshot_conversion_rate_exception(monkeypatch):
     _set_auth(monkeypatch, {"method": "simple_token"})
 

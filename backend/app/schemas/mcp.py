@@ -45,6 +45,7 @@ class MCPFoundingCap(StrictModel):
 class MCPTimeWindow(StrictModel):
     start: Optional[datetime] = None
     end: Optional[datetime] = None
+    source: Optional[str] = None
 
 
 class MCPFunnelSummaryResponse(StrictModel):

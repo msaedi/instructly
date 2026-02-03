@@ -1733,6 +1733,29 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mcp/payments/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Payment Timeline
+         * @description Get a redacted payment timeline for a booking or user.
+         *
+         *     Provide either booking_id or user_id (student). Time filtering supports
+         *     since_hours or explicit start_time/end_time.
+         */
+        get: operations["get_payment_timeline_api_v1_admin_mcp_payments_timeline_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/mcp/search/top-queries": {
         parameters: {
             query?: never;
@@ -7771,6 +7794,91 @@ export type components = {
             /** Success */
             success: boolean;
         };
+        /** AdminPaymentAmount */
+        AdminPaymentAmount: {
+            /** Credits Applied */
+            credits_applied: number;
+            /** Gross */
+            gross: number;
+            /** Net To Instructor */
+            net_to_instructor: number;
+            /** Platform Fee */
+            platform_fee: number;
+            /** Tip */
+            tip: number;
+        };
+        /** AdminPaymentFailure */
+        AdminPaymentFailure: {
+            /** Category */
+            category: string;
+            /** Last Failed At */
+            last_failed_at?: string | null;
+        };
+        /** AdminPaymentRefund */
+        AdminPaymentRefund: {
+            /** Amount */
+            amount?: number | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Refund Id */
+            refund_id?: string | null;
+            /** Status */
+            status?: string | null;
+        };
+        /** AdminPaymentStatusEvent */
+        AdminPaymentStatusEvent: {
+            /** State */
+            state: string;
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+        };
+        /** AdminPaymentTimelineFlags */
+        AdminPaymentTimelineFlags: {
+            /** Has Failed Payment */
+            has_failed_payment: boolean;
+            /** Has Pending Refund */
+            has_pending_refund: boolean;
+            /** Possible Double Charge */
+            possible_double_charge: boolean;
+        };
+        /** AdminPaymentTimelineItem */
+        AdminPaymentTimelineItem: {
+            amount: components["schemas"]["AdminPaymentAmount"];
+            /** Booking Id */
+            booking_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            failure?: components["schemas"]["AdminPaymentFailure"] | null;
+            /** Provider Refs */
+            provider_refs?: {
+                [key: string]: string;
+            };
+            /** Refunds */
+            refunds?: components["schemas"]["AdminPaymentRefund"][];
+            /** Status */
+            status: string;
+            /** Status Timeline */
+            status_timeline: components["schemas"]["AdminPaymentStatusEvent"][];
+        };
+        /** AdminPaymentTimelineMeta */
+        AdminPaymentTimelineMeta: {
+            time_window: components["schemas"]["MCPTimeWindow"];
+            /** Total Count */
+            total_count: number;
+        };
+        /** AdminPaymentTimelineResponse */
+        AdminPaymentTimelineResponse: {
+            flags: components["schemas"]["AdminPaymentTimelineFlags"];
+            meta: components["schemas"]["AdminPaymentTimelineMeta"];
+            /** Payments */
+            payments: components["schemas"]["AdminPaymentTimelineItem"][];
+        };
         /**
          * AdminReferralsConfigOut
          * @description Configuration snapshot for the referral program.
@@ -8323,6 +8431,7 @@ export type components = {
             returned_count: number;
             /** Since Hours */
             since_hours: number;
+            time_window: components["schemas"]["MCPTimeWindow"];
             /** Total Count */
             total_count: number;
         };
@@ -11617,6 +11726,11 @@ export type components = {
              */
             environment: string;
             /**
+             * Git Sha
+             * @description Short git SHA for the running service
+             */
+            git_sha: string;
+            /**
              * Service
              * @description Service name
              */
@@ -13454,6 +13568,8 @@ export type components = {
         MCPTimeWindow: {
             /** End */
             end?: string | null;
+            /** Source */
+            source?: string | null;
             /** Start */
             start?: string | null;
         };
@@ -13607,6 +13723,7 @@ export type components = {
             returned_count: number;
             /** Since Hours */
             since_hours: number;
+            time_window: components["schemas"]["MCPTimeWindow"];
         };
         /** MCPWebhookFailedResponse */
         MCPWebhookFailedResponse: {
@@ -13627,6 +13744,7 @@ export type components = {
             returned_count: number;
             /** Since Hours */
             since_hours: number;
+            time_window: components["schemas"]["MCPTimeWindow"];
             /** Total Count */
             total_count: number;
         };
@@ -20927,6 +21045,8 @@ export interface operations {
         parameters: {
             query?: {
                 since_hours?: number;
+                start_time?: string | null;
+                end_time?: string | null;
                 limit?: number;
             };
             header?: never;
@@ -20958,6 +21078,9 @@ export interface operations {
     audit_resource_history_api_v1_admin_mcp_audit_resources__resource_type___resource_id__history_get: {
         parameters: {
             query?: {
+                since_hours?: number | null;
+                start_time?: string | null;
+                end_time?: string | null;
                 limit?: number;
             };
             header?: never;
@@ -20999,6 +21122,8 @@ export interface operations {
                 resource_id?: string | null;
                 status?: string | null;
                 since_hours?: number;
+                start_time?: string | null;
+                end_time?: string | null;
                 limit?: number;
             };
             header?: never;
@@ -21031,6 +21156,9 @@ export interface operations {
         parameters: {
             query?: {
                 since_days?: number;
+                since_hours?: number | null;
+                start_time?: string | null;
+                end_time?: string | null;
                 limit?: number;
             };
             header?: never;
@@ -21757,6 +21885,44 @@ export interface operations {
             };
         };
     };
+    get_payment_timeline_api_v1_admin_mcp_payments_timeline_get: {
+        parameters: {
+            query?: {
+                /** @description Booking ID to inspect */
+                booking_id?: string | null;
+                /** @description User ID (student) to inspect */
+                user_id?: string | null;
+                since_days?: number;
+                since_hours?: number | null;
+                start_time?: string | null;
+                end_time?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPaymentTimelineResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_top_queries_api_v1_admin_mcp_search_top_queries_get: {
         parameters: {
             query?: {
@@ -21883,6 +22049,8 @@ export interface operations {
                 status?: string | null;
                 event_type?: string | null;
                 since_hours?: number;
+                start_time?: string | null;
+                end_time?: string | null;
                 limit?: number;
             };
             header?: never;
@@ -21916,6 +22084,8 @@ export interface operations {
             query?: {
                 source?: string | null;
                 since_hours?: number;
+                start_time?: string | null;
+                end_time?: string | null;
                 limit?: number;
             };
             header?: never;

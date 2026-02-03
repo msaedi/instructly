@@ -71,30 +71,47 @@ async def _check_service(
         response = await http.get(url, timeout=10.0)
         elapsed_ms = (_utc_now() - start).total_seconds() * 1000
 
+        status = "up" if response.status_code == 200 else "degraded"
+        note = None
+        if response.status_code in {401, 403}:
+            status = "up"
+            note = "auth_required"
+        elif response.status_code == 404:
+            status = "unknown"
+            note = "health_endpoint_not_found"
+
         result: dict[str, Any] = {
-            "status": "up" if response.status_code == 200 else "degraded",
+            "status": status,
             "url": base_url,
             "response_time_ms": round(elapsed_ms, 1),
             "checked_at": _utc_now().isoformat(),
             "http_status": response.status_code,
         }
+        if note:
+            result["note"] = note
 
-        if response.status_code == 200:
-            try:
-                data = response.json()
-            except Exception:
-                data = None
-            if isinstance(data, dict):
-                if "git_sha" in data:
-                    result["git_sha"] = data["git_sha"]
-                if "version" in data:
-                    result["version"] = data["version"]
-                if "uptime_seconds" in data:
-                    result["uptime_seconds"] = data["uptime_seconds"]
-                elif "uptime" in data:
-                    result["uptime_seconds"] = data["uptime"]
-                if "commit" in data:
-                    result["git_sha"] = data["commit"]
+        try:
+            data = response.json()
+        except Exception:
+            data = None
+        if isinstance(data, dict):
+            if "git_sha" in data:
+                result["git_sha"] = data["git_sha"]
+            if "version" in data:
+                result["version"] = data["version"]
+            if "uptime_seconds" in data:
+                result["uptime_seconds"] = data["uptime_seconds"]
+            elif "uptime" in data:
+                result["uptime_seconds"] = data["uptime"]
+            if "commit" in data:
+                result["git_sha"] = data["commit"]
+
+        if "git_sha" not in result:
+            header_sha = response.headers.get("X-Commit-Sha") or response.headers.get(
+                "X-Commit-SHA"
+            )
+            if header_sha:
+                result["git_sha"] = header_sha
 
         return result
 
@@ -140,10 +157,12 @@ async def _check_environment(
             service_results[name] = result
 
     statuses = [service.get("status") for service in service_results.values()]
-    if statuses and all(status == "up" for status in statuses):
+    if statuses and all(status in {"up", "auth_required"} for status in statuses):
         env_status = "ok"
     elif statuses and all(status == "down" for status in statuses):
         env_status = "down"
+    elif statuses and all(status == "unknown" for status in statuses):
+        env_status = "unknown"
     else:
         env_status = "degraded"
 
@@ -164,14 +183,8 @@ def _detect_version_drift(environments: dict[str, Any]) -> dict[str, Any]:
                 shas[key] = sha
 
     unique_shas = set(shas.values())
-    if len(unique_shas) <= 1:
-        return {"detected": False, "details": None}
-
-    return {
-        "detected": True,
-        "details": shas,
-        "note": "Services running different commits",
-    }
+    detected = len(unique_shas) > 1
+    return {"detected": detected, "details": shas if detected else None}
 
 
 def register_tools(mcp: FastMCP) -> dict[str, object]:
@@ -242,6 +255,8 @@ def register_tools(mcp: FastMCP) -> dict[str, object]:
             "avg_response_time_ms": avg_response_time,
         }
 
+        drift_info = _detect_version_drift(environments)
+
         return {
             "meta": {
                 "generated_at": _utc_now().isoformat(),
@@ -249,7 +264,7 @@ def register_tools(mcp: FastMCP) -> dict[str, object]:
             },
             "environments": environments,
             "summary": summary,
-            "version_drift": _detect_version_drift(environments),
+            "version_drift": drift_info["detected"],
         }
 
     mcp.tool()(instainstru_deploy_overview)

@@ -1048,12 +1048,22 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             self.logger.error(f"Failed to bulk create payment events: {str(e)}")
             raise RepositoryException(f"Failed to bulk create payment events: {str(e)}")
 
-    def get_payment_events_for_booking(self, booking_id: str) -> List[PaymentEvent]:
+    def get_payment_events_for_booking(
+        self,
+        booking_id: str,
+        *,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: Optional[int] = None,
+    ) -> List[PaymentEvent]:
         """
         Get all payment events for a booking.
 
         Args:
             booking_id: The booking ID
+            start_time: Optional start datetime (inclusive).
+            end_time: Optional end datetime (inclusive).
+            limit: Optional maximum rows to return (None for no limit).
 
         Returns:
             List of PaymentEvent objects ordered by creation time
@@ -1062,18 +1072,67 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             RepositoryException: If query fails
         """
         try:
+            query = (
+                self.db.query(PaymentEvent)
+                .options(joinedload(PaymentEvent.booking).joinedload(Booking.payment_intent))
+                .filter(PaymentEvent.booking_id == booking_id)
+            )
+            if start_time:
+                query = query.filter(PaymentEvent.created_at >= start_time)
+            if end_time:
+                query = query.filter(PaymentEvent.created_at <= end_time)
+            query = query.order_by(PaymentEvent.created_at.asc())
+            if limit is not None:
+                query = query.limit(limit)
             return cast(
                 List[PaymentEvent],
-                (
-                    self.db.query(PaymentEvent)
-                    .filter(PaymentEvent.booking_id == booking_id)
-                    .order_by(PaymentEvent.created_at.asc())
-                    .all()
-                ),
+                query.all(),
             )
         except Exception as e:
             self.logger.error(f"Failed to get payment events: {str(e)}")
             raise RepositoryException(f"Failed to get payment events: {str(e)}")
+
+    def get_payment_events_for_user(
+        self,
+        user_id: str,
+        *,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: Optional[int] = None,
+    ) -> List[PaymentEvent]:
+        """
+        Get all payment events for a user (as a student).
+
+        Args:
+            user_id: The user's ID (student).
+            start_time: Optional start datetime (inclusive).
+            end_time: Optional end datetime (inclusive).
+            limit: Optional maximum rows to return (None for no limit).
+
+        Returns:
+            List of PaymentEvent objects ordered by creation time.
+
+        Raises:
+            RepositoryException: If query fails.
+        """
+        try:
+            query = (
+                self.db.query(PaymentEvent)
+                .join(Booking, PaymentEvent.booking_id == Booking.id)
+                .options(joinedload(PaymentEvent.booking).joinedload(Booking.payment_intent))
+                .filter(Booking.student_id == user_id)
+            )
+            if start_time:
+                query = query.filter(PaymentEvent.created_at >= start_time)
+            if end_time:
+                query = query.filter(PaymentEvent.created_at <= end_time)
+            query = query.order_by(PaymentEvent.created_at.asc())
+            if limit is not None:
+                query = query.limit(limit)
+            return cast(List[PaymentEvent], query.all())
+        except Exception as e:
+            self.logger.error(f"Failed to get payment events for user: {str(e)}")
+            raise RepositoryException(f"Failed to get payment events for user: {str(e)}")
 
     def list_payment_events_by_types(
         self,

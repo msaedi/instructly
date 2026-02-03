@@ -48,6 +48,33 @@ def test_list_events_filters_and_orders(db):
     assert [event.id for event in ordered][:2] == [newer.id, older.id]
 
 
+def test_list_events_respects_time_window(db):
+    repo = WebhookEventRepository(db)
+    now = datetime.now(timezone.utc)
+
+    repo.create(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_old_time"},
+        status="received",
+        received_at=now - timedelta(days=2),
+    )
+    recent = repo.create(
+        source="stripe",
+        event_type="payment_intent.failed",
+        payload={"id": "evt_new_time"},
+        status="failed",
+        received_at=now - timedelta(hours=1),
+    )
+
+    results = repo.list_events(
+        start_time=now - timedelta(hours=2),
+        end_time=now,
+        limit=10,
+    )
+    assert [event.id for event in results] == [recent.id]
+
+
 def test_list_events_without_source_returns_multiple_sources(db):
     repo = WebhookEventRepository(db)
     now = datetime.now(timezone.utc)
@@ -95,6 +122,28 @@ def test_count_events_respects_cutoff(db):
     assert repo.count_events(since_hours=5) == 2
 
 
+def test_count_events_respects_time_window(db):
+    repo = WebhookEventRepository(db)
+    now = datetime.now(timezone.utc)
+
+    repo.create(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_recent_window"},
+        status="received",
+        received_at=now - timedelta(minutes=30),
+    )
+    repo.create(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_old_window"},
+        status="received",
+        received_at=now - timedelta(days=1),
+    )
+
+    assert repo.count_events(start_time=now - timedelta(hours=1), end_time=now) == 1
+
+
 def test_summarize_by_status_and_source(db):
     repo = WebhookEventRepository(db)
 
@@ -127,6 +176,32 @@ def test_summarize_by_status_and_source(db):
     by_source = repo.summarize_by_source(since_hours=24)
     assert by_source["stripe"] == 2
     assert by_source["checkr"] == 1
+
+
+def test_summarize_by_status_with_time_window(db):
+    repo = WebhookEventRepository(db)
+    now = datetime.now(timezone.utc)
+
+    repo.create(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_recent_summary"},
+        status="processed",
+        received_at=now - timedelta(minutes=10),
+    )
+    repo.create(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_old_summary"},
+        status="processed",
+        received_at=now - timedelta(days=1),
+    )
+
+    by_status = repo.summarize_by_status(
+        start_time=now - timedelta(hours=1),
+        end_time=now,
+    )
+    assert by_status["processed"] == 1
 
 
 def test_get_failed_events_filters_by_source(db):

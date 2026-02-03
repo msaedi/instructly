@@ -483,6 +483,67 @@ export interface AdminNoShowResolutionResponse {
   success: boolean;
 }
 
+export interface AdminPaymentAmount {
+  credits_applied: number;
+  gross: number;
+  net_to_instructor: number;
+  platform_fee: number;
+  tip: number;
+}
+
+export interface AdminPaymentFailure {
+  category: string;
+  last_failed_at?: string | null;
+}
+
+export interface AdminPaymentRefund {
+  amount?: number | null;
+  created_at?: string | null;
+  refund_id?: string | null;
+  status?: string | null;
+}
+
+export interface AdminPaymentStatusEvent {
+  state: string;
+  ts: string;
+}
+
+export interface AdminPaymentTimelineFlags {
+  has_failed_payment: boolean;
+  has_pending_refund: boolean;
+  possible_double_charge: boolean;
+}
+
+export type AdminPaymentTimelineItemProviderRefs = { [key: string]: string };
+
+export interface AdminPaymentTimelineItem {
+  amount: AdminPaymentAmount;
+  booking_id: string;
+  created_at: string;
+  failure?: AdminPaymentFailure | null;
+  provider_refs?: AdminPaymentTimelineItemProviderRefs;
+  refunds?: AdminPaymentRefund[];
+  status: string;
+  status_timeline: AdminPaymentStatusEvent[];
+}
+
+export interface MCPTimeWindow {
+  end?: string | null;
+  source?: string | null;
+  start?: string | null;
+}
+
+export interface AdminPaymentTimelineMeta {
+  time_window: MCPTimeWindow;
+  total_count: number;
+}
+
+export interface AdminPaymentTimelineResponse {
+  flags: AdminPaymentTimelineFlags;
+  meta: AdminPaymentTimelineMeta;
+  payments: AdminPaymentTimelineItem[];
+}
+
 export type AdminReferralsConfigOutFlags = { [key: string]: boolean };
 
 export type AdminReferralsConfigOutSource =
@@ -973,6 +1034,7 @@ export interface AuditLogListResponse {
 export interface AuditSearchMeta {
   returned_count: number;
   since_hours: number;
+  time_window: MCPTimeWindow;
   total_count: number;
 }
 
@@ -3225,6 +3287,8 @@ export interface HealthLiteResponse {
 export interface HealthResponse {
   /** Environment name */
   environment: string;
+  /** Short git SHA for the running service */
+  git_sha: string;
   /** Service name */
   service: string;
   /** Health status */
@@ -3999,11 +4063,6 @@ export interface MCPMeta {
   request_id: string;
 }
 
-export interface MCPTimeWindow {
-  end?: string | null;
-  start?: string | null;
-}
-
 export interface MCPFunnelSummaryResponse {
   conversion_rates: MCPConversionRate[];
   founding_cap: MCPFoundingCap;
@@ -4360,6 +4419,7 @@ export interface MCPWebhookFailedMeta {
   request_id: string;
   returned_count: number;
   since_hours: number;
+  time_window: MCPTimeWindow;
 }
 
 export interface MCPWebhookFailedResponse {
@@ -4372,6 +4432,7 @@ export interface MCPWebhookListMeta {
   request_id: string;
   returned_count: number;
   since_hours: number;
+  time_window: MCPTimeWindow;
   total_count: number;
 }
 
@@ -7784,6 +7845,8 @@ export type AuditRecentAdminActionsApiV1AdminMcpAuditAdminActionsRecentGetParams
    * @maximum 720
    */
   since_hours?: number;
+  start_time?: string | null;
+  end_time?: string | null;
   /**
    * @minimum 1
    * @maximum 500
@@ -7793,6 +7856,9 @@ export type AuditRecentAdminActionsApiV1AdminMcpAuditAdminActionsRecentGetParams
 
 export type AuditResourceHistoryApiV1AdminMcpAuditResourcesResourceTypeResourceIdHistoryGetParams =
   {
+    since_hours?: number | null;
+    start_time?: string | null;
+    end_time?: string | null;
     /**
      * @minimum 1
      * @maximum 500
@@ -7812,6 +7878,8 @@ export type AuditSearchApiV1AdminMcpAuditSearchGetParams = {
    * @maximum 720
    */
   since_hours?: number;
+  start_time?: string | null;
+  end_time?: string | null;
   /**
    * @minimum 1
    * @maximum 500
@@ -7825,6 +7893,9 @@ export type AuditUserActivityApiV1AdminMcpAuditUsersUserEmailActivityGetParams =
    * @maximum 365
    */
   since_days?: number;
+  since_hours?: number | null;
+  start_time?: string | null;
+  end_time?: string | null;
   /**
    * @minimum 1
    * @maximum 500
@@ -8011,6 +8082,25 @@ export type GetUserBookingHistoryApiV1AdminMcpOpsUsersUserIdBookingsGetParams = 
   limit?: number;
 };
 
+export type GetPaymentTimelineApiV1AdminMcpPaymentsTimelineGetParams = {
+  /**
+   * Booking ID to inspect
+   */
+  booking_id?: string | null;
+  /**
+   * User ID (student) to inspect
+   */
+  user_id?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  since_days?: number;
+  since_hours?: number | null;
+  start_time?: string | null;
+  end_time?: string | null;
+};
+
 export type GetTopQueriesApiV1AdminMcpSearchTopQueriesGetParams = {
   start_date?: string | null;
   end_date?: string | null;
@@ -8053,6 +8143,8 @@ export type ListWebhooksApiV1AdminMcpWebhooksGetParams = {
    * @maximum 168
    */
   since_hours?: number;
+  start_time?: string | null;
+  end_time?: string | null;
   /**
    * @minimum 1
    * @maximum 200
@@ -8067,6 +8159,8 @@ export type ListFailedWebhooksApiV1AdminMcpWebhooksFailedGetParams = {
    * @maximum 168
    */
   since_hours?: number;
+  start_time?: string | null;
+  end_time?: string | null;
   /**
    * @minimum 1
    * @maximum 200

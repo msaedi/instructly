@@ -69,6 +69,8 @@ def test_audit_search_returns_summary(client: TestClient, db, mcp_service_header
     assert res.status_code == 200
     payload = res.json()
     assert payload["meta"]["total_count"] == 1
+    assert payload["meta"]["time_window"]["start"] is not None
+    assert payload["meta"]["time_window"]["end"] is not None
     assert payload["summary"]["by_action"]["booking.cancel"] == 1
     assert payload["entries"][0]["resource"]["type"] == "booking"
 
@@ -103,12 +105,18 @@ def test_audit_user_activity_filters_by_email(
 
     res = client.get(
         "/api/v1/admin/mcp/audit/users/target@example.com/activity",
-        params={"since_days": 1},
+        params={
+            "since_days": 1,
+            "start_time": (now - timedelta(hours=1)).isoformat(),
+            "end_time": now.isoformat(),
+        },
         headers=mcp_service_headers,
     )
     assert res.status_code == 200
     payload = res.json()
     assert payload["meta"]["total_count"] == 1
+    assert payload["meta"]["time_window"]["start"] is not None
+    assert payload["meta"]["time_window"]["end"] is not None
     assert payload["entries"][0]["actor"]["email"] == "target@example.com"
 
 
@@ -148,6 +156,151 @@ def test_audit_resource_history_orders_newest_first(
     payload = res.json()
     assert payload["entries"][0]["id"] == newer.id
     assert payload["entries"][1]["id"] == older.id
+    assert payload["meta"]["time_window"]["start"] is not None
+    assert payload["meta"]["time_window"]["end"] is not None
+
+
+def test_audit_search_time_window_filters(
+    client: TestClient, db, mcp_service_headers
+) -> None:
+    now = datetime.now(timezone.utc)
+    _create_entry(
+        db,
+        timestamp=now - timedelta(hours=5),
+        actor_type="user",
+        actor_id="user-1",
+        actor_email="user1@example.com",
+        action="booking.cancel",
+        resource_type="booking",
+        resource_id="booking-1",
+        status="success",
+    )
+    inside = _create_entry(
+        db,
+        timestamp=now - timedelta(minutes=10),
+        actor_type="user",
+        actor_id="user-2",
+        actor_email="user2@example.com",
+        action="booking.update",
+        resource_type="booking",
+        resource_id="booking-2",
+        status="success",
+    )
+    db.commit()
+
+    start_time = (now - timedelta(hours=1)).isoformat()
+    end_time = now.isoformat()
+
+    res = client.get(
+        "/api/v1/admin/mcp/audit/search",
+        params={"start_time": start_time, "end_time": end_time},
+        headers=mcp_service_headers,
+    )
+    assert res.status_code == 200
+    payload = res.json()
+    assert payload["meta"]["returned_count"] == 1
+    assert payload["entries"][0]["id"] == inside.id
+
+
+def test_audit_search_requires_matching_time_window(
+    client: TestClient, mcp_service_headers
+) -> None:
+    res = client.get(
+        "/api/v1/admin/mcp/audit/search",
+        params={"start_time": "2026-02-01T00:00:00Z"},
+        headers=mcp_service_headers,
+    )
+    assert res.status_code == 422
+
+
+def test_audit_search_rejects_start_after_end(
+    client: TestClient, mcp_service_headers
+) -> None:
+    res = client.get(
+        "/api/v1/admin/mcp/audit/search",
+        params={
+            "start_time": "2026-02-02T00:00:00Z",
+            "end_time": "2026-02-01T00:00:00Z",
+        },
+        headers=mcp_service_headers,
+    )
+    assert res.status_code == 422
+
+
+def test_audit_search_accepts_naive_times(
+    client: TestClient, db, mcp_service_headers
+) -> None:
+    now = datetime.now(timezone.utc)
+    _create_entry(
+        db,
+        timestamp=now - timedelta(minutes=5),
+        actor_type="user",
+        actor_id="user-1",
+        actor_email="user1@example.com",
+        action="booking.update",
+        resource_type="booking",
+        resource_id="booking-3",
+        status="success",
+    )
+    db.commit()
+
+    res = client.get(
+        "/api/v1/admin/mcp/audit/search",
+        params={
+            "start_time": (now - timedelta(hours=1)).replace(tzinfo=None).isoformat(),
+            "end_time": now.replace(tzinfo=None).isoformat(),
+        },
+        headers=mcp_service_headers,
+    )
+
+    assert res.status_code == 200
+    payload = res.json()
+    assert payload["meta"]["time_window"]["start"] is not None
+    assert payload["meta"]["time_window"]["end"] is not None
+
+
+def test_audit_resource_history_with_since_hours(
+    client: TestClient, db, mcp_service_headers
+) -> None:
+    now = datetime.now(timezone.utc)
+    _create_entry(
+        db,
+        timestamp=now - timedelta(minutes=5),
+        actor_type="system",
+        actor_id="system",
+        actor_email=None,
+        action="booking.complete",
+        resource_type="booking",
+        resource_id="booking-9",
+        status="success",
+    )
+    db.commit()
+
+    res = client.get(
+        "/api/v1/admin/mcp/audit/resources/booking/booking-9/history",
+        params={"since_hours": 1},
+        headers=mcp_service_headers,
+    )
+
+    assert res.status_code == 200
+    payload = res.json()
+    assert payload["meta"]["since_hours"] >= 0
+    assert payload["meta"]["time_window"]["start"] is not None
+    assert payload["meta"]["time_window"]["end"] is not None
+
+
+def test_audit_resource_history_empty_returns_empty_window(
+    client: TestClient, mcp_service_headers
+) -> None:
+    res = client.get(
+        "/api/v1/admin/mcp/audit/resources/booking/missing/history",
+        headers=mcp_service_headers,
+    )
+
+    assert res.status_code == 200
+    payload = res.json()
+    assert payload["meta"]["time_window"]["start"] is None
+    assert payload["meta"]["time_window"]["end"] is None
 
 
 def test_audit_recent_admin_actions_filters_admins(

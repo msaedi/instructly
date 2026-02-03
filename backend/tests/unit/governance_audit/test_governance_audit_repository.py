@@ -93,6 +93,44 @@ def test_search_filters_and_summary(repository: GovernanceAuditRepository) -> No
     assert summary["by_status"]["failed"] == 1
 
 
+def test_search_respects_explicit_time_window(repository: GovernanceAuditRepository) -> None:
+    now = datetime.now(timezone.utc)
+    _create_entry(
+        repository,
+        timestamp=now - timedelta(hours=5),
+        actor_type="user",
+        actor_id="user-1",
+        actor_email="user1@example.com",
+        action="booking.cancel",
+        resource_type="booking",
+        resource_id="booking-1",
+        status="success",
+    )
+    recent = _create_entry(
+        repository,
+        timestamp=now - timedelta(minutes=30),
+        actor_type="system",
+        actor_id="system",
+        actor_email=None,
+        action="payment.capture",
+        resource_type="payment",
+        resource_id="booking-1",
+        status="success",
+    )
+
+    start = now - timedelta(hours=1)
+    end = now
+    entries, total, _summary = repository.search(
+        start_time=start,
+        end_time=end,
+        since_hours=24,
+        limit=10,
+    )
+
+    assert total == 1
+    assert entries[0].id == recent.id
+
+
 def test_list_by_resource(repository: GovernanceAuditRepository) -> None:
     now = datetime.now(timezone.utc)
     first = _create_entry(

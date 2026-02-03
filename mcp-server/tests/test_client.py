@@ -583,14 +583,28 @@ async def test_client_webhook_endpoints():
         since_hours=12,
         limit=10,
     )
+    await client.get_webhooks(
+        start_time="2026-01-01T00:00:00Z",
+        end_time="2026-01-02T00:00:00Z",
+        limit=5,
+    )
     await client.get_failed_webhooks(source="checkr", since_hours=48, limit=5)
+    await client.get_failed_webhooks(
+        start_time="2026-01-01T00:00:00Z",
+        end_time="2026-01-02T00:00:00Z",
+        limit=3,
+    )
     await client.get_webhook_detail("evt_123")
     await client.replay_webhook("evt_123", dry_run=False)
 
     assert list_route.calls[0].request.url.params["source"] == "stripe"
     assert list_route.calls[0].request.url.params["status"] == "failed"
     assert list_route.calls[0].request.url.params["event_type"] == "payment_intent.failed"
+    assert list_route.calls[1].request.url.params["start_time"] == "2026-01-01T00:00:00Z"
+    assert list_route.calls[1].request.url.params["end_time"] == "2026-01-02T00:00:00Z"
     assert failed_route.calls[0].request.url.params["source"] == "checkr"
+    assert failed_route.calls[1].request.url.params["start_time"] == "2026-01-01T00:00:00Z"
+    assert failed_route.calls[1].request.url.params["end_time"] == "2026-01-02T00:00:00Z"
     assert replay_route.calls[0].request.url.params["dry_run"] == "false"
 
     await client.aclose()
@@ -620,22 +634,54 @@ async def test_client_audit_endpoints():
     ).respond(200, json={"ok": True})
 
     await client.audit_search(actor_email="user@example.com", action="booking.cancel", limit=5)
+    await client.audit_search(
+        actor_email="user2@example.com",
+        start_time="2026-01-01T00:00:00Z",
+        end_time="2026-01-02T00:00:00Z",
+        limit=3,
+    )
     await client.audit_user_activity("user@example.com", since_days=7, limit=5)
+    await client.audit_user_activity(
+        "user@example.com",
+        start_time="2026-01-01T00:00:00Z",
+        end_time="2026-01-02T00:00:00Z",
+        limit=4,
+    )
     await client.audit_resource_history(
         "booking",
         "01HXY1234567890ABCDEFGHJKL",
         limit=3,
     )
+    await client.audit_resource_history(
+        "booking",
+        "01HXY1234567890ABCDEFGHJKL",
+        start_time="2026-01-01T00:00:00Z",
+        end_time="2026-01-02T00:00:00Z",
+        limit=2,
+    )
     await client.audit_recent_admin_actions(since_hours=6, limit=10)
+    await client.audit_recent_admin_actions(
+        start_time="2026-01-01T00:00:00Z",
+        end_time="2026-01-02T00:00:00Z",
+        limit=7,
+    )
 
     assert search_route.calls[0].request.url.params["actor_email"] == "user@example.com"
     assert search_route.calls[0].request.url.params["action"] == "booking.cancel"
     assert search_route.calls[0].request.url.params["limit"] == "5"
+    assert search_route.calls[1].request.url.params["start_time"] == "2026-01-01T00:00:00Z"
+    assert search_route.calls[1].request.url.params["end_time"] == "2026-01-02T00:00:00Z"
     assert user_route.calls[0].request.url.params["since_days"] == "7"
     assert user_route.calls[0].request.url.params["limit"] == "5"
+    assert user_route.calls[1].request.url.params["start_time"] == "2026-01-01T00:00:00Z"
+    assert user_route.calls[1].request.url.params["end_time"] == "2026-01-02T00:00:00Z"
     assert resource_route.calls[0].request.url.params["limit"] == "3"
+    assert resource_route.calls[1].request.url.params["start_time"] == "2026-01-01T00:00:00Z"
+    assert resource_route.calls[1].request.url.params["end_time"] == "2026-01-02T00:00:00Z"
     assert recent_route.calls[0].request.url.params["since_hours"] == "6"
     assert recent_route.calls[0].request.url.params["limit"] == "10"
+    assert recent_route.calls[1].request.url.params["start_time"] == "2026-01-01T00:00:00Z"
+    assert recent_route.calls[1].request.url.params["end_time"] == "2026-01-02T00:00:00Z"
 
     await client.aclose()
 
@@ -679,5 +725,167 @@ async def test_client_booking_summary_requires_dates():
 
     with pytest.raises(ValueError):
         await client.get_booking_summary(end_date="2026-01-07")
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_time_window_requires_both_dates():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    with pytest.raises(ValueError):
+        await client.get_webhooks(start_time="2026-01-01T00:00:00Z")
+
+    with pytest.raises(ValueError):
+        await client.get_failed_webhooks(end_time="2026-01-02T00:00:00Z")
+
+    with pytest.raises(ValueError):
+        await client.audit_search(start_time="2026-01-01T00:00:00Z")
+
+    with pytest.raises(ValueError):
+        await client.audit_user_activity("user@example.com", start_time="2026-01-01T00:00:00Z")
+
+    with pytest.raises(ValueError):
+        await client.audit_resource_history("booking", "01HXY", end_time="2026-01-02T00:00:00Z")
+
+    with pytest.raises(ValueError):
+        await client.audit_recent_admin_actions(start_time="2026-01-01T00:00:00Z")
+
+    with pytest.raises(ValueError):
+        await client.get_payment_timeline(booking_id="01BOOK", start_time="2026-01-01T00:00:00Z")
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_payment_timeline_requires_identifier():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    with pytest.raises(ValueError):
+        await client.get_payment_timeline()
+
+    with pytest.raises(ValueError):
+        await client.get_payment_timeline(booking_id="01BOOK", user_id="01USER")
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_payment_timeline_with_user_and_time_window():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    mock_call = AsyncMock(return_value={"ok": True})
+    client.call = mock_call
+
+    await client.get_payment_timeline(
+        user_id="01USER",
+        start_time="2026-02-01T00:00:00Z",
+        end_time="2026-02-02T00:00:00Z",
+    )
+
+    assert mock_call.await_count == 1
+    params = mock_call.await_args.kwargs["params"]
+    assert params == {
+        "user_id": "01USER",
+        "start_time": "2026-02-01T00:00:00Z",
+        "end_time": "2026-02-02T00:00:00Z",
+    }
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_payment_timeline_since_hours_normalization():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    mock_call = AsyncMock(return_value={"ok": True})
+    client.call = mock_call
+
+    await client.get_payment_timeline(booking_id="01BOOK", since_hours="bad")  # type: ignore[arg-type]
+
+    params = mock_call.await_args.kwargs["params"]
+    assert params["booking_id"] == "01BOOK"
+    assert params["since_hours"] == 24
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_payment_timeline_since_days_normalization():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    mock_call = AsyncMock(return_value={"ok": True})
+    client.call = mock_call
+
+    await client.get_payment_timeline(booking_id="01BOOK", since_days="bad")  # type: ignore[arg-type]
+
+    params = mock_call.await_args.kwargs["params"]
+    assert params["booking_id"] == "01BOOK"
+    assert params["since_days"] == 30
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_audit_user_activity_since_hours():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    mock_call = AsyncMock(return_value={"ok": True})
+    client.call = mock_call
+
+    await client.audit_user_activity("user@example.com", since_hours=12)
+
+    params = mock_call.await_args.kwargs["params"]
+    assert params["since_hours"] == 12
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_audit_resource_history_since_hours():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    mock_call = AsyncMock(return_value={"ok": True})
+    client.call = mock_call
+
+    await client.audit_resource_history("booking", "01HXY", since_hours=6)
+
+    params = mock_call.await_args.kwargs["params"]
+    assert params["since_hours"] == 6
 
     await client.aclose()

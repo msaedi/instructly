@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import time
 from typing import Any
 from uuid import uuid4
@@ -25,6 +25,7 @@ from app.repositories.background_job_repository import BackgroundJobRepository
 from app.repositories.bgc_webhook_log_repository import BGCWebhookLogRepository
 from app.routes.v1.payments import get_stripe_service
 from app.routes.v1.webhooks_checkr import _process_checkr_payload, _resolve_resource_id
+from app.schemas.mcp import MCPTimeWindow
 from app.schemas.mcp_webhooks import (
     MCPWebhookDetail,
     MCPWebhookDetailMeta,
@@ -45,6 +46,39 @@ from app.services.stripe_service import StripeService
 from app.services.webhook_ledger_service import WebhookLedgerService
 
 router = APIRouter(tags=["MCP Admin - Webhooks"])
+
+
+def _ensure_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _resolve_time_window(
+    *,
+    since_hours: int,
+    start_time: datetime | None,
+    end_time: datetime | None,
+) -> tuple[datetime, datetime, int]:
+    now = datetime.now(timezone.utc)
+    if start_time or end_time:
+        if not start_time or not end_time:
+            raise HTTPException(
+                status_code=422,
+                detail="start_time and end_time must be provided together",
+            )
+        start = _ensure_utc(start_time)
+        end = _ensure_utc(end_time)
+        if start > end:
+            raise HTTPException(
+                status_code=422,
+                detail="start_time must be on or before end_time",
+            )
+    else:
+        start = now - timedelta(hours=max(0, since_hours))
+        end = now
+    effective_since_hours = max(int((end - start).total_seconds() // 3600), 0)
+    return start, end, effective_since_hours
 
 
 def _serialize_event(event: WebhookEvent) -> dict[str, Any]:
@@ -77,29 +111,54 @@ async def list_webhooks(
     status: str | None = None,
     event_type: str | None = None,
     since_hours: int = Query(default=24, ge=1, le=168),
+    start_time: datetime | None = Query(default=None),
+    end_time: datetime | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     principal: Principal = Depends(require_mcp_scope("mcp:read")),
     db: Session = Depends(get_db),
 ) -> MCPWebhookListResponse:
     service = WebhookLedgerService(db)
+    start_dt, end_dt, effective_since_hours = _resolve_time_window(
+        since_hours=since_hours,
+        start_time=start_time,
+        end_time=end_time,
+    )
     events = await asyncio.to_thread(
         service.list_events,
         source=source,
         status=status,
         event_type=event_type,
-        since_hours=since_hours,
+        since_hours=effective_since_hours,
+        start_time=start_dt,
+        end_time=end_dt,
         limit=limit,
     )
-    total_count = await asyncio.to_thread(service.count_events, since_hours=since_hours)
-    by_status = await asyncio.to_thread(service.summarize_by_status, since_hours=since_hours)
-    by_source = await asyncio.to_thread(service.summarize_by_source, since_hours=since_hours)
+    total_count = await asyncio.to_thread(
+        service.count_events,
+        since_hours=effective_since_hours,
+        start_time=start_dt,
+        end_time=end_dt,
+    )
+    by_status = await asyncio.to_thread(
+        service.summarize_by_status,
+        since_hours=effective_since_hours,
+        start_time=start_dt,
+        end_time=end_dt,
+    )
+    by_source = await asyncio.to_thread(
+        service.summarize_by_source,
+        since_hours=effective_since_hours,
+        start_time=start_dt,
+        end_time=end_dt,
+    )
 
     meta = MCPWebhookListMeta(
         request_id=str(uuid4()),
         generated_at=datetime.now(timezone.utc),
-        since_hours=since_hours,
+        since_hours=effective_since_hours,
         total_count=total_count,
         returned_count=len(events),
+        time_window=MCPTimeWindow(start=start_dt, end=end_dt),
     )
     summary = MCPWebhookListSummary(by_status=by_status, by_source=by_source)
     items = [MCPWebhookEventItem(**_serialize_event(event)) for event in events]
@@ -119,23 +178,33 @@ async def list_webhooks(
 async def list_failed_webhooks(
     source: str | None = None,
     since_hours: int = Query(default=24, ge=1, le=168),
+    start_time: datetime | None = Query(default=None),
+    end_time: datetime | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     principal: Principal = Depends(require_mcp_scope("mcp:read")),
     db: Session = Depends(get_db),
 ) -> MCPWebhookFailedResponse:
     service = WebhookLedgerService(db)
+    start_dt, end_dt, effective_since_hours = _resolve_time_window(
+        since_hours=since_hours,
+        start_time=start_time,
+        end_time=end_time,
+    )
     events = await asyncio.to_thread(
         service.get_failed_events,
         source=source,
-        since_hours=since_hours,
+        since_hours=effective_since_hours,
+        start_time=start_dt,
+        end_time=end_dt,
         limit=limit,
     )
 
     meta = MCPWebhookFailedMeta(
         request_id=str(uuid4()),
         generated_at=datetime.now(timezone.utc),
-        since_hours=since_hours,
+        since_hours=effective_since_hours,
         returned_count=len(events),
+        time_window=MCPTimeWindow(start=start_dt, end=end_dt),
     )
     items = [
         MCPWebhookFailedItem(

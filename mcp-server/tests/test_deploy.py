@@ -75,13 +75,41 @@ async def test_check_service_non_json_response():
         respx.get("https://api.instainstru.com/api/v1/health").respond(
             200,
             content=b"ok",
+            headers={"X-Commit-Sha": "abc123"},
         )
         result = await deploy._check_service(
             http, "api", "https://api.instainstru.com", "/api/v1/health"
         )
 
     assert result["status"] == "up"
-    assert "git_sha" not in result
+    assert result["git_sha"] == "abc123"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_check_service_auth_required_status():
+    async with httpx.AsyncClient() as http:
+        respx.get("https://api.instainstru.com/api/v1/health").respond(401, json={"detail": "auth"})
+        result = await deploy._check_service(
+            http, "api", "https://api.instainstru.com", "/api/v1/health"
+        )
+
+    assert result["status"] == "up"
+    assert result["note"] == "auth_required"
+    assert result["http_status"] == 401
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_check_service_missing_health_endpoint():
+    async with httpx.AsyncClient() as http:
+        respx.get("https://api.instainstru.com/api/v1/health").respond(404)
+        result = await deploy._check_service(
+            http, "api", "https://api.instainstru.com", "/api/v1/health"
+        )
+
+    assert result["status"] == "unknown"
+    assert result["note"] == "health_endpoint_not_found"
 
 
 @pytest.mark.asyncio
@@ -134,6 +162,23 @@ async def test_check_environment_exception_path(monkeypatch):
     assert result["services"]["api"]["status"] == "down"
 
 
+@pytest.mark.asyncio
+async def test_check_environment_all_unknown(monkeypatch):
+    async def fake_check_service(_http, _name, _url, _path):
+        return {"status": "unknown", "url": _url}
+
+    monkeypatch.setattr(deploy, "_check_service", fake_check_service)
+
+    async with httpx.AsyncClient() as http:
+        result = await deploy._check_environment(
+            http,
+            "production",
+            {"api": "https://api.instainstru.com", "mcp": "https://mcp.instainstru.com"},
+        )
+
+    assert result["status"] == "unknown"
+
+
 def test_version_drift_detection_no_drift():
     envs = {
         "production": {
@@ -178,7 +223,7 @@ async def test_deploy_overview_all_healthy(monkeypatch):
     assert result["summary"]["all_services_up"] is True
     assert result["environments"]["production"]["status"] == "ok"
     assert result["summary"]["services_checked"] == 3
-    assert result["version_drift"]["detected"] is False
+    assert result["version_drift"] is False
 
 
 @pytest.mark.asyncio

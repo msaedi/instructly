@@ -164,6 +164,7 @@ from .routes.v1.admin.mcp import (
     invites as admin_mcp_invites_v1,
     metrics as admin_mcp_metrics_v1,
     operations as admin_mcp_operations_v1,
+    payments as admin_mcp_payments_v1,
     search as admin_mcp_search_v1,
     services as admin_mcp_services_v1,
     webhooks as admin_mcp_webhooks_v1,
@@ -1140,6 +1141,11 @@ api_v1.include_router(  # type: ignore[attr-defined]
 api_v1.include_router(  # type: ignore[attr-defined]
     admin_mcp_services_v1.router,
     prefix="/admin/mcp/services",
+    dependencies=[Depends(audit_mcp_request)],
+)
+api_v1.include_router(  # type: ignore[attr-defined]
+    admin_mcp_payments_v1.router,
+    prefix="/admin/mcp/payments",
     dependencies=[Depends(audit_mcp_request)],
 )
 api_v1.include_router(  # type: ignore[attr-defined]

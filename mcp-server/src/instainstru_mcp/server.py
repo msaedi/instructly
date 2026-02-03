@@ -42,6 +42,7 @@ from .tools import (
     metrics,
     observability,
     operations,
+    payments,
     search,
     sentry,
     sentry_debug,
@@ -558,6 +559,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     instructors.register_tools(mcp, client)
     invites.register_tools(mcp, client)
     operations.register_tools(mcp, client)
+    payments.register_tools(mcp, client)
     search.register_tools(mcp, client)
     metrics.register_tools(mcp, client)
     services.register_tools(mcp, client)
@@ -574,9 +576,21 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
 
 
 def _attach_health_route(app: Any) -> None:
+    git_sha = (
+        os.getenv("GIT_SHA")
+        or os.getenv("RENDER_GIT_COMMIT")
+        or os.getenv("COMMIT_SHA")
+        or get_git_sha()
+    )
+
     async def health_check(_request):
         return JSONResponse(
-            {"status": "ok", "service": "instainstru-mcp", "version": "v3-json-response"}
+            {
+                "status": "ok",
+                "service": "instainstru-mcp",
+                "version": "v3-json-response",
+                "git_sha": git_sha,
+            }
         )
 
     app.routes.append(Route("/api/v1/health", health_check, methods=["GET", "HEAD"]))

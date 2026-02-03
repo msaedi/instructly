@@ -1375,6 +1375,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/payments/timeline": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_payment_timeline_api_v1_admin_mcp_payments_timeline_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/mcp/search/top-queries": {
  parameters: {
  query?: never;
@@ -5384,6 +5400,53 @@ export type components = {
  settlement_outcome?: string | null;
  success: boolean;
  };
+ AdminPaymentAmount: {
+ credits_applied: number;
+ gross: number;
+ net_to_instructor: number;
+ platform_fee: number;
+ tip: number;
+ };
+ AdminPaymentFailure: {
+ category: string;
+ last_failed_at?: string | null;
+ };
+ AdminPaymentRefund: {
+ amount?: number | null;
+ created_at?: string | null;
+ refund_id?: string | null;
+ status?: string | null;
+ };
+ AdminPaymentStatusEvent: {
+ state: string;
+ ts: string;
+ };
+ AdminPaymentTimelineFlags: {
+ has_failed_payment: boolean;
+ has_pending_refund: boolean;
+ possible_double_charge: boolean;
+ };
+ AdminPaymentTimelineItem: {
+ amount: components["schemas"]["AdminPaymentAmount"];
+ booking_id: string;
+ created_at: string;
+ failure?: components["schemas"]["AdminPaymentFailure"] | null;
+ provider_refs?: {
+ [key: string]: string;
+ };
+ refunds?: components["schemas"]["AdminPaymentRefund"][];
+ status: string;
+ status_timeline: components["schemas"]["AdminPaymentStatusEvent"][];
+ };
+ AdminPaymentTimelineMeta: {
+ time_window: components["schemas"]["MCPTimeWindow"];
+ total_count: number;
+ };
+ AdminPaymentTimelineResponse: {
+ flags: components["schemas"]["AdminPaymentTimelineFlags"];
+ meta: components["schemas"]["AdminPaymentTimelineMeta"];
+ payments: components["schemas"]["AdminPaymentTimelineItem"][];
+ };
  AdminReferralsConfigOut: {
  expiry_months: number;
  flags: {
@@ -5569,6 +5632,7 @@ export type components = {
  AuditSearchMeta: {
  returned_count: number;
  since_hours: number;
+ time_window: components["schemas"]["MCPTimeWindow"];
  total_count: number;
  };
  AuditSearchResponse: {
@@ -6710,6 +6774,7 @@ export type components = {
  };
  HealthResponse: {
  environment: string;
+ git_sha: string;
  service: string;
  status: string;
  timestamp: string;
@@ -7398,6 +7463,7 @@ export type components = {
  };
  MCPTimeWindow: {
  end?: string | null;
+ source?: string | null;
  start?: string | null;
  };
  MCPTopQueriesData: {
@@ -7476,6 +7542,7 @@ export type components = {
  request_id: string;
  returned_count: number;
  since_hours: number;
+ time_window: components["schemas"]["MCPTimeWindow"];
  };
  MCPWebhookFailedResponse: {
  events: components["schemas"]["MCPWebhookFailedItem"][];
@@ -7486,6 +7553,7 @@ export type components = {
  request_id: string;
  returned_count: number;
  since_hours: number;
+ time_window: components["schemas"]["MCPTimeWindow"];
  total_count: number;
  };
  MCPWebhookListResponse: {
@@ -11018,6 +11086,8 @@ export interface operations {
  parameters: {
  query?: {
  since_hours?: number;
+ start_time?: string | null;
+ end_time?: string | null;
  limit?: number;
  };
  header?: never;
@@ -11047,6 +11117,9 @@ export interface operations {
  audit_resource_history_api_v1_admin_mcp_audit_resources__resource_type___resource_id__history_get: {
  parameters: {
  query?: {
+ since_hours?: number | null;
+ start_time?: string | null;
+ end_time?: string | null;
  limit?: number;
  };
  header?: never;
@@ -11086,6 +11159,8 @@ export interface operations {
  resource_id?: string | null;
  status?: string | null;
  since_hours?: number;
+ start_time?: string | null;
+ end_time?: string | null;
  limit?: number;
  };
  header?: never;
@@ -11116,6 +11191,9 @@ export interface operations {
  parameters: {
  query?: {
  since_days?: number;
+ since_hours?: number | null;
+ start_time?: string | null;
+ end_time?: string | null;
  limit?: number;
  };
  header?: never;
@@ -11781,6 +11859,40 @@ export interface operations {
  };
  };
  };
+ get_payment_timeline_api_v1_admin_mcp_payments_timeline_get: {
+ parameters: {
+ query?: {
+ booking_id?: string | null;
+ user_id?: string | null;
+ since_days?: number;
+ since_hours?: number | null;
+ start_time?: string | null;
+ end_time?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminPaymentTimelineResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  get_top_queries_api_v1_admin_mcp_search_top_queries_get: {
  parameters: {
  query?: {
@@ -11899,6 +12011,8 @@ export interface operations {
  status?: string | null;
  event_type?: string | null;
  since_hours?: number;
+ start_time?: string | null;
+ end_time?: string | null;
  limit?: number;
  };
  header?: never;
@@ -11930,6 +12044,8 @@ export interface operations {
  query?: {
  source?: string | null;
  since_hours?: number;
+ start_time?: string | null;
+ end_time?: string | null;
  limit?: number;
  };
  header?: never;

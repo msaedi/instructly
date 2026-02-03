@@ -433,6 +433,51 @@ class InstaInstruClient:
             params={"limit": limit},
         )
 
+    async def get_payment_timeline(
+        self,
+        *,
+        booking_id: str | None = None,
+        user_id: str | None = None,
+        since_days: int = 30,
+        since_hours: int | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> dict:
+        if (booking_id and user_id) or (not booking_id and not user_id):
+            raise ValueError("Provide exactly one of booking_id or user_id")
+
+        params: dict[str, Any] = {}
+        if booking_id:
+            params["booking_id"] = booking_id
+        if user_id:
+            params["user_id"] = user_id
+
+        if start_time or end_time:
+            if not start_time or not end_time:
+                raise ValueError("start_time and end_time must be provided together")
+            params["start_time"] = start_time
+            params["end_time"] = end_time
+        elif since_hours is not None:
+            try:
+                normalized_hours = int(since_hours)
+            except (TypeError, ValueError):
+                normalized_hours = 24
+            normalized_hours = max(1, min(normalized_hours, 8760))
+            params["since_hours"] = normalized_hours
+        else:
+            try:
+                normalized_days = int(since_days)
+            except (TypeError, ValueError):
+                normalized_days = 30
+            normalized_days = max(1, min(normalized_days, 365))
+            params["since_days"] = normalized_days
+
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/payments/timeline",
+            params=params,
+        )
+
     async def lookup_user(self, identifier: str) -> dict:
         return await self.call(
             "GET",
@@ -454,9 +499,18 @@ class InstaInstruClient:
         status: str | None = None,
         event_type: str | None = None,
         since_hours: int = 24,
+        start_time: str | None = None,
+        end_time: str | None = None,
         limit: int = 50,
     ) -> dict:
-        params: dict[str, Any] = {"since_hours": since_hours, "limit": limit}
+        params: dict[str, Any] = {"limit": limit}
+        if start_time or end_time:
+            if not start_time or not end_time:
+                raise ValueError("start_time and end_time must be provided together")
+            params["start_time"] = start_time
+            params["end_time"] = end_time
+        else:
+            params["since_hours"] = since_hours
         if source:
             params["source"] = source
         if status:
@@ -474,9 +528,18 @@ class InstaInstruClient:
         *,
         source: str | None = None,
         since_hours: int = 24,
+        start_time: str | None = None,
+        end_time: str | None = None,
         limit: int = 50,
     ) -> dict:
-        params: dict[str, Any] = {"since_hours": since_hours, "limit": limit}
+        params: dict[str, Any] = {"limit": limit}
+        if start_time or end_time:
+            if not start_time or not end_time:
+                raise ValueError("start_time and end_time must be provided together")
+            params["start_time"] = start_time
+            params["end_time"] = end_time
+        else:
+            params["since_hours"] = since_hours
         if source:
             params["source"] = source
         return await self.call(
@@ -500,37 +563,110 @@ class InstaInstruClient:
 
     # ==================== Audit endpoints ====================
 
-    async def audit_search(self, **filters: Any) -> dict:
+    async def audit_search(
+        self,
+        *,
+        actor_email: str | None = None,
+        actor_id: str | None = None,
+        action: str | None = None,
+        resource_type: str | None = None,
+        resource_id: str | None = None,
+        status: str | None = None,
+        since_hours: int = 24,
+        start_time: str | None = None,
+        end_time: str | None = None,
+        limit: int = 100,
+    ) -> dict:
+        params: dict[str, Any] = {
+            "actor_email": actor_email,
+            "actor_id": actor_id,
+            "action": action,
+            "resource_type": resource_type,
+            "resource_id": resource_id,
+            "status": status,
+            "limit": limit,
+        }
+        if start_time or end_time:
+            if not start_time or not end_time:
+                raise ValueError("start_time and end_time must be provided together")
+            params["start_time"] = start_time
+            params["end_time"] = end_time
+        else:
+            params["since_hours"] = since_hours
         return await self.call(
             "GET",
             "/api/v1/admin/mcp/audit/search",
-            params={k: v for k, v in filters.items() if v is not None},
+            params={k: v for k, v in params.items() if v is not None},
         )
 
     async def audit_user_activity(
-        self, user_email: str, since_days: int = 30, limit: int = 100
+        self,
+        user_email: str,
+        since_days: int = 30,
+        *,
+        since_hours: int | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+        limit: int = 100,
     ) -> dict:
+        params: dict[str, Any] = {"limit": limit}
+        if start_time or end_time:
+            if not start_time or not end_time:
+                raise ValueError("start_time and end_time must be provided together")
+            params["start_time"] = start_time
+            params["end_time"] = end_time
+        elif since_hours is not None:
+            params["since_hours"] = since_hours
+        else:
+            params["since_days"] = since_days
         return await self.call(
             "GET",
             f"/api/v1/admin/mcp/audit/users/{quote(user_email)}/activity",
-            params={"since_days": since_days, "limit": limit},
+            params=params,
         )
 
     async def audit_resource_history(
         self,
         resource_type: str,
         resource_id: str,
+        *,
+        since_hours: int | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
         limit: int = 50,
     ) -> dict:
+        params: dict[str, Any] = {"limit": limit}
+        if start_time or end_time:
+            if not start_time or not end_time:
+                raise ValueError("start_time and end_time must be provided together")
+            params["start_time"] = start_time
+            params["end_time"] = end_time
+        elif since_hours is not None:
+            params["since_hours"] = since_hours
         return await self.call(
             "GET",
             f"/api/v1/admin/mcp/audit/resources/{quote(resource_type)}/{quote(resource_id)}/history",
-            params={"limit": limit},
+            params=params,
         )
 
-    async def audit_recent_admin_actions(self, since_hours: int = 24, limit: int = 100) -> dict:
+    async def audit_recent_admin_actions(
+        self,
+        *,
+        since_hours: int = 24,
+        start_time: str | None = None,
+        end_time: str | None = None,
+        limit: int = 100,
+    ) -> dict:
+        params: dict[str, Any] = {"limit": limit}
+        if start_time or end_time:
+            if not start_time or not end_time:
+                raise ValueError("start_time and end_time must be provided together")
+            params["start_time"] = start_time
+            params["end_time"] = end_time
+        else:
+            params["since_hours"] = since_hours
         return await self.call(
             "GET",
             "/api/v1/admin/mcp/audit/admin-actions/recent",
-            params={"since_hours": since_hours, "limit": limit},
+            params=params,
         )

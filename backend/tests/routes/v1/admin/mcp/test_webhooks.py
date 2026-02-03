@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -65,6 +66,8 @@ def test_webhooks_list_returns_summary(client: TestClient, db, mcp_service_heade
 
     payload = res.json()
     assert payload["meta"]["returned_count"] == 1
+    assert payload["meta"]["time_window"]["start"] is not None
+    assert payload["meta"]["time_window"]["end"] is not None
     assert payload["summary"]["by_status"]["processed"] == 1
     assert payload["summary"]["by_source"]["stripe"] == 1
 
@@ -87,8 +90,123 @@ def test_webhooks_failed_includes_error(client: TestClient, db, mcp_service_head
 
     payload = res.json()
     assert payload["meta"]["returned_count"] == 1
+    assert payload["meta"]["time_window"]["start"] is not None
+    assert payload["meta"]["time_window"]["end"] is not None
     assert payload["events"][0]["processing_error"] == "boom"
     assert payload["events"][0]["status"] == "failed"
+
+
+def test_webhooks_failed_time_window_filters(client: TestClient, db, mcp_service_headers):
+    service = WebhookLedgerService(db)
+    now = datetime.now(timezone.utc)
+
+    old_failed = service.log_received(
+        source="stripe",
+        event_type="payment_intent.failed",
+        payload={"id": "evt_old_fail"},
+    )
+    service.mark_failed(old_failed, error="old")
+    old_failed.received_at = now - timedelta(days=2)
+
+    new_failed = service.log_received(
+        source="stripe",
+        event_type="payment_intent.failed",
+        payload={"id": "evt_new_fail"},
+    )
+    service.mark_failed(new_failed, error="new")
+    new_failed.received_at = now - timedelta(hours=1)
+    db.commit()
+
+    res = client.get(
+        "/api/v1/admin/mcp/webhooks/failed",
+        params={
+            "start_time": (now - timedelta(hours=2)).isoformat(),
+            "end_time": now.isoformat(),
+        },
+        headers=mcp_service_headers,
+    )
+    assert res.status_code == 200
+    payload = res.json()
+    assert payload["meta"]["returned_count"] == 1
+    assert payload["events"][0]["id"] == new_failed.id
+
+
+def test_webhooks_list_requires_matching_time_window(client: TestClient, mcp_service_headers):
+    res = client.get(
+        "/api/v1/admin/mcp/webhooks",
+        params={"start_time": "2026-02-01T00:00:00Z"},
+        headers=mcp_service_headers,
+    )
+
+    assert res.status_code == 422
+
+
+def test_webhooks_list_rejects_start_after_end(client: TestClient, mcp_service_headers):
+    res = client.get(
+        "/api/v1/admin/mcp/webhooks",
+        params={
+            "start_time": "2026-02-02T00:00:00Z",
+            "end_time": "2026-02-01T00:00:00Z",
+        },
+        headers=mcp_service_headers,
+    )
+
+    assert res.status_code == 422
+
+
+def test_webhooks_list_accepts_naive_times(client: TestClient, db, mcp_service_headers):
+    service = WebhookLedgerService(db)
+    service.log_received(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_naive"},
+    )
+
+    res = client.get(
+        "/api/v1/admin/mcp/webhooks",
+        params={
+            "start_time": "2026-02-01T00:00:00",
+            "end_time": "2026-02-02T00:00:00",
+        },
+        headers=mcp_service_headers,
+    )
+
+    assert res.status_code == 200
+    payload = res.json()
+    assert payload["meta"]["time_window"]["start"].startswith("2026-02-01")
+    assert payload["meta"]["time_window"]["end"].startswith("2026-02-02")
+
+
+def test_webhooks_list_time_window_filters(client: TestClient, db, mcp_service_headers):
+    service = WebhookLedgerService(db)
+    now = datetime.now(timezone.utc)
+
+    older = service.log_received(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_old"},
+    )
+    older.received_at = now - timedelta(days=2)
+    newer = service.log_received(
+        source="stripe",
+        event_type="payment_intent.failed",
+        payload={"id": "evt_new"},
+    )
+    newer.received_at = now - timedelta(hours=1)
+    db.commit()
+
+    res = client.get(
+        "/api/v1/admin/mcp/webhooks",
+        params={
+            "start_time": (now - timedelta(hours=2)).isoformat(),
+            "end_time": now.isoformat(),
+        },
+        headers=mcp_service_headers,
+    )
+    assert res.status_code == 200
+    payload = res.json()
+    assert payload["meta"]["returned_count"] == 1
+    assert payload["events"][0]["id"] == newer.id
 
 
 def test_webhook_detail_returns_payload(client: TestClient, db, mcp_service_headers):
@@ -245,6 +363,39 @@ def test_webhook_replay_checkr_path_invokes_processor(
     assert captured["data_object"] == {}
     assert isinstance(captured["headers"], dict)
     assert captured["skip_dedup"] is True
+
+
+def test_webhook_replay_checkr_dict_payload_passes_through(
+    client: TestClient, db, mcp_service_headers, monkeypatch
+):
+    service = WebhookLedgerService(db)
+    event = service.log_received(
+        source="checkr",
+        event_type="report.completed",
+        payload={"data": {"object": {"id": "obj_1"}}},
+        headers={"X-Checkr-Delivery-Id": "delivery-replay"},
+    )
+
+    captured: dict[str, object] = {}
+
+    async def _fake_processor(*, event_type, data_object, payload, headers, **kwargs):
+        captured["data_object"] = data_object
+        return None
+
+    monkeypatch.setattr(
+        "app.routes.v1.admin.mcp.webhooks._process_checkr_payload",
+        _fake_processor,
+    )
+
+    stripe_service = _DummyStripeService()
+    with _override_webhook_dependencies(stripe_service):
+        res = client.post(
+            f"/api/v1/admin/mcp/webhooks/{event.id}/replay?dry_run=false",
+            headers=mcp_service_headers,
+        )
+
+    assert res.status_code == 200
+    assert captured["data_object"] == {"id": "obj_1"}
 
 def test_webhook_replay_stripe_success(client: TestClient, db, mcp_service_headers):
     service = WebhookLedgerService(db)

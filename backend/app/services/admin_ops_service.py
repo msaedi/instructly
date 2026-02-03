@@ -4,17 +4,127 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 import logging
-from typing import Any
+import re
+from typing import Any, Optional, Sequence
 
 from sqlalchemy.orm import Session
 
-from app.models.booking import BookingStatus, PaymentStatus
+from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.payment import PaymentEvent
 from app.repositories.admin_ops_repository import AdminOpsRepository
+from app.repositories.factory import RepositoryFactory
 
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
+
+DOUBLE_CHARGE_WINDOW_MINUTES = 5
+
+_STRIPE_REF_KEYS: dict[str, str] = {
+    "payment_intent_id": "payment_intent",
+    "stripe_payment_intent_id": "payment_intent",
+    "charge_id": "charge",
+    "refund_id": "refund",
+}
+
+_FAILURE_HINTS = {
+    "card_declined": ("declined", "card was declined", "do_not_honor"),
+    "insufficient_funds": ("insufficient funds", "insufficient"),
+    "expired_card": ("expired card", "expired"),
+    "incorrect_cvc": ("cvc", "cvv", "security code"),
+    "processing_error": ("processing error", "api_error"),
+}
+
+_FAILURE_CATEGORY_RE = re.compile(r"^[a-z0-9_]+$")
+
+
+def _ensure_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _coerce_int(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _redact_stripe_id(value: Any) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    last4 = cleaned[-4:] if len(cleaned) > 4 else cleaned
+    prefix = cleaned.split("_", 1)[0] if "_" in cleaned else ""
+    if prefix:
+        return f"{prefix}_...{last4}"
+    return f"...{last4}" if len(cleaned) > 4 else last4
+
+
+def _extract_amount_cents(event_data: dict[str, Any]) -> Optional[int]:
+    for key in (
+        "amount_cents",
+        "amount_captured_cents",
+        "amount_received",
+        "amount_refunded",
+        "refund_amount_cents",
+        "refunded_cents",
+    ):
+        amount = _coerce_int(event_data.get(key))
+        if amount is not None:
+            return amount
+    return None
+
+
+def _infer_failure_category(event_type: str, event_data: dict[str, Any]) -> Optional[str]:
+    for key in ("error_type", "error_code", "failure_reason"):
+        value = event_data.get(key)
+        if isinstance(value, str) and value.strip():
+            normalized = value.strip().lower()
+            if _FAILURE_CATEGORY_RE.match(normalized):
+                return normalized
+            for category, hints in _FAILURE_HINTS.items():
+                if any(hint in normalized for hint in hints):
+                    return category
+
+    error_text = event_data.get("error")
+    if isinstance(error_text, str) and error_text.strip():
+        lowered = error_text.strip().lower()
+        for category, hints in _FAILURE_HINTS.items():
+            if any(hint in lowered for hint in hints):
+                return category
+        return "unknown_error"
+
+    if "fail" in event_type.lower():
+        return "unknown_error"
+    return None
+
+
+def _is_successful_charge(event_type: str) -> bool:
+    lowered = event_type.lower()
+    if "fail" in lowered or "skipped" in lowered or "already_done" in lowered:
+        return False
+    if "captured" in lowered:
+        return True
+    if lowered == "reauth_and_capture_success" or "capture_success" in lowered:
+        return True
+    return False
 
 
 class AdminOpsService(BaseService):
@@ -30,6 +140,7 @@ class AdminOpsService(BaseService):
         """Initialize the service."""
         super().__init__(db)
         self.repository = AdminOpsRepository(db)
+        self.payment_repository = RepositoryFactory.create_payment_repository(db)
 
     @staticmethod
     def _format_privacy_name(first_name: str | None, last_name: str | None) -> str:
@@ -555,3 +666,281 @@ class AdminOpsService(BaseService):
             "total_count": len(bookings),
             "checked_at": now,
         }
+
+    # ==================== Payment Timeline ====================
+
+    def _resolve_credits_applied_cents(self, events: Sequence[PaymentEvent]) -> int:
+        credit_cents = 0
+        for event in events:
+            data = event.event_data or {}
+            if event.event_type == "credits_applied":
+                credit_cents = int(data.get("applied_cents", 0) or 0)
+            elif credit_cents == 0 and event.event_type in {
+                "auth_succeeded_credits_only",
+                "auth_succeeded",
+                "auth_retry_succeeded",
+            }:
+                credit_cents = int(
+                    data.get(
+                        "credits_applied_cents",
+                        data.get("applied_credit_cents", data.get("original_amount_cents", 0)),
+                    )
+                    or 0
+                )
+        return max(0, credit_cents)
+
+    def _resolve_gross_cents(self, booking: Booking, credits_applied_cents: int) -> int:
+        if booking.payment_intent and booking.payment_intent.amount is not None:
+            return int(booking.payment_intent.amount) + credits_applied_cents
+        if booking.total_price is None:
+            return credits_applied_cents
+        try:
+            return int((Decimal(str(booking.total_price)) * 100).quantize(Decimal("1")))
+        except Exception:
+            return credits_applied_cents
+
+    def _resolve_platform_fee_cents(self, booking: Booking) -> int:
+        payment_intent = booking.payment_intent
+        if payment_intent and payment_intent.application_fee is not None:
+            return int(payment_intent.application_fee)
+        return 0
+
+    def _resolve_instructor_payout_cents(self, booking: Booking, platform_fee_cents: int) -> int:
+        payment_intent = booking.payment_intent
+        if payment_intent and payment_intent.instructor_payout_cents is not None:
+            return int(payment_intent.instructor_payout_cents)
+        if payment_intent and payment_intent.amount is not None:
+            return max(0, int(payment_intent.amount) - platform_fee_cents)
+        return 0
+
+    def _build_amounts(self, booking: Booking, credits_applied_cents: int) -> dict[str, float]:
+        gross_cents = self._resolve_gross_cents(booking, credits_applied_cents)
+        platform_fee_cents = self._resolve_platform_fee_cents(booking)
+        instructor_payout_cents = self._resolve_instructor_payout_cents(booking, platform_fee_cents)
+        return {
+            "gross": round(gross_cents / 100.0, 2),
+            "platform_fee": round(platform_fee_cents / 100.0, 2),
+            "credits_applied": round(credits_applied_cents / 100.0, 2),
+            "tip": 0.0,
+            "net_to_instructor": round(instructor_payout_cents / 100.0, 2),
+        }
+
+    def _map_event_state(self, event_type: str) -> Optional[str]:
+        lowered = event_type.lower()
+        if "auth" in lowered and "failed" in lowered:
+            return "authorization_failed"
+        if "auth" in lowered and "succeeded" in lowered:
+            return "authorized"
+        if "auth" in lowered and ("scheduled" in lowered or "attempt" in lowered):
+            return "scheduled"
+        if "capture" in lowered and "failed" in lowered:
+            return "capture_failed"
+        if "captured" in lowered or "capture_success" in lowered:
+            return "captured"
+        if "refund" in lowered and "failed" in lowered:
+            return "refund_failed"
+        if "refund" in lowered:
+            return "refunded"
+        return None
+
+    def _build_status_timeline(
+        self, booking: Booking, events: Sequence[PaymentEvent]
+    ) -> list[dict[str, Any]]:
+        timeline: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for event in events:
+            state = self._map_event_state(event.event_type)
+            if not state or state in seen:
+                continue
+            ts = _ensure_utc(event.created_at) if event.created_at else datetime.now(timezone.utc)
+            timeline.append({"ts": ts, "state": state})
+            seen.add(state)
+
+        if booking.payment_status and booking.payment_status.lower() in {"settled", "refunded"}:
+            if "settled" not in seen:
+                ts = booking.updated_at or booking.completed_at or datetime.now(timezone.utc)
+                timeline.append({"ts": _ensure_utc(ts), "state": "settled"})
+        timeline.sort(key=lambda item: item["ts"])
+        return timeline
+
+    def _build_provider_refs(
+        self, booking: Booking, events: Sequence[PaymentEvent]
+    ) -> dict[str, str]:
+        refs: dict[str, str] = {}
+        if booking.payment_intent_id:
+            redacted = _redact_stripe_id(booking.payment_intent_id)
+            if redacted:
+                refs["payment_intent"] = redacted
+
+        for event in events:
+            data = event.event_data or {}
+            for key, kind in _STRIPE_REF_KEYS.items():
+                if kind in refs:
+                    continue
+                redacted = _redact_stripe_id(data.get(key))
+                if redacted:
+                    refs[kind] = redacted
+        return refs
+
+    def _build_failure(self, events: Sequence[PaymentEvent]) -> Optional[dict[str, Any]]:
+        for event in reversed(list(events)):
+            data = event.event_data or {}
+            category = _infer_failure_category(event.event_type, data)
+            if not category:
+                continue
+            ts = _ensure_utc(event.created_at) if event.created_at else datetime.now(timezone.utc)
+            return {"category": category, "last_failed_at": ts}
+        return None
+
+    def _build_refunds(self, events: Sequence[PaymentEvent]) -> list[dict[str, Any]]:
+        refunds: list[dict[str, Any]] = []
+        for event in events:
+            if "refund" not in event.event_type.lower():
+                continue
+            data = event.event_data or {}
+            status = "pending"
+            lowered = event.event_type.lower()
+            if "failed" in lowered:
+                status = "failed"
+            elif "refunded" in lowered:
+                status = "succeeded"
+            refund_id = _redact_stripe_id(data.get("refund_id"))
+            amount_cents = _coerce_int(data.get("amount_refunded"))
+            if amount_cents is None:
+                amount_cents = _coerce_int(data.get("refund_amount_cents"))
+            ts = _ensure_utc(event.created_at) if event.created_at else None
+            refunds.append(
+                {
+                    "refund_id": refund_id,
+                    "amount": round((amount_cents or 0) / 100.0, 2) if amount_cents else None,
+                    "status": status,
+                    "created_at": ts,
+                }
+            )
+        return refunds
+
+    def _detect_double_charge(self, grouped_events: dict[str, list[PaymentEvent]]) -> bool:
+        window = timedelta(minutes=DOUBLE_CHARGE_WINDOW_MINUTES)
+        captures: list[tuple[datetime, int]] = []
+        for events in grouped_events.values():
+            for event in events:
+                if not _is_successful_charge(event.event_type):
+                    continue
+                data = event.event_data or {}
+                amount_cents = _extract_amount_cents(data)
+                if amount_cents is None:
+                    continue
+                ts = (
+                    _ensure_utc(event.created_at)
+                    if event.created_at
+                    else datetime.now(timezone.utc)
+                )
+                captures.append((ts, amount_cents))
+
+        captures.sort(key=lambda item: item[0])
+        recent_by_amount: dict[int, list[datetime]] = {}
+        for ts, amount in captures:
+            recent_times = [
+                recorded for recorded in recent_by_amount.get(amount, []) if ts - recorded <= window
+            ]
+            if recent_times:
+                return True
+            recent_times.append(ts)
+            recent_by_amount[amount] = recent_times
+        return False
+
+    def _query_payment_timeline(
+        self,
+        *,
+        booking_id: Optional[str],
+        user_id: Optional[str],
+        start_time: datetime,
+        end_time: datetime,
+    ) -> dict[str, Any]:
+        if booking_id:
+            events = self.payment_repository.get_payment_events_for_booking(
+                booking_id,
+                start_time=start_time,
+                end_time=end_time,
+            )
+        else:
+            events = self.payment_repository.get_payment_events_for_user(
+                user_id or "",
+                start_time=start_time,
+                end_time=end_time,
+            )
+
+        grouped: dict[str, list[PaymentEvent]] = {}
+        for event in events:
+            grouped.setdefault(event.booking_id, []).append(event)
+
+        payments: list[dict[str, Any]] = []
+        has_failed_payment = False
+        has_pending_refund = False
+
+        for booking_events in grouped.values():
+            booking_events.sort(key=lambda ev: ev.created_at or datetime.now(timezone.utc))
+            booking = booking_events[0].booking
+            if not booking:
+                continue
+
+            credits_applied_cents = self._resolve_credits_applied_cents(booking_events)
+            status_timeline = self._build_status_timeline(booking, booking_events)
+            provider_refs = self._build_provider_refs(booking, booking_events)
+            failure = self._build_failure(booking_events)
+            refunds = self._build_refunds(booking_events)
+
+            if failure is not None:
+                has_failed_payment = True
+            if any(refund.get("status") == "pending" for refund in refunds):
+                has_pending_refund = True
+
+            status_value = booking.payment_status or (
+                status_timeline[-1]["state"] if status_timeline else "unknown"
+            )
+            created_at = booking.created_at or (
+                _ensure_utc(booking_events[0].created_at)
+                if booking_events
+                else datetime.now(timezone.utc)
+            )
+
+            payments.append(
+                {
+                    "booking_id": booking.id,
+                    "created_at": _ensure_utc(created_at),
+                    "amount": self._build_amounts(booking, credits_applied_cents),
+                    "status": status_value,
+                    "status_timeline": status_timeline,
+                    "provider_refs": provider_refs,
+                    "failure": failure,
+                    "refunds": refunds,
+                }
+            )
+
+        possible_double_charge = self._detect_double_charge(grouped)
+        return {
+            "payments": payments,
+            "flags": {
+                "has_failed_payment": has_failed_payment,
+                "has_pending_refund": has_pending_refund,
+                "possible_double_charge": possible_double_charge,
+            },
+            "total_count": len(payments),
+        }
+
+    @BaseService.measure_operation("get_payment_timeline")
+    async def get_payment_timeline(
+        self,
+        *,
+        booking_id: Optional[str],
+        user_id: Optional[str],
+        start_time: datetime,
+        end_time: datetime,
+    ) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            self._query_payment_timeline,
+            booking_id=booking_id,
+            user_id=user_id,
+            start_time=start_time,
+            end_time=end_time,
+        )
