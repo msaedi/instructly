@@ -230,7 +230,7 @@ def test_detect_double_charge_across_bookings_and_skips_missing_amount(db):
 
 def test_resolve_scheduled_capture_at_missing_dates_returns_none(db):
     service = AdminOpsService(db)
-    booking = _Booking(booking_end_utc=None, completed_at=None)
+    booking = _Booking(booking_start_utc=None, duration_minutes=None)
 
     assert service._resolve_scheduled_capture_at(booking) is None
 

@@ -786,10 +786,16 @@ class AdminOpsService(BaseService):
         return timeline
 
     def _resolve_scheduled_capture_at(self, booking: Booking) -> datetime | None:
-        capture_base = booking.booking_end_utc or booking.completed_at
-        if not capture_base:
+        if not booking.booking_start_utc or booking.duration_minutes is None:
             return None
-        return _ensure_utc(capture_base) + timedelta(hours=24)
+        start = _ensure_utc(booking.booking_start_utc)
+        duration_minutes = int(booking.duration_minutes)
+        return start + timedelta(minutes=duration_minutes) + timedelta(hours=24)
+
+    def _resolve_scheduled_authorize_at(self, booking: Booking) -> datetime | None:
+        if not booking.booking_start_utc or booking.duration_minutes is None:
+            return None
+        return _ensure_utc(booking.booking_start_utc) - timedelta(hours=24)
 
     def _normalize_payment_status(
         self,
@@ -974,11 +980,14 @@ class AdminOpsService(BaseService):
                 if booking_events
                 else datetime.now(timezone.utc)
             )
-            scheduled_capture_at = (
-                self._resolve_scheduled_capture_at(booking)
-                if status_value == PaymentStatus.AUTHORIZED.value
-                else None
-            )
+            scheduled_authorize_at = None
+            scheduled_capture_at = None
+            if status_value in {
+                PaymentStatus.SCHEDULED.value,
+                PaymentStatus.AUTHORIZED.value,
+            }:
+                scheduled_authorize_at = self._resolve_scheduled_authorize_at(booking)
+                scheduled_capture_at = self._resolve_scheduled_capture_at(booking)
 
             payments.append(
                 {
@@ -987,6 +996,7 @@ class AdminOpsService(BaseService):
                     "amount": self._build_amounts(booking, credits_applied_cents),
                     "status": status_value,
                     "status_timeline": status_timeline,
+                    "scheduled_authorize_at": scheduled_authorize_at,
                     "scheduled_capture_at": scheduled_capture_at,
                     "provider_refs": provider_refs,
                     "failure": failure,

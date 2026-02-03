@@ -192,6 +192,50 @@ async def test_payment_timeline_summary_by_status(db, test_booking):
 
 
 @pytest.mark.asyncio
+async def test_payment_timeline_includes_scheduling_fields(db, test_booking):
+    scheduled_start = datetime(2026, 2, 20, 14, 0, tzinfo=timezone.utc)
+    test_booking.payment_status = "scheduled"
+    test_booking.booking_start_utc = scheduled_start
+    test_booking.booking_end_utc = scheduled_start + timedelta(minutes=30)
+    test_booking.duration_minutes = 30
+    db.commit()
+
+    service = AdminOpsService(db)
+    result = await service.get_payment_timeline(
+        booking_id=test_booking.id,
+        user_id=None,
+        start_time=scheduled_start - timedelta(days=2),
+        end_time=scheduled_start + timedelta(days=2),
+    )
+
+    entry = result["payments"][0]
+    assert entry["scheduled_authorize_at"] == scheduled_start - timedelta(hours=24)
+    assert entry["scheduled_capture_at"] == scheduled_start + timedelta(minutes=30, hours=24)
+
+
+@pytest.mark.asyncio
+async def test_payment_timeline_scheduling_fields_only_for_pending_states(db, test_booking):
+    scheduled_start = datetime(2026, 2, 20, 14, 0, tzinfo=timezone.utc)
+    test_booking.payment_status = "settled"
+    test_booking.booking_start_utc = scheduled_start
+    test_booking.booking_end_utc = scheduled_start + timedelta(minutes=30)
+    test_booking.duration_minutes = 30
+    db.commit()
+
+    service = AdminOpsService(db)
+    result = await service.get_payment_timeline(
+        booking_id=test_booking.id,
+        user_id=None,
+        start_time=scheduled_start - timedelta(days=2),
+        end_time=scheduled_start + timedelta(days=2),
+    )
+
+    entry = result["payments"][0]
+    assert entry["scheduled_authorize_at"] is None
+    assert entry["scheduled_capture_at"] is None
+
+
+@pytest.mark.asyncio
 async def test_payment_timeline_time_window_filters_events(db, test_booking):
     now = datetime.now(timezone.utc)
     other_booking = create_booking_pg_safe(

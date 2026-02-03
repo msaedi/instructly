@@ -42,6 +42,7 @@ class AdminPaymentTimelineItem(StrictModel):
     amount: AdminPaymentAmount
     status: str
     status_timeline: list[AdminPaymentStatusEvent]
+    scheduled_authorize_at: Optional[datetime] = None
     scheduled_capture_at: Optional[datetime] = None
     provider_refs: dict[str, str] = Field(default_factory=dict)
     failure: Optional[AdminPaymentFailure] = None
