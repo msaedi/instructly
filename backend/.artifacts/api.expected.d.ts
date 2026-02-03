@@ -5435,6 +5435,7 @@ export type components = {
  [key: string]: string;
  };
  refunds?: components["schemas"]["AdminPaymentRefund"][];
+ scheduled_capture_at?: string | null;
  status: string;
  status_timeline: components["schemas"]["AdminPaymentStatusEvent"][];
  };
@@ -5446,6 +5447,12 @@ export type components = {
  flags: components["schemas"]["AdminPaymentTimelineFlags"];
  meta: components["schemas"]["AdminPaymentTimelineMeta"];
  payments: components["schemas"]["AdminPaymentTimelineItem"][];
+ summary: components["schemas"]["AdminPaymentTimelineSummary"];
+ };
+ AdminPaymentTimelineSummary: {
+ by_status: {
+ [key: string]: number;
+ };
  };
  AdminReferralsConfigOut: {
  expiry_months: number;

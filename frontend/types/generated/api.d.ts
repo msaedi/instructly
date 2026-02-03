@@ -7861,6 +7861,8 @@ export type components = {
             };
             /** Refunds */
             refunds?: components["schemas"]["AdminPaymentRefund"][];
+            /** Scheduled Capture At */
+            scheduled_capture_at?: string | null;
             /** Status */
             status: string;
             /** Status Timeline */
@@ -7878,6 +7880,14 @@ export type components = {
             meta: components["schemas"]["AdminPaymentTimelineMeta"];
             /** Payments */
             payments: components["schemas"]["AdminPaymentTimelineItem"][];
+            summary: components["schemas"]["AdminPaymentTimelineSummary"];
+        };
+        /** AdminPaymentTimelineSummary */
+        AdminPaymentTimelineSummary: {
+            /** By Status */
+            by_status: {
+                [key: string]: number;
+            };
         };
         /**
          * AdminReferralsConfigOut

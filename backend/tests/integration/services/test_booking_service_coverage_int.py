@@ -2347,6 +2347,9 @@ class TestPaymentProcessingScenariosIntegration:
         now = datetime.now(timezone.utc)
         start_utc = now + timedelta(hours=6)
         end_utc = start_utc + timedelta(hours=1)
+        if end_utc.date() != start_utc.date():
+            start_utc = start_utc - timedelta(hours=1)
+            end_utc = start_utc + timedelta(hours=1)
 
         _ensure_connected_account(db, test_instructor_with_availability)
 

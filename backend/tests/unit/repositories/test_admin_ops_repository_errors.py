@@ -231,6 +231,28 @@ class TestAdminOpsRepositoryErrorHandling:
 
         assert "Failed to get booking history" in str(exc_info.value)
 
+    def test_get_booking_with_payment_intent_raises_on_db_error(self, repo, mock_db):
+        """Test get_booking_with_payment_intent raises RepositoryException on DB error."""
+        mock_db.query.side_effect = SQLAlchemyError("Timeline query failed")
+
+        with pytest.raises(RepositoryException) as exc_info:
+            repo.get_booking_with_payment_intent("booking_123")
+
+        assert "Failed to get booking for payment timeline" in str(exc_info.value)
+
+    def test_get_user_bookings_for_payment_timeline_raises_on_db_error(self, repo, mock_db):
+        """Test get_user_bookings_for_payment_timeline raises RepositoryException on DB error."""
+        mock_db.query.side_effect = SQLAlchemyError("Timeline query failed")
+
+        with pytest.raises(RepositoryException) as exc_info:
+            repo.get_user_bookings_for_payment_timeline(
+                user_id="user_123",
+                start_time=datetime.now(timezone.utc),
+                end_time=datetime.now(timezone.utc),
+            )
+
+        assert "Failed to get payment timeline bookings" in str(exc_info.value)
+
 
 class TestAdminOpsRepositoryStatusFilter:
     """Test status filter branch in get_recent_bookings_with_details."""

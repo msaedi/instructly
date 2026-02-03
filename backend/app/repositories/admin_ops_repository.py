@@ -672,3 +672,45 @@ class AdminOpsRepository(BaseRepository[Booking]):
         except Exception as e:
             self.logger.error(f"Error getting user booking history: {str(e)}")
             raise RepositoryException(f"Failed to get booking history: {str(e)}")
+
+    # ==================== Payment Timeline Queries ====================
+
+    def get_booking_with_payment_intent(self, booking_id: str) -> Optional[Booking]:
+        """Get a booking with payment intent loaded for payment timeline."""
+        try:
+            return cast(
+                Optional[Booking],
+                self.db.query(Booking)
+                .options(joinedload(Booking.payment_intent))
+                .filter(Booking.id == booking_id)
+                .first(),
+            )
+        except Exception as e:
+            self.logger.error(f"Error getting booking for payment timeline: {str(e)}")
+            raise RepositoryException(f"Failed to get booking for payment timeline: {str(e)}")
+
+    def get_user_bookings_for_payment_timeline(
+        self,
+        *,
+        user_id: str,
+        start_time: datetime,
+        end_time: datetime,
+    ) -> list[Booking]:
+        """Get bookings for a user with payment intent loaded in a time window."""
+        try:
+            query = (
+                self.db.query(Booking)
+                .options(joinedload(Booking.payment_intent))
+                .filter(Booking.student_id == user_id)
+                .filter(
+                    or_(
+                        Booking.booking_start_utc.between(start_time, end_time),
+                        Booking.auth_scheduled_for.between(start_time, end_time),
+                    )
+                )
+                .order_by(Booking.created_at.desc())
+            )
+            return cast(list[Booking], query.all())
+        except Exception as e:
+            self.logger.error(f"Error getting payment timeline bookings: {str(e)}")
+            raise RepositoryException(f"Failed to get payment timeline bookings: {str(e)}")

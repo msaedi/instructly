@@ -42,6 +42,7 @@ class AdminPaymentTimelineItem(StrictModel):
     amount: AdminPaymentAmount
     status: str
     status_timeline: list[AdminPaymentStatusEvent]
+    scheduled_capture_at: Optional[datetime] = None
     provider_refs: dict[str, str] = Field(default_factory=dict)
     failure: Optional[AdminPaymentFailure] = None
     refunds: list[AdminPaymentRefund] = Field(default_factory=list)
@@ -53,6 +54,10 @@ class AdminPaymentTimelineFlags(StrictModel):
     possible_double_charge: bool
 
 
+class AdminPaymentTimelineSummary(StrictModel):
+    by_status: dict[str, int]
+
+
 class AdminPaymentTimelineMeta(StrictModel):
     time_window: MCPTimeWindow
     total_count: int
@@ -60,6 +65,7 @@ class AdminPaymentTimelineMeta(StrictModel):
 
 class AdminPaymentTimelineResponse(StrictModel):
     payments: list[AdminPaymentTimelineItem]
+    summary: AdminPaymentTimelineSummary
     flags: AdminPaymentTimelineFlags
     meta: AdminPaymentTimelineMeta
 
@@ -71,6 +77,7 @@ __all__ = [
     "AdminPaymentRefund",
     "AdminPaymentTimelineItem",
     "AdminPaymentTimelineFlags",
+    "AdminPaymentTimelineSummary",
     "AdminPaymentTimelineMeta",
     "AdminPaymentTimelineResponse",
 ]

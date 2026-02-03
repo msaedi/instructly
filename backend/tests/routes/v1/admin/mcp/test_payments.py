@@ -41,11 +41,13 @@ class TestPaymentTimelineEndpoint:
                     "status_timeline": [
                         {"ts": datetime(2026, 2, 1, tzinfo=timezone.utc), "state": "captured"}
                     ],
+                    "scheduled_capture_at": None,
                     "provider_refs": {"payment_intent": "pi_...1234"},
                     "failure": None,
                     "refunds": [],
                 }
             ],
+            "summary": {"by_status": {"settled": 1}},
             "flags": {
                 "has_failed_payment": False,
                 "has_pending_refund": False,
@@ -73,11 +75,40 @@ class TestPaymentTimelineEndpoint:
         assert data["meta"]["time_window"]["end"].startswith("2026-02-02")
         assert data["meta"]["total_count"] == 1
 
+    def test_payment_timeline_since_hours_uses_default_window(
+        self, client: TestClient, mcp_service_headers
+    ):
+        mock_result = {
+            "payments": [],
+            "summary": {"by_status": {}},
+            "flags": {
+                "has_failed_payment": False,
+                "has_pending_refund": False,
+                "possible_double_charge": False,
+            },
+            "total_count": 0,
+        }
+
+        with patch(
+            "app.services.admin_ops_service.AdminOpsService.get_payment_timeline",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ):
+            res = client.get(
+                "/api/v1/admin/mcp/payments/timeline?booking_id=01BOOK&since_hours=48",
+                headers=mcp_service_headers,
+            )
+
+        assert res.status_code == 200
+        payload = res.json()
+        assert payload["meta"]["time_window"]["source"] == "since_hours=48"
+
     def test_payment_timeline_start_time_only_uses_now(
         self, client: TestClient, mcp_service_headers
     ):
         mock_result = {
             "payments": [],
+            "summary": {"by_status": {}},
             "flags": {
                 "has_failed_payment": False,
                 "has_pending_refund": False,

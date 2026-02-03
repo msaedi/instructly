@@ -49,6 +49,7 @@ async def test_payment_timeline_redacts_and_categorizes(db, test_booking):
     assert entry["failure"]["category"] == "card_declined"
     assert result["flags"]["has_failed_payment"] is True
     assert result["flags"]["has_pending_refund"] is False
+    assert result["summary"]["by_status"]["failed"] == 1
 
     payload = str(entry)
     assert "pi_1234567890" not in payload
@@ -112,6 +113,82 @@ async def test_payment_timeline_pending_refund_flag(db, test_booking):
     )
 
     assert result["flags"]["has_pending_refund"] is True
+
+
+@pytest.mark.asyncio
+async def test_payment_timeline_includes_scheduled_payments(db, test_booking):
+    test_booking.payment_status = "scheduled"
+    db.commit()
+
+    service = AdminOpsService(db)
+    result = await service.get_payment_timeline(
+        booking_id=test_booking.id,
+        user_id=None,
+        start_time=datetime.now(timezone.utc) - timedelta(hours=1),
+        end_time=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+
+    assert result["payments"]
+    assert result["payments"][0]["status"] == "scheduled"
+
+
+@pytest.mark.asyncio
+async def test_payment_timeline_includes_authorized_payments(db, test_booking):
+    now = datetime.now(timezone.utc)
+    test_booking.payment_status = "authorized"
+    test_booking.auth_scheduled_for = now - timedelta(hours=2)
+    test_booking.auth_attempted_at = now - timedelta(hours=1)
+    db.commit()
+
+    service = AdminOpsService(db)
+    result = await service.get_payment_timeline(
+        booking_id=test_booking.id,
+        user_id=None,
+        start_time=now - timedelta(hours=4),
+        end_time=now + timedelta(hours=1),
+    )
+
+    entry = result["payments"][0]
+    assert entry["status"] == "authorized"
+    assert entry["scheduled_capture_at"] is not None
+    states = {state["state"] for state in entry["status_timeline"]}
+    assert "scheduled" in states
+    assert "authorized" in states
+
+
+@pytest.mark.asyncio
+async def test_payment_timeline_summary_by_status(db, test_booking):
+    now = datetime.now(timezone.utc)
+    test_booking.payment_status = "scheduled"
+
+    other_booking = create_booking_pg_safe(
+        db,
+        student_id=test_booking.student_id,
+        instructor_id=test_booking.instructor_id,
+        instructor_service_id=test_booking.instructor_service_id,
+        booking_date=test_booking.booking_date + timedelta(days=1),
+        start_time=test_booking.start_time,
+        end_time=test_booking.end_time,
+        service_name=test_booking.service_name,
+        hourly_rate=test_booking.hourly_rate,
+        total_price=float(test_booking.total_price),
+        duration_minutes=test_booking.duration_minutes,
+        payment_status="locked",
+    )
+    db.add_all([test_booking, other_booking])
+    db.commit()
+
+    service = AdminOpsService(db)
+    result = await service.get_payment_timeline(
+        booking_id=None,
+        user_id=test_booking.student_id,
+        start_time=now - timedelta(hours=1),
+        end_time=now + timedelta(days=2),
+    )
+
+    summary = result["summary"]["by_status"]
+    assert summary["scheduled"] == 1
+    assert summary["locked"] == 1
 
 
 @pytest.mark.asyncio

@@ -523,6 +523,7 @@ export interface AdminPaymentTimelineItem {
   failure?: AdminPaymentFailure | null;
   provider_refs?: AdminPaymentTimelineItemProviderRefs;
   refunds?: AdminPaymentRefund[];
+  scheduled_capture_at?: string | null;
   status: string;
   status_timeline: AdminPaymentStatusEvent[];
 }
@@ -538,10 +539,17 @@ export interface AdminPaymentTimelineMeta {
   total_count: number;
 }
 
+export type AdminPaymentTimelineSummaryByStatus = { [key: string]: number };
+
+export interface AdminPaymentTimelineSummary {
+  by_status: AdminPaymentTimelineSummaryByStatus;
+}
+
 export interface AdminPaymentTimelineResponse {
   flags: AdminPaymentTimelineFlags;
   meta: AdminPaymentTimelineMeta;
   payments: AdminPaymentTimelineItem[];
+  summary: AdminPaymentTimelineSummary;
 }
 
 export type AdminReferralsConfigOutFlags = { [key: string]: boolean };

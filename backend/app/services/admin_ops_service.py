@@ -21,6 +21,15 @@ from .base import BaseService
 logger = logging.getLogger(__name__)
 
 DOUBLE_CHARGE_WINDOW_MINUTES = 5
+PAYMENT_TIMELINE_STATUSES = {
+    "scheduled",
+    "authorized",
+    "captured",
+    "settled",
+    "failed",
+    "refunded",
+    "locked",
+}
 
 _STRIPE_REF_KEYS: dict[str, str] = {
     "payment_intent_id": "payment_intent",
@@ -756,12 +765,60 @@ class AdminOpsService(BaseService):
             timeline.append({"ts": ts, "state": state})
             seen.add(state)
 
+        if booking.auth_scheduled_for and "scheduled" not in seen:
+            timeline.append({"ts": _ensure_utc(booking.auth_scheduled_for), "state": "scheduled"})
+            seen.add("scheduled")
+
+        if (
+            booking.payment_status
+            and booking.payment_status.lower() == PaymentStatus.AUTHORIZED.value
+            and "authorized" not in seen
+        ):
+            ts = booking.auth_attempted_at or booking.updated_at or datetime.now(timezone.utc)
+            timeline.append({"ts": _ensure_utc(ts), "state": "authorized"})
+            seen.add("authorized")
+
         if booking.payment_status and booking.payment_status.lower() in {"settled", "refunded"}:
             if "settled" not in seen:
                 ts = booking.updated_at or booking.completed_at or datetime.now(timezone.utc)
                 timeline.append({"ts": _ensure_utc(ts), "state": "settled"})
         timeline.sort(key=lambda item: item["ts"])
         return timeline
+
+    def _resolve_scheduled_capture_at(self, booking: Booking) -> datetime | None:
+        capture_base = booking.booking_end_utc or booking.completed_at
+        if not capture_base:
+            return None
+        return _ensure_utc(capture_base) + timedelta(hours=24)
+
+    def _normalize_payment_status(
+        self,
+        booking: Booking,
+        status_timeline: list[dict[str, Any]],
+        failure: Optional[dict[str, Any]],
+    ) -> str:
+        raw_status = booking.payment_status.lower() if booking.payment_status else ""
+        last_state: str | None = None
+        if status_timeline:
+            state_value = status_timeline[-1].get("state")
+            if isinstance(state_value, str):
+                last_state = state_value
+        if raw_status in {"settled", "locked"}:
+            return raw_status
+
+        if last_state in {"authorization_failed", "capture_failed", "refund_failed"}:
+            return "failed"
+        if last_state in {"refunded", "captured", "authorized", "scheduled", "settled"}:
+            if last_state in {"refunded", "captured"}:
+                return last_state
+            if raw_status in PAYMENT_TIMELINE_STATUSES:
+                return raw_status
+            return last_state
+        if raw_status in PAYMENT_TIMELINE_STATUSES:
+            return raw_status
+        if failure:
+            return "failed"
+        return raw_status or (last_state or "unknown")
 
     def _build_provider_refs(
         self, booking: Booking, events: Sequence[PaymentEvent]
@@ -857,6 +914,18 @@ class AdminOpsService(BaseService):
         start_time: datetime,
         end_time: datetime,
     ) -> dict[str, Any]:
+        bookings: list[Booking] = []
+        if booking_id:
+            booking = self.repository.get_booking_with_payment_intent(booking_id)
+            if booking:
+                bookings = [booking]
+        elif user_id:
+            bookings = self.repository.get_user_bookings_for_payment_timeline(
+                user_id=user_id,
+                start_time=start_time,
+                end_time=end_time,
+            )
+
         if booking_id:
             events = self.payment_repository.get_payment_events_for_booking(
                 booking_id,
@@ -874,15 +943,19 @@ class AdminOpsService(BaseService):
         for event in events:
             grouped.setdefault(event.booking_id, []).append(event)
 
+        booking_map: dict[str, Booking] = {booking.id: booking for booking in bookings}
+        for event in events:
+            if event.booking:
+                booking_map.setdefault(event.booking_id, event.booking)
+
         payments: list[dict[str, Any]] = []
         has_failed_payment = False
         has_pending_refund = False
+        summary_by_status = {status: 0 for status in PAYMENT_TIMELINE_STATUSES}
 
-        for booking_events in grouped.values():
+        for booking_id_value, booking in booking_map.items():
+            booking_events = grouped.get(booking_id_value, [])
             booking_events.sort(key=lambda ev: ev.created_at or datetime.now(timezone.utc))
-            booking = booking_events[0].booking
-            if not booking:
-                continue
 
             credits_applied_cents = self._resolve_credits_applied_cents(booking_events)
             status_timeline = self._build_status_timeline(booking, booking_events)
@@ -895,13 +968,16 @@ class AdminOpsService(BaseService):
             if any(refund.get("status") == "pending" for refund in refunds):
                 has_pending_refund = True
 
-            status_value = booking.payment_status or (
-                status_timeline[-1]["state"] if status_timeline else "unknown"
-            )
+            status_value = self._normalize_payment_status(booking, status_timeline, failure)
             created_at = booking.created_at or (
                 _ensure_utc(booking_events[0].created_at)
                 if booking_events
                 else datetime.now(timezone.utc)
+            )
+            scheduled_capture_at = (
+                self._resolve_scheduled_capture_at(booking)
+                if status_value == PaymentStatus.AUTHORIZED.value
+                else None
             )
 
             payments.append(
@@ -911,15 +987,19 @@ class AdminOpsService(BaseService):
                     "amount": self._build_amounts(booking, credits_applied_cents),
                     "status": status_value,
                     "status_timeline": status_timeline,
+                    "scheduled_capture_at": scheduled_capture_at,
                     "provider_refs": provider_refs,
                     "failure": failure,
                     "refunds": refunds,
                 }
             )
+            summary_by_status[status_value] = summary_by_status.get(status_value, 0) + 1
 
+        payments.sort(key=lambda item: item["created_at"], reverse=True)
         possible_double_charge = self._detect_double_charge(grouped)
         return {
             "payments": payments,
+            "summary": {"by_status": summary_by_status},
             "flags": {
                 "has_failed_payment": has_failed_payment,
                 "has_pending_refund": has_pending_refund,

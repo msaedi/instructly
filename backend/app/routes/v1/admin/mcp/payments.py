@@ -16,6 +16,7 @@ from app.schemas.admin_payments import (
     AdminPaymentTimelineItem,
     AdminPaymentTimelineMeta,
     AdminPaymentTimelineResponse,
+    AdminPaymentTimelineSummary,
 )
 from app.schemas.mcp import MCPTimeWindow
 from app.services.admin_ops_service import AdminOpsService
@@ -107,6 +108,7 @@ async def get_payment_timeline(
     )
 
     payments = [AdminPaymentTimelineItem(**item) for item in result["payments"]]
+    summary = AdminPaymentTimelineSummary(**result["summary"])
     flags = AdminPaymentTimelineFlags(**result["flags"])
 
     meta = AdminPaymentTimelineMeta(
@@ -116,6 +118,7 @@ async def get_payment_timeline(
 
     return AdminPaymentTimelineResponse(
         payments=payments,
+        summary=summary,
         flags=flags,
         meta=meta,
     )

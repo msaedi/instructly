@@ -27,6 +27,7 @@ def test_apply_health_headers_handles_settings_error(monkeypatch) -> None:
         def __getattr__(self, _name):  # pragma: no cover - exercised in test
             raise RuntimeError("boom")
 
+    monkeypatch.setenv("SITE_MODE", "local")
     monkeypatch.setattr(health_routes, "settings", _BrokenSettings())
     response = Response()
 
