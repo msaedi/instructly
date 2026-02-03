@@ -545,3 +545,46 @@ async def test_instructor_detail_url_encodes_name_with_spaces():
         )
 
     await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_client_webhook_endpoints():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    list_route = respx.get("https://api.instainstru.test/api/v1/admin/mcp/webhooks").respond(
+        200, json={"ok": True}
+    )
+    failed_route = respx.get(
+        "https://api.instainstru.test/api/v1/admin/mcp/webhooks/failed"
+    ).respond(200, json={"ok": True})
+    respx.get("https://api.instainstru.test/api/v1/admin/mcp/webhooks/evt_123").respond(
+        200, json={"ok": True}
+    )
+    replay_route = respx.post(
+        "https://api.instainstru.test/api/v1/admin/mcp/webhooks/evt_123/replay"
+    ).respond(200, json={"ok": True})
+
+    await client.get_webhooks(
+        source="stripe",
+        status="failed",
+        event_type="payment_intent.failed",
+        since_hours=12,
+        limit=10,
+    )
+    await client.get_failed_webhooks(source="checkr", since_hours=48, limit=5)
+    await client.get_webhook_detail("evt_123")
+    await client.replay_webhook("evt_123", dry_run=False)
+
+    assert list_route.calls[0].request.url.params["source"] == "stripe"
+    assert list_route.calls[0].request.url.params["status"] == "failed"
+    assert list_route.calls[0].request.url.params["event_type"] == "payment_intent.failed"
+    assert failed_route.calls[0].request.url.params["source"] == "checkr"
+    assert replay_route.calls[0].request.url.params["dry_run"] == "false"
+
+    await client.aclose()

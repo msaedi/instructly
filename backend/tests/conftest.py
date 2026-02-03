@@ -266,6 +266,7 @@ from app.models.service_catalog import (
     ServiceCategory,
 )
 from app.models.user import User
+from app.models.webhook_event import WebhookEvent  # noqa: F401
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.services.config_service import ConfigService
 from app.services.permission_service import PermissionService
@@ -1014,6 +1015,7 @@ def cleanup_test_database() -> None:
         cleanup_db.query(BadgeProgress).delete()
         cleanup_db.query(NotificationDelivery).delete()
         cleanup_db.query(EventOutbox).delete()
+        cleanup_db.query(WebhookEvent).delete()
         cleanup_db.query(AuditLog).delete()
         # Beta tables (BetaAccess has FK to BetaInvite.code, so delete Access first)
         cleanup_db.query(BetaAccess).delete()

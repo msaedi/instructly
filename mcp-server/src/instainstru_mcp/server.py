@@ -46,6 +46,7 @@ from .tools import (
     sentry_debug,
     services,
     support,
+    webhooks,
 )
 
 logger = logging.getLogger(__name__)
@@ -565,6 +566,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     deploy.register_tools(mcp)
     growth.register_tools(mcp, client)
     support.register_tools(mcp, client)
+    webhooks.register_tools(mcp, client)
 
     return mcp
 

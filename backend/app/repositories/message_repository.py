@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, List, Optional, Sequence, Tuple, cast
 
-from sqlalchemy import and_, func, text
+from sqlalchemy import and_, func, or_, text
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.exceptions import NotFoundException, RepositoryException
@@ -440,6 +440,29 @@ class MessageRepository(BaseRepository[Message]):
             if not conversation_ids:
                 return []
 
+            after_message = self.db.query(Message).filter(Message.id == after_message_id).first()
+            if after_message and after_message.created_at:
+                return cast(
+                    List[Message],
+                    (
+                        self.db.query(Message)
+                        .filter(
+                            and_(
+                                Message.conversation_id.in_(conversation_ids),
+                                or_(
+                                    Message.created_at > after_message.created_at,
+                                    and_(
+                                        Message.created_at == after_message.created_at,
+                                        Message.id > after_message_id,
+                                    ),
+                                ),
+                            )
+                        )
+                        .order_by(Message.created_at, Message.id)
+                        .limit(limit)
+                        .all()
+                    ),
+                )
             return cast(
                 List[Message],
                 (

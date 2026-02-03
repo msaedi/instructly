@@ -29,7 +29,9 @@ Endpoints:
 
 import asyncio
 from datetime import datetime, timedelta, timezone
+import json
 import logging
+import time
 from typing import Any, Dict, List, Optional, cast
 from urllib.parse import urljoin, urlparse
 
@@ -74,6 +76,7 @@ from ...services.config_service import ConfigService
 from ...services.dependencies import get_booking_service
 from ...services.pricing_service import PricingService
 from ...services.stripe_service import StripeService
+from ...services.webhook_ledger_service import WebhookLedgerService
 from ...utils.strict import model_filter
 
 logger = logging.getLogger(__name__)
@@ -802,21 +805,58 @@ async def handle_stripe_webhook(
             )
             raise HTTPException(status_code=400, detail="Invalid signature")
 
+        event_payload: dict[str, Any]
+        try:
+            event_payload = json.loads(payload.decode("utf-8"))
+        except json.JSONDecodeError:
+            if hasattr(event, "to_dict_recursive"):
+                event_payload = event.to_dict_recursive()
+            else:
+                event_payload = dict(event)
+
         # Log account context for debugging
-        if "account" in event:
-            logger.info(f"Event from connected account: {event['account']}")
+        if event_payload.get("account"):
+            logger.info(f"Event from connected account: {event_payload['account']}")
         else:
             logger.info("Event from platform account")
 
-        # Process the verified event
-        _result = await asyncio.to_thread(
-            stripe_service.handle_webhook_event, event
-        )  # Pass parsed event directly
+        ledger_service = WebhookLedgerService(stripe_service.db)
+        ledger_event = await asyncio.to_thread(
+            ledger_service.log_received,
+            source="stripe",
+            event_type=event_payload.get("type", "unknown"),
+            payload=event_payload,
+            headers=dict(request.headers),
+            event_id=event_payload.get("id"),
+        )
 
-        logger.info(f"Webhook processed successfully: {event['type']}")
+        start_time = time.monotonic()
+        try:
+            _result = await asyncio.to_thread(
+                stripe_service.handle_webhook_event, event_payload
+            )  # Pass parsed event directly
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+            await asyncio.to_thread(
+                ledger_service.mark_processed,
+                ledger_event,
+                duration_ms=duration_ms,
+                related_entity_type=_result.get("entity_type"),
+                related_entity_id=_result.get("entity_id"),
+            )
+        except Exception as exc:
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+            await asyncio.to_thread(
+                ledger_service.mark_failed,
+                ledger_event,
+                error=str(exc),
+                duration_ms=duration_ms,
+            )
+            raise
+
+        logger.info(f"Webhook processed successfully: {event_payload.get('type', 'unknown')}")
         response_payload = {
             "status": "success",
-            "event_type": event.get("type", "unknown"),
+            "event_type": event_payload.get("type", "unknown"),
             "message": f"Event processed with {webhook_kind} secret",
         }
         return WebhookResponse(**model_filter(WebhookResponse, response_payload))

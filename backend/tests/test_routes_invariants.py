@@ -264,6 +264,9 @@ class TestRoutingInvariants:
             ("/api/v1/admin/mcp/invites/{identifier}", "/api/v1/admin/mcp/invites/preview"),
             ("/api/v1/admin/mcp/invites/send", "/api/v1/admin/mcp/invites/{identifier}"),
             ("/api/v1/admin/mcp/invites/{identifier}", "/api/v1/admin/mcp/invites/send"),
+            # MCP webhooks: static failed route defined before dynamic {event_id}
+            ("/api/v1/admin/mcp/webhooks/failed", "/api/v1/admin/mcp/webhooks/{event_id}"),
+            ("/api/v1/admin/mcp/webhooks/{event_id}", "/api/v1/admin/mcp/webhooks/failed"),
         }
 
         for path1, path2 in combinations(v1_paths, 2):

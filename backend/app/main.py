@@ -164,6 +164,7 @@ from .routes.v1.admin.mcp import (
     operations as admin_mcp_operations_v1,
     search as admin_mcp_search_v1,
     services as admin_mcp_services_v1,
+    webhooks as admin_mcp_webhooks_v1,
 )
 from .schemas.main_responses import RootResponse
 from .services.background_check_workflow_service import (
@@ -1107,6 +1108,7 @@ api_v1.include_router(admin_mcp_metrics_v1.router, prefix="/admin/mcp/metrics") 
 api_v1.include_router(admin_mcp_celery_v1.router, prefix="/admin/mcp/celery")  # type: ignore[attr-defined]
 api_v1.include_router(admin_mcp_operations_v1.router, prefix="/admin/mcp/ops")  # type: ignore[attr-defined]
 api_v1.include_router(admin_mcp_services_v1.router, prefix="/admin/mcp/services")  # type: ignore[attr-defined]
+api_v1.include_router(admin_mcp_webhooks_v1.router, prefix="/admin/mcp/webhooks")  # type: ignore[attr-defined]
 # Phase 23 v1 webhooks router
 api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
 # Phase 24.5 v1 admin operations routers

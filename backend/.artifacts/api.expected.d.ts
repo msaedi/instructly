@@ -1375,6 +1375,70 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/webhooks": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_webhooks_api_v1_admin_mcp_webhooks_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/webhooks/failed": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_failed_webhooks_api_v1_admin_mcp_webhooks_failed_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/webhooks/{event_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["webhook_detail_api_v1_admin_mcp_webhooks__event_id__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/webhooks/{event_id}/replay": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["replay_webhook_api_v1_admin_mcp_webhooks__event_id__replay_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/referrals/config": {
  parameters: {
  query?: never;
@@ -7244,6 +7308,108 @@ export type components = {
  count: number;
  query: string;
  };
+ MCPWebhookDetail: {
+ event_id?: string | null;
+ event_type: string;
+ headers?: {
+ [key: string]: unknown;
+ } | null;
+ id: string;
+ idempotency_key?: string | null;
+ payload: {
+ [key: string]: unknown;
+ };
+ processed_at?: string | null;
+ processing_duration_ms?: number | null;
+ processing_error?: string | null;
+ received_at?: string | null;
+ related_entity?: string | null;
+ replay_count: number;
+ replay_of?: string | null;
+ source: string;
+ status: string;
+ };
+ MCPWebhookDetailMeta: {
+ generated_at: string;
+ request_id: string;
+ };
+ MCPWebhookDetailResponse: {
+ event: components["schemas"]["MCPWebhookDetail"];
+ meta: components["schemas"]["MCPWebhookDetailMeta"];
+ };
+ MCPWebhookEventItem: {
+ event_id?: string | null;
+ event_type: string;
+ id: string;
+ processed_at?: string | null;
+ processing_duration_ms?: number | null;
+ received_at?: string | null;
+ related_entity?: string | null;
+ replay_count: number;
+ replay_of?: string | null;
+ source: string;
+ status: string;
+ };
+ MCPWebhookFailedItem: {
+ event_id?: string | null;
+ event_type: string;
+ id: string;
+ processed_at?: string | null;
+ processing_duration_ms?: number | null;
+ processing_error?: string | null;
+ received_at?: string | null;
+ related_entity?: string | null;
+ replay_count: number;
+ replay_of?: string | null;
+ source: string;
+ status: string;
+ };
+ MCPWebhookFailedMeta: {
+ generated_at: string;
+ request_id: string;
+ returned_count: number;
+ since_hours: number;
+ };
+ MCPWebhookFailedResponse: {
+ events: components["schemas"]["MCPWebhookFailedItem"][];
+ meta: components["schemas"]["MCPWebhookFailedMeta"];
+ };
+ MCPWebhookListMeta: {
+ generated_at: string;
+ request_id: string;
+ returned_count: number;
+ since_hours: number;
+ total_count: number;
+ };
+ MCPWebhookListResponse: {
+ events: components["schemas"]["MCPWebhookEventItem"][];
+ meta: components["schemas"]["MCPWebhookListMeta"];
+ summary: components["schemas"]["MCPWebhookListSummary"];
+ };
+ MCPWebhookListSummary: {
+ by_source?: {
+ [key: string]: number;
+ };
+ by_status?: {
+ [key: string]: number;
+ };
+ };
+ MCPWebhookReplayMeta: {
+ dry_run: boolean;
+ generated_at: string;
+ request_id: string;
+ };
+ MCPWebhookReplayResponse: {
+ event?: components["schemas"]["MCPWebhookEventItem"] | null;
+ meta: components["schemas"]["MCPWebhookReplayMeta"];
+ note?: string | null;
+ result?: components["schemas"]["MCPWebhookReplayResult"] | null;
+ };
+ MCPWebhookReplayResult: {
+ error?: string | null;
+ replay_event_id?: string | null;
+ status: string;
+ };
  MCPZeroResultQuery: {
  count: number;
  query: string;
@@ -11475,6 +11641,130 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["MCPServiceLookupResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_webhooks_api_v1_admin_mcp_webhooks_get: {
+ parameters: {
+ query?: {
+ source?: string | null;
+ status?: string | null;
+ event_type?: string | null;
+ since_hours?: number;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPWebhookListResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_failed_webhooks_api_v1_admin_mcp_webhooks_failed_get: {
+ parameters: {
+ query?: {
+ source?: string | null;
+ since_hours?: number;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPWebhookFailedResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ webhook_detail_api_v1_admin_mcp_webhooks__event_id__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ event_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPWebhookDetailResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ replay_webhook_api_v1_admin_mcp_webhooks__event_id__replay_post: {
+ parameters: {
+ query?: {
+ dry_run?: boolean;
+ };
+ header?: never;
+ path: {
+ event_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MCPWebhookReplayResponse"];
  };
  };
  422: {

@@ -4245,6 +4245,121 @@ export interface MCPTopQueriesResponse {
   meta: MCPMeta;
 }
 
+export type MCPWebhookDetailHeaders = { [key: string]: unknown } | null;
+
+export type MCPWebhookDetailPayload = { [key: string]: unknown };
+
+export interface MCPWebhookDetail {
+  event_id?: string | null;
+  event_type: string;
+  headers?: MCPWebhookDetailHeaders;
+  id: string;
+  idempotency_key?: string | null;
+  payload: MCPWebhookDetailPayload;
+  processed_at?: string | null;
+  processing_duration_ms?: number | null;
+  processing_error?: string | null;
+  received_at?: string | null;
+  related_entity?: string | null;
+  replay_count?: number;
+  replay_of?: string | null;
+  source: string;
+  status: string;
+}
+
+export interface MCPWebhookDetailMeta {
+  generated_at: string;
+  request_id: string;
+}
+
+export interface MCPWebhookDetailResponse {
+  event: MCPWebhookDetail;
+  meta: MCPWebhookDetailMeta;
+}
+
+export interface MCPWebhookEventItem {
+  event_id?: string | null;
+  event_type: string;
+  id: string;
+  processed_at?: string | null;
+  processing_duration_ms?: number | null;
+  received_at?: string | null;
+  related_entity?: string | null;
+  replay_count?: number;
+  replay_of?: string | null;
+  source: string;
+  status: string;
+}
+
+export interface MCPWebhookFailedItem {
+  event_id?: string | null;
+  event_type: string;
+  id: string;
+  processed_at?: string | null;
+  processing_duration_ms?: number | null;
+  processing_error?: string | null;
+  received_at?: string | null;
+  related_entity?: string | null;
+  replay_count?: number;
+  replay_of?: string | null;
+  source: string;
+  status: string;
+}
+
+export interface MCPWebhookFailedMeta {
+  generated_at: string;
+  request_id: string;
+  returned_count: number;
+  since_hours: number;
+}
+
+export interface MCPWebhookFailedResponse {
+  events: MCPWebhookFailedItem[];
+  meta: MCPWebhookFailedMeta;
+}
+
+export interface MCPWebhookListMeta {
+  generated_at: string;
+  request_id: string;
+  returned_count: number;
+  since_hours: number;
+  total_count: number;
+}
+
+export type MCPWebhookListSummaryBySource = { [key: string]: number };
+
+export type MCPWebhookListSummaryByStatus = { [key: string]: number };
+
+export interface MCPWebhookListSummary {
+  by_source?: MCPWebhookListSummaryBySource;
+  by_status?: MCPWebhookListSummaryByStatus;
+}
+
+export interface MCPWebhookListResponse {
+  events: MCPWebhookEventItem[];
+  meta: MCPWebhookListMeta;
+  summary: MCPWebhookListSummary;
+}
+
+export interface MCPWebhookReplayMeta {
+  dry_run: boolean;
+  generated_at: string;
+  request_id: string;
+}
+
+export interface MCPWebhookReplayResult {
+  error?: string | null;
+  replay_event_id?: string | null;
+  status: string;
+}
+
+export interface MCPWebhookReplayResponse {
+  event?: MCPWebhookEventItem | null;
+  meta: MCPWebhookReplayMeta;
+  note?: string | null;
+  result?: MCPWebhookReplayResult | null;
+}
+
 export interface MCPZeroResultQuery {
   count: number;
   query: string;
@@ -7816,6 +7931,40 @@ export type LookupServiceCatalogApiV1AdminMcpServicesLookupGetParams = {
    * @minLength 2
    */
   q: string;
+};
+
+export type ListWebhooksApiV1AdminMcpWebhooksGetParams = {
+  source?: string | null;
+  status?: string | null;
+  event_type?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 168
+   */
+  since_hours?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+};
+
+export type ListFailedWebhooksApiV1AdminMcpWebhooksFailedGetParams = {
+  source?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 168
+   */
+  since_hours?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+};
+
+export type ReplayWebhookApiV1AdminMcpWebhooksEventIdReplayPostParams = {
+  dry_run?: boolean;
 };
 
 export type ExportAnalyticsApiV1AnalyticsExportPostParams = {

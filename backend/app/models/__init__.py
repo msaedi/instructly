@@ -69,6 +69,7 @@ from .search_interaction import SearchInteraction
 from .service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog, ServiceCategory
 from .unresolved_location_query import UnresolvedLocationQuery
 from .user import User
+from .webhook_event import WebhookEvent
 
 __all__ = [
     # User models
@@ -153,4 +154,5 @@ __all__ = [
     "SearchClick",
     "RegionSettings",
     "PriceThreshold",
+    "WebhookEvent",
 ]

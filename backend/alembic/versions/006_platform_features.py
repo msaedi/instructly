@@ -732,6 +732,42 @@ def upgrade() -> None:
     op.create_index("ix_alert_history_alert_type", "alert_history", ["alert_type"])
     op.create_index("ix_alert_history_severity", "alert_history", ["severity"])
 
+    # Webhook ledger
+    webhook_status_default = sa.text("'received'")
+    replay_count_default = sa.text("0")
+    op.create_table(
+        "webhook_events",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("source", sa.String(50), nullable=False),
+        sa.Column("event_type", sa.String(100), nullable=False),
+        sa.Column("event_id", sa.String(255), nullable=True),
+        sa.Column("payload", json_type, nullable=False),
+        sa.Column("headers", json_type, nullable=True),
+        sa.Column("status", sa.String(20), nullable=False, server_default=webhook_status_default),
+        sa.Column("processing_error", sa.Text(), nullable=True),
+        sa.Column("processing_duration_ms", sa.Integer(), nullable=True),
+        sa.Column("idempotency_key", sa.String(255), nullable=True),
+        sa.Column("related_entity_type", sa.String(50), nullable=True),
+        sa.Column("related_entity_id", sa.String(26), nullable=True),
+        sa.Column("received_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("processed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("replay_of", sa.String(26), nullable=True),
+        sa.Column("replay_count", sa.Integer(), nullable=False, server_default=replay_count_default),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("source", "event_id", name="uq_webhook_events_source_event_id"),
+    )
+    op.create_index("ix_webhook_events_source", "webhook_events", ["source"])
+    op.create_index("ix_webhook_events_event_type", "webhook_events", ["event_type"])
+    op.create_index("ix_webhook_events_status", "webhook_events", ["status"])
+    op.create_index("ix_webhook_events_received_at", "webhook_events", ["received_at"])
+    op.create_index("ix_webhook_events_event_id", "webhook_events", ["event_id"])
+    op.create_index(
+        "ix_webhook_events_related_entity",
+        "webhook_events",
+        ["related_entity_type", "related_entity_id"],
+    )
+
     # Notification outbox
     event_outbox_payload_default = sa.text("'{}'::jsonb") if is_postgres else sa.text("'{}'")
     notification_payload_default = sa.text("'{}'::jsonb") if is_postgres else sa.text("'{}'")
@@ -1276,6 +1312,14 @@ def downgrade() -> None:
     op.drop_index("ix_alert_history_alert_type", table_name="alert_history")
     op.drop_index("ix_alert_history_created_at", table_name="alert_history")
     op.drop_table("alert_history")
+
+    op.drop_index("ix_webhook_events_related_entity", table_name="webhook_events")
+    op.drop_index("ix_webhook_events_event_id", table_name="webhook_events")
+    op.drop_index("ix_webhook_events_received_at", table_name="webhook_events")
+    op.drop_index("ix_webhook_events_status", table_name="webhook_events")
+    op.drop_index("ix_webhook_events_event_type", table_name="webhook_events")
+    op.drop_index("ix_webhook_events_source", table_name="webhook_events")
+    op.drop_table("webhook_events")
 
     op.drop_table("beta_settings")
     op.drop_index("ix_beta_access_user", table_name="beta_access")

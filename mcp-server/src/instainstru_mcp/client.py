@@ -427,3 +427,54 @@ class InstaInstruClient:
             f"/api/v1/admin/mcp/ops/users/{user_id}/bookings",
             params={"limit": limit},
         )
+
+    async def get_webhooks(
+        self,
+        *,
+        source: str | None = None,
+        status: str | None = None,
+        event_type: str | None = None,
+        since_hours: int = 24,
+        limit: int = 50,
+    ) -> dict:
+        params: dict[str, Any] = {"since_hours": since_hours, "limit": limit}
+        if source:
+            params["source"] = source
+        if status:
+            params["status"] = status
+        if event_type:
+            params["event_type"] = event_type
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/webhooks",
+            params=params,
+        )
+
+    async def get_failed_webhooks(
+        self,
+        *,
+        source: str | None = None,
+        since_hours: int = 24,
+        limit: int = 50,
+    ) -> dict:
+        params: dict[str, Any] = {"since_hours": since_hours, "limit": limit}
+        if source:
+            params["source"] = source
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/webhooks/failed",
+            params=params,
+        )
+
+    async def get_webhook_detail(self, event_id: str) -> dict:
+        return await self.call(
+            "GET",
+            f"/api/v1/admin/mcp/webhooks/{quote(event_id)}",
+        )
+
+    async def replay_webhook(self, event_id: str, dry_run: bool = True) -> dict:
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/webhooks/{quote(event_id)}/replay",
+            params={"dry_run": dry_run},
+        )
