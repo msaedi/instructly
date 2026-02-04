@@ -150,6 +150,27 @@ class BackgroundJobRepository:
             self.db.rollback()
             raise RepositoryException("Failed to reschedule background job") from exc
 
+    def mark_terminal_failure(self, job_id: str, error: str) -> None:
+        """Mark a job as failed without retrying."""
+
+        try:
+            job = self.db.get(BackgroundJob, job_id)
+            if job is None:
+                self.logger.warning("Attempted to mark missing job %s failed", job_id)
+                return
+
+            max_attempts = max(1, int(getattr(settings, "jobs_max_attempts", 5)))
+            job.attempts = max_attempts
+            job.status = "failed"
+            job.last_error = error
+            job.updated_at = _utcnow()
+            job.available_at = job.updated_at
+            self.db.flush()
+        except SQLAlchemyError as exc:
+            self.logger.error("Failed to mark job %s failed: %s", job_id, str(exc))
+            self.db.rollback()
+            raise RepositoryException("Failed to mark background job failed") from exc
+
     def count_failed_jobs(self) -> int:
         """Return the number of jobs in the dead-letter queue."""
 

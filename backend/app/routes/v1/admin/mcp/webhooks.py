@@ -287,18 +287,20 @@ async def replay_webhook(
     replay_event = await asyncio.to_thread(service.create_replay, original)
     start_time = time.monotonic()
     processing_error: str | None = None
+    processing_outcome: str = "processed"
 
     if original.source == "stripe":
         try:
             await asyncio.to_thread(stripe_service.handle_webhook_event, original.payload)
         except Exception as exc:
             processing_error = str(exc)
+            processing_outcome = "failed"
     elif original.source == "checkr":
         data_object = original.payload.get("data", {}).get("object") or {}
         if not isinstance(data_object, dict):
             data_object = {}
         resource_id = _resolve_resource_id(original.event_type, data_object)
-        processing_error = await _process_checkr_payload(
+        processing_error, processing_outcome = await _process_checkr_payload(
             event_type=original.event_type,
             data_object=data_object,
             payload=original.payload,
@@ -311,9 +313,19 @@ async def replay_webhook(
         )
     else:
         processing_error = f"unsupported_source:{original.source}"
+        processing_outcome = "failed"
 
     duration_ms = int((time.monotonic() - start_time) * 1000)
-    if processing_error:
+    if processing_outcome == "unmatched":
+        await asyncio.to_thread(
+            service.mark_failed,
+            replay_event,
+            error=processing_error or "unmatched",
+            duration_ms=duration_ms,
+            status="unmatched",
+        )
+        status_value = "unmatched"
+    elif processing_error:
         await asyncio.to_thread(
             service.mark_failed,
             replay_event,

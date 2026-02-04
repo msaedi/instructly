@@ -45,7 +45,7 @@ from .core.constants import (
     CORS_ORIGIN_REGEX,
     SSE_PATH_PREFIX,
 )
-from .core.exceptions import RepositoryException
+from .core.exceptions import NonRetryableError, RepositoryException
 from .core.metrics import (
     BACKGROUND_JOB_FAILURES_TOTAL,
     BACKGROUND_JOBS_FAILED,
@@ -784,6 +784,24 @@ def _background_jobs_worker_sync(shutdown_event: threading.Event) -> None:
                             )
 
                         job_repo.mark_succeeded(job.id)
+                        db.commit()
+                        BACKGROUND_JOBS_FAILED.set(job_repo.count_failed_jobs())
+                    except NonRetryableError as exc:
+                        db.rollback()
+                        job_type = job.type or "unknown"
+                        attempts = getattr(job, "attempts", 0)
+                        logger.warning(
+                            "Non-retryable background job error: %s",
+                            str(exc),
+                            extra={
+                                "evt": "bgc_job_failed",
+                                "job_id": job.id,
+                                "type": job.type,
+                                "attempts": attempts,
+                            },
+                        )
+                        BACKGROUND_JOB_FAILURES_TOTAL.labels(type=job_type).inc()
+                        job_repo.mark_terminal_failure(job.id, error=str(exc))
                         db.commit()
                         BACKGROUND_JOBS_FAILED.set(job_repo.count_failed_jobs())
                     except Exception as exc:  # pragma: no cover - safety logging

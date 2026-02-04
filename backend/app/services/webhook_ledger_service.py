@@ -93,9 +93,10 @@ class WebhookLedgerService(BaseService):
         *,
         error: str,
         duration_ms: int | None = None,
+        status: str = "failed",
     ) -> WebhookEvent:
         """Mark webhook as failed."""
-        event.status = "failed"
+        event.status = status
         event.processing_error = error
         event.processed_at = _now_utc()
         event.processing_duration_ms = duration_ms

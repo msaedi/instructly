@@ -254,6 +254,10 @@ class RepositoryException(Exception):
     """
 
 
+class NonRetryableError(Exception):
+    """Error that should not trigger background job retries."""
+
+
 def is_db_pool_exhaustion(exc: Exception) -> bool:
     """
     Check if an exception indicates DB connection pool exhaustion.

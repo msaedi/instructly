@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from app.core.exceptions import RepositoryException, ServiceException
+from app.core.exceptions import NonRetryableError, RepositoryException, ServiceException
 from app.services.background_check_workflow_service import (
     BackgroundCheckWorkflowService,
     _ensure_utc,
@@ -123,8 +123,32 @@ class TestBackgroundCheckWorkflowCoverage:
 
         service = BackgroundCheckWorkflowService(Repo())
 
-        with pytest.raises(RepositoryException):
+        with pytest.raises(NonRetryableError):
             service.handle_report_suspended("report")
+
+    def test_handle_report_completed_missing_profile_is_non_retryable(self) -> None:
+        class Repo:
+            def update_bgc_by_report_id(self, *_args, **_kwargs):
+                return 0
+
+            def bind_report_to_candidate(self, *_args, **_kwargs):
+                return None
+
+            def bind_report_to_invitation(self, *_args, **_kwargs):
+                return None
+
+        service = BackgroundCheckWorkflowService(Repo())
+
+        with pytest.raises(NonRetryableError):
+            service.handle_report_completed(
+                report_id="rpt_missing",
+                result="clear",
+                package="standard",
+                env="sandbox",
+                completed_at=datetime.now(timezone.utc),
+                candidate_id="cand_missing",
+                invitation_id="invite_missing",
+            )
 
     def test_handle_report_completed_bind_flow_missing_profile(self) -> None:
         class Repo:

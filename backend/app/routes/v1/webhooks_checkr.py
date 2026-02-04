@@ -17,7 +17,7 @@ import hmac
 import json
 import logging
 from time import monotonic
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -27,7 +27,7 @@ from ...api.dependencies.repositories import (
 )
 from ...api.dependencies.services import get_background_check_workflow_service
 from ...core.config import settings
-from ...core.exceptions import RepositoryException
+from ...core.exceptions import NonRetryableError, RepositoryException
 from ...core.metrics import CHECKR_WEBHOOK_TOTAL
 from ...models.webhook_event import WebhookEvent
 from ...repositories.background_job_repository import BackgroundJobRepository
@@ -48,6 +48,8 @@ _WEBHOOK_CACHE_TTL_SECONDS = 300
 _WEBHOOK_CACHE_MAX_SIZE = 1000
 _delivery_cache: OrderedDict[str, float] = OrderedDict()
 _SIGNATURE_PLACEHOLDER = "Please create an API key to check the authenticity of our webhooks."
+
+CheckrProcessingOutcome = Literal["processed", "failed", "unmatched"]
 
 
 def _result_label(result: str) -> str:
@@ -328,8 +330,9 @@ async def _process_checkr_payload(
     log_repository: BGCWebhookLogRepository,
     resource_id: str | None,
     skip_dedup: bool = False,
-) -> str | None:
+) -> tuple[str | None, CheckrProcessingOutcome]:
     processing_error: str | None = None
+    processing_outcome: CheckrProcessingOutcome = "processed"
     normalized_headers = {str(key).lower(): value for key, value in headers.items()}
 
     def _header_value(name: str) -> Any | None:
@@ -362,14 +365,14 @@ async def _process_checkr_payload(
     )
 
     if not event_type:
-        return processing_error
+        return processing_error, processing_outcome
 
     if not skip_dedup and _delivery_seen(delivery_key):
         logger.info(
             "Duplicate Checkr webhook delivery ignored",
             extra={"evt": "webhook_dedup", "delivery_id": delivery_key},
         )
-        return processing_error
+        return processing_error, processing_outcome
 
     repo = workflow_service.repo
 
@@ -379,17 +382,18 @@ async def _process_checkr_payload(
             _mark_delivery(delivery_key)
         except RepositoryException as exc:
             processing_error = processing_error or str(exc)
+            processing_outcome = "failed"
             logger.warning(
                 "Unable to process invitation event: %s",
                 str(exc),
                 extra={"event_type": event_type},
             )
-        return processing_error
+        return processing_error, processing_outcome
 
     if event_type == "report.updated":
         report_id = resource_id
         if not report_id:
-            return processing_error
+            return processing_error, processing_outcome
 
         eta_raw = data_object.get("estimated_completion_time")
         previous_attrs: dict[str, Any] | None = None
@@ -401,9 +405,9 @@ async def _process_checkr_payload(
         prev_eta_raw = previous_attrs.get("estimated_completion_time") if previous_attrs else None
 
         if eta_raw == prev_eta_raw and eta_raw is not None:
-            return processing_error
+            return processing_error, processing_outcome
         if eta_raw is None and prev_eta_raw is None:
-            return processing_error
+            return processing_error, processing_outcome
 
         eta_value = _parse_timestamp(eta_raw) if eta_raw else None
         candidate_id = _extract_candidate_id(data_object)
@@ -425,8 +429,19 @@ async def _process_checkr_payload(
             )
             CHECKR_WEBHOOK_TOTAL.labels(result="other", outcome="success").inc()
             _mark_delivery(delivery_key)
+        except NonRetryableError as exc:
+            processing_error = processing_error or str(exc)
+            processing_outcome = "unmatched"
+            CHECKR_WEBHOOK_TOTAL.labels(result="other", outcome="unmatched").inc()
+            logger.warning(
+                "Non-retryable Checkr ETA update skipped: %s",
+                str(exc),
+                extra={"evt": "checkr_webhook", "type": event_type, "report_id": report_id},
+            )
+            _mark_delivery(delivery_key)
         except RepositoryException as exc:
             processing_error = processing_error or str(exc)
+            processing_outcome = "failed"
             CHECKR_WEBHOOK_TOTAL.labels(result="other", outcome="queued").inc()
             await asyncio.to_thread(
                 job_repository.enqueue,
@@ -445,6 +460,7 @@ async def _process_checkr_payload(
             )
         except Exception as exc:  # pragma: no cover
             processing_error = processing_error or str(exc)
+            processing_outcome = "failed"
             CHECKR_WEBHOOK_TOTAL.labels(result="other", outcome="error").inc()
             await asyncio.to_thread(
                 job_repository.enqueue,
@@ -460,12 +476,12 @@ async def _process_checkr_payload(
                 "Unhandled error processing report.updated ETA",
                 extra={"evt": "checkr_webhook", "type": event_type, "report_id": report_id},
             )
-        return processing_error
+        return processing_error, processing_outcome
 
     if event_type == "report.completed":
         report_id = resource_id
         if not report_id:
-            return processing_error
+            return processing_error, processing_outcome
 
         candidate_id = _extract_candidate_id(data_object)
         invitation_id = _extract_invitation_id(data_object)
@@ -523,8 +539,26 @@ async def _process_checkr_payload(
                 },
             )
             _mark_delivery(delivery_key)
+        except NonRetryableError as exc:
+            processing_error = processing_error or str(exc)
+            processing_outcome = "unmatched"
+            CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="unmatched").inc()
+            logger.warning(
+                "Non-retryable Checkr report.completed skipped: %s",
+                str(exc),
+                extra={
+                    "evt": "checkr_webhook",
+                    "type": event_type,
+                    "result": normalized_result,
+                    "assessment": normalized_assessment,
+                    "report_id": report_id,
+                    "outcome": "unmatched",
+                },
+            )
+            _mark_delivery(delivery_key)
         except RepositoryException as exc:
             processing_error = processing_error or str(exc)
+            processing_outcome = "failed"
             CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="queued").inc()
             logger.warning(
                 "Background check workflow deferred: %s",
@@ -555,6 +589,7 @@ async def _process_checkr_payload(
             )
         except Exception as exc:  # pragma: no cover - safety fallback
             processing_error = processing_error or str(exc)
+            processing_outcome = "failed"
             CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="error").inc()
             logger.exception(
                 "Unhandled error processing report.completed; enqueueing retry",
@@ -583,12 +618,12 @@ async def _process_checkr_payload(
                 },
             )
 
-        return processing_error
+        return processing_error, processing_outcome
 
     if event_type == "report.canceled":
         report_id = resource_id
         if not report_id:
-            return processing_error
+            return processing_error, processing_outcome
 
         candidate_id = _extract_candidate_id(data_object)
         invitation_id = _extract_invitation_id(data_object)
@@ -626,8 +661,19 @@ async def _process_checkr_payload(
                 },
             )
             _mark_delivery(delivery_key)
+        except NonRetryableError as exc:
+            processing_error = processing_error or str(exc)
+            processing_outcome = "unmatched"
+            CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="unmatched").inc()
+            logger.warning(
+                "Non-retryable Checkr report.canceled skipped: %s",
+                str(exc),
+                extra={"evt": "checkr_webhook", "type": event_type, "report_id": report_id},
+            )
+            _mark_delivery(delivery_key)
         except RepositoryException as exc:
             processing_error = processing_error or str(exc)
+            processing_outcome = "failed"
             CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="queued").inc()
             logger.warning(
                 "Background check cancel deferred: %s",
@@ -647,6 +693,7 @@ async def _process_checkr_payload(
             )
         except Exception as exc:  # pragma: no cover - safety fallback
             processing_error = processing_error or str(exc)
+            processing_outcome = "failed"
             CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="error").inc()
             logger.exception(
                 "Unhandled error processing report.canceled; enqueueing retry",
@@ -669,12 +716,12 @@ async def _process_checkr_payload(
                 },
             )
 
-        return processing_error
+        return processing_error, processing_outcome
 
     if event_type == "report.suspended":
         report_id = resource_id
         if not report_id:
-            return processing_error
+            return processing_error, processing_outcome
 
         try:
             await asyncio.to_thread(
@@ -692,8 +739,18 @@ async def _process_checkr_payload(
                 },
             )
             _mark_delivery(delivery_key)
+        except NonRetryableError as exc:
+            processing_error = processing_error or str(exc)
+            processing_outcome = "unmatched"
+            logger.warning(
+                "Non-retryable Checkr report.suspended skipped: %s",
+                str(exc),
+                extra={"report_id": report_id},
+            )
+            _mark_delivery(delivery_key)
         except RepositoryException as exc:
             processing_error = processing_error or str(exc)
+            processing_outcome = "failed"
             logger.warning(
                 "Unable to process report.suspended event: %s",
                 str(exc),
@@ -701,11 +758,12 @@ async def _process_checkr_payload(
             )
         except Exception as exc:  # pragma: no cover - safety fallback
             processing_error = processing_error or str(exc)
+            processing_outcome = "failed"
             logger.exception(
                 "Unhandled error handling report.suspended",
                 extra={"report_id": report_id},
             )
-        return processing_error
+        return processing_error, processing_outcome
 
     report_status_events: dict[str, dict[str, str | None]] = {
         "report.created": {"status": "pending", "note": None},
@@ -719,7 +777,7 @@ async def _process_checkr_payload(
     if event_type in report_status_events:
         report_id = resource_id
         if not report_id:
-            return processing_error
+            return processing_error, processing_outcome
 
         candidate_id = _extract_candidate_id(data_object)
         invitation_id = _extract_invitation_id(data_object)
@@ -745,16 +803,17 @@ async def _process_checkr_payload(
             _mark_delivery(delivery_key)
         except RepositoryException as exc:
             processing_error = processing_error or str(exc)
+            processing_outcome = "failed"
             logger.warning(
                 "Failed to update report status from %s: %s",
                 event_type,
                 str(exc),
                 extra={"report_id": report_id},
             )
-        return processing_error
+        return processing_error, processing_outcome
 
     logger.debug("Ignoring unsupported Checkr webhook event", extra={"event_type": event_type})
-    return processing_error
+    return processing_error, processing_outcome
 
 
 @router.post("", response_model=WebhookAckResponse)
@@ -814,7 +873,7 @@ async def handle_checkr_webhook(
         )
         return WebhookAckResponse(ok=True)
     start_time = monotonic()
-    processing_error = await _process_checkr_payload(
+    processing_error, processing_outcome = await _process_checkr_payload(
         event_type=event_type,
         data_object=data_object,
         payload=payload,
@@ -827,7 +886,15 @@ async def handle_checkr_webhook(
 
     duration_ms = int((monotonic() - start_time) * 1000)
     if ledger_service is not None and ledger_event is not None:
-        if processing_error:
+        if processing_outcome == "unmatched":
+            await asyncio.to_thread(
+                ledger_service.mark_failed,
+                ledger_event,
+                error=processing_error or "unmatched",
+                duration_ms=duration_ms,
+                status="unmatched",
+            )
+        elif processing_error:
             await asyncio.to_thread(
                 ledger_service.mark_failed,
                 ledger_event,

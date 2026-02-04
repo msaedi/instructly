@@ -233,7 +233,7 @@ def test_report_created_binds_report_to_candidate(client, db: Session) -> None:
     assert profile.bgc_status == "pending"
 
 
-def test_report_completed_unknown_candidate_enqueues_job(client, db: Session) -> None:
+def test_report_completed_unknown_candidate_does_not_enqueue_job(client, db: Session) -> None:
     _create_instructor_with_candidate(db, candidate_id="cand_existing_bound")
     db.query(BackgroundJob).delete()
     db.commit()
@@ -253,8 +253,7 @@ def test_report_completed_unknown_candidate_enqueues_job(client, db: Session) ->
 
     assert response.status_code == 200
     jobs = db.query(BackgroundJob).filter(BackgroundJob.type == "webhook.report_completed").all()
-    assert len(jobs) == 1
-    assert jobs[0].payload.get("candidate_id") == "cand_does_not_exist"
+    assert len(jobs) == 0
 
 
 def test_report_updated_sets_eta(client, db: Session) -> None:
@@ -279,7 +278,7 @@ def test_report_updated_sets_eta(client, db: Session) -> None:
     assert profile.bgc_eta.year == 2025
 
 
-def test_report_updated_eta_enqueue_when_unbound(client, db: Session) -> None:
+def test_report_updated_eta_does_not_enqueue_when_unbound(client, db: Session) -> None:
     db.query(BackgroundJob).delete()
     db.commit()
 
@@ -298,8 +297,7 @@ def test_report_updated_eta_enqueue_when_unbound(client, db: Session) -> None:
 
     assert response.status_code == 200
     jobs = db.query(BackgroundJob).filter(BackgroundJob.type == "webhook.report_eta").all()
-    assert len(jobs) == 1
-    assert jobs[0].payload.get("report_id") == "rpt_eta_missing"
+    assert len(jobs) == 0
 
 
 def test_report_completed_prefers_assessment_over_result(client, db: Session) -> None:
@@ -367,7 +365,7 @@ def test_report_canceled_updates_profile(client, db: Session) -> None:
     assert history[0].report_id_enc is not None
 
 
-def test_report_canceled_unknown_profile_enqueues_job(client, db: Session) -> None:
+def test_report_canceled_unknown_profile_does_not_enqueue_job(client, db: Session) -> None:
     db.query(BackgroundJob).delete()
     db.commit()
 
@@ -386,8 +384,7 @@ def test_report_canceled_unknown_profile_enqueues_job(client, db: Session) -> No
 
     assert response.status_code == 200
     jobs = db.query(BackgroundJob).filter(BackgroundJob.type == "webhook.report_canceled").all()
-    assert len(jobs) == 1
-    assert jobs[0].payload.get("candidate_id") == "cand_missing"
+    assert len(jobs) == 0
 
 
 def test_maps_completed_and_logs_delivery(client, db: Session) -> None:

@@ -342,7 +342,7 @@ def test_webhook_replay_checkr_path_invokes_processor(
         captured["payload"] = payload
         captured["headers"] = headers
         captured["skip_dedup"] = kwargs.get("skip_dedup")
-        return None
+        return None, "processed"
 
     monkeypatch.setattr(
         "app.routes.v1.admin.mcp.webhooks._process_checkr_payload",
@@ -380,7 +380,7 @@ def test_webhook_replay_checkr_dict_payload_passes_through(
 
     async def _fake_processor(*, event_type, data_object, payload, headers, **kwargs):
         captured["data_object"] = data_object
-        return None
+        return None, "processed"
 
     monkeypatch.setattr(
         "app.routes.v1.admin.mcp.webhooks._process_checkr_payload",

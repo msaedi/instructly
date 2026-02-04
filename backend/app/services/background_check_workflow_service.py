@@ -8,7 +8,7 @@ from typing import Final, Mapping, Optional, Tuple, TypedDict
 
 from ..core.config import settings
 from ..core.constants import BRAND_NAME
-from ..core.exceptions import RepositoryException, ServiceException
+from ..core.exceptions import NonRetryableError, RepositoryException, ServiceException
 from ..core.metrics import (
     BGC_FINAL_ADVERSE_EXECUTED_TOTAL,
     BGC_FINAL_ADVERSE_SCHEDULED_TOTAL,
@@ -271,8 +271,18 @@ class BackgroundCheckWorkflowService:
                     includes_canceled=includes_flag,
                 )
         if updated == 0:
-            raise RepositoryException(
-                f"No instructor profile linked to report {report_id}; will retry later"
+            self.logger.warning(
+                "Checkr webhook has no matching instructor profile; skipping",
+                extra={
+                    "report_id": report_id,
+                    "candidate_id": candidate_id,
+                    "invitation_id": invitation_id,
+                    "event_type": "report.completed",
+                },
+            )
+            raise NonRetryableError(
+                "No instructor profile linked to report "
+                f"{report_id} (candidate={candidate_id}, invitation={invitation_id})"
             )
 
         profile = self.repo.get_by_report_id(report_id)
@@ -313,9 +323,11 @@ class BackgroundCheckWorkflowService:
             note=note if note is not None else "report.suspended",
         )
         if updated == 0:
-            raise RepositoryException(
-                f"No instructor profile linked to report {report_id}; cannot suspend"
+            self.logger.warning(
+                "Checkr webhook has no matching instructor profile; skipping",
+                extra={"report_id": report_id, "event_type": "report.suspended"},
             )
+            raise NonRetryableError(f"No instructor profile linked to report {report_id}")
 
     def handle_report_canceled(
         self,
@@ -352,8 +364,18 @@ class BackgroundCheckWorkflowService:
                     note=note_value,
                 )
         if updated == 0:
-            raise RepositoryException(
-                f"No instructor profile linked to report {report_id}; cancel event deferred"
+            self.logger.warning(
+                "Checkr webhook has no matching instructor profile; skipping",
+                extra={
+                    "report_id": report_id,
+                    "candidate_id": candidate_id,
+                    "invitation_id": invitation_id,
+                    "event_type": "report.canceled",
+                },
+            )
+            raise NonRetryableError(
+                "No instructor profile linked to report "
+                f"{report_id} (candidate={candidate_id}, invitation={invitation_id})"
             )
 
         profile = self.repo.get_by_report_id(report_id)
@@ -392,8 +414,16 @@ class BackgroundCheckWorkflowService:
             if bound_profile_id:
                 updated = self.repo.update_eta_by_report_id(report_id, eta_value)
         if updated == 0:
-            raise RepositoryException(
-                f"No instructor profile linked to report {report_id}; ETA update deferred"
+            self.logger.warning(
+                "Checkr webhook has no matching instructor profile; skipping",
+                extra={
+                    "report_id": report_id,
+                    "candidate_id": candidate_id,
+                    "event_type": "report.updated",
+                },
+            )
+            raise NonRetryableError(
+                f"No instructor profile linked to report {report_id} (candidate={candidate_id})"
             )
 
     def schedule_final_adverse_action(
