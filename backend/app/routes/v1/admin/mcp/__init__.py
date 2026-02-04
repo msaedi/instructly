@@ -4,6 +4,7 @@ from . import (
     analytics,
     booking_actions,
     booking_detail,
+    communications,
     instructor_actions,
     refunds,
     student_actions,
@@ -16,4 +17,5 @@ __all__ = [
     "instructor_actions",
     "refunds",
     "student_actions",
+    "communications",
 ]

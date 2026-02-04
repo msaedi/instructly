@@ -1533,6 +1533,125 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mcp/communications/announcement/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Announcement Execute */
+        post: operations["announcement_execute_api_v1_admin_mcp_communications_announcement_execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/communications/announcement/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Announcement Preview */
+        post: operations["announcement_preview_api_v1_admin_mcp_communications_announcement_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/communications/bulk/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bulk Execute */
+        post: operations["bulk_execute_api_v1_admin_mcp_communications_bulk_execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/communications/bulk/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bulk Preview */
+        post: operations["bulk_preview_api_v1_admin_mcp_communications_bulk_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/communications/email/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Communication Email Preview */
+        post: operations["communication_email_preview_api_v1_admin_mcp_communications_email_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/communications/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Communication History */
+        get: operations["communication_history_api_v1_admin_mcp_communications_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/communications/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Communication Templates */
+        get: operations["communication_templates_api_v1_admin_mcp_communications_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/mcp/founding/funnel": {
         parameters: {
             query?: never;
@@ -8500,6 +8619,74 @@ export type components = {
             categories?: components["schemas"]["CategoryWithServices"][];
             metadata: components["schemas"]["AllServicesMetadata"];
         };
+        /**
+         * AnnouncementAudience
+         * @enum {string}
+         */
+        AnnouncementAudience: "all_users" | "all_students" | "all_instructors" | "active_students" | "active_instructors" | "founding_instructors";
+        /** AnnouncementExecuteRequest */
+        AnnouncementExecuteRequest: {
+            /** Confirm Token */
+            confirm_token: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+        };
+        /** AnnouncementExecuteResponse */
+        AnnouncementExecuteResponse: {
+            /** Audience Size */
+            audience_size: number;
+            /** Batch Id */
+            batch_id: string;
+            /** Channel Results */
+            channel_results: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Error */
+            error?: string | null;
+            /** Scheduled For */
+            scheduled_for?: string | null;
+            /** Status */
+            status: string;
+            /** Success */
+            success: boolean;
+        };
+        /** AnnouncementPreviewRequest */
+        AnnouncementPreviewRequest: {
+            audience: components["schemas"]["AnnouncementAudience"];
+            /** Body */
+            body: string;
+            /** Channels */
+            channels: components["schemas"]["CommunicationChannel"][];
+            /**
+             * High Priority
+             * @default false
+             */
+            high_priority: boolean;
+            /** Schedule At */
+            schedule_at?: string | null;
+            /** Subject */
+            subject?: string | null;
+            /** Title */
+            title: string;
+        };
+        /** AnnouncementPreviewResponse */
+        AnnouncementPreviewResponse: {
+            /** Audience Size */
+            audience_size: number;
+            /** Channel Breakdown */
+            channel_breakdown: {
+                [key: string]: number;
+            };
+            /** Confirm Token */
+            confirm_token?: string | null;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            rendered_content: components["schemas"]["RenderedContent"];
+            /** Warnings */
+            warnings?: string[];
+        };
         /** AppendHistoryResponse */
         AppendHistoryResponse: {
             /** Count */
@@ -10353,6 +10540,82 @@ export type components = {
              */
             result_count: number;
         };
+        /** BulkNotificationExecuteRequest */
+        BulkNotificationExecuteRequest: {
+            /** Confirm Token */
+            confirm_token: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+        };
+        /** BulkNotificationExecuteResponse */
+        BulkNotificationExecuteResponse: {
+            /** Audience Size */
+            audience_size: number;
+            /** Batch Id */
+            batch_id: string;
+            /** Channel Results */
+            channel_results: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Error */
+            error?: string | null;
+            /** Scheduled For */
+            scheduled_for?: string | null;
+            /** Status */
+            status: string;
+            /** Success */
+            success: boolean;
+        };
+        /** BulkNotificationPreviewRequest */
+        BulkNotificationPreviewRequest: {
+            /** Body */
+            body: string;
+            /** Channels */
+            channels: components["schemas"]["CommunicationChannel"][];
+            /** Schedule At */
+            schedule_at?: string | null;
+            /** Subject */
+            subject?: string | null;
+            target: components["schemas"]["BulkTarget"];
+            /** Title */
+            title: string;
+            /** Variables */
+            variables?: {
+                [key: string]: string;
+            };
+        };
+        /** BulkNotificationPreviewResponse */
+        BulkNotificationPreviewResponse: {
+            /** Audience Size */
+            audience_size: number;
+            /** Channel Breakdown */
+            channel_breakdown: {
+                [key: string]: number;
+            };
+            /** Confirm Token */
+            confirm_token?: string | null;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            rendered_content: components["schemas"]["RenderedContent"];
+            /** Sample Recipients */
+            sample_recipients?: components["schemas"]["RecipientSample"][];
+            /** Warnings */
+            warnings?: string[];
+        };
+        /** BulkTarget */
+        BulkTarget: {
+            /** Active Within Days */
+            active_within_days?: number | null;
+            /** Categories */
+            categories?: string[] | null;
+            /** Locations */
+            locations?: string[] | null;
+            /** User Ids */
+            user_ids?: string[] | null;
+            user_type?: components["schemas"]["BulkUserType"] | null;
+        };
         /** BulkUpdateResponse */
         BulkUpdateResponse: {
             /** Failed */
@@ -10364,6 +10627,11 @@ export type components = {
             /** Successful */
             successful: number;
         };
+        /**
+         * BulkUserType
+         * @enum {string}
+         */
+        BulkUserType: "all" | "student" | "instructor";
         /**
          * Burst1StageDetails
          * @description Details for burst1 pipeline stage (pre-OpenAI batch).
@@ -10994,6 +11262,11 @@ export type components = {
          * @enum {string}
          */
         CohortUserType: "student" | "instructor";
+        /**
+         * CommunicationChannel
+         * @enum {string}
+         */
+        CommunicationChannel: "email" | "push" | "in_app";
         /**
          * ConflictingBookingInfo
          * @description Information about a conflicting booking.
@@ -11735,6 +12008,36 @@ export type components = {
              * @description New message content
              */
             content: string;
+        };
+        /** EmailPreviewRequest */
+        EmailPreviewRequest: {
+            /** Subject */
+            subject?: string | null;
+            /** Template */
+            template: string;
+            /** Test Send To */
+            test_send_to?: string | null;
+            /** Variables */
+            variables?: {
+                [key: string]: string;
+            };
+        };
+        /** EmailPreviewResponse */
+        EmailPreviewResponse: {
+            /** Html Content */
+            html_content: string;
+            /** Missing Variables */
+            missing_variables: string[];
+            /** Subject */
+            subject: string;
+            /** Template */
+            template: string;
+            /** Test Send Success */
+            test_send_success?: boolean | null;
+            /** Text Content */
+            text_content: string;
+            /** Valid */
+            valid: boolean;
         };
         /**
          * EmbeddingStageDetails
@@ -14757,6 +15060,69 @@ export type components = {
             /** Success */
             success: boolean;
         };
+        /** NotificationHistoryEntry */
+        NotificationHistoryEntry: {
+            /** Audience Size */
+            audience_size: number;
+            /** Batch Id */
+            batch_id: string;
+            /** Channels */
+            channels: string[];
+            /** Click Rate */
+            click_rate: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Delivered */
+            delivered: {
+                [key: string]: number;
+            };
+            /** Failed */
+            failed: {
+                [key: string]: number;
+            };
+            /** Kind */
+            kind: string;
+            /** Open Rate */
+            open_rate: string;
+            /** Scheduled For */
+            scheduled_for?: string | null;
+            /** Sent */
+            sent: {
+                [key: string]: number;
+            };
+            /** Status */
+            status: string;
+            /** Subject */
+            subject?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** NotificationHistoryResponse */
+        NotificationHistoryResponse: {
+            /** Items */
+            items: components["schemas"]["NotificationHistoryEntry"][];
+            summary: components["schemas"]["NotificationHistorySummary"];
+        };
+        /** NotificationHistorySummary */
+        NotificationHistorySummary: {
+            /** Click Rate */
+            click_rate: string;
+            /** Delivered */
+            delivered: number;
+            /** Failed */
+            failed: number;
+            /** Open Rate */
+            open_rate: string;
+            /** Sent */
+            sent: number;
+            /** Total */
+            total: number;
+        };
         /**
          * NotificationListResponse
          * @description Paginated notification response.
@@ -14805,6 +15171,11 @@ export type components = {
             message?: string | null;
             /** Success */
             success: boolean;
+        };
+        /** NotificationTemplatesResponse */
+        NotificationTemplatesResponse: {
+            /** Templates */
+            templates: components["schemas"]["TemplateInfo"][];
         };
         /**
          * NotificationUnreadCountResponse
@@ -16612,6 +16983,17 @@ export type components = {
                 [key: string]: unknown;
             };
         };
+        /** RecipientSample */
+        RecipientSample: {
+            /** Email */
+            email?: string | null;
+            /** First Name */
+            first_name?: string | null;
+            /** Last Name */
+            last_name?: string | null;
+            /** User Id */
+            user_id: string;
+        };
         /** RecommendedAction */
         RecommendedAction: {
             /** Action */
@@ -17192,6 +17574,19 @@ export type components = {
             status: string;
             /** Stripe Refund Id */
             stripe_refund_id: string | null;
+        };
+        /** RenderedContent */
+        RenderedContent: {
+            /** Body */
+            body: string;
+            /** Html Body */
+            html_body?: string | null;
+            /** Subject */
+            subject?: string | null;
+            /** Text Body */
+            text_body?: string | null;
+            /** Title */
+            title: string;
         };
         /**
          * RequestMetrics
@@ -18946,6 +19341,21 @@ export type components = {
             access_token: string;
             /** Token Type */
             token_type: string;
+        };
+        /** TemplateInfo */
+        TemplateInfo: {
+            /** Category */
+            category: string;
+            /** Channels */
+            channels: string[];
+            /** Optional Variables */
+            optional_variables: string[];
+            /** Required Variables */
+            required_variables: string[];
+            /** Template Id */
+            template_id: string;
+            /** Usage Count */
+            usage_count: number;
         };
         /** TierConfig */
         TierConfig: {
@@ -22465,6 +22875,228 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MCPCeleryWorkersResponse"];
+                };
+            };
+        };
+    };
+    announcement_execute_api_v1_admin_mcp_communications_announcement_execute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnouncementExecuteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementExecuteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    announcement_preview_api_v1_admin_mcp_communications_announcement_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnouncementPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_execute_api_v1_admin_mcp_communications_bulk_execute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkNotificationExecuteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkNotificationExecuteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_preview_api_v1_admin_mcp_communications_bulk_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkNotificationPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkNotificationPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    communication_email_preview_api_v1_admin_mcp_communications_email_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    communication_history_api_v1_admin_mcp_communications_history_get: {
+        parameters: {
+            query?: {
+                kind?: string | null;
+                channel?: string | null;
+                status?: string | null;
+                start_date?: string | null;
+                end_date?: string | null;
+                creator_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    communication_templates_api_v1_admin_mcp_communications_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationTemplatesResponse"];
                 };
             };
         };

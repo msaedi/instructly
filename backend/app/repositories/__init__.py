@@ -44,6 +44,7 @@ from .base_repository import BaseRepository, IRepository
 from .booking_note_repository import BookingNoteRepository
 from .booking_repository import BookingRepository
 from .bulk_operation_repository import BulkOperationRepository
+from .communication_repository import CommunicationRepository
 from .conflict_checker_repository import ConflictCheckerRepository
 from .conversation_repository import ConversationRepository
 from .factory import RepositoryFactory
@@ -76,6 +77,7 @@ __all__ = [
     "BulkOperationRepository",
     "BookingNoteRepository",
     "BookingRepository",
+    "CommunicationRepository",
     "ConversationRepository",
     "GovernanceAuditRepository",
     "WeekOperationRepository",

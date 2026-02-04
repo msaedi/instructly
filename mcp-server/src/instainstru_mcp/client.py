@@ -472,6 +472,138 @@ class InstaInstruClient:
             f"/api/v1/admin/mcp/students/{quote(student_id)}/refunds/history",
         )
 
+    async def announcement_preview(
+        self,
+        *,
+        audience: str,
+        channels: list[str],
+        title: str,
+        body: str,
+        subject: str | None = None,
+        schedule_at: str | None = None,
+        high_priority: bool = False,
+    ) -> dict:
+        payload: dict[str, Any] = {
+            "audience": audience,
+            "channels": channels,
+            "title": title,
+            "body": body,
+            "subject": subject,
+            "schedule_at": schedule_at,
+            "high_priority": high_priority,
+        }
+        return await self.call(
+            "POST",
+            "/api/v1/admin/mcp/communications/announcement/preview",
+            json=payload,
+        )
+
+    async def announcement_execute(
+        self,
+        *,
+        confirm_token: str,
+        idempotency_key: str,
+    ) -> dict:
+        return await self.call(
+            "POST",
+            "/api/v1/admin/mcp/communications/announcement/execute",
+            json={"confirm_token": confirm_token, "idempotency_key": idempotency_key},
+        )
+
+    async def bulk_notification_preview(
+        self,
+        *,
+        target: dict,
+        channels: list[str],
+        title: str,
+        body: str,
+        subject: str | None = None,
+        variables: dict[str, str] | None = None,
+        schedule_at: str | None = None,
+    ) -> dict:
+        payload: dict[str, Any] = {
+            "target": target,
+            "channels": channels,
+            "title": title,
+            "body": body,
+            "subject": subject,
+            "variables": variables or {},
+            "schedule_at": schedule_at,
+        }
+        return await self.call(
+            "POST",
+            "/api/v1/admin/mcp/communications/bulk/preview",
+            json=payload,
+        )
+
+    async def bulk_notification_execute(
+        self,
+        *,
+        confirm_token: str,
+        idempotency_key: str,
+    ) -> dict:
+        return await self.call(
+            "POST",
+            "/api/v1/admin/mcp/communications/bulk/execute",
+            json={"confirm_token": confirm_token, "idempotency_key": idempotency_key},
+        )
+
+    async def notification_history(
+        self,
+        *,
+        kind: str | None = None,
+        channel: str | None = None,
+        status: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        creator_id: str | None = None,
+        limit: int = 100,
+    ) -> dict:
+        params: dict[str, Any] = {"limit": limit}
+        if kind:
+            params["kind"] = kind
+        if channel:
+            params["channel"] = channel
+        if status:
+            params["status"] = status
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+        if creator_id:
+            params["creator_id"] = creator_id
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/communications/history",
+            params=params,
+        )
+
+    async def notification_templates(self) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/communications/templates",
+        )
+
+    async def email_preview(
+        self,
+        *,
+        template: str,
+        variables: dict[str, str] | None = None,
+        subject: str | None = None,
+        test_send_to: str | None = None,
+    ) -> dict:
+        payload: dict[str, Any] = {
+            "template": template,
+            "variables": variables or {},
+            "subject": subject,
+            "test_send_to": test_send_to,
+        }
+        return await self.call(
+            "POST",
+            "/api/v1/admin/mcp/communications/email/preview",
+            json=payload,
+        )
+
     async def revenue_dashboard(
         self,
         *,

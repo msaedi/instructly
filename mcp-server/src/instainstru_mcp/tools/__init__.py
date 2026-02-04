@@ -7,6 +7,7 @@ from . import (
     booking_detail,
     celery,
     command_center,
+    communications,
     deploy,
     founding,
     growth,
@@ -30,6 +31,7 @@ from . import (
 __all__ = [
     "celery",
     "command_center",
+    "communications",
     "deploy",
     "booking_actions",
     "booking_detail",

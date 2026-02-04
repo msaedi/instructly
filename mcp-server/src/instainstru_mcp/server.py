@@ -37,6 +37,7 @@ from .tools import (
     booking_detail,
     celery,
     command_center,
+    communications,
     deploy,
     founding,
     growth,
@@ -565,6 +566,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     instructors.register_tools(mcp, client)
     instructor_actions.register_tools(mcp, client)
     student_actions.register_tools(mcp, client)
+    communications.register_tools(mcp, client)
     invites.register_tools(mcp, client)
     operations.register_tools(mcp, client)
     analytics.register_tools(mcp, client)

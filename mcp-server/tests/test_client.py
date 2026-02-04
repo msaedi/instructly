@@ -537,6 +537,42 @@ async def test_client_wrapper_methods_call_expected_paths():
         )
         await client.student_credit_history(student_id="01STU", include_expired=True)
         await client.student_refund_history(student_id="01STU")
+        await client.announcement_preview(
+            audience="all_users",
+            channels=["email"],
+            title="Hello",
+            body="Body",
+            subject="Subject",
+            schedule_at=None,
+            high_priority=True,
+        )
+        await client.announcement_execute(confirm_token="token", idempotency_key="idem")
+        await client.bulk_notification_preview(
+            target={"user_type": "student"},
+            channels=["in_app"],
+            title="Title",
+            body="Body",
+            subject=None,
+            variables={"foo": "bar"},
+            schedule_at="2026-01-01T00:00:00Z",
+        )
+        await client.bulk_notification_execute(confirm_token="token", idempotency_key="idem")
+        await client.notification_history(
+            kind="announcement",
+            channel="email",
+            status="sent",
+            start_date="2026-01-01T00:00:00Z",
+            end_date="2026-01-31T00:00:00Z",
+            creator_id="admin",
+            limit=50,
+        )
+        await client.notification_templates()
+        await client.email_preview(
+            template="email/auth/password_reset.html",
+            variables={"reset_url": "https://example.com"},
+            subject="Preview",
+            test_send_to="test@example.com",
+        )
         await client.revenue_dashboard(
             period="last_7_days",
             compare_to="previous_period",
@@ -793,6 +829,66 @@ async def test_client_wrapper_methods_call_expected_paths():
             params={"include_expired": True},
         ),
         call("GET", "/api/v1/admin/mcp/students/01STU/refunds/history"),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/communications/announcement/preview",
+            json={
+                "audience": "all_users",
+                "channels": ["email"],
+                "title": "Hello",
+                "body": "Body",
+                "subject": "Subject",
+                "schedule_at": None,
+                "high_priority": True,
+            },
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/communications/announcement/execute",
+            json={"confirm_token": "token", "idempotency_key": "idem"},
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/communications/bulk/preview",
+            json={
+                "target": {"user_type": "student"},
+                "channels": ["in_app"],
+                "title": "Title",
+                "body": "Body",
+                "subject": None,
+                "variables": {"foo": "bar"},
+                "schedule_at": "2026-01-01T00:00:00Z",
+            },
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/communications/bulk/execute",
+            json={"confirm_token": "token", "idempotency_key": "idem"},
+        ),
+        call(
+            "GET",
+            "/api/v1/admin/mcp/communications/history",
+            params={
+                "limit": 50,
+                "kind": "announcement",
+                "channel": "email",
+                "status": "sent",
+                "start_date": "2026-01-01T00:00:00Z",
+                "end_date": "2026-01-31T00:00:00Z",
+                "creator_id": "admin",
+            },
+        ),
+        call("GET", "/api/v1/admin/mcp/communications/templates"),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/communications/email/preview",
+            json={
+                "template": "email/auth/password_reset.html",
+                "variables": {"reset_url": "https://example.com"},
+                "subject": "Preview",
+                "test_send_to": "test@example.com",
+            },
+        ),
         call(
             "GET",
             "/api/v1/admin/mcp/analytics/revenue",

@@ -1231,6 +1231,118 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/communications/announcement/execute": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["announcement_execute_api_v1_admin_mcp_communications_announcement_execute_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/communications/announcement/preview": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["announcement_preview_api_v1_admin_mcp_communications_announcement_preview_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/communications/bulk/execute": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["bulk_execute_api_v1_admin_mcp_communications_bulk_execute_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/communications/bulk/preview": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["bulk_preview_api_v1_admin_mcp_communications_bulk_preview_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/communications/email/preview": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["communication_email_preview_api_v1_admin_mcp_communications_email_preview_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/communications/history": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["communication_history_api_v1_admin_mcp_communications_history_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/communications/templates": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["communication_templates_api_v1_admin_mcp_communications_templates_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/mcp/founding/funnel": {
  parameters: {
  query?: never;
@@ -5742,6 +5854,43 @@ export type components = {
  categories?: components["schemas"]["CategoryWithServices"][];
  metadata: components["schemas"]["AllServicesMetadata"];
  };
+ AnnouncementAudience: "all_users" | "all_students" | "all_instructors" | "active_students" | "active_instructors" | "founding_instructors";
+ AnnouncementExecuteRequest: {
+ confirm_token: string;
+ idempotency_key: string;
+ };
+ AnnouncementExecuteResponse: {
+ audience_size: number;
+ batch_id: string;
+ channel_results: {
+ [key: string]: {
+ [key: string]: number;
+ };
+ };
+ error?: string | null;
+ scheduled_for?: string | null;
+ status: string;
+ success: boolean;
+ };
+ AnnouncementPreviewRequest: {
+ audience: components["schemas"]["AnnouncementAudience"];
+ body: string;
+ channels: components["schemas"]["CommunicationChannel"][];
+ high_priority: boolean;
+ schedule_at?: string | null;
+ subject?: string | null;
+ title: string;
+ };
+ AnnouncementPreviewResponse: {
+ audience_size: number;
+ channel_breakdown: {
+ [key: string]: number;
+ };
+ confirm_token?: string | null;
+ idempotency_key?: string | null;
+ rendered_content: components["schemas"]["RenderedContent"];
+ warnings?: string[];
+ };
  AppendHistoryResponse: {
  count: number;
  status: string;
@@ -6443,12 +6592,59 @@ export type components = {
  BuildResponseStageDetails: {
  result_count: number;
  };
+ BulkNotificationExecuteRequest: {
+ confirm_token: string;
+ idempotency_key: string;
+ };
+ BulkNotificationExecuteResponse: {
+ audience_size: number;
+ batch_id: string;
+ channel_results: {
+ [key: string]: {
+ [key: string]: number;
+ };
+ };
+ error?: string | null;
+ scheduled_for?: string | null;
+ status: string;
+ success: boolean;
+ };
+ BulkNotificationPreviewRequest: {
+ body: string;
+ channels: components["schemas"]["CommunicationChannel"][];
+ schedule_at?: string | null;
+ subject?: string | null;
+ target: components["schemas"]["BulkTarget"];
+ title: string;
+ variables?: {
+ [key: string]: string;
+ };
+ };
+ BulkNotificationPreviewResponse: {
+ audience_size: number;
+ channel_breakdown: {
+ [key: string]: number;
+ };
+ confirm_token?: string | null;
+ idempotency_key?: string | null;
+ rendered_content: components["schemas"]["RenderedContent"];
+ sample_recipients?: components["schemas"]["RecipientSample"][];
+ warnings?: string[];
+ };
+ BulkTarget: {
+ active_within_days?: number | null;
+ categories?: string[] | null;
+ locations?: string[] | null;
+ user_ids?: string[] | null;
+ user_type?: components["schemas"]["BulkUserType"] | null;
+ };
  BulkUpdateResponse: {
  failed: number;
  results: components["schemas"]["OperationResult"][];
  skipped: number;
  successful: number;
  };
+ BulkUserType: "all" | "student" | "instructor";
  Burst1StageDetails: {
  location_tier?: number | null;
  region_lookup_loaded: boolean;
@@ -6704,6 +6900,7 @@ export type components = {
  user_type: string;
  };
  CohortUserType: "student" | "instructor";
+ CommunicationChannel: "email" | "push" | "in_app";
  ConflictingBookingInfo: {
  booking_id?: string | null;
  end_time?: string | null;
@@ -6927,6 +7124,23 @@ export type components = {
  };
  EditMessageRequest: {
  content: string;
+ };
+ EmailPreviewRequest: {
+ subject?: string | null;
+ template: string;
+ test_send_to?: string | null;
+ variables?: {
+ [key: string]: string;
+ };
+ };
+ EmailPreviewResponse: {
+ html_content: string;
+ missing_variables: string[];
+ subject: string;
+ template: string;
+ test_send_success?: boolean | null;
+ text_content: string;
+ valid: boolean;
  };
  EmbeddingStageDetails: {
  reason?: string | null;
@@ -8028,6 +8242,41 @@ export type components = {
  payment_status: string;
  success: boolean;
  };
+ NotificationHistoryEntry: {
+ audience_size: number;
+ batch_id: string;
+ channels: string[];
+ click_rate: string;
+ created_at: string;
+ created_by?: string | null;
+ delivered: {
+ [key: string]: number;
+ };
+ failed: {
+ [key: string]: number;
+ };
+ kind: string;
+ open_rate: string;
+ scheduled_for?: string | null;
+ sent: {
+ [key: string]: number;
+ };
+ status: string;
+ subject?: string | null;
+ title?: string | null;
+ };
+ NotificationHistoryResponse: {
+ items: components["schemas"]["NotificationHistoryEntry"][];
+ summary: components["schemas"]["NotificationHistorySummary"];
+ };
+ NotificationHistorySummary: {
+ click_rate: string;
+ delivered: number;
+ failed: number;
+ open_rate: string;
+ sent: number;
+ total: number;
+ };
  NotificationListResponse: {
  notifications: components["schemas"]["NotificationResponse"][];
  total: number;
@@ -8048,6 +8297,9 @@ export type components = {
  NotificationStatusResponse: {
  message?: string | null;
  success: boolean;
+ };
+ NotificationTemplatesResponse: {
+ templates: components["schemas"]["TemplateInfo"][];
  };
  NotificationUnreadCountResponse: {
  unread_count: number;
@@ -8639,6 +8891,12 @@ export type components = {
  [key: string]: unknown;
  };
  };
+ RecipientSample: {
+ email?: string | null;
+ first_name?: string | null;
+ last_name?: string | null;
+ user_id: string;
+ };
  RecommendedAction: {
  action: string;
  allowed: boolean;
@@ -8856,6 +9114,13 @@ export type components = {
  method: string;
  status: string;
  stripe_refund_id: string | null;
+ };
+ RenderedContent: {
+ body: string;
+ html_body?: string | null;
+ subject?: string | null;
+ text_body?: string | null;
+ title: string;
  };
  RequestMetrics: {
  active_count: number;
@@ -9401,6 +9666,14 @@ export type components = {
  TFAVerifyLoginResponse: {
  access_token: string;
  token_type: string;
+ };
+ TemplateInfo: {
+ category: string;
+ channels: string[];
+ optional_variables: string[];
+ required_variables: string[];
+ template_id: string;
+ usage_count: number;
  };
  TierConfig: {
  max?: number | null;
@@ -12096,6 +12369,215 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["MCPCeleryWorkersResponse"];
+ };
+ };
+ };
+ };
+ announcement_execute_api_v1_admin_mcp_communications_announcement_execute_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["AnnouncementExecuteRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AnnouncementExecuteResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ announcement_preview_api_v1_admin_mcp_communications_announcement_preview_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["AnnouncementPreviewRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AnnouncementPreviewResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ bulk_execute_api_v1_admin_mcp_communications_bulk_execute_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["BulkNotificationExecuteRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BulkNotificationExecuteResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ bulk_preview_api_v1_admin_mcp_communications_bulk_preview_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["BulkNotificationPreviewRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BulkNotificationPreviewResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ communication_email_preview_api_v1_admin_mcp_communications_email_preview_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["EmailPreviewRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["EmailPreviewResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ communication_history_api_v1_admin_mcp_communications_history_get: {
+ parameters: {
+ query?: {
+ kind?: string | null;
+ channel?: string | null;
+ status?: string | null;
+ start_date?: string | null;
+ end_date?: string | null;
+ creator_id?: string | null;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NotificationHistoryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ communication_templates_api_v1_admin_mcp_communications_templates_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NotificationTemplatesResponse"];
  };
  };
  };

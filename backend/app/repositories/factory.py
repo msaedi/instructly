@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from .booking_note_repository import BookingNoteRepository
     from .booking_repository import BookingRepository
     from .bulk_operation_repository import BulkOperationRepository
+    from .communication_repository import CommunicationRepository
     from .conflict_checker_repository import ConflictCheckerRepository
     from .conversation_repository import ConversationRepository
     from .credit_repository import CreditRepository
@@ -109,6 +110,13 @@ class RepositoryFactory:
         from .bulk_operation_repository import BulkOperationRepository
 
         return BulkOperationRepository(db)
+
+    @staticmethod
+    def create_communication_repository(db: Session) -> "CommunicationRepository":
+        """Create repository for admin communication queries."""
+        from .communication_repository import CommunicationRepository
+
+        return CommunicationRepository(db)
 
     @staticmethod
     def create_booking_repository(db: Session) -> "BookingRepository":

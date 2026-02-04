@@ -1003,6 +1003,82 @@ export interface AllServicesWithInstructorsResponse {
   metadata: AllServicesMetadata;
 }
 
+export type AnnouncementAudience = (typeof AnnouncementAudience)[keyof typeof AnnouncementAudience];
+
+export const AnnouncementAudience = {
+  all_users: 'all_users',
+  all_students: 'all_students',
+  all_instructors: 'all_instructors',
+  active_students: 'active_students',
+  active_instructors: 'active_instructors',
+  founding_instructors: 'founding_instructors',
+} as const;
+
+export interface AnnouncementExecuteRequest {
+  confirm_token: string;
+  idempotency_key: string;
+}
+
+export type AnnouncementExecuteResponseChannelResults = {
+  [key: string]: { [key: string]: number };
+};
+
+export interface AnnouncementExecuteResponse {
+  audience_size: number;
+  batch_id: string;
+  channel_results: AnnouncementExecuteResponseChannelResults;
+  error?: string | null;
+  scheduled_for?: string | null;
+  status: string;
+  success: boolean;
+}
+
+export type CommunicationChannel = (typeof CommunicationChannel)[keyof typeof CommunicationChannel];
+
+export const CommunicationChannel = {
+  email: 'email',
+  push: 'push',
+  in_app: 'in_app',
+} as const;
+
+export interface AnnouncementPreviewRequest {
+  audience: AnnouncementAudience;
+  /**
+   * @minLength 1
+   * @maxLength 5000
+   */
+  body: string;
+  /** @minItems 1 */
+  channels: CommunicationChannel[];
+  high_priority?: boolean;
+  schedule_at?: string | null;
+  subject?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  title: string;
+}
+
+export type AnnouncementPreviewResponseChannelBreakdown = { [key: string]: number };
+
+export interface RenderedContent {
+  body: string;
+  html_body?: string | null;
+  subject?: string | null;
+  text_body?: string | null;
+  title: string;
+}
+
+export interface AnnouncementPreviewResponse {
+  audience_size: number;
+  channel_breakdown: AnnouncementPreviewResponseChannelBreakdown;
+  confirm_token?: string | null;
+  idempotency_key?: string | null;
+  rendered_content: RenderedContent;
+  warnings?: string[];
+}
+
 export interface AppendHistoryResponse {
   /** @minimum 0 */
   count: number;
@@ -2295,6 +2371,81 @@ export interface BuildResponseStageDetails {
   result_count: number;
 }
 
+export interface BulkNotificationExecuteRequest {
+  confirm_token: string;
+  idempotency_key: string;
+}
+
+export type BulkNotificationExecuteResponseChannelResults = {
+  [key: string]: { [key: string]: number };
+};
+
+export interface BulkNotificationExecuteResponse {
+  audience_size: number;
+  batch_id: string;
+  channel_results: BulkNotificationExecuteResponseChannelResults;
+  error?: string | null;
+  scheduled_for?: string | null;
+  status: string;
+  success: boolean;
+}
+
+export type BulkNotificationPreviewRequestVariables = { [key: string]: string };
+
+export type BulkUserType = (typeof BulkUserType)[keyof typeof BulkUserType];
+
+export const BulkUserType = {
+  all: 'all',
+  student: 'student',
+  instructor: 'instructor',
+} as const;
+
+export interface BulkTarget {
+  active_within_days?: number | null;
+  categories?: string[] | null;
+  locations?: string[] | null;
+  user_ids?: string[] | null;
+  user_type?: BulkUserType | null;
+}
+
+export interface BulkNotificationPreviewRequest {
+  /**
+   * @minLength 1
+   * @maxLength 5000
+   */
+  body: string;
+  /** @minItems 1 */
+  channels: CommunicationChannel[];
+  schedule_at?: string | null;
+  subject?: string | null;
+  target: BulkTarget;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  title: string;
+  variables?: BulkNotificationPreviewRequestVariables;
+}
+
+export type BulkNotificationPreviewResponseChannelBreakdown = { [key: string]: number };
+
+export interface RecipientSample {
+  email?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  user_id: string;
+}
+
+export interface BulkNotificationPreviewResponse {
+  audience_size: number;
+  channel_breakdown: BulkNotificationPreviewResponseChannelBreakdown;
+  confirm_token?: string | null;
+  idempotency_key?: string | null;
+  rendered_content: RenderedContent;
+  sample_recipients?: RecipientSample[];
+  warnings?: string[];
+}
+
 export type OperationResultStatus =
   (typeof OperationResultStatus)[keyof typeof OperationResultStatus];
 
@@ -3241,6 +3392,25 @@ export interface EditMessageRequest {
    * @maxLength 5000
    */
   content: string;
+}
+
+export type EmailPreviewRequestVariables = { [key: string]: string };
+
+export interface EmailPreviewRequest {
+  subject?: string | null;
+  template: string;
+  test_send_to?: string | null;
+  variables?: EmailPreviewRequestVariables;
+}
+
+export interface EmailPreviewResponse {
+  html_content: string;
+  missing_variables: string[];
+  subject: string;
+  template: string;
+  test_send_success?: boolean | null;
+  text_content: string;
+  valid: boolean;
 }
 
 /**
@@ -5321,6 +5491,48 @@ export interface NoShowReportResponse {
   success: boolean;
 }
 
+export type NotificationHistoryEntryDelivered = { [key: string]: number };
+
+export type NotificationHistoryEntryFailed = { [key: string]: number };
+
+export type NotificationHistoryEntrySent = { [key: string]: number };
+
+export interface NotificationHistoryEntry {
+  audience_size: number;
+  batch_id: string;
+  channels: string[];
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  click_rate: string;
+  created_at: string;
+  created_by?: string | null;
+  delivered: NotificationHistoryEntryDelivered;
+  failed: NotificationHistoryEntryFailed;
+  kind: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  open_rate: string;
+  scheduled_for?: string | null;
+  sent: NotificationHistoryEntrySent;
+  status: string;
+  subject?: string | null;
+  title?: string | null;
+}
+
+export interface NotificationHistorySummary {
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  click_rate: string;
+  delivered: number;
+  failed: number;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  open_rate: string;
+  sent: number;
+  total: number;
+}
+
+export interface NotificationHistoryResponse {
+  items: NotificationHistoryEntry[];
+  summary: NotificationHistorySummary;
+}
+
 export type NotificationResponseData = { [key: string]: unknown } | null;
 
 /**
@@ -5352,6 +5564,19 @@ export interface NotificationListResponse {
 export interface NotificationStatusResponse {
   message?: string | null;
   success: boolean;
+}
+
+export interface TemplateInfo {
+  category: string;
+  channels: string[];
+  optional_variables: string[];
+  required_variables: string[];
+  template_id: string;
+  usage_count: number;
+}
+
+export interface NotificationTemplatesResponse {
+  templates: TemplateInfo[];
 }
 
 /**
@@ -8530,6 +8755,20 @@ export type GetTaskHistoryApiV1AdminMcpCeleryTasksHistoryGetParams = {
   hours?: number;
   /**
    * Max results (max 500)
+   * @minimum 1
+   * @maximum 500
+   */
+  limit?: number;
+};
+
+export type CommunicationHistoryApiV1AdminMcpCommunicationsHistoryGetParams = {
+  kind?: string | null;
+  channel?: string | null;
+  status?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  creator_id?: string | null;
+  /**
    * @minimum 1
    * @maximum 500
    */

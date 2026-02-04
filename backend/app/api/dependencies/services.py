@@ -26,6 +26,7 @@ from ...services.booking_detail_service import BookingDetailService
 from ...services.booking_service import BookingService
 from ...services.bulk_operation_service import BulkOperationService
 from ...services.cache_service import CacheService, CacheServiceSyncAdapter
+from ...services.communication_admin_service import CommunicationAdminService
 from ...services.conflict_checker import ConflictChecker
 from ...services.email import EmailService
 from ...services.favorites_service import FavoritesService
@@ -165,6 +166,13 @@ def get_instructor_admin_service(db: Session = Depends(get_db)) -> InstructorAdm
 def get_student_admin_service(db: Session = Depends(get_db)) -> StudentAdminService:
     """Get student admin service instance for MCP student actions."""
     return StudentAdminService(db)
+
+
+def get_communication_admin_service(
+    db: Session = Depends(get_db),
+) -> CommunicationAdminService:
+    """Get communication admin service instance for MCP communication tools."""
+    return CommunicationAdminService(db)
 
 
 def get_platform_analytics_service(db: Session = Depends(get_db)) -> PlatformAnalyticsService:
