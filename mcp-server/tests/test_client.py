@@ -422,6 +422,14 @@ async def test_client_wrapper_methods_call_expected_paths():
         await client.get_recent_bookings(status="confirmed", limit=10, hours=48)
         await client.get_payment_pipeline()
         await client.get_pending_payouts(limit=5)
+        await client.refund_preview(
+            booking_id="01BOOK",
+            reason_code="GOODWILL",
+            amount_type="full",
+            amount_value=None,
+            note="note",
+        )
+        await client.refund_execute(confirm_token="token", idempotency_key="idem")
         await client.lookup_user(identifier="user@example.com")
         await client.get_user_booking_history(user_id="01USER", limit=15)
 
@@ -518,6 +526,21 @@ async def test_client_wrapper_methods_call_expected_paths():
             params={"limit": 5},
         ),
         call(
+            "POST",
+            "/api/v1/admin/mcp/refunds/preview",
+            json={
+                "booking_id": "01BOOK",
+                "reason_code": "GOODWILL",
+                "amount": {"type": "full", "value": None},
+                "note": "note",
+            },
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/refunds/execute",
+            json={"confirm_token": "token", "idempotency_key": "idem"},
+        ),
+        call(
             "GET",
             "/api/v1/admin/mcp/ops/users/lookup",
             params={"identifier": "user@example.com"},
@@ -580,6 +603,26 @@ async def test_client_get_booking_detail_calls_expected_path():
             "include_trace_links": True,
         },
     )
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_refund_preview_requires_amount_value_for_partial():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    with pytest.raises(ValueError, match="amount_value is required"):
+        await client.refund_preview(
+            booking_id="01BOOK",
+            reason_code="GOODWILL",
+            amount_type="partial",
+            amount_value=None,
+        )
 
     await client.aclose()
 

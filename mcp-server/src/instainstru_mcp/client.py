@@ -439,6 +439,36 @@ class InstaInstruClient:
             params=params,
         )
 
+    async def refund_preview(
+        self,
+        *,
+        booking_id: str,
+        reason_code: str,
+        amount_type: str = "full",
+        amount_value: float | None = None,
+        note: str | None = None,
+    ) -> dict:
+        if amount_type == "partial" and amount_value is None:
+            raise ValueError("amount_value is required when amount_type is 'partial'")
+        payload = {
+            "booking_id": booking_id,
+            "reason_code": reason_code,
+            "amount": {"type": amount_type, "value": amount_value},
+            "note": note,
+        }
+        return await self.call(
+            "POST",
+            "/api/v1/admin/mcp/refunds/preview",
+            json=payload,
+        )
+
+    async def refund_execute(self, *, confirm_token: str, idempotency_key: str) -> dict:
+        return await self.call(
+            "POST",
+            "/api/v1/admin/mcp/refunds/execute",
+            json={"confirm_token": confirm_token, "idempotency_key": idempotency_key},
+        )
+
     async def get_payment_pipeline(self) -> dict:
         return await self.call(
             "GET",

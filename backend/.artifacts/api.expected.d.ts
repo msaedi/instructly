@@ -1407,6 +1407,38 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/refunds/execute": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["execute_refund_api_v1_admin_mcp_refunds_execute_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/refunds/preview": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["preview_refund_api_v1_admin_mcp_refunds_preview_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/mcp/search/top-queries": {
  parameters: {
  query?: never;
@@ -7850,6 +7882,13 @@ export type components = {
  slot_id?: string | null;
  status: "success" | "failed" | "skipped";
  };
+ OriginalPayment: {
+ captured_at: string | null;
+ gross: number;
+ instructor_payout: number;
+ platform_fee: number;
+ status: string;
+ };
  OverallRatingStats: {
  display_rating?: string | null;
  rating: number;
@@ -8549,6 +8588,66 @@ export type components = {
  instructors: components["schemas"]["ReferredInstructorInfo"][];
  total_count: number;
  };
+ RefundAmount: {
+ type: components["schemas"]["RefundAmountType"];
+ value?: number | null;
+ };
+ RefundAmountType: "full" | "partial";
+ RefundExecuteMeta: {
+ booking_id: string;
+ executed_at: string;
+ idempotency_key: string;
+ };
+ RefundExecuteRequest: {
+ confirm_token: string;
+ idempotency_key: string;
+ };
+ RefundExecuteResponse: {
+ audit_id: string;
+ error?: string | null;
+ meta: components["schemas"]["RefundExecuteMeta"];
+ refund?: components["schemas"]["RefundResult"] | null;
+ result: string;
+ updated_booking?: components["schemas"]["UpdatedBooking"] | null;
+ updated_payment?: components["schemas"]["UpdatedPayment"] | null;
+ };
+ RefundImpact: {
+ instructor_payout_delta: number;
+ original_payment: components["schemas"]["OriginalPayment"];
+ platform_fee_refunded: number;
+ refund_method: string;
+ student_card_refund: number;
+ student_credit_issued: number;
+ };
+ RefundMeta: {
+ booking_id: string;
+ generated_at: string;
+ reason_code: string;
+ };
+ RefundPreviewRequest: {
+ amount: components["schemas"]["RefundAmount"];
+ booking_id: string;
+ note?: string | null;
+ reason_code: components["schemas"]["RefundReasonCode"];
+ };
+ RefundPreviewResponse: {
+ confirm_token?: string | null;
+ eligible: boolean;
+ idempotency_key?: string | null;
+ impact: components["schemas"]["RefundImpact"];
+ ineligible_reason?: string | null;
+ meta: components["schemas"]["RefundMeta"];
+ policy_basis: string;
+ token_expires_at?: string | null;
+ warnings: string[];
+ };
+ RefundReasonCode: "CANCEL_POLICY" | "GOODWILL" | "DUPLICATE" | "DISPUTE_PREVENTION" | "INSTRUCTOR_NO_SHOW" | "SERVICE_ISSUE";
+ RefundResult: {
+ amount: number;
+ method: string;
+ status: string;
+ stripe_refund_id: string | null;
+ };
  RequestMetrics: {
  active_count: number;
  average_response_time_ms: number;
@@ -9145,6 +9244,15 @@ export type components = {
  };
  UpdatePreferenceRequest: {
  enabled: boolean;
+ };
+ UpdatedBooking: {
+ id: string;
+ status: string;
+ updated_at: string;
+ };
+ UpdatedPayment: {
+ refunded_at: string;
+ status: string;
  };
  UserBasicPrivacy: {
  first_name: string;
@@ -12030,6 +12138,68 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AdminPaymentTimelineResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ execute_refund_api_v1_admin_mcp_refunds_execute_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["RefundExecuteRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RefundExecuteResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ preview_refund_api_v1_admin_mcp_refunds_preview_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["RefundPreviewRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RefundPreviewResponse"];
  };
  };
  422: {

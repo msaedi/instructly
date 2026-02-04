@@ -35,6 +35,7 @@ from ...services.presentation_service import PresentationService
 from ...services.pricing_service import PricingService
 from ...services.referral_checkout_service import ReferralCheckoutService
 from ...services.referral_service import ReferralService
+from ...services.refund_service import RefundService
 from ...services.sms_service import SMSService
 
 # SlotManager removed - bitmap-only storage now
@@ -140,6 +141,11 @@ def get_booking_service(
 def get_booking_detail_service(db: Session = Depends(get_db)) -> BookingDetailService:
     """Get booking detail service instance for MCP support tooling."""
     return BookingDetailService(db)
+
+
+def get_refund_service(db: Session = Depends(get_db)) -> RefundService:
+    """Get refund service instance for MCP refund tooling."""
+    return RefundService(db)
 
 
 def get_pricing_service(db: Session = Depends(get_db)) -> PricingService:

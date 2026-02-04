@@ -29,7 +29,7 @@ class MCPConfirmTokenService(BaseService):
     """
     Generates confirm tokens for MCP write operations.
 
-    Tokens are signed, expire in 30 minutes, and encode the operation payload hash.
+    Tokens are signed, expire in 30 minutes by default, and encode the operation payload hash.
     """
 
     TOKEN_EXPIRY_MINUTES = 30
@@ -39,14 +39,20 @@ class MCPConfirmTokenService(BaseService):
         self._secret = self._resolve_secret().encode("utf-8")
 
     @BaseService.measure_operation("mcp_confirm_token.generate")
-    def generate_token(self, payload: dict[str, Any], actor_id: str) -> tuple[str, datetime]:
+    def generate_token(
+        self,
+        payload: dict[str, Any],
+        actor_id: str,
+        ttl_minutes: int | None = None,
+    ) -> tuple[str, datetime]:
         """
         Generate a confirm token for a payload.
         Returns (token, expires_at).
         Token format: base64(json({payload_hash, actor_id, expires_at, signature}))
         """
         payload_hash = self._hash_payload(payload)
-        expires_at = datetime.now(timezone.utc) + timedelta(minutes=self.TOKEN_EXPIRY_MINUTES)
+        expiry_minutes = ttl_minutes if ttl_minutes is not None else self.TOKEN_EXPIRY_MINUTES
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes)
         signature = self._sign(payload_hash, actor_id, expires_at)
         token_payload = {
             "payload_hash": payload_hash,

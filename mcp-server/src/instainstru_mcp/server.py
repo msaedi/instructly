@@ -44,6 +44,7 @@ from .tools import (
     observability,
     operations,
     payments,
+    refunds,
     search,
     sentry,
     sentry_debug,
@@ -562,6 +563,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     operations.register_tools(mcp, client)
     booking_detail.register_tools(mcp, client)
     payments.register_tools(mcp, client)
+    refunds.register_tools(mcp, client)
     search.register_tools(mcp, client)
     metrics.register_tools(mcp, client)
     services.register_tools(mcp, client)

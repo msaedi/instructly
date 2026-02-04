@@ -5206,6 +5206,14 @@ export interface OnboardingStatusResponse {
   requirements?: string[];
 }
 
+export interface OriginalPayment {
+  captured_at: string | null;
+  gross: number;
+  instructor_payout: number;
+  platform_fee: number;
+  status: string;
+}
+
 export type OverridePayloadAction =
   (typeof OverridePayloadAction)[keyof typeof OverridePayloadAction];
 
@@ -6550,6 +6558,102 @@ export interface ReferredInstructorInfo {
 export interface ReferredInstructorsResponse {
   instructors: ReferredInstructorInfo[];
   total_count: number;
+}
+
+export type RefundAmountType = (typeof RefundAmountType)[keyof typeof RefundAmountType];
+
+export const RefundAmountType = {
+  full: 'full',
+  partial: 'partial',
+} as const;
+
+export interface RefundAmount {
+  type: RefundAmountType;
+  value?: number | null;
+}
+
+export interface RefundExecuteMeta {
+  booking_id: string;
+  executed_at: string;
+  idempotency_key: string;
+}
+
+export interface RefundExecuteRequest {
+  confirm_token: string;
+  idempotency_key: string;
+}
+
+export interface RefundResult {
+  amount: number;
+  method: string;
+  status: string;
+  stripe_refund_id: string | null;
+}
+
+export interface UpdatedBooking {
+  id: string;
+  status: string;
+  updated_at: string;
+}
+
+export interface UpdatedPayment {
+  refunded_at: string;
+  status: string;
+}
+
+export interface RefundExecuteResponse {
+  audit_id: string;
+  error?: string | null;
+  meta: RefundExecuteMeta;
+  refund?: RefundResult | null;
+  result: string;
+  updated_booking?: UpdatedBooking | null;
+  updated_payment?: UpdatedPayment | null;
+}
+
+export interface RefundImpact {
+  instructor_payout_delta: number;
+  original_payment: OriginalPayment;
+  platform_fee_refunded: number;
+  refund_method: string;
+  student_card_refund: number;
+  student_credit_issued: number;
+}
+
+export interface RefundMeta {
+  booking_id: string;
+  generated_at: string;
+  reason_code: string;
+}
+
+export type RefundReasonCode = (typeof RefundReasonCode)[keyof typeof RefundReasonCode];
+
+export const RefundReasonCode = {
+  CANCEL_POLICY: 'CANCEL_POLICY',
+  GOODWILL: 'GOODWILL',
+  DUPLICATE: 'DUPLICATE',
+  DISPUTE_PREVENTION: 'DISPUTE_PREVENTION',
+  INSTRUCTOR_NO_SHOW: 'INSTRUCTOR_NO_SHOW',
+  SERVICE_ISSUE: 'SERVICE_ISSUE',
+} as const;
+
+export interface RefundPreviewRequest {
+  amount: RefundAmount;
+  booking_id: string;
+  note?: string | null;
+  reason_code: RefundReasonCode;
+}
+
+export interface RefundPreviewResponse {
+  confirm_token?: string | null;
+  eligible: boolean;
+  idempotency_key?: string | null;
+  impact: RefundImpact;
+  ineligible_reason?: string | null;
+  meta: RefundMeta;
+  policy_basis: string;
+  token_expires_at?: string | null;
+  warnings?: string[];
 }
 
 /**

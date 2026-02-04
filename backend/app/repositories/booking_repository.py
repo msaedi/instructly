@@ -1257,6 +1257,46 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error cancelling booking {booking_id}: {str(e)}")
             raise RepositoryException(f"Failed to cancel booking: {str(e)}")
 
+    def apply_refund_updates(
+        self,
+        booking: Booking,
+        *,
+        status: BookingStatus,
+        cancelled_at: datetime,
+        cancellation_reason: str | None,
+        settlement_outcome: str | None,
+        refunded_to_card_amount: int,
+        student_credit_amount: int,
+        instructor_payout_amount: int,
+        updated_at: datetime,
+    ) -> Booking:
+        """Apply refund-related updates to a booking and flush changes."""
+        try:
+            booking.status = status
+            booking.cancelled_at = booking.cancelled_at or cancelled_at
+            booking.cancellation_reason = cancellation_reason
+            if settlement_outcome:
+                booking.settlement_outcome = settlement_outcome
+            booking.refunded_to_card_amount = refunded_to_card_amount
+            booking.student_credit_amount = student_credit_amount
+            booking.instructor_payout_amount = instructor_payout_amount
+            booking.updated_at = updated_at
+
+            self.db.flush()
+            self.logger.info("Applied refund updates for booking %s", booking.id)
+
+            self.invalidate_entity_cache(booking.id)
+            self.invalidate_entity_cache(booking.student_id)
+            self.invalidate_entity_cache(booking.instructor_id)
+            return booking
+        except Exception as e:
+            self.logger.error(
+                "Error applying refund updates for booking %s: %s",
+                booking.id,
+                str(e),
+            )
+            raise RepositoryException(f"Failed to apply refund updates: {str(e)}")
+
     def mark_no_show(self, booking_id: str) -> Booking:
         """
         Mark booking as no-show.
