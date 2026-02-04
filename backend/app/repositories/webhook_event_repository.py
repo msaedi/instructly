@@ -153,3 +153,19 @@ class WebhookEventRepository(BaseRepository[WebhookEvent]):
             query = query.filter(WebhookEvent.source == source)
         query = query.order_by(WebhookEvent.received_at.desc()).limit(limit)
         return self._execute_query(query)
+
+    def list_events_for_related_entity(
+        self,
+        *,
+        related_entity_id: str,
+        related_entity_type: str | None = None,
+        limit: int | None = None,
+    ) -> list[WebhookEvent]:
+        """Return webhook events for a related entity, ordered oldest to newest."""
+        query = self._build_query().filter(WebhookEvent.related_entity_id == related_entity_id)
+        if related_entity_type:
+            query = query.filter(WebhookEvent.related_entity_type == related_entity_type)
+        query = query.order_by(WebhookEvent.received_at.asc())
+        if limit is not None:
+            query = query.limit(limit)
+        return self._execute_query(query)

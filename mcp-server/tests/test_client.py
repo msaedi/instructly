@@ -554,6 +554,37 @@ async def test_instructor_detail_url_encodes_name_with_spaces():
 
 
 @pytest.mark.asyncio
+async def test_client_get_booking_detail_calls_expected_path():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    mock_call = AsyncMock(return_value={"ok": True})
+    with patch.object(client, "call", mock_call):
+        await client.get_booking_detail(
+            "01BOOK 123",
+            include_messages_summary=True,
+            include_webhooks=False,
+            include_trace_links=True,
+        )
+
+    mock_call.assert_called_once_with(
+        "GET",
+        "/api/v1/admin/mcp/bookings/01BOOK%20123/detail",
+        params={
+            "include_messages_summary": True,
+            "include_webhooks": False,
+            "include_trace_links": True,
+        },
+    )
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
 @respx.mock
 async def test_client_webhook_endpoints():
     settings = Settings(

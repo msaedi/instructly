@@ -1007,6 +1007,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/bookings/{booking_id}/detail": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_booking_detail_api_v1_admin_mcp_bookings__booking_id__detail_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/mcp/celery/failed": {
  parameters: {
  query?: never;
@@ -5435,6 +5451,7 @@ export type components = {
  [key: string]: string;
  };
  refunds?: components["schemas"]["AdminPaymentRefund"][];
+ scheduled_authorize_at?: string | null;
  scheduled_capture_at?: string | null;
  status: string;
  status_timeline: components["schemas"]["AdminPaymentStatusEvent"][];
@@ -6039,7 +6056,7 @@ export type components = {
  instructor_id: string;
  instructor_note: string | null;
  instructor_payout_amount?: number | null;
- instructor_service: components["schemas"]["ServiceInfo"];
+ instructor_service: components["schemas"]["app__schemas__booking__ServiceInfo"];
  instructor_service_id: string;
  instructor_timezone?: string | null;
  lesson_timezone?: string | null;
@@ -6079,6 +6096,32 @@ export type components = {
  student_note: string | null;
  student_timezone?: string | null;
  total_price: number;
+ };
+ BookingDetailMeta: {
+ booking_id: string;
+ generated_at: string;
+ };
+ BookingDetailResponse: {
+ booking: components["schemas"]["BookingInfo"];
+ messages: components["schemas"]["MessagesSummary"] | null;
+ meta: components["schemas"]["BookingDetailMeta"];
+ payment: components["schemas"]["PaymentInfo"] | null;
+ recommended_actions: components["schemas"]["RecommendedAction"][];
+ timeline: components["schemas"]["TimelineEvent"][];
+ traces: components["schemas"]["TracesSummary"] | null;
+ webhooks: components["schemas"]["WebhooksSummary"] | null;
+ };
+ BookingInfo: {
+ created_at: string;
+ duration_minutes: number;
+ id: string;
+ instructor: components["schemas"]["ParticipantInfo"];
+ location_type: string;
+ scheduled_at: string;
+ service: components["schemas"]["app__schemas__admin_booking_detail__ServiceInfo"];
+ status: string;
+ student: components["schemas"]["ParticipantInfo"];
+ updated_at: string;
  };
  BookingListItem: {
  booking_date: string;
@@ -6152,7 +6195,7 @@ export type components = {
  instructor_id: string;
  instructor_note: string | null;
  instructor_payout_amount?: number | null;
- instructor_service: components["schemas"]["ServiceInfo"];
+ instructor_service: components["schemas"]["app__schemas__booking__ServiceInfo"];
  instructor_service_id: string;
  instructor_timezone?: string | null;
  lesson_timezone?: string | null;
@@ -7643,6 +7686,12 @@ export type components = {
  messages: components["schemas"]["MessageResponse"][];
  next_cursor?: string | null;
  };
+ MessagesSummary: {
+ conversation_id: string | null;
+ included: boolean;
+ last_message_at: string | null;
+ message_count: number | null;
+ };
  MockStatusResponse: {
  ok: boolean;
  status: "pending" | "review" | "consider" | "passed" | "failed" | "canceled";
@@ -7849,6 +7898,11 @@ export type components = {
  urgency?: string | null;
  use_user_location: boolean;
  };
+ ParticipantInfo: {
+ email_hash: string;
+ id: string;
+ name: string;
+ };
  PasswordChangeRequest: {
  current_password: string;
  new_password: string;
@@ -7868,6 +7922,17 @@ export type components = {
  };
  PasswordResetVerifyResponse: {
  [key: string]: unknown;
+ };
+ PaymentAmount: {
+ credits_applied: number;
+ gross: number;
+ net_to_instructor: number;
+ platform_fee: number;
+ tip: number;
+ };
+ PaymentFailure: {
+ category: string;
+ ts: string;
  };
  PaymentHealthCheckTriggerResponse: {
  message: string;
@@ -7890,6 +7955,18 @@ export type components = {
  };
  status: string;
  timestamp: string;
+ };
+ PaymentIds: {
+ charge?: string | null;
+ payment_intent?: string | null;
+ };
+ PaymentInfo: {
+ amount: components["schemas"]["PaymentAmount"];
+ failures?: components["schemas"]["PaymentFailure"][];
+ ids: components["schemas"]["PaymentIds"];
+ scheduled_authorize_at?: string | null;
+ scheduled_capture_at?: string | null;
+ status: string;
  };
  PaymentMethodResponse: {
  brand: string;
@@ -8313,6 +8390,11 @@ export type components = {
  filters_applied: {
  [key: string]: unknown;
  };
+ };
+ RecommendedAction: {
+ action: string;
+ allowed: boolean;
+ reason: string;
  };
  RedisActiveConnections: {
  local_redis: number;
@@ -8771,11 +8853,6 @@ export type components = {
  requirements?: string | null;
  service_catalog_id: string;
  };
- ServiceInfo: {
- description: string | null;
- id: string;
- name: string;
- };
  ServiceMatch: {
  description?: string | null;
  name: string;
@@ -8971,6 +9048,13 @@ export type components = {
  instructor_id: string;
  start_time: string;
  };
+ TimelineEvent: {
+ details?: {
+ [key: string]: unknown;
+ };
+ event: string;
+ ts: string;
+ };
  TopCategory: {
  category: string;
  count: number;
@@ -9005,6 +9089,11 @@ export type components = {
  TopServicesPerCategoryResponse: {
  categories?: components["schemas"]["TopCategoryItem"][];
  metadata: components["schemas"]["TopServicesMetadata"];
+ };
+ TracesSummary: {
+ included: boolean;
+ support_code?: string | null;
+ trace_ids?: string[];
  };
  TransactionHistoryItem: {
  booking_date: string;
@@ -9196,10 +9285,20 @@ export type components = {
  WebhookAckResponse: {
  ok: boolean;
  };
+ WebhookEventBrief: {
+ event_id: string;
+ status: string;
+ ts: string;
+ type: string;
+ };
  WebhookResponse: {
  event_type: string;
  message?: string | null;
  status: string;
+ };
+ WebhooksSummary: {
+ events?: components["schemas"]["WebhookEventBrief"][];
+ included: boolean;
  };
  WeekAvailabilityResponse: {
  [key: string]: components["schemas"]["TimeRange"][];
@@ -9245,6 +9344,11 @@ export type components = {
  message: string;
  success: boolean;
  };
+ app__schemas__admin_booking_detail__ServiceInfo: {
+ category: string;
+ name: string;
+ slug: string;
+ };
  app__schemas__availability_window__BulkUpdateRequest: {
  operations: components["schemas"]["SlotOperation"][];
  validate_only: boolean;
@@ -9253,6 +9357,11 @@ export type components = {
  deleted_at?: string;
  message: string;
  success: boolean;
+ };
+ app__schemas__booking__ServiceInfo: {
+ description: string | null;
+ id: string;
+ name: string;
  };
  app__schemas__notification_preferences__BulkUpdateRequest: {
  updates: components["schemas"]["PreferenceUpdate"][];
@@ -11217,6 +11326,39 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AuditSearchResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_booking_detail_api_v1_admin_mcp_bookings__booking_id__detail_get: {
+ parameters: {
+ query?: {
+ include_messages_summary?: boolean;
+ include_webhooks?: boolean;
+ include_trace_links?: boolean;
+ };
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingDetailResponse"];
  };
  };
  422: {

@@ -3,7 +3,7 @@ import io
 from PIL import Image
 import pytest
 
-from app.services.image_processing_service import ImageProcessingService
+from app.services.image_processing_service import MAX_SIZE_BYTES, ImageProcessingService
 
 
 def _make_img_bytes(mode="RGBA", size=(300, 100), color=(0, 128, 255, 255), fmt="PNG") -> bytes:
@@ -29,3 +29,17 @@ def test_reject_large_aspect_ratio():
     data = _make_img_bytes(size=(1000, 100))
     with pytest.raises(ValueError):
         svc.process_profile_picture(uploaded_bytes=data, browser_content_type="image/png")
+
+
+def test_verify_magic_bytes_rejects_invalid_data():
+    svc = ImageProcessingService()
+    with pytest.raises(ValueError):
+        svc._verify_magic_bytes(b"not-an-image")
+
+
+def test_enforce_constraints_rejects_invalid_type_and_size():
+    svc = ImageProcessingService()
+    with pytest.raises(ValueError):
+        svc._enforce_constraints("image/gif", b"data")
+    with pytest.raises(ValueError):
+        svc._enforce_constraints("image/png", b"0" * (MAX_SIZE_BYTES + 1))

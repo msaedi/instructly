@@ -21,6 +21,7 @@ from ...services.availability_service import AvailabilityService
 from ...services.background_check_service import BackgroundCheckService
 from ...services.background_check_workflow_service import BackgroundCheckWorkflowService
 from ...services.base import BaseService
+from ...services.booking_detail_service import BookingDetailService
 from ...services.booking_service import BookingService
 from ...services.bulk_operation_service import BulkOperationService
 from ...services.cache_service import CacheService, CacheServiceSyncAdapter
@@ -134,6 +135,11 @@ def get_booking_service(
         conflict_checker_repository=None,
         cache_service=cache_service,
     )
+
+
+def get_booking_detail_service(db: Session = Depends(get_db)) -> BookingDetailService:
+    """Get booking detail service instance for MCP support tooling."""
+    return BookingDetailService(db)
 
 
 def get_pricing_service(db: Session = Depends(get_db)) -> PricingService:

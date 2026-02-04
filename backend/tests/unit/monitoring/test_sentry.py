@@ -1,6 +1,7 @@
 # backend/tests/unit/monitoring/test_sentry.py
 from __future__ import annotations
 
+from contextlib import contextmanager
 import logging
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -140,3 +141,105 @@ def test_traces_sampler_skips_health_checks():
         sentry_module._traces_sampler({"asgi_scope": {"path": "/api/v1/bookings"}})
         == sentry_module.DEFAULT_TRACES_SAMPLE_RATE
     )
+
+
+def test_resolve_environment_fallbacks(monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "staging")
+    monkeypatch.delenv("ENV", raising=False)
+    monkeypatch.delenv("SENTRY_ENVIRONMENT", raising=False)
+    assert sentry_module._resolve_environment() == "staging"
+
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.setenv("SENTRY_ENVIRONMENT", "sentry")
+    assert sentry_module._resolve_environment() == "sentry"
+
+    monkeypatch.delenv("SENTRY_ENVIRONMENT", raising=False)
+    from app.core import config as cfg
+
+    monkeypatch.setattr(cfg.settings, "environment", "qa", raising=False)
+    assert sentry_module._resolve_environment() == "qa"
+
+
+def test_resolve_git_sha_handles_failure():
+    with patch("app.monitoring.sentry.subprocess.check_output", side_effect=OSError):
+        assert sentry_module._resolve_git_sha() is None
+
+
+def test_sampling_path_helpers_and_otel_extract(monkeypatch):
+    request = _make_request(path="/api/v1/metrics")
+    assert sentry_module._extract_sampling_path({"request": request}) == "/api/v1/metrics"
+    assert sentry_module._is_healthcheck_path(None) is False
+    assert sentry_module._is_healthcheck_path("/api/v1/ready/") is True
+
+    with patch("app.monitoring.otel.is_otel_enabled", return_value=False):
+        assert sentry_module._extract_otel_trace_id() is None
+
+    original_sdk = sentry_module.sentry_sdk
+    try:
+        sentry_module.sentry_sdk = None
+        assert sentry_module.is_sentry_configured() is False
+    finally:
+        sentry_module.sentry_sdk = original_sdk
+
+
+@pytest.mark.asyncio
+async def test_sentry_context_middleware_noop_when_disabled(monkeypatch):
+    called = {"app": False}
+
+    async def app(scope, receive, send):
+        called["app"] = True
+
+    middleware = sentry_module.SentryContextMiddleware(app)
+    monkeypatch.setattr(sentry_module, "is_sentry_configured", lambda: False)
+
+    scope = {"type": "http", "method": "GET", "path": "/api/v1/health", "headers": []}
+    await middleware(scope, lambda: None, lambda: None)
+    assert called["app"] is True
+
+
+@pytest.mark.asyncio
+async def test_sentry_context_middleware_applies_context(monkeypatch):
+    called = {"app": False, "scope": False, "processor": False}
+
+    async def app(scope, receive, send):
+        called["app"] = True
+
+    class DummyScopeWithProcessor(DummyScope):
+        def __init__(self) -> None:
+            super().__init__()
+            self.processor = None
+
+        def add_event_processor(self, processor):
+            self.processor = processor
+
+    dummy_scope = DummyScopeWithProcessor()
+
+    @contextmanager
+    def configure_scope():
+        yield dummy_scope
+
+    dummy_sdk = SimpleNamespace(configure_scope=configure_scope)
+
+    monkeypatch.setattr(sentry_module, "sentry_sdk", dummy_sdk)
+    monkeypatch.setattr(sentry_module, "is_sentry_configured", lambda: True)
+
+    def fake_apply_scope(scope_obj, request):
+        called["scope"] = True
+
+    def fake_apply_event(event, request):
+        called["processor"] = True
+        return event
+
+    monkeypatch.setattr(sentry_module, "_apply_scope_context", fake_apply_scope)
+    monkeypatch.setattr(sentry_module, "_apply_event_context", fake_apply_event)
+
+    middleware = sentry_module.SentryContextMiddleware(app)
+    scope = {"type": "http", "method": "GET", "path": "/api/v1/bookings", "headers": []}
+    await middleware(scope, lambda: None, lambda: None)
+
+    assert called["app"] is True
+    assert called["scope"] is True
+    assert dummy_scope.processor is not None
+
+    dummy_scope.processor({}, {})
+    assert called["processor"] is True

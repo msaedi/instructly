@@ -158,7 +158,6 @@ async def test_payment_timeline_includes_authorized_payments(db, test_booking):
 
 @pytest.mark.asyncio
 async def test_payment_timeline_summary_by_status(db, test_booking):
-    now = datetime.now(timezone.utc)
     test_booking.payment_status = "scheduled"
 
     other_booking = create_booking_pg_safe(
@@ -179,11 +178,13 @@ async def test_payment_timeline_summary_by_status(db, test_booking):
     db.commit()
 
     service = AdminOpsService(db)
+    start_time = test_booking.booking_start_utc - timedelta(hours=1)
+    end_time = other_booking.booking_start_utc + timedelta(hours=1)
     result = await service.get_payment_timeline(
         booking_id=None,
         user_id=test_booking.student_id,
-        start_time=now - timedelta(hours=1),
-        end_time=now + timedelta(days=2),
+        start_time=start_time,
+        end_time=end_time,
     )
 
     summary = result["summary"]["by_status"]

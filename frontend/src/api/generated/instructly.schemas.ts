@@ -523,6 +523,7 @@ export interface AdminPaymentTimelineItem {
   failure?: AdminPaymentFailure | null;
   provider_refs?: AdminPaymentTimelineItemProviderRefs;
   refunds?: AdminPaymentRefund[];
+  scheduled_authorize_at?: string | null;
   scheduled_capture_at?: string | null;
   status: string;
   status_timeline: AdminPaymentStatusEvent[];
@@ -1734,7 +1735,7 @@ export interface InstructorInfo {
 /**
  * Basic service information for booking display.
  */
-export interface ServiceInfo {
+export interface AppSchemasBookingServiceInfo {
   description: string | null;
   id: string;
   name: string;
@@ -1818,7 +1819,7 @@ export interface BookingCreateResponse {
   instructor_id: string;
   instructor_note: string | null;
   instructor_payout_amount?: number | null;
-  instructor_service: ServiceInfo;
+  instructor_service: AppSchemasBookingServiceInfo;
   instructor_service_id: string;
   instructor_timezone?: string | null;
   lesson_timezone?: string | null;
@@ -1860,6 +1861,113 @@ export interface BookingCreateResponse {
   student_note: string | null;
   student_timezone?: string | null;
   total_price: number;
+}
+
+export interface BookingDetailMeta {
+  booking_id: string;
+  generated_at: string;
+}
+
+export interface ParticipantInfo {
+  email_hash: string;
+  id: string;
+  name: string;
+}
+
+export interface AppSchemasAdminBookingDetailServiceInfo {
+  category: string;
+  name: string;
+  slug: string;
+}
+
+export interface BookingInfo {
+  created_at: string;
+  duration_minutes: number;
+  id: string;
+  instructor: ParticipantInfo;
+  location_type: string;
+  scheduled_at: string;
+  service: AppSchemasAdminBookingDetailServiceInfo;
+  status: string;
+  student: ParticipantInfo;
+  updated_at: string;
+}
+
+export interface MessagesSummary {
+  conversation_id: string | null;
+  included: boolean;
+  last_message_at: string | null;
+  message_count: number | null;
+}
+
+export interface PaymentAmount {
+  credits_applied: number;
+  gross: number;
+  net_to_instructor: number;
+  platform_fee: number;
+  tip: number;
+}
+
+export interface PaymentFailure {
+  category: string;
+  ts: string;
+}
+
+export interface PaymentIds {
+  charge?: string | null;
+  payment_intent?: string | null;
+}
+
+export interface PaymentInfo {
+  amount: PaymentAmount;
+  failures?: PaymentFailure[];
+  ids: PaymentIds;
+  scheduled_authorize_at?: string | null;
+  scheduled_capture_at?: string | null;
+  status: string;
+}
+
+export interface RecommendedAction {
+  action: string;
+  allowed: boolean;
+  reason: string;
+}
+
+export type TimelineEventDetails = { [key: string]: unknown };
+
+export interface TimelineEvent {
+  details?: TimelineEventDetails;
+  event: string;
+  ts: string;
+}
+
+export interface TracesSummary {
+  included: boolean;
+  support_code?: string | null;
+  trace_ids?: string[];
+}
+
+export interface WebhookEventBrief {
+  event_id: string;
+  status: string;
+  ts: string;
+  type: string;
+}
+
+export interface WebhooksSummary {
+  events?: WebhookEventBrief[];
+  included: boolean;
+}
+
+export interface BookingDetailResponse {
+  booking: BookingInfo;
+  messages: MessagesSummary | null;
+  meta: BookingDetailMeta;
+  payment: PaymentInfo | null;
+  recommended_actions: RecommendedAction[];
+  timeline: TimelineEvent[];
+  traces: TracesSummary | null;
+  webhooks: WebhooksSummary | null;
 }
 
 /**
@@ -1989,7 +2097,7 @@ export interface BookingResponse {
   instructor_id: string;
   instructor_note: string | null;
   instructor_payout_amount?: number | null;
-  instructor_service: ServiceInfo;
+  instructor_service: AppSchemasBookingServiceInfo;
   instructor_service_id: string;
   instructor_timezone?: string | null;
   lesson_timezone?: string | null;
@@ -7909,6 +8017,12 @@ export type AuditUserActivityApiV1AdminMcpAuditUsersUserEmailActivityGetParams =
    * @maximum 500
    */
   limit?: number;
+};
+
+export type GetBookingDetailApiV1AdminMcpBookingsBookingIdDetailGetParams = {
+  include_messages_summary?: boolean;
+  include_webhooks?: boolean;
+  include_trace_links?: boolean;
 };
 
 export type GetFailedTasksApiV1AdminMcpCeleryFailedGetParams = {

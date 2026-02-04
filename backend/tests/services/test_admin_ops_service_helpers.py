@@ -295,7 +295,9 @@ def test_query_payment_timeline_uses_user_bookings(db):
         auth_attempted_at=None,
         updated_at=None,
         completed_at=None,
+        booking_start_utc=now,
         booking_end_utc=None,
+        duration_minutes=60,
     )
 
     class _Repo:

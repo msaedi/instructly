@@ -420,6 +420,25 @@ class InstaInstruClient:
             params=params,
         )
 
+    async def get_booking_detail(
+        self,
+        booking_id: str,
+        *,
+        include_messages_summary: bool = False,
+        include_webhooks: bool = True,
+        include_trace_links: bool = False,
+    ) -> dict:
+        params: dict[str, Any] = {
+            "include_messages_summary": include_messages_summary,
+            "include_webhooks": include_webhooks,
+            "include_trace_links": include_trace_links,
+        }
+        return await self.call(
+            "GET",
+            f"/api/v1/admin/mcp/bookings/{quote(booking_id)}/detail",
+            params=params,
+        )
+
     async def get_payment_pipeline(self) -> dict:
         return await self.call(
             "GET",

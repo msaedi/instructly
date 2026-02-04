@@ -71,6 +71,7 @@ from app.routes.v1.admin import (
 )
 from app.routes.v1.admin.mcp import (
     audit as admin_mcp_audit_v1,
+    booking_detail as admin_mcp_booking_detail_v1,
     celery as admin_mcp_celery_v1,
     founding as admin_mcp_founding_v1,
     instructors as admin_mcp_instructors_v1,
@@ -168,6 +169,7 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(admin_mcp_metrics_v1.router, prefix="/admin/mcp/metrics")  # type: ignore[attr-defined]
     api_v1.include_router(admin_mcp_celery_v1.router, prefix="/admin/mcp/celery")  # type: ignore[attr-defined]
     api_v1.include_router(admin_mcp_operations_v1.router, prefix="/admin/mcp/ops")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_mcp_booking_detail_v1.router, prefix="/admin/mcp")  # type: ignore[attr-defined]
     api_v1.include_router(admin_mcp_services_v1.router, prefix="/admin/mcp/services")  # type: ignore[attr-defined]
     api_v1.include_router(admin_mcp_payments_v1.router, prefix="/admin/mcp/payments")  # type: ignore[attr-defined]
     api_v1.include_router(admin_mcp_webhooks_v1.router, prefix="/admin/mcp/webhooks")  # type: ignore[attr-defined]

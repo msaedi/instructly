@@ -89,6 +89,28 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error fetching unread messages by conversation: {str(e)}")
             raise RepositoryException(f"Failed to fetch unread messages: {str(e)}")
 
+    def count_for_conversation(self, conversation_id: str) -> int:
+        """Count messages for a conversation."""
+        try:
+            query = self.db.query(func.count(Message.id)).filter(
+                Message.conversation_id == conversation_id
+            )
+            return int(self._execute_scalar(query) or 0)
+        except Exception as e:
+            self.logger.error(f"Error counting messages for conversation: {str(e)}")
+            raise RepositoryException(f"Failed to count messages for conversation: {str(e)}")
+
+    def get_last_message_at_for_conversation(self, conversation_id: str) -> Optional[datetime]:
+        """Get the latest message timestamp for a conversation."""
+        try:
+            query = self.db.query(func.max(Message.created_at)).filter(
+                Message.conversation_id == conversation_id
+            )
+            return cast(Optional[datetime], self._execute_scalar(query))
+        except Exception as e:
+            self.logger.error(f"Error getting last message time: {str(e)}")
+            raise RepositoryException(f"Failed to get last message time: {str(e)}")
+
     def _update_message_read_by(self, message_ids: List[str], user_id: str) -> None:
         """Append read_by entries for messages (best-effort)."""
         if not message_ids:
