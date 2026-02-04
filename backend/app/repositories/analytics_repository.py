@@ -391,6 +391,24 @@ class AnalyticsRepository:
         )
         return user_count + guest_count
 
+    def count_users_created(
+        self,
+        *,
+        start: datetime,
+        end: datetime,
+        role_name: Optional[str] = None,
+        phone_verified: Optional[bool] = None,
+    ) -> int:
+        query = self.db.query(func.count(User.id))
+        if role_name:
+            query = query.join(UserRole, UserRole.user_id == User.id)
+            query = query.join(Role, Role.id == UserRole.role_id)
+            query = query.filter(Role.name == role_name)
+        query = query.filter(User.created_at >= start, User.created_at <= end)
+        if phone_verified is not None:
+            query = query.filter(User.phone_verified.is_(phone_verified))
+        return int(query.scalar() or 0)
+
     def list_top_unfulfilled_searches(
         self,
         *,

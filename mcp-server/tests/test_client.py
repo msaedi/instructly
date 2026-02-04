@@ -579,6 +579,7 @@ async def test_client_wrapper_methods_call_expected_paths():
             breakdown_by="day",
         )
         await client.booking_funnel(period="last_7_days", segment_by="device")
+        await client.funnel_snapshot(period="last_7_days", compare_to="previous_period")
         await client.supply_demand(period="last_7_days", location="Manhattan", category="music")
         await client.category_performance(period="last_30_days", sort_by="revenue", limit=5)
         await client.cohort_retention(
@@ -902,6 +903,11 @@ async def test_client_wrapper_methods_call_expected_paths():
             "GET",
             "/api/v1/admin/mcp/analytics/funnel",
             params={"period": "last_7_days", "segment_by": "device"},
+        ),
+        call(
+            "GET",
+            "/api/v1/admin/mcp/funnel/snapshot",
+            params={"period": "last_7_days", "compare_to": "previous_period"},
         ),
         call(
             "GET",

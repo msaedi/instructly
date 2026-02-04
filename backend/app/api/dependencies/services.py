@@ -30,6 +30,7 @@ from ...services.communication_admin_service import CommunicationAdminService
 from ...services.conflict_checker import ConflictChecker
 from ...services.email import EmailService
 from ...services.favorites_service import FavoritesService
+from ...services.funnel_analytics_service import FunnelAnalyticsService
 from ...services.instructor_admin_service import InstructorAdminService
 from ...services.instructor_service import InstructorService
 from ...services.notification_service import NotificationService
@@ -178,6 +179,11 @@ def get_communication_admin_service(
 def get_platform_analytics_service(db: Session = Depends(get_db)) -> PlatformAnalyticsService:
     """Get platform analytics service instance for MCP analytics tooling."""
     return PlatformAnalyticsService(db)
+
+
+def get_funnel_analytics_service(db: Session = Depends(get_db)) -> FunnelAnalyticsService:
+    """Get funnel analytics service instance for MCP funnel snapshots."""
+    return FunnelAnalyticsService(db)
 
 
 def get_pricing_service(db: Session = Depends(get_db)) -> PricingService:

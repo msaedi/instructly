@@ -636,6 +636,21 @@ class InstaInstruClient:
             },
         )
 
+    async def funnel_snapshot(
+        self,
+        *,
+        period: str = "last_7_days",
+        compare_to: str | None = None,
+    ) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/funnel/snapshot",
+            params={
+                "period": period,
+                "compare_to": compare_to,
+            },
+        )
+
     async def supply_demand(
         self,
         *,

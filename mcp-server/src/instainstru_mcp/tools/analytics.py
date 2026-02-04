@@ -40,6 +40,21 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         """
         return await client.booking_funnel(period=period, segment_by=segment_by)
 
+    async def instainstru_funnel_snapshot(
+        period: str = "last_7_days",
+        compare_to: str | None = None,
+    ) -> dict:
+        """
+        Conversion funnel analysis: where do users drop off?
+
+        Shows: visits → signup → verified → search → booking_started → booking_confirmed → completed
+
+        Args:
+            period: today, yesterday, last_7_days, last_30_days, this_month
+            compare_to: previous_period, same_period_last_week, same_period_last_month
+        """
+        return await client.funnel_snapshot(period=period, compare_to=compare_to)
+
     async def instainstru_supply_demand(
         period: str,
         location: str | None = None,
@@ -113,6 +128,7 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
 
     mcp.tool()(instainstru_revenue_dashboard)
     mcp.tool()(instainstru_booking_funnel)
+    mcp.tool()(instainstru_funnel_snapshot)
     mcp.tool()(instainstru_supply_demand)
     mcp.tool()(instainstru_category_performance)
     mcp.tool()(instainstru_cohort_retention)
@@ -121,6 +137,7 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
     return {
         "instainstru_revenue_dashboard": instainstru_revenue_dashboard,
         "instainstru_booking_funnel": instainstru_booking_funnel,
+        "instainstru_funnel_snapshot": instainstru_funnel_snapshot,
         "instainstru_supply_demand": instainstru_supply_demand,
         "instainstru_category_performance": instainstru_category_performance,
         "instainstru_cohort_retention": instainstru_cohort_retention,

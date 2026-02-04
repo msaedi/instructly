@@ -99,6 +99,41 @@ class BookingFunnel(BaseModel):
     recommendations: list[str] = Field(default_factory=list)
 
 
+class FunnelSnapshotPeriod(str, Enum):
+    TODAY = "today"
+    YESTERDAY = "yesterday"
+    LAST_7_DAYS = "last_7_days"
+    LAST_30_DAYS = "last_30_days"
+    THIS_MONTH = "this_month"
+
+
+class FunnelSnapshotComparison(str, Enum):
+    PREVIOUS_PERIOD = "previous_period"
+    SAME_PERIOD_LAST_WEEK = "same_period_last_week"
+    SAME_PERIOD_LAST_MONTH = "same_period_last_month"
+
+
+class FunnelSnapshotStage(BaseModel):
+    stage: str
+    count: int
+    conversion_rate: Decimal | None = None
+    drop_off_rate: Decimal | None = None
+
+
+class FunnelSnapshotPeriodData(BaseModel):
+    period_start: datetime
+    period_end: datetime
+    stages: list[FunnelSnapshotStage]
+    overall_conversion: Decimal
+
+
+class FunnelSnapshotResponse(BaseModel):
+    current_period: FunnelSnapshotPeriodData
+    comparison_period: FunnelSnapshotPeriodData | None = None
+    deltas: dict[str, Decimal] | None = None
+    insights: list[str] = Field(default_factory=list)
+
+
 class SupplyDemandPeriod(str, Enum):
     LAST_7_DAYS = "last_7_days"
     LAST_30_DAYS = "last_30_days"

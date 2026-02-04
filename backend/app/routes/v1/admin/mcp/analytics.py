@@ -7,7 +7,10 @@ from typing import NoReturn
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.api.dependencies.services import get_platform_analytics_service
+from app.api.dependencies.services import (
+    get_funnel_analytics_service,
+    get_platform_analytics_service,
+)
 from app.dependencies.mcp_auth import require_mcp_scope
 from app.principal import Principal
 from app.ratelimit.dependency import rate_limit
@@ -24,6 +27,9 @@ from app.schemas.admin_analytics import (
     CohortRetention,
     CohortUserType,
     FunnelSegmentBy,
+    FunnelSnapshotComparison,
+    FunnelSnapshotPeriod,
+    FunnelSnapshotResponse,
     PlatformAlerts,
     RevenueBreakdownBy,
     RevenueComparisonMode,
@@ -32,6 +38,7 @@ from app.schemas.admin_analytics import (
     SupplyDemand,
     SupplyDemandPeriod,
 )
+from app.services.funnel_analytics_service import FunnelAnalyticsService
 from app.services.platform_analytics_service import PlatformAnalyticsService
 
 router = APIRouter(tags=["MCP Admin - Analytics"])
@@ -90,6 +97,27 @@ async def booking_funnel(
         )
     except Exception as exc:
         _handle_exception(exc, "analytics_funnel_failed")
+
+
+@router.get(
+    "/funnel/snapshot",
+    response_model=FunnelSnapshotResponse,
+    dependencies=[Depends(rate_limit("admin_mcp"))],
+)
+async def funnel_snapshot(
+    period: FunnelSnapshotPeriod = Query(FunnelSnapshotPeriod.LAST_7_DAYS),
+    compare_to: FunnelSnapshotComparison | None = Query(None),
+    _: Principal = Depends(require_mcp_scope("mcp:read")),
+    service: FunnelAnalyticsService = Depends(get_funnel_analytics_service),
+) -> FunnelSnapshotResponse:
+    try:
+        return await asyncio.to_thread(
+            service.get_funnel_snapshot,
+            period=period,
+            compare_to=compare_to,
+        )
+    except Exception as exc:
+        _handle_exception(exc, "analytics_funnel_snapshot_failed")
 
 
 @router.get(

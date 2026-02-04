@@ -17,6 +17,10 @@ class FakeClient:
         self.calls.append(("booking_funnel", params))
         return {"ok": True}
 
+    async def funnel_snapshot(self, **params):
+        self.calls.append(("funnel_snapshot", params))
+        return {"ok": True}
+
     async def supply_demand(self, **params):
         self.calls.append(("supply_demand", params))
         return {"ok": True}
@@ -65,6 +69,22 @@ async def test_booking_funnel_calls_client():
     name, params = client.calls[0]
     assert name == "booking_funnel"
     assert params["segment_by"] == "device"
+
+
+@pytest.mark.asyncio
+async def test_funnel_snapshot_calls_client():
+    client = FakeClient()
+    mcp = FastMCP("test")
+    tools = analytics.register_tools(mcp, client)
+
+    result = await tools["instainstru_funnel_snapshot"](
+        period="last_7_days",
+        compare_to="previous_period",
+    )
+    assert result == {"ok": True}
+    name, params = client.calls[0]
+    assert name == "funnel_snapshot"
+    assert params["compare_to"] == "previous_period"
 
 
 @pytest.mark.asyncio
