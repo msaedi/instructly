@@ -491,6 +491,7 @@ class InstaInstruClient:
         since_hours: int | None = None,
         start_time: str | None = None,
         end_time: str | None = None,
+        include_capture_schedule: bool = False,
     ) -> dict:
         if (booking_id and user_id) or (not booking_id and not user_id):
             raise ValueError("Provide exactly one of booking_id or user_id")
@@ -500,6 +501,8 @@ class InstaInstruClient:
             params["booking_id"] = booking_id
         if user_id:
             params["user_id"] = user_id
+        if include_capture_schedule:
+            params["include_capture_schedule"] = True
 
         if start_time or end_time:
             if not start_time or not end_time:

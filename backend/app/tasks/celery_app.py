@@ -310,6 +310,8 @@ celery_app = create_celery_app()
 
 # Task modules are imported via autodiscovery in create_celery_app()
 # and also via the force imports list in celery_app.conf.imports
+# Ensure monitoring tasks are registered for alert processing.
+from app.tasks import monitoring_tasks  # noqa: F401,E402
 
 
 def _init_sentry_worker(**kwargs: Any) -> None:

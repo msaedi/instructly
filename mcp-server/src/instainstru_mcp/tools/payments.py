@@ -16,6 +16,7 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         since_hours: int | None = None,
         start_time: str | None = None,
         end_time: str | None = None,
+        include_capture_schedule: bool = False,
     ) -> dict:
         """
         Get payment timeline for a booking or user. Returns redacted, support-safe payment details.
@@ -34,6 +35,7 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             since_hours: Optional override for the time window in hours
             start_time: Optional start time (ISO 8601) for a custom window
             end_time: Optional end time (ISO 8601) for a custom window
+            include_capture_schedule: Include scheduled authorize/capture timestamps
 
         Returns payment status timeline, amounts, and flags for common issues.
         """
@@ -62,6 +64,7 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             since_hours=since_hours,
             start_time=start_time,
             end_time=end_time,
+            include_capture_schedule=include_capture_schedule,
         )
         if resolved_user:
             meta = response.get("meta", {})
