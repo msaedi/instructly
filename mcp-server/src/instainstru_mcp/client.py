@@ -469,6 +469,103 @@ class InstaInstruClient:
             json={"confirm_token": confirm_token, "idempotency_key": idempotency_key},
         )
 
+    async def booking_force_cancel_preview(
+        self,
+        *,
+        booking_id: str,
+        reason_code: str,
+        note: str,
+        refund_preference: str = "POLICY_BASED",
+    ) -> dict:
+        payload = {
+            "reason_code": reason_code,
+            "note": note,
+            "refund_preference": refund_preference,
+        }
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/bookings/{quote(booking_id)}/force-cancel/preview",
+            json=payload,
+        )
+
+    async def booking_force_cancel_execute(
+        self,
+        *,
+        booking_id: str,
+        confirm_token: str,
+        idempotency_key: str,
+    ) -> dict:
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/bookings/{quote(booking_id)}/force-cancel/execute",
+            json={"confirm_token": confirm_token, "idempotency_key": idempotency_key},
+        )
+
+    async def booking_force_complete_preview(
+        self,
+        *,
+        booking_id: str,
+        reason_code: str,
+        note: str,
+    ) -> dict:
+        payload = {"reason_code": reason_code, "note": note}
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/bookings/{quote(booking_id)}/force-complete/preview",
+            json=payload,
+        )
+
+    async def booking_force_complete_execute(
+        self,
+        *,
+        booking_id: str,
+        confirm_token: str,
+        idempotency_key: str,
+    ) -> dict:
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/bookings/{quote(booking_id)}/force-complete/execute",
+            json={"confirm_token": confirm_token, "idempotency_key": idempotency_key},
+        )
+
+    async def booking_resend_notification(
+        self,
+        *,
+        booking_id: str,
+        notification_type: str,
+        recipient: str = "student",
+        note: str,
+    ) -> dict:
+        payload = {
+            "notification_type": notification_type,
+            "recipient": recipient,
+            "note": note,
+        }
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/bookings/{quote(booking_id)}/resend-notification",
+            json=payload,
+        )
+
+    async def booking_add_note(
+        self,
+        *,
+        booking_id: str,
+        note: str,
+        visibility: str = "internal",
+        category: str = "general",
+    ) -> dict:
+        payload = {
+            "note": note,
+            "visibility": visibility,
+            "category": category,
+        }
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/bookings/{quote(booking_id)}/notes",
+            json=payload,
+        )
+
     async def get_payment_pipeline(self) -> dict:
         return await self.call(
             "GET",

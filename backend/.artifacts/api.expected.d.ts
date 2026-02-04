@@ -5267,6 +5267,14 @@ export type components = {
  total: number;
  total_pages: number;
  };
+ AdminBookingNote: {
+ category: string;
+ created_at: string;
+ created_by?: components["schemas"]["AdminNoteAuthor"] | null;
+ id: string;
+ note: string;
+ visibility: string;
+ };
  AdminBookingPaymentInfo: {
  credits_applied: number;
  instructor_payout: number;
@@ -5447,6 +5455,10 @@ export type components = {
  resolution: string;
  settlement_outcome?: string | null;
  success: boolean;
+ };
+ AdminNoteAuthor: {
+ email?: string | null;
+ id?: string | null;
  };
  AdminPaymentAmount: {
  credits_applied: number;
@@ -6134,6 +6146,7 @@ export type components = {
  generated_at: string;
  };
  BookingDetailResponse: {
+ admin_notes?: components["schemas"]["AdminBookingNote"][];
  booking: components["schemas"]["BookingInfo"];
  messages: components["schemas"]["MessagesSummary"] | null;
  meta: components["schemas"]["BookingDetailMeta"];

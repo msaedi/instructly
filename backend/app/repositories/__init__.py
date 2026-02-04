@@ -40,6 +40,7 @@ from .admin_ops_repository import AdminOpsRepository
 from .availability_day_repository import AvailabilityDayRepository
 from .availability_repository import AvailabilityRepository
 from .base_repository import BaseRepository, IRepository
+from .booking_note_repository import BookingNoteRepository
 from .booking_repository import BookingRepository
 from .bulk_operation_repository import BulkOperationRepository
 from .conflict_checker_repository import ConflictCheckerRepository
@@ -71,6 +72,7 @@ __all__ = [
     # "SlotManagerRepository",  # Removed - bitmap-only storage now
     "ConflictCheckerRepository",
     "BulkOperationRepository",
+    "BookingNoteRepository",
     "BookingRepository",
     "ConversationRepository",
     "GovernanceAuditRepository",

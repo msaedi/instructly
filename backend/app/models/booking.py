@@ -223,6 +223,7 @@ class Booking(Base):
     # - capture_failure_instructor_paid
     # - dispute_won
     # - admin_refund
+    # - admin_no_refund
     settlement_outcome = Column(
         String(50),
         nullable=True,
@@ -448,6 +449,9 @@ class Booking(Base):
         "PlatformCredit",
         foreign_keys="PlatformCredit.reserved_for_booking_id",
         back_populates="reserved_for_booking",
+    )
+    admin_notes = relationship(
+        "BookingNote", back_populates="booking", cascade="all, delete-orphan"
     )
 
     # Optional linkage when created by reschedule

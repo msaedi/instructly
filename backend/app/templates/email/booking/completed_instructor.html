@@ -1,0 +1,29 @@
+<!-- backend/app/templates/email/booking/completed_instructor.html -->
+{% extends "email/base.html" %}
+
+{% block title %}Lesson Completed: {{ booking.service_name }}{% endblock %}
+
+{% block header_color %}#2563EB{% endblock %}
+{% block header_subtitle_color %}#DBEAFE{% endblock %}
+{% block header_subtitle %}Lesson Completed{% endblock %}
+
+{% block content %}
+<h2 style="color: #1F2937;">Lesson Completed</h2>
+
+<p>Hi {{ booking.instructor.first_name }},</p>
+
+<p>Your lesson has been marked as completed. Thanks for teaching with us!</p>
+
+<div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
+    <h3 style="color: #1F2937; margin-top: 0;">Lesson Details</h3>
+    <p><strong>Student:</strong> {{ booking.student.first_name }} {{ booking.student.last_name }}</p>
+    <p><strong>Service:</strong> {{ booking.service_name }}</p>
+    <p><strong>Date:</strong> {{ formatted_date }}</p>
+    <p><strong>Time:</strong> {{ formatted_time }}</p>
+</div>
+
+<p style="margin-top: 30px;">
+    Best regards,<br>
+    The {{ brand_name }} Team
+</p>
+{% endblock %}

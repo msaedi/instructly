@@ -38,6 +38,8 @@ class TemplateRegistry(str, Enum):
     BOOKING_NEW_MESSAGE = "email/booking/new_message.html"
     BOOKING_REMINDER_INSTRUCTOR = "email/booking/reminder_instructor.html"
     BOOKING_REMINDER_STUDENT = "email/booking/reminder_student.html"
+    BOOKING_COMPLETED_INSTRUCTOR = "email/booking/completed_instructor.html"
+    BOOKING_COMPLETED_STUDENT = "email/booking/completed_student.html"
     PAYOUT_SENT = "email/payout/payout_sent.html"
     PAYMENT_FAILED = "email/payment/payment_failed.html"
     REVIEW_NEW_REVIEW = "email/reviews/new_review.html"
@@ -68,6 +70,8 @@ _TEMPLATE_DEFAULT_SENDERS: Final[dict[TemplateRegistry, str]] = {
     TemplateRegistry.BOOKING_NEW_MESSAGE: "bookings",
     TemplateRegistry.BOOKING_REMINDER_INSTRUCTOR: "bookings",
     TemplateRegistry.BOOKING_REMINDER_STUDENT: "bookings",
+    TemplateRegistry.BOOKING_COMPLETED_INSTRUCTOR: "bookings",
+    TemplateRegistry.BOOKING_COMPLETED_STUDENT: "bookings",
     TemplateRegistry.PAYOUT_SENT: "bookings",
     TemplateRegistry.PAYMENT_FAILED: "bookings",
     TemplateRegistry.REVIEW_NEW_REVIEW: "bookings",

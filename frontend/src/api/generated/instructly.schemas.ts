@@ -256,6 +256,20 @@ export interface AdminBookingListResponse {
   total_pages: number;
 }
 
+export interface AdminNoteAuthor {
+  email?: string | null;
+  id?: string | null;
+}
+
+export interface AdminBookingNote {
+  category: string;
+  created_at: string;
+  created_by?: AdminNoteAuthor | null;
+  id: string;
+  note: string;
+  visibility: string;
+}
+
 export interface AdminBookingStatsNeedsAction {
   disputed: number;
   pending_completion: number;
@@ -1960,6 +1974,7 @@ export interface WebhooksSummary {
 }
 
 export interface BookingDetailResponse {
+  admin_notes?: AdminBookingNote[];
   booking: BookingInfo;
   messages: MessagesSummary | null;
   meta: BookingDetailMeta;

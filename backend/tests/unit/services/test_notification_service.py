@@ -346,8 +346,8 @@ def test_send_booking_reminder_success(
 ):
     service = NotificationService(db, None, template_service, email_service)
     booking = _build_booking_stub()
-    monkeypatch.setattr(service, "_send_student_reminder", lambda *_: True)
-    monkeypatch.setattr(service, "_send_instructor_reminder", lambda *_: True)
+    monkeypatch.setattr(service, "_send_student_reminder", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(service, "_send_instructor_reminder", lambda *_args, **_kwargs: True)
 
     assert service.send_booking_reminder(booking) is True
 

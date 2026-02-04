@@ -430,6 +430,39 @@ async def test_client_wrapper_methods_call_expected_paths():
             note="note",
         )
         await client.refund_execute(confirm_token="token", idempotency_key="idem")
+        await client.booking_force_cancel_preview(
+            booking_id="01BOOK",
+            reason_code="ADMIN_DISCRETION",
+            note="note",
+            refund_preference="POLICY_BASED",
+        )
+        await client.booking_force_cancel_execute(
+            booking_id="01BOOK",
+            confirm_token="token",
+            idempotency_key="idem",
+        )
+        await client.booking_force_complete_preview(
+            booking_id="01BOOK",
+            reason_code="ADMIN_VERIFIED",
+            note="note",
+        )
+        await client.booking_force_complete_execute(
+            booking_id="01BOOK",
+            confirm_token="token",
+            idempotency_key="idem",
+        )
+        await client.booking_resend_notification(
+            booking_id="01BOOK",
+            notification_type="booking_confirmation",
+            recipient="both",
+            note="note",
+        )
+        await client.booking_add_note(
+            booking_id="01BOOK",
+            note="note",
+            visibility="internal",
+            category="general",
+        )
         await client.lookup_user(identifier="user@example.com")
         await client.get_user_booking_history(user_id="01USER", limit=15)
 
@@ -539,6 +572,44 @@ async def test_client_wrapper_methods_call_expected_paths():
             "POST",
             "/api/v1/admin/mcp/refunds/execute",
             json={"confirm_token": "token", "idempotency_key": "idem"},
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/bookings/01BOOK/force-cancel/preview",
+            json={
+                "reason_code": "ADMIN_DISCRETION",
+                "note": "note",
+                "refund_preference": "POLICY_BASED",
+            },
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/bookings/01BOOK/force-cancel/execute",
+            json={"confirm_token": "token", "idempotency_key": "idem"},
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/bookings/01BOOK/force-complete/preview",
+            json={"reason_code": "ADMIN_VERIFIED", "note": "note"},
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/bookings/01BOOK/force-complete/execute",
+            json={"confirm_token": "token", "idempotency_key": "idem"},
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/bookings/01BOOK/resend-notification",
+            json={
+                "notification_type": "booking_confirmation",
+                "recipient": "both",
+                "note": "note",
+            },
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/bookings/01BOOK/notes",
+            json={"note": "note", "visibility": "internal", "category": "general"},
         ),
         call(
             "GET",
@@ -921,6 +992,32 @@ async def test_client_payment_timeline_since_days_normalization():
     params = mock_call.await_args.kwargs["params"]
     assert params["booking_id"] == "01BOOK"
     assert params["since_days"] == 30
+
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_client_payment_timeline_include_capture_schedule():
+    settings = Settings(
+        api_base_url="https://api.instainstru.test",
+        api_service_token="svc",
+    )
+    auth = MCPAuth(settings)
+    client = InstaInstruClient(settings, auth)
+
+    mock_call = AsyncMock(return_value={"ok": True})
+    client.call = mock_call
+
+    await client.get_payment_timeline(
+        booking_id="01BOOK",
+        since_days=3,
+        include_capture_schedule=True,
+    )
+
+    params = mock_call.await_args.kwargs["params"]
+    assert params["booking_id"] == "01BOOK"
+    assert params["since_days"] == 3
+    assert params["include_capture_schedule"] is True
 
     await client.aclose()
 

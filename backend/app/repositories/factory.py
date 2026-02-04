@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from .audit_repository import AuditRepository
     from .availability_repository import AvailabilityRepository
     from .badge_repository import BadgeRepository
+    from .booking_note_repository import BookingNoteRepository
     from .booking_repository import BookingRepository
     from .bulk_operation_repository import BulkOperationRepository
     from .conflict_checker_repository import ConflictCheckerRepository
@@ -114,6 +115,13 @@ class RepositoryFactory:
         from .booking_repository import BookingRepository
 
         return BookingRepository(db)
+
+    @staticmethod
+    def create_booking_note_repository(db: Session) -> "BookingNoteRepository":
+        """Create repository for booking note operations."""
+        from .booking_note_repository import BookingNoteRepository
+
+        return BookingNoteRepository(db)
 
     @staticmethod
     def create_event_outbox_repository(db: Session) -> "EventOutboxRepository":

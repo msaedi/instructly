@@ -20,6 +20,7 @@ from .audit_log import AuditLog, AuditLogEntry
 from .availability import BlackoutDate
 from .availability_day import AvailabilityDay  # noqa: F401
 from .booking import Booking, BookingStatus
+from .booking_note import BookingNote
 from .conversation import Conversation
 from .conversation_user_state import ConversationUserState
 from .event_outbox import EventOutbox, EventOutboxStatus, NotificationDelivery
@@ -99,6 +100,7 @@ __all__ = [
     # Booking models
     "Booking",
     "BookingStatus",
+    "BookingNote",
     "AuditLog",
     "AuditLogEntry",
     "PlatformConfig",

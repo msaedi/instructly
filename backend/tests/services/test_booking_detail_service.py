@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_note import BookingNote
 from app.models.conversation import Conversation
 from app.models.instructor import InstructorProfile
 from app.models.message import MESSAGE_TYPE_USER, Message
@@ -300,6 +301,40 @@ class TestBookingDetailService:
 
         assert detail is not None
         assert detail.messages is None
+
+    def test_booking_detail_includes_admin_notes(self, db, test_booking, test_student):
+        now = datetime.now(timezone.utc)
+        db.add(
+            BookingNote(
+                booking_id=test_booking.id,
+                created_by_id=test_student.id,
+                note="First note",
+                visibility="internal",
+                category="general",
+                created_at=now - timedelta(hours=1),
+            )
+        )
+        db.add(
+            BookingNote(
+                booking_id=test_booking.id,
+                created_by_id=None,
+                note="Second note",
+                visibility="internal",
+                category="general",
+                created_at=now,
+            )
+        )
+        db.commit()
+
+        service = BookingDetailService(db)
+        detail = service.get_booking_detail(test_booking.id)
+        assert detail is not None
+        assert detail.admin_notes
+        assert detail.admin_notes[0].note == "Second note"
+        assert detail.admin_notes[0].created_by is None
+        assert detail.admin_notes[1].note == "First note"
+        assert detail.admin_notes[1].created_by is not None
+        assert detail.admin_notes[1].created_by.email == test_student.email
 
     def test_booking_detail_not_found_returns_404(
         self, client: TestClient, mcp_service_headers

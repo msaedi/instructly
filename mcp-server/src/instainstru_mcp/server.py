@@ -32,6 +32,7 @@ from .oauth.endpoints import attach_oauth_routes
 from .otel import init_otel, instrument_app
 from .tools import (
     audit,
+    booking_actions,
     booking_detail,
     celery,
     command_center,
@@ -562,6 +563,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     invites.register_tools(mcp, client)
     operations.register_tools(mcp, client)
     booking_detail.register_tools(mcp, client)
+    booking_actions.register_tools(mcp, client)
     payments.register_tools(mcp, client)
     refunds.register_tools(mcp, client)
     search.register_tools(mcp, client)

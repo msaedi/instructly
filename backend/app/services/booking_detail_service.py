@@ -18,6 +18,8 @@ from app.repositories.factory import RepositoryFactory
 from app.repositories.review_repository import ReviewRepository, ReviewTipRepository
 from app.repositories.webhook_event_repository import WebhookEventRepository
 from app.schemas.admin_booking_detail import (
+    AdminBookingNote,
+    AdminNoteAuthor,
     BookingDetailMeta,
     BookingDetailResponse,
     BookingInfo,
@@ -208,6 +210,7 @@ class BookingDetailService(BaseService):
     def __init__(self, db: Session) -> None:
         super().__init__(db)
         self.booking_repo = RepositoryFactory.create_booking_repository(db)
+        self.booking_note_repo = RepositoryFactory.create_booking_note_repository(db)
         self.payment_repo = RepositoryFactory.create_payment_repository(db)
         self.conversation_repo = RepositoryFactory.create_conversation_repository(db)
         self.message_repo = RepositoryFactory.create_message_repository(db)
@@ -265,6 +268,7 @@ class BookingDetailService(BaseService):
             traces_summary = TracesSummary(included=True, trace_ids=[], support_code=None)
 
         recommended_actions = self._compute_recommended_actions(booking, payment_info)
+        admin_notes = self._resolve_admin_notes(booking.id)
 
         service_info = self._build_service_info(booking)
         booking_info = BookingInfo(
@@ -291,6 +295,7 @@ class BookingDetailService(BaseService):
             messages=messages_summary,
             webhooks=webhooks_summary,
             traces=traces_summary,
+            admin_notes=admin_notes,
             recommended_actions=recommended_actions,
         )
 
@@ -351,6 +356,25 @@ class BookingDetailService(BaseService):
             return self.review_tip_repo.get_by_booking_id(booking_id)
         except Exception:
             return None
+
+    def _resolve_admin_notes(self, booking_id: str) -> list[AdminBookingNote]:
+        notes: list[AdminBookingNote] = []
+        for note in self.booking_note_repo.list_for_booking(booking_id):
+            author = None
+            user = note.created_by
+            if user is not None:
+                author = AdminNoteAuthor(id=user.id, email=user.email)
+            notes.append(
+                AdminBookingNote(
+                    id=note.id,
+                    note=note.note,
+                    visibility=note.visibility,
+                    category=note.category,
+                    created_at=note.created_at,
+                    created_by=author,
+                )
+            )
+        return notes
 
     def _build_payment_amount(
         self,

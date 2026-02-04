@@ -105,6 +105,20 @@ class TracesSummary(StrictModel):
     support_code: str | None = None
 
 
+class AdminNoteAuthor(StrictModel):
+    id: str | None = None
+    email: str | None = None
+
+
+class AdminBookingNote(StrictModel):
+    id: str
+    note: str
+    visibility: str
+    category: str
+    created_at: datetime
+    created_by: AdminNoteAuthor | None = None
+
+
 class RecommendedAction(StrictModel):
     action: str
     reason: str
@@ -119,6 +133,7 @@ class BookingDetailResponse(StrictModel):
     messages: MessagesSummary | None
     webhooks: WebhooksSummary | None
     traces: TracesSummary | None
+    admin_notes: list[AdminBookingNote] = Field(default_factory=list)
     recommended_actions: list[RecommendedAction]
 
 
@@ -127,6 +142,8 @@ __all__ = [
     "BookingDetailRequest",
     "BookingDetailResponse",
     "BookingInfo",
+    "AdminBookingNote",
+    "AdminNoteAuthor",
     "MessagesSummary",
     "ParticipantInfo",
     "PaymentAmount",

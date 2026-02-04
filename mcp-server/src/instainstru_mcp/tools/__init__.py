@@ -2,6 +2,7 @@
 
 from . import (
     audit,
+    booking_actions,
     booking_detail,
     celery,
     command_center,
@@ -27,6 +28,7 @@ __all__ = [
     "celery",
     "command_center",
     "deploy",
+    "booking_actions",
     "booking_detail",
     "founding",
     "growth",

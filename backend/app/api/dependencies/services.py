@@ -21,6 +21,7 @@ from ...services.availability_service import AvailabilityService
 from ...services.background_check_service import BackgroundCheckService
 from ...services.background_check_workflow_service import BackgroundCheckWorkflowService
 from ...services.base import BaseService
+from ...services.booking_admin_service import BookingAdminService
 from ...services.booking_detail_service import BookingDetailService
 from ...services.booking_service import BookingService
 from ...services.bulk_operation_service import BulkOperationService
@@ -146,6 +147,11 @@ def get_booking_detail_service(db: Session = Depends(get_db)) -> BookingDetailSe
 def get_refund_service(db: Session = Depends(get_db)) -> RefundService:
     """Get refund service instance for MCP refund tooling."""
     return RefundService(db)
+
+
+def get_booking_admin_service(db: Session = Depends(get_db)) -> BookingAdminService:
+    """Get booking admin service instance for MCP booking actions."""
+    return BookingAdminService(db)
 
 
 def get_pricing_service(db: Session = Depends(get_db)) -> PricingService:

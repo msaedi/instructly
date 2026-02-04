@@ -7464,6 +7464,23 @@ export type components = {
             /** Total Pages */
             total_pages: number;
         };
+        /** AdminBookingNote */
+        AdminBookingNote: {
+            /** Category */
+            category: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by?: components["schemas"]["AdminNoteAuthor"] | null;
+            /** Id */
+            id: string;
+            /** Note */
+            note: string;
+            /** Visibility */
+            visibility: string;
+        };
         /** AdminBookingPaymentInfo */
         AdminBookingPaymentInfo: {
             /** Credits Applied */
@@ -7850,6 +7867,13 @@ export type components = {
             settlement_outcome?: string | null;
             /** Success */
             success: boolean;
+        };
+        /** AdminNoteAuthor */
+        AdminNoteAuthor: {
+            /** Email */
+            email?: string | null;
+            /** Id */
+            id?: string | null;
         };
         /** AdminPaymentAmount */
         AdminPaymentAmount: {
@@ -9730,6 +9754,8 @@ export type components = {
         };
         /** BookingDetailResponse */
         BookingDetailResponse: {
+            /** Admin Notes */
+            admin_notes?: components["schemas"]["AdminBookingNote"][];
             booking: components["schemas"]["BookingInfo"];
             messages: components["schemas"]["MessagesSummary"] | null;
             meta: components["schemas"]["BookingDetailMeta"];

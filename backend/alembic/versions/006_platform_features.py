@@ -1115,6 +1115,29 @@ def upgrade() -> None:
     op.create_index("ix_message_reactions_message_id", "message_reactions", ["message_id"])
     op.create_index("ix_search_clicks_instructor_id", "search_clicks", ["instructor_id"])
 
+    op.create_table(
+        "booking_notes",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("booking_id", sa.String(26), nullable=False),
+        sa.Column("created_by_id", sa.String(26), nullable=True),
+        sa.Column("note", sa.Text(), nullable=False),
+        sa.Column("visibility", sa.String(32), nullable=False, server_default="internal"),
+        sa.Column("category", sa.String(32), nullable=False, server_default="general"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["created_by_id"], ["users.id"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("id"),
+        comment="Admin notes attached to bookings",
+    )
+    op.create_index("idx_booking_notes_booking_id", "booking_notes", ["booking_id"])
+    op.create_index("idx_booking_notes_created_by_id", "booking_notes", ["created_by_id"])
+    op.create_index("idx_booking_notes_created_at", "booking_notes", ["created_at"])
+
     if is_postgres:
         exclude_tables = [
             "alembic_version",
@@ -1249,6 +1272,11 @@ def downgrade() -> None:
         tables = _get_public_tables(exclude_tables)
         for table_name in tables:
             _drop_permissive_policy_and_disable_rls(table_name)
+
+    op.drop_index("idx_booking_notes_created_at", table_name="booking_notes")
+    op.drop_index("idx_booking_notes_created_by_id", table_name="booking_notes")
+    op.drop_index("idx_booking_notes_booking_id", table_name="booking_notes")
+    op.drop_table("booking_notes")
 
     op.drop_column("bookings", "reminder_1h_sent")
     op.drop_column("bookings", "reminder_24h_sent")

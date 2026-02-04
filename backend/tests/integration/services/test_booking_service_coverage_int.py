@@ -454,9 +454,16 @@ class TestReportNoShowIntegration:
         instructor_service: Service,
     ):
         """Test student reporting instructor no-show."""
-        now = datetime.now(timezone.utc)
+        now = now_trimmed()
         start_dt = now - timedelta(hours=2)
-        end_dt = now - timedelta(hours=1)
+        end_dt = start_dt + timedelta(hours=1)
+        if end_dt.date() != start_dt.date():
+            start_dt = datetime.combine(
+                (now - timedelta(days=1)).date(),
+                time(10, 0),
+                tzinfo=timezone.utc,
+            )
+            end_dt = start_dt + timedelta(hours=1)
         booking = create_test_booking(
             db, test_student, test_instructor_with_availability, instructor_service,
             start_dt.date(), start_dt.time(), end_dt.time(),
