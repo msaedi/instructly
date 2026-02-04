@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 jest.mock('@sentry/nextjs', () => ({
   captureException: jest.fn(),
@@ -15,9 +15,9 @@ describe('GlobalError', () => {
     const error = new Error('boom') as Error & { request_id?: string };
     error.request_id = 'req-abc-123';
 
-    render(<GlobalError error={error} />);
+    const html = renderToStaticMarkup(<GlobalError error={error} />);
 
-    expect(screen.getByText(/reference code/i)).toBeInTheDocument();
-    expect(screen.getByText('req-abc-123')).toBeInTheDocument();
+    expect(html.toLowerCase()).toContain('reference code');
+    expect(html).toContain('req-abc-123');
   });
 });

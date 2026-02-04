@@ -10,6 +10,18 @@ jest.mock('next-axiom', () => ({
 }));
 
 describe('logger', () => {
+  beforeEach(() => {
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'info').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'debug').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('exposes debug, info, warn, error methods', () => {
     expect(typeof logger.debug).toBe('function');
     expect(typeof logger.info).toBe('function');
