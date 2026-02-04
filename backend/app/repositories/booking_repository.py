@@ -1732,6 +1732,39 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             raise RepositoryException("Failed to count student completed lessons")
 
+    def count_student_bookings(self, student_id: str) -> int:
+        """Return total booking count for a student."""
+        try:
+            total = (
+                self.db.query(func.count(Booking.id))
+                .filter(Booking.student_id == student_id)
+                .scalar()
+            )
+            return int(total or 0)
+        except Exception as exc:
+            self.logger.error("Failed counting bookings for student %s: %s", student_id, exc)
+            raise RepositoryException("Failed to count student bookings") from exc
+
+    def list_student_refund_bookings(self, student_id: str) -> List[Booking]:
+        """Return bookings for a student that have refund or credit adjustments."""
+        try:
+            return cast(
+                List[Booking],
+                self.db.query(Booking)
+                .filter(Booking.student_id == student_id)
+                .filter(
+                    or_(
+                        Booking.refunded_to_card_amount.isnot(None),
+                        Booking.student_credit_amount.isnot(None),
+                    )
+                )
+                .order_by(Booking.updated_at.desc().nullslast(), Booking.id.desc())
+                .all(),
+            )
+        except Exception as exc:
+            self.logger.error("Failed loading refund bookings for student %s: %s", student_id, exc)
+            raise RepositoryException("Failed to load refund history") from exc
+
     def get_student_most_recent_completed_at(self, student_id: str) -> Optional[datetime]:
         """Return the most recent completion timestamp for a student, if any."""
 

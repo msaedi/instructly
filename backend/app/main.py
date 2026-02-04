@@ -171,6 +171,7 @@ from .routes.v1.admin.mcp import (
     refunds as admin_mcp_refunds_v1,
     search as admin_mcp_search_v1,
     services as admin_mcp_services_v1,
+    student_actions as admin_mcp_student_actions_v1,
     webhooks as admin_mcp_webhooks_v1,
 )
 from .schemas.main_responses import RootResponse
@@ -1159,6 +1160,11 @@ api_v1.include_router(  # type: ignore[attr-defined]
 )
 api_v1.include_router(  # type: ignore[attr-defined]
     admin_mcp_instructor_actions_v1.router,
+    prefix="/admin/mcp",
+    dependencies=[Depends(audit_mcp_request)],
+)
+api_v1.include_router(  # type: ignore[attr-defined]
+    admin_mcp_student_actions_v1.router,
     prefix="/admin/mcp",
     dependencies=[Depends(audit_mcp_request)],
 )

@@ -21,6 +21,7 @@ from . import (
     sentry,
     sentry_debug,
     services,
+    student_actions,
     support,
     webhooks,
 )
@@ -46,6 +47,7 @@ __all__ = [
     "sentry_debug",
     "services",
     "support",
+    "student_actions",
     "webhooks",
     "audit",
 ]

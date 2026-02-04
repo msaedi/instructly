@@ -39,6 +39,7 @@ from ...services.referral_checkout_service import ReferralCheckoutService
 from ...services.referral_service import ReferralService
 from ...services.refund_service import RefundService
 from ...services.sms_service import SMSService
+from ...services.student_admin_service import StudentAdminService
 
 # SlotManager removed - bitmap-only storage now
 from ...services.two_factor_auth_service import TwoFactorAuthService
@@ -158,6 +159,11 @@ def get_booking_admin_service(db: Session = Depends(get_db)) -> BookingAdminServ
 def get_instructor_admin_service(db: Session = Depends(get_db)) -> InstructorAdminService:
     """Get instructor admin service instance for MCP instructor actions."""
     return InstructorAdminService(db)
+
+
+def get_student_admin_service(db: Session = Depends(get_db)) -> StudentAdminService:
+    """Get student admin service instance for MCP student actions."""
+    return StudentAdminService(db)
 
 
 def get_pricing_service(db: Session = Depends(get_db)) -> PricingService:

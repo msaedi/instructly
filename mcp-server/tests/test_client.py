@@ -504,6 +504,39 @@ async def test_client_wrapper_methods_call_expected_paths():
             action="HOLD",
             reason="note",
         )
+        await client.student_suspend_preview(
+            student_id="01STU",
+            reason_code="FRAUD",
+            note="note",
+            notify_student=True,
+            cancel_pending_bookings=True,
+            forfeit_credits=True,
+        )
+        await client.student_suspend_execute(
+            student_id="01STU",
+            confirm_token="token",
+            idempotency_key="idem",
+        )
+        await client.student_unsuspend(
+            student_id="01STU",
+            reason="ok",
+            restore_credits=True,
+        )
+        await client.student_credit_adjust_preview(
+            student_id="01STU",
+            action="ADD",
+            amount=25.0,
+            reason_code="GOODWILL",
+            note="note",
+            expires_at=None,
+        )
+        await client.student_credit_adjust_execute(
+            student_id="01STU",
+            confirm_token="token",
+            idempotency_key="idem",
+        )
+        await client.student_credit_history(student_id="01STU", include_expired=True)
+        await client.student_refund_history(student_id="01STU")
         await client.lookup_user(identifier="user@example.com")
         await client.get_user_booking_history(user_id="01USER", limit=15)
 
@@ -702,6 +735,49 @@ async def test_client_wrapper_methods_call_expected_paths():
             "/api/v1/admin/mcp/instructors/01INS/payout-hold",
             json={"action": "HOLD", "reason": "note"},
         ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/students/01STU/suspend/preview",
+            json={
+                "reason_code": "FRAUD",
+                "note": "note",
+                "notify_student": True,
+                "cancel_pending_bookings": True,
+                "forfeit_credits": True,
+            },
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/students/01STU/suspend/execute",
+            json={"confirm_token": "token", "idempotency_key": "idem"},
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/students/01STU/unsuspend",
+            json={"reason": "ok", "restore_credits": True},
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/students/01STU/credits/adjust/preview",
+            json={
+                "action": "ADD",
+                "amount": 25.0,
+                "reason_code": "GOODWILL",
+                "note": "note",
+                "expires_at": None,
+            },
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/students/01STU/credits/adjust/execute",
+            json={"confirm_token": "token", "idempotency_key": "idem"},
+        ),
+        call(
+            "GET",
+            "/api/v1/admin/mcp/students/01STU/credits/history",
+            params={"include_expired": True},
+        ),
+        call("GET", "/api/v1/admin/mcp/students/01STU/refunds/history"),
         call(
             "GET",
             "/api/v1/admin/mcp/ops/users/lookup",

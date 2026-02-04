@@ -51,6 +51,7 @@ from .tools import (
     sentry,
     sentry_debug,
     services,
+    student_actions,
     support,
     webhooks,
 )
@@ -562,6 +563,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     founding.register_tools(mcp, client)
     instructors.register_tools(mcp, client)
     instructor_actions.register_tools(mcp, client)
+    student_actions.register_tools(mcp, client)
     invites.register_tools(mcp, client)
     operations.register_tools(mcp, client)
     booking_detail.register_tools(mcp, client)

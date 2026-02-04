@@ -369,6 +369,109 @@ class InstaInstruClient:
             json={"action": action, "reason": reason},
         )
 
+    async def student_suspend_preview(
+        self,
+        *,
+        student_id: str,
+        reason_code: str,
+        note: str,
+        notify_student: bool = True,
+        cancel_pending_bookings: bool = True,
+        forfeit_credits: bool = False,
+    ) -> dict:
+        payload = {
+            "reason_code": reason_code,
+            "note": note,
+            "notify_student": notify_student,
+            "cancel_pending_bookings": cancel_pending_bookings,
+            "forfeit_credits": forfeit_credits,
+        }
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/students/{quote(student_id)}/suspend/preview",
+            json=payload,
+        )
+
+    async def student_suspend_execute(
+        self,
+        *,
+        student_id: str,
+        confirm_token: str,
+        idempotency_key: str,
+    ) -> dict:
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/students/{quote(student_id)}/suspend/execute",
+            json={"confirm_token": confirm_token, "idempotency_key": idempotency_key},
+        )
+
+    async def student_unsuspend(
+        self,
+        *,
+        student_id: str,
+        reason: str,
+        restore_credits: bool = True,
+    ) -> dict:
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/students/{quote(student_id)}/unsuspend",
+            json={"reason": reason, "restore_credits": restore_credits},
+        )
+
+    async def student_credit_adjust_preview(
+        self,
+        *,
+        student_id: str,
+        action: str,
+        amount: float,
+        reason_code: str,
+        note: str | None = None,
+        expires_at: str | None = None,
+    ) -> dict:
+        payload: dict[str, Any] = {
+            "action": action,
+            "amount": amount,
+            "reason_code": reason_code,
+            "note": note,
+            "expires_at": expires_at,
+        }
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/students/{quote(student_id)}/credits/adjust/preview",
+            json=payload,
+        )
+
+    async def student_credit_adjust_execute(
+        self,
+        *,
+        student_id: str,
+        confirm_token: str,
+        idempotency_key: str,
+    ) -> dict:
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/students/{quote(student_id)}/credits/adjust/execute",
+            json={"confirm_token": confirm_token, "idempotency_key": idempotency_key},
+        )
+
+    async def student_credit_history(
+        self,
+        *,
+        student_id: str,
+        include_expired: bool = True,
+    ) -> dict:
+        return await self.call(
+            "GET",
+            f"/api/v1/admin/mcp/students/{quote(student_id)}/credits/history",
+            params={"include_expired": include_expired},
+        )
+
+    async def student_refund_history(self, *, student_id: str) -> dict:
+        return await self.call(
+            "GET",
+            f"/api/v1/admin/mcp/students/{quote(student_id)}/refunds/history",
+        )
+
     async def preview_invites(self, **payload: Any) -> dict:
         return await self.call(
             "POST",

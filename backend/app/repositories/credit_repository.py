@@ -190,5 +190,50 @@ class CreditRepository(BaseRepository[PlatformCredit]):
             self.logger.error("Failed to load expired credits: %s", str(exc))
             raise RepositoryException("Failed to load expired credits") from exc
 
+    def list_credits_for_user(
+        self,
+        *,
+        user_id: str,
+        include_expired: bool = True,
+    ) -> List[PlatformCredit]:
+        """Return credits for a user, optionally excluding expired credits."""
+        try:
+            query = self.db.query(PlatformCredit).filter(PlatformCredit.user_id == user_id)
+            if not include_expired:
+                now = datetime.now(timezone.utc)
+                query = query.filter(
+                    or_(
+                        PlatformCredit.status != "expired",
+                        PlatformCredit.expires_at.is_(None),
+                        PlatformCredit.expires_at > now,
+                    )
+                )
+            query = query.order_by(PlatformCredit.created_at.desc(), PlatformCredit.id.desc())
+            return cast(List[PlatformCredit], query.all())
+        except Exception as exc:
+            self.logger.error("Failed to list credits for user %s: %s", user_id, str(exc))
+            raise RepositoryException("Failed to list credits") from exc
+
+    def get_revoked_credits_for_user(
+        self,
+        *,
+        user_id: str,
+        revoked_reason: Optional[str] = None,
+    ) -> List[PlatformCredit]:
+        """Return revoked credits for a user, optionally filtered by reason."""
+        try:
+            query = (
+                self.db.query(PlatformCredit)
+                .filter(PlatformCredit.user_id == user_id)
+                .filter(PlatformCredit.status == "revoked")
+            )
+            if revoked_reason:
+                query = query.filter(PlatformCredit.revoked_reason == revoked_reason)
+            query = query.order_by(PlatformCredit.revoked_at.desc().nullslast(), PlatformCredit.id)
+            return cast(List[PlatformCredit], query.all())
+        except Exception as exc:
+            self.logger.error("Failed to load revoked credits for user %s: %s", user_id, str(exc))
+            raise RepositoryException("Failed to load revoked credits") from exc
+
 
 __all__ = ["CreditRepository"]
