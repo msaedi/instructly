@@ -28,7 +28,7 @@ def main():
 
     # Set environment variables
     os.environ["COVERAGE_FILE"] = ".coverage"
-    os.environ["SECRET_KEY"] = "test-secret-key"
+    os.environ["SECRET_KEY"] = "test-secret-key-for-local-coverage-run!"
     os.environ["DATABASE_URL"] = "postgresql://postgres:postgres@localhost:5432/instainstru_test"
     os.environ["RESEND_API_KEY"] = "test-resend-key"
     os.environ["REDIS_URL"] = "redis://localhost:6379"

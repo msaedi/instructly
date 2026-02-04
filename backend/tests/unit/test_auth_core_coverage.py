@@ -213,11 +213,16 @@ def test_create_access_token_handles_env_error(monkeypatch):
 
 
 def test_create_temp_token_uses_temp_secret(monkeypatch):
-    monkeypatch.setattr(settings, "temp_token_secret", _Secret("temp-secret"), raising=False)
+    monkeypatch.setattr(
+        settings,
+        "temp_token_secret",
+        _Secret("temp-secret-key-for-testing-32bytes!"),
+        raising=False,
+    )
     token = auth_module.create_temp_token({"sub": "user@example.com"})
     decoded = jwt.decode(
         token,
-        "temp-secret",
+        "temp-secret-key-for-testing-32bytes!",
         algorithms=[settings.algorithm],
         audience=settings.temp_token_aud,
     )
