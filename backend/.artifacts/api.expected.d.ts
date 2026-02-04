@@ -943,6 +943,102 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/analytics/alerts": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["platform_alerts_api_v1_admin_mcp_analytics_alerts_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/analytics/categories": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["category_performance_api_v1_admin_mcp_analytics_categories_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/analytics/cohorts": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["cohort_retention_api_v1_admin_mcp_analytics_cohorts_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/analytics/funnel": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["booking_funnel_api_v1_admin_mcp_analytics_funnel_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/analytics/revenue": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["revenue_dashboard_api_v1_admin_mcp_analytics_revenue_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/mcp/analytics/supply-demand": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["supply_demand_api_v1_admin_mcp_analytics_supply_demand_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/mcp/audit/admin-actions/recent": {
  parameters: {
  query?: never;
@@ -5588,10 +5684,25 @@ export type components = {
  search_budget_ms?: number | null;
  uncached_concurrency?: number | null;
  };
+ Alert: {
+ acknowledged_at?: string | null;
+ acknowledged_by?: string | null;
+ category: string;
+ current_value: string;
+ description: string;
+ id: string;
+ metric_name: string;
+ recommended_action?: string | null;
+ severity: string;
+ threshold_value: string;
+ title: string;
+ triggered_at: string;
+ };
  AlertAcknowledgeResponse: {
  alert_type: string;
  status: string;
  };
+ AlertCategory: "revenue" | "operations" | "quality" | "technical";
  AlertDetail: {
  created_at: string;
  details?: (components["schemas"]["ExtremelySlowQueryDetails"] | components["schemas"]["ExtremelySlowRequestDetails"] | components["schemas"]["HighDbPoolUsageDetails"] | components["schemas"]["HighMemoryUsageDetails"] | components["schemas"]["LowCacheHitRateDetails"]) | null;
@@ -5609,6 +5720,7 @@ export type components = {
  timestamp: string;
  type: string;
  };
+ AlertSeverity: "critical" | "warning" | "info";
  AlertSummaryResponse: {
  by_day: components["schemas"]["DailyAlertCount"][];
  by_severity: {
@@ -5972,6 +6084,12 @@ export type components = {
  } & {
  [key: string]: unknown;
  };
+ BalanceMetrics: {
+ demand_fulfillment: string;
+ status: string;
+ supply_demand_ratio: string;
+ supply_utilization: string;
+ };
  BasicCacheStats: {
  errors: number;
  hit_rate: string;
@@ -6156,6 +6274,18 @@ export type components = {
  traces: components["schemas"]["TracesSummary"] | null;
  webhooks: components["schemas"]["WebhooksSummary"] | null;
  };
+ BookingFunnel: {
+ biggest_drop_off: string;
+ drop_off_rate: string;
+ overall_conversion: string;
+ period: string;
+ recommendations?: string[];
+ segments?: {
+ [key: string]: components["schemas"]["FunnelStage"][];
+ } | null;
+ stages: components["schemas"]["FunnelStage"][];
+ };
+ BookingFunnelPeriod: "last_7_days" | "last_30_days" | "this_month";
  BookingInfo: {
  created_at: string;
  duration_minutes: number;
@@ -6415,6 +6545,30 @@ export type components = {
  slug: string;
  typical_duration_options: number[];
  };
+ CategoryMetrics: {
+ avg_price: string;
+ avg_rating: string;
+ bookings: number;
+ category_id: string;
+ category_name: string;
+ conversion_rate: string;
+ gmv: string;
+ growth_pct: string;
+ instructor_count: number;
+ rank_change: number;
+ repeat_rate: string;
+ revenue: string;
+ student_count: number;
+ };
+ CategoryPerformance: {
+ categories: components["schemas"]["CategoryMetrics"][];
+ insights?: string[];
+ needs_attention?: components["schemas"]["CategoryMetrics"][];
+ period: string;
+ top_growing?: components["schemas"]["CategoryMetrics"] | null;
+ top_revenue?: components["schemas"]["CategoryMetrics"] | null;
+ };
+ CategoryPerformancePeriod: "last_7_days" | "last_30_days" | "this_month" | "last_quarter";
  CategoryResponse: {
  description?: string | null;
  display_order: number;
@@ -6442,6 +6596,7 @@ export type components = {
  search_terms?: string[];
  slug: string;
  };
+ CategorySortBy: "revenue" | "bookings" | "growth" | "conversion";
  CategoryWithServices: {
  description?: string | null;
  icon_name?: string | null;
@@ -6531,6 +6686,24 @@ export type components = {
  total_lines: number;
  total_lines_with_blanks: number;
  };
+ CohortData: {
+ cohort_label: string;
+ cohort_size: number;
+ retention: string[];
+ };
+ CohortMetric: "active" | "booking" | "revenue";
+ CohortPeriod: "week" | "month";
+ CohortRetention: {
+ avg_retention: {
+ [key: string]: string;
+ };
+ benchmark_comparison: string;
+ cohorts: components["schemas"]["CohortData"][];
+ insights?: string[];
+ metric: string;
+ user_type: string;
+ };
+ CohortUserType: "student" | "instructor";
  ConflictingBookingInfo: {
  booking_id?: string | null;
  end_time?: string | null;
@@ -6713,6 +6886,13 @@ export type components = {
  message: string;
  window_id: string;
  };
+ DemandMetrics: {
+ booking_attempts: number;
+ successful_bookings: number;
+ total_searches: number;
+ unfulfilled_searches: number;
+ unique_searchers: number;
+ };
  DeviceContext: {
  browser?: string | null;
  connection_effective_type?: string | null;
@@ -6822,6 +7002,12 @@ export type components = {
  spots_filled: number;
  spots_remaining: number;
  total_founding_spots: number;
+ };
+ FunnelSegmentBy: "device" | "category" | "source";
+ FunnelStage: {
+ conversion_to_next?: string | null;
+ count: number;
+ stage: string;
  };
  GatedPingResponse: {
  ok: boolean;
@@ -8159,6 +8345,16 @@ export type components = {
  text: string;
  types: string[];
  };
+ PlatformAlerts: {
+ alerts: components["schemas"]["Alert"][];
+ by_category: {
+ [key: string]: number;
+ };
+ by_severity: {
+ [key: string]: number;
+ };
+ total_active: number;
+ };
  PlatformFees: {
  founding_instructor: number;
  student_booking_fee: number;
@@ -8692,6 +8888,45 @@ export type components = {
  payment_status: string;
  success: boolean;
  };
+ RevenueBreakdownBy: "day" | "week" | "category";
+ RevenueComparison: {
+ gmv: string;
+ gmv_delta: string;
+ gmv_delta_pct: string;
+ period: string;
+ revenue_delta: string;
+ revenue_delta_pct: string;
+ };
+ RevenueComparisonMode: "previous_period" | "same_period_last_month" | "same_period_last_year";
+ RevenueDashboard: {
+ average_booking_value: string;
+ breakdown?: components["schemas"]["RevenuePeriodBreakdown"][] | null;
+ cancelled_bookings: number;
+ comparison?: components["schemas"]["RevenueComparison"] | null;
+ completed_bookings: number;
+ completion_rate: string;
+ gmv: string;
+ health: components["schemas"]["RevenueHealth"];
+ instructor_payouts: string;
+ net_revenue: string;
+ period: string;
+ period_end: string;
+ period_start: string;
+ platform_revenue: string;
+ take_rate: string;
+ total_bookings: number;
+ };
+ RevenueHealth: {
+ alerts?: string[];
+ status: string;
+ };
+ RevenuePeriod: "today" | "yesterday" | "last_7_days" | "last_30_days" | "this_month" | "last_month" | "this_quarter";
+ RevenuePeriodBreakdown: {
+ bookings: number;
+ gmv: string;
+ period_label: string;
+ revenue: string;
+ };
  ReviewItem: {
  created_at: string;
  id: string;
@@ -9109,6 +9344,32 @@ export type components = {
  rate_limited: number;
  total_blocked: number;
  };
+ SupplyDemand: {
+ balance: components["schemas"]["BalanceMetrics"];
+ demand: components["schemas"]["DemandMetrics"];
+ filters_applied: {
+ [key: string]: string;
+ };
+ gaps?: components["schemas"]["SupplyGap"][];
+ period: string;
+ supply: components["schemas"]["SupplyMetrics"];
+ top_unfulfilled?: components["schemas"]["UnfulfilledSearch"][];
+ };
+ SupplyDemandPeriod: "last_7_days" | "last_30_days";
+ SupplyGap: {
+ category: string;
+ demand_score: string;
+ location?: string | null;
+ priority: string;
+ supply_score: string;
+ };
+ SupplyMetrics: {
+ active_instructors: number;
+ avg_availability_per_instructor: string;
+ churned_instructors: number;
+ new_instructors: number;
+ total_availability_hours: string;
+ };
  TFADisableRequest: {
  current_password: string;
  };
@@ -9229,6 +9490,11 @@ export type components = {
  };
  TypingRequest: {
  is_typing: boolean;
+ };
+ UnfulfilledSearch: {
+ closest_match?: string | null;
+ count: number;
+ query: string;
  };
  UnreadCountResponse: {
  unread_count: number;
@@ -11307,6 +11573,192 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AdminLocationLearningDismissQueryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ platform_alerts_api_v1_admin_mcp_analytics_alerts_get: {
+ parameters: {
+ query?: {
+ severity?: components["schemas"]["AlertSeverity"] | null;
+ category?: components["schemas"]["AlertCategory"] | null;
+ acknowledged?: boolean;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PlatformAlerts"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ category_performance_api_v1_admin_mcp_analytics_categories_get: {
+ parameters: {
+ query?: {
+ period?: components["schemas"]["CategoryPerformancePeriod"];
+ sort_by?: components["schemas"]["CategorySortBy"];
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CategoryPerformance"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ cohort_retention_api_v1_admin_mcp_analytics_cohorts_get: {
+ parameters: {
+ query?: {
+ user_type?: components["schemas"]["CohortUserType"];
+ cohort_period?: components["schemas"]["CohortPeriod"];
+ periods_back?: number;
+ metric?: components["schemas"]["CohortMetric"];
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CohortRetention"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ booking_funnel_api_v1_admin_mcp_analytics_funnel_get: {
+ parameters: {
+ query?: {
+ period?: components["schemas"]["BookingFunnelPeriod"];
+ segment_by?: components["schemas"]["FunnelSegmentBy"] | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingFunnel"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ revenue_dashboard_api_v1_admin_mcp_analytics_revenue_get: {
+ parameters: {
+ query?: {
+ period?: components["schemas"]["RevenuePeriod"];
+ compare_to?: components["schemas"]["RevenueComparisonMode"] | null;
+ breakdown_by?: components["schemas"]["RevenueBreakdownBy"] | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RevenueDashboard"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ supply_demand_api_v1_admin_mcp_analytics_supply_demand_get: {
+ parameters: {
+ query?: {
+ period?: components["schemas"]["SupplyDemandPeriod"];
+ location?: string | null;
+ category?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SupplyDemand"];
  };
  };
  422: {

@@ -537,6 +537,21 @@ async def test_client_wrapper_methods_call_expected_paths():
         )
         await client.student_credit_history(student_id="01STU", include_expired=True)
         await client.student_refund_history(student_id="01STU")
+        await client.revenue_dashboard(
+            period="last_7_days",
+            compare_to="previous_period",
+            breakdown_by="day",
+        )
+        await client.booking_funnel(period="last_7_days", segment_by="device")
+        await client.supply_demand(period="last_7_days", location="Manhattan", category="music")
+        await client.category_performance(period="last_30_days", sort_by="revenue", limit=5)
+        await client.cohort_retention(
+            user_type="student",
+            cohort_period="month",
+            periods_back=6,
+            metric="active",
+        )
+        await client.platform_alerts(severity="warning", category="revenue", acknowledged=False)
         await client.lookup_user(identifier="user@example.com")
         await client.get_user_booking_history(user_id="01USER", limit=15)
 
@@ -778,6 +793,49 @@ async def test_client_wrapper_methods_call_expected_paths():
             params={"include_expired": True},
         ),
         call("GET", "/api/v1/admin/mcp/students/01STU/refunds/history"),
+        call(
+            "GET",
+            "/api/v1/admin/mcp/analytics/revenue",
+            params={
+                "period": "last_7_days",
+                "compare_to": "previous_period",
+                "breakdown_by": "day",
+            },
+        ),
+        call(
+            "GET",
+            "/api/v1/admin/mcp/analytics/funnel",
+            params={"period": "last_7_days", "segment_by": "device"},
+        ),
+        call(
+            "GET",
+            "/api/v1/admin/mcp/analytics/supply-demand",
+            params={"period": "last_7_days", "location": "Manhattan", "category": "music"},
+        ),
+        call(
+            "GET",
+            "/api/v1/admin/mcp/analytics/categories",
+            params={"period": "last_30_days", "sort_by": "revenue", "limit": 5},
+        ),
+        call(
+            "GET",
+            "/api/v1/admin/mcp/analytics/cohorts",
+            params={
+                "user_type": "student",
+                "cohort_period": "month",
+                "periods_back": 6,
+                "metric": "active",
+            },
+        ),
+        call(
+            "GET",
+            "/api/v1/admin/mcp/analytics/alerts",
+            params={
+                "severity": "warning",
+                "category": "revenue",
+                "acknowledged": False,
+            },
+        ),
         call(
             "GET",
             "/api/v1/admin/mcp/ops/users/lookup",

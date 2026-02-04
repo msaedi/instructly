@@ -33,6 +33,7 @@ from ...services.instructor_admin_service import InstructorAdminService
 from ...services.instructor_service import InstructorService
 from ...services.notification_service import NotificationService
 from ...services.password_reset_service import PasswordResetService
+from ...services.platform_analytics_service import PlatformAnalyticsService
 from ...services.presentation_service import PresentationService
 from ...services.pricing_service import PricingService
 from ...services.referral_checkout_service import ReferralCheckoutService
@@ -164,6 +165,11 @@ def get_instructor_admin_service(db: Session = Depends(get_db)) -> InstructorAdm
 def get_student_admin_service(db: Session = Depends(get_db)) -> StudentAdminService:
     """Get student admin service instance for MCP student actions."""
     return StudentAdminService(db)
+
+
+def get_platform_analytics_service(db: Session = Depends(get_db)) -> PlatformAnalyticsService:
+    """Get platform analytics service instance for MCP analytics tooling."""
+    return PlatformAnalyticsService(db)
 
 
 def get_pricing_service(db: Session = Depends(get_db)) -> PricingService:

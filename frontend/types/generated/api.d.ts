@@ -1181,6 +1181,108 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mcp/analytics/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Platform Alerts */
+        get: operations["platform_alerts_api_v1_admin_mcp_analytics_alerts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/analytics/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Category Performance */
+        get: operations["category_performance_api_v1_admin_mcp_analytics_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/analytics/cohorts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cohort Retention */
+        get: operations["cohort_retention_api_v1_admin_mcp_analytics_cohorts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/analytics/funnel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Booking Funnel */
+        get: operations["booking_funnel_api_v1_admin_mcp_analytics_funnel_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/analytics/revenue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revenue Dashboard */
+        get: operations["revenue_dashboard_api_v1_admin_mcp_analytics_revenue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp/analytics/supply-demand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Supply Demand */
+        get: operations["supply_demand_api_v1_admin_mcp_analytics_supply_demand_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/mcp/audit/admin-actions/recent": {
         parameters: {
             query?: never;
@@ -8206,6 +8308,36 @@ export type components = {
              */
             uncached_concurrency?: number | null;
         };
+        /** Alert */
+        Alert: {
+            /** Acknowledged At */
+            acknowledged_at?: string | null;
+            /** Acknowledged By */
+            acknowledged_by?: string | null;
+            /** Category */
+            category: string;
+            /** Current Value */
+            current_value: string;
+            /** Description */
+            description: string;
+            /** Id */
+            id: string;
+            /** Metric Name */
+            metric_name: string;
+            /** Recommended Action */
+            recommended_action?: string | null;
+            /** Severity */
+            severity: string;
+            /** Threshold Value */
+            threshold_value: string;
+            /** Title */
+            title: string;
+            /**
+             * Triggered At
+             * Format: date-time
+             */
+            triggered_at: string;
+        };
         /**
          * AlertAcknowledgeResponse
          * @description Alert acknowledgement response.
@@ -8222,6 +8354,11 @@ export type components = {
              */
             status: string;
         };
+        /**
+         * AlertCategory
+         * @enum {string}
+         */
+        AlertCategory: "revenue" | "operations" | "quality" | "technical";
         /**
          * AlertDetail
          * @description Individual alert details.
@@ -8300,6 +8437,11 @@ export type components = {
              */
             type: string;
         };
+        /**
+         * AlertSeverity
+         * @enum {string}
+         */
+        AlertSeverity: "critical" | "warning" | "info";
         /**
          * AlertSummaryResponse
          * @description Response for alert summary endpoint.
@@ -9245,6 +9387,17 @@ export type components = {
         } & {
             [key: string]: unknown;
         };
+        /** BalanceMetrics */
+        BalanceMetrics: {
+            /** Demand Fulfillment */
+            demand_fulfillment: string;
+            /** Status */
+            status: string;
+            /** Supply Demand Ratio */
+            supply_demand_ratio: string;
+            /** Supply Utilization */
+            supply_utilization: string;
+        };
         /**
          * BasicCacheStats
          * @description Basic cache statistics.
@@ -9767,6 +9920,30 @@ export type components = {
             traces: components["schemas"]["TracesSummary"] | null;
             webhooks: components["schemas"]["WebhooksSummary"] | null;
         };
+        /** BookingFunnel */
+        BookingFunnel: {
+            /** Biggest Drop Off */
+            biggest_drop_off: string;
+            /** Drop Off Rate */
+            drop_off_rate: string;
+            /** Overall Conversion */
+            overall_conversion: string;
+            /** Period */
+            period: string;
+            /** Recommendations */
+            recommendations?: string[];
+            /** Segments */
+            segments?: {
+                [key: string]: components["schemas"]["FunnelStage"][];
+            } | null;
+            /** Stages */
+            stages: components["schemas"]["FunnelStage"][];
+        };
+        /**
+         * BookingFunnelPeriod
+         * @enum {string}
+         */
+        BookingFunnelPeriod: "last_7_days" | "last_30_days" | "this_month";
         /** BookingInfo */
         BookingInfo: {
             /**
@@ -10451,6 +10628,53 @@ export type components = {
              */
             typical_duration_options: number[];
         };
+        /** CategoryMetrics */
+        CategoryMetrics: {
+            /** Avg Price */
+            avg_price: string;
+            /** Avg Rating */
+            avg_rating: string;
+            /** Bookings */
+            bookings: number;
+            /** Category Id */
+            category_id: string;
+            /** Category Name */
+            category_name: string;
+            /** Conversion Rate */
+            conversion_rate: string;
+            /** Gmv */
+            gmv: string;
+            /** Growth Pct */
+            growth_pct: string;
+            /** Instructor Count */
+            instructor_count: number;
+            /** Rank Change */
+            rank_change: number;
+            /** Repeat Rate */
+            repeat_rate: string;
+            /** Revenue */
+            revenue: string;
+            /** Student Count */
+            student_count: number;
+        };
+        /** CategoryPerformance */
+        CategoryPerformance: {
+            /** Categories */
+            categories: components["schemas"]["CategoryMetrics"][];
+            /** Insights */
+            insights?: string[];
+            /** Needs Attention */
+            needs_attention?: components["schemas"]["CategoryMetrics"][];
+            /** Period */
+            period: string;
+            top_growing?: components["schemas"]["CategoryMetrics"] | null;
+            top_revenue?: components["schemas"]["CategoryMetrics"] | null;
+        };
+        /**
+         * CategoryPerformancePeriod
+         * @enum {string}
+         */
+        CategoryPerformancePeriod: "last_7_days" | "last_30_days" | "this_month" | "last_quarter";
         /**
          * CategoryResponse
          * @description Service category response.
@@ -10521,6 +10745,11 @@ export type components = {
             /** Slug */
             slug: string;
         };
+        /**
+         * CategorySortBy
+         * @enum {string}
+         */
+        CategorySortBy: "revenue" | "bookings" | "growth" | "conversion";
         /**
          * CategoryWithServices
          * @description Category record containing detailed services.
@@ -10724,6 +10953,47 @@ export type components = {
             /** Total Lines With Blanks */
             total_lines_with_blanks: number;
         };
+        /** CohortData */
+        CohortData: {
+            /** Cohort Label */
+            cohort_label: string;
+            /** Cohort Size */
+            cohort_size: number;
+            /** Retention */
+            retention: string[];
+        };
+        /**
+         * CohortMetric
+         * @enum {string}
+         */
+        CohortMetric: "active" | "booking" | "revenue";
+        /**
+         * CohortPeriod
+         * @enum {string}
+         */
+        CohortPeriod: "week" | "month";
+        /** CohortRetention */
+        CohortRetention: {
+            /** Avg Retention */
+            avg_retention: {
+                [key: string]: string;
+            };
+            /** Benchmark Comparison */
+            benchmark_comparison: string;
+            /** Cohorts */
+            cohorts: components["schemas"]["CohortData"][];
+            /** Insights */
+            insights?: string[];
+            /** Metric */
+            metric: string;
+            /** User Type */
+            user_type: string;
+        };
+        /**
+         * CohortUserType
+         * @enum {string}
+         */
+        CohortUserType: "student" | "instructor";
         /**
          * ConflictingBookingInfo
          * @description Information about a conflicting booking.
@@ -11331,6 +11601,19 @@ export type components = {
             /** Window Id */
             window_id: string;
         };
+        /** DemandMetrics */
+        DemandMetrics: {
+            /** Booking Attempts */
+            booking_attempts: number;
+            /** Successful Bookings */
+            successful_bookings: number;
+            /** Total Searches */
+            total_searches: number;
+            /** Unfulfilled Searches */
+            unfulfilled_searches: number;
+            /** Unique Searchers */
+            unique_searchers: number;
+        };
         /**
          * DeviceContext
          * @description Device information for analytics.
@@ -11721,6 +12004,20 @@ export type components = {
             spots_remaining: number;
             /** Total Founding Spots */
             total_founding_spots: number;
+        };
+        /**
+         * FunnelSegmentBy
+         * @enum {string}
+         */
+        FunnelSegmentBy: "device" | "category" | "source";
+        /** FunnelStage */
+        FunnelStage: {
+            /** Conversion To Next */
+            conversion_to_next?: string | null;
+            /** Count */
+            count: number;
+            /** Stage */
+            stage: string;
         };
         /**
          * GatedPingResponse
@@ -15419,6 +15716,21 @@ export type components = {
              */
             types: string[];
         };
+        /** PlatformAlerts */
+        PlatformAlerts: {
+            /** Alerts */
+            alerts: components["schemas"]["Alert"][];
+            /** By Category */
+            by_category: {
+                [key: string]: number;
+            };
+            /** By Severity */
+            by_severity: {
+                [key: string]: number;
+            };
+            /** Total Active */
+            total_active: number;
+        };
         /** PlatformFees */
         PlatformFees: {
             /**
@@ -16993,6 +17305,93 @@ export type components = {
             /** Success */
             success: boolean;
         };
+        /**
+         * RevenueBreakdownBy
+         * @enum {string}
+         */
+        RevenueBreakdownBy: "day" | "week" | "category";
+        /** RevenueComparison */
+        RevenueComparison: {
+            /** Gmv */
+            gmv: string;
+            /** Gmv Delta */
+            gmv_delta: string;
+            /** Gmv Delta Pct */
+            gmv_delta_pct: string;
+            /** Period */
+            period: string;
+            /** Revenue Delta */
+            revenue_delta: string;
+            /** Revenue Delta Pct */
+            revenue_delta_pct: string;
+        };
+        /**
+         * RevenueComparisonMode
+         * @enum {string}
+         */
+        RevenueComparisonMode: "previous_period" | "same_period_last_month" | "same_period_last_year";
+        /** RevenueDashboard */
+        RevenueDashboard: {
+            /** Average Booking Value */
+            average_booking_value: string;
+            /** Breakdown */
+            breakdown?: components["schemas"]["RevenuePeriodBreakdown"][] | null;
+            /** Cancelled Bookings */
+            cancelled_bookings: number;
+            comparison?: components["schemas"]["RevenueComparison"] | null;
+            /** Completed Bookings */
+            completed_bookings: number;
+            /** Completion Rate */
+            completion_rate: string;
+            /** Gmv */
+            gmv: string;
+            health: components["schemas"]["RevenueHealth"];
+            /** Instructor Payouts */
+            instructor_payouts: string;
+            /** Net Revenue */
+            net_revenue: string;
+            /** Period */
+            period: string;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /** Platform Revenue */
+            platform_revenue: string;
+            /** Take Rate */
+            take_rate: string;
+            /** Total Bookings */
+            total_bookings: number;
+        };
+        /** RevenueHealth */
+        RevenueHealth: {
+            /** Alerts */
+            alerts?: string[];
+            /** Status */
+            status: string;
+        };
+        /**
+         * RevenuePeriod
+         * @enum {string}
+         */
+        RevenuePeriod: "today" | "yesterday" | "last_7_days" | "last_30_days" | "this_month" | "last_month" | "this_quarter";
+        /** RevenuePeriodBreakdown */
+        RevenuePeriodBreakdown: {
+            /** Bookings */
+            bookings: number;
+            /** Gmv */
+            gmv: string;
+            /** Period Label */
+            period_label: string;
+            /** Revenue */
+            revenue: string;
+        };
         /** ReviewItem */
         ReviewItem: {
             /**
@@ -18445,6 +18844,53 @@ export type components = {
              */
             total_blocked: number;
         };
+        /** SupplyDemand */
+        SupplyDemand: {
+            balance: components["schemas"]["BalanceMetrics"];
+            demand: components["schemas"]["DemandMetrics"];
+            /** Filters Applied */
+            filters_applied: {
+                [key: string]: string;
+            };
+            /** Gaps */
+            gaps?: components["schemas"]["SupplyGap"][];
+            /** Period */
+            period: string;
+            supply: components["schemas"]["SupplyMetrics"];
+            /** Top Unfulfilled */
+            top_unfulfilled?: components["schemas"]["UnfulfilledSearch"][];
+        };
+        /**
+         * SupplyDemandPeriod
+         * @enum {string}
+         */
+        SupplyDemandPeriod: "last_7_days" | "last_30_days";
+        /** SupplyGap */
+        SupplyGap: {
+            /** Category */
+            category: string;
+            /** Demand Score */
+            demand_score: string;
+            /** Location */
+            location?: string | null;
+            /** Priority */
+            priority: string;
+            /** Supply Score */
+            supply_score: string;
+        };
+        /** SupplyMetrics */
+        SupplyMetrics: {
+            /** Active Instructors */
+            active_instructors: number;
+            /** Avg Availability Per Instructor */
+            avg_availability_per_instructor: string;
+            /** Churned Instructors */
+            churned_instructors: number;
+            /** New Instructors */
+            new_instructors: number;
+            /** Total Availability Hours */
+            total_availability_hours: string;
+        };
         /** TFADisableRequest */
         TFADisableRequest: {
             /** Current Password */
@@ -18799,6 +19245,15 @@ export type components = {
              * @default true
              */
             is_typing: boolean;
+        };
+        /** UnfulfilledSearch */
+        UnfulfilledSearch: {
+            /** Closest Match */
+            closest_match?: string | null;
+            /** Count */
+            count: number;
+            /** Query */
+            query: string;
         };
         /** UnreadCountResponse */
         UnreadCountResponse: {
@@ -21451,6 +21906,204 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminLocationLearningDismissQueryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    platform_alerts_api_v1_admin_mcp_analytics_alerts_get: {
+        parameters: {
+            query?: {
+                severity?: components["schemas"]["AlertSeverity"] | null;
+                category?: components["schemas"]["AlertCategory"] | null;
+                acknowledged?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformAlerts"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    category_performance_api_v1_admin_mcp_analytics_categories_get: {
+        parameters: {
+            query?: {
+                period?: components["schemas"]["CategoryPerformancePeriod"];
+                sort_by?: components["schemas"]["CategorySortBy"];
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryPerformance"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cohort_retention_api_v1_admin_mcp_analytics_cohorts_get: {
+        parameters: {
+            query?: {
+                user_type?: components["schemas"]["CohortUserType"];
+                cohort_period?: components["schemas"]["CohortPeriod"];
+                periods_back?: number;
+                metric?: components["schemas"]["CohortMetric"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortRetention"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    booking_funnel_api_v1_admin_mcp_analytics_funnel_get: {
+        parameters: {
+            query?: {
+                period?: components["schemas"]["BookingFunnelPeriod"];
+                segment_by?: components["schemas"]["FunnelSegmentBy"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingFunnel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revenue_dashboard_api_v1_admin_mcp_analytics_revenue_get: {
+        parameters: {
+            query?: {
+                period?: components["schemas"]["RevenuePeriod"];
+                compare_to?: components["schemas"]["RevenueComparisonMode"] | null;
+                breakdown_by?: components["schemas"]["RevenueBreakdownBy"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevenueDashboard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    supply_demand_api_v1_admin_mcp_analytics_supply_demand_get: {
+        parameters: {
+            query?: {
+                period?: components["schemas"]["SupplyDemandPeriod"];
+                location?: string | null;
+                category?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplyDemand"];
                 };
             };
             /** @description Validation Error */

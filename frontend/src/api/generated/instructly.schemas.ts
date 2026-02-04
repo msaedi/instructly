@@ -756,6 +756,23 @@ export interface AdminSearchConfigUpdate {
   uncached_concurrency?: number | null;
 }
 
+export interface Alert {
+  acknowledged_at?: string | null;
+  acknowledged_by?: string | null;
+  category: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  current_value: string;
+  description: string;
+  id: string;
+  metric_name: string;
+  recommended_action?: string | null;
+  severity: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  threshold_value: string;
+  title: string;
+  triggered_at: string;
+}
+
 /**
  * Alert acknowledgement response.
  */
@@ -765,6 +782,15 @@ export interface AlertAcknowledgeResponse {
   /** Acknowledgement status */
   status: string;
 }
+
+export type AlertCategory = (typeof AlertCategory)[keyof typeof AlertCategory];
+
+export const AlertCategory = {
+  revenue: 'revenue',
+  operations: 'operations',
+  quality: 'quality',
+  technical: 'technical',
+} as const;
 
 /**
  * Details for extremely slow database queries.
@@ -879,6 +905,14 @@ export interface AlertInfo {
   /** Alert type */
   type: string;
 }
+
+export type AlertSeverity = (typeof AlertSeverity)[keyof typeof AlertSeverity];
+
+export const AlertSeverity = {
+  critical: 'critical',
+  warning: 'warning',
+  info: 'info',
+} as const;
 
 /**
  * Alert counts grouped by severity
@@ -1501,6 +1535,16 @@ export interface BackupCodesResponse {
   backup_codes: string[];
 }
 
+export interface BalanceMetrics {
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  demand_fulfillment: string;
+  status: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  supply_demand_ratio: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  supply_utilization: string;
+}
+
 /**
  * Basic cache statistics.
  */
@@ -1985,6 +2029,34 @@ export interface BookingDetailResponse {
   webhooks: WebhooksSummary | null;
 }
 
+export interface FunnelStage {
+  conversion_to_next?: string | null;
+  count: number;
+  stage: string;
+}
+
+export type BookingFunnelSegments = { [key: string]: FunnelStage[] } | null;
+
+export interface BookingFunnel {
+  biggest_drop_off: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  drop_off_rate: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  overall_conversion: string;
+  period: string;
+  recommendations?: string[];
+  segments?: BookingFunnelSegments;
+  stages: FunnelStage[];
+}
+
+export type BookingFunnelPeriod = (typeof BookingFunnelPeriod)[keyof typeof BookingFunnelPeriod];
+
+export const BookingFunnelPeriod = {
+  last_7_days: 'last_7_days',
+  last_30_days: 'last_30_days',
+  this_month: 'this_month',
+} as const;
+
 /**
  * A booking in a list view with privacy-safe names.
  */
@@ -2402,6 +2474,48 @@ export interface CatalogServiceResponse {
   typical_duration_options?: number[];
 }
 
+export interface CategoryMetrics {
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  avg_price: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  avg_rating: string;
+  bookings: number;
+  category_id: string;
+  category_name: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  conversion_rate: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  gmv: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  growth_pct: string;
+  instructor_count: number;
+  rank_change: number;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  repeat_rate: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  revenue: string;
+  student_count: number;
+}
+
+export interface CategoryPerformance {
+  categories: CategoryMetrics[];
+  insights?: string[];
+  needs_attention?: CategoryMetrics[];
+  period: string;
+  top_growing?: CategoryMetrics | null;
+  top_revenue?: CategoryMetrics | null;
+}
+
+export type CategoryPerformancePeriod =
+  (typeof CategoryPerformancePeriod)[keyof typeof CategoryPerformancePeriod];
+
+export const CategoryPerformancePeriod = {
+  last_7_days: 'last_7_days',
+  last_30_days: 'last_30_days',
+  this_month: 'this_month',
+  last_quarter: 'last_quarter',
+} as const;
+
 /**
  * Service category response.
  */
@@ -2414,6 +2528,15 @@ export interface CategoryResponse {
   slug: string;
   subtitle?: string | null;
 }
+
+export type CategorySortBy = (typeof CategorySortBy)[keyof typeof CategorySortBy];
+
+export const CategorySortBy = {
+  revenue: 'revenue',
+  bookings: 'bookings',
+  growth: 'growth',
+  conversion: 'conversion',
+} as const;
 
 export type CeleryQueuesDataQueues = { [key: string]: number };
 
@@ -2550,6 +2673,45 @@ export interface CodebaseHistoryResponse {
   current?: CodebaseMetricsResponse | null;
   items?: CodebaseHistoryEntry[];
 }
+
+export interface CohortData {
+  cohort_label: string;
+  cohort_size: number;
+  retention: string[];
+}
+
+export type CohortMetric = (typeof CohortMetric)[keyof typeof CohortMetric];
+
+export const CohortMetric = {
+  active: 'active',
+  booking: 'booking',
+  revenue: 'revenue',
+} as const;
+
+export type CohortPeriod = (typeof CohortPeriod)[keyof typeof CohortPeriod];
+
+export const CohortPeriod = {
+  week: 'week',
+  month: 'month',
+} as const;
+
+export type CohortRetentionAvgRetention = { [key: string]: string };
+
+export interface CohortRetention {
+  avg_retention: CohortRetentionAvgRetention;
+  benchmark_comparison: string;
+  cohorts: CohortData[];
+  insights?: string[];
+  metric: string;
+  user_type: string;
+}
+
+export type CohortUserType = (typeof CohortUserType)[keyof typeof CohortUserType];
+
+export const CohortUserType = {
+  student: 'student',
+  instructor: 'instructor',
+} as const;
 
 /**
  * Payload required to record FCRA consent.
@@ -2964,6 +3126,14 @@ export interface DeleteWindowResponse {
   window_id: string;
 }
 
+export interface DemandMetrics {
+  booking_attempts: number;
+  successful_bookings: number;
+  total_searches: number;
+  unfulfilled_searches: number;
+  unique_searchers: number;
+}
+
 /**
  * Device information for analytics.
  */
@@ -3344,6 +3514,14 @@ export interface FoundingStatusResponse {
   spots_remaining: number;
   total_founding_spots: number;
 }
+
+export type FunnelSegmentBy = (typeof FunnelSegmentBy)[keyof typeof FunnelSegmentBy];
+
+export const FunnelSegmentBy = {
+  device: 'device',
+  category: 'category',
+  source: 'source',
+} as const;
 
 /**
  * Simple response indicating gated ping success.
@@ -5626,6 +5804,17 @@ export interface PlaceDetails {
   street_number?: string | null;
 }
 
+export type PlatformAlertsByCategory = { [key: string]: number };
+
+export type PlatformAlertsBySeverity = { [key: string]: number };
+
+export interface PlatformAlerts {
+  alerts: Alert[];
+  by_category: PlatformAlertsByCategory;
+  by_severity: PlatformAlertsBySeverity;
+  total_active: number;
+}
+
 export interface PlatformFees {
   /**
    * Platform fee for founding instructors
@@ -6714,6 +6903,89 @@ export interface RetryPaymentResponse {
   success: boolean;
 }
 
+export type RevenueBreakdownBy = (typeof RevenueBreakdownBy)[keyof typeof RevenueBreakdownBy];
+
+export const RevenueBreakdownBy = {
+  day: 'day',
+  week: 'week',
+  category: 'category',
+} as const;
+
+export interface RevenueComparison {
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  gmv: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  gmv_delta: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  gmv_delta_pct: string;
+  period: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  revenue_delta: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  revenue_delta_pct: string;
+}
+
+export type RevenueComparisonMode =
+  (typeof RevenueComparisonMode)[keyof typeof RevenueComparisonMode];
+
+export const RevenueComparisonMode = {
+  previous_period: 'previous_period',
+  same_period_last_month: 'same_period_last_month',
+  same_period_last_year: 'same_period_last_year',
+} as const;
+
+export interface RevenuePeriodBreakdown {
+  bookings: number;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  gmv: string;
+  period_label: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  revenue: string;
+}
+
+export interface RevenueHealth {
+  alerts?: string[];
+  status: string;
+}
+
+export interface RevenueDashboard {
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  average_booking_value: string;
+  breakdown?: RevenuePeriodBreakdown[] | null;
+  cancelled_bookings: number;
+  comparison?: RevenueComparison | null;
+  completed_bookings: number;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  completion_rate: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  gmv: string;
+  health: RevenueHealth;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  instructor_payouts: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  net_revenue: string;
+  period: string;
+  period_end: string;
+  period_start: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  platform_revenue: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  take_rate: string;
+  total_bookings: number;
+}
+
+export type RevenuePeriod = (typeof RevenuePeriod)[keyof typeof RevenuePeriod];
+
+export const RevenuePeriod = {
+  today: 'today',
+  yesterday: 'yesterday',
+  last_7_days: 'last_7_days',
+  last_30_days: 'last_30_days',
+  this_month: 'this_month',
+  last_month: 'last_month',
+  this_quarter: 'this_quarter',
+} as const;
+
 export interface ReviewItem {
   created_at: string;
   id: string;
@@ -7364,6 +7636,51 @@ export interface SummaryStats {
   rate_limited?: number;
   total_blocked?: number;
 }
+
+export type SupplyDemandFiltersApplied = { [key: string]: string };
+
+export interface SupplyGap {
+  category: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  demand_score: string;
+  location?: string | null;
+  priority: string;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  supply_score: string;
+}
+
+export interface SupplyMetrics {
+  active_instructors: number;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  avg_availability_per_instructor: string;
+  churned_instructors: number;
+  new_instructors: number;
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  total_availability_hours: string;
+}
+
+export interface UnfulfilledSearch {
+  closest_match?: string | null;
+  count: number;
+  query: string;
+}
+
+export interface SupplyDemand {
+  balance: BalanceMetrics;
+  demand: DemandMetrics;
+  filters_applied: SupplyDemandFiltersApplied;
+  gaps?: SupplyGap[];
+  period: string;
+  supply: SupplyMetrics;
+  top_unfulfilled?: UnfulfilledSearch[];
+}
+
+export type SupplyDemandPeriod = (typeof SupplyDemandPeriod)[keyof typeof SupplyDemandPeriod];
+
+export const SupplyDemandPeriod = {
+  last_7_days: 'last_7_days',
+  last_30_days: 'last_30_days',
+} as const;
 
 export interface TFADisableRequest {
   current_password: string;
@@ -8072,6 +8389,50 @@ export type ListUnresolvedLocationQueriesApiV1AdminLocationLearningUnresolvedGet
    * @maximum 500
    */
   limit?: number;
+};
+
+export type PlatformAlertsApiV1AdminMcpAnalyticsAlertsGetParams = {
+  severity?: AlertSeverity | null;
+  category?: AlertCategory | null;
+  acknowledged?: boolean;
+};
+
+export type CategoryPerformanceApiV1AdminMcpAnalyticsCategoriesGetParams = {
+  period?: CategoryPerformancePeriod;
+  sort_by?: CategorySortBy;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+};
+
+export type CohortRetentionApiV1AdminMcpAnalyticsCohortsGetParams = {
+  user_type?: CohortUserType;
+  cohort_period?: CohortPeriod;
+  /**
+   * @minimum 1
+   * @maximum 24
+   */
+  periods_back?: number;
+  metric?: CohortMetric;
+};
+
+export type BookingFunnelApiV1AdminMcpAnalyticsFunnelGetParams = {
+  period?: BookingFunnelPeriod;
+  segment_by?: FunnelSegmentBy | null;
+};
+
+export type RevenueDashboardApiV1AdminMcpAnalyticsRevenueGetParams = {
+  period?: RevenuePeriod;
+  compare_to?: RevenueComparisonMode | null;
+  breakdown_by?: RevenueBreakdownBy | null;
+};
+
+export type SupplyDemandApiV1AdminMcpAnalyticsSupplyDemandGetParams = {
+  period?: SupplyDemandPeriod;
+  location?: string | null;
+  category?: string | null;
 };
 
 export type AuditRecentAdminActionsApiV1AdminMcpAuditAdminActionsRecentGetParams = {

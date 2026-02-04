@@ -1,6 +1,7 @@
 """Tool registration for InstaInstru MCP server."""
 
 from . import (
+    analytics,
     audit,
     booking_actions,
     booking_detail,
@@ -32,6 +33,7 @@ __all__ = [
     "deploy",
     "booking_actions",
     "booking_detail",
+    "analytics",
     "founding",
     "growth",
     "instructors",

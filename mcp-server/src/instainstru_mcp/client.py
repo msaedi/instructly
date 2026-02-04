@@ -472,6 +472,108 @@ class InstaInstruClient:
             f"/api/v1/admin/mcp/students/{quote(student_id)}/refunds/history",
         )
 
+    async def revenue_dashboard(
+        self,
+        *,
+        period: str,
+        compare_to: str | None = "previous_period",
+        breakdown_by: str | None = None,
+    ) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/analytics/revenue",
+            params={
+                "period": period,
+                "compare_to": compare_to,
+                "breakdown_by": breakdown_by,
+            },
+        )
+
+    async def booking_funnel(
+        self,
+        *,
+        period: str,
+        segment_by: str | None = None,
+    ) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/analytics/funnel",
+            params={
+                "period": period,
+                "segment_by": segment_by,
+            },
+        )
+
+    async def supply_demand(
+        self,
+        *,
+        period: str,
+        location: str | None = None,
+        category: str | None = None,
+    ) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/analytics/supply-demand",
+            params={
+                "period": period,
+                "location": location,
+                "category": category,
+            },
+        )
+
+    async def category_performance(
+        self,
+        *,
+        period: str,
+        sort_by: str = "revenue",
+        limit: int = 20,
+    ) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/analytics/categories",
+            params={
+                "period": period,
+                "sort_by": sort_by,
+                "limit": limit,
+            },
+        )
+
+    async def cohort_retention(
+        self,
+        *,
+        user_type: str,
+        cohort_period: str = "month",
+        periods_back: int = 6,
+        metric: str = "active",
+    ) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/analytics/cohorts",
+            params={
+                "user_type": user_type,
+                "cohort_period": cohort_period,
+                "periods_back": periods_back,
+                "metric": metric,
+            },
+        )
+
+    async def platform_alerts(
+        self,
+        *,
+        severity: str | None = None,
+        category: str | None = None,
+        acknowledged: bool = False,
+    ) -> dict:
+        return await self.call(
+            "GET",
+            "/api/v1/admin/mcp/analytics/alerts",
+            params={
+                "severity": severity,
+                "category": category,
+                "acknowledged": acknowledged,
+            },
+        )
+
     async def preview_invites(self, **payload: Any) -> dict:
         return await self.call(
             "POST",

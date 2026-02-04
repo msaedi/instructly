@@ -31,6 +31,7 @@ from .oauth.crypto import build_jwks, normalize_pem
 from .oauth.endpoints import attach_oauth_routes
 from .otel import init_otel, instrument_app
 from .tools import (
+    analytics,
     audit,
     booking_actions,
     booking_detail,
@@ -566,6 +567,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     student_actions.register_tools(mcp, client)
     invites.register_tools(mcp, client)
     operations.register_tools(mcp, client)
+    analytics.register_tools(mcp, client)
     booking_detail.register_tools(mcp, client)
     booking_actions.register_tools(mcp, client)
     payments.register_tools(mcp, client)

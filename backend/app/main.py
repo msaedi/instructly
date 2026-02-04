@@ -157,6 +157,7 @@ from .routes.v1.admin import (
     search_config as admin_search_config_v1,
 )
 from .routes.v1.admin.mcp import (
+    analytics as admin_mcp_analytics_v1,
     audit as admin_mcp_audit_v1,
     booking_actions as admin_mcp_booking_actions_v1,
     booking_detail as admin_mcp_booking_detail_v1,
@@ -1141,6 +1142,11 @@ api_v1.include_router(  # type: ignore[attr-defined]
 api_v1.include_router(  # type: ignore[attr-defined]
     admin_mcp_operations_v1.router,
     prefix="/admin/mcp/ops",
+    dependencies=[Depends(audit_mcp_request)],
+)
+api_v1.include_router(  # type: ignore[attr-defined]
+    admin_mcp_analytics_v1.router,
+    prefix="/admin/mcp",
     dependencies=[Depends(audit_mcp_request)],
 )
 api_v1.include_router(  # type: ignore[attr-defined]

@@ -37,6 +37,7 @@ Benefits:
 
 # Import specific repositories as they are created
 from .admin_ops_repository import AdminOpsRepository
+from .analytics_repository import AnalyticsRepository
 from .availability_day_repository import AvailabilityDayRepository
 from .availability_repository import AvailabilityRepository
 from .base_repository import BaseRepository, IRepository
@@ -64,6 +65,7 @@ from .week_operation_repository import WeekOperationRepository
 
 __all__ = [
     "AdminOpsRepository",
+    "AnalyticsRepository",
     "BaseRepository",
     "IRepository",
     "RepositoryFactory",

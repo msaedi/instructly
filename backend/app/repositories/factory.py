@@ -19,6 +19,7 @@ ModelT = TypeVar("ModelT")
 # Avoid circular imports
 if TYPE_CHECKING:
     from .address_repository import InstructorServiceAreaRepository
+    from .analytics_repository import AnalyticsRepository
     from .audit_repository import AuditRepository
     from .availability_repository import AvailabilityRepository
     from .badge_repository import BadgeRepository
@@ -115,6 +116,13 @@ class RepositoryFactory:
         from .booking_repository import BookingRepository
 
         return BookingRepository(db)
+
+    @staticmethod
+    def create_analytics_repository(db: Session) -> "AnalyticsRepository":
+        """Create repository for analytics queries."""
+        from .analytics_repository import AnalyticsRepository
+
+        return AnalyticsRepository(db)
 
     @staticmethod
     def create_booking_note_repository(db: Session) -> "BookingNoteRepository":
