@@ -12,6 +12,7 @@ import ulid
 
 from ..core.config import settings
 from ..core.exceptions import RepositoryException
+from ..database import with_db_retry
 from ..models.instructor import BackgroundJob
 
 logger = logging.getLogger(__name__)
@@ -63,18 +64,22 @@ class BackgroundJobRepository:
         """Return queued jobs that are ready to run."""
 
         try:
-            now = _utcnow()
-            jobs = (
-                self.db.query(BackgroundJob)
-                .filter(
-                    BackgroundJob.status == "queued",
-                    BackgroundJob.available_at <= now,
+
+            def _fetch() -> List[BackgroundJob]:
+                now = _utcnow()
+                jobs = (
+                    self.db.query(BackgroundJob)
+                    .filter(
+                        BackgroundJob.status == "queued",
+                        BackgroundJob.available_at <= now,
+                    )
+                    .order_by(BackgroundJob.available_at.asc())
+                    .limit(limit)
+                    .all()
                 )
-                .order_by(BackgroundJob.available_at.asc())
-                .limit(limit)
-                .all()
-            )
-            return cast(List[BackgroundJob], jobs)
+                return cast(List[BackgroundJob], jobs)
+
+            return with_db_retry("background_jobs.fetch_due", _fetch)
         except SQLAlchemyError as exc:
             self.logger.error("Failed to fetch due jobs: %s", str(exc))
             raise RepositoryException("Failed to fetch background jobs") from exc

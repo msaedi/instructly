@@ -268,6 +268,21 @@ class Settings(BaseSettings):
     )  # From env TEST_DATABASE_URL
     stg_database_url_raw: str = Field("", alias="stg_database_url")  # From env STG_DATABASE_URL
 
+    # Database pool configuration (multi-pool)
+    # Supabase Nano tier: 60 max connections
+    # Budget: API(16) + Worker(8) + Scheduler(4) = 28, leaving headroom.
+    db_api_pool_size: int = Field(default=8, alias="DB_API_POOL_SIZE", ge=1)
+    db_api_max_overflow: int = Field(default=8, alias="DB_API_MAX_OVERFLOW", ge=0)
+    db_api_pool_timeout: int = Field(default=5, alias="DB_API_POOL_TIMEOUT", ge=1)
+
+    db_worker_pool_size: int = Field(default=4, alias="DB_WORKER_POOL_SIZE", ge=1)
+    db_worker_max_overflow: int = Field(default=4, alias="DB_WORKER_MAX_OVERFLOW", ge=0)
+    db_worker_pool_timeout: int = Field(default=10, alias="DB_WORKER_POOL_TIMEOUT", ge=1)
+
+    db_scheduler_pool_size: int = Field(default=2, alias="DB_SCHEDULER_POOL_SIZE", ge=1)
+    db_scheduler_max_overflow: int = Field(default=2, alias="DB_SCHEDULER_MAX_OVERFLOW", ge=0)
+    db_scheduler_pool_timeout: int = Field(default=3, alias="DB_SCHEDULER_POOL_TIMEOUT", ge=1)
+
     # Legacy flags for backward compatibility
     is_testing: bool = False  # Set to True when running tests
 

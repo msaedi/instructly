@@ -20,7 +20,9 @@ def _make_request():
 
 def test_check_db_pool_health_alerts(monkeypatch):
     monkeypatch.setattr(
-        monitor_module, "get_db_pool_status", lambda: {"size": 1, "overflow": 0, "checked_out": 2}
+        monitor_module,
+        "get_db_pool_statuses",
+        lambda: {"api": {"size": 1, "overflow": 0, "checked_out": 2}},
     )
     sent = {}
 

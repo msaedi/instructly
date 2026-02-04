@@ -27,7 +27,7 @@ import psutil
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
-from ..database import get_db_pool_status
+from ..database import get_db_pool_status, get_db_pool_statuses
 
 logger = logging.getLogger(__name__)
 
@@ -196,32 +196,44 @@ class PerformanceMonitor:
 
     def check_db_pool_health(self) -> Dict[str, Any]:
         """Check database connection pool health."""
-        pool_status = cast(Dict[str, Any], get_db_pool_status())
+        pool_statuses = cast(dict[str, dict[str, Any]], get_db_pool_statuses())
+        if not pool_statuses:
+            pool_statuses = {"api": cast(dict[str, Any], get_db_pool_status())}
 
-        # Calculate usage percentage
-        size = float(pool_status.get("size", 0))
-        overflow = float(pool_status.get("overflow", 0))
-        checked_out = float(pool_status.get("checked_out", 0))
-        total_possible = size + overflow
-        usage_percent = (checked_out / total_possible * 100) if total_possible > 0 else 0.0
+        def _usage(status: Dict[str, Any]) -> float:
+            size = float(status.get("size", 0))
+            overflow = float(status.get("overflow", 0))
+            checked_out = float(status.get("checked_out", 0))
+            total_possible = size + overflow
+            return (checked_out / total_possible * 100) if total_possible > 0 else 0.0
+
+        primary_status = pool_statuses.get("api") or next(iter(pool_statuses.values()))
+        primary_usage = _usage(primary_status)
 
         pool_health = {
-            **pool_status,
-            "usage_percent": round(usage_percent, 2),
+            **primary_status,
+            "usage_percent": round(primary_usage, 2),
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "healthy": usage_percent < 80,
+            "healthy": primary_usage < 80,
+            "pools": {
+                name: {**status, "usage_percent": round(_usage(status), 2)}
+                for name, status in pool_statuses.items()
+            },
         }
 
         # Store history
         self.db_pool_history.append(pool_health)
 
         # Alert if pool usage is high
-        if usage_percent > 80:
-            self._send_alert(
-                "high_db_pool_usage",
-                f"Database pool usage at {usage_percent:.0f}% "
-                f"({pool_status['checked_out']}/{total_possible} connections)",
-            )
+        for name, status in pool_statuses.items():
+            usage_percent = _usage(status)
+            if usage_percent > 80:
+                total_possible = float(status.get("size", 0)) + float(status.get("overflow", 0))
+                self._send_alert(
+                    "high_db_pool_usage",
+                    f"{name} pool usage at {usage_percent:.0f}% "
+                    f"({status.get('checked_out', 0)}/{total_possible} connections)",
+                )
 
         return pool_health
 

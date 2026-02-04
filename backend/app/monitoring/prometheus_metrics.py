@@ -118,6 +118,38 @@ preview_bypass_total = Counter(
     registry=REGISTRY,
 )
 
+# Database pool metrics
+db_pool_size = Gauge(
+    "instainstru_db_pool_size",
+    "Configured pool size by workload pool",
+    ["pool_name"],
+    registry=REGISTRY,
+)
+db_pool_checked_out = Gauge(
+    "instainstru_db_pool_checked_out",
+    "Connections checked out by workload pool",
+    ["pool_name"],
+    registry=REGISTRY,
+)
+db_pool_checked_in = Gauge(
+    "instainstru_db_pool_checked_in",
+    "Connections available in pool by workload pool",
+    ["pool_name"],
+    registry=REGISTRY,
+)
+db_pool_overflow = Gauge(
+    "instainstru_db_pool_overflow",
+    "Overflow connections by workload pool",
+    ["pool_name"],
+    registry=REGISTRY,
+)
+db_pool_usage_percent = Gauge(
+    "instainstru_db_pool_usage_percent",
+    "Pool usage percent by workload pool",
+    ["pool_name"],
+    registry=REGISTRY,
+)
+
 # Notification outbox instrumentation
 notifications_outbox_total = Counter(
     "instainstru_notifications_outbox_total",
@@ -306,9 +338,38 @@ class PrometheusMetrics:
     def _refresh_cache_locked() -> None:
         """Refresh cached metrics payload. Caller must hold lock."""
 
+        PrometheusMetrics._update_db_pool_metrics()
         PrometheusMetrics._cache_payload = cast(bytes, generate_latest(REGISTRY))
         PrometheusMetrics._cache_ts = monotonic()
         PrometheusMetrics._cache_ttl_seconds = _metrics_ttl_seconds()
+
+    @staticmethod
+    def _update_db_pool_metrics() -> None:
+        try:
+            from app.database import get_db_pool_statuses
+        except Exception as exc:  # pragma: no cover - optional dependency
+            logger.debug("DB pool metrics unavailable: %s", str(exc))
+            return
+
+        try:
+            statuses = get_db_pool_statuses()
+        except Exception as exc:  # pragma: no cover - safety
+            logger.debug("Failed to collect DB pool metrics: %s", str(exc))
+            return
+
+        for name, status in statuses.items():
+            size = float(status.get("size", 0))
+            overflow = float(status.get("overflow", 0))
+            checked_out = float(status.get("checked_out", 0))
+            checked_in = float(status.get("checked_in", 0))
+            total = size + overflow
+            usage = (checked_out / total * 100.0) if total > 0 else 0.0
+
+            db_pool_size.labels(pool_name=name).set(size)
+            db_pool_checked_out.labels(pool_name=name).set(checked_out)
+            db_pool_checked_in.labels(pool_name=name).set(checked_in)
+            db_pool_overflow.labels(pool_name=name).set(overflow)
+            db_pool_usage_percent.labels(pool_name=name).set(usage)
 
     @staticmethod
     def prewarm() -> None:

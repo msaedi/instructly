@@ -22,6 +22,8 @@ from typing import Any, cast
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+os.environ.setdefault("DB_POOL_ROLE", "worker")
+
 from celery.bin import worker  # noqa: E402 (path injected above)
 
 from app.tasks import celery_app  # noqa: E402

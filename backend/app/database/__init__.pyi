@@ -33,7 +33,27 @@ def get_db() -> Generator[Session, None, None]: ...
 def get_db_session() -> AbstractContextManager[Session]: ...
 
 
-def get_db_pool_status() -> _PoolStatus: ...
+def get_db_pool_status(pool_name: str | None = ...) -> _PoolStatus: ...
+
+def get_db_pool_statuses() -> dict[str, _PoolStatus]: ...
+
+def get_db_with_retry(max_attempts: int = ...) -> Generator[Session, None, None]: ...
+
+def get_api_engine() -> Engine: ...
+
+def get_worker_engine() -> Engine: ...
+
+def get_scheduler_engine() -> Engine: ...
+
+def get_engine_for_role(role: str | None = ...) -> Engine: ...
+
+def get_api_session() -> AbstractContextManager[Session]: ...
+
+def get_worker_session() -> AbstractContextManager[Session]: ...
+
+def get_scheduler_session() -> AbstractContextManager[Session]: ...
+
+def init_session_factories() -> None: ...
 
 def with_db_retry(
     op_name: str,
@@ -53,12 +73,28 @@ async def with_db_retry_async(
 
 engine: Engine
 SessionLocal: sessionmaker[Session]
+APISessionLocal: sessionmaker[Session]
+WorkerSessionLocal: sessionmaker[Session]
+SchedulerSessionLocal: sessionmaker[Session]
 
 __all__ = [
     "Base",
+    "APISessionLocal",
+    "WorkerSessionLocal",
+    "SchedulerSessionLocal",
     "get_db",
     "get_db_session",
+    "get_db_with_retry",
     "get_db_pool_status",
+    "get_db_pool_statuses",
+    "get_api_engine",
+    "get_worker_engine",
+    "get_scheduler_engine",
+    "get_engine_for_role",
+    "get_api_session",
+    "get_worker_session",
+    "get_scheduler_session",
+    "init_session_factories",
     "engine",
     "SessionLocal",
     "with_db_retry",

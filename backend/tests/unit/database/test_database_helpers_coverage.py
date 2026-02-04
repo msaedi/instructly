@@ -7,28 +7,26 @@ import pytest
 from sqlalchemy.exc import OperationalError
 
 from app import database as db_module
+from app.database import engines as engines_module, sessions as sessions_module
 
 
 def test_should_require_ssl() -> None:
-    assert db_module._should_require_ssl("postgresql://test.supabase.net/db") is True
-    assert db_module._should_require_ssl("postgresql://localhost/db") is False
+    assert engines_module._should_require_ssl("postgresql://test.supabase.net/db") is True
+    assert engines_module._should_require_ssl("postgresql://localhost/db") is False
 
 
-def test_build_engine_kwargs_non_supabase(monkeypatch) -> None:
-    monkeypatch.setattr(db_module, "DATABASE_POOL_CONFIG", None)
-    kwargs = db_module._build_engine_kwargs("postgresql://localhost/db")
-    connect_args = kwargs["connect_args"]
-
-    assert "sslmode" not in connect_args
-    assert kwargs["pool_size"] == 10
-    assert kwargs["max_overflow"] == 20
+def test_build_connect_args_non_supabase() -> None:
+    args = engines_module._build_connect_args(
+        db_url="postgresql://localhost/db", statement_timeout_ms=15000, connect_timeout=5
+    )
+    assert "sslmode" not in args
 
 
-def test_build_engine_kwargs_supabase(monkeypatch) -> None:
-    monkeypatch.setattr(db_module, "DATABASE_POOL_CONFIG", None)
-    kwargs = db_module._build_engine_kwargs("postgresql://db.supabase.net/db")
-
-    assert kwargs["connect_args"].get("sslmode") == "require"
+def test_build_connect_args_supabase() -> None:
+    args = engines_module._build_connect_args(
+        db_url="postgresql://db.supabase.net/db", statement_timeout_ms=15000, connect_timeout=5
+    )
+    assert args.get("sslmode") == "require"
 
 
 def test_retryable_db_error_detection() -> None:
@@ -94,25 +92,44 @@ def test_get_db_pool_status(monkeypatch) -> None:
         checkedout=lambda: 2,
         overflow=lambda: 0,
     )
-    monkeypatch.setattr(db_module, "engine", SimpleNamespace(pool=dummy_pool))
+    monkeypatch.setattr(
+        db_module, "get_engine_for_role", lambda _role=None: SimpleNamespace(pool=dummy_pool)
+    )
 
     status = db_module.get_db_pool_status()
     assert status == {"size": 3, "checked_in": 1, "checked_out": 2, "total": 3, "overflow": 0}
 
 
-def test_event_handlers_update_and_log(monkeypatch) -> None:
-    connection_record = SimpleNamespace(info={})
+def test_get_db_pool_statuses(monkeypatch) -> None:
+    api_pool = SimpleNamespace(
+        size=lambda: 1,
+        checkedin=lambda: 0,
+        checkedout=lambda: 1,
+        overflow=lambda: 0,
+    )
+    worker_pool = SimpleNamespace(
+        size=lambda: 2,
+        checkedin=lambda: 2,
+        checkedout=lambda: 0,
+        overflow=lambda: 1,
+    )
+    scheduler_pool = SimpleNamespace(
+        size=lambda: 3,
+        checkedin=lambda: 1,
+        checkedout=lambda: 2,
+        overflow=lambda: 0,
+    )
 
-    db_module.receive_connect(None, connection_record)
-    assert "connect_time" in connection_record.info
+    monkeypatch.setattr(db_module, "get_api_engine", lambda: SimpleNamespace(pool=api_pool))
+    monkeypatch.setattr(db_module, "get_worker_engine", lambda: SimpleNamespace(pool=worker_pool))
+    monkeypatch.setattr(
+        db_module, "get_scheduler_engine", lambda: SimpleNamespace(pool=scheduler_pool)
+    )
 
-    db_module.receive_checkout(None, connection_record, None)
-    db_module.receive_checkin(None, connection_record)
-    db_module.receive_soft_invalidate(None, connection_record, None)
-
-    dummy_pool = SimpleNamespace(size=lambda: 1, checkedout=lambda: 0)
-    monkeypatch.setattr(db_module, "engine", SimpleNamespace(pool=dummy_pool))
-    db_module.receive_invalidate(None, connection_record, Exception("boom"))
+    statuses = db_module.get_db_pool_statuses()
+    assert statuses["api"]["size"] == 1
+    assert statuses["worker"]["total"] == 3
+    assert statuses["scheduler"]["checked_out"] == 2
 
 
 def test_get_db_with_retry_cleanup_errors(monkeypatch) -> None:
@@ -150,7 +167,7 @@ def test_get_db_commits_and_closes(monkeypatch) -> None:
             self.closed = True
 
     dummy = DummySession()
-    monkeypatch.setattr(db_module, "SessionLocal", lambda: dummy)
+    monkeypatch.setattr(sessions_module, "SessionLocal", lambda: dummy)
 
     gen = db_module.get_db()
     assert next(gen) is dummy
@@ -177,7 +194,7 @@ def test_get_db_rolls_back_on_exception(monkeypatch) -> None:
             self.closed = True
 
     dummy = DummySession()
-    monkeypatch.setattr(db_module, "SessionLocal", lambda: dummy)
+    monkeypatch.setattr(sessions_module, "SessionLocal", lambda: dummy)
 
     gen = db_module.get_db()
     next(gen)
@@ -205,7 +222,7 @@ def test_get_db_session_context_manager(monkeypatch) -> None:
             self.closed = True
 
     dummy = DummySession()
-    monkeypatch.setattr(db_module, "SessionLocal", lambda: dummy)
+    monkeypatch.setattr(sessions_module, "SessionLocal", lambda: dummy)
 
     with pytest.raises(RuntimeError):
         with db_module.get_db_session() as session:
@@ -256,26 +273,19 @@ def test_get_db_with_retry_handles_transient(monkeypatch) -> None:
     assert session.committed is True
 
 
-def test_build_engine_kwargs_with_production_config(monkeypatch) -> None:
-    monkeypatch.setattr(
-        db_module,
-        "DATABASE_POOL_CONFIG",
-        {
-            "pool_size": 9,
-            "connect_args": {"application_name": "override"},
-        },
+def test_build_connect_args_respects_timeouts() -> None:
+    args = engines_module._build_connect_args(
+        db_url="postgresql://db.supabase.net/db",
+        statement_timeout_ms=12345,
+        connect_timeout=7,
     )
-
-    kwargs = db_module._build_engine_kwargs("postgresql://db.supabase.net/db")
-    assert kwargs["pool_size"] == 9
-    assert kwargs["connect_args"]["application_name"] == "override"
+    assert args["options"] == "-c statement_timeout=12345"
+    assert args["connect_timeout"] == 7
 
 
 def test_should_require_ssl_handles_parse_error(monkeypatch) -> None:
-    import urllib.parse
-
     def _boom(_url):
         raise ValueError("bad")
 
-    monkeypatch.setattr(urllib.parse, "urlparse", _boom)
-    assert db_module._should_require_ssl("postgresql://bad") is False
+    monkeypatch.setattr(engines_module, "urlparse", _boom)
+    assert engines_module._should_require_ssl("postgresql://bad") is False

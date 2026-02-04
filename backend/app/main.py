@@ -53,7 +53,7 @@ from .core.metrics import (
     METRICS_AUTH_FAILURE_TOTAL,
 )
 from .core.request_context import attach_request_id_filter
-from .database import SessionLocal
+from .database import SchedulerSessionLocal, SessionLocal, init_session_factories
 from .dependencies.mcp_auth import audit_mcp_request
 from .middleware.beta_phase_header import BetaPhaseHeaderMiddleware
 from .middleware.csrf_asgi import CsrfOriginMiddlewareASGI
@@ -345,6 +345,9 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         f"Environment: {settings.environment} (SITE_MODE={os.getenv('SITE_MODE','') or 'unset'})"
     )
 
+    init_session_factories()
+    logger.info("Database session factories initialized")
+
     # Initialize OpenTelemetry after Sentry (errors only)
     try:
         if init_otel():
@@ -589,7 +592,7 @@ def _background_jobs_worker_sync(shutdown_event: threading.Event) -> None:
             if shutdown_event.is_set():
                 break
 
-            db = SessionLocal()
+            db = SchedulerSessionLocal()
             try:
                 job_repo = BackgroundJobRepository(db)
                 repo = InstructorProfileRepository(db)
@@ -844,7 +847,7 @@ def _ensure_expiry_job_scheduled() -> None:
         logger.info("Skipping expiry job seed because bgc_expiry_enabled is False")
         return
 
-    session = SessionLocal()
+    session = SchedulerSessionLocal()
     try:
         job_repo = BackgroundJobRepository(session)
         existing = job_repo.get_next_scheduled("bgc.expiry_sweep")

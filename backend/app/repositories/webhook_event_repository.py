@@ -134,11 +134,12 @@ class WebhookEventRepository(BaseRepository[WebhookEvent]):
 
     def find_by_source_and_event_id(self, source: str, event_id: str) -> WebhookEvent | None:
         """Find webhook event by source and external event ID."""
-        return (
+        result = (
             self.db.query(WebhookEvent)
             .filter(WebhookEvent.source == source, WebhookEvent.event_id == event_id)
             .first()
         )
+        return cast(WebhookEvent | None, result)
 
     def get_failed_events(
         self,

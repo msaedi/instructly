@@ -22,6 +22,8 @@ from typing import Any, cast
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+os.environ.setdefault("DB_POOL_ROLE", "scheduler")
+
 from celery.bin import beat  # noqa: E402 (path injected above)
 
 from app.core.celery_config import CELERY_BEAT_SCHEDULE  # noqa: E402 (import after sys.path tweak)
