@@ -691,6 +691,59 @@ def _prepare_database() -> None:
     # Ensure outbox table exists (guarded to prevent conflicts)
     ensure_outbox_table()
 
+    # Keep instructor_profiles schema aligned with ORM models (tests reuse an existing DB).
+    with test_engine.connect() as conn:
+        if conn.dialect.name != "sqlite":
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE instructor_profiles
+                    ADD COLUMN IF NOT EXISTS commission_override_pct NUMERIC(5, 2)
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE instructor_profiles
+                    ADD COLUMN IF NOT EXISTS commission_override_until TIMESTAMPTZ
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE instructor_profiles
+                    ADD COLUMN IF NOT EXISTS payout_hold BOOLEAN NOT NULL DEFAULT false
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE instructor_profiles
+                    ADD COLUMN IF NOT EXISTS payout_hold_reason TEXT
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE instructor_profiles
+                    ADD COLUMN IF NOT EXISTS payout_hold_at TIMESTAMPTZ
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE instructor_profiles
+                    ADD COLUMN IF NOT EXISTS payout_hold_released_at TIMESTAMPTZ
+                    """
+                )
+            )
+            conn.commit()
+
     # Keep region_boundaries schema aligned with ORM models (tests reuse an existing DB).
     with test_engine.connect() as conn:
         if conn.dialect.name != "sqlite":

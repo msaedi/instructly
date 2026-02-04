@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, List
+from typing import Any, List, cast
 
 from sqlalchemy.orm import Session, joinedload
 
@@ -32,12 +32,13 @@ class BookingNoteRepository(BaseRepository[BookingNote]):
 
     def list_for_booking(self, booking_id: str) -> List[BookingNote]:
         try:
-            return (
+            return cast(
+                List[BookingNote],
                 self.db.query(BookingNote)
                 .options(joinedload(BookingNote.created_by))
                 .filter(BookingNote.booking_id == booking_id)
                 .order_by(BookingNote.created_at.desc())
-                .all()
+                .all(),
             )
         except Exception as exc:
             self.logger.error("Error listing booking notes: %s", exc)

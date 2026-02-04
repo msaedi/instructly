@@ -463,6 +463,47 @@ async def test_client_wrapper_methods_call_expected_paths():
             visibility="internal",
             category="general",
         )
+        await client.instructor_suspend_preview(
+            instructor_id="01INS",
+            reason_code="FRAUD",
+            note="note",
+            notify_instructor=False,
+            cancel_pending_bookings=False,
+        )
+        await client.instructor_suspend_execute(
+            instructor_id="01INS",
+            confirm_token="token",
+            idempotency_key="idem",
+        )
+        await client.instructor_unsuspend(
+            instructor_id="01INS",
+            reason="ok",
+            restore_visibility=True,
+        )
+        await client.instructor_verify_override(
+            instructor_id="01INS",
+            verification_type="IDENTITY",
+            reason="manual",
+            evidence="link",
+        )
+        await client.instructor_update_commission_preview(
+            instructor_id="01INS",
+            action="SET_TIER",
+            reason="change",
+            tier="entry",
+            temporary_rate=None,
+            temporary_until=None,
+        )
+        await client.instructor_update_commission_execute(
+            instructor_id="01INS",
+            confirm_token="token",
+            idempotency_key="idem",
+        )
+        await client.instructor_payout_hold(
+            instructor_id="01INS",
+            action="HOLD",
+            reason="note",
+        )
         await client.lookup_user(identifier="user@example.com")
         await client.get_user_booking_history(user_id="01USER", limit=15)
 
@@ -610,6 +651,56 @@ async def test_client_wrapper_methods_call_expected_paths():
             "POST",
             "/api/v1/admin/mcp/bookings/01BOOK/notes",
             json={"note": "note", "visibility": "internal", "category": "general"},
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/instructors/01INS/suspend/preview",
+            json={
+                "reason_code": "FRAUD",
+                "note": "note",
+                "notify_instructor": False,
+                "cancel_pending_bookings": False,
+            },
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/instructors/01INS/suspend/execute",
+            json={"confirm_token": "token", "idempotency_key": "idem"},
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/instructors/01INS/unsuspend",
+            json={"reason": "ok", "restore_visibility": True},
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/instructors/01INS/verify-override",
+            json={
+                "verification_type": "IDENTITY",
+                "reason": "manual",
+                "evidence": "link",
+            },
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/instructors/01INS/commission/preview",
+            json={
+                "action": "SET_TIER",
+                "reason": "change",
+                "tier": "entry",
+                "temporary_rate": None,
+                "temporary_until": None,
+            },
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/instructors/01INS/commission/execute",
+            json={"confirm_token": "token", "idempotency_key": "idem"},
+        ),
+        call(
+            "POST",
+            "/api/v1/admin/mcp/instructors/01INS/payout-hold",
+            json={"action": "HOLD", "reason": "note"},
         ),
         call(
             "GET",

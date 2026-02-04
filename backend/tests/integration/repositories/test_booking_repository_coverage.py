@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -376,6 +377,72 @@ def test_payment_and_status_updates(
         reported_before=datetime.now(timezone.utc) - timedelta(days=1)
     )
     assert no_show.id in [b.id for b in due]
+
+
+def test_completed_authorized_bookings_and_totals(
+    db, test_student, test_instructor_with_availability, test_booking
+):
+    repo = BookingRepository(db)
+    today = datetime.now(timezone.utc).date()
+
+    authorized = _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=test_booking.instructor_service_id,
+        booking_date=today - timedelta(days=2),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        status=BookingStatus.COMPLETED,
+        offset_index=20,
+        payment_status=PaymentStatus.AUTHORIZED.value,
+        payment_intent_id="pi_auth",
+        total_price=120.0,
+        completed_at=datetime.now(timezone.utc) - timedelta(days=1),
+    )
+    _create_booking(
+        db,
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        instructor_service_id=test_booking.instructor_service_id,
+        booking_date=today - timedelta(days=3),
+        start_time=time(11, 0),
+        end_time=time(12, 0),
+        status=BookingStatus.COMPLETED,
+        offset_index=21,
+        payment_status=PaymentStatus.SETTLED.value,
+        total_price=80.0,
+        completed_at=datetime.now(timezone.utc) - timedelta(days=2),
+    )
+    db.commit()
+
+    bookings = repo.get_instructor_completed_authorized_bookings(
+        test_instructor_with_availability.id
+    )
+    booking_ids = {b.id for b in bookings}
+    assert authorized.id in booking_ids
+
+    window_start = datetime.now(timezone.utc) - timedelta(days=30)
+    total = repo.sum_instructor_completed_total_price_since(
+        test_instructor_with_availability.id, window_start
+    )
+    assert total >= Decimal("120.0")
+
+
+def test_completed_authorized_bookings_error_paths(db, monkeypatch):
+    repo = BookingRepository(db)
+
+    class _Boom:
+        def query(self, *args, **kwargs):
+            raise Exception("boom")
+
+    monkeypatch.setattr(repo, "db", _Boom())
+    with pytest.raises(RepositoryException):
+        repo.get_instructor_completed_authorized_bookings("01INS")
+    with pytest.raises(RepositoryException):
+        repo.sum_instructor_completed_total_price_since(
+            "01INS", datetime.now(timezone.utc)
+        )
 
 
 def test_booking_details_and_future_queries(

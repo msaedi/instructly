@@ -315,6 +315,54 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
             raise RepositoryException("Failed to fetch last completion timestamp")
 
+    def get_instructor_completed_authorized_bookings(self, instructor_id: str) -> List[Booking]:
+        """Return completed bookings with authorized payments for an instructor."""
+
+        try:
+            return cast(
+                List[Booking],
+                self.db.query(Booking)
+                .options(joinedload(Booking.payment_intent))
+                .filter(
+                    Booking.instructor_id == instructor_id,
+                    Booking.status == BookingStatus.COMPLETED,
+                    Booking.payment_status == PaymentStatus.AUTHORIZED.value,
+                )
+                .all(),
+            )
+        except Exception as exc:
+            self.logger.error(
+                "Error getting completed authorized bookings for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to get completed authorized bookings") from exc
+
+    def sum_instructor_completed_total_price_since(
+        self, instructor_id: str, window_start: datetime
+    ) -> Decimal:
+        """Sum total_price for completed bookings since the given timestamp."""
+
+        try:
+            total = (
+                self.db.query(func.coalesce(func.sum(Booking.total_price), 0))
+                .filter(
+                    Booking.instructor_id == instructor_id,
+                    Booking.status == BookingStatus.COMPLETED,
+                    Booking.completed_at.isnot(None),
+                    Booking.completed_at >= window_start,
+                )
+                .scalar()
+            )
+            return cast(Decimal, total)
+        except Exception as exc:
+            self.logger.error(
+                "Error summing completed booking totals for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            raise RepositoryException("Failed to sum completed booking totals") from exc
+
     def get_with_pricing_context(self, booking_id: str) -> Optional[Booking]:
         """Return booking hydrated with relationships required for pricing calculations."""
 

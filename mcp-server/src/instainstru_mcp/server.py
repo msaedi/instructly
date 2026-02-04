@@ -39,6 +39,7 @@ from .tools import (
     deploy,
     founding,
     growth,
+    instructor_actions,
     instructors,
     invites,
     metrics,
@@ -560,6 +561,7 @@ def create_mcp(settings: Settings | None = None) -> "FastMCP":
     audit.register_tools(mcp, client)
     founding.register_tools(mcp, client)
     instructors.register_tools(mcp, client)
+    instructor_actions.register_tools(mcp, client)
     invites.register_tools(mcp, client)
     operations.register_tools(mcp, client)
     booking_detail.register_tools(mcp, client)

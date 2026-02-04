@@ -254,6 +254,121 @@ class InstaInstruClient:
             f"/api/v1/admin/mcp/instructors/{encoded_identifier}",
         )
 
+    async def instructor_suspend_preview(
+        self,
+        *,
+        instructor_id: str,
+        reason_code: str,
+        note: str,
+        notify_instructor: bool = True,
+        cancel_pending_bookings: bool = True,
+    ) -> dict:
+        payload = {
+            "reason_code": reason_code,
+            "note": note,
+            "notify_instructor": notify_instructor,
+            "cancel_pending_bookings": cancel_pending_bookings,
+        }
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/instructors/{quote(instructor_id)}/suspend/preview",
+            json=payload,
+        )
+
+    async def instructor_suspend_execute(
+        self,
+        *,
+        instructor_id: str,
+        confirm_token: str,
+        idempotency_key: str,
+    ) -> dict:
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/instructors/{quote(instructor_id)}/suspend/execute",
+            json={"confirm_token": confirm_token, "idempotency_key": idempotency_key},
+        )
+
+    async def instructor_unsuspend(
+        self,
+        *,
+        instructor_id: str,
+        reason: str,
+        restore_visibility: bool = True,
+    ) -> dict:
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/instructors/{quote(instructor_id)}/unsuspend",
+            json={"reason": reason, "restore_visibility": restore_visibility},
+        )
+
+    async def instructor_verify_override(
+        self,
+        *,
+        instructor_id: str,
+        verification_type: str,
+        reason: str,
+        evidence: str | None = None,
+    ) -> dict:
+        payload: dict[str, Any] = {
+            "verification_type": verification_type,
+            "reason": reason,
+            "evidence": evidence,
+        }
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/instructors/{quote(instructor_id)}/verify-override",
+            json=payload,
+        )
+
+    async def instructor_update_commission_preview(
+        self,
+        *,
+        instructor_id: str,
+        action: str,
+        reason: str,
+        tier: str | None = None,
+        temporary_rate: float | None = None,
+        temporary_until: str | None = None,
+    ) -> dict:
+        payload: dict[str, Any] = {
+            "action": action,
+            "reason": reason,
+            "tier": tier,
+            "temporary_rate": temporary_rate,
+            "temporary_until": temporary_until,
+        }
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/instructors/{quote(instructor_id)}/commission/preview",
+            json=payload,
+        )
+
+    async def instructor_update_commission_execute(
+        self,
+        *,
+        instructor_id: str,
+        confirm_token: str,
+        idempotency_key: str,
+    ) -> dict:
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/instructors/{quote(instructor_id)}/commission/execute",
+            json={"confirm_token": confirm_token, "idempotency_key": idempotency_key},
+        )
+
+    async def instructor_payout_hold(
+        self,
+        *,
+        instructor_id: str,
+        action: str,
+        reason: str,
+    ) -> dict:
+        return await self.call(
+            "POST",
+            f"/api/v1/admin/mcp/instructors/{quote(instructor_id)}/payout-hold",
+            json={"action": action, "reason": reason},
+        )
+
     async def preview_invites(self, **payload: Any) -> dict:
         return await self.call(
             "POST",

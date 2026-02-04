@@ -29,6 +29,7 @@ from ...services.cache_service import CacheService, CacheServiceSyncAdapter
 from ...services.conflict_checker import ConflictChecker
 from ...services.email import EmailService
 from ...services.favorites_service import FavoritesService
+from ...services.instructor_admin_service import InstructorAdminService
 from ...services.instructor_service import InstructorService
 from ...services.notification_service import NotificationService
 from ...services.password_reset_service import PasswordResetService
@@ -152,6 +153,11 @@ def get_refund_service(db: Session = Depends(get_db)) -> RefundService:
 def get_booking_admin_service(db: Session = Depends(get_db)) -> BookingAdminService:
     """Get booking admin service instance for MCP booking actions."""
     return BookingAdminService(db)
+
+
+def get_instructor_admin_service(db: Session = Depends(get_db)) -> InstructorAdminService:
+    """Get instructor admin service instance for MCP instructor actions."""
+    return InstructorAdminService(db)
 
 
 def get_pricing_service(db: Session = Depends(get_db)) -> PricingService:

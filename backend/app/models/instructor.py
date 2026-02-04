@@ -89,9 +89,15 @@ class InstructorProfile(Base):
     min_advance_booking_hours = Column(Integer, nullable=False, default=2)
     buffer_time_minutes = Column(Integer, nullable=False, default=0)
     current_tier_pct = Column(Numeric(5, 2), nullable=False, default=15.00, server_default="15.00")
+    commission_override_pct = Column(Numeric(5, 2), nullable=True)
+    commission_override_until = Column(DateTime(timezone=True), nullable=True)
     is_founding_instructor = Column(Boolean, default=False, nullable=False)
     founding_granted_at = Column(DateTime(timezone=True), nullable=True)
     last_tier_eval_at = Column(DateTime(timezone=True), nullable=True)
+    payout_hold = Column(Boolean, nullable=False, default=False, server_default="false")
+    payout_hold_reason = Column(Text, nullable=True)
+    payout_hold_at = Column(DateTime(timezone=True), nullable=True)
+    payout_hold_released_at = Column(DateTime(timezone=True), nullable=True)
 
     # Onboarding status fields
     skills_configured = Column(Boolean, nullable=False, default=False)

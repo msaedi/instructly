@@ -1092,6 +1092,55 @@ def upgrade() -> None:
         ["service_catalog_id", "is_active"],
     )
     op.add_column(
+        "instructor_profiles",
+        sa.Column(
+            "commission_override_pct",
+            sa.Numeric(5, 2),
+            nullable=True,
+        ),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column(
+            "commission_override_until",
+            sa.DateTime(timezone=True),
+            nullable=True,
+        ),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column(
+            "payout_hold",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column(
+            "payout_hold_reason",
+            sa.Text(),
+            nullable=True,
+        ),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column(
+            "payout_hold_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+        ),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column(
+            "payout_hold_released_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+        ),
+    )
+    op.add_column(
         "instructor_services",
         sa.Column("offers_travel", sa.Boolean(), nullable=False, server_default=sa.text("false")),
     )
@@ -1281,6 +1330,12 @@ def downgrade() -> None:
     op.drop_column("bookings", "reminder_1h_sent")
     op.drop_column("bookings", "reminder_24h_sent")
     op.drop_column("users", "phone_verified")
+    op.drop_column("instructor_profiles", "payout_hold_released_at")
+    op.drop_column("instructor_profiles", "payout_hold_at")
+    op.drop_column("instructor_profiles", "payout_hold_reason")
+    op.drop_column("instructor_profiles", "payout_hold")
+    op.drop_column("instructor_profiles", "commission_override_until")
+    op.drop_column("instructor_profiles", "commission_override_pct")
     op.drop_column("instructor_services", "offers_online")
     op.drop_column("instructor_services", "offers_at_location")
     op.drop_column("instructor_services", "offers_travel")
