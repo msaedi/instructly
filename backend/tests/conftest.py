@@ -744,6 +744,27 @@ def _prepare_database() -> None:
             )
             conn.commit()
 
+    # Keep webhook_events schema aligned with ORM models (tests reuse an existing DB).
+    with test_engine.connect() as conn:
+        if conn.dialect.name != "sqlite":
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE webhook_events
+                    ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE webhook_events
+                    ADD COLUMN IF NOT EXISTS last_retry_at TIMESTAMPTZ
+                    """
+                )
+            )
+            conn.commit()
+
     # Keep region_boundaries schema aligned with ORM models (tests reuse an existing DB).
     with test_engine.connect() as conn:
         if conn.dialect.name != "sqlite":

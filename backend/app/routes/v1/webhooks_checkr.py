@@ -806,6 +806,13 @@ async def handle_checkr_webhook(
             event_id=payload.get("id"),
             idempotency_key=request.headers.get("X-Checkr-Delivery-Id"),
         )
+    if ledger_event is not None and ledger_event.status == "processed":
+        logger.info(
+            "Checkr webhook retry for already-processed event %s (retry_count=%s)",
+            ledger_event.id,
+            ledger_event.retry_count,
+        )
+        return WebhookAckResponse(ok=True)
     start_time = monotonic()
     processing_error = await _process_checkr_payload(
         event_type=event_type,

@@ -27,6 +27,74 @@ def test_log_received_creates_event(db):
     assert fetched.event_id == "evt_1"
 
 
+def test_log_received_handles_duplicate_event_id(db):
+    service = WebhookLedgerService(db)
+    event1 = service.log_received(
+        source="checkr",
+        event_type="report.completed",
+        payload={"id": "evt_123", "type": "report.completed"},
+        headers={"X-Checkr-Delivery-Id": "delivery-abc"},
+        event_id="evt_123",
+        idempotency_key="delivery-abc",
+    )
+
+    assert event1.retry_count == 0
+    assert event1.last_retry_at is None
+
+    event2 = service.log_received(
+        source="checkr",
+        event_type="report.completed",
+        payload={"id": "evt_123", "type": "report.completed"},
+        headers={"X-Checkr-Delivery-Id": "delivery-abc"},
+        event_id="evt_123",
+        idempotency_key="delivery-abc",
+    )
+
+    assert event2.id == event1.id
+    assert event2.retry_count == 1
+    assert event2.last_retry_at is not None
+
+
+def test_log_received_different_event_ids_create_separate_records(db):
+    service = WebhookLedgerService(db)
+    event1 = service.log_received(
+        source="checkr",
+        event_type="report.completed",
+        payload={"id": "evt_111"},
+        event_id="evt_111",
+    )
+    event2 = service.log_received(
+        source="checkr",
+        event_type="report.completed",
+        payload={"id": "evt_222"},
+        event_id="evt_222",
+    )
+
+    assert event1.id != event2.id
+    assert event1.event_id == "evt_111"
+    assert event2.event_id == "evt_222"
+
+
+def test_log_received_same_event_id_different_source_creates_separate_records(db):
+    service = WebhookLedgerService(db)
+    event1 = service.log_received(
+        source="checkr",
+        event_type="report.completed",
+        payload={"id": "evt_123"},
+        event_id="evt_123",
+    )
+    event2 = service.log_received(
+        source="stripe",
+        event_type="payment_intent.succeeded",
+        payload={"id": "evt_123"},
+        event_id="evt_123",
+    )
+
+    assert event1.id != event2.id
+    assert event1.source == "checkr"
+    assert event2.source == "stripe"
+
+
 def test_mark_processed_updates_status(db):
     service = WebhookLedgerService(db)
     event = service.log_received(

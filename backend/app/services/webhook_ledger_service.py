@@ -37,8 +37,24 @@ class WebhookLedgerService(BaseService):
         event_id: str | None = None,
         idempotency_key: str | None = None,
     ) -> WebhookEvent:
-        """Log a received webhook before processing."""
+        """
+        Log a received webhook before processing.
+
+        Handles retries gracefully by updating retry tracking when a duplicate event_id is received.
+        """
         safe_headers = self._sanitize_headers(headers) if headers else None
+        now = _now_utc()
+
+        if event_id:
+            existing = self.repository.find_by_source_and_event_id(source, event_id)
+            if existing:
+                existing.retry_count = (existing.retry_count or 0) + 1
+                existing.last_retry_at = now
+                if safe_headers is not None:
+                    existing.headers = safe_headers
+                self.repository.flush()
+                return existing
+
         return self.repository.create(
             source=source,
             event_type=event_type or "unknown",
@@ -47,7 +63,8 @@ class WebhookLedgerService(BaseService):
             headers=safe_headers,
             status="received",
             idempotency_key=idempotency_key,
-            received_at=_now_utc(),
+            received_at=now,
+            retry_count=0,
         )
 
     @BaseService.measure_operation("webhook_ledger.mark_processed")

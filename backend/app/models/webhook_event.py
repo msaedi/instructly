@@ -50,6 +50,8 @@ class WebhookEvent(Base):
     processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     processing_duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    last_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     related_entity_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     related_entity_id: Mapped[str | None] = mapped_column(String(26), nullable=True)
     received_at: Mapped[datetime] = mapped_column(

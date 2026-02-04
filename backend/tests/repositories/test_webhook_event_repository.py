@@ -250,6 +250,29 @@ def test_get_failed_events_without_source_includes_multiple_sources(db):
     assert {"stripe", "checkr"}.issubset(sources)
 
 
+def test_find_by_source_and_event_id(db):
+    repo = WebhookEventRepository(db)
+
+    event = repo.create(
+        source="checkr",
+        event_type="report.completed",
+        event_id="evt_abc123",
+        payload={"test": True},
+        status="received",
+        received_at=datetime.now(timezone.utc),
+    )
+
+    found = repo.find_by_source_and_event_id("checkr", "evt_abc123")
+    assert found is not None
+    assert found.id == event.id
+
+    not_found = repo.find_by_source_and_event_id("stripe", "evt_abc123")
+    assert not_found is None
+
+    not_found = repo.find_by_source_and_event_id("checkr", "evt_different")
+    assert not_found is None
+
+
 def test_get_event_returns_none(db):
     repo = WebhookEventRepository(db)
     assert repo.get_event("01HZZZZZZZZZZZZZZZZZZZZZZ") is None

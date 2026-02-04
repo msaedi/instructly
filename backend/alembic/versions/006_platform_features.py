@@ -735,6 +735,7 @@ def upgrade() -> None:
     # Webhook ledger
     webhook_status_default = sa.text("'received'")
     replay_count_default = sa.text("0")
+    retry_count_default = sa.text("0")
     op.create_table(
         "webhook_events",
         sa.Column("id", sa.String(26), nullable=False),
@@ -751,6 +752,8 @@ def upgrade() -> None:
         sa.Column("related_entity_id", sa.String(26), nullable=True),
         sa.Column("received_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column("processed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("retry_count", sa.Integer(), nullable=False, server_default=retry_count_default),
+        sa.Column("last_retry_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("replay_of", sa.String(26), nullable=True),
         sa.Column("replay_count", sa.Integer(), nullable=False, server_default=replay_count_default),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
