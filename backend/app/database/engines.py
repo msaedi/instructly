@@ -106,6 +106,13 @@ def _create_engine(
     pool_name: str,
 ) -> Engine:
     db_url = settings.get_database_url()
+    logger.info(
+        "[%s] Creating engine: pool_size=%d, max_overflow=%d, pool_timeout=%d",
+        pool_name,
+        pool_size,
+        max_overflow,
+        pool_timeout,
+    )
     engine = create_engine(
         db_url,
         poolclass=QueuePool,
@@ -132,6 +139,11 @@ _scheduler_engine: Engine | None = None
 
 
 def create_api_engine() -> Engine:
+    logger.info(
+        "API pool config: DB_API_POOL_SIZE env=%s, settings=%s",
+        os.getenv("DB_API_POOL_SIZE", "NOT_SET"),
+        settings.db_api_pool_size,
+    )
     return _create_engine(
         pool_size=settings.db_api_pool_size,
         max_overflow=settings.db_api_max_overflow,
@@ -154,6 +166,16 @@ def create_worker_engine() -> Engine:
 
 
 def create_scheduler_engine() -> Engine:
+    raw_env = os.getenv("DB_SCHEDULER_POOL_SIZE", "NOT_SET")
+    logger.info(
+        "Scheduler pool config: DB_SCHEDULER_POOL_SIZE env=%s, "
+        "settings.db_scheduler_pool_size=%s, settings.db_scheduler_max_overflow=%s, "
+        "settings.db_scheduler_pool_timeout=%s",
+        raw_env,
+        settings.db_scheduler_pool_size,
+        settings.db_scheduler_max_overflow,
+        settings.db_scheduler_pool_timeout,
+    )
     return _create_engine(
         pool_size=settings.db_scheduler_pool_size,
         max_overflow=settings.db_scheduler_max_overflow,
