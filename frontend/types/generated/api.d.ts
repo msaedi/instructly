@@ -1696,6 +1696,23 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mcp/funnel/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Funnel Snapshot */
+        get: operations["funnel_snapshot_api_v1_admin_mcp_funnel_snapshot_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/mcp/instructors": {
         parameters: {
             query?: never;
@@ -11654,10 +11671,10 @@ export type components = {
              */
             status: string;
             /**
-             * Usage Percent
-             * @description Pool usage percentage
+             * Utilization Pct
+             * @description Pool utilization percentage
              */
-            usage_percent: number;
+            utilization_pct: number;
         };
         /**
          * DatabaseHealthResponse
@@ -11724,30 +11741,30 @@ export type components = {
              */
             checked_out: number;
             /**
-             * Max Size
-             * @description Maximum pool size
+             * Max Capacity
+             * @description Total possible connections (size + max_overflow)
              */
-            max_size: number;
+            max_capacity: number;
             /**
-             * Overflow
-             * @description Overflow connections
+             * Max Overflow
+             * @description Maximum overflow connections
              */
-            overflow: number;
+            max_overflow: number;
+            /**
+             * Overflow In Use
+             * @description Current overflow connections (negative when below base size)
+             */
+            overflow_in_use: number;
             /**
              * Size
              * @description Base pool size
              */
             size: number;
             /**
-             * Total
-             * @description Total connections (size + overflow)
+             * Utilization Pct
+             * @description Pool utilization percentage
              */
-            total: number;
-            /**
-             * Usage Percent
-             * @description Pool usage percentage
-             */
-            usage_percent: number;
+            utilization_pct: number;
         };
         /**
          * DatabasePoolStatus
@@ -11765,20 +11782,30 @@ export type components = {
              */
             checked_out: number;
             /**
-             * Overflow
-             * @description Overflow connections
+             * Max Capacity
+             * @description Total possible connections (size + max_overflow)
              */
-            overflow: number;
+            max_capacity: number;
             /**
-             * Pool Size
-             * @description Total pool size
+             * Max Overflow
+             * @description Maximum overflow connections
              */
-            pool_size: number;
+            max_overflow: number;
             /**
-             * Usage Percent
-             * @description Pool usage percentage
+             * Overflow In Use
+             * @description Current overflow connections (negative when below base size)
              */
-            usage_percent: number;
+            overflow_in_use: number;
+            /**
+             * Size
+             * @description Base pool size
+             */
+            size: number;
+            /**
+             * Utilization Pct
+             * @description Pool utilization percentage
+             */
+            utilization_pct: number;
         };
         /**
          * DatabasePoolStatusResponse
@@ -12313,6 +12340,55 @@ export type components = {
          * @enum {string}
          */
         FunnelSegmentBy: "device" | "category" | "source";
+        /**
+         * FunnelSnapshotComparison
+         * @enum {string}
+         */
+        FunnelSnapshotComparison: "previous_period" | "same_period_last_week" | "same_period_last_month";
+        /**
+         * FunnelSnapshotPeriod
+         * @enum {string}
+         */
+        FunnelSnapshotPeriod: "today" | "yesterday" | "last_7_days" | "last_30_days" | "this_month";
+        /** FunnelSnapshotPeriodData */
+        FunnelSnapshotPeriodData: {
+            /** Overall Conversion */
+            overall_conversion: string;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /** Stages */
+            stages: components["schemas"]["FunnelSnapshotStage"][];
+        };
+        /** FunnelSnapshotResponse */
+        FunnelSnapshotResponse: {
+            comparison_period?: components["schemas"]["FunnelSnapshotPeriodData"] | null;
+            current_period: components["schemas"]["FunnelSnapshotPeriodData"];
+            /** Deltas */
+            deltas?: {
+                [key: string]: string;
+            } | null;
+            /** Insights */
+            insights?: string[];
+        };
+        /** FunnelSnapshotStage */
+        FunnelSnapshotStage: {
+            /** Conversion Rate */
+            conversion_rate?: string | null;
+            /** Count */
+            count: number;
+            /** Drop Off Rate */
+            drop_off_rate?: string | null;
+            /** Stage */
+            stage: string;
+        };
         /** FunnelStage */
         FunnelStage: {
             /** Conversion To Next */
@@ -23153,6 +23229,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MCPStuckResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    funnel_snapshot_api_v1_admin_mcp_funnel_snapshot_get: {
+        parameters: {
+            query?: {
+                period?: components["schemas"]["FunnelSnapshotPeriod"];
+                compare_to?: components["schemas"]["FunnelSnapshotComparison"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FunnelSnapshotResponse"];
                 };
             };
             /** @description Validation Error */

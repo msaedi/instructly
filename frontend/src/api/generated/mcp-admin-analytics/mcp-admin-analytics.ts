@@ -25,6 +25,8 @@ import type {
   CategoryPerformanceApiV1AdminMcpAnalyticsCategoriesGetParams,
   CohortRetention,
   CohortRetentionApiV1AdminMcpAnalyticsCohortsGetParams,
+  FunnelSnapshotApiV1AdminMcpFunnelSnapshotGetParams,
+  FunnelSnapshotResponse,
   HTTPValidationError,
   PlatformAlerts,
   PlatformAlertsApiV1AdminMcpAnalyticsAlertsGetParams,
@@ -1096,6 +1098,181 @@ export function useSupplyDemandApiV1AdminMcpAnalyticsSupplyDemandGet<
     params,
     options
   );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Funnel Snapshot
+ */
+export const getFunnelSnapshotApiV1AdminMcpFunnelSnapshotGetUrl = (
+  params?: FunnelSnapshotApiV1AdminMcpFunnelSnapshotGetParams
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/admin/mcp/funnel/snapshot?${stringifiedParams}`
+    : `/api/v1/admin/mcp/funnel/snapshot`;
+};
+
+export const funnelSnapshotApiV1AdminMcpFunnelSnapshotGet = async (
+  params?: FunnelSnapshotApiV1AdminMcpFunnelSnapshotGetParams,
+  options?: RequestInit
+): Promise<FunnelSnapshotResponse> => {
+  return customFetch<FunnelSnapshotResponse>(
+    getFunnelSnapshotApiV1AdminMcpFunnelSnapshotGetUrl(params),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getFunnelSnapshotApiV1AdminMcpFunnelSnapshotGetQueryKey = (
+  params?: FunnelSnapshotApiV1AdminMcpFunnelSnapshotGetParams
+) => {
+  return [`/api/v1/admin/mcp/funnel/snapshot`, ...(params ? [params] : [])] as const;
+};
+
+export const getFunnelSnapshotApiV1AdminMcpFunnelSnapshotGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: FunnelSnapshotApiV1AdminMcpFunnelSnapshotGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getFunnelSnapshotApiV1AdminMcpFunnelSnapshotGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>
+  > = ({ signal }) =>
+    funnelSnapshotApiV1AdminMcpFunnelSnapshotGet(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type FunnelSnapshotApiV1AdminMcpFunnelSnapshotGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>
+>;
+export type FunnelSnapshotApiV1AdminMcpFunnelSnapshotGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useFunnelSnapshotApiV1AdminMcpFunnelSnapshotGet<
+  TData = Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | FunnelSnapshotApiV1AdminMcpFunnelSnapshotGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>,
+          TError,
+          Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useFunnelSnapshotApiV1AdminMcpFunnelSnapshotGet<
+  TData = Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: FunnelSnapshotApiV1AdminMcpFunnelSnapshotGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>,
+          TError,
+          Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useFunnelSnapshotApiV1AdminMcpFunnelSnapshotGet<
+  TData = Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: FunnelSnapshotApiV1AdminMcpFunnelSnapshotGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Funnel Snapshot
+ */
+
+export function useFunnelSnapshotApiV1AdminMcpFunnelSnapshotGet<
+  TData = Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: FunnelSnapshotApiV1AdminMcpFunnelSnapshotGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof funnelSnapshotApiV1AdminMcpFunnelSnapshotGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getFunnelSnapshotApiV1AdminMcpFunnelSnapshotGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

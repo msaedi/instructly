@@ -57,6 +57,21 @@ CRITICAL_BEAT_MONITOR_CONFIGS: dict[str, dict[str, Any]] = {
         "timezone": "US/Eastern",
         **_DEFAULT_MONITOR_LIMITS,
     },
+    "append-codebase-metrics-history": {
+        "schedule": {"type": "crontab", "value": "30 3,15 * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
+    "nightly-retention-purge": {
+        "schedule": {"type": "crontab", "value": "0 4 * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
+    "availability-retention-daily": {
+        "schedule": {"type": "crontab", "value": "0 2 * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
 }
 
 CRITICAL_BEAT_MONITOR_SLUGS: tuple[str, ...] = tuple(CRITICAL_BEAT_MONITOR_CONFIGS.keys())

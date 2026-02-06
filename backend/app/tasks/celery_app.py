@@ -28,6 +28,7 @@ from app.core.config import settings
 from app.core.request_context import attach_request_id_filter, reset_request_id, set_request_id
 from app.monitoring.otel import init_otel, instrument_additional_libraries, shutdown_otel
 from app.monitoring.sentry import init_sentry
+from app.monitoring.sentry_crons import monitor_if_configured
 
 if TYPE_CHECKING:
     from app.services.retention_service import RetentionResult
@@ -499,6 +500,7 @@ def health_check() -> Dict[str, str]:
 
 
 @typed_task(name="app.tasks.availability_retention.run")
+@monitor_if_configured("availability-retention-daily")
 def run_availability_retention() -> "RetentionResult":
     """
     Purge stale availability_days rows when retention is enabled.

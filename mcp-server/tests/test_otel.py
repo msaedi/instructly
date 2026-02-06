@@ -123,6 +123,8 @@ def _reset_otel_state(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_HEADERS", raising=False)
+    monkeypatch.delenv("AXIOM_API_TOKEN", raising=False)
+    monkeypatch.delenv("AXIOM_TRACES_DATASET", raising=False)
     monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.delenv("GIT_SHA", raising=False)
     yield
@@ -294,3 +296,62 @@ def test_instrument_app_handles_exception(
     app = object()
     assert otel_mod.instrument_app(app) is app
     assert any("Failed to instrument MCP ASGI app" in record.message for record in caplog.records)
+
+
+def test_init_otel_axiom_token_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When OTEL_EXPORTER_OTLP_HEADERS is absent, construct from AXIOM_API_TOKEN."""
+    import opentelemetry.exporter.otlp.proto.http.trace_exporter as otlp_exporter
+    import opentelemetry.instrumentation.logging as logging_instr
+    import opentelemetry.sdk.resources as resources
+    import opentelemetry.sdk.trace as sdk_trace
+    import opentelemetry.sdk.trace.export as sdk_export
+    import opentelemetry.trace as trace_mod
+
+    class DummyTracerProvider:
+        def __init__(self, resource=None):
+            self.resource = resource
+            self.processors: list[object] = []
+
+        def add_span_processor(self, processor):
+            self.processors.append(processor)
+
+    class DummyExporter:
+        def __init__(self, endpoint=None, headers=None):
+            self.endpoint = endpoint
+            self.headers = headers
+
+    class DummyBatchSpanProcessor:
+        def __init__(self, exporter):
+            self.exporter = exporter
+
+    class DummyLoggingInstrumentor:
+        def instrument(self, set_logging_format=False):
+            pass
+
+    class DummyResource:
+        @staticmethod
+        def create(attrs):
+            return attrs
+
+    monkeypatch.setattr(trace_mod, "set_tracer_provider", lambda p: None)
+    monkeypatch.setattr(sdk_trace, "TracerProvider", DummyTracerProvider)
+    monkeypatch.setattr(otlp_exporter, "OTLPSpanExporter", DummyExporter)
+    monkeypatch.setattr(sdk_export, "BatchSpanProcessor", DummyBatchSpanProcessor)
+    monkeypatch.setattr(logging_instr, "LoggingInstrumentor", DummyLoggingInstrumentor)
+    monkeypatch.setattr(resources, "Resource", DummyResource)
+
+    monkeypatch.setenv("ENABLE_OTEL", "true")
+    # No OTEL_EXPORTER_OTLP_HEADERS set - should fall back to AXIOM vars
+    monkeypatch.setenv("AXIOM_API_TOKEN", "xaat-test-token")
+    monkeypatch.setenv("AXIOM_TRACES_DATASET", "my-dataset")
+
+    assert otel_mod.init_otel() is True
+
+    provider = otel_mod._tracer_provider
+    assert provider is not None
+    processor = provider.processors[0]
+    exporter = processor.exporter
+    assert exporter.headers == {
+        "Authorization": "Bearer xaat-test-token",
+        "X-Axiom-Dataset": "my-dataset",
+    }

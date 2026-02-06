@@ -1375,6 +1375,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/mcp/funnel/snapshot": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["funnel_snapshot_api_v1_admin_mcp_funnel_snapshot_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/mcp/instructors": {
  parameters: {
  query?: never;
@@ -7020,7 +7036,7 @@ export type components = {
  };
  DatabaseHealthMetrics: {
  status: string;
- usage_percent: number;
+ utilization_pct: number;
  };
  DatabaseHealthResponse: {
  error?: string | null;
@@ -7037,18 +7053,20 @@ export type components = {
  DatabasePoolMetrics: {
  checked_in: number;
  checked_out: number;
- max_size: number;
- overflow: number;
+ max_capacity: number;
+ max_overflow: number;
+ overflow_in_use: number;
  size: number;
- total: number;
- usage_percent: number;
+ utilization_pct: number;
  };
  DatabasePoolStatus: {
  checked_in: number;
  checked_out: number;
- overflow: number;
- pool_size: number;
- usage_percent: number;
+ max_capacity: number;
+ max_overflow: number;
+ overflow_in_use: number;
+ size: number;
+ utilization_pct: number;
  };
  DatabasePoolStatusResponse: {
  configuration: components["schemas"]["DatabasePoolConfiguration"];
@@ -7218,6 +7236,28 @@ export type components = {
  total_founding_spots: number;
  };
  FunnelSegmentBy: "device" | "category" | "source";
+ FunnelSnapshotComparison: "previous_period" | "same_period_last_week" | "same_period_last_month";
+ FunnelSnapshotPeriod: "today" | "yesterday" | "last_7_days" | "last_30_days" | "this_month";
+ FunnelSnapshotPeriodData: {
+ overall_conversion: string;
+ period_end: string;
+ period_start: string;
+ stages: components["schemas"]["FunnelSnapshotStage"][];
+ };
+ FunnelSnapshotResponse: {
+ comparison_period?: components["schemas"]["FunnelSnapshotPeriodData"] | null;
+ current_period: components["schemas"]["FunnelSnapshotPeriodData"];
+ deltas?: {
+ [key: string]: string;
+ } | null;
+ insights?: string[];
+ };
+ FunnelSnapshotStage: {
+ conversion_rate?: string | null;
+ count: number;
+ drop_off_rate?: string | null;
+ stage: string;
+ };
  FunnelStage: {
  conversion_to_next?: string | null;
  count: number;
@@ -12631,6 +12671,36 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["MCPStuckResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ funnel_snapshot_api_v1_admin_mcp_funnel_snapshot_get: {
+ parameters: {
+ query?: {
+ period?: components["schemas"]["FunnelSnapshotPeriod"];
+ compare_to?: components["schemas"]["FunnelSnapshotComparison"] | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["FunnelSnapshotResponse"];
  };
  };
  422: {

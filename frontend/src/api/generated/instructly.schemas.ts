@@ -3141,12 +3141,16 @@ export interface DatabasePoolStatus {
   checked_in: number;
   /** Active connections */
   checked_out: number;
-  /** Overflow connections */
-  overflow: number;
-  /** Total pool size */
-  pool_size: number;
-  /** Pool usage percentage */
-  usage_percent: number;
+  /** Total possible connections (size + max_overflow) */
+  max_capacity: number;
+  /** Maximum overflow connections */
+  max_overflow: number;
+  /** Current overflow connections (negative when below base size) */
+  overflow_in_use: number;
+  /** Base pool size */
+  size: number;
+  /** Pool utilization percentage */
+  utilization_pct: number;
 }
 
 /**
@@ -3167,8 +3171,8 @@ export interface DatabaseDashboardMetrics {
 export interface DatabaseHealthMetrics {
   /** Health status */
   status: string;
-  /** Pool usage percentage */
-  usage_percent: number;
+  /** Pool utilization percentage */
+  utilization_pct: number;
 }
 
 /**
@@ -3179,16 +3183,16 @@ export interface DatabasePoolMetrics {
   checked_in: number;
   /** Active connections */
   checked_out: number;
-  /** Maximum pool size */
-  max_size: number;
-  /** Overflow connections */
-  overflow: number;
+  /** Total possible connections (size + max_overflow) */
+  max_capacity: number;
+  /** Maximum overflow connections */
+  max_overflow: number;
+  /** Current overflow connections (negative when below base size) */
+  overflow_in_use: number;
   /** Base pool size */
   size: number;
-  /** Total connections (size + overflow) */
-  total: number;
-  /** Pool usage percentage */
-  usage_percent: number;
+  /** Pool utilization percentage */
+  utilization_pct: number;
 }
 
 /**
@@ -3692,6 +3696,49 @@ export const FunnelSegmentBy = {
   category: 'category',
   source: 'source',
 } as const;
+
+export type FunnelSnapshotComparison =
+  (typeof FunnelSnapshotComparison)[keyof typeof FunnelSnapshotComparison];
+
+export const FunnelSnapshotComparison = {
+  previous_period: 'previous_period',
+  same_period_last_week: 'same_period_last_week',
+  same_period_last_month: 'same_period_last_month',
+} as const;
+
+export type FunnelSnapshotPeriod = (typeof FunnelSnapshotPeriod)[keyof typeof FunnelSnapshotPeriod];
+
+export const FunnelSnapshotPeriod = {
+  today: 'today',
+  yesterday: 'yesterday',
+  last_7_days: 'last_7_days',
+  last_30_days: 'last_30_days',
+  this_month: 'this_month',
+} as const;
+
+export interface FunnelSnapshotStage {
+  conversion_rate?: string | null;
+  count: number;
+  drop_off_rate?: string | null;
+  stage: string;
+}
+
+export interface FunnelSnapshotPeriodData {
+  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  overall_conversion: string;
+  period_end: string;
+  period_start: string;
+  stages: FunnelSnapshotStage[];
+}
+
+export type FunnelSnapshotResponseDeltas = { [key: string]: string } | null;
+
+export interface FunnelSnapshotResponse {
+  comparison_period?: FunnelSnapshotPeriodData | null;
+  current_period: FunnelSnapshotPeriodData;
+  deltas?: FunnelSnapshotResponseDeltas;
+  insights?: string[];
+}
 
 /**
  * Simple response indicating gated ping success.
@@ -8792,6 +8839,11 @@ export type GetStuckInstructorsApiV1AdminMcpFoundingStuckGetParams = {
    * @maximum 200
    */
   limit?: number;
+};
+
+export type FunnelSnapshotApiV1AdminMcpFunnelSnapshotGetParams = {
+  period?: FunnelSnapshotPeriod;
+  compare_to?: FunnelSnapshotComparison | null;
 };
 
 export type ListInstructorsApiV1AdminMcpInstructorsGetParams = {

@@ -88,14 +88,26 @@ def init_otel(service_name: Optional[str] = None) -> bool:
         _tracer_provider = TracerProvider(resource=resource)
         trace.set_tracer_provider(_tracer_provider)
 
-        exporter_headers = _parse_otlp_headers(os.getenv("OTEL_EXPORTER_OTLP_HEADERS", ""))
+        raw_headers = os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "").strip()
+        exporter_headers: dict[str, str] | None = None
+        if raw_headers:
+            exporter_headers = _parse_otlp_headers(raw_headers)
+        else:
+            # Fallback: construct from AXIOM_API_TOKEN (matches backend pattern)
+            axiom_token = os.getenv("AXIOM_API_TOKEN")
+            axiom_dataset = os.getenv("AXIOM_TRACES_DATASET", "instainstru-traces")
+            if axiom_token:
+                exporter_headers = {
+                    "Authorization": f"Bearer {axiom_token}",
+                    "X-Axiom-Dataset": axiom_dataset,
+                }
 
         base_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://api.axiom.co").rstrip("/")
         otlp_endpoint = f"{base_endpoint}/v1/traces"
 
         exporter = OTLPSpanExporter(
             endpoint=otlp_endpoint,
-            headers=exporter_headers or None,
+            headers=exporter_headers,
         )
 
         span_processor = BatchSpanProcessor(exporter)

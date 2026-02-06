@@ -13,6 +13,7 @@ import os
 from typing import Any, Dict, Optional
 
 from app.database import SessionLocal
+from app.monitoring.sentry_crons import monitor_if_configured
 from app.services.cache_service import CacheService, CacheServiceSyncAdapter
 from app.services.retention_service import RetentionService
 from app.tasks.celery_app import typed_task
@@ -49,6 +50,7 @@ DEFAULT_DRY_RUN = _env_bool("RETENTION_PURGE_DRY_RUN", False)
     max_retries=3,
     default_retry_delay=60,
 )
+@monitor_if_configured("nightly-retention-purge")
 def purge_soft_deleted_task(
     self: Any,
     days: Optional[int] = None,

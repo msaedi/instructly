@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 from typing import Any, Callable, Dict, List, TypeVar, cast
 
+from app.monitoring.sentry_crons import monitor_if_configured
 from app.tasks.celery_app import BaseTask, celery_app
 from app.utils.codebase_metrics import collect_codebase_metrics
 
@@ -46,6 +47,7 @@ def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], 
     max_retries=2,
     retry_backoff=True,
 )
+@monitor_if_configured("append-codebase-metrics-history")
 def append_history(self: BaseTask) -> Dict[str, Any]:
     """Append current snapshot to metrics_history.json.
 

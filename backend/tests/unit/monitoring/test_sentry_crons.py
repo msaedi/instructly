@@ -117,6 +117,13 @@ def test_critical_tasks_are_decorated() -> None:
             "retry-failed-instructor-referral-payouts",
         ),
         ("app.tasks.payment_tasks", "capture_completed_lessons", "capture-completed-lessons"),
+        (
+            "app.tasks.codebase_metrics",
+            "append_history",
+            "append-codebase-metrics-history",
+        ),
+        ("app.tasks.retention_tasks", "purge_soft_deleted_task", "nightly-retention-purge"),
+        ("app.tasks.celery_app", "run_availability_retention", "availability-retention-daily"),
     ]
 
     for module_name, task_attr, slug in task_mappings:
@@ -145,6 +152,9 @@ def test_slugs_tuple_matches_config_keys() -> None:
         ("retry-failed-instructor-referral-payouts", True),
         ("capture-completed-lessons", True),
         ("apply-data-retention-policies", True),
+        ("append-codebase-metrics-history", True),
+        ("nightly-retention-purge", True),
+        ("availability-retention-daily", True),
         ("some-other-task", False),
         ("notifications-dispatch-pending", False),
     ],
