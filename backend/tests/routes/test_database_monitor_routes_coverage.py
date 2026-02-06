@@ -36,12 +36,12 @@ async def test_database_health_success(monkeypatch):
     # Must provide all required fields for DatabasePoolMetrics
     pool_status = {
         "size": 5,
+        "max_overflow": 2,
+        "max_capacity": 7,
         "checked_in": 3,
         "checked_out": 2,
-        "overflow": 0,
-        "total": 5,
-        "max_size": 10,
-        "usage_percent": 20.0,
+        "overflow_in_use": 0,
+        "utilization_pct": 28.6,
     }
     monkeypatch.setattr(routes, "get_db_pool_status", lambda: pool_status)
 
@@ -68,7 +68,7 @@ async def test_database_pool_status_critical(monkeypatch):
     response = await routes.database_pool_status(current_user=SimpleNamespace())
 
     assert response.status == "critical"
-    assert response.pool.usage_percent > 80
+    assert response.pool.utilization_pct > 80
 
 
 @pytest.mark.asyncio
@@ -93,12 +93,12 @@ async def test_database_stats_success(monkeypatch):
     # Create a proper DatabasePoolStatusResponse instance
     pool_metrics = DatabasePoolMetrics(
         size=1,
+        max_overflow=4,
+        max_capacity=5,
         checked_in=1,
         checked_out=0,
-        overflow=0,
-        total=1,
-        max_size=5,
-        usage_percent=10.0,
+        overflow_in_use=0,
+        utilization_pct=0.0,
     )
     configuration = DatabasePoolConfiguration(
         pool_size=1,

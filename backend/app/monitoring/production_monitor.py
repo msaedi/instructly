@@ -27,7 +27,7 @@ import psutil
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
-from ..database import get_db_pool_status, get_db_pool_statuses
+from ..database import get_db_pool_status, get_pool_status_for_role
 
 logger = logging.getLogger(__name__)
 
@@ -196,16 +196,12 @@ class PerformanceMonitor:
 
     def check_db_pool_health(self) -> Dict[str, Any]:
         """Check database connection pool health."""
-        pool_statuses = cast(dict[str, dict[str, Any]], get_db_pool_statuses())
+        pool_statuses = cast(dict[str, dict[str, Any]], get_pool_status_for_role())
         if not pool_statuses:
             pool_statuses = {"api": cast(dict[str, Any], get_db_pool_status())}
 
         def _usage(status: Dict[str, Any]) -> float:
-            size = float(status.get("size", 0))
-            overflow = float(status.get("overflow", 0))
-            checked_out = float(status.get("checked_out", 0))
-            total_possible = size + overflow
-            return (checked_out / total_possible * 100) if total_possible > 0 else 0.0
+            return float(status.get("utilization_pct", 0.0))
 
         primary_status = pool_statuses.get("api") or next(iter(pool_statuses.values()))
         primary_usage = _usage(primary_status)
@@ -228,11 +224,12 @@ class PerformanceMonitor:
         for name, status in pool_statuses.items():
             usage_percent = _usage(status)
             if usage_percent > 80:
-                total_possible = float(status.get("size", 0)) + float(status.get("overflow", 0))
+                max_capacity = float(status.get("max_capacity", 0))
+                checked_out = float(status.get("checked_out", 0))
                 self._send_alert(
                     "high_db_pool_usage",
                     f"{name} pool usage at {usage_percent:.0f}% "
-                    f"({status.get('checked_out', 0)}/{total_possible} connections)",
+                    f"({checked_out}/{max_capacity} connections)",
                 )
 
         return pool_health

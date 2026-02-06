@@ -282,6 +282,12 @@ class Settings(BaseSettings):
     db_scheduler_pool_size: int = Field(default=2, alias="DB_SCHEDULER_POOL_SIZE", ge=1)
     db_scheduler_max_overflow: int = Field(default=2, alias="DB_SCHEDULER_MAX_OVERFLOW", ge=0)
     db_scheduler_pool_timeout: int = Field(default=3, alias="DB_SCHEDULER_POOL_TIMEOUT", ge=1)
+    service_role: str = Field(
+        default="api",
+        alias="SERVICE_ROLE",
+        validation_alias=AliasChoices("SERVICE_ROLE", "DB_POOL_ROLE"),
+        description="Service role for pool monitoring (api, worker, scheduler, all)",
+    )
 
     # Legacy flags for backward compatibility
     is_testing: bool = False  # Set to True when running tests

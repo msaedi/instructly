@@ -66,20 +66,26 @@ class RateLimitedClient(BaseModel):
 class DatabasePoolStatus(BaseModel):
     """Database connection pool status."""
 
-    pool_size: int = Field(description="Total pool size")
+    size: int = Field(description="Base pool size")
+    max_overflow: int = Field(description="Maximum overflow connections")
+    max_capacity: int = Field(description="Total possible connections (size + max_overflow)")
     checked_in: int = Field(description="Available connections")
     checked_out: int = Field(description="Active connections")
-    overflow: int = Field(description="Overflow connections")
-    usage_percent: float = Field(description="Pool usage percentage")
+    overflow_in_use: int = Field(
+        description="Current overflow connections (negative when below base size)"
+    )
+    utilization_pct: float = Field(description="Pool utilization percentage")
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "pool_size": 20,
+                "size": 20,
+                "max_overflow": 10,
+                "max_capacity": 30,
                 "checked_in": 15,
                 "checked_out": 5,
-                "overflow": 0,
-                "usage_percent": 25.0,
+                "overflow_in_use": 0,
+                "utilization_pct": 25.0,
             }
         }
     )
@@ -213,11 +219,13 @@ class MonitoringDashboardResponse(StrictModel):
                     "average_pool_usage_percent": 25.0,
                     "slow_queries_count": 5,
                     "pool": {
-                        "pool_size": 20,
+                        "size": 20,
+                        "max_overflow": 10,
+                        "max_capacity": 30,
                         "checked_in": 15,
                         "checked_out": 5,
-                        "overflow": 0,
-                        "usage_percent": 25.0,
+                        "overflow_in_use": 0,
+                        "utilization_pct": 25.0,
                     },
                 },
                 "cache": {
@@ -431,7 +439,15 @@ class PerformanceMetricsResponse(StrictModel):
                 "system": {"cpu_percent": 25.5, "memory_percent": 45.2, "disk_usage": 60.0},
                 "database": {
                     "active_connections": 5,
-                    "pool_status": {"pool_size": 20, "usage_percent": 25.0},
+                    "pool_status": {
+                        "size": 20,
+                        "max_overflow": 10,
+                        "max_capacity": 30,
+                        "checked_in": 15,
+                        "checked_out": 5,
+                        "overflow_in_use": 0,
+                        "utilization_pct": 25.0,
+                    },
                 },
             }
         },

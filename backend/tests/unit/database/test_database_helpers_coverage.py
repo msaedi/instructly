@@ -90,14 +90,21 @@ def test_get_db_pool_status(monkeypatch) -> None:
         size=lambda: 3,
         checkedin=lambda: 1,
         checkedout=lambda: 2,
-        overflow=lambda: 0,
+        overflow=lambda: -1,
+        _max_overflow=2,
     )
     monkeypatch.setattr(
         db_module, "get_engine_for_role", lambda _role=None: SimpleNamespace(pool=dummy_pool)
     )
 
     status = db_module.get_db_pool_status()
-    assert status == {"size": 3, "checked_in": 1, "checked_out": 2, "total": 3, "overflow": 0}
+    assert status["size"] == 3
+    assert status["max_overflow"] == 2
+    assert status["max_capacity"] == 5
+    assert status["checked_in"] == 1
+    assert status["checked_out"] == 2
+    assert status["overflow_in_use"] == -1
+    assert status["utilization_pct"] == 40.0
 
 
 def test_get_db_pool_statuses(monkeypatch) -> None:
@@ -106,18 +113,21 @@ def test_get_db_pool_statuses(monkeypatch) -> None:
         checkedin=lambda: 0,
         checkedout=lambda: 1,
         overflow=lambda: 0,
+        _max_overflow=1,
     )
     worker_pool = SimpleNamespace(
         size=lambda: 2,
         checkedin=lambda: 2,
         checkedout=lambda: 0,
-        overflow=lambda: 1,
+        overflow=lambda: -2,
+        _max_overflow=1,
     )
     scheduler_pool = SimpleNamespace(
         size=lambda: 3,
         checkedin=lambda: 1,
         checkedout=lambda: 2,
-        overflow=lambda: 0,
+        overflow=lambda: -1,
+        _max_overflow=2,
     )
 
     monkeypatch.setattr(db_module, "get_api_engine", lambda: SimpleNamespace(pool=api_pool))
@@ -128,8 +138,63 @@ def test_get_db_pool_statuses(monkeypatch) -> None:
 
     statuses = db_module.get_db_pool_statuses()
     assert statuses["api"]["size"] == 1
-    assert statuses["worker"]["total"] == 3
+    assert statuses["worker"]["max_capacity"] == 3
     assert statuses["scheduler"]["checked_out"] == 2
+
+
+def test_pool_status_from_engine_uses_max_overflow() -> None:
+    dummy_pool = SimpleNamespace(
+        size=lambda: 2,
+        checkedin=lambda: 1,
+        checkedout=lambda: 1,
+        overflow=lambda: -1,
+        _max_overflow=2,
+    )
+    status = db_module._pool_status_from_engine(SimpleNamespace(pool=dummy_pool))
+    assert status["max_capacity"] == 4
+    assert status["utilization_pct"] == 25.0
+    assert status["overflow_in_use"] == -1
+
+
+def test_get_pool_status_for_role(monkeypatch) -> None:
+    import app.core.config as config_module
+
+    api_pool = SimpleNamespace(
+        size=lambda: 1,
+        checkedin=lambda: 0,
+        checkedout=lambda: 1,
+        overflow=lambda: 0,
+        _max_overflow=1,
+    )
+    worker_pool = SimpleNamespace(
+        size=lambda: 2,
+        checkedin=lambda: 2,
+        checkedout=lambda: 0,
+        overflow=lambda: -2,
+        _max_overflow=1,
+    )
+    scheduler_pool = SimpleNamespace(
+        size=lambda: 3,
+        checkedin=lambda: 1,
+        checkedout=lambda: 2,
+        overflow=lambda: -1,
+        _max_overflow=2,
+    )
+
+    monkeypatch.setattr(db_module, "get_api_engine", lambda: SimpleNamespace(pool=api_pool))
+    monkeypatch.setattr(db_module, "get_worker_engine", lambda: SimpleNamespace(pool=worker_pool))
+    monkeypatch.setattr(
+        db_module, "get_scheduler_engine", lambda: SimpleNamespace(pool=scheduler_pool)
+    )
+    monkeypatch.setattr(
+        config_module, "settings", SimpleNamespace(service_role="api"), raising=False
+    )
+
+    api_only = db_module.get_pool_status_for_role()
+    assert list(api_only.keys()) == ["api"]
+
+    all_pools = db_module.get_pool_status_for_role("all")
+    assert set(all_pools.keys()) == {"api", "worker", "scheduler"}
 
 
 def test_get_db_with_retry_cleanup_errors(monkeypatch) -> None:

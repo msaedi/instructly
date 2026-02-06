@@ -102,16 +102,15 @@ async def database_pool_status(
         pool_size = pool.size()
         checked_in = pool.checkedin()
         checked_out = pool.checkedout()
-        overflow = pool.overflow()
-        total = pool_size + overflow
-        max_overflow = cast(int, getattr(pool, "_max_overflow", 0))
-        max_size = pool_size + max_overflow
+        overflow_in_use = pool.overflow()
+        max_overflow = int(getattr(pool, "_max_overflow", 0) or 0)
+        max_capacity = pool_size + max_overflow
 
         # Calculate usage percentage
-        usage_percent = (checked_out / max_size * 100) if max_size > 0 else 0
+        utilization_pct = (checked_out / max_capacity * 100) if max_capacity > 0 else 0
 
         # Determine health status
-        health_status = "healthy" if usage_percent < 80 else "critical"
+        health_status = "healthy" if utilization_pct < 80 else "critical"
 
         pool_configuration = {
             "pool_size": cast(
@@ -127,20 +126,20 @@ async def database_pool_status(
             status=health_status,
             pool={
                 "size": pool_size,
+                "max_overflow": max_overflow,
+                "max_capacity": max_capacity,
                 "checked_in": checked_in,
                 "checked_out": checked_out,
-                "overflow": overflow,
-                "total": total,
-                "max_size": max_size,
-                "usage_percent": round(usage_percent, 2),
+                "overflow_in_use": overflow_in_use,
+                "utilization_pct": round(utilization_pct, 2),
             },
             configuration=pool_configuration,
             recommendations={
-                "increase_pool_size": usage_percent > 80,
+                "increase_pool_size": utilization_pct > 80,
                 "current_load": "high"
-                if usage_percent > 60
+                if utilization_pct > 60
                 else "normal"
-                if usage_percent > 30
+                if utilization_pct > 30
                 else "low",
             },
         )
@@ -185,7 +184,7 @@ async def database_stats(
             configuration=pool_status.configuration,
             health=DatabaseHealthMetrics(
                 status=pool_status.status,
-                usage_percent=pool_status.pool.usage_percent,
+                utilization_pct=pool_status.pool.utilization_pct,
             ),
         )
     except Exception as e:

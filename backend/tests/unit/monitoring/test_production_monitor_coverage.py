@@ -21,8 +21,14 @@ def _make_request():
 def test_check_db_pool_health_alerts(monkeypatch):
     monkeypatch.setattr(
         monitor_module,
-        "get_db_pool_statuses",
-        lambda: {"api": {"size": 1, "overflow": 0, "checked_out": 2}},
+        "get_pool_status_for_role",
+        lambda: {
+            "api": {
+                "utilization_pct": 90.0,
+                "checked_out": 9,
+                "max_capacity": 10,
+            }
+        },
     )
     sent = {}
 
@@ -33,6 +39,28 @@ def test_check_db_pool_health_alerts(monkeypatch):
 
     assert result["usage_percent"] > 80
     assert sent.get("hit") is True
+
+
+def test_check_db_pool_health_no_alert(monkeypatch):
+    monkeypatch.setattr(
+        monitor_module,
+        "get_pool_status_for_role",
+        lambda: {
+            "api": {
+                "utilization_pct": 25.0,
+                "checked_out": 1,
+                "max_capacity": 4,
+            }
+        },
+    )
+    monitor = monitor_module.PerformanceMonitor()
+    sent = {}
+    monkeypatch.setattr(monitor, "_send_alert", lambda *_args, **_kwargs: sent.setdefault("hit", 1))
+
+    result = monitor.check_db_pool_health()
+
+    assert result["usage_percent"] == 25.0
+    assert "hit" not in sent
 
 
 def test_check_memory_usage_triggers_gc(monkeypatch):

@@ -16,12 +16,14 @@ class DatabasePoolMetrics(BaseModel):
     """Database connection pool metrics."""
 
     size: int = Field(description="Base pool size")
+    max_overflow: int = Field(description="Maximum overflow connections")
+    max_capacity: int = Field(description="Total possible connections (size + max_overflow)")
     checked_in: int = Field(description="Available connections")
     checked_out: int = Field(description="Active connections")
-    overflow: int = Field(description="Overflow connections")
-    total: int = Field(description="Total connections (size + overflow)")
-    max_size: int = Field(description="Maximum pool size")
-    usage_percent: float = Field(description="Pool usage percentage")
+    overflow_in_use: int = Field(
+        description="Current overflow connections (negative when below base size)"
+    )
+    utilization_pct: float = Field(description="Pool utilization percentage")
 
 
 class DatabasePoolConfiguration(BaseModel):
@@ -44,7 +46,7 @@ class DatabaseHealthMetrics(BaseModel):
     """Database health metrics."""
 
     status: str = Field(description="Health status")
-    usage_percent: float = Field(description="Pool usage percentage")
+    utilization_pct: float = Field(description="Pool utilization percentage")
 
 
 class DatabaseHealthResponse(StrictModel):

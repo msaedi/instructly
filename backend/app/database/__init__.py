@@ -132,18 +132,35 @@ def get_db_with_retry(max_attempts: int = 2) -> Generator[Session, None, None]:
         raise last_exception
 
 
-def _pool_status_from_engine(engine_obj: Engine) -> dict[str, int]:
+def _pool_status_from_engine(engine_obj: Engine) -> dict[str, int | float]:
     pool = engine_obj.pool
+    size = int(pool.size())
+    max_overflow = int(getattr(pool, "_max_overflow", 0) or 0)
+    max_capacity = size + max_overflow
+    checked_out = int(pool.checkedout())
+    checked_in = int(pool.checkedin())
+    overflow_in_use = int(pool.overflow())
+    utilization_pct = round(100 * checked_out / max_capacity, 1) if max_capacity > 0 else 0.0
     return {
-        "size": pool.size(),
-        "checked_in": pool.checkedin(),
-        "checked_out": pool.checkedout(),
-        "total": pool.size() + pool.overflow(),
-        "overflow": pool.overflow(),
+        "size": size,
+        "max_overflow": max_overflow,
+        "max_capacity": max_capacity,
+        "checked_in": checked_in,
+        "checked_out": checked_out,
+        "overflow_in_use": overflow_in_use,
+        "utilization_pct": utilization_pct,
     }
 
 
-def get_db_pool_status(pool_name: str | None = None) -> dict[str, int]:
+ROLE_POOLS: dict[str, list[str]] = {
+    "api": ["api"],
+    "worker": ["worker"],
+    "scheduler": ["scheduler"],
+    "all": ["api", "worker", "scheduler"],
+}
+
+
+def get_db_pool_status(pool_name: str | None = None) -> dict[str, int | float]:
     """Get current database pool statistics."""
     if pool_name:
         normalized = pool_name.strip().lower()
@@ -155,12 +172,33 @@ def get_db_pool_status(pool_name: str | None = None) -> dict[str, int]:
     return _pool_status_from_engine(get_engine_for_role())
 
 
-def get_db_pool_statuses() -> dict[str, dict[str, int]]:
+def get_db_pool_statuses() -> dict[str, dict[str, int | float]]:
     """Get pool statistics for all workload pools."""
     return {
         "api": _pool_status_from_engine(get_api_engine()),
         "worker": _pool_status_from_engine(get_worker_engine()),
         "scheduler": _pool_status_from_engine(get_scheduler_engine()),
+    }
+
+
+def get_pool_status_for_role(role: str | None = None) -> dict[str, dict[str, int | float]]:
+    """Get pool statistics for the configured service role."""
+    from app.core.config import settings
+
+    effective_role = (role or settings.service_role or "").strip().lower()
+    if not effective_role:
+        effective_role = "api"
+
+    pools_to_report = ROLE_POOLS.get(effective_role, ROLE_POOLS["api"])
+    engine_getters = {
+        "api": get_api_engine,
+        "worker": get_worker_engine,
+        "scheduler": get_scheduler_engine,
+    }
+    return {
+        pool_name: _pool_status_from_engine(engine_getters[pool_name]())
+        for pool_name in pools_to_report
+        if pool_name in engine_getters
     }
 
 
@@ -254,6 +292,7 @@ __all__ = [
     "get_db_with_retry",
     "get_db_pool_status",
     "get_db_pool_statuses",
+    "get_pool_status_for_role",
     "get_api_engine",
     "get_worker_engine",
     "get_scheduler_engine",
@@ -262,6 +301,7 @@ __all__ = [
     "get_worker_session",
     "get_scheduler_session",
     "init_session_factories",
+    "ROLE_POOLS",
     "with_db_retry",
     "with_db_retry_async",
 ]

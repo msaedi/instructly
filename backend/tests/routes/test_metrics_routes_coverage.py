@@ -86,11 +86,13 @@ async def test_get_performance_metrics(monkeypatch) -> None:
     )
     # Must provide all required fields for DatabasePoolStatus
     pool_status = {
-        "pool_size": 10,
+        "size": 10,
+        "max_overflow": 5,
+        "max_capacity": 15,
         "checked_in": 8,
         "checked_out": 2,
-        "overflow": 0,
-        "usage_percent": 20.0,
+        "overflow_in_use": 0,
+        "utilization_pct": 20.0,
     }
     monkeypatch.setattr(metrics_routes, "get_db_pool_status", lambda: pool_status)
 
