@@ -137,6 +137,7 @@ def apply_retention_policies(self: DatabaseTask) -> Dict[str, int]:
 
 
 @typed_task(bind=True, base=DatabaseTask, name="privacy.cleanup_search_history")
+@monitor_if_configured("cleanup-search-history")
 def cleanup_search_history(self: DatabaseTask) -> Dict[str, Any]:
     """
     Clean up old search history records.

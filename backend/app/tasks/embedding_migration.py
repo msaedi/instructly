@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict
 from celery.app.task import Task
 
 from app.database import SessionLocal
+from app.monitoring.sentry_crons import monitor_if_configured
 from app.repositories.service_catalog_repository import ServiceCatalogRepository
 from app.services.cache_service import CacheService
 from app.services.search.embedding_service import EmbeddingService
@@ -32,6 +33,7 @@ MAX_SERVICES_PER_RUN = 200
     bind=True,
     max_retries=3,
 )
+@monitor_if_configured("maintain-service-embeddings")
 def maintain_service_embeddings(self: "Task[Any, Any]") -> Dict[str, int]:
     """
     Celery task to maintain service embeddings.

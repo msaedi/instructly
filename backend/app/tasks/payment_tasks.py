@@ -1988,6 +1988,7 @@ def _auto_complete_booking(booking_id: str, now: datetime) -> Dict[str, Any]:
 
 
 @typed_task(bind=True, max_retries=3, name="app.tasks.payment_tasks.capture_completed_lessons")
+@monitor_if_configured("capture-completed-lessons")
 def capture_completed_lessons(self: Any) -> CaptureJobResults:
     """
     Capture payments for completed lessons.

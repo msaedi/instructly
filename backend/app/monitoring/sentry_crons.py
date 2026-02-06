@@ -35,6 +35,28 @@ CRITICAL_BEAT_MONITOR_CONFIGS: dict[str, dict[str, Any]] = {
         "timezone": "US/Eastern",
         **_DEFAULT_MONITOR_LIMITS,
     },
+    # Fast-completing tasks: explicit monitors avoid false "timeout" alerts
+    # from Sentry's async auto-monitoring (https://github.com/getsentry/sentry-python/issues/2651)
+    "cleanup-search-history": {
+        "schedule": {"type": "crontab", "value": "0 3 * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
+    "maintain-service-embeddings": {
+        "schedule": {"type": "crontab", "value": "30 * * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
+    "retry-failed-instructor-referral-payouts": {
+        "schedule": {"type": "crontab", "value": "0 * * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
+    "capture-completed-lessons": {
+        "schedule": {"type": "crontab", "value": "0 * * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
 }
 
 CRITICAL_BEAT_MONITOR_SLUGS: tuple[str, ...] = tuple(CRITICAL_BEAT_MONITOR_CONFIGS.keys())

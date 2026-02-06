@@ -10,6 +10,7 @@ from celery.result import AsyncResult
 
 from app.database import get_db_session
 from app.models.referrals import InstructorReferralPayout
+from app.monitoring.sentry_crons import monitor_if_configured
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.services.config_service import ConfigService
 from app.services.pricing_service import PricingService
@@ -162,6 +163,7 @@ def _mark_payout_failed(payout: InstructorReferralPayout, reason: str) -> None:
     name="app.tasks.referral_tasks.retry_failed_instructor_referral_payouts",
     max_retries=0,
 )
+@monitor_if_configured("retry-failed-instructor-referral-payouts")
 def retry_failed_instructor_referral_payouts() -> Dict[str, Any]:
     """Retry failed payouts from the last 7 days."""
     logger.info("Retrying failed instructor referral payouts")
