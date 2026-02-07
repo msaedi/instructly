@@ -66,10 +66,21 @@ export type SubcategoryWithServices = components['schemas']['SubcategoryWithServ
 export type SubcategoryBrief = components['schemas']['SubcategoryBrief'];
 export type CategoryWithSubcategories = components['schemas']['CategoryWithSubcategories'];
 
+// Slug-based catalog browse types (Phase 4 endpoints)
+export type CategorySummary = components['schemas']['CategorySummary'];
+export type CategoryDetail = components['schemas']['CategoryDetail'];
+export type SubcategorySummary = components['schemas']['SubcategorySummary'];
+export type SubcategoryDetail = components['schemas']['SubcategoryDetail'];
+export type ServiceCatalogSummary = components['schemas']['ServiceCatalogSummary'];
+export type ServiceCatalogDetail = components['schemas']['ServiceCatalogDetail'];
+
 // Filter types
 export type FilterOptionResponse = components['schemas']['FilterOptionResponse'];
 export type SubcategoryFilterResponse = components['schemas']['SubcategoryFilterResponse'];
 export type InstructorFilterContext = components['schemas']['InstructorFilterContext'];
+export type FilterValidationResponse = components['schemas']['FilterValidationResponse'];
+export type UpdateFilterSelectionsRequest = components['schemas']['UpdateFilterSelectionsRequest'];
+export type ValidateFiltersRequest = components['schemas']['ValidateFiltersRequest'];
 
 // Age group type
 export type AgeGroup = 'toddler' | 'children' | 'teens' | 'adults' | 'seniors';

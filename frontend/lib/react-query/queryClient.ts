@@ -138,7 +138,7 @@ export const queryKeys = {
     kidsAvailable: ['services', 'kids-available'] as const,
   },
 
-  // 3-level taxonomy queries
+  // 3-level taxonomy queries (ID-based)
   taxonomy: {
     all: ['taxonomy'] as const,
     categoriesWithSubcategories: ['taxonomy', 'categories-browse'] as const,
@@ -148,6 +148,18 @@ export const queryKeys = {
     subcategoryFilters: (subcategoryId: string) => ['taxonomy', 'filters', subcategoryId] as const,
     servicesByAgeGroup: (ageGroup: string) => ['taxonomy', 'by-age-group', ageGroup] as const,
     filterContext: (serviceId: string) => ['taxonomy', 'filter-context', serviceId] as const,
+  },
+
+  // Slug-based catalog browse queries
+  catalog: {
+    all: ['catalog'] as const,
+    categories: ['catalog', 'categories'] as const,
+    category: (slug: string) => ['catalog', 'category', slug] as const,
+    subcategory: (catSlug: string, subSlug: string) =>
+      ['catalog', 'subcategory', catSlug, subSlug] as const,
+    service: (id: string) => ['catalog', 'service', id] as const,
+    subcategoryServices: (id: string) => ['catalog', 'subcategory-services', id] as const,
+    subcategoryFilters: (id: string) => ['catalog', 'subcategory-filters', id] as const,
   },
 
   // Notifications queries
