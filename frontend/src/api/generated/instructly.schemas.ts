@@ -979,7 +979,7 @@ export interface CategoryServiceDetail {
   online_capable?: boolean | null;
   requires_certification?: boolean | null;
   search_terms?: string[];
-  slug: string;
+  slug?: string | null;
   subcategory_id: string;
 }
 
@@ -2603,7 +2603,7 @@ export type CandidateTopServicesResponse = CandidateTopService[];
 export interface CatalogServiceMinimalResponse {
   id: string;
   name: string;
-  slug: string;
+  slug?: string | null;
 }
 
 /**
@@ -2622,7 +2622,7 @@ export interface CatalogServiceResponse {
   online_capable?: boolean | null;
   requires_certification?: boolean | null;
   search_terms?: string[];
-  slug: string;
+  slug?: string | null;
   subcategory_id: string;
   typical_duration_options?: number[];
 }
@@ -4735,7 +4735,7 @@ export interface MCPInstructorService {
   hourly_rate: string;
   is_active: boolean;
   name: string;
-  slug: string;
+  slug?: string | null;
 }
 
 export interface MCPInstructorStats {
@@ -4917,7 +4917,7 @@ export interface MCPServiceCatalogItem {
   id: string;
   is_active: boolean;
   name: string;
-  slug: string;
+  slug?: string | null;
   subcategory_name?: string | null;
 }
 
@@ -8136,7 +8136,7 @@ export interface TopCategoryServiceItem {
   id: string;
   is_trending?: boolean;
   name: string;
-  slug: string;
+  slug?: string | null;
 }
 
 /**

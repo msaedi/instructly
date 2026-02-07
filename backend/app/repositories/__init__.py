@@ -44,6 +44,7 @@ from .base_repository import BaseRepository, IRepository
 from .booking_note_repository import BookingNoteRepository
 from .booking_repository import BookingRepository
 from .bulk_operation_repository import BulkOperationRepository
+from .category_repository import CategoryRepository
 from .communication_repository import CommunicationRepository
 from .conflict_checker_repository import ConflictCheckerRepository
 from .conversation_repository import ConversationRepository
@@ -60,6 +61,7 @@ from .referral_repository import (
     WalletTransactionRepository,
 )
 from .search_event_repository import SearchEventRepository
+from .subcategory_repository import SubcategoryRepository
 
 # SlotManagerRepository removed - bitmap-only storage now
 from .week_operation_repository import WeekOperationRepository
@@ -73,6 +75,7 @@ __all__ = [
     "AvailabilityRepository",
     "AvailabilityDayRepository",
     # "SlotManagerRepository",  # Removed - bitmap-only storage now
+    "CategoryRepository",
     "ConflictCheckerRepository",
     "BulkOperationRepository",
     "BookingNoteRepository",
@@ -80,6 +83,7 @@ __all__ = [
     "CommunicationRepository",
     "ConversationRepository",
     "GovernanceAuditRepository",
+    "SubcategoryRepository",
     "WeekOperationRepository",
     "InstructorProfileRepository",
     "SearchEventRepository",

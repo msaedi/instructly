@@ -153,6 +153,27 @@ class TaxonomyFilterRepository:
 
         return len(errors) == 0, errors
 
+    def get_all_definitions(self, active_only: bool = True) -> List[FilterDefinition]:
+        """All filter definitions with their options.
+
+        Useful for admin panels and debug views.
+
+        Args:
+            active_only: Only return active definitions.
+
+        Returns:
+            List of FilterDefinition with options eagerly loaded.
+        """
+        query = self.db.query(FilterDefinition).options(joinedload(FilterDefinition.options))
+
+        if active_only:
+            query = query.filter(FilterDefinition.is_active.is_(True))
+
+        return cast(
+            List[FilterDefinition],
+            query.order_by(FilterDefinition.display_order).all(),
+        )
+
     # ── Instructor search by filters ─────────────────────────────
 
     def find_instructors_by_filters(
