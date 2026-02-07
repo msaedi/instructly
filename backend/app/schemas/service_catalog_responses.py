@@ -84,7 +84,7 @@ class TopCategoryServiceItem(StrictModel):
 
     id: str
     name: str
-    slug: str
+    slug: Optional[str] = None
     demand_score: float = 0.0
     active_instructors: int = 0
     is_trending: bool = False
@@ -122,7 +122,7 @@ class CategoryServiceDetail(StrictModel):
     id: str
     subcategory_id: str
     name: str
-    slug: str
+    slug: Optional[str] = None
     description: Optional[str] = None
     search_terms: List[str] = Field(default_factory=list)
     eligible_age_groups: List[str] = Field(default_factory=list)

@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.core.config import settings
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 
 
 def load_catalog_yaml() -> Tuple[list, list]:
@@ -104,7 +105,7 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
 
         # Pre-load ALL existing categories by slug in ONE query
         existing_categories = {
-            c.slug: c for c in session.query(ServiceCategory).all()
+            c.slug: c for c in session.query(ServiceCategory).all() if c.slug
         }
         existing_cat_ids = {c.slug: c.id for c in existing_categories.values()}
 
@@ -150,21 +151,49 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
 
         # Reload categories to get IDs (including newly created)
         session.expire_all()
-        all_categories = {c.slug: c for c in session.query(ServiceCategory).all()}
+        all_categories = {c.slug: c for c in session.query(ServiceCategory).all() if c.slug}
         slug_to_cat_id = {slug: cat.id for slug, cat in all_categories.items()}
+
+        # Ensure a "General" subcategory exists for each category (3-level taxonomy)
+        existing_subs = {
+            (s.category_id, s.name): s
+            for s in session.query(ServiceSubcategory).all()
+        }
+        cat_slug_to_sub_id: Dict[str, str] = {}
+        for cat_data in categories:
+            cat_id = slug_to_cat_id.get(cat_data["slug"])
+            if not cat_id:
+                continue
+            key = (cat_id, "General")
+            if key in existing_subs:
+                cat_slug_to_sub_id[cat_data["slug"]] = existing_subs[key].id
+            else:
+                sub = ServiceSubcategory(
+                    category_id=cat_id,
+                    name="General",
+                    slug=f"{cat_data['slug']}-general",
+                    display_order=0,
+                )
+                session.add(sub)
+                session.flush()
+                cat_slug_to_sub_id[cat_data["slug"]] = sub.id
+        session.commit()
+
+        # Re-acquire connection after ORM commit
+        connection = session.connection().connection
 
         # Pre-load ALL existing services by slug in ONE query
         existing_services = {
-            s.slug: s for s in session.query(ServiceCatalog).all()
+            s.slug: s for s in session.query(ServiceCatalog).all() if s.slug
         }
         existing_svc_ids = {s.slug: s.id for s in existing_services.values()}
 
         # Build service upsert data
         service_values = []
-        slug_to_svc_id = {}  # Track IDs for related_services pass
+        slug_to_svc_id: Dict[str, str] = {}
         for svc_data in services:
-            cat_id = slug_to_cat_id.get(svc_data["category_slug"])
-            if not cat_id:
+            sub_id = cat_slug_to_sub_id.get(svc_data["category_slug"])
+            if not sub_id:
                 if verbose:
                     print(f"  ⚠ Warning: Category '{svc_data['category_slug']}' not found for service '{svc_data['name']}'")
                 continue
@@ -174,7 +203,7 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
 
             service_values.append((
                 svc_id,
-                cat_id,
+                sub_id,
                 svc_data["name"],
                 svc_data["slug"],
                 svc_data["description"],
@@ -192,12 +221,12 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
                 action = "✓ Updated" if svc_data["slug"] in existing_svc_ids else "+ Created"
                 print(f"  {action} service: {svc_data['name']}")
 
-        # Bulk upsert services (1 round trip)
+        # Bulk upsert services (1 round trip) — uses subcategory_id for 3-level taxonomy
         service_upsert_sql = """
-            INSERT INTO service_catalog (id, category_id, name, slug, description, search_terms, display_order, online_capable, requires_certification, is_active, created_at, updated_at)
+            INSERT INTO service_catalog (id, subcategory_id, name, slug, description, search_terms, display_order, online_capable, requires_certification, is_active, created_at, updated_at)
             VALUES %s
             ON CONFLICT (slug) DO UPDATE SET
-                category_id = EXCLUDED.category_id,
+                subcategory_id = EXCLUDED.subcategory_id,
                 name = EXCLUDED.name,
                 description = EXCLUDED.description,
                 search_terms = EXCLUDED.search_terms,

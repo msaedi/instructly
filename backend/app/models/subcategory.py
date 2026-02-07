@@ -12,7 +12,17 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import relationship
 import ulid
 
@@ -30,8 +40,13 @@ class ServiceSubcategory(Base):
     Attributes:
         id: ULID primary key
         category_id: FK to service_categories
+        slug: URL-friendly identifier (nullable until seed populates)
         name: Display name (e.g., "Piano", "Guitar")
+        description: Optional description of the subcategory
         display_order: Order for UI display (lower numbers first)
+        is_active: Whether this subcategory is active
+        meta_title: SEO page title override
+        meta_description: SEO meta description override
         created_at: Timestamp when created
         updated_at: Timestamp when last updated
 
@@ -50,8 +65,13 @@ class ServiceSubcategory(Base):
         nullable=False,
         index=True,
     )
+    slug = Column(String(100), nullable=True)
     name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
     display_order = Column(Integer, nullable=False, default=0)
+    is_active = Column(Boolean, nullable=False, default=True)
+    meta_title = Column(String(200), nullable=True)
+    meta_description = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

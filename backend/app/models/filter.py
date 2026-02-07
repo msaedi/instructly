@@ -18,7 +18,17 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import relationship
 import ulid
 
@@ -33,8 +43,12 @@ class FilterDefinition(Base):
         id: ULID primary key
         key: Unique machine-readable key (e.g., "grade_level")
         display_name: Human-readable name (e.g., "Grade Level")
+        description: Optional description of the filter
         filter_type: Type of filter (single_select or multi_select)
+        display_order: Order for UI display
+        is_active: Whether this filter is active
         created_at: Timestamp when created
+        updated_at: Timestamp when last updated
 
     Relationships:
         options: All possible values for this filter
@@ -45,8 +59,12 @@ class FilterDefinition(Base):
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     key = Column(String(50), unique=True, nullable=False)
     display_name = Column(String(100), nullable=False)
-    filter_type = Column(String(20), nullable=False)
+    description = Column(Text, nullable=True)
+    filter_type = Column(String(20), nullable=False, default="multi_select")
+    display_order = Column(Integer, nullable=False, default=0)
+    is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
     options = relationship(
@@ -99,6 +117,7 @@ class FilterOption(Base):
     value = Column(String(100), nullable=False)
     display_name = Column(String(200), nullable=False)
     display_order = Column(Integer, nullable=False, default=0)
+    is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
@@ -155,6 +174,8 @@ class SubcategoryFilter(Base):
         nullable=False,
     )
     display_order = Column(Integer, nullable=False, default=0)
+    is_required = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     subcategory = relationship("ServiceSubcategory", back_populates="subcategory_filters")
@@ -212,6 +233,7 @@ class SubcategoryFilterOption(Base):
         nullable=False,
     )
     display_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     subcategory_filter = relationship("SubcategoryFilter", back_populates="filter_options")
