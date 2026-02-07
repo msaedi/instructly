@@ -18,6 +18,7 @@ import pytest
 from app.core.ulid_helper import generate_ulid
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.repositories import RepositoryFactory
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
@@ -142,9 +143,14 @@ class TestInstructorProfileRepositoryEagerLoading:
         # Get or create catalog services
         category = db.query(ServiceCategory).first()
         if not category:
-            category_ulid = generate_ulid()
-            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
+            category = ServiceCategory(name="Test Category")
             db.add(category)
+            db.flush()
+
+        subcategory = db.query(ServiceSubcategory).filter_by(category_id=category.id).first()
+        if not subcategory:
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            db.add(subcategory)
             db.flush()
 
         # Create 2 active and 2 inactive services
@@ -153,7 +159,7 @@ class TestInstructorProfileRepositoryEagerLoading:
             catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == f"test-skill-{i}").first()
             if not catalog_service:
                 catalog_service = ServiceCatalog(
-                    name=f"Test Skill {i}", slug=f"test-skill-{i}", category_id=category.id
+                    name=f"Test Skill {i}", slug=f"test-skill-{i}", subcategory_id=subcategory.id
                 )
                 db.add(catalog_service)
                 db.flush()
@@ -313,15 +319,20 @@ class TestInstructorProfileRepositoryIntegration:
         # Get or create catalog service for inactive service
         category = db.query(ServiceCategory).first()
         if not category:
-            category_ulid = generate_ulid()
-            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
+            category = ServiceCategory(name="Test Category")
             db.add(category)
+            db.flush()
+
+        subcategory = db.query(ServiceSubcategory).filter_by(category_id=category.id).first()
+        if not subcategory:
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            db.add(subcategory)
             db.flush()
 
         inactive_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "inactive-test-service").first()
         if not inactive_catalog:
             inactive_catalog = ServiceCatalog(
-                name="Inactive Test Service", slug="inactive-test-service", category_id=category.id
+                name="Inactive Test Service", slug="inactive-test-service", subcategory_id=subcategory.id
             )
             db.add(inactive_catalog)
             db.flush()
@@ -404,9 +415,14 @@ class TestPerformanceImprovement:
             # Get or create catalog services
             category = db.query(ServiceCategory).first()
             if not category:
-                category_ulid = generate_ulid()
-                category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
+                category = ServiceCategory(name="Test Category")
                 db.add(category)
+                db.flush()
+
+            subcategory = db.query(ServiceSubcategory).filter_by(category_id=category.id).first()
+            if not subcategory:
+                subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+                db.add(subcategory)
                 db.flush()
 
             # Add services
@@ -415,7 +431,7 @@ class TestPerformanceImprovement:
                 catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == f"skill-{i}-{j}").first()
                 if not catalog_service:
                     catalog_service = ServiceCatalog(
-                        name=f"Skill {i}-{j}", slug=f"skill-{i}-{j}", category_id=category.id
+                        name=f"Skill {i}-{j}", slug=f"skill-{i}-{j}", subcategory_id=subcategory.id
                     )
                     db.add(catalog_service)
                     db.flush()
@@ -545,9 +561,14 @@ class TestDiagnosticAndDebugging:
         # Get or create catalog services
         category = db.query(ServiceCategory).first()
         if not category:
-            category_ulid = generate_ulid()
-            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
+            category = ServiceCategory(name="Test Category")
             db.add(category)
+            db.flush()
+
+        subcategory = db.query(ServiceSubcategory).filter_by(category_id=category.id).first()
+        if not subcategory:
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            db.add(subcategory)
             db.flush()
 
         # Create 4 services: 2 active, 2 inactive
@@ -557,7 +578,7 @@ class TestDiagnosticAndDebugging:
             catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == f"debug-skill-{i}").first()
             if not catalog_service:
                 catalog_service = ServiceCatalog(
-                    name=f"Debug Skill {i}", slug=f"debug-skill-{i}", category_id=category.id
+                    name=f"Debug Skill {i}", slug=f"debug-skill-{i}", subcategory_id=subcategory.id
                 )
                 db.add(catalog_service)
                 db.flush()
@@ -678,9 +699,14 @@ class TestDiagnosticAndDebugging:
         # Get or create catalog services
         category = db.query(ServiceCategory).first()
         if not category:
-            category_ulid = generate_ulid()
-            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
+            category = ServiceCategory(name="Test Category")
             db.add(category)
+            db.flush()
+
+        subcategory = db.query(ServiceSubcategory).filter_by(category_id=category.id).first()
+        if not subcategory:
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            db.add(subcategory)
             db.flush()
 
         # Create services
@@ -689,7 +715,7 @@ class TestDiagnosticAndDebugging:
             # Get or create catalog service for diagnosis test
             catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == f"skill-diag-{i}").first()
             if not catalog_service:
-                catalog_service = ServiceCatalog(name=f"Skill {i}", slug=f"skill-diag-{i}", category_id=category.id)
+                catalog_service = ServiceCatalog(name=f"Skill {i}", slug=f"skill-diag-{i}", subcategory_id=subcategory.id)
                 db.add(catalog_service)
                 db.flush()
 

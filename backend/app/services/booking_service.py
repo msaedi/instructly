@@ -3689,21 +3689,18 @@ class BookingService(BaseService):
             # Trigger badge checks
             badge_service = BadgeAwardService(self.db)
             booked_at = booking.confirmed_at or booking.created_at or now
-            category_slug = None
-            try:
-                instructor_service = booking.instructor_service
-                if instructor_service and instructor_service.catalog_entry:
-                    category = instructor_service.catalog_entry.category
-                    if category:
-                        category_slug = category.slug
-            except AttributeError:
-                category_slug = None
+            category_name = None
+            instructor_service = booking.instructor_service
+            if instructor_service and instructor_service.catalog_entry:
+                category = instructor_service.catalog_entry.category
+                if category:
+                    category_name = category.name
 
             badge_service.check_and_award_on_lesson_completed(
                 student_id=booking.student_id,
                 lesson_id=booking.id,
                 instructor_id=booking.instructor_id,
-                category_slug=category_slug,
+                category_name=category_name,
                 booked_at_utc=booked_at,
                 completed_at_utc=now,
             )

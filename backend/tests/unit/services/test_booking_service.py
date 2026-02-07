@@ -899,7 +899,7 @@ def test_cancel_booking_without_stripe_keeps_payment_intent(
 # --- instructor mark complete ---
 
 
-def test_instructor_mark_complete_sets_notes_and_category_slug(
+def test_instructor_mark_complete_sets_notes_and_category_name(
     booking_service: BookingService, mock_repository: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     instructor = SimpleNamespace(id=generate_ulid())
@@ -910,7 +910,7 @@ def test_instructor_mark_complete_sets_notes_and_category_slug(
         created_at=datetime(2030, 1, 1, 8, 0, tzinfo=timezone.utc),
     )
     booking.instructor_service = SimpleNamespace(
-        catalog_entry=SimpleNamespace(category=SimpleNamespace(slug="piano"))
+        catalog_entry=SimpleNamespace(category=SimpleNamespace(name="Piano"))
     )
 
     mock_repository.get_by_id.side_effect = [booking, booking]
@@ -938,4 +938,4 @@ def test_instructor_mark_complete_sets_notes_and_category_slug(
     assert result.status == BookingStatus.COMPLETED
     assert result.instructor_note == "Great job"
     _, kwargs = badge_service.return_value.check_and_award_on_lesson_completed.call_args
-    assert kwargs["category_slug"] == "piano"
+    assert kwargs["category_name"] == "Piano"

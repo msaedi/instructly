@@ -50,10 +50,11 @@ class TestInstructorServiceAllServices:
         assert "metadata" in result
         assert len(result["categories"]) >= 2  # At least Music and Sports & Fitness
 
-        # Verify Music category
-        music_cat = next((c for c in result["categories"] if c["slug"] == "music"), None)
-        assert music_cat is not None
-        assert music_cat["name"] == "Music"
+        # Verify Music category — find the seed one (has services), not test-created empties
+        music_cats = [c for c in result["categories"] if c["name"] == "Music"]
+        assert len(music_cats) >= 1
+        music_cat = next((c for c in music_cats if len(c["services"]) > 0), None)
+        assert music_cat is not None, "No Music category with services found"
         assert len(music_cat["services"]) >= 1  # At least Piano
 
         # Check Piano service has instructor
@@ -62,10 +63,11 @@ class TestInstructorServiceAllServices:
         assert piano_service["active_instructors"] >= 1
         assert piano_service["instructor_count"] >= 1
 
-        # Verify Sports & Fitness category
-        sports_cat = next((c for c in result["categories"] if c["slug"] == "sports-fitness"), None)
-        assert sports_cat is not None
-        assert sports_cat["name"] == "Sports & Fitness"
+        # Verify Sports & Fitness category — find the seed one with services
+        sports_cats = [c for c in result["categories"] if c["name"] == "Sports & Fitness"]
+        assert len(sports_cats) >= 1
+        sports_cat = next((c for c in sports_cats if len(c["services"]) > 0), None)
+        assert sports_cat is not None, "No Sports & Fitness category with services found"
 
         # Check Yoga service has instructor
         yoga_service = next((s for s in sports_cat["services"] if s["slug"] == "yoga"), None)

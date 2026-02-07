@@ -27,6 +27,58 @@ def _ulid() -> str:
     return str(ulid.ULID())
 
 
+def create_test_catalog(
+    session: Session,
+    *,
+    name: str,
+    slug: str,
+    category_name: str = "Test Category",
+    description: Optional[str] = None,
+    **extra_fields: Any,
+) -> ServiceCatalog:
+    """Create a ServiceCatalog with proper 3-level taxonomy (category → subcategory → service).
+
+    Reuses existing category/subcategory if found by name.  Use this helper
+    instead of constructing ServiceCatalog(category_id=...) directly — that
+    column was removed in the taxonomy migration.
+    """
+    category = session.query(ServiceCategory).filter(ServiceCategory.name == category_name).first()
+    if not category:
+        category = ServiceCategory(id=_ulid(), name=category_name)
+        session.add(category)
+        session.flush()
+
+    subcategory = (
+        session.query(ServiceSubcategory)
+        .filter(
+            ServiceSubcategory.category_id == category.id,
+            ServiceSubcategory.name == "General",
+        )
+        .first()
+    )
+    if not subcategory:
+        subcategory = ServiceSubcategory(
+            id=_ulid(),
+            category_id=category.id,
+            name="General",
+            display_order=0,
+        )
+        session.add(subcategory)
+        session.flush()
+
+    catalog = ServiceCatalog(
+        id=_ulid(),
+        name=name,
+        slug=slug,
+        subcategory_id=subcategory.id,
+        description=description,
+        **extra_fields,
+    )
+    session.add(catalog)
+    session.flush()
+    return catalog
+
+
 def _slugify(value: str) -> str:
     """Turn a service name into a slug suitable for ServiceCatalog."""
     value = value.strip().lower()

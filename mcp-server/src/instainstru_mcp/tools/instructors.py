@@ -12,7 +12,7 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
         status: str | None = None,
         is_founding: bool | None = None,
         service_slug: str | None = None,
-        category_slug: str | None = None,
+        category_name: str | None = None,
         limit: int = 50,
         cursor: str | None = None,
     ) -> dict:
@@ -21,7 +21,7 @@ def register_tools(mcp: FastMCP, client: InstaInstruClient) -> dict[str, object]
             status=status,
             is_founding=is_founding,
             service_slug=service_slug,
-            category_slug=category_slug,
+            category_name=category_name,
             limit=limit,
             cursor=cursor,
         )

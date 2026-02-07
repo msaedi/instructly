@@ -29,7 +29,6 @@ class TestServicesRoutesAdditionalCoverage:
             {
                 "id": "1",
                 "name": "Music",
-                "slug": "music",
                 "description": "",
                 "display_order": 1,
             }
@@ -165,8 +164,8 @@ class TestServicesRoutesAdditionalCoverage:
         mock_instructor_service.get_available_catalog_services.return_value = [
             {
                 "id": "svc-1",
-                "category_id": "cat-1",
-                "category": "Music",
+                "subcategory_id": "sub-1",
+                "category_name": "Music",
                 "name": "Piano Lessons",
                 "slug": "piano",
                 "display_order": 1,
@@ -213,18 +212,18 @@ class TestServicesRoutesAdditionalCoverage:
                 {
                     "id": "cat-1",
                     "name": "Music",
-                    "slug": "music",
                     "subtitle": None,
                     "description": None,
                     "icon_name": None,
                     "services": [
                         {
                             "id": "svc-1",
-                            "category_id": "cat-1",
+                            "subcategory_id": "sub-1",
                             "name": "Piano Lessons",
                             "slug": "piano",
                             "description": None,
                             "search_terms": [],
+                            "eligible_age_groups": ["toddler", "kids", "teens", "adults"],
                             "display_order": 1,
                             "online_capable": True,
                             "requires_certification": False,

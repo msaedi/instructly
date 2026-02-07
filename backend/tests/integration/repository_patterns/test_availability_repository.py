@@ -26,6 +26,7 @@ from app.models.service_catalog import (
     ServiceCatalog,
     ServiceCategory,
 )
+from app.models.subcategory import ServiceSubcategory
 from app.repositories.availability_repository import AvailabilityRepository
 from app.utils.bitset import windows_from_bits
 
@@ -58,8 +59,14 @@ def test_service(db, test_instructor):
 
     category = db.query(ServiceCategory).first()
     if not category:
-        category = ServiceCategory(name="Test Category", slug=f"test-category-{generate_ulid().lower()}")
+        category = ServiceCategory(name="Test Category")
         db.add(category)
+        db.flush()
+
+    subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+    if not subcategory:
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
         db.flush()
 
     slug = f"test-service-{generate_ulid().lower()}"
@@ -68,7 +75,7 @@ def test_service(db, test_instructor):
         catalog_service = ServiceCatalog(
             name="Test Service",
             slug=slug,
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             description="Test service description",
         )
         db.add(catalog_service)

@@ -31,6 +31,7 @@ from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.services.booking_service import BookingService
 from app.services.cache_service import CacheService
@@ -88,13 +89,17 @@ class TestCircularDependencyEdgeCases:
             # Create a second catalog service
             category = db.query(ServiceCategory).first()
             if not category:
-                category_ulid = generate_ulid()
-                category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
+                category = ServiceCategory(name="Test Category")
                 db.add(category)
+                db.flush()
+            subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+            if not subcategory:
+                subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+                db.add(subcategory)
                 db.flush()
             service_ulid = generate_ulid()
             catalog_service = ServiceCatalog(
-                name="Test Service", slug=f"test-service-{service_ulid.lower()}", category_id=category.id
+                name="Test Service", slug=f"test-service-{service_ulid.lower()}", subcategory_id=subcategory.id
             )
             db.add(catalog_service)
             db.flush()
@@ -453,13 +458,15 @@ class TestSoftDeleteEdgeCases:
         catalog_service = db.query(ServiceCatalog).filter(~ServiceCatalog.id.in_(existing_catalog_ids)).first()
 
         if not catalog_service:
-            category_ulid = generate_ulid()
-            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
+            category = ServiceCategory(name="Test Category")
             db.add(category)
+            db.flush()
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            db.add(subcategory)
             db.flush()
             service_ulid = generate_ulid()
             catalog_service = ServiceCatalog(
-                name="Temporary Service", slug=f"temporary-service-{service_ulid.lower()}", category_id=category.id
+                name="Temporary Service", slug=f"temporary-service-{service_ulid.lower()}", subcategory_id=subcategory.id
             )
             db.add(catalog_service)
             db.flush()
@@ -557,13 +564,15 @@ class TestSoftDeleteEdgeCases:
         catalog_service = db.query(ServiceCatalog).filter(~ServiceCatalog.id.in_(existing_catalog_ids)).first()
 
         if not catalog_service:
-            category_ulid = generate_ulid()
-            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
+            category = ServiceCategory(name="Test Category")
             db.add(category)
+            db.flush()
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            db.add(subcategory)
             db.flush()
             service_ulid = generate_ulid()
             catalog_service = ServiceCatalog(
-                name="Test Service", slug=f"test-service-{service_ulid.lower()}", category_id=category.id
+                name="Test Service", slug=f"test-service-{service_ulid.lower()}", subcategory_id=subcategory.id
             )
             db.add(catalog_service)
             db.flush()
@@ -730,10 +739,15 @@ def instructor_user(db: Session) -> User:
         # Create minimal catalog if missing
         category = db.query(ServiceCategory).first()
         if not category:
-            category = ServiceCategory(name="Music & Arts", slug="music-arts")
+            category = ServiceCategory(name="Music & Arts")
             db.add(category)
             db.flush()
-        catalog_service = ServiceCatalog(name="Piano Lessons", slug="piano-lessons", category_id=category.id)
+        subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+        if not subcategory:
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            db.add(subcategory)
+            db.flush()
+        catalog_service = ServiceCatalog(name="Piano Lessons", slug="piano-lessons", subcategory_id=subcategory.id)
         db.add(catalog_service)
         db.flush()
 

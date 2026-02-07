@@ -16,6 +16,7 @@ import ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
 from app.services.pricing_service import PricingService
@@ -768,12 +769,22 @@ class TestPaymentTasks:
         category = ServiceCategory(
             id=str(ulid.ULID()),
             name="Retry Category",
-            slug=f"retry-category-{str(ulid.ULID()).lower()}",
             description="Retry category",
         )
+        db.add(category)
+        db.flush()
+
+        subcategory = ServiceSubcategory(
+            name="General",
+            category_id=category.id,
+            display_order=1,
+        )
+        db.add(subcategory)
+        db.flush()
+
         catalog = ServiceCatalog(
             id=str(ulid.ULID()),
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             name="Retry Service",
             slug=f"retry-service-{str(ulid.ULID()).lower()}",
             description="Retry service",
@@ -785,7 +796,7 @@ class TestPaymentTasks:
             hourly_rate=75.0,
             is_active=True,
         )
-        db.add_all([category, catalog, instructor_service])
+        db.add_all([catalog, instructor_service])
 
         booking_datetime = datetime.now(timezone.utc) + timedelta(days=1)
         booking_datetime = booking_datetime.replace(hour=15, minute=0, second=0, microsecond=0)

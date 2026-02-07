@@ -10,6 +10,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.review import Review, ReviewStatus
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.repositories.badge_repository import BadgeRepository
 from app.services.badge_award_service import BadgeAwardService
@@ -93,15 +94,14 @@ def _create_user(db, email: str) -> User:
     return user
 
 
-def _get_or_create_category(db, *, slug: str, name: str, display_order: int = 1) -> ServiceCategory:
-    category = db.query(ServiceCategory).filter(ServiceCategory.slug == slug).first()
+def _get_or_create_category(db, *, name: str, display_order: int = 1) -> ServiceCategory:
+    category = db.query(ServiceCategory).filter(ServiceCategory.name == name).first()
     if category:
         return category
 
     category = ServiceCategory(
         id=generate_ulid(),
         name=name,
-        slug=slug,
         display_order=display_order,
     )
     db.add(category)
@@ -109,10 +109,35 @@ def _get_or_create_category(db, *, slug: str, name: str, display_order: int = 1)
     return category
 
 
-def _get_or_create_catalog(
+def _get_or_create_subcategory(
     db,
     *,
     category: ServiceCategory,
+    name: str,
+) -> ServiceSubcategory:
+    subcategory = (
+        db.query(ServiceSubcategory)
+        .filter(ServiceSubcategory.category_id == category.id, ServiceSubcategory.name == name)
+        .first()
+    )
+    if subcategory:
+        return subcategory
+
+    subcategory = ServiceSubcategory(
+        id=generate_ulid(),
+        category_id=category.id,
+        name=name,
+        display_order=1,
+    )
+    db.add(subcategory)
+    db.flush()
+    return subcategory
+
+
+def _get_or_create_catalog(
+    db,
+    *,
+    subcategory: ServiceSubcategory,
     name: str,
     slug: str,
     description: str,
@@ -123,7 +148,7 @@ def _get_or_create_catalog(
 
     catalog = ServiceCatalog(
         id=generate_ulid(),
-        category_id=category.id,
+        subcategory_id=subcategory.id,
         name=name,
         slug=slug,
         description=description,
@@ -133,13 +158,14 @@ def _get_or_create_catalog(
     return catalog
 
 
-def _create_instructor_service(db, instructor: User, category_slug: str = "music") -> tuple[InstructorService, str]:
-    category = _get_or_create_category(db, slug=category_slug, name="Music")
+def _create_instructor_service(db, instructor: User, category_name: str = "Music") -> tuple[InstructorService, str]:
+    category = _get_or_create_category(db, name=category_name.title())
+    subcategory = _get_or_create_subcategory(db, category=category, name=f"{category_name.title()} General")
     catalog = _get_or_create_catalog(
         db,
-        category=category,
+        subcategory=subcategory,
         name="Piano Lessons",
-        slug=f"piano-lessons-{category_slug}",
+        slug=f"piano-lessons-{category_name}",
         description="Test piano lessons",
     )
 
@@ -154,7 +180,7 @@ def _create_instructor_service(db, instructor: User, category_slug: str = "music
     )
     db.add(service)
     db.flush()
-    return service, category.slug
+    return service, category.name
 
 
 _BOOKING_OFFSET_COUNTER = 0
@@ -225,7 +251,7 @@ def _create_review(
 def test_milestone_badges_awarded_and_finalize(db, core_badges_seeded):
     student = _create_user(db, "student@example.com")
     instructor = _create_user(db, "instructor@example.com")
-    instructor_service, category_slug = _create_instructor_service(db, instructor)
+    instructor_service, category_name = _create_instructor_service(db, instructor)
 
     badge_service = BadgeAwardService(db)
     repo = BadgeRepository(db)
@@ -245,7 +271,7 @@ def test_milestone_badges_awarded_and_finalize(db, core_badges_seeded):
             student_id=student.id,
             lesson_id=booking.id,
             instructor_id=instructor.id,
-            category_slug=category_slug,
+            category_name=category_name,
             booked_at_utc=booked_at,
             completed_at_utc=completed_at,
         )
@@ -274,7 +300,7 @@ def test_milestone_badges_awarded_and_finalize(db, core_badges_seeded):
         student_id=student.id,
         lesson_id=last_booking.id,
         instructor_id=instructor.id,
-        category_slug=category_slug,
+        category_name=category_name,
         booked_at_utc=last_booked,
         completed_at_utc=last_completed,
     )
@@ -285,7 +311,7 @@ def test_milestone_badges_awarded_and_finalize(db, core_badges_seeded):
 def test_momentum_starter_award(db, core_badges_seeded):
     student = _create_user(db, "momentum_student@example.com")
     instructor = _create_user(db, "momentum_instructor@example.com")
-    instructor_service, category_slug = _create_instructor_service(db, instructor)
+    instructor_service, category_name = _create_instructor_service(db, instructor)
 
     badge_service = BadgeAwardService(db)
     repo = BadgeRepository(db)
@@ -298,7 +324,7 @@ def test_momentum_starter_award(db, core_badges_seeded):
         student_id=student.id,
         lesson_id=first_booking.id,
         instructor_id=instructor.id,
-        category_slug=category_slug,
+        category_name=category_name,
         booked_at_utc=first_booked,
         completed_at_utc=first_completed,
     )
@@ -311,7 +337,7 @@ def test_momentum_starter_award(db, core_badges_seeded):
         student_id=student.id,
         lesson_id=second_booking.id,
         instructor_id=instructor.id,
-        category_slug=category_slug,
+        category_name=category_name,
         booked_at_utc=second_booked,
         completed_at_utc=second_completed,
     )
@@ -324,7 +350,7 @@ def test_momentum_starter_award(db, core_badges_seeded):
 def test_momentum_progress_first_and_second_lesson(db, core_badges_seeded):
     student = _create_user(db, "momentum_progress@example.com")
     instructor = _create_user(db, "momentum_progress_instr@example.com")
-    instructor_service, category_slug = _create_instructor_service(db, instructor)
+    instructor_service, category_name = _create_instructor_service(db, instructor)
 
     badge_service = BadgeAwardService(db)
     repo = BadgeRepository(db)
@@ -337,7 +363,7 @@ def test_momentum_progress_first_and_second_lesson(db, core_badges_seeded):
         student_id=student.id,
         lesson_id=first_booking.id,
         instructor_id=instructor.id,
-        category_slug=category_slug,
+        category_name=category_name,
         booked_at_utc=first_booked,
         completed_at_utc=first_completed,
     )
@@ -360,7 +386,7 @@ def test_momentum_progress_first_and_second_lesson(db, core_badges_seeded):
         student_id=student.id,
         lesson_id=second_booking.id,
         instructor_id=instructor.id,
-        category_slug=category_slug,
+        category_name=category_name,
         booked_at_utc=second_booked,
         completed_at_utc=second_completed,
     )
@@ -383,7 +409,7 @@ def test_momentum_progress_first_and_second_lesson(db, core_badges_seeded):
 def test_momentum_starter_not_awarded_when_outside_window(db, core_badges_seeded):
     student = _create_user(db, "momentum_late@example.com")
     instructor = _create_user(db, "momentum_late_instr@example.com")
-    instructor_service, category_slug = _create_instructor_service(db, instructor)
+    instructor_service, category_name = _create_instructor_service(db, instructor)
 
     badge_service = BadgeAwardService(db)
     repo = BadgeRepository(db)
@@ -402,7 +428,7 @@ def test_momentum_starter_not_awarded_when_outside_window(db, core_badges_seeded
         student_id=student.id,
         lesson_id=first_booking.id,
         instructor_id=instructor.id,
-        category_slug=category_slug,
+        category_name=category_name,
         booked_at_utc=first_completed - timedelta(days=2),
         completed_at_utc=first_completed,
     )
@@ -422,7 +448,7 @@ def test_momentum_starter_not_awarded_when_outside_window(db, core_badges_seeded
         student_id=student.id,
         lesson_id=late_booking.id,
         instructor_id=instructor.id,
-        category_slug=category_slug,
+        category_name=category_name,
         booked_at_utc=late_booked,
         completed_at_utc=late_completed,
     )
@@ -441,7 +467,7 @@ def test_momentum_starter_not_awarded_when_outside_window(db, core_badges_seeded
 def test_finalize_pending_badges_revokes_when_criteria_fail(db, core_badges_seeded):
     student = _create_user(db, "pending_student@example.com")
     instructor = _create_user(db, "pending_instructor@example.com")
-    instructor_service, category_slug = _create_instructor_service(db, instructor)
+    instructor_service, category_name = _create_instructor_service(db, instructor)
 
     badge_service = BadgeAwardService(db)
     repo = BadgeRepository(db)
@@ -460,7 +486,7 @@ def test_finalize_pending_badges_revokes_when_criteria_fail(db, core_badges_seed
         student_id=student.id,
         lesson_id=booking.id,
         instructor_id=instructor.id,
-        category_slug=category_slug,
+        category_name=category_name,
         booked_at_utc=base_time - timedelta(days=1),
         completed_at_utc=base_time,
     )
@@ -482,7 +508,7 @@ def test_consistent_learner_awarded_after_three_weeks(db, core_badges_seeded):
     student = _create_user(db, "streak_student@example.com")
     student.timezone = "America/New_York"
     instructor = _create_user(db, "streak_instructor@example.com")
-    instructor_service, category_slug = _create_instructor_service(db, instructor)
+    instructor_service, category_name = _create_instructor_service(db, instructor)
     db.flush()
 
     badge_service = BadgeAwardService(db)
@@ -498,7 +524,7 @@ def test_consistent_learner_awarded_after_three_weeks(db, core_badges_seeded):
             student_id=student.id,
             lesson_id=booking.id,
             instructor_id=instructor.id,
-            category_slug=category_slug,
+            category_name=category_name,
             booked_at_utc=booked,
             completed_at_utc=completion,
         )
@@ -517,7 +543,7 @@ def test_consistent_learner_awarded_with_grace_gap(db, core_badges_seeded):
     student = _create_user(db, "streak_grace@example.com")
     student.timezone = "America/New_York"
     instructor = _create_user(db, "streak_grace_instr@example.com")
-    instructor_service, category_slug = _create_instructor_service(db, instructor)
+    instructor_service, category_name = _create_instructor_service(db, instructor)
     db.flush()
 
     badge_service = BadgeAwardService(db)
@@ -533,7 +559,7 @@ def test_consistent_learner_awarded_with_grace_gap(db, core_badges_seeded):
             student_id=student.id,
             lesson_id=booking.id,
             instructor_id=instructor.id,
-            category_slug=category_slug,
+            category_name=category_name,
             booked_at_utc=booked,
             completed_at_utc=completion,
         )
@@ -547,7 +573,7 @@ def test_consistent_learner_not_awarded_when_gap_breaks(db, core_badges_seeded):
     student = _create_user(db, "streak_break@example.com")
     student.timezone = "America/New_York"
     instructor = _create_user(db, "streak_break_instr@example.com")
-    instructor_service, category_slug = _create_instructor_service(db, instructor)
+    instructor_service, category_name = _create_instructor_service(db, instructor)
     db.flush()
 
     badge_service = BadgeAwardService(db)
@@ -563,7 +589,7 @@ def test_consistent_learner_not_awarded_when_gap_breaks(db, core_badges_seeded):
             student_id=student.id,
             lesson_id=booking.id,
             instructor_id=instructor.id,
-            category_slug=category_slug,
+            category_name=category_name,
             booked_at_utc=booked,
             completed_at_utc=completion,
         )
@@ -595,9 +621,9 @@ def _build_top_student_scenario(
     review_times: list[datetime] = []
 
     instructors = {}
-    for idx, (category_slug, count) in enumerate(instructor_counts.items(), start=1):
+    for idx, (category_name, count) in enumerate(instructor_counts.items(), start=1):
         instructor = _create_user(db, f"top_instr_{idx}@example.com")
-        service, _ = _create_instructor_service(db, instructor, category_slug=category_slug)
+        service, _ = _create_instructor_service(db, instructor, category_name=category_name)
         for i in range(count):
             shift = idx * 10 + i
             booked = base_time + timedelta(days=shift, hours=-2)
@@ -751,7 +777,7 @@ def test_top_student_revoked_when_metrics_drop(db, core_badges_seeded):
 
     # Add a poor review to drop average below threshold
     instructor = _create_user(db, "top_revoke_instr@example.com")
-    service, _ = _create_instructor_service(db, instructor, category_slug="vocal")
+    service, _ = _create_instructor_service(db, instructor, category_name="vocal")
     booked = datetime(2024, 5, 1, 12, 0, tzinfo=timezone.utc)
     completed = booked + timedelta(hours=1)
     booking = _create_booking(db, student, instructor, service, booked, completed)
@@ -794,19 +820,19 @@ def _run_explorer_scenario(
 
     instructor_cache: dict[str, tuple[User, InstructorService]] = {}
 
-    def _get_resources(category_slug: str) -> tuple[User, InstructorService]:
-        if category_slug in instructor_cache:
-            return instructor_cache[category_slug]
-        instructor = _create_user(db, f"explorer_{category_slug}_{len(instructor_cache)}@example.com")
-        service, _ = _create_instructor_service(db, instructor, category_slug=category_slug)
-        instructor_cache[category_slug] = (instructor, service)
+    def _get_resources(category_name: str) -> tuple[User, InstructorService]:
+        if category_name in instructor_cache:
+            return instructor_cache[category_name]
+        instructor = _create_user(db, f"explorer_{category_name}_{len(instructor_cache)}@example.com")
+        service, _ = _create_instructor_service(db, instructor, category_name=category_name)
+        instructor_cache[category_name] = (instructor, service)
         return instructor, service
 
     base_time = datetime(2024, 6, 1, 15, 0, tzinfo=timezone.utc)
 
     for idx, entry in enumerate(plan):
-        category_slug = entry["category"]
-        instructor, service = _get_resources(category_slug)
+        category_name = entry["category"]
+        instructor, service = _get_resources(category_name)
         booked = base_time + timedelta(days=idx * 2, hours=-2)
         completed = base_time + timedelta(days=idx * 2)
         booking = _create_booking(db, student, instructor, service, booked, completed)
@@ -816,7 +842,7 @@ def _run_explorer_scenario(
             student_id=student.id,
             lesson_id=booking.id,
             instructor_id=instructor.id,
-            category_slug=category_slug,
+            category_name=category_name,
             booked_at_utc=booked,
             completed_at_utc=completed,
         )
@@ -939,7 +965,7 @@ def test_explorer_progress_hidden_until_threshold(db, core_badges_seeded):
 
     # Add fifth completion to exceed show_after_total_lessons
     instructor = _create_user(db, "explorer_visibility_instr@example.com")
-    service, category_slug = _create_instructor_service(db, instructor, category_slug="dance")
+    service, category_name = _create_instructor_service(db, instructor, category_name="dance")
     booked = datetime(2024, 7, 1, 12, 0, tzinfo=timezone.utc)
     completed = booked + timedelta(hours=1)
     booking = _create_booking(db, student, instructor, service, booked, completed)
@@ -947,7 +973,7 @@ def test_explorer_progress_hidden_until_threshold(db, core_badges_seeded):
         student_id=student.id,
         lesson_id=booking.id,
         instructor_id=instructor.id,
-        category_slug=category_slug,
+        category_name=category_name,
         booked_at_utc=booked,
         completed_at_utc=completed,
     )
@@ -1072,8 +1098,8 @@ def test_is_momentum_criteria_currently_met_true_and_false(db, core_badges_seede
     student = _create_user(db, "momentum_currently@example.com")
     instructor_a = _create_user(db, "momentum_currently_a@example.com")
     instructor_b = _create_user(db, "momentum_currently_b@example.com")
-    service_a, _ = _create_instructor_service(db, instructor_a, category_slug="music")
-    service_b, _ = _create_instructor_service(db, instructor_b, category_slug="dance")
+    service_a, _ = _create_instructor_service(db, instructor_a, category_name="music")
+    service_b, _ = _create_instructor_service(db, instructor_b, category_name="dance")
 
     badge_service = BadgeAwardService(db)
     definition = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "momentum_starter").first()
@@ -1140,7 +1166,7 @@ def test_is_explorer_eligible_now_blocks_without_rebook(db, core_badges_seeded):
     badge_service = BadgeAwardService(db)
     student = _create_user(db, "explorer_rebook_block@example.com")
     instructor = _create_user(db, "explorer_rebook_instr@example.com")
-    service, _ = _create_instructor_service(db, instructor, category_slug="music")
+    service, _ = _create_instructor_service(db, instructor, category_name="music")
 
     booked = datetime(2024, 9, 1, 12, 0, tzinfo=timezone.utc)
     completed = booked + timedelta(hours=1)
@@ -1168,7 +1194,7 @@ def test_is_explorer_eligible_now_blocks_on_min_avg(db, core_badges_seeded):
     badge_service = BadgeAwardService(db)
     student = _create_user(db, "explorer_min_avg@example.com")
     instructor = _create_user(db, "explorer_min_avg_instr@example.com")
-    service, _ = _create_instructor_service(db, instructor, category_slug="music")
+    service, _ = _create_instructor_service(db, instructor, category_name="music")
 
     base = datetime(2024, 10, 1, 12, 0, tzinfo=timezone.utc)
     _create_booking(db, student, instructor, service, base - timedelta(days=1), base)
@@ -1200,9 +1226,9 @@ def test_backfill_user_badges_awards_summary(db, core_badges_seeded):
     instructor_dance = _create_user(db, "backfill_instr_dance@example.com")
     instructor_art = _create_user(db, "backfill_instr_art@example.com")
 
-    service_music, music_slug = _create_instructor_service(db, instructor_music, category_slug="music")
-    service_dance, dance_slug = _create_instructor_service(db, instructor_dance, category_slug="dance")
-    service_art, art_slug = _create_instructor_service(db, instructor_art, category_slug="art")
+    service_music, music_slug = _create_instructor_service(db, instructor_music, category_name="music")
+    service_dance, dance_slug = _create_instructor_service(db, instructor_dance, category_name="dance")
+    service_art, art_slug = _create_instructor_service(db, instructor_art, category_name="art")
 
     services = [
         (service_music, instructor_music, music_slug),
@@ -1264,7 +1290,7 @@ def test_badge_award_service_init_with_injected_services(db):
 def test_check_and_award_skips_inactive_and_zero_goal(db, core_badges_seeded):
     student = _create_user(db, "skip_goal_student@example.com")
     instructor = _create_user(db, "skip_goal_instructor@example.com")
-    instructor_service, category_slug = _create_instructor_service(db, instructor)
+    instructor_service, category_name = _create_instructor_service(db, instructor)
 
     inactive = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "welcome_aboard").first()
     inactive.is_active = False
@@ -1282,7 +1308,7 @@ def test_check_and_award_skips_inactive_and_zero_goal(db, core_badges_seeded):
         student_id=student.id,
         lesson_id=booking.id,
         instructor_id=instructor.id,
-        category_slug=category_slug,
+        category_name=category_name,
         booked_at_utc=booked,
         completed_at_utc=completed,
     )
@@ -1295,7 +1321,7 @@ def test_check_and_award_skips_inactive_and_zero_goal(db, core_badges_seeded):
 def test_check_and_award_skips_momentum_progress_when_none(db, core_badges_seeded, monkeypatch):
     student = _create_user(db, "skip_momentum_student@example.com")
     instructor = _create_user(db, "skip_momentum_instructor@example.com")
-    instructor_service, category_slug = _create_instructor_service(db, instructor)
+    instructor_service, category_name = _create_instructor_service(db, instructor)
 
     badge_service = BadgeAwardService(db)
     repo = BadgeRepository(db)
@@ -1310,7 +1336,7 @@ def test_check_and_award_skips_momentum_progress_when_none(db, core_badges_seede
         student_id=student.id,
         lesson_id=booking.id,
         instructor_id=instructor.id,
-        category_slug=category_slug,
+        category_name=category_name,
         booked_at_utc=booked,
         completed_at_utc=completed,
     )
@@ -1322,7 +1348,7 @@ def test_check_and_award_skips_momentum_progress_when_none(db, core_badges_seede
 def test_check_and_award_skips_consistent_and_explorer(db, core_badges_seeded):
     student = _create_user(db, "skip_consistent_student@example.com")
     instructor = _create_user(db, "skip_consistent_instructor@example.com")
-    instructor_service, category_slug = _create_instructor_service(db, instructor)
+    instructor_service, category_name = _create_instructor_service(db, instructor)
 
     consistent = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "consistent_learner").first()
     explorer = db.query(BadgeDefinition).filter(BadgeDefinition.slug == "explorer").first()
@@ -1340,7 +1366,7 @@ def test_check_and_award_skips_consistent_and_explorer(db, core_badges_seeded):
         student_id=student.id,
         lesson_id=booking.id,
         instructor_id=instructor.id,
-        category_slug=category_slug,
+        category_name=category_name,
         booked_at_utc=booked,
         completed_at_utc=completed,
     )

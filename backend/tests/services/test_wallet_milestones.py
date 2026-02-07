@@ -8,6 +8,7 @@ import ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.repositories.payment_repository import PaymentRepository
 from app.services.credit_service import CreditService
@@ -59,15 +60,22 @@ def instructor_setup(db):
     category = ServiceCategory(
         id=str(ulid.ULID()),
         name="Music",
-        slug=f"music-{str(ulid.ULID()).lower()}",
         description="Music lessons",
     )
     db.add(category)
     db.flush()
 
+    subcategory = ServiceSubcategory(
+        name="General",
+        category_id=category.id,
+        display_order=1,
+    )
+    db.add(subcategory)
+    db.flush()
+
     service_catalog = ServiceCatalog(
         id=str(ulid.ULID()),
-        category_id=category.id,
+        subcategory_id=subcategory.id,
         name="Piano",
         slug=f"piano-{str(ulid.ULID()).lower()}",
         description="Piano lessons",

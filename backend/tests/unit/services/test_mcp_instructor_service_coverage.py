@@ -135,7 +135,7 @@ class TestMCPInstructorServiceListInstructors:
                 status=None,
                 is_founding=None,
                 service_slug=None,
-                category_slug=None,
+                category_name=None,
                 limit=10,
                 cursor=None,
             )
@@ -188,7 +188,7 @@ class TestMCPInstructorServiceListInstructors:
                 status=None,
                 is_founding=None,
                 service_slug=None,
-                category_slug=None,
+                category_name=None,
                 limit=10,
                 cursor=None,
             )
@@ -218,7 +218,7 @@ class TestMCPInstructorServiceListInstructors:
                 status=None,
                 is_founding=None,
                 service_slug=None,
-                category_slug=None,
+                category_name=None,
                 limit=10,
                 cursor=cursor,
             )

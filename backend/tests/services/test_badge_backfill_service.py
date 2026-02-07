@@ -87,10 +87,10 @@ def _build_service(db):
 
 def _create_instructor_bundle(db, slug_suffix: str):
     instructor = award_helpers._create_user(db, f"instructor_{slug_suffix}@example.com")
-    service, category_slug = award_helpers._create_instructor_service(
-        db, instructor, category_slug=f"{slug_suffix}_category"
+    service, category_name = award_helpers._create_instructor_service(
+        db, instructor, category_name=f"{slug_suffix}_category"
     )
-    return instructor, service, category_slug
+    return instructor, service, category_name
 
 
 def _complete_lesson(

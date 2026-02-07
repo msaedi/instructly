@@ -9,6 +9,7 @@ from app.core.exceptions import BusinessRuleException
 from app.models.booking import BookingStatus, PaymentStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.schemas.booking import BookingCreate
@@ -36,13 +37,16 @@ def _get_service(db: Session, instructor: User) -> InstructorService:
     if not service:
         catalog_service = db.query(ServiceCatalog).first()
         if not catalog_service:
-            category = ServiceCategory(name="Test Category", slug="test-category")
+            category = ServiceCategory(name="Test Category")
             db.add(category)
+            db.flush()
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            db.add(subcategory)
             db.flush()
             catalog_service = ServiceCatalog(
                 name="Test Service",
                 slug="test-service",
-                category_id=category.id,
+                subcategory_id=subcategory.id,
             )
             db.add(catalog_service)
             db.flush()

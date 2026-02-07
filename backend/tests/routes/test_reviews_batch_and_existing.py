@@ -102,14 +102,21 @@ def test_booking_existing_restricts_to_current_user(student_client_and_db):
     db.flush()
 
     # Try to reuse existing 'piano' catalog, else create
+    from app.models.subcategory import ServiceSubcategory
+
     catalog = db.query(ServiceCatalog).filter_by(slug="piano").first()
     if not catalog:
-        cat = db.query(ServiceCategory).filter_by(slug="music").first()
+        cat = db.query(ServiceCategory).filter_by(name="Music").first()
         if not cat:
-            cat = ServiceCategory(name="Music", slug="music")
+            cat = ServiceCategory(name="Music")
             db.add(cat)
             db.flush()
-        catalog = ServiceCatalog(category_id=cat.id, name="Piano", slug="piano", is_active=True)
+        sub = db.query(ServiceSubcategory).filter_by(category_id=cat.id).first()
+        if not sub:
+            sub = ServiceSubcategory(name="General", category_id=cat.id, display_order=1)
+            db.add(sub)
+            db.flush()
+        catalog = ServiceCatalog(subcategory_id=sub.id, name="Piano", slug="piano", is_active=True)
         db.add(catalog)
         db.flush()
 

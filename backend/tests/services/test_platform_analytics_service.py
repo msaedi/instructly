@@ -103,9 +103,10 @@ def _extra_service(db, instructor_id: str) -> InstructorService:
         .filter(ServiceCatalog.id == existing.service_catalog_id)
         .first()
     )
+    # Find a catalog entry in a different subcategory
     catalog = (
         db.query(ServiceCatalog)
-        .filter(ServiceCatalog.category_id != existing_catalog.category_id)
+        .filter(ServiceCatalog.subcategory_id != existing_catalog.subcategory_id)
         .first()
     )
     if not catalog:

@@ -23589,7 +23589,7 @@ export interface operations {
                 status?: ("registered" | "onboarding" | "live" | "paused") | null;
                 is_founding?: boolean | null;
                 service_slug?: string | null;
-                category_slug?: string | null;
+                category_name?: string | null;
                 limit?: number;
                 cursor?: string | null;
             };

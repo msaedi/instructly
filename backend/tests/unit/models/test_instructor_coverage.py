@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 
 
 class DummyCounter:
@@ -68,10 +69,10 @@ def _make_service(
     service_id: str,
     active: bool,
     category_name: str = "Music",
-    category_slug: str = "music",
 ) -> InstructorService:
-    category = ServiceCategory(name=category_name, slug=category_slug)
-    catalog = ServiceCatalog(id=service_id, name="Guitar", category=category)
+    category = ServiceCategory(name=category_name)
+    subcategory = ServiceSubcategory(name="General", category=category, display_order=1)
+    catalog = ServiceCatalog(id=service_id, name="Guitar", subcategory=subcategory)
     service = InstructorService(
         instructor_profile_id="inst-1",
         service_catalog_id=service_id,
@@ -96,7 +97,6 @@ def test_service_helpers_and_to_dict() -> None:
     assert instructor.has_active_services is True
     assert instructor.total_services == 2
     assert instructor.offered_categories == {"Music"}
-    assert instructor.offered_category_slugs == {"music"}
     assert instructor.offers_service("svc-active") is True
     assert instructor.offers_service("missing") is False
     assert instructor.get_service_by_catalog_id("svc-active") is active_service

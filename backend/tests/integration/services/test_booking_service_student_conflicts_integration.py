@@ -16,6 +16,7 @@ from app.core.exceptions import ConflictException
 from app.models.booking import BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
@@ -121,20 +122,17 @@ class TestStudentConflictValidationIntegration:
         if not math_catalog:
             category = db.query(ServiceCategory).first()
             if not category:
-                category = ServiceCategory(name="Academic", slug="academic")
+                category = ServiceCategory(name="Academic")
                 db.add(category)
                 db.flush()
-                # RBAC: Assign role
-                from app.services.permission_service import PermissionService
-
-                permission_service = PermissionService(db)
-            math_catalog = ServiceCatalog(name="Math Tutoring", slug="math-tutoring", category_id=category.id)
+            subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+            if not subcategory:
+                subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+                db.add(subcategory)
+                db.flush()
+            math_catalog = ServiceCatalog(name="Math Tutoring", slug="math-tutoring", subcategory_id=subcategory.id)
             db.add(math_catalog)
             db.flush()
-            # RBAC: Assign role
-            from app.services.permission_service import PermissionService
-
-            permission_service = PermissionService(db)
 
         service = Service(
             instructor_profile_id=profile.id,
@@ -202,10 +200,15 @@ class TestStudentConflictValidationIntegration:
         if not piano_catalog:
             category = db.query(ServiceCategory).first()
             if not category:
-                category = ServiceCategory(name="Music & Arts", slug="music-arts")
+                category = ServiceCategory(name="Music & Arts")
                 db.add(category)
                 db.flush()
-            piano_catalog = ServiceCatalog(name="Piano Lessons", slug="piano-lessons", category_id=category.id)
+            subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+            if not subcategory:
+                subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+                db.add(subcategory)
+                db.flush()
+            piano_catalog = ServiceCatalog(name="Piano Lessons", slug="piano-lessons", subcategory_id=subcategory.id)
             db.add(piano_catalog)
             db.flush()
 

@@ -55,7 +55,7 @@ class MCPInstructorService(BaseService):
         status: str | None,
         is_founding: bool | None,
         service_slug: str | None,
-        category_slug: str | None,
+        category_name: str | None,
         limit: int,
         cursor: str | None,
     ) -> dict[str, Any]:
@@ -65,7 +65,7 @@ class MCPInstructorService(BaseService):
             status=status,
             is_founding=is_founding,
             service_slug=service_slug,
-            category_slug=category_slug,
+            category_name=category_name,
             limit=limit,
             cursor=decoded_cursor,
         )
