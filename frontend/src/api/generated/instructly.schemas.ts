@@ -967,10 +967,10 @@ export interface CategoryServiceDetail {
   active_instructors?: number;
   actual_max_price?: number | null;
   actual_min_price?: number | null;
-  category_id: string;
   demand_score?: number;
   description?: string | null;
   display_order?: number | null;
+  eligible_age_groups?: string[];
   id: string;
   instructor_count?: number;
   is_active?: boolean | null;
@@ -980,6 +980,7 @@ export interface CategoryServiceDetail {
   requires_certification?: boolean | null;
   search_terms?: string[];
   slug: string;
+  subcategory_id: string;
 }
 
 /**
@@ -991,7 +992,6 @@ export interface CategoryWithServices {
   id: string;
   name: string;
   services?: CategoryServiceDetail[];
-  slug: string;
   subtitle?: string | null;
 }
 
@@ -2610,10 +2610,11 @@ export interface CatalogServiceMinimalResponse {
  * Catalog service response.
  */
 export interface CatalogServiceResponse {
-  category?: string | null;
-  category_id: string;
+  category_name?: string | null;
   description?: string | null;
   display_order?: number | null;
+  /** Age groups this service is available for */
+  eligible_age_groups?: string[];
   id: string;
   max_recommended_price?: number | null;
   min_recommended_price?: number | null;
@@ -2622,6 +2623,7 @@ export interface CatalogServiceResponse {
   requires_certification?: boolean | null;
   search_terms?: string[];
   slug: string;
+  subcategory_id: string;
   typical_duration_options?: number[];
 }
 
@@ -2676,7 +2678,6 @@ export interface CategoryResponse {
   icon_name?: string | null;
   id: string;
   name: string;
-  slug: string;
   subtitle?: string | null;
 }
 
@@ -2688,6 +2689,60 @@ export const CategorySortBy = {
   growth: 'growth',
   conversion: 'conversion',
 } as const;
+
+/**
+ * Subcategory with nested services (for category detail / onboarding).
+ */
+export interface SubcategoryWithServices {
+  category_id: string;
+  /** Order for UI display (lower numbers first) */
+  display_order?: number;
+  id: string;
+  /**
+   * Display name (e.g., 'Piano', 'Guitar')
+   * @maxLength 255
+   */
+  name: string;
+  services?: CatalogServiceResponse[];
+}
+
+/**
+ * Full 3-level tree: category → subcategories → services.
+
+Used for onboarding flows and admin category management.
+ */
+export interface CategoryTreeResponse {
+  description?: string | null;
+  display_order: number;
+  icon_name?: string | null;
+  id: string;
+  name: string;
+  subcategories?: SubcategoryWithServices[];
+  subtitle?: string | null;
+}
+
+/**
+ * Minimal subcategory for list views (browse page pills).
+ */
+export interface SubcategoryBrief {
+  id: string;
+  name: string;
+  /** Number of services in this subcategory */
+  service_count?: number;
+}
+
+/**
+ * Category with subcategory list (for browse page).
+ */
+export interface CategoryWithSubcategories {
+  description?: string | null;
+  display_order: number;
+  icon_name?: string | null;
+  id: string;
+  name: string;
+  subcategories?: SubcategoryBrief[];
+  subtitle?: string | null;
+}
 
 export type CeleryQueuesDataQueues = { [key: string]: number };
 
@@ -3510,6 +3565,11 @@ export interface ServiceAreaNeighborhood {
 }
 
 /**
+ * Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']})
+ */
+export type ServiceResponseFilterSelections = { [key: string]: string[] };
+
+/**
  * Schema for service responses.
 
 Includes the service ID and catalog information.
@@ -3527,6 +3587,8 @@ export interface ServiceResponse {
   duration_options?: number[];
   /** List of equipment required (strings) */
   equipment_required?: string[] | null;
+  /** Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']}) */
+  filter_selections?: ServiceResponseFilterSelections;
   /** Hourly rate in USD */
   hourly_rate: number;
   id: string;
@@ -3659,6 +3721,19 @@ export interface FavoritesList {
   favorites: FavoritedInstructor[];
   /** Total number of favorites */
   total: number;
+}
+
+/**
+ * A single filter option value.
+ */
+export interface FilterOptionResponse {
+  /** Human-readable label (e.g., 'Elementary (K-5)') */
+  display_name: string;
+  /** Order for UI display */
+  display_order?: number;
+  id: string;
+  /** Machine-readable value (e.g., 'elementary') */
+  value: string;
 }
 
 export interface FinalizeProfilePicturePayload {
@@ -3857,6 +3932,45 @@ export interface InstantPayoutResponse {
 }
 
 /**
+ * Instructor's current filter selections (filter_key -> [selected values])
+ */
+export type InstructorFilterContextCurrentSelections = { [key: string]: string[] };
+
+/**
+ * A filter as it applies to a specific subcategory (with only valid options).
+
+This is the primary schema used by the frontend to render filter UI.
+ */
+export interface SubcategoryFilterResponse {
+  /** Human-readable name */
+  filter_display_name: string;
+  /** Filter key (e.g., 'grade_level') */
+  filter_key: string;
+  /** 'single_select' or 'multi_select' */
+  filter_type: string;
+  /** Valid options for this subcategory */
+  options?: FilterOptionResponse[];
+}
+
+/**
+ * Filter context for instructor skill selection.
+
+Combines available filters with current selections for a specific
+subcategory+instructor combination.
+ */
+export interface InstructorFilterContext {
+  /** Filters available for this subcategory */
+  available_filters?: SubcategoryFilterResponse[];
+  /** Instructor's current filter selections (filter_key -> [selected values]) */
+  current_selections?: InstructorFilterContextCurrentSelections;
+}
+
+/**
+ * Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']})
+ */
+export type ServiceCreateFilterSelections = { [key: string]: string[] };
+
+/**
  * Schema for creating a new service.
  */
 export interface ServiceCreate {
@@ -3870,6 +3984,8 @@ export interface ServiceCreate {
   duration_options?: number[];
   /** List of equipment required (strings) */
   equipment_required?: string[] | null;
+  /** Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']}) */
+  filter_selections?: ServiceCreateFilterSelections;
   /** Hourly rate in USD */
   hourly_rate: number | string;
   /** Levels taught. Allowed: 'beginner', 'intermediate', 'advanced' */
@@ -4798,11 +4914,11 @@ export interface MCPMetricResponse {
 
 export interface MCPServiceCatalogItem {
   category_name?: string | null;
-  category_slug?: string | null;
   id: string;
   is_active: boolean;
   name: string;
   slug: string;
+  subcategory_name?: string | null;
 }
 
 export interface MCPServiceCatalogData {
@@ -8031,7 +8147,6 @@ export interface TopCategoryItem {
   id: string;
   name: string;
   services?: TopCategoryServiceItem[];
-  slug: string;
 }
 
 /**
@@ -9655,9 +9770,9 @@ export type LogSearchClickApiV1SearchClickPostParams = {
 
 export type GetCatalogServicesApiV1ServicesCatalogGetParams = {
   /**
-   * Filter by category slug
+   * Filter by category ID
    */
-  category?: string | null;
+  category_id?: string | null;
 };
 
 export type GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams = {

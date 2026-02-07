@@ -87,7 +87,7 @@ describe('useServices hooks', () => {
 
   it('loads full services catalog', async () => {
     getCatalogServicesMock.mockResolvedValue({
-      data: [{ id: 'svc-1', name: 'Piano', category_id: 'music', description: 'Piano lessons' }],
+      data: [{ id: 'svc-1', name: 'Piano', subcategory_id: '01HABCTESTSUBCAT0000000001', description: 'Piano lessons' }],
       status: 200,
     });
 
@@ -97,7 +97,7 @@ describe('useServices hooks', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual([
-      { id: 'svc-1', name: 'Piano', category_id: 'music', description: 'Piano lessons' },
+      { id: 'svc-1', name: 'Piano', subcategory_id: '01HABCTESTSUBCAT0000000001', description: 'Piano lessons' },
     ]);
     expect(getCatalogServicesMock).toHaveBeenCalled();
   });

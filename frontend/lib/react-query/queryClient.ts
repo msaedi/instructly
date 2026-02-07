@@ -132,10 +132,22 @@ export const queryKeys = {
     catalog: ['services', 'catalog'] as const,
     featured: ['services', 'featured'] as const,
     categories: ['services', 'categories'] as const,
-    byCategory: (categorySlug: string) => ['services', 'category', categorySlug] as const,
+    byCategory: (categoryId: string) => ['services', 'category', categoryId] as const,
     withInstructors: ['services', 'with-instructors'] as const,
     topPerCategory: ['services', 'top-per-category'] as const,
     kidsAvailable: ['services', 'kids-available'] as const,
+  },
+
+  // 3-level taxonomy queries
+  taxonomy: {
+    all: ['taxonomy'] as const,
+    categoriesWithSubcategories: ['taxonomy', 'categories-browse'] as const,
+    categoryTree: (categoryId: string) => ['taxonomy', 'tree', categoryId] as const,
+    subcategoriesByCategory: (categoryId: string) => ['taxonomy', 'subcategories', categoryId] as const,
+    subcategory: (subcategoryId: string) => ['taxonomy', 'subcategory', subcategoryId] as const,
+    subcategoryFilters: (subcategoryId: string) => ['taxonomy', 'filters', subcategoryId] as const,
+    servicesByAgeGroup: (ageGroup: string) => ['taxonomy', 'by-age-group', ageGroup] as const,
+    filterContext: (serviceId: string) => ['taxonomy', 'filter-context', serviceId] as const,
   },
 
   // Notifications queries

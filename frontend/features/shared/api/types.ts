@@ -60,6 +60,20 @@ export type ServiceCategory = components['schemas']['CategoryResponse'];
 export type CatalogService = components['schemas']['CatalogServiceResponse'];
 export type CatalogServiceMinimal = components['schemas']['CatalogServiceMinimalResponse'];
 
+// 3-level taxonomy types (Category → Subcategory → Service)
+export type CategoryTreeNode = components['schemas']['CategoryTreeResponse'];
+export type SubcategoryWithServices = components['schemas']['SubcategoryWithServices'];
+export type SubcategoryBrief = components['schemas']['SubcategoryBrief'];
+export type CategoryWithSubcategories = components['schemas']['CategoryWithSubcategories'];
+
+// Filter types
+export type FilterOptionResponse = components['schemas']['FilterOptionResponse'];
+export type SubcategoryFilterResponse = components['schemas']['SubcategoryFilterResponse'];
+export type InstructorFilterContext = components['schemas']['InstructorFilterContext'];
+
+// Age group type
+export type AgeGroup = 'toddler' | 'children' | 'teens' | 'adults' | 'seniors';
+
 // Booking enums
 export type BookingStatus = components['schemas']['BookingStatus'];
 

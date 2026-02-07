@@ -6914,7 +6914,7 @@ export type paths = {
          * Get Catalog Services
          * @description Get available services from the catalog.
          *
-         *     Optionally filter by category slug (e.g., 'music-arts', 'academic').
+         *     Optionally filter by category ID.
          */
         get: operations["get_catalog_services_api_v1_services_catalog_get"];
         put?: never;
@@ -6944,6 +6944,26 @@ export type paths = {
          *         Dictionary with categories and their services, including active instructor counts
          */
         get: operations["get_all_services_with_instructors_api_v1_services_catalog_all_with_instructors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/services/catalog/by-age-group/{age_group}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Services By Age Group
+         * @description Get catalog services eligible for an age group.
+         */
+        get: operations["get_services_by_age_group_api_v1_services_catalog_by_age_group__age_group__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7004,6 +7024,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/services/catalog/{service_id}/filter-context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Service Filter Context
+         * @description Get filter context for instructor onboarding (available filters + eligible age groups).
+         */
+        get: operations["get_service_filter_context_api_v1_services_catalog__service_id__filter_context_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/services/categories": {
         parameters: {
             query?: never;
@@ -7016,6 +7056,66 @@ export type paths = {
          * @description Get all service categories (cached for 1 hour).
          */
         get: operations["get_service_categories_api_v1_services_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/services/categories/browse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Categories With Subcategories
+         * @description Get all categories with subcategory briefs (for browse page). Cached 1hr.
+         */
+        get: operations["get_categories_with_subcategories_api_v1_services_categories_browse_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/services/categories/{category_id}/subcategories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Subcategories For Category
+         * @description Get subcategories for a category (brief list).
+         */
+        get: operations["get_subcategories_for_category_api_v1_services_categories__category_id__subcategories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/services/categories/{category_id}/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Category Tree
+         * @description Get full 3-level tree for a category. Cached 1hr.
+         */
+        get: operations["get_category_tree_api_v1_services_categories__category_id__tree_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7061,6 +7161,46 @@ export type paths = {
          *     Searches across service names, categories, and search terms.
          */
         get: operations["search_services_api_v1_services_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/services/subcategories/{subcategory_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Subcategory With Services
+         * @description Get a subcategory with its services.
+         */
+        get: operations["get_subcategory_with_services_api_v1_services_subcategories__subcategory_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/services/subcategories/{subcategory_id}/filters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Subcategory Filters
+         * @description Get filter definitions for a subcategory.
+         */
+        get: operations["get_subcategory_filters_api_v1_services_subcategories__subcategory_id__filters_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10878,14 +11018,17 @@ export type components = {
          * @description Catalog service response.
          */
         CatalogServiceResponse: {
-            /** Category */
-            category?: string | null;
-            /** Category Id */
-            category_id: string;
+            /** Category Name */
+            category_name?: string | null;
             /** Description */
             description?: string | null;
             /** Display Order */
             display_order?: number | null;
+            /**
+             * Eligible Age Groups
+             * @description Age groups this service is available for
+             */
+            eligible_age_groups?: string[];
             /** Id */
             id: string;
             /** Max Recommended Price */
@@ -10905,6 +11048,8 @@ export type components = {
             search_terms: string[];
             /** Slug */
             slug: string;
+            /** Subcategory Id */
+            subcategory_id: string;
             /**
              * Typical Duration Options
              * @default [
@@ -10975,8 +11120,6 @@ export type components = {
             id: string;
             /** Name */
             name: string;
-            /** Slug */
-            slug: string;
             /** Subtitle */
             subtitle?: string | null;
         };
@@ -10994,8 +11137,6 @@ export type components = {
             actual_max_price?: number | null;
             /** Actual Min Price */
             actual_min_price?: number | null;
-            /** Category Id */
-            category_id: string;
             /**
              * Demand Score
              * @default 0
@@ -11005,6 +11146,8 @@ export type components = {
             description?: string | null;
             /** Display Order */
             display_order?: number | null;
+            /** Eligible Age Groups */
+            eligible_age_groups?: string[];
             /** Id */
             id: string;
             /**
@@ -11029,12 +11172,36 @@ export type components = {
             search_terms?: string[];
             /** Slug */
             slug: string;
+            /** Subcategory Id */
+            subcategory_id: string;
         };
         /**
          * CategorySortBy
          * @enum {string}
          */
         CategorySortBy: "revenue" | "bookings" | "growth" | "conversion";
+        /**
+         * CategoryTreeResponse
+         * @description Full 3-level tree: category → subcategories → services.
+         *
+         *     Used for onboarding flows and admin category management.
+         */
+        CategoryTreeResponse: {
+            /** Description */
+            description?: string | null;
+            /** Display Order */
+            display_order: number;
+            /** Icon Name */
+            icon_name?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Subcategories */
+            subcategories?: components["schemas"]["SubcategoryWithServices"][];
+            /** Subtitle */
+            subtitle?: string | null;
+        };
         /**
          * CategoryWithServices
          * @description Category record containing detailed services.
@@ -11050,8 +11217,26 @@ export type components = {
             name: string;
             /** Services */
             services?: components["schemas"]["CategoryServiceDetail"][];
-            /** Slug */
-            slug: string;
+            /** Subtitle */
+            subtitle?: string | null;
+        };
+        /**
+         * CategoryWithSubcategories
+         * @description Category with subcategory list (for browse page).
+         */
+        CategoryWithSubcategories: {
+            /** Description */
+            description?: string | null;
+            /** Display Order */
+            display_order: number;
+            /** Icon Name */
+            icon_name?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Subcategories */
+            subcategories?: components["schemas"]["SubcategoryBrief"][];
             /** Subtitle */
             subtitle?: string | null;
         };
@@ -12296,6 +12481,30 @@ export type components = {
              */
             total: number;
         };
+        /**
+         * FilterOptionResponse
+         * @description A single filter option value.
+         */
+        FilterOptionResponse: {
+            /**
+             * Display Name
+             * @description Human-readable label (e.g., 'Elementary (K-5)')
+             */
+            display_name: string;
+            /**
+             * Display Order
+             * @description Order for UI display
+             * @default 0
+             */
+            display_order: number;
+            /** Id */
+            id: string;
+            /**
+             * Value
+             * @description Machine-readable value (e.g., 'elementary')
+             */
+            value: string;
+        };
         /** FinalizeProfilePicturePayload */
         FinalizeProfilePicturePayload: {
             /** Object Key */
@@ -12675,6 +12884,27 @@ export type components = {
              * @description Stripe status of the payout (e.g., pending, paid)
              */
             status?: string | null;
+        };
+        /**
+         * InstructorFilterContext
+         * @description Filter context for instructor skill selection.
+         *
+         *     Combines available filters with current selections for a specific
+         *     subcategory+instructor combination.
+         */
+        InstructorFilterContext: {
+            /**
+             * Available Filters
+             * @description Filters available for this subcategory
+             */
+            available_filters?: components["schemas"]["SubcategoryFilterResponse"][];
+            /**
+             * Current Selections
+             * @description Instructor's current filter selections (filter_key -> [selected values])
+             */
+            current_selections?: {
+                [key: string]: string[];
+            };
         };
         /**
          * InstructorInfo
@@ -14305,8 +14535,6 @@ export type components = {
         MCPServiceCatalogItem: {
             /** Category Name */
             category_name?: string | null;
-            /** Category Slug */
-            category_slug?: string | null;
             /** Id */
             id: string;
             /** Is Active */
@@ -14315,6 +14543,8 @@ export type components = {
             name: string;
             /** Slug */
             slug: string;
+            /** Subcategory Name */
+            subcategory_name?: string | null;
         };
         /** MCPServiceCatalogResponse */
         MCPServiceCatalogResponse: {
@@ -18755,6 +18985,13 @@ export type components = {
              */
             equipment_required?: string[] | null;
             /**
+             * Filter Selections
+             * @description Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']})
+             */
+            filter_selections?: {
+                [key: string]: string[];
+            };
+            /**
              * Hourly Rate
              * @description Hourly rate in USD
              */
@@ -18929,6 +19166,13 @@ export type components = {
              * @description List of equipment required (strings)
              */
             equipment_required?: string[] | null;
+            /**
+             * Filter Selections
+             * @description Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']})
+             */
+            filter_selections?: {
+                [key: string]: string[];
+            };
             /**
              * Hourly Rate
              * @description Hourly rate in USD
@@ -19266,6 +19510,73 @@ export type components = {
             last_name: string;
         };
         /**
+         * SubcategoryBrief
+         * @description Minimal subcategory for list views (browse page pills).
+         */
+        SubcategoryBrief: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Service Count
+             * @description Number of services in this subcategory
+             * @default 0
+             */
+            service_count: number;
+        };
+        /**
+         * SubcategoryFilterResponse
+         * @description A filter as it applies to a specific subcategory (with only valid options).
+         *
+         *     This is the primary schema used by the frontend to render filter UI.
+         */
+        SubcategoryFilterResponse: {
+            /**
+             * Filter Display Name
+             * @description Human-readable name
+             */
+            filter_display_name: string;
+            /**
+             * Filter Key
+             * @description Filter key (e.g., 'grade_level')
+             */
+            filter_key: string;
+            /**
+             * Filter Type
+             * @description 'single_select' or 'multi_select'
+             */
+            filter_type: string;
+            /**
+             * Options
+             * @description Valid options for this subcategory
+             */
+            options?: components["schemas"]["FilterOptionResponse"][];
+        };
+        /**
+         * SubcategoryWithServices
+         * @description Subcategory with nested services (for category detail / onboarding).
+         */
+        SubcategoryWithServices: {
+            /** Category Id */
+            category_id: string;
+            /**
+             * Display Order
+             * @description Order for UI display (lower numbers first)
+             * @default 0
+             */
+            display_order: number;
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @description Display name (e.g., 'Piano', 'Guitar')
+             */
+            name: string;
+            /** Services */
+            services?: components["schemas"]["CatalogServiceResponse"][];
+        };
+        /**
          * SuccessResponse
          * @description Standard success response for operations.
          */
@@ -19546,8 +19857,6 @@ export type components = {
             name: string;
             /** Services */
             services?: components["schemas"]["TopCategoryServiceItem"][];
-            /** Slug */
-            slug: string;
         };
         /**
          * TopCategoryServiceItem
@@ -31459,8 +31768,8 @@ export interface operations {
     get_catalog_services_api_v1_services_catalog_get: {
         parameters: {
             query?: {
-                /** @description Filter by category slug */
-                category?: string | null;
+                /** @description Filter by category ID */
+                category_id?: string | null;
             };
             header?: never;
             path?: never;
@@ -31504,6 +31813,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AllServicesWithInstructorsResponse"];
+                };
+            };
+        };
+    };
+    get_services_by_age_group_api_v1_services_catalog_by_age_group__age_group__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                age_group: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogServiceResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -31560,6 +31900,37 @@ export interface operations {
             };
         };
     };
+    get_service_filter_context_api_v1_services_catalog__service_id__filter_context_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstructorFilterContext"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_service_categories_api_v1_services_categories_get: {
         parameters: {
             query?: never;
@@ -31576,6 +31947,88 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CategoryResponse"][];
+                };
+            };
+        };
+    };
+    get_categories_with_subcategories_api_v1_services_categories_browse_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryWithSubcategories"][];
+                };
+            };
+        };
+    };
+    get_subcategories_for_category_api_v1_services_categories__category_id__subcategories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubcategoryBrief"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_category_tree_api_v1_services_categories__category_id__tree_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryTreeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -31632,6 +32085,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_subcategory_with_services_api_v1_services_subcategories__subcategory_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subcategory_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubcategoryWithServices"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_subcategory_filters_api_v1_services_subcategories__subcategory_id__filters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subcategory_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubcategoryFilterResponse"][];
                 };
             };
             /** @description Validation Error */

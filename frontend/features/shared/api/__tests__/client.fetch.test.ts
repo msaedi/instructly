@@ -167,7 +167,7 @@ describe('publicApi', () => {
     expect(requestUrl.searchParams.get('q')).toBe('piano lessons');
   });
 
-  it('adds category param when fetching catalog services', async () => {
+  it('adds category_id param when fetching catalog services', async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -176,11 +176,11 @@ describe('publicApi', () => {
     });
     global.fetch = fetchMock as unknown as typeof global.fetch;
 
-    await publicApi.getCatalogServices('music');
+    await publicApi.getCatalogServices('01HABCTESTCAT0000000000001');
 
     const [url] = fetchMock.mock.calls[0];
     const requestUrl = new URL(url as string, window.location.origin);
-    expect(requestUrl.searchParams.get('category')).toBe('music');
+    expect(requestUrl.searchParams.get('category_id')).toBe('01HABCTESTCAT0000000000001');
   });
 });
 
