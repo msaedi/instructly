@@ -14,11 +14,8 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
 import { RoleName, SearchType } from '@/types/enums';
 import { NotificationBar } from '@/components/NotificationBar';
-import { useQuery } from '@tanstack/react-query';
-import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { useFeaturedServices } from '@/hooks/queries/useHomepage';
 import { useServiceCategories } from '@/hooks/queries/useServices';
-import { publicApi } from '@/features/shared/api/client';
 import { getActivityBackground } from '@/lib/services/assetService';
 import {
   Search,
@@ -36,7 +33,6 @@ import {
   Sparkles,
   BookOpen,
   Palette,
-  Baby,
 
   X,
 } from 'lucide-react';
@@ -117,10 +113,31 @@ const PrivacySettings = dynamic(
   }
 );
 
+// Map backend icon_name to Lucide icon components (static — must be outside component for useMemo stability)
+const ICON_MAP: Record<string, React.ComponentType> = {
+  'palette': Palette,
+  'dumbbell': Dumbbell,
+  'book-open': BookOpen,
+  'globe': Globe,
+  'music': Music,
+  'sparkles': Sparkles,
+  'lightbulb': Sparkles,
+};
+
+const FALLBACK_CATEGORIES = [
+  { icon: BookOpen, id: 'fallback-tutoring', name: 'Tutoring & Test Prep', subtitle: 'SAT prep, math tutoring & more' },
+  { icon: Music, id: 'fallback-music', name: 'Music', subtitle: 'Piano, guitar, voice & more' },
+  { icon: Sparkles, id: 'fallback-dance', name: 'Dance', subtitle: 'Ballet, hip-hop, salsa & more' },
+  { icon: Globe, id: 'fallback-languages', name: 'Languages', subtitle: 'Spanish, French & more' },
+  { icon: Dumbbell, id: 'fallback-sports', name: 'Sports & Fitness', subtitle: 'Tennis, swimming & more' },
+  { icon: Palette, id: 'fallback-arts', name: 'Arts', subtitle: 'Drawing, painting & more' },
+  { icon: Sparkles, id: 'fallback-hobbies', name: 'Hobbies & Life Skills', subtitle: 'Cooking, gardening & more' },
+] as const;
+
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   // Always start with default value to avoid hydration mismatch
-  const [selectedCategory, setSelectedCategory] = useState<string>('arts');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
 
@@ -130,11 +147,8 @@ export default function HomePage() {
   useEffect(() => {
     const saved = sessionStorage.getItem('homeSelectedCategory');
     if (saved) {
-      const valid = ['arts', 'sports-fitness', 'tutoring', 'language', 'music', 'kids', 'hidden-gems'];
-      if (valid.includes(saved)) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: restoring state from browser storage after hydration
-        setSelectedCategory(saved);
-      }
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: restoring state from browser storage after hydration
+      setSelectedCategory(saved);
     }
     // Detect touch device
     setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
@@ -174,31 +188,16 @@ export default function HomePage() {
   const { data: topServicesData } = useFeaturedServices();
   const { data: categoriesData } = useServiceCategories();
 
-  // Kids services - inline query (no dedicated hook exists yet)
-  const { data: kidsServicesData } = useQuery({
-    queryKey: queryKeys.services.kidsAvailable,
-    queryFn: async () => {
-      const response = await publicApi.getKidsAvailableServices();
-      if (response.error) {
-        throw new Error(response.error);
-      }
-      return response.data;
-    },
-    staleTime: CACHE_TIMES.STATIC, // 1 hour cache
-  });
-
   // Process the cached data into the format the component expects
   const categoryServices = topServicesData ? (() => {
     const servicesMap: Record<string, TopServiceSummary[]> = {};
     const categories = topServicesData.categories ?? [];
     categories.forEach((category) => {
-      servicesMap[category.slug] = category.services ?? [];
+      servicesMap[category.id] = category.services ?? [];
     });
     return servicesMap;
   })() : {};
 
-  const kidsServices = kidsServicesData || [];
-  const categoriesFromDb = categoriesData || [];
   const heroLeftImageSrc = ensureHeroPanelSize(getActivityBackground('home', 'desktop'));
   const heroRightImageSrc = ensureHeroPanelSize(getActivityBackground('music', 'desktop'));
 
@@ -206,44 +205,30 @@ export default function HomePage() {
 
   // Note: Do not early-return before all hooks have run; gate rendering in JSX instead
 
-  // Map backend icon_name/slug to Lucide icon components
-  const ICON_MAP: Record<string, React.ComponentType> = {
-    'palette': Palette,
-    'arts': Palette,
-    'dumbbell': Dumbbell,
-    'sports-fitness': Dumbbell,
-    'book-open': BookOpen,
-    'book': BookOpen,
-    'tutoring': BookOpen,
-    'globe': Globe,
-    'language': Globe,
-    'music': Music,
-    'music-note': Music,
-    'baby': Baby,
-    'child': Baby,
-    'kids': Baby,
-    'sparkles': Sparkles,
-    'hidden-gems': Sparkles,
-  };
+  const categories = useMemo(() => {
+    const fromDb = categoriesData ?? [];
+    return fromDb.length > 0
+      ? [...fromDb]
+          .sort((a, b) => (a.display_order ?? 999) - (b.display_order ?? 999))
+          .map((c) => ({
+            icon: ICON_MAP[c.icon_name ?? ''] || Sparkles,
+            id: c.id,
+            name: c.name,
+            subtitle: c.subtitle || '',
+          }))
+      : [...FALLBACK_CATEGORIES];
+  }, [categoriesData]);
 
-  const categories = (categoriesFromDb && categoriesFromDb.length > 0)
-    ? [...categoriesFromDb]
-        .sort((a, b) => (a.display_order ?? 999) - (b.display_order ?? 999))
-        .map((c) => ({
-          icon: ICON_MAP[c.icon_name || c.slug] || Sparkles,
-          name: c.name,
-          slug: c.slug,
-          subtitle: c.slug === 'kids' ? '' : (c.subtitle || ''),
-        }))
-    : [
-        { icon: Palette, name: 'Arts', slug: 'arts', subtitle: 'Performing Visual Applied' },
-        { icon: Dumbbell, name: 'Sports & Fitness', slug: 'sports-fitness', subtitle: '' },
-        { icon: BookOpen, name: 'Tutoring', slug: 'tutoring', subtitle: 'Academic STEM Tech' },
-        { icon: Globe, name: 'Language', slug: 'language', subtitle: '' },
-        { icon: Music, name: 'Music', slug: 'music', subtitle: 'Instrument Voice Theory' },
-        { icon: Baby, name: 'Kids', slug: 'kids', subtitle: '' },
-        { icon: Sparkles, name: 'Hidden Gems', slug: 'hidden-gems', subtitle: '' },
-      ];
+  // Default to first category when data loads and no saved selection
+  useEffect(() => {
+    if (!selectedCategory && categories.length > 0) {
+      const first = categories[0];
+      if (first) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: setting default category after data loads
+        setSelectedCategory(first.id);
+      }
+    }
+  }, [categories, selectedCategory]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -504,18 +489,18 @@ export default function HomePage() {
           <div className="flex justify-center items-start space-x-10 ml-15">
             {categories.map((category) => {
               const IconComponent = category.icon;
-              const isSelected = category.slug === selectedCategory;
+              const isSelected = category.id === selectedCategory;
               return (
                 <div
-                  key={category.slug}
+                  key={category.id}
                   onClick={async () => {
-                    setSelectedCategory(category.slug);
+                    setSelectedCategory(category.id);
                     // Clear hover on click to prevent stuck hover states
                     setHoveredCategory(null);
 
                     // Persist selection so Back restores it
                     if (typeof window !== 'undefined') {
-                      sessionStorage.setItem('homeSelectedCategory', category.slug);
+                      sessionStorage.setItem('homeSelectedCategory', category.id);
                     }
 
                     // Record search for category selection
@@ -528,7 +513,7 @@ export default function HomePage() {
                       isAuthenticated
                     );
                   }}
-                  onMouseEnter={() => !isTouchDevice && setHoveredCategory(category.slug)}
+                  onMouseEnter={() => !isTouchDevice && setHoveredCategory(category.id)}
                   onMouseLeave={() => !isTouchDevice && setHoveredCategory(null)}
                   onTouchStart={() => {
                     // For touch devices, prevent hover state
@@ -579,7 +564,7 @@ export default function HomePage() {
           <div className="flex flex-wrap justify-center gap-2 min-h-[48px] items-center">
             {(() => {
               const activeCategory = hoveredCategory || selectedCategory;
-              const services = activeCategory === 'kids' ? kidsServices : (categoryServices[activeCategory] || []);
+              const services = categoryServices[activeCategory] || [];
 
               if (services.length === 0) {
                 return (
@@ -597,10 +582,7 @@ export default function HomePage() {
 
               // Add service pills
               servicesToShow.forEach((service, index) => {
-                const href =
-                  activeCategory === 'kids'
-                    ? `/search?service_catalog_id=${service.id}&service_name=${encodeURIComponent(service.name)}&age_group=kids&from=home`
-                    : `/search?service_catalog_id=${service.id}&service_name=${encodeURIComponent(service.name)}&from=home`;
+                const href = `/search?service_catalog_id=${service.id}&service_name=${encodeURIComponent(service.name)}&from=home`;
                 pills.push(
                   <Link
                     key={service.id}
