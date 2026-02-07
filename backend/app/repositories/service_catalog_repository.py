@@ -21,6 +21,7 @@ from sqlalchemy.sql import func
 
 from ..models.instructor import InstructorProfile
 from ..models.service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog
+from ..models.subcategory import ServiceSubcategory
 from ..models.user import User
 from .base_repository import BaseRepository
 
@@ -190,7 +191,9 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
 
         # Apply filters
         if category_id is not None:
-            query = query.filter(ServiceCatalog.category_id == category_id)
+            query = query.join(
+                ServiceSubcategory, ServiceCatalog.subcategory_id == ServiceSubcategory.id
+            ).filter(ServiceSubcategory.category_id == category_id)
 
         if online_capable is not None:
             query = query.filter(ServiceCatalog.online_capable == online_capable)
@@ -335,11 +338,13 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         return len(values)
 
     def _apply_eager_loading(self, query: Any) -> Any:
-        """Apply eager loading for category relationship."""
-        return query.options(joinedload(ServiceCatalog.category))
+        """Apply eager loading for subcategory→category relationship."""
+        return query.options(
+            joinedload(ServiceCatalog.subcategory).joinedload(ServiceSubcategory.category)
+        )
 
     def get_active_services_with_categories(
-        self, category_id: Optional[int] = None, skip: int = 0, limit: Optional[int] = None
+        self, category_id: Optional[str] = None, skip: int = 0, limit: Optional[int] = None
     ) -> List[ServiceCatalog]:
         """
         Get active services with categories eagerly loaded, ordered by display_order.
@@ -356,13 +361,15 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         """
         query = (
             self.db.query(ServiceCatalog)
-            .options(joinedload(ServiceCatalog.category))
+            .options(joinedload(ServiceCatalog.subcategory).joinedload(ServiceSubcategory.category))
             .filter(ServiceCatalog.is_active == True)
         )
         query = _apply_active_catalog_predicate(query)
 
         if category_id:
-            query = query.filter(ServiceCatalog.category_id == category_id)
+            query = query.join(
+                ServiceSubcategory, ServiceCatalog.subcategory_id == ServiceSubcategory.id
+            ).filter(ServiceSubcategory.category_id == category_id)
 
         # Order by display_order in database (not Python)
         query = query.order_by(ServiceCatalog.display_order, ServiceCatalog.name)

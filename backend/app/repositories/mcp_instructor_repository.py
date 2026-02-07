@@ -12,6 +12,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.review import Review, ReviewStatus
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 
 
@@ -67,11 +68,12 @@ class MCPInstructorRepository:
             category_exists = (
                 self.db.query(InstructorService.id)
                 .join(ServiceCatalog, ServiceCatalog.id == InstructorService.service_catalog_id)
-                .join(ServiceCategory, ServiceCategory.id == ServiceCatalog.category_id)
+                .join(ServiceSubcategory, ServiceSubcategory.id == ServiceCatalog.subcategory_id)
+                .join(ServiceCategory, ServiceCategory.id == ServiceSubcategory.category_id)
                 .filter(
                     InstructorService.instructor_profile_id == InstructorProfile.id,
                     InstructorService.is_active.is_(True),
-                    ServiceCategory.slug == category_slug,
+                    ServiceCategory.name.ilike(category_slug),
                 )
                 .exists()
             )
@@ -108,7 +110,8 @@ class MCPInstructorRepository:
                 InstructorService, InstructorService.instructor_profile_id == InstructorProfile.id
             )
             .join(ServiceCatalog, ServiceCatalog.id == InstructorService.service_catalog_id)
-            .join(ServiceCategory, ServiceCategory.id == ServiceCatalog.category_id)
+            .join(ServiceSubcategory, ServiceSubcategory.id == ServiceCatalog.subcategory_id)
+            .join(ServiceCategory, ServiceCategory.id == ServiceSubcategory.category_id)
             .filter(
                 InstructorProfile.id.in_(ids),
                 InstructorService.is_active.is_(True),
@@ -199,7 +202,8 @@ class MCPInstructorRepository:
                 InstructorService, InstructorService.instructor_profile_id == InstructorProfile.id
             )
             .join(ServiceCatalog, ServiceCatalog.id == InstructorService.service_catalog_id)
-            .join(ServiceCategory, ServiceCategory.id == ServiceCatalog.category_id)
+            .join(ServiceSubcategory, ServiceSubcategory.id == ServiceCatalog.subcategory_id)
+            .join(ServiceCategory, ServiceCategory.id == ServiceSubcategory.category_id)
             .filter(InstructorService.is_active.is_(True))
         )
 

@@ -10,6 +10,7 @@ from typing import Sequence, Union
 from alembic import op
 from pgvector.sqlalchemy import Vector
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONB
 
 # revision identifiers, used by Alembic.
 revision: str = "002_instructor_system"
@@ -198,7 +199,6 @@ def upgrade() -> None:
         sa.Column("id", sa.String(26), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("subtitle", sa.String(100), nullable=True),
-        sa.Column("slug", sa.String(), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("display_order", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("icon_name", sa.String(50), nullable=True),
@@ -215,23 +215,180 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("slug"),
         comment="Service categories for organizing the service catalog",
     )
 
     op.create_index("ix_service_categories_id", "service_categories", ["id"])
-    op.create_index("idx_service_categories_slug", "service_categories", ["slug"])
     op.create_index("idx_service_categories_display_order", "service_categories", ["display_order"])
+
+    # Create service subcategories table (middle tier of 3-level taxonomy)
+    op.create_table(
+        "service_subcategories",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("category_id", sa.String(26), nullable=False),
+        sa.Column("name", sa.String(255), nullable=False),
+        sa.Column("display_order", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=True,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            onupdate=sa.func.now(),
+            nullable=True,
+        ),
+        sa.ForeignKeyConstraint(
+            ["category_id"],
+            ["service_categories.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("category_id", "name", name="uq_subcategory_category_name"),
+        comment="Subcategories within service categories (middle tier of 3-level taxonomy)",
+    )
+
+    op.create_index(
+        "idx_subcategories_category_id",
+        "service_subcategories",
+        ["category_id"],
+    )
+
+    # Create filter_definitions table
+    op.create_table(
+        "filter_definitions",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("key", sa.String(50), nullable=False),
+        sa.Column("display_name", sa.String(100), nullable=False),
+        sa.Column("filter_type", sa.String(20), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=True,
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("key"),
+        sa.CheckConstraint(
+            "filter_type IN ('single_select', 'multi_select')",
+            name="ck_filter_definitions_type",
+        ),
+        comment="Global filter type definitions (e.g., grade_level, goal, style)",
+    )
+
+    # Create filter_options table
+    op.create_table(
+        "filter_options",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("filter_definition_id", sa.String(26), nullable=False),
+        sa.Column("value", sa.String(100), nullable=False),
+        sa.Column("display_name", sa.String(200), nullable=False),
+        sa.Column("display_order", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=True,
+        ),
+        sa.ForeignKeyConstraint(
+            ["filter_definition_id"],
+            ["filter_definitions.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "filter_definition_id", "value", name="uq_filter_option_definition_value"
+        ),
+        comment="Possible values for each filter definition",
+    )
+
+    op.create_index(
+        "idx_filter_options_definition_id",
+        "filter_options",
+        ["filter_definition_id"],
+    )
+
+    # Create subcategory_filters table
+    op.create_table(
+        "subcategory_filters",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("subcategory_id", sa.String(26), nullable=False),
+        sa.Column("filter_definition_id", sa.String(26), nullable=False),
+        sa.Column("display_order", sa.Integer(), nullable=False, server_default="0"),
+        sa.ForeignKeyConstraint(
+            ["subcategory_id"],
+            ["service_subcategories.id"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["filter_definition_id"],
+            ["filter_definitions.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "subcategory_id",
+            "filter_definition_id",
+            name="uq_subcategory_filter_definition",
+        ),
+        comment="Links subcategories to their available filter definitions",
+    )
+
+    op.create_index(
+        "idx_subcategory_filters_subcategory_id",
+        "subcategory_filters",
+        ["subcategory_id"],
+    )
+
+    # Create subcategory_filter_options table
+    op.create_table(
+        "subcategory_filter_options",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("subcategory_filter_id", sa.String(26), nullable=False),
+        sa.Column("filter_option_id", sa.String(26), nullable=False),
+        sa.Column("display_order", sa.Integer(), nullable=False, server_default="0"),
+        sa.ForeignKeyConstraint(
+            ["subcategory_filter_id"],
+            ["subcategory_filters.id"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["filter_option_id"],
+            ["filter_options.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "subcategory_filter_id",
+            "filter_option_id",
+            name="uq_subcategory_filter_option",
+        ),
+        comment="Curated filter option choices per subcategory-filter pair",
+    )
+
+    op.create_index(
+        "idx_scfo_subcategory_filter_id",
+        "subcategory_filter_options",
+        ["subcategory_filter_id"],
+    )
 
     # Create service catalog table
     op.create_table(
         "service_catalog",
         sa.Column("id", sa.String(26), nullable=False),
-        sa.Column("category_id", sa.String(26), nullable=False),
+        sa.Column("subcategory_id", sa.String(26), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("slug", sa.String(), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("search_terms", sa.ARRAY(sa.String), nullable=True),
+        sa.Column(
+            "eligible_age_groups",
+            sa.ARRAY(sa.String),
+            nullable=False,
+            server_default="{toddler,kids,teens,adults}",
+        ),
         sa.Column("display_order", sa.Integer(), nullable=False, server_default="999"),
         sa.Column("embedding", Vector(384), nullable=True),
         sa.Column("related_services", sa.ARRAY(sa.String(26)), nullable=True),
@@ -251,9 +408,9 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.ForeignKeyConstraint(
-            ["category_id"],
-            ["service_categories.id"],
-            ondelete="RESTRICT",
+            ["subcategory_id"],
+            ["service_subcategories.id"],
+            ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("slug"),
@@ -261,7 +418,7 @@ def upgrade() -> None:
     )
 
     op.create_index("ix_service_catalog_id", "service_catalog", ["id"])
-    op.create_index("idx_service_catalog_category_id", "service_catalog", ["category_id"])
+    op.create_index("idx_service_catalog_subcategory_id", "service_catalog", ["subcategory_id"])
     op.create_index("idx_service_catalog_slug", "service_catalog", ["slug"])
     op.create_index("idx_service_catalog_is_active", "service_catalog", ["is_active"])
     op.create_index(
@@ -296,6 +453,12 @@ def upgrade() -> None:
         sa.Column("age_groups", sa.ARRAY(sa.Text), nullable=True),
         sa.Column("location_types", sa.ARRAY(sa.Text), nullable=True),
         sa.Column("max_distance_miles", sa.Integer(), nullable=True),
+        sa.Column(
+            "filter_selections",
+            JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default="{}",
+        ),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column(
             "created_at",
@@ -338,6 +501,12 @@ def upgrade() -> None:
         ["instructor_profile_id", "service_catalog_id"],
         unique=True,
         postgresql_where=sa.text("is_active = true"),
+    )
+    op.create_index(
+        "idx_instructor_services_filter_selections",
+        "instructor_services",
+        ["filter_selections"],
+        postgresql_using="gin",
     )
 
     op.create_check_constraint("check_hourly_rate_positive", "instructor_services", "hourly_rate > 0")
@@ -499,6 +668,7 @@ def downgrade() -> None:
     op.drop_constraint("check_duration_options_range", "instructor_services", type_="check")
     op.drop_constraint("check_duration_options_not_empty", "instructor_services", type_="check")
     op.drop_constraint("check_hourly_rate_positive", "instructor_services", type_="check")
+    op.drop_index("idx_instructor_services_filter_selections", table_name="instructor_services")
     op.drop_index("unique_instructor_catalog_service_active", table_name="instructor_services")
     op.drop_index("idx_instructor_services_active", table_name="instructor_services")
     op.drop_index("idx_instructor_services_service_catalog_id", table_name="instructor_services")
@@ -512,12 +682,23 @@ def downgrade() -> None:
     op.drop_index("idx_service_catalog_search_terms", table_name="service_catalog")
     op.drop_index("idx_service_catalog_is_active", table_name="service_catalog")
     op.drop_index("idx_service_catalog_slug", table_name="service_catalog")
-    op.drop_index("idx_service_catalog_category_id", table_name="service_catalog")
+    op.drop_index("idx_service_catalog_subcategory_id", table_name="service_catalog")
     op.drop_index("ix_service_catalog_id", table_name="service_catalog")
     op.drop_table("service_catalog")
 
+    # Drop filter tables (reverse order due to FKs)
+    op.drop_index("idx_scfo_subcategory_filter_id", table_name="subcategory_filter_options")
+    op.drop_table("subcategory_filter_options")
+    op.drop_index("idx_subcategory_filters_subcategory_id", table_name="subcategory_filters")
+    op.drop_table("subcategory_filters")
+    op.drop_index("idx_filter_options_definition_id", table_name="filter_options")
+    op.drop_table("filter_options")
+    op.drop_table("filter_definitions")
+
+    op.drop_index("idx_subcategories_category_id", table_name="service_subcategories")
+    op.drop_table("service_subcategories")
+
     op.drop_index("idx_service_categories_display_order", table_name="service_categories")
-    op.drop_index("idx_service_categories_slug", table_name="service_categories")
     op.drop_index("ix_service_categories_id", table_name="service_categories")
     op.drop_table("service_categories")
 

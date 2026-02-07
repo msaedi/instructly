@@ -18,6 +18,7 @@ from ..models.nl_search import SearchClick, SearchQuery
 from ..models.search_event import SearchEvent, SearchEventCandidate
 from ..models.search_history import SearchHistory
 from ..models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from ..models.subcategory import ServiceSubcategory
 
 
 @dataclass
@@ -724,7 +725,10 @@ class SearchAnalyticsRepository:
                     ServiceCatalog,
                     ServiceCatalog.id == SearchEventCandidate.service_catalog_id,
                 )
-                .outerjoin(ServiceCategory, ServiceCategory.id == ServiceCatalog.category_id)
+                .outerjoin(
+                    ServiceSubcategory, ServiceSubcategory.id == ServiceCatalog.subcategory_id
+                )
+                .outerjoin(ServiceCategory, ServiceCategory.id == ServiceSubcategory.category_id)
                 .filter(date_filter)
                 .group_by(date_expr, category_expr)
                 .order_by(date_expr)
@@ -778,7 +782,8 @@ class SearchAnalyticsRepository:
                 func.avg(SearchEventCandidate.position).label("avg_position"),
             )
             .join(ServiceCatalog, ServiceCatalog.id == SearchEventCandidate.service_catalog_id)
-            .join(ServiceCategory, ServiceCategory.id == ServiceCatalog.category_id)
+            .join(ServiceSubcategory, ServiceSubcategory.id == ServiceCatalog.subcategory_id)
+            .join(ServiceCategory, ServiceCategory.id == ServiceSubcategory.category_id)
             .filter(date_filter)
             .group_by(
                 SearchEventCandidate.service_catalog_id,

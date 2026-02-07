@@ -17,6 +17,7 @@ from ..models.badge import BadgeDefinition, BadgeProgress, StudentBadge
 from ..models.booking import Booking, BookingStatus
 from ..models.review import Review, ReviewStatus
 from ..models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from ..models.subcategory import ServiceSubcategory
 from ..models.user import User
 from .base_repository import BaseRepository
 
@@ -456,11 +457,12 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
 
     def count_distinct_completed_categories(self, student_id: str) -> int:
         rows = (
-            self.db.query(func.count(func.distinct(ServiceCategory.slug)))
+            self.db.query(func.count(func.distinct(ServiceCategory.id)))
             .select_from(Booking)
             .join(InstructorService, Booking.instructor_service_id == InstructorService.id)
             .join(ServiceCatalog, InstructorService.service_catalog_id == ServiceCatalog.id)
-            .join(ServiceCategory, ServiceCatalog.category_id == ServiceCategory.id)
+            .join(ServiceSubcategory, ServiceCatalog.subcategory_id == ServiceSubcategory.id)
+            .join(ServiceCategory, ServiceSubcategory.category_id == ServiceCategory.id)
             .filter(
                 Booking.student_id == student_id,
                 Booking.status == BookingStatus.COMPLETED,
@@ -472,17 +474,18 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
 
     def has_rebook_in_any_category(self, student_id: str) -> bool:
         row = (
-            self.db.query(ServiceCategory.slug)
+            self.db.query(ServiceCategory.id)
             .select_from(Booking)
             .join(InstructorService, Booking.instructor_service_id == InstructorService.id)
             .join(ServiceCatalog, InstructorService.service_catalog_id == ServiceCatalog.id)
-            .join(ServiceCategory, ServiceCatalog.category_id == ServiceCategory.id)
+            .join(ServiceSubcategory, ServiceCatalog.subcategory_id == ServiceSubcategory.id)
+            .join(ServiceCategory, ServiceSubcategory.category_id == ServiceCategory.id)
             .filter(
                 Booking.student_id == student_id,
                 Booking.status == BookingStatus.COMPLETED,
                 Booking.completed_at.isnot(None),
             )
-            .group_by(ServiceCategory.slug)
+            .group_by(ServiceCategory.id)
             .having(func.count(Booking.id) >= 2)
             .first()
         )

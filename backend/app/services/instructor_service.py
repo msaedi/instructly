@@ -1332,7 +1332,7 @@ class InstructorService(BaseService):
                 "id": cat.id,
                 "name": cat.name,
                 "subtitle": getattr(cat, "subtitle", None),
-                "slug": cat.slug,
+                "slug": cat.id,
                 "description": cat.description,
                 "display_order": cat.display_order,
                 "icon_name": getattr(cat, "icon_name", None),
@@ -1418,8 +1418,8 @@ class InstructorService(BaseService):
         """Convert catalog service to dictionary."""
         return {
             "id": service.id,
-            "category_id": service.category_id,
-            "category": service.category.name if service.category else None,
+            "category_id": service.subcategory.category_id if service.subcategory else None,
+            "category": service.category_name,
             "name": service.name,
             "slug": service.slug,
             "description": service.description,
@@ -1484,7 +1484,9 @@ class InstructorService(BaseService):
         # Apply additional filters if provided
         filtered_results = []
         for service, score in similar_services:
-            if category_id and service.category_id != category_id:
+            if category_id and (
+                not service.subcategory or service.subcategory.category_id != str(category_id)
+            ):
                 continue
             if online_capable is not None and service.online_capable != online_capable:
                 continue
@@ -1698,7 +1700,7 @@ class InstructorService(BaseService):
             category_data: JsonDict = {
                 "id": category.id,
                 "name": category.name,
-                "slug": category.slug,
+                "slug": category.id,
                 "icon_name": category.icon_name,
                 "services": services_list,
             }
@@ -1777,7 +1779,7 @@ class InstructorService(BaseService):
             category_data: JsonDict = {
                 "id": category.id,
                 "name": category.name,
-                "slug": category.slug,
+                "slug": category.id,
                 "subtitle": category.subtitle if hasattr(category, "subtitle") else "",
                 "description": category.description,
                 "icon_name": category.icon_name,
@@ -1801,7 +1803,7 @@ class InstructorService(BaseService):
 
                 service_data = {
                     "id": service.id,
-                    "category_id": service.category_id,
+                    "category_id": service.subcategory.category_id if service.subcategory else None,
                     "name": service.name,
                     "slug": service.slug,
                     "description": service.description,
