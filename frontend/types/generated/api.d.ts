@@ -11011,7 +11011,7 @@ export type components = {
             /** Name */
             name: string;
             /** Slug */
-            slug: string;
+            slug?: string | null;
         };
         /**
          * CatalogServiceResponse
@@ -11047,7 +11047,7 @@ export type components = {
              */
             search_terms: string[];
             /** Slug */
-            slug: string;
+            slug?: string | null;
             /** Subcategory Id */
             subcategory_id: string;
             /**
@@ -11171,7 +11171,7 @@ export type components = {
             /** Search Terms */
             search_terms?: string[];
             /** Slug */
-            slug: string;
+            slug?: string | null;
             /** Subcategory Id */
             subcategory_id: string;
         };
@@ -14291,7 +14291,7 @@ export type components = {
             /** Name */
             name: string;
             /** Slug */
-            slug: string;
+            slug?: string | null;
         };
         /** MCPInstructorStats */
         MCPInstructorStats: {
@@ -14542,7 +14542,7 @@ export type components = {
             /** Name */
             name: string;
             /** Slug */
-            slug: string;
+            slug?: string | null;
             /** Subcategory Name */
             subcategory_name?: string | null;
         };
@@ -19885,7 +19885,7 @@ export type components = {
             /** Name */
             name: string;
             /** Slug */
-            slug: string;
+            slug?: string | null;
         };
         /**
          * TopReferrerOut

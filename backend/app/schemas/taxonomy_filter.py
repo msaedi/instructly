@@ -54,6 +54,25 @@ class SubcategoryFilterResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
 
+class FilterWithOptions(StrictModel):
+    """A filter definition with valid options and requirement flag.
+
+    Combines filter definition info with is_required (per-subcategory)
+    for use in filter dropdowns.
+    """
+
+    id: str
+    key: str = Field(..., description="Machine-readable key (e.g., 'grade_level')")
+    display_name: str = Field(..., description="Human-readable name (e.g., 'Grade Level')")
+    filter_type: str = Field(..., description="'single_select' or 'multi_select'")
+    is_required: bool = Field(
+        False, description="Whether this filter is required for the subcategory"
+    )
+    options: List[FilterOptionResponse] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+
 class InstructorFilterContext(StrictModel):
     """Filter context for instructor skill selection.
 

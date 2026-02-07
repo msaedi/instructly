@@ -6852,7 +6852,7 @@ export type components = {
  CatalogServiceMinimalResponse: {
  id: string;
  name: string;
- slug: string;
+ slug?: string | null;
  };
  CatalogServiceResponse: {
  category_name?: string | null;
@@ -6866,7 +6866,7 @@ export type components = {
  online_capable?: boolean | null;
  requires_certification?: boolean | null;
  search_terms: string[];
- slug: string;
+ slug?: string | null;
  subcategory_id: string;
  typical_duration_options: number[];
  };
@@ -6918,7 +6918,7 @@ export type components = {
  online_capable?: boolean | null;
  requires_certification?: boolean | null;
  search_terms?: string[];
- slug: string;
+ slug?: string | null;
  subcategory_id: string;
  };
  CategorySortBy: "revenue" | "bookings" | "growth" | "conversion";
@@ -7967,7 +7967,7 @@ export type components = {
  hourly_rate: string;
  is_active: boolean;
  name: string;
- slug: string;
+ slug?: string | null;
  };
  MCPInstructorStats: {
  bookings_cancelled: number;
@@ -8092,7 +8092,7 @@ export type components = {
  id: string;
  is_active: boolean;
  name: string;
- slug: string;
+ slug?: string | null;
  subcategory_name?: string | null;
  };
  MCPServiceCatalogResponse: {
@@ -9924,7 +9924,7 @@ export type components = {
  id: string;
  is_trending: boolean;
  name: string;
- slug: string;
+ slug?: string | null;
  };
  TopReferrerOut: {
  code?: string | null;

@@ -115,3 +115,30 @@ class InstructorServiceCapabilitiesUpdate(StrictRequestModel):
     offers_travel: Optional[bool] = None
     offers_at_location: Optional[bool] = None
     offers_online: Optional[bool] = None
+
+
+# ── Phase 3: richer catalog schemas for slug-based routing ──
+
+
+class ServiceCatalogSummary(StrictModel):
+    """Lightweight service listing within a subcategory."""
+
+    id: str
+    slug: Optional[str] = None
+    name: str
+    eligible_age_groups: List[str] = Field(default_factory=list)
+    default_duration_minutes: int = 60
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
+
+
+class ServiceCatalogDetail(ServiceCatalogSummary):
+    """Full service detail for instructor onboarding or detail pages."""
+
+    description: Optional[str] = None
+    price_floor_in_person_cents: Optional[int] = None
+    price_floor_online_cents: Optional[int] = None
+    subcategory_id: str = ""
+    subcategory_name: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)

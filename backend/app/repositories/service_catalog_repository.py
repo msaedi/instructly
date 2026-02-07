@@ -790,6 +790,46 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
 
         return cast(List[ServiceCatalog], base.limit(limit).all())
 
+    def get_by_slug(self, slug: str) -> Optional[ServiceCatalog]:
+        """Look up a service by its URL slug.
+
+        Args:
+            slug: URL-friendly identifier (e.g., "piano-lessons").
+
+        Returns:
+            Service with subcategory→category chain loaded, or None.
+        """
+        return cast(
+            Optional[ServiceCatalog],
+            self.db.query(ServiceCatalog)
+            .options(joinedload(ServiceCatalog.subcategory).joinedload(ServiceSubcategory.category))
+            .filter(ServiceCatalog.slug == slug, ServiceCatalog.is_active.is_(True))
+            .first(),
+        )
+
+    def get_by_subcategory(
+        self, subcategory_id: str, active_only: bool = True
+    ) -> List[ServiceCatalog]:
+        """All services for a subcategory, ordered by display_order.
+
+        Args:
+            subcategory_id: ULID of the parent subcategory.
+            active_only: Only return active services.
+
+        Returns:
+            Ordered list of services.
+        """
+        query = (
+            self.db.query(ServiceCatalog)
+            .filter(ServiceCatalog.subcategory_id == subcategory_id)
+            .order_by(ServiceCatalog.display_order, ServiceCatalog.name)
+        )
+
+        if active_only:
+            query = _apply_active_catalog_predicate(query)
+
+        return cast(List[ServiceCatalog], query.all())
+
     def get_services_by_eligible_age_group(
         self, age_group: str, limit: int = 50
     ) -> List[ServiceCatalog]:
