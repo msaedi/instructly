@@ -52,7 +52,9 @@ Available fields:
 - audience_hint: "kids" if children/teens/age under 18 mentioned, "adults" if explicitly for adults
 - skill_level: "beginner", "intermediate", or "advanced"
 - urgency: "high" (urgent/asap), "medium" (soon), "low" (flexible)
-- category_hint: "music", "tutoring", "sports", "language", or null
+- category_hint: One of "Tutoring & Test Prep", "Music", "Dance", "Languages", "Sports & Fitness", "Arts", "Hobbies & Life Skills", or null
+- subcategory_hint: Specific subcategory within the category (e.g., "Martial Arts", "Test Prep", "Strings"), or null
+- service_hint: Exact bookable service name (e.g., "Karate", "SAT Prep", "Piano"), or null
 
 Today's date is {current_date}.
 
@@ -63,6 +65,8 @@ Rules:
 - Convert times appropriately (e.g., "evening" → time_after: "17:00")
 - "cheap"/"budget" → max_price based on category (music: 60, tutoring: 50, general: 50)
 - audience_hint is for ranking boost only, NOT filtering
+- Only set subcategory_hint if the query clearly targets a subcategory
+- Only set service_hint if the query names a specific bookable service
 """
 
 
@@ -325,6 +329,11 @@ class LLMParser:
 
         # Urgency
         result.urgency = llm_response.urgency or regex_result.urgency
+
+        # 3-level taxonomy hints — prefer LLM, fall back to regex
+        result.category_hint = llm_response.category_hint or regex_result.category_hint
+        result.subcategory_hint = llm_response.subcategory_hint or regex_result.subcategory_hint
+        result.service_hint = llm_response.service_hint or regex_result.service_hint
 
         # Complexity flag (LLM handled it, so not needed)
         result.needs_llm = False

@@ -436,6 +436,8 @@ class TestEmbeddingTextGeneration:
         service.name = "Piano Lessons"
         service.description = "Learn piano basics"
         service.category = None
+        service.subcategory = None
+        service.eligible_age_groups = None
 
         # Remove optional attributes to avoid hasattr returning True
         type(service).audience = property(lambda self: None)
@@ -453,6 +455,8 @@ class TestEmbeddingTextGeneration:
         service.description = "Learn piano"
         service.category = Mock()
         service.category.name = "Music"
+        service.subcategory = None
+        service.eligible_age_groups = None
 
         # Remove optional attributes
         type(service).audience = property(lambda self: None)
@@ -468,6 +472,8 @@ class TestEmbeddingTextGeneration:
         service.name = "Piano for Kids"
         service.description = "Fun lessons"
         service.category = None
+        service.subcategory = None
+        service.eligible_age_groups = None
         service.audience = "kids"
 
         # Remove optional attributes
@@ -483,6 +489,8 @@ class TestEmbeddingTextGeneration:
         service.name = "Piano Lessons"
         service.description = "All levels"
         service.category = None
+        service.subcategory = None
+        service.eligible_age_groups = None
         service.skill_levels = ["beginner", "intermediate"]
 
         # Remove optional attributes
@@ -526,6 +534,8 @@ class TestNeedsReembedding:
         service.name = "Updated Name"
         service.description = "New description"
         service.category = None
+        service.subcategory = None
+        service.eligible_age_groups = None
 
         # Remove optional attributes
         type(service).audience = property(lambda self: None)
@@ -543,6 +553,8 @@ class TestNeedsReembedding:
         service.name = "Piano Lessons"
         service.description = "Learn piano"
         service.category = None
+        service.subcategory = None
+        service.eligible_age_groups = None
 
         # Remove optional attributes
         type(service).audience = property(lambda self: None)
@@ -597,6 +609,8 @@ class TestBatchEmbedding:
             svc.name = f"Service {i}"
             svc.description = f"Description {i}"
             svc.category = None
+            svc.subcategory = None
+            svc.eligible_age_groups = None
             type(svc).audience = property(lambda self: None)
             type(svc).skill_levels = property(lambda self: None)
             services.append(svc)
@@ -617,6 +631,8 @@ class TestBatchEmbedding:
         service.name = "Piano Lessons"
         service.description = "Learn piano"
         service.category = None
+        service.subcategory = None
+        service.eligible_age_groups = None
         type(service).audience = property(lambda self: None)
         type(service).skill_levels = property(lambda self: None)
 
@@ -635,6 +651,8 @@ class TestBatchEmbedding:
         service.name = "Broken"
         service.description = "Broken"
         service.category = None
+        service.subcategory = None
+        service.eligible_age_groups = None
         type(service).audience = property(lambda self: None)
         type(service).skill_levels = property(lambda self: None)
 
@@ -660,6 +678,8 @@ class TestBatchEmbedding:
             svc.name = f"Service {i}"
             svc.description = f"Description {i}"
             svc.category = None
+            svc.subcategory = None
+            svc.eligible_age_groups = None
             type(svc).audience = property(lambda self: None)
             type(svc).skill_levels = property(lambda self: None)
             services.append(svc)

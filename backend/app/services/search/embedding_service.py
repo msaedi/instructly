@@ -277,19 +277,35 @@ class EmbeddingService:
         Generate the text to embed for a service.
 
         Concatenates relevant fields for rich semantic representation.
+        Builds a taxonomy chain: Category > Subcategory > Service name.
         """
         parts = [service.name]
 
         if service.description:
             parts.append(service.description)
 
-        # Add category if available
-        if hasattr(service, "category") and service.category:
+        # Add taxonomy chain: Category > Subcategory
+        subcategory = getattr(service, "subcategory", None)
+        if subcategory:
+            subcategory_name = getattr(subcategory, "name", None)
+            if subcategory_name:
+                parts.append(f"Subcategory: {subcategory_name}")
+            category = getattr(subcategory, "category", None)
+            if category:
+                cat_name = getattr(category, "name", None)
+                if cat_name:
+                    parts.append(f"Category: {cat_name}")
+        elif hasattr(service, "category") and service.category:
             category_name = getattr(service.category, "name", None)
             if category_name:
                 parts.append(f"Category: {category_name}")
         elif hasattr(service, "category_name") and service.category_name:
             parts.append(f"Category: {service.category_name}")
+
+        # Add eligible age groups
+        eligible = getattr(service, "eligible_age_groups", None)
+        if eligible:
+            parts.append(f"Age groups: {', '.join(eligible)}")
 
         # Add audience if available
         if hasattr(service, "audience") and service.audience:
