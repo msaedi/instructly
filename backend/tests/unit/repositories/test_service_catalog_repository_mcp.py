@@ -3,25 +3,41 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.repositories.service_catalog_repository import ServiceCatalogRepository
 
 
-def _ensure_category(db, slug: str) -> ServiceCategory:
-    category = db.query(ServiceCategory).filter(ServiceCategory.slug == slug).first()
+def _ensure_category(db, name: str) -> ServiceCategory:
+    category = db.query(ServiceCategory).filter(ServiceCategory.name == name).first()
     if category:
         return category
-    category = ServiceCategory(name=slug.title(), slug=slug)
+    category = ServiceCategory(name=name)
     db.add(category)
     db.flush()
     return category
 
 
-def _create_service(db, *, name: str, slug: str, category_slug: str, is_active: bool) -> ServiceCatalog:
-    category = _ensure_category(db, category_slug)
+def _ensure_subcategory(db, category: ServiceCategory, name: str) -> ServiceSubcategory:
+    subcategory = (
+        db.query(ServiceSubcategory)
+        .filter(ServiceSubcategory.category_id == category.id, ServiceSubcategory.name == name)
+        .first()
+    )
+    if subcategory:
+        return subcategory
+    subcategory = ServiceSubcategory(name=name, category_id=category.id, display_order=1)
+    db.add(subcategory)
+    db.flush()
+    return subcategory
+
+
+def _create_service(db, *, name: str, slug: str, category_name: str, is_active: bool) -> ServiceCatalog:
+    category = _ensure_category(db, category_name)
+    subcategory = _ensure_subcategory(db, category, f"{category_name} General")
     service = ServiceCatalog(
         name=name,
         slug=slug,
-        category_id=category.id,
+        subcategory_id=subcategory.id,
         is_active=is_active,
     )
     service.created_at = datetime.now(timezone.utc)
@@ -36,14 +52,14 @@ def test_service_catalog_repository_filters_and_searches(db):
         db,
         name="Swimming Lessons",
         slug="swim-lessons-test",
-        category_slug="fitness-mcp",
+        category_name="Fitness MCP",
         is_active=True,
     )
     _create_service(
         db,
         name="Inactive Service",
         slug="inactive-service-test",
-        category_slug="fitness-mcp",
+        category_name="Fitness MCP",
         is_active=False,
     )
 

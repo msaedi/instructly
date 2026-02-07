@@ -20,6 +20,7 @@ from app.models.referrals import (
     RewardStatus,
 )
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.services import referral_fraud
 from app.services.referral_service import ReferralService
@@ -100,14 +101,21 @@ def _get_or_create_catalog_entry(db) -> ServiceCatalog:
 
     category = ServiceCategory(
         name="Test Category",
-        slug=f"test-category-{uuid.uuid4().hex[:6]}",
         description="Test category",
     )
     db.add(category)
     db.flush()
 
-    catalog = ServiceCatalog(
+    subcategory = ServiceSubcategory(
+        name="General",
         category_id=category.id,
+        display_order=1,
+    )
+    db.add(subcategory)
+    db.flush()
+
+    catalog = ServiceCatalog(
+        subcategory_id=subcategory.id,
         name="Test Service",
         slug=f"test-service-{uuid.uuid4().hex[:6]}",
         description="Test service",

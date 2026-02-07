@@ -32,19 +32,19 @@ class TestAllServicesWithInstructorsEndpoint:
         mock_instructor_service.get_all_services_with_instructors.return_value = {
             "categories": [
                 {
-                    "id": 1,
+                    "id": "cat-1",
                     "name": "Music",
-                    "slug": "music",
                     "subtitle": "Instrument Voice Theory",
                     "description": "Musical instruction",
                     "services": [
                         {
-                            "id": 1,
-                            "category_id": 1,
+                            "id": "svc-1",
+                            "subcategory_id": "sub-1",
                             "name": "Piano Lessons",
                             "slug": "piano-lessons",
                             "description": "Learn piano",
                             "search_terms": ["piano", "keyboard"],
+                            "eligible_age_groups": ["toddler", "kids", "teens", "adults"],
                             "display_order": 1,
                             "online_capable": True,
                             "requires_certification": False,
@@ -57,12 +57,13 @@ class TestAllServicesWithInstructorsEndpoint:
                             "actual_max_price": 150,
                         },
                         {
-                            "id": 2,
-                            "category_id": 1,
+                            "id": "svc-2",
+                            "subcategory_id": "sub-1",
                             "name": "Guitar Lessons",
                             "slug": "guitar-lessons",
                             "description": "Learn guitar",
                             "search_terms": ["guitar", "acoustic", "electric"],
+                            "eligible_age_groups": ["toddler", "kids", "teens", "adults"],
                             "display_order": 2,
                             "online_capable": True,
                             "requires_certification": False,
@@ -77,19 +78,19 @@ class TestAllServicesWithInstructorsEndpoint:
                     ],
                 },
                 {
-                    "id": 2,
+                    "id": "cat-2",
                     "name": "Sports & Fitness",
-                    "slug": "sports-fitness",
                     "subtitle": "",
                     "description": "Physical fitness and sports",
                     "services": [
                         {
-                            "id": 10,
-                            "category_id": 2,
+                            "id": "svc-10",
+                            "subcategory_id": "sub-2",
                             "name": "Yoga",
                             "slug": "yoga",
                             "description": "Yoga instruction",
                             "search_terms": ["yoga", "meditation"],
+                            "eligible_age_groups": ["teens", "adults"],
                             "display_order": 1,
                             "online_capable": True,
                             "requires_certification": True,
@@ -102,12 +103,13 @@ class TestAllServicesWithInstructorsEndpoint:
                             "actual_max_price": 100,
                         },
                         {
-                            "id": 11,
-                            "category_id": 2,
+                            "id": "svc-11",
+                            "subcategory_id": "sub-2",
                             "name": "Personal Training",
                             "slug": "personal-training",
                             "description": "One-on-one fitness training",
                             "search_terms": ["fitness", "training", "gym"],
+                            "eligible_age_groups": ["teens", "adults"],
                             "display_order": 2,
                             "online_capable": False,
                             "requires_certification": True,
@@ -146,7 +148,6 @@ class TestAllServicesWithInstructorsEndpoint:
         # Check first category
         music_category = data["categories"][0]
         assert music_category["name"] == "Music"
-        assert music_category["slug"] == "music"
         assert len(music_category["services"]) == 2
 
         # Check service data
@@ -193,21 +194,21 @@ class TestAllServicesWithInstructorsEndpoint:
         mock_instructor_service.get_all_services_with_instructors.return_value = {
             "categories": [
                 {
-                    "id": 1,
+                    "id": "cat-1",
                     "name": "Test Category",
-                    "slug": "test",
                     "subtitle": "",
                     "description": "Test",
                     "services": [
                         {
-                            "id": 1,
+                            "id": "svc-1",
+                            "subcategory_id": "sub-1",
                             "name": "Active Service 1",
                             "active_instructors": 5,
                             "display_order": 2,
-                            "category_id": 1,
                             "slug": "active-1",
                             "description": "",
                             "search_terms": [],
+                            "eligible_age_groups": [],
                             "online_capable": True,
                             "requires_certification": False,
                             "is_active": True,
@@ -218,14 +219,15 @@ class TestAllServicesWithInstructorsEndpoint:
                             "actual_max_price": 100,
                         },
                         {
-                            "id": 2,
+                            "id": "svc-2",
+                            "subcategory_id": "sub-1",
                             "name": "Active Service 2",
                             "active_instructors": 3,
                             "display_order": 1,
-                            "category_id": 1,
                             "slug": "active-2",
                             "description": "",
                             "search_terms": [],
+                            "eligible_age_groups": [],
                             "online_capable": True,
                             "requires_certification": False,
                             "is_active": True,
@@ -236,14 +238,15 @@ class TestAllServicesWithInstructorsEndpoint:
                             "actual_max_price": 80,
                         },
                         {
-                            "id": 3,
+                            "id": "svc-3",
+                            "subcategory_id": "sub-1",
                             "name": "Inactive Service 1",
                             "active_instructors": 0,
                             "display_order": 1,
-                            "category_id": 1,
                             "slug": "inactive-1",
                             "description": "",
                             "search_terms": [],
+                            "eligible_age_groups": [],
                             "online_capable": True,
                             "requires_certification": False,
                             "is_active": True,
@@ -254,14 +257,15 @@ class TestAllServicesWithInstructorsEndpoint:
                             "actual_max_price": None,
                         },
                         {
-                            "id": 4,
+                            "id": "svc-4",
+                            "subcategory_id": "sub-1",
                             "name": "Inactive Service 2",
                             "active_instructors": 0,
                             "display_order": 2,
-                            "category_id": 1,
                             "slug": "inactive-2",
                             "description": "",
                             "search_terms": [],
+                            "eligible_age_groups": [],
                             "online_capable": True,
                             "requires_certification": False,
                             "is_active": True,

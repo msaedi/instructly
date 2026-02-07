@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Set, cast
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    JSON,
     Boolean,
     Column,
     DateTime,
@@ -350,7 +351,12 @@ class InstructorService(Base):
     levels_taught: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     age_groups: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     location_types: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
-    filter_selections = Column(JSONB, nullable=False, default={}, server_default="{}")
+    filter_selections = Column(
+        JSONB(astext_type=Text()).with_variant(JSON(), "sqlite"),
+        nullable=False,
+        default={},
+        server_default="{}",
+    )
     offers_travel = Column(Boolean, nullable=False, default=False)
     offers_at_location = Column(Boolean, nullable=False, default=False)
     offers_online = Column(Boolean, nullable=False, default=True)

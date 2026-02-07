@@ -18,7 +18,7 @@ def test_list_instructors_returns_structure(db, test_instructor):
         status=None,
         is_founding=None,
         service_slug=None,
-        category_slug=None,
+        category_name=None,
         limit=10,
         cursor=None,
     )

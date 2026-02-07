@@ -33,7 +33,7 @@ class MCPInstructorRepository:
         status: str | None,
         is_founding: bool | None,
         service_slug: str | None,
-        category_slug: str | None,
+        category_name: str | None,
         limit: int,
         cursor: str | None,
     ) -> tuple[list[InstructorProfile], str | None]:
@@ -64,7 +64,7 @@ class MCPInstructorRepository:
             )
             query = query.filter(service_exists)
 
-        if category_slug:
+        if category_name:
             category_exists = (
                 self.db.query(InstructorService.id)
                 .join(ServiceCatalog, ServiceCatalog.id == InstructorService.service_catalog_id)
@@ -73,7 +73,7 @@ class MCPInstructorRepository:
                 .filter(
                     InstructorService.instructor_profile_id == InstructorProfile.id,
                     InstructorService.is_active.is_(True),
-                    ServiceCategory.name.ilike(category_slug),
+                    ServiceCategory.name.ilike(category_name),
                 )
                 .exists()
             )
@@ -258,7 +258,8 @@ class MCPInstructorRepository:
                 joinedload(InstructorProfile.user),
                 selectinload(InstructorProfile.instructor_services)
                 .joinedload(InstructorService.catalog_entry)
-                .joinedload(ServiceCatalog.category),
+                .joinedload(ServiceCatalog.subcategory)
+                .joinedload(ServiceSubcategory.category),
             )
         )
 

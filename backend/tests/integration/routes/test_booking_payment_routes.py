@@ -156,6 +156,7 @@ from sqlalchemy.orm import Session
 from app.core.enums import RoleName
 from app.models.rbac import Role
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 
 
@@ -231,20 +232,28 @@ class TestBookingPaymentRoutes:
         db.add(profile)
         db.flush()
 
-        # Create service category and catalog
+        # Create service category, subcategory, and catalog
         category_ulid = str(ulid.ULID())
         category = ServiceCategory(
             id=category_ulid,
             name="Test Category",
-            slug=f"test-category-{category_ulid.lower()}",
             description="Test category",
         )
         db.add(category)
+        db.flush()
+
+        subcategory = ServiceSubcategory(
+            name="General",
+            category_id=category.id,
+            display_order=1,
+        )
+        db.add(subcategory)
+        db.flush()
 
         catalog_ulid = str(ulid.ULID())
         catalog = ServiceCatalog(
             id=catalog_ulid,
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             name="Test Service",
             slug=f"test-service-{catalog_ulid.lower()}",
             description="Test service",

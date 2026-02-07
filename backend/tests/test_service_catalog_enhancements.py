@@ -21,6 +21,7 @@ from app.models.service_catalog import (
     ServiceCatalog,
     ServiceCategory,
 )
+from app.models.subcategory import ServiceSubcategory
 from app.repositories.factory import RepositoryFactory
 from app.services.instructor_service import InstructorService as InstructorServiceClass
 
@@ -43,7 +44,6 @@ class TestServiceCatalogRepository:
         # Create test service with embedding
         category = ServiceCategory(
             name="Test Category",
-            slug=unique_slug("test-category"),
             description="Test",
             display_order=1,
             icon_name="test-icon",
@@ -51,10 +51,14 @@ class TestServiceCatalogRepository:
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
+        db.flush()
+
         # Create service with embedding (384 dimensions)
         test_embedding = [0.1] * 384  # Simplified embedding
         service = ServiceCatalog(
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             name="Test Service",
             slug=unique_slug("test-service"),
             description="Test service for vector search",
@@ -92,9 +96,13 @@ class TestServiceCatalogRepository:
         """Test searching services with multiple filters."""
         # Create test data
         category = ServiceCategory(
-            name="Music", slug=unique_slug("music"), description="Music lessons", display_order=1
+            name="Music", description="Music lessons", display_order=1
         )
         db.add(category)
+        db.flush()
+
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
         db.flush()
 
         # Create multiple services with unique names
@@ -125,7 +133,7 @@ class TestServiceCatalogRepository:
         created_services = []
         for data in services_data:
             service = ServiceCatalog(
-                category_id=category.id, description=f"Learn {data['name']}", display_order=999, is_active=True, **data
+                subcategory_id=subcategory.id, description=f"Learn {data['name']}", display_order=999, is_active=True, **data
             )
             db.add(service)
             created_services.append(service)
@@ -159,14 +167,18 @@ class TestServiceCatalogRepository:
     def test_get_popular_services(self, db: Session):
         """Test retrieving popular services based on analytics."""
         # Create test services and analytics
-        category = ServiceCategory(name="Test", slug=unique_slug("test"), description="Test", display_order=1)
+        category = ServiceCategory(name="Test", description="Test", display_order=1)
         db.add(category)
+        db.flush()
+
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
         db.flush()
 
         services = []
         for i in range(3):
             service = ServiceCatalog(
-                category_id=category.id,
+                subcategory_id=subcategory.id,
                 name=f"Test Popular Service {i}",
                 slug=unique_slug(f"service-{i}"),
                 description=f"Test service {i}",
@@ -211,12 +223,16 @@ class TestServiceAnalyticsRepository:
     def test_get_or_create_analytics(self, db: Session):
         """Test get_or_create method for analytics."""
         # Create test service
-        category = ServiceCategory(name="Test", slug=unique_slug("test"), description="Test", display_order=1)
+        category = ServiceCategory(name="Test", description="Test", display_order=1)
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
+        db.flush()
+
         service = ServiceCatalog(
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             name="Test Service",
             slug=unique_slug("test-service"),
             description="Test",
@@ -239,12 +255,16 @@ class TestServiceAnalyticsRepository:
     def test_increment_search_count(self, db: Session):
         """Test incrementing search counts."""
         # Create test service and analytics
-        category = ServiceCategory(name="Test", slug=unique_slug("test"), description="Test", display_order=1)
+        category = ServiceCategory(name="Test", description="Test", display_order=1)
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
+        db.flush()
+
         service = ServiceCatalog(
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             name="Test Service",
             slug=unique_slug("test-service"),
             description="Test",
@@ -272,12 +292,16 @@ class TestServiceAnalyticsRepository:
     def test_update_from_bookings(self, db: Session):
         """Test updating analytics from booking statistics."""
         # Create test service
-        category = ServiceCategory(name="Test", slug=unique_slug("test"), description="Test", display_order=1)
+        category = ServiceCategory(name="Test", description="Test", display_order=1)
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
+        db.flush()
+
         service = ServiceCatalog(
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             name="Test Service",
             slug=unique_slug("test-service"),
             description="Test",
@@ -323,9 +347,13 @@ class TestInstructorServiceEnhancements:
         """Test semantic search functionality."""
         # Create test data
         category = ServiceCategory(
-            name="Music", slug=unique_slug("music"), description="Music lessons", display_order=1
+            name="Music", description="Music lessons", display_order=1
         )
         db.add(category)
+        db.flush()
+
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
         db.flush()
 
         # Create services with embeddings and unique names
@@ -349,7 +377,7 @@ class TestInstructorServiceEnhancements:
         created_services = []
         for data in services_data:
             service = ServiceCatalog(
-                category_id=category.id, description=f"Learn {data['name']}", is_active=True, **data
+                subcategory_id=subcategory.id, description=f"Learn {data['name']}", is_active=True, **data
             )
             db.add(service)
             created_services.append(service)
@@ -378,16 +406,20 @@ class TestInstructorServiceEnhancements:
         """Test getting trending services."""
         # Create test data
         category = ServiceCategory(
-            name="Academic", slug=unique_slug("academic"), description="Academic tutoring", display_order=1
+            name="Academic", description="Academic tutoring", display_order=1
         )
         db.add(category)
+        db.flush()
+
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
         db.flush()
 
         # Create services
         services = []
         for i in range(3):
             service = ServiceCatalog(
-                category_id=category.id,
+                subcategory_id=subcategory.id,
                 name=f"Test Trending Service {i}",
                 slug=unique_slug(f"service-{i}"),
                 description=f"Test service {i}",
@@ -430,14 +462,18 @@ class TestInstructorServiceEnhancements:
         """Test enhanced search with multiple filters."""
         # Create test data
         category = ServiceCategory(
-            name="Technology", slug=unique_slug("technology"), description="Tech skills", display_order=1
+            name="Technology", description="Tech skills", display_order=1
         )
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
+        db.flush()
+
         # Create services
         service = ServiceCatalog(
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             name="Test Python Programming",
             slug=unique_slug("python-programming"),
             description="Learn Python from basics to advanced",
@@ -530,7 +566,6 @@ class TestEnhancedModels:
         """Test ServiceCategory icon_name field."""
         category = ServiceCategory(
             name="Music & Arts",
-            slug=unique_slug("music-arts"),
             description="Musical and artistic instruction",
             display_order=1,
             icon_name="music-note",
@@ -543,12 +578,16 @@ class TestEnhancedModels:
 
     def test_service_catalog_new_fields(self, db: Session):
         """Test ServiceCatalog enhanced fields."""
-        category = ServiceCategory(name="Test", slug=unique_slug("test"), description="Test", display_order=1)
+        category = ServiceCategory(name="Test", description="Test", display_order=1)
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
+        db.flush()
+
         service = ServiceCatalog(
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             name="Test Enhanced Service",
             slug=unique_slug("enhanced-service"),
             description="Service with all new fields",
@@ -572,12 +611,16 @@ class TestEnhancedModels:
 
     def test_instructor_service_new_fields(self, db: Session, mock_instructor_profile):
         """Test InstructorService enhanced fields."""
-        category = ServiceCategory(name="Test", slug=unique_slug("test"), description="Test", display_order=1)
+        category = ServiceCategory(name="Test", description="Test", display_order=1)
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
+        db.flush()
+
         catalog_service = ServiceCatalog(
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             name="Test Service",
             slug=unique_slug("test-service"),
             description="Test",

@@ -302,20 +302,6 @@ class InstructorProfile(Base):
                 categories.add(service.catalog_entry.category.name)
         return categories
 
-    @property
-    def offered_category_slugs(self) -> Set[str]:
-        """
-        Get unique category slugs offered by this instructor.
-
-        Returns:
-            Set of category slugs
-        """
-        slugs = set()
-        for service in self.active_services:
-            if service.catalog_entry and service.catalog_entry.category:
-                slugs.add(service.catalog_entry.category.slug)
-        return slugs
-
     def offers_service(self, service_catalog_id: int) -> bool:
         """
         Check if instructor offers a specific catalog service.

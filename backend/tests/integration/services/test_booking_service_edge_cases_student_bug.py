@@ -15,6 +15,7 @@ from app.core.enums import RoleName
 from app.models.booking import BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
@@ -93,7 +94,12 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
     if not math_catalog:
         # Create one if it doesn't exist
         category = db.query(ServiceCategory).first()
-        math_catalog = ServiceCatalog(name="Math Tutoring", slug="math-tutoring", category_id=category.id)
+        subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+        if not subcategory:
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            db.add(subcategory)
+            db.flush()
+        math_catalog = ServiceCatalog(name="Math Tutoring", slug="math-tutoring", subcategory_id=subcategory.id)
         db.add(math_catalog)
         db.flush()
 
@@ -137,7 +143,12 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
     if not piano_catalog:
         # Create one if it doesn't exist
         category = db.query(ServiceCategory).first()
-        piano_catalog = ServiceCatalog(name="Piano Lessons", slug="piano-lessons", category_id=category.id)
+        subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+        if not subcategory:
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            db.add(subcategory)
+            db.flush()
+        piano_catalog = ServiceCatalog(name="Piano Lessons", slug="piano-lessons", subcategory_id=subcategory.id)
         db.add(piano_catalog)
         db.flush()
 

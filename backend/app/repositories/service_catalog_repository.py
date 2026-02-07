@@ -173,12 +173,14 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
                 # Use trigram similarity when available
                 query = query.filter(
                     or_(
-                        text("(name % :q) OR (similarity(name, :q) >= 0.3)").params(q=query_text),
                         text(
-                            "(description IS NOT NULL AND ((description % :q) OR (similarity(description, :q) >= 0.3)))"
+                            "(service_catalog.name % :q) OR (similarity(service_catalog.name, :q) >= 0.3)"
                         ).params(q=query_text),
                         text(
-                            "EXISTS (SELECT 1 FROM unnest(search_terms) AS term WHERE lower(term) LIKE lower(:pattern))"
+                            "(service_catalog.description IS NOT NULL AND ((service_catalog.description % :q) OR (similarity(service_catalog.description, :q) >= 0.3)))"
+                        ).params(q=query_text),
+                        text(
+                            "EXISTS (SELECT 1 FROM unnest(service_catalog.search_terms) AS term WHERE lower(term) LIKE lower(:pattern))"
                         ).params(pattern=search_pattern),
                     )
                 )
@@ -210,7 +212,9 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         if query_text:
             if self._pg_trgm_available:
                 query = query.order_by(
-                    text("COALESCE(similarity(name, :q), 0) DESC").params(q=query_text),
+                    text("COALESCE(similarity(service_catalog.name, :q), 0) DESC").params(
+                        q=query_text
+                    ),
                     ServiceCatalog.display_order,
                     ServiceCatalog.name,
                 )

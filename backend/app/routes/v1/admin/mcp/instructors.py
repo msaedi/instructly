@@ -41,7 +41,7 @@ async def list_instructors(
     status: Literal["registered", "onboarding", "live", "paused"] | None = None,
     is_founding: bool | None = None,
     service_slug: str | None = None,
-    category_slug: str | None = None,
+    category_name: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     cursor: str | None = None,
     principal: Principal = Depends(require_mcp_scope("mcp:read")),
@@ -53,7 +53,7 @@ async def list_instructors(
             status=status,
             is_founding=is_founding,
             service_slug=service_slug,
-            category_slug=category_slug,
+            category_name=category_name,
             limit=limit,
             cursor=cursor,
         )

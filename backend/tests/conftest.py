@@ -1053,12 +1053,12 @@ def _ensure_catalog_data():
             piano = session.query(ServiceCatalog).filter_by(slug="piano").first()
             guitar = session.query(ServiceCatalog).filter_by(slug="guitar").first()
             yoga = session.query(ServiceCatalog).filter_by(slug="yoga").first()
-            music = session.query(ServiceCategory).filter_by(slug="music").first()
-            sports = session.query(ServiceCategory).filter_by(slug="sports-fitness").first()
+            music = session.query(ServiceCategory).filter_by(name="Music").first()
+            sports = session.query(ServiceCategory).filter_by(name="Sports & Fitness").first()
 
             if not piano or not guitar or not yoga or not music or not sports:
                 raise RuntimeError(
-                    "Critical catalog entries (music, sports-fitness, piano, guitar, yoga) "
+                    "Critical catalog entries (Music, Sports & Fitness, piano, guitar, yoga) "
                     "not found after seeding"
                 )
 

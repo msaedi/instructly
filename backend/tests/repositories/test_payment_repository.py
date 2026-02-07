@@ -22,6 +22,7 @@ from app.models.payment import (
     PlatformCredit,
 )
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 from app.repositories.payment_repository import PaymentRepository
@@ -80,27 +81,34 @@ class TestPaymentRepository:
         db.add(profile)
         db.flush()
 
-        # Create service category and catalog item if they don't exist
-        category_ulid = str(ulid.ULID())
+        # Create service category, subcategory and catalog item if they don't exist
         category = db.query(ServiceCategory).filter_by(name="Test Category").first()
         if not category:
             category = ServiceCategory(
-                id=category_ulid,
+                id=str(ulid.ULID()),
                 name="Test Category",
-                slug=f"test-category-{category_ulid.lower()}",
                 description="Test category for unit tests",
             )
             db.add(category)
             db.flush()
 
-        service_ulid = str(ulid.ULID())
+        subcategory = db.query(ServiceSubcategory).filter_by(category_id=category.id).first()
+        if not subcategory:
+            subcategory = ServiceSubcategory(
+                name="General",
+                category_id=category.id,
+                display_order=1,
+            )
+            db.add(subcategory)
+            db.flush()
+
         catalog = db.query(ServiceCatalog).filter_by(name="Test Service").first()
         if not catalog:
             catalog = ServiceCatalog(
-                id=service_ulid,
-                category_id=category.id,
+                id=str(ulid.ULID()),
+                subcategory_id=subcategory.id,
                 name="Test Service",
-                slug=f"test-service-{service_ulid.lower()}",
+                slug=f"test-service-{str(ulid.ULID()).lower()}",
                 description="Test service for unit tests",
             )
             db.add(catalog)
@@ -819,23 +827,30 @@ class TestPaymentRepository:
         # Create instructor profile and service first
         from app.models.instructor import InstructorProfile
         from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+        from app.models.subcategory import ServiceSubcategory
 
-        # Create category and catalog with unique slugs
-        category_id = str(ulid.ULID())
+        # Create category, subcategory and catalog with unique slugs
         category = ServiceCategory(
-            id=category_id,
+            id=str(ulid.ULID()),
             name="Test Category",
-            slug=f"test-category-{category_id[:8]}",
             description="Test",
         )
         db.add(category)
+        db.flush()
 
-        catalog_id = str(ulid.ULID())
-        catalog = ServiceCatalog(
-            id=catalog_id,
+        subcategory = ServiceSubcategory(
+            name="General",
             category_id=category.id,
+            display_order=1,
+        )
+        db.add(subcategory)
+        db.flush()
+
+        catalog = ServiceCatalog(
+            id=str(ulid.ULID()),
+            subcategory_id=subcategory.id,
             name="Test Service",
-            slug=f"test-service-{catalog_id[:8]}",
+            slug=f"test-service-{str(ulid.ULID())[:8]}",
             description="Test",
         )
         db.add(catalog)
@@ -895,23 +910,30 @@ class TestPaymentRepository:
         # Create instructor profile and service first
         from app.models.instructor import InstructorProfile
         from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+        from app.models.subcategory import ServiceSubcategory
 
-        # Create category and catalog with unique slugs
-        category_id = str(ulid.ULID())
+        # Create category, subcategory and catalog with unique slugs
         category = ServiceCategory(
-            id=category_id,
+            id=str(ulid.ULID()),
             name="Test Category",
-            slug=f"test-category-{category_id[:8]}",
             description="Test",
         )
         db.add(category)
+        db.flush()
 
-        catalog_id = str(ulid.ULID())
-        catalog = ServiceCatalog(
-            id=catalog_id,
+        subcategory = ServiceSubcategory(
+            name="General",
             category_id=category.id,
+            display_order=1,
+        )
+        db.add(subcategory)
+        db.flush()
+
+        catalog = ServiceCatalog(
+            id=str(ulid.ULID()),
+            subcategory_id=subcategory.id,
             name="Test Service",
-            slug=f"test-service-{catalog_id[:8]}",
+            slug=f"test-service-{str(ulid.ULID())[:8]}",
             description="Test",
         )
         db.add(catalog)
@@ -976,23 +998,30 @@ class TestPaymentRepository:
         # Create instructor profile and service first
         from app.models.instructor import InstructorProfile
         from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+        from app.models.subcategory import ServiceSubcategory
 
-        # Create category and catalog with unique slugs
-        category_id = str(ulid.ULID())
+        # Create category, subcategory and catalog with unique slugs
         category = ServiceCategory(
-            id=category_id,
+            id=str(ulid.ULID()),
             name="Test Category",
-            slug=f"test-category-{category_id[:8]}",
             description="Test",
         )
         db.add(category)
+        db.flush()
 
-        catalog_id = str(ulid.ULID())
-        catalog = ServiceCatalog(
-            id=catalog_id,
+        subcategory = ServiceSubcategory(
+            name="General",
             category_id=category.id,
+            display_order=1,
+        )
+        db.add(subcategory)
+        db.flush()
+
+        catalog = ServiceCatalog(
+            id=str(ulid.ULID()),
+            subcategory_id=subcategory.id,
             name="Test Service",
-            slug=f"test-service-{catalog_id[:8]}",
+            slug=f"test-service-{str(ulid.ULID())[:8]}",
             description="Test",
         )
         db.add(catalog)

@@ -15,6 +15,7 @@ from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.instructor import InstructorProfile
 from app.models.payment import InstructorPayoutEvent, PaymentIntent, PlatformCredit
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.services.config_service import ConfigService
 from app.services.pricing_service import PricingService
@@ -70,38 +71,31 @@ def test_instructor(db: Session) -> tuple[User, InstructorProfile, InstructorSer
     db.add(profile)
     db.flush()
 
-    category_ulid = str(ulid.ULID())
-    category = (
-        db.query(ServiceCategory)
-        .filter_by(slug=f"webhook-category-{category_ulid.lower()}")
-        .first()
+    category = ServiceCategory(
+        id=str(ulid.ULID()),
+        name="Webhook Category",
+        description="Webhook category",
     )
-    if not category:
-        category = ServiceCategory(
-            id=category_ulid,
-            name="Webhook Category",
-            slug=f"webhook-category-{category_ulid.lower()}",
-            description="Webhook category",
-        )
-        db.add(category)
-        db.flush()
+    db.add(category)
+    db.flush()
 
-    service_ulid = str(ulid.ULID())
-    catalog = (
-        db.query(ServiceCatalog)
-        .filter_by(slug=f"webhook-service-{service_ulid.lower()}")
-        .first()
+    subcategory = ServiceSubcategory(
+        name="General",
+        category_id=category.id,
+        display_order=1,
     )
-    if not catalog:
-        catalog = ServiceCatalog(
-            id=service_ulid,
-            category_id=category.id,
-            name="Webhook Service",
-            slug=f"webhook-service-{service_ulid.lower()}",
-            description="Webhook service",
-        )
-        db.add(catalog)
-        db.flush()
+    db.add(subcategory)
+    db.flush()
+
+    catalog = ServiceCatalog(
+        id=str(ulid.ULID()),
+        subcategory_id=subcategory.id,
+        name="Webhook Service",
+        slug=f"webhook-service-{str(ulid.ULID()).lower()}",
+        description="Webhook service",
+    )
+    db.add(catalog)
+    db.flush()
 
     service = InstructorService(
         id=str(ulid.ULID()),

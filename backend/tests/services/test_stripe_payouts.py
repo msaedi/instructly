@@ -16,6 +16,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.review import Review, ReviewStatus, ReviewTip
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.services.config_service import ConfigService
 from app.services.pricing_service import PricingService
@@ -72,19 +73,20 @@ def test_instructor(db: Session) -> tuple[User, InstructorProfile, InstructorSer
     db.flush()
 
     category_ulid = str(ulid.ULID())
-    category = (
-        db.query(ServiceCategory)
-        .filter_by(slug=f"payout-category-{category_ulid.lower()}")
-        .first()
-    )
+    category = db.query(ServiceCategory).first()
     if not category:
         category = ServiceCategory(
             id=category_ulid,
             name="Payout Category",
-            slug=f"payout-category-{category_ulid.lower()}",
             description="Payout category",
         )
         db.add(category)
+        db.flush()
+
+    subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+    if not subcategory:
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
         db.flush()
 
     service_ulid = str(ulid.ULID())
@@ -96,7 +98,7 @@ def test_instructor(db: Session) -> tuple[User, InstructorProfile, InstructorSer
     if not catalog:
         catalog = ServiceCatalog(
             id=service_ulid,
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             name="Payout Service",
             slug=f"payout-service-{service_ulid.lower()}",
             description="Payout service",

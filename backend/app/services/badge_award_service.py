@@ -72,7 +72,7 @@ class BadgeAwardService:
         lesson_id: str,
         *,
         instructor_id: str,
-        category_slug: Optional[str],  # reserved for future badges
+        category_name: Optional[str],  # reserved for future badges
         booked_at_utc: Optional[datetime],
         completed_at_utc: datetime,
     ) -> None:

@@ -284,14 +284,23 @@ class TestInstructorsFilteringAPI:
         import uuid
 
         from app.models.service_catalog import ServiceCategory
+        from app.models.subcategory import ServiceSubcategory
 
         unique_id = str(uuid.uuid4())[:8]
-        category = ServiceCategory(name=f"Unused Category {unique_id}", slug=f"unused-category-{unique_id}")
+        category = ServiceCategory(name=f"Unused Category {unique_id}")
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(
+            name="General",
+            category_id=category.id,
+            display_order=1,
+        )
+        db.add(subcategory)
+        db.flush()
+
         unused_service = ServiceCatalog(
-            name=f"Unused Service {unique_id}", slug=f"unused-service-{unique_id}", category_id=category.id
+            name=f"Unused Service {unique_id}", slug=f"unused-service-{unique_id}", subcategory_id=subcategory.id
         )
         db.add(unused_service)
         db.commit()

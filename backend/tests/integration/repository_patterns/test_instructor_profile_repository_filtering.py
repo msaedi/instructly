@@ -13,10 +13,10 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.core.ulid_helper import generate_ulid
 from app.database import Base
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
@@ -156,9 +156,12 @@ class TestInstructorProfileRepositoryFiltering:
         catalog_services = test_db.query(ServiceCatalog).all()
         if not catalog_services:
             # Create minimal catalog if empty
-            category_ulid = generate_ulid()
-            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
+            category = ServiceCategory(name="Test Category")
             test_db.add(category)
+            test_db.flush()
+
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            test_db.add(subcategory)
             test_db.flush()
 
             service_names = [
@@ -175,7 +178,7 @@ class TestInstructorProfileRepositoryFiltering:
                 catalog_service = ServiceCatalog(
                     name=name + " Lessons",
                     slug=name.lower().replace(" ", "-") + "-lessons",
-                    category_id=category.id,
+                    subcategory_id=subcategory.id,
                     description=f"{name} instruction",
                 )
                 test_db.add(catalog_service)
@@ -456,12 +459,18 @@ class TestInstructorProfileRepositoryFiltering:
         # Create a catalog service for Rock & Roll
         category = repository.db.query(ServiceCategory).first()
         if not category:
-            category = ServiceCategory(name="Music", slug="music")
+            category = ServiceCategory(name="Music")
             repository.db.add(category)
             repository.db.flush()
 
+        subcategory = repository.db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+        if not subcategory:
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            repository.db.add(subcategory)
+            repository.db.flush()
+
         rock_catalog = ServiceCatalog(
-            name="Rock & Roll", slug="rock-and-roll", category_id=category.id, description="Rock and roll instruction"
+            name="Rock & Roll", slug="rock-and-roll", subcategory_id=subcategory.id, description="Rock and roll instruction"
         )
         repository.db.add(rock_catalog)
         repository.db.flush()

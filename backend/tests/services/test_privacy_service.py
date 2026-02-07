@@ -35,18 +35,27 @@ def sample_booking(db, sample_user_for_privacy, sample_instructor_for_privacy):
     import uuid
 
     from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+    from app.models.subcategory import ServiceSubcategory
 
     # Create unique slugs to avoid conflicts
     unique_id = str(uuid.uuid4())[:8]
 
     # Create a service category
-    category = ServiceCategory(name=f"Test Category {unique_id}", slug=f"test-category-{unique_id}")
+    category = ServiceCategory(name=f"Test Category {unique_id}")
     db.add(category)
+    db.flush()
+
+    subcategory = ServiceSubcategory(
+        name="General",
+        category_id=category.id,
+        display_order=1,
+    )
+    db.add(subcategory)
     db.flush()
 
     # Create a service catalog entry
     catalog_service = ServiceCatalog(
-        name=f"Test Service {unique_id}", slug=f"test-service-{unique_id}", category_id=category.id
+        name=f"Test Service {unique_id}", slug=f"test-service-{unique_id}", subcategory_id=subcategory.id
     )
     db.add(catalog_service)
     db.flush()
@@ -228,14 +237,23 @@ class TestPrivacyService:
         import uuid
 
         from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+        from app.models.subcategory import ServiceSubcategory
 
         unique_id = str(uuid.uuid4())[:8]
-        category = ServiceCategory(name=f"Test Category {unique_id}", slug=f"test-category-{unique_id}")
+        category = ServiceCategory(name=f"Test Category {unique_id}")
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(
+            name="General",
+            category_id=category.id,
+            display_order=1,
+        )
+        db.add(subcategory)
+        db.flush()
+
         catalog_service = ServiceCatalog(
-            name=f"Old Service {unique_id}", slug=f"old-service-{unique_id}", category_id=category.id
+            name=f"Old Service {unique_id}", slug=f"old-service-{unique_id}", subcategory_id=subcategory.id
         )
         db.add(catalog_service)
         db.flush()

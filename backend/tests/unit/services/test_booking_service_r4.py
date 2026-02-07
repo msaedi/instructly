@@ -517,7 +517,7 @@ def test_instructor_mark_complete_category_attribute_error(
     booking = make_booking(
         status=BookingStatus.CONFIRMED,
         instructor_id=instructor.id,
-        instructor_service=SimpleNamespace(),
+        instructor_service=SimpleNamespace(catalog_entry=None),
     )
     mock_repository.get_by_id.side_effect = [booking, booking]
 
@@ -535,7 +535,7 @@ def test_instructor_mark_complete_category_attribute_error(
         booking_service.instructor_mark_complete(booking.id, instructor, notes="done")
 
     _, kwargs = badge_cls.return_value.check_and_award_on_lesson_completed.call_args
-    assert kwargs["category_slug"] is None
+    assert kwargs["category_name"] is None
 
 
 def test_instructor_mark_complete_refresh_missing(
