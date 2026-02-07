@@ -19,6 +19,7 @@ from app.routes.v1 import (
     availability_windows as availability_windows_v1,
     beta as beta_v1,
     bookings as bookings_v1,
+    catalog as catalog_v1,
     codebase_metrics as codebase_metrics_v1,
     config as config_v1,
     conversations as conversations_v1,
@@ -122,6 +123,7 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(conversations_v1.router, prefix="/conversations")  # type: ignore[attr-defined]
     api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr-defined]
     api_v1.include_router(services_v1.router, prefix="/services")  # type: ignore[attr-defined]
+    api_v1.include_router(catalog_v1.router, prefix="/catalog")  # type: ignore[attr-defined]
     api_v1.include_router(favorites_v1.router, prefix="/favorites")  # type: ignore[attr-defined]
     api_v1.include_router(addresses_v1.router, prefix="/addresses")  # type: ignore[attr-defined]
     api_v1.include_router(search_v1.router, prefix="/search")  # type: ignore[attr-defined]

@@ -36,9 +36,12 @@ from ...schemas.service_catalog import (
     CatalogServiceMinimalResponse,
     CatalogServiceResponse,
     CategoryResponse,
+    FilterValidationResponse,
     InstructorServiceCapabilitiesUpdate,
     InstructorServiceCreate,
     InstructorServiceResponse,
+    UpdateFilterSelectionsRequest,
+    ValidateFiltersRequest,
 )
 from ...schemas.service_catalog_responses import (
     AllServicesMetadata,
@@ -459,3 +462,64 @@ async def get_kids_available_services(
     """
     services = await asyncio.to_thread(instructor_service.get_kids_available_services)
     return cast(List[CatalogServiceMinimalResponse], services)
+
+
+# ── Instructor filter management ──────────────────────────────
+
+
+@router.put(
+    "/instructor/services/{instructor_service_id}/filters",
+    response_model=InstructorServiceResponse,
+)
+async def update_filter_selections(
+    instructor_service_id: str,
+    body: UpdateFilterSelectionsRequest = Body(...),
+    current_user: User = Depends(get_current_active_user),
+    instructor_service: InstructorService = Depends(get_instructor_service),
+) -> InstructorServiceResponse:
+    """Update filter selections on an instructor service. Requires INSTRUCTOR role."""
+    if not current_user.is_instructor:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only instructors can update filter selections",
+        )
+
+    try:
+        updated = await asyncio.to_thread(
+            instructor_service.update_filter_selections,
+            instructor_id=current_user.id,
+            instructor_service_id=instructor_service_id,
+            filter_selections=body.filter_selections,
+        )
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
+
+    return InstructorServiceResponse(**updated)
+
+
+@router.post(
+    "/instructor/services/validate-filters",
+    response_model=FilterValidationResponse,
+)
+async def validate_filter_selections(
+    body: ValidateFiltersRequest = Body(...),
+    current_user: User = Depends(get_current_active_user),
+    instructor_service: InstructorService = Depends(get_instructor_service),
+) -> FilterValidationResponse:
+    """Validate filter selections without saving. Requires INSTRUCTOR role."""
+    if not current_user.is_instructor:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only instructors can validate filter selections",
+        )
+
+    try:
+        result = await asyncio.to_thread(
+            instructor_service.validate_filter_selections_for_service,
+            service_catalog_id=body.service_catalog_id,
+            selections=body.filter_selections,
+        )
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
+
+    return FilterValidationResponse(**result)

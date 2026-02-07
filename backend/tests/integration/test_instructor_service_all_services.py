@@ -50,34 +50,47 @@ class TestInstructorServiceAllServices:
         assert "metadata" in result
         assert len(result["categories"]) >= 2  # At least Music and Sports & Fitness
 
-        # Verify Music category — find the seed one (has services), not test-created empties
+        # Verify Music category — search ALL Music categories for the seed piano service.
+        # Other tests may commit extra Music categories with different services,
+        # so we scan across all of them rather than assuming the first match is correct.
         music_cats = [c for c in result["categories"] if c["name"] == "Music"]
         assert len(music_cats) >= 1
-        music_cat = next((c for c in music_cats if len(c["services"]) > 0), None)
-        assert music_cat is not None, "No Music category with services found"
-        assert len(music_cat["services"]) >= 1  # At least Piano
 
-        # Check Piano service has instructor
-        piano_service = next((s for s in music_cat["services"] if s["slug"] == "piano"), None)
-        assert piano_service is not None
+        piano_service = None
+        music_cat = None
+        for c in music_cats:
+            ps = next((s for s in c["services"] if s["slug"] == "piano"), None)
+            if ps:
+                piano_service = ps
+                music_cat = c
+                break
+        assert piano_service is not None, "Piano service (slug='piano') not found in any Music category"
+        assert music_cat is not None
+        assert len(music_cat["services"]) >= 1
         assert piano_service["active_instructors"] >= 1
         assert piano_service["instructor_count"] >= 1
 
-        # Verify Sports & Fitness category — find the seed one with services
+        # Verify Sports & Fitness category — same approach: search all for yoga
         sports_cats = [c for c in result["categories"] if c["name"] == "Sports & Fitness"]
         assert len(sports_cats) >= 1
-        sports_cat = next((c for c in sports_cats if len(c["services"]) > 0), None)
-        assert sports_cat is not None, "No Sports & Fitness category with services found"
 
-        # Check Yoga service has instructor
-        yoga_service = next((s for s in sports_cat["services"] if s["slug"] == "yoga"), None)
-        assert yoga_service is not None
+        yoga_service = None
+        sports_cat = None
+        for c in sports_cats:
+            ys = next((s for s in c["services"] if s["slug"] == "yoga"), None)
+            if ys:
+                yoga_service = ys
+                sports_cat = c
+                break
+        assert yoga_service is not None, "Yoga service (slug='yoga') not found in any Sports category"
+        assert sports_cat is not None
         assert yoga_service["active_instructors"] >= 1
 
-        # Check Personal Training service exists
-        # Note: We don't create a Personal Training instructor in our fixture,
-        # but other tests or seed data might, so we just check the field exists
-        pt_service = next((s for s in sports_cat["services"] if s["slug"] == "personal-training"), None)
+        # Check Personal Training service exists (optional — may not have fixture instructor)
+        pt_service = next(
+            (s for c in sports_cats for s in c["services"] if s["slug"] == "personal-training"),
+            None,
+        )
         if pt_service:
             assert "active_instructors" in pt_service
             assert pt_service["active_instructors"] >= 0
