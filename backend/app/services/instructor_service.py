@@ -1553,7 +1553,7 @@ class InstructorService(BaseService):
     def search_services_enhanced(
         self,
         query_text: Optional[str] = None,
-        category_id: Optional[int] = None,
+        category_id: Optional[str] = None,
         online_capable: Optional[bool] = None,
         requires_certification: Optional[bool] = None,
         min_price: Optional[float] = None,

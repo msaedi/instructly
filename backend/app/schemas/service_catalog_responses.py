@@ -121,11 +121,12 @@ class CategoryServiceDetail(StrictModel):
     """Detailed catalog service information with instructor analytics."""
 
     id: str
-    category_id: str
+    subcategory_id: str
     name: str
     slug: str
     description: Optional[str] = None
     search_terms: List[str] = Field(default_factory=list)
+    eligible_age_groups: List[str] = Field(default_factory=list)
     display_order: Optional[int] = None
     online_capable: Optional[bool] = None
     requires_certification: Optional[bool] = None

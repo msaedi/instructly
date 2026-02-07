@@ -17,7 +17,6 @@ class CategoryResponse(StrictModel):
     id: str
     name: str
     subtitle: Optional[str] = None
-    slug: str
     description: Optional[str] = None
     display_order: int
     icon_name: Optional[str] = None
@@ -29,12 +28,15 @@ class CatalogServiceResponse(StrictModel):
     """Catalog service response."""
 
     id: str
-    category_id: str
-    category: Optional[str] = None
+    subcategory_id: str
+    category_name: Optional[str] = None
     name: str
     slug: str
     description: Optional[str] = None
     search_terms: List[str] = []
+    eligible_age_groups: List[str] = Field(
+        default_factory=list, description="Age groups this service is available for"
+    )
     typical_duration_options: List[int] = [60]
     min_recommended_price: Optional[float] = None
     max_recommended_price: Optional[float] = None

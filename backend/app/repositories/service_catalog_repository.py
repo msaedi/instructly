@@ -16,11 +16,16 @@ import logging
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, TypedDict, TypeVar, cast
 
 from sqlalchemy import distinct, or_, select, text
-from sqlalchemy.orm import Query, Session, joinedload
+from sqlalchemy.orm import Query, Session, joinedload, selectinload
 from sqlalchemy.sql import func
 
 from ..models.instructor import InstructorProfile
-from ..models.service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog
+from ..models.service_catalog import (
+    InstructorService,
+    ServiceAnalytics,
+    ServiceCatalog,
+    ServiceCategory,
+)
 from ..models.subcategory import ServiceSubcategory
 from ..models.user import User
 from .base_repository import BaseRepository
@@ -138,7 +143,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
     def search_services(
         self,
         query_text: Optional[str] = None,
-        category_id: Optional[int] = None,
+        category_id: Optional[str] = None,
         online_capable: Optional[bool] = None,
         requires_certification: Optional[bool] = None,
         skip: int = 0,
@@ -387,15 +392,17 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         include_inactive: bool = False,
     ) -> List[ServiceCatalog]:
         """
-        List catalog services with categories eagerly loaded.
+        List catalog services with subcategory→category eagerly loaded.
 
         Args:
             include_inactive: Whether to include inactive/deleted services
 
         Returns:
-            List of ServiceCatalog objects with categories loaded
+            List of ServiceCatalog objects with subcategory+category loaded
         """
-        query = self.db.query(ServiceCatalog).options(joinedload(ServiceCatalog.category))
+        query = self.db.query(ServiceCatalog).options(
+            joinedload(ServiceCatalog.subcategory).joinedload(ServiceSubcategory.category)
+        )
         if not include_inactive:
             query = _apply_active_catalog_predicate(query)
         query = query.order_by(ServiceCatalog.display_order, ServiceCatalog.name)
@@ -409,7 +416,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         limit: int = 25,
     ) -> List[ServiceCatalog]:
         """
-        Search services with categories eagerly loaded (includes slug + search_terms).
+        Search services with subcategory→category eagerly loaded.
 
         Args:
             query_text: Text to search in name, slug, description, and search_terms
@@ -419,7 +426,9 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         Returns:
             List of matching services
         """
-        query = self.db.query(ServiceCatalog).options(joinedload(ServiceCatalog.category))
+        query = self.db.query(ServiceCatalog).options(
+            joinedload(ServiceCatalog.subcategory).joinedload(ServiceSubcategory.category)
+        )
         if not include_inactive:
             query = _apply_active_catalog_predicate(query)
 
@@ -654,6 +663,153 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         except Exception as e:
             logger.error(f"Error fetching kids-available services: {str(e)}")
             return []
+
+    # ── Taxonomy-aware queries (3-level: category → subcategory → service) ──
+
+    def get_categories_with_subcategories(self) -> List[ServiceCategory]:
+        """Fetch all categories with subcategories eager-loaded.
+
+        Returns:
+            Categories ordered by display_order, each with subcategories loaded.
+        """
+        return cast(
+            List[ServiceCategory],
+            self.db.query(ServiceCategory)
+            .options(selectinload(ServiceCategory.subcategories))
+            .order_by(ServiceCategory.display_order)
+            .all(),
+        )
+
+    def get_category_tree(self, category_id: str) -> Optional[ServiceCategory]:
+        """Full 3-level tree: category → subcategories → services.
+
+        Args:
+            category_id: ULID of the category
+
+        Returns:
+            Category with subcategories and services loaded, or None
+        """
+        return cast(
+            Optional[ServiceCategory],
+            self.db.query(ServiceCategory)
+            .options(
+                selectinload(ServiceCategory.subcategories).selectinload(
+                    ServiceSubcategory.services
+                )
+            )
+            .filter(ServiceCategory.id == category_id)
+            .first(),
+        )
+
+    def get_subcategory_with_services(self, subcategory_id: str) -> Optional[ServiceSubcategory]:
+        """Single subcategory with its services eager-loaded.
+
+        Args:
+            subcategory_id: ULID of the subcategory
+
+        Returns:
+            Subcategory with services loaded, or None
+        """
+        return cast(
+            Optional[ServiceSubcategory],
+            self.db.query(ServiceSubcategory)
+            .options(selectinload(ServiceSubcategory.services))
+            .filter(ServiceSubcategory.id == subcategory_id)
+            .first(),
+        )
+
+    def get_subcategories_by_category(self, category_id: str) -> List[ServiceSubcategory]:
+        """All subcategories for a category, ordered by display_order.
+
+        Args:
+            category_id: ULID of the parent category
+
+        Returns:
+            Ordered list of subcategories
+        """
+        return cast(
+            List[ServiceSubcategory],
+            self.db.query(ServiceSubcategory)
+            .filter(ServiceSubcategory.category_id == category_id)
+            .order_by(ServiceSubcategory.display_order)
+            .all(),
+        )
+
+    def get_service_with_subcategory(self, service_id: str) -> Optional[ServiceCatalog]:
+        """Single service with subcategory+category eager-loaded.
+
+        Args:
+            service_id: ULID of the service
+
+        Returns:
+            Service with subcategory→category chain loaded, or None
+        """
+        return cast(
+            Optional[ServiceCatalog],
+            self.db.query(ServiceCatalog)
+            .options(joinedload(ServiceCatalog.subcategory).joinedload(ServiceSubcategory.category))
+            .filter(ServiceCatalog.id == service_id)
+            .first(),
+        )
+
+    def search_services_by_name(self, query: str, limit: int = 15) -> List[ServiceCatalog]:
+        """Text search across service names for autocomplete.
+
+        Uses pg_trgm similarity if available, else ILIKE.
+
+        Args:
+            query: Search text
+            limit: Max results
+
+        Returns:
+            Matching services ordered by relevance
+        """
+        base = self.db.query(ServiceCatalog).filter(ServiceCatalog.is_active.is_(True))
+        base = _apply_active_catalog_predicate(base)
+
+        if self._pg_trgm_available:
+            base = base.filter(
+                or_(
+                    text(
+                        "(service_catalog.name % :q) OR (similarity(service_catalog.name, :q) >= 0.3)"
+                    ).params(q=query),
+                    ServiceCatalog.name.ilike(f"%{query}%"),
+                )
+            ).order_by(
+                text("similarity(service_catalog.name, :q) DESC").params(q=query),
+                ServiceCatalog.display_order,
+            )
+        else:
+            base = base.filter(ServiceCatalog.name.ilike(f"%{query}%")).order_by(
+                ServiceCatalog.display_order, ServiceCatalog.name
+            )
+
+        return cast(List[ServiceCatalog], base.limit(limit).all())
+
+    def get_services_by_eligible_age_group(
+        self, age_group: str, limit: int = 50
+    ) -> List[ServiceCatalog]:
+        """Services where eligible_age_groups array contains the given value.
+
+        Args:
+            age_group: e.g., "kids", "teens", "adults", "toddler"
+            limit: Max results
+
+        Returns:
+            Active services matching the age group
+        """
+        query = self.db.query(ServiceCatalog).filter(ServiceCatalog.is_active.is_(True))
+        query = _apply_active_catalog_predicate(query)
+
+        # PostgreSQL array containment: ANY() on the array column
+        query = query.filter(
+            func.array_position(ServiceCatalog.eligible_age_groups, age_group).isnot(None)
+        )
+
+        return cast(
+            List[ServiceCatalog],
+            query.order_by(ServiceCatalog.display_order, ServiceCatalog.name).limit(limit).all(),
+        )
 
 
 class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
