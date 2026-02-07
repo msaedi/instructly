@@ -90,13 +90,13 @@ export default function InstructorApplyPage() {
   const boroughAccordionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const categories = useMemo(
-    () => (Array.isArray(categoriesData) ? categoriesData.filter((item) => item.slug !== 'kids') : []),
+    () => (Array.isArray(categoriesData) ? categoriesData : []),
     [categoriesData]
   );
 
   const subcategoryOptions = useMemo(() => {
     if (!category || !servicesData?.categories) return [];
-    const match = servicesData.categories.find((item) => item.slug === category);
+    const match = servicesData.categories.find((item) => item.id === category);
     return match?.services || [];
   }, [category, servicesData?.categories]);
 
@@ -474,7 +474,7 @@ export default function InstructorApplyPage() {
                 >
                   <option value="">{categoriesLoading ? 'Loading categories...' : 'Select a category'}</option>
                   {categories.map((item) => (
-                    <option key={item.slug} value={item.slug}>{item.name}</option>
+                    <option key={item.id} value={item.id}>{item.name}</option>
                   ))}
                 </select>
                 {errors.category && (

@@ -257,10 +257,9 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   // Process service categories and services data from hooks
   useEffect(() => {
     if (categoriesData) {
-      const filtered = categoriesData.filter((c: ServiceCategory) => c.slug !== 'kids');
-      setCategories(filtered);
+      setCategories(categoriesData);
       const initCollapsed: Record<string, boolean> = {};
-      for (const c of filtered) initCollapsed[c.slug] = true;
+      for (const c of categoriesData) initCollapsed[c.id] = true;
       setCollapsed(initCollapsed);
     }
   }, [categoriesData]);
@@ -269,10 +268,10 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     if (allServicesData) {
       const map: Record<string, CategoryServiceDetail[]> = {};
       const categories = allServicesData.categories ?? [];
-      for (const c of categories.filter((category) => category.slug !== 'kids')) {
+      for (const c of categories) {
         const services = c.services ?? [];
         const deduped = Array.from(new Map(services.map((svc) => [svc.id, svc])).values());
-        map[c.slug] = deduped;
+        map[c.id] = deduped;
       }
       setServicesByCategory(map);
     }
@@ -772,18 +771,18 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
             {/* Accordions */}
             <div className="space-y-3">
               {categories.map((cat) => (
-                <div key={cat.slug} className="rounded-lg overflow-hidden border border-gray-200 bg-white">
+                <div key={cat.id} className="rounded-lg overflow-hidden border border-gray-200 bg-white">
                   <button
                     className="w-full px-4 py-3 flex items-center justify-between text-gray-700 hover:bg-gray-50 transition-colors"
-                    onClick={() => toggleCategory(cat.slug)}
+                    onClick={() => toggleCategory(cat.id)}
                     type="button"
                   >
                     <span className="font-bold">{cat.name}</span>
-                    <ChevronDown className={`h-4 w-4 text-gray-600 transition-transform ${collapsed[cat.slug] ? '' : 'rotate-180'}`} />
+                    <ChevronDown className={`h-4 w-4 text-gray-600 transition-transform ${collapsed[cat.id] ? '' : 'rotate-180'}`} />
                   </button>
-                  {!collapsed[cat.slug] && (
+                  {!collapsed[cat.id] && (
                     <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                      {(servicesByCategory[cat.slug] || [])
+                      {(servicesByCategory[cat.id] || [])
                         .filter((svc) => (skillsFilter ? (svc.name || '').toLowerCase().includes(skillsFilter.toLowerCase()) : true))
                         .map((svc) => {
                           const isSel = selectedServices.some((s) => s.catalog_service_id === svc.id);

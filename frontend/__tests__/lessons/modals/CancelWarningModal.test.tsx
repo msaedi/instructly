@@ -284,4 +284,30 @@ describe('CancelWarningModal', () => {
     expect(screen.getByText(/Thursday, December 25/)).toBeInTheDocument();
     expect(screen.getByText(/2:00 PM/)).toBeInTheDocument();
   });
+
+  it('toggles the full cancellation policy accordion', () => {
+    render(
+      <CancelWarningModal
+        isOpen={true}
+        onClose={mockOnClose}
+        lesson={mockBooking}
+        onReschedule={mockOnReschedule}
+      />
+    );
+
+    const toggleButton = screen.getByText(/See full cancellation policy/);
+
+    // Policy content is initially hidden
+    expect(screen.queryByText(/More than 24 hours before/)).not.toBeInTheDocument();
+
+    // Expand the accordion
+    fireEvent.click(toggleButton);
+    expect(screen.getByText(/More than 24 hours before/)).toBeInTheDocument();
+    expect(screen.getByText(/12–24 hours before/)).toBeInTheDocument();
+    expect(screen.getByText(/Less than 12 hours before/)).toBeInTheDocument();
+
+    // Collapse the accordion
+    fireEvent.click(toggleButton);
+    expect(screen.queryByText(/More than 24 hours before/)).not.toBeInTheDocument();
+  });
 });

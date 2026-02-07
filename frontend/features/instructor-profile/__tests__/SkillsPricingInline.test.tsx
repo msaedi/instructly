@@ -77,12 +77,13 @@ const mockUsePlatformFees = usePlatformFees as jest.Mock;
 const mockFetchWithAuth = fetchWithAuth as jest.Mock;
 const mockEvaluateViolations = evaluatePriceFloorViolations as jest.Mock;
 
-const categoriesData = [{ slug: 'music', name: 'Music' }];
+const categoriesData = [{ id: '01HABCTESTCAT0000000000001', name: 'Music', display_order: 1 }];
 const servicesData = {
   categories: [
     {
-      slug: 'music',
-      services: [{ id: 'svc-1', name: 'Piano' }],
+      id: '01HABCTESTCAT0000000000001',
+      name: 'Music',
+      services: [{ id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: '01HABCTESTSUBCAT0000000001' }],
     },
   ],
 };
@@ -445,10 +446,11 @@ describe('SkillsPricingInline', () => {
       data: {
         categories: [
           {
-            slug: 'music',
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
             services: [
-              { id: 'svc-1', name: 'Piano' },
-              { id: 'svc-2', name: 'Guitar' },
+              { id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: '01HABCTESTSUBCAT0000000001' },
+              { id: 'svc-2', name: 'Guitar', slug: 'guitar', subcategory_id: '01HABCTESTSUBCAT0000000001' },
             ],
           },
         ],
@@ -686,12 +688,12 @@ describe('SkillsPricingInline', () => {
     expect(screen.queryByText(/we'll review/i)).not.toBeInTheDocument();
   });
 
-  it('filters categories but excludes kids category', () => {
+  it('renders all categories from API', () => {
     mockUseServiceCategories.mockReturnValue({
       data: [
-        { slug: 'music', name: 'Music' },
-        { slug: 'kids', name: 'Kids Activities' },
-        { slug: 'sports', name: 'Sports' },
+        { id: '01HABCTESTCAT0000000000001', name: 'Music', display_order: 1 },
+        { id: '01HABCTESTCAT0000000000002', name: 'Dance', display_order: 2 },
+        { id: '01HABCTESTCAT0000000000003', name: 'Sports', display_order: 3 },
       ],
       isLoading: false,
     });
@@ -699,9 +701,8 @@ describe('SkillsPricingInline', () => {
     render(<SkillsPricingInline instructorProfile={{ is_live: false, services: [] } as never} />);
 
     expect(screen.getByRole('button', { name: /music/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /dance/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sports/i })).toBeInTheDocument();
-    // Kids category should be filtered out
-    expect(screen.queryByRole('button', { name: /kids activities/i })).not.toBeInTheDocument();
   });
 
   it('handles profile with instructor_tier_pct fallback', () => {
@@ -824,8 +825,9 @@ describe('SkillsPricingInline', () => {
       data: {
         categories: [
           {
-            slug: 'music',
-            services: [{ id: 'svc-1', name: 'Piano' }],
+            id: '01HABCTESTCAT0000000000001',
+            name: 'Music',
+            services: [{ id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: '01HABCTESTSUBCAT0000000001' }],
           },
         ],
       },
@@ -881,12 +883,19 @@ describe('SkillsPricingInline', () => {
     jest.useRealTimers();
   });
 
-  it('does not filter services from categories that have kids slug', () => {
+  it('renders all categories from services data', () => {
+    mockUseServiceCategories.mockReturnValue({
+      data: [
+        { id: '01HABCTESTCAT0000000000001', name: 'Dance', display_order: 1 },
+        { id: '01HABCTESTCAT0000000000002', name: 'Music', display_order: 2 },
+      ],
+      isLoading: false,
+    });
     mockUseAllServices.mockReturnValue({
       data: {
         categories: [
-          { slug: 'kids', services: [{ id: 'svc-kids', name: 'Kids Dancing' }] },
-          { slug: 'music', services: [{ id: 'svc-1', name: 'Piano' }] },
+          { id: '01HABCTESTCAT0000000000001', name: 'Dance', services: [{ id: 'svc-dance', name: 'Ballet', slug: 'ballet', subcategory_id: '01HABCTESTSUBCAT0000000001' }] },
+          { id: '01HABCTESTCAT0000000000002', name: 'Music', services: [{ id: 'svc-1', name: 'Piano', slug: 'piano', subcategory_id: '01HABCTESTSUBCAT0000000002' }] },
         ],
       },
       isLoading: false,
@@ -894,10 +903,8 @@ describe('SkillsPricingInline', () => {
 
     render(<SkillsPricingInline instructorProfile={{ is_live: false, services: [] } as never} />);
 
-    // Music category should be shown
+    expect(screen.getByRole('button', { name: /dance/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /music/i })).toBeInTheDocument();
-    // Kids category should be filtered
-    expect(screen.queryByRole('button', { name: /kids/i })).not.toBeInTheDocument();
   });
 
   it('handles service with name field instead of service_catalog_name', () => {

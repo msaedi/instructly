@@ -1,70 +1,33 @@
 // frontend/app/(public)/services/page.tsx
 'use client';
 
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { Search, Music, BookOpen, Dumbbell, Globe, Palette, Baby, Sparkles, type LucideProps } from 'lucide-react';
+import { Search, Music, BookOpen, Dumbbell, Globe, Palette, Sparkles, type LucideProps } from 'lucide-react';
 import type { CategoryServiceDetail, CategoryWithServices as ApiCategoryWithServices } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useAllServicesWithInstructors } from '@/hooks/queries/useServices';
-import { useKidsAvailableServices } from '@/hooks/queries/useKidsAvailableServices';
 
 // Progressive loading configuration
 const INITIAL_SERVICES_COUNT = 15;
 const LOAD_MORE_COUNT = 10;
 
-// Category configuration with exact names and icons from homepage
-const CATEGORY_CONFIG = [
-  {
-    id: 1,
-    slug: 'music',
-    name: 'MUSIC',
-    icon: Music,
-  },
-  {
-    id: 2,
-    slug: 'tutoring',
-    name: 'TUTORING',
-    icon: BookOpen,
-  },
-  {
-    id: 3,
-    slug: 'sports-fitness',
-    name: 'SPORTS & FITNESS',
-    icon: Dumbbell,
-  },
-  {
-    id: 4,
-    slug: 'language',
-    name: 'LANGUAGE',
-    icon: Globe,
-  },
-  {
-    id: 5,
-    slug: 'arts',
-    name: 'ARTS',
-    icon: Palette,
-  },
-  {
-    id: 6,
-    slug: 'kids',
-    name: 'KIDS',
-    icon: Baby,
-  },
-  {
-    id: 7,
-    slug: 'hidden-gems',
-    name: 'HIDDEN GEMS',
-    icon: Sparkles,
-  },
-];
+// Map icon_name from backend to Lucide icon components
+const ICON_BY_NAME: Record<string, React.ForwardRefExoticComponent<Omit<LucideProps, "ref"> & React.RefAttributes<SVGSVGElement>>> = {
+  'music': Music,
+  'book-open': BookOpen,
+  'dumbbell': Dumbbell,
+  'globe': Globe,
+  'palette': Palette,
+  'sparkles': Sparkles,
+  'lightbulb': Sparkles,
+};
 
 interface CategoryWithServices {
   id: string;
-  slug: string;
   name: string;
-  icon: React.ForwardRefExoticComponent<Omit<LucideProps, "ref"> & React.RefAttributes<SVGSVGElement>>; // Lucide icon component
+  icon: React.ForwardRefExoticComponent<Omit<LucideProps, "ref"> & React.RefAttributes<SVGSVGElement>>;
   subtitle: string;
   services: CategoryServiceDetail[];
 }
@@ -85,9 +48,6 @@ export default function AllServicesPage() {
   const [visibleServices, setVisibleServices] = useState<Record<string, number>>({});
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const { /* isAuthenticated */ } = useAuth();
-
-  // Use React Query hook for kids-available services (prevents duplicate API calls)
-  const { data: kidsServices = [] } = useKidsAvailableServices();
 
   // Use React Query hook for fetching services (prevents duplicate API calls)
   const {
@@ -114,7 +74,6 @@ export default function AllServicesPage() {
     if (servicesData) {
       const apiCategories: ApiCategoryWithServices[] = servicesData.categories ?? [];
       const categories: CategoryWithServices[] = apiCategories.map((category) => {
-        const config = CATEGORY_CONFIG.find((c) => c.slug === category.slug);
         const services = (category.services ?? []).map((service) => ({
           ...service,
           description: service.description ?? '',
@@ -126,9 +85,8 @@ export default function AllServicesPage() {
         }));
         return {
           id: category.id,
-          slug: category.slug,
           name: category.name.toUpperCase(),
-          icon: config?.icon ?? Search,
+          icon: ICON_BY_NAME[category.icon_name ?? ''] ?? Search,
           subtitle: category.subtitle ?? '',
           services,
         };
@@ -138,7 +96,7 @@ export default function AllServicesPage() {
       // Initialize visible services count for each category
       const initialVisible: Record<string, number> = {};
       categories.forEach((cat) => {
-        initialVisible[cat.slug] = INITIAL_SERVICES_COUNT;
+        initialVisible[cat.id] = INITIAL_SERVICES_COUNT;
       });
       setVisibleServices(initialVisible);
 
@@ -152,34 +110,7 @@ export default function AllServicesPage() {
     }
   }, [servicesData, queryError]);
 
-  // Derive display categories with kids services injected at render-time to avoid race conditions
-  const displayCategories = useMemo(() => {
-    const clone = categoriesWithServices.map((c) => ({ ...c, services: [...c.services] }));
-    const kidsCat = clone.find((c) => c.slug === 'kids');
-    if (kidsCat && kidsServices.length) {
-      const existingIds = new Set(kidsCat.services.map((s) => s.id));
-      const injected = kidsServices
-        .filter((ks) => !existingIds.has(ks.id))
-        .map((ks): CategoryServiceDetail => ({
-          id: ks.id,
-          category_id: kidsCat.id,
-          name: ks.name,
-          slug: ks.slug,
-          active_instructors: 0,
-          demand_score: 0,
-          instructor_count: 0,
-          is_trending: false,
-          description: '',
-          search_terms: [],
-          display_order: 0,
-          online_capable: true,
-          requires_certification: false,
-          is_active: true,
-        }));
-      kidsCat.services = [...injected, ...kidsCat.services];
-    }
-    return clone;
-  }, [categoriesWithServices, kidsServices]);
+  const displayCategories = categoriesWithServices;
 
   // Set up intersection observer for progressive loading
   useEffect(() => {
@@ -189,17 +120,17 @@ export default function AllServicesPage() {
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            const categorySlug = entry.target.getAttribute('data-category');
-            if (categorySlug) {
+            const categoryId = entry.target.getAttribute('data-category');
+            if (categoryId) {
               setVisibleServices((prev) => {
-                const currentCount = prev[categorySlug] || INITIAL_SERVICES_COUNT;
-                const category = categoriesWithServices.find((c) => c.slug === categorySlug);
+                const currentCount = prev[categoryId] || INITIAL_SERVICES_COUNT;
+                const category = categoriesWithServices.find((c) => c.id === categoryId);
                 const totalServices = category?.services.length || 0;
 
                 if (currentCount < totalServices) {
                   return {
                     ...prev,
-                    [categorySlug]: Math.min(currentCount + LOAD_MORE_COUNT, totalServices),
+                    [categoryId]: Math.min(currentCount + LOAD_MORE_COUNT, totalServices),
                   };
                 }
                 return prev;
@@ -216,9 +147,9 @@ export default function AllServicesPage() {
     );
 
     // Observe load more triggers
-    Object.entries(categoryRefs.current).forEach(([slug, element]) => {
+    Object.entries(categoryRefs.current).forEach(([catId, element]) => {
       if (element) {
-        const loadMoreElement = element.querySelector(`[data-load-more="${slug}"]`);
+        const loadMoreElement = element.querySelector(`[data-load-more="${catId}"]`);
         if (loadMoreElement) {
           observer.observe(loadMoreElement);
         }
@@ -255,7 +186,7 @@ export default function AllServicesPage() {
 
   // Render services for a category
   const renderCategoryServices = (category: CategoryWithServices) => {
-    const visibleCount = visibleServices[category.slug] || INITIAL_SERVICES_COUNT;
+    const visibleCount = visibleServices[category.id] || INITIAL_SERVICES_COUNT;
     const visibleServicesList = category.services.slice(0, visibleCount);
     const hasMore = category.services.length > visibleCount;
 
@@ -314,13 +245,13 @@ export default function AllServicesPage() {
           );
         })}
         {hasMore && (
-          <div data-load-more={category.slug} data-category={category.slug} className="h-4" />
+          <div data-load-more={category.id} data-category={category.id} className="h-4" />
         )}
       </div>
     );
   };
 
-  // (No separate Kids column; we render kidsServices inside the existing Kids category below)
+  // Categories are rendered as columns with their services
 
   return (
     <>
@@ -356,9 +287,9 @@ export default function AllServicesPage() {
           <div className="services-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7 gap-4 items-start">
             {displayCategories.map((category) => (
               <div
-                key={category.slug}
+                key={category.id}
                 ref={(el) => {
-                  if (el) categoryRefs.current[category.slug] = el;
+                  if (el) categoryRefs.current[category.id] = el;
                 }}
                 className="flex flex-col min-h-0"
               >

@@ -168,18 +168,17 @@ function Step3SkillsPricingInner() {
         ]);
 
         if (cats.status === 200 && cats.data) {
-          const filtered = cats.data.filter((c) => c.slug !== 'kids');
-          setCategories(filtered);
+          setCategories(cats.data);
           // collapse all by default
           const initialCollapsed: Record<string, boolean> = {};
-          for (const c of filtered) initialCollapsed[c.slug] = true;
+          for (const c of cats.data) initialCollapsed[c.id] = true;
           setCollapsed(initialCollapsed);
         }
         if (all.status === 200 && all.data) {
           const map: Record<string, CategoryServiceDetail[]> = {};
           const categories = all.data.categories ?? [];
-          for (const c of categories.filter((category) => category.slug !== 'kids')) {
-            map[c.slug] = c.services ?? [];
+          for (const c of categories) {
+            map[c.id] = c.services ?? [];
           }
           setServicesByCategory(map);
         }
@@ -573,12 +572,12 @@ function Step3SkillsPricingInner() {
             </div>
           )}
           {categories.map((cat) => {
-            const isCollapsed = collapsed[cat.slug] === true;
+            const isCollapsed = collapsed[cat.id] === true;
             return (
-            <div key={cat.slug} className="rounded-lg overflow-hidden border border-gray-200 bg-white">
+            <div key={cat.id} className="rounded-lg overflow-hidden border border-gray-200 bg-white">
               <button
                 className="w-full px-4 py-3 flex items-center justify-between text-gray-700 hover:bg-gray-50 transition-colors"
-                onClick={() => setCollapsed((prev) => ({ ...prev, [cat.slug]: !isCollapsed }))}
+                onClick={() => setCollapsed((prev) => ({ ...prev, [cat.id]: !isCollapsed }))}
               >
                 <span className="font-bold">{cat.name}</span>
                 <svg className={`h-4 w-4 text-gray-600 transition-transform ${isCollapsed ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -587,7 +586,7 @@ function Step3SkillsPricingInner() {
               </button>
               {!isCollapsed && (
               <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {(servicesByCategory[cat.slug] || []).map((svc) => {
+                {(servicesByCategory[cat.id] || []).map((svc) => {
                   const selectedFlag = selected.some((s) => s.catalog_service_id === svc.id);
                   return (
                     <button
