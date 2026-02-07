@@ -376,10 +376,16 @@ async def get_subcategories_for_category(
     except DomainException as exc:
         raise exc.to_http_exception() from exc
     response.headers["Cache-Control"] = "public, max-age=3600"
-    return cast(
-        List[SubcategoryBrief],
-        tree.get("subcategories", []),
-    )
+    subcategories_raw = tree.get("subcategories", [])
+    briefs: List[SubcategoryBrief] = []
+    for sub in subcategories_raw:
+        brief_data = {
+            "id": sub["id"],
+            "name": sub["name"],
+            "service_count": len(sub.get("services", [])),
+        }
+        briefs.append(SubcategoryBrief(**brief_data))
+    return briefs
 
 
 @router.get("/subcategories/{subcategory_id}", response_model=SubcategoryWithServices)

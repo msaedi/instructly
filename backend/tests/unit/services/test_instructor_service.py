@@ -499,29 +499,36 @@ def test_get_available_catalog_services_cache_hit_debug(monkeypatch):
     assert service.get_available_catalog_services() == [{"id": "cached"}]
 
 
-def test_get_available_catalog_services_category_not_found():
+def test_get_available_catalog_services_with_category_id():
     service = _build_service()
     service.cache_service = MagicMock()
     service.cache_service.get.return_value = None
-    service.category_repository.find_one_by.return_value = None
+    service.catalog_repository.get_active_services_with_categories.return_value = []
 
-    with pytest.raises(NotFoundException):
-        service.get_available_catalog_services(category_slug="missing")
+    result = service.get_available_catalog_services(category_id="cat-123")
+
+    assert result == []
+    service.catalog_repository.get_active_services_with_categories.assert_called_once_with(
+        category_id="cat-123"
+    )
 
 
 def test_get_available_catalog_services_cache_miss_sets_cache():
     service = _build_service()
     service.cache_service = MagicMock()
     service.cache_service.get.return_value = None
+    mock_sub = SimpleNamespace(category=SimpleNamespace(name="Fitness"))
     service.catalog_repository.get_active_services_with_categories.return_value = [
         SimpleNamespace(
             id="svc-1",
-            category_id="cat-1",
-            category=None,
+            subcategory_id="sub-1",
+            subcategory=mock_sub,
+            category_name="Fitness",
             name="Yoga",
             slug="yoga",
             description="",
             search_terms=None,
+            eligible_age_groups=["adults"],
             display_order=1,
             online_capable=True,
             requires_certification=False,
@@ -605,9 +612,15 @@ def test_search_services_semantic_filters_and_breaks():
     service._catalog_service_to_dict = MagicMock(return_value={"id": "svc"})
     service._get_service_analytics = MagicMock(return_value={})
 
-    svc_wrong = SimpleNamespace(id="svc-1", category_id=2, online_capable=True)
-    svc_right = SimpleNamespace(id="svc-2", category_id=1, online_capable=True)
-    svc_skip_online = SimpleNamespace(id="svc-3", category_id=1, online_capable=False)
+    svc_wrong = SimpleNamespace(
+        id="svc-1", subcategory=SimpleNamespace(category_id="cat-2"), online_capable=True
+    )
+    svc_right = SimpleNamespace(
+        id="svc-2", subcategory=SimpleNamespace(category_id="cat-1"), online_capable=True
+    )
+    svc_skip_online = SimpleNamespace(
+        id="svc-3", subcategory=SimpleNamespace(category_id="cat-1"), online_capable=False
+    )
 
     service.catalog_repository.find_similar_by_embedding.return_value = [
         (svc_wrong, 0.9),
@@ -616,7 +629,7 @@ def test_search_services_semantic_filters_and_breaks():
     ]
 
     results = service.search_services_semantic(
-        query_embedding=[0.1] * 3, category_id=1, online_capable=True, limit=1
+        query_embedding=[0.1] * 3, category_id="cat-1", online_capable=True, limit=1
     )
 
     assert len(results) == 1
