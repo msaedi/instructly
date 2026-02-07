@@ -194,11 +194,23 @@ class DatabaseSeeder:
             result = session.execute(text("DELETE FROM service_analytics"))
             print(f"    Deleted {result.rowcount} service analytics")
 
+            # Delete filter mappings (reverse FK order)
+            result = session.execute(text("DELETE FROM subcategory_filter_options"))
+            print(f"    Deleted {result.rowcount} subcategory filter options")
+            result = session.execute(text("DELETE FROM subcategory_filters"))
+            print(f"    Deleted {result.rowcount} subcategory filters")
+            result = session.execute(text("DELETE FROM filter_options"))
+            print(f"    Deleted {result.rowcount} filter options")
+            result = session.execute(text("DELETE FROM filter_definitions"))
+            print(f"    Deleted {result.rowcount} filter definitions")
+
             # Delete all services from catalog
             result = session.execute(text("DELETE FROM service_catalog"))
             print(f"    Deleted {result.rowcount} catalog services")
 
-            # Delete all categories
+            # Delete subcategories then categories
+            result = session.execute(text("DELETE FROM service_subcategories"))
+            print(f"    Deleted {result.rowcount} service subcategories")
             result = session.execute(text("DELETE FROM service_categories"))
             print(f"    Deleted {result.rowcount} service categories")
 

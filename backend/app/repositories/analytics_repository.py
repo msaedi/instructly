@@ -20,6 +20,7 @@ from app.models.review import Review, ReviewResponse, ReviewStatus
 from app.models.search_event import SearchEvent
 from app.models.search_interaction import SearchInteraction
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 
 
@@ -190,7 +191,8 @@ class AnalyticsRepository:
             )
             .join(InstructorService, Booking.instructor_service_id == InstructorService.id)
             .join(ServiceCatalog, InstructorService.service_catalog_id == ServiceCatalog.id)
-            .join(ServiceCategory, ServiceCatalog.category_id == ServiceCategory.id)
+            .join(ServiceSubcategory, ServiceCatalog.subcategory_id == ServiceSubcategory.id)
+            .join(ServiceCategory, ServiceSubcategory.category_id == ServiceCategory.id)
             .filter(Booking.booking_start_utc >= start, Booking.booking_start_utc <= end)
         )
         if statuses:
@@ -215,7 +217,6 @@ class AnalyticsRepository:
         query = self.db.query(ServiceCategory.id).filter(
             or_(
                 ServiceCategory.id == category,
-                ServiceCategory.slug == category,
                 ServiceCategory.name.ilike(f"%{category}%"),
             )
         )
@@ -255,7 +256,10 @@ class AnalyticsRepository:
                 InstructorService,
                 InstructorService.instructor_profile_id == InstructorProfile.id,
             ).join(ServiceCatalog, InstructorService.service_catalog_id == ServiceCatalog.id)
-            query = query.filter(ServiceCatalog.category_id.in_(list(category_ids)))
+            query = query.join(
+                ServiceSubcategory, ServiceCatalog.subcategory_id == ServiceSubcategory.id
+            )
+            query = query.filter(ServiceSubcategory.category_id.in_(list(category_ids)))
         if region_ids:
             query = query.join(
                 InstructorServiceArea, InstructorServiceArea.instructor_id == User.id
@@ -283,7 +287,10 @@ class AnalyticsRepository:
                 InstructorService,
                 InstructorService.instructor_profile_id == InstructorProfile.id,
             ).join(ServiceCatalog, InstructorService.service_catalog_id == ServiceCatalog.id)
-            query = query.filter(ServiceCatalog.category_id.in_(list(category_ids)))
+            query = query.join(
+                ServiceSubcategory, ServiceCatalog.subcategory_id == ServiceSubcategory.id
+            )
+            query = query.filter(ServiceSubcategory.category_id.in_(list(category_ids)))
         if region_ids:
             query = query.join(
                 InstructorServiceArea, InstructorServiceArea.instructor_id == User.id
@@ -313,7 +320,10 @@ class AnalyticsRepository:
                 InstructorService,
                 InstructorService.instructor_profile_id == InstructorProfile.id,
             ).join(ServiceCatalog, InstructorService.service_catalog_id == ServiceCatalog.id)
-            query = query.filter(ServiceCatalog.category_id.in_(list(category_ids)))
+            query = query.join(
+                ServiceSubcategory, ServiceCatalog.subcategory_id == ServiceSubcategory.id
+            )
+            query = query.filter(ServiceSubcategory.category_id.in_(list(category_ids)))
         if region_ids:
             query = query.join(
                 InstructorServiceArea, InstructorServiceArea.instructor_id == User.id
@@ -628,8 +638,9 @@ class AnalyticsRepository:
         return int(
             self.db.query(func.count(func.distinct(InstructorService.instructor_profile_id)))
             .join(ServiceCatalog, InstructorService.service_catalog_id == ServiceCatalog.id)
+            .join(ServiceSubcategory, ServiceCatalog.subcategory_id == ServiceSubcategory.id)
             .filter(InstructorService.is_active.is_(True))
-            .filter(ServiceCatalog.category_id == category_id)
+            .filter(ServiceSubcategory.category_id == category_id)
             .scalar()
             or 0
         )
@@ -641,10 +652,11 @@ class AnalyticsRepository:
             self.db.query(func.count(func.distinct(Booking.student_id)))
             .join(InstructorService, Booking.instructor_service_id == InstructorService.id)
             .join(ServiceCatalog, InstructorService.service_catalog_id == ServiceCatalog.id)
+            .join(ServiceSubcategory, ServiceCatalog.subcategory_id == ServiceSubcategory.id)
             .filter(
                 Booking.booking_start_utc >= start,
                 Booking.booking_start_utc <= end,
-                ServiceCatalog.category_id == category_id,
+                ServiceSubcategory.category_id == category_id,
             )
             .scalar()
             or 0
@@ -660,6 +672,6 @@ class AnalyticsRepository:
         if category_ids:
             query = query.join(
                 ServiceCatalog, InstructorService.service_catalog_id == ServiceCatalog.id
-            )
-            query = query.filter(ServiceCatalog.category_id.in_(list(category_ids)))
+            ).join(ServiceSubcategory, ServiceCatalog.subcategory_id == ServiceSubcategory.id)
+            query = query.filter(ServiceSubcategory.category_id.in_(list(category_ids)))
         return [row[0] for row in query.all()]

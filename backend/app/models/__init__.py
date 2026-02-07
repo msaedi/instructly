@@ -25,6 +25,12 @@ from .conversation import Conversation
 from .conversation_user_state import ConversationUserState
 from .event_outbox import EventOutbox, EventOutboxStatus, NotificationDelivery
 from .favorite import UserFavorite
+from .filter import (
+    FilterDefinition,
+    FilterOption,
+    SubcategoryFilter,
+    SubcategoryFilterOption,
+)
 from .instructor import BGCConsent, InstructorPreferredPlace, InstructorProfile
 from .instructor_lifecycle_event import InstructorLifecycleEvent
 
@@ -68,6 +74,7 @@ from .search_event import SearchEvent, SearchEventCandidate
 from .search_history import SearchHistory
 from .search_interaction import SearchInteraction
 from .service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog, ServiceCategory
+from .subcategory import ServiceSubcategory
 from .unresolved_location_query import UnresolvedLocationQuery
 from .user import User
 from .webhook_event import WebhookEvent
@@ -89,9 +96,15 @@ __all__ = [
     "InstructorPreferredPlace",
     # Service catalog models
     "ServiceCategory",
+    "ServiceSubcategory",
     "ServiceCatalog",
     "InstructorService",
     "ServiceAnalytics",
+    # Filter models
+    "FilterDefinition",
+    "FilterOption",
+    "SubcategoryFilter",
+    "SubcategoryFilterOption",
     # Availability models
     "BlackoutDate",
     "AvailabilityDay",

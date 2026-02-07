@@ -28,6 +28,7 @@ from ..models.instructor import (
     InstructorProfile,
 )
 from ..models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from ..models.subcategory import ServiceSubcategory
 from ..models.user import User
 from .base_repository import BaseRepository
 
@@ -1244,7 +1245,8 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 .join(InstructorServiceArea.neighborhood, isouter=True)
                 .join(Service, InstructorProfile.id == Service.instructor_profile_id)
                 .join(ServiceCatalog, Service.service_catalog_id == ServiceCatalog.id)
-                .join(ServiceCategory, ServiceCatalog.category_id == ServiceCategory.id)
+                .join(ServiceSubcategory, ServiceCatalog.subcategory_id == ServiceSubcategory.id)
+                .join(ServiceCategory, ServiceSubcategory.category_id == ServiceCategory.id)
                 .options(
                     selectinload(InstructorProfile.user),
                     selectinload(InstructorProfile.user)

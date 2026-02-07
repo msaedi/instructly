@@ -1085,9 +1085,9 @@ def upgrade() -> None:
         ["instructor_profile_id", "is_active"],
     )
     op.create_index(
-        "idx_service_catalog_category_active",
+        "idx_service_catalog_subcategory_active",
         "service_catalog",
-        ["category_id", "is_active"],
+        ["subcategory_id", "is_active"],
     )
     op.create_index(
         "idx_instructor_services_catalog_active",
@@ -1350,7 +1350,7 @@ def downgrade() -> None:
     op.drop_index("ix_reviews_instructor_id_created_at", table_name="reviews")
     op.drop_index("ix_reviews_booking_id", table_name="reviews")
     op.drop_index("idx_instructor_services_catalog_active", table_name="instructor_services")
-    op.drop_index("idx_service_catalog_category_active", table_name="service_catalog")
+    op.drop_index("idx_service_catalog_subcategory_active", table_name="service_catalog")
     op.drop_index("idx_instructor_services_profile_active", table_name="instructor_services")
     op.drop_index("idx_instructor_services_active_price", table_name="instructor_services")
     op.drop_index("idx_service_catalog_name_lower", table_name="service_catalog")
