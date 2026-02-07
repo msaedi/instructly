@@ -24,6 +24,7 @@ from app.models.address import InstructorServiceArea
 from app.models.instructor import InstructorProfile
 from app.models.region_boundary import RegionBoundary
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 
 
@@ -36,12 +37,16 @@ class TestInstructorRoutes:
         import uuid
 
         unique_id = str(uuid.uuid4())[:8]
-        category = ServiceCategory(name=f"Test Category {unique_id}", slug=f"test-category-{unique_id}")
+        category = ServiceCategory(name=f"Test Category {unique_id}")
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(category_id=category.id, name=f"Test Sub {unique_id}")
+        db.add(subcategory)
+        db.flush()
+
         service_id = str(uuid.uuid4())[:8]
-        service = ServiceCatalog(category_id=category.id, name="Test Service", slug=f"test-service-{service_id}")
+        service = ServiceCatalog(subcategory_id=subcategory.id, name="Test Service", slug=f"test-service-{service_id}")
         db.add(service)
         db.commit()
 
@@ -123,12 +128,16 @@ class TestInstructorRoutes:
         import uuid
 
         unique_id = str(uuid.uuid4())[:8]
-        category = ServiceCategory(name=f"Test Category {unique_id}", slug=f"test-category-{unique_id}")
+        category = ServiceCategory(name=f"Test Category {unique_id}")
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(category_id=category.id, name=f"Test Sub {unique_id}")
+        db.add(subcategory)
+        db.flush()
+
         service_id = str(uuid.uuid4())[:8]
-        service = ServiceCatalog(category_id=category.id, name="Test Service", slug=f"test-service-{service_id}")
+        service = ServiceCatalog(subcategory_id=subcategory.id, name="Test Service", slug=f"test-service-{service_id}")
         db.add(service)
         db.commit()
 
@@ -217,12 +226,16 @@ class TestInstructorRoutes:
         import uuid
 
         unique_id = str(uuid.uuid4())[:8]
-        category = ServiceCategory(name=f"Test Category {unique_id}", slug=f"test-category-{unique_id}")
+        category = ServiceCategory(name=f"Test Category {unique_id}")
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(category_id=category.id, name=f"Test Sub {unique_id}")
+        db.add(subcategory)
+        db.flush()
+
         service_id = str(uuid.uuid4())[:8]
-        test_service = ServiceCatalog(category_id=category.id, name="Test Service", slug=f"test-service-{service_id}")
+        test_service = ServiceCatalog(subcategory_id=subcategory.id, name="Test Service", slug=f"test-service-{service_id}")
         db.add(test_service)
         db.commit()
 
