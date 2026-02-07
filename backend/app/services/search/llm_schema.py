@@ -91,10 +91,36 @@ class LLMParsedQuery(BaseModel):
         description="'high' for urgent/asap, 'medium' for soon, 'low' otherwise.",
     )
 
-    # Category hint (helps with price resolution)
-    category_hint: Optional[str] = Field(
+    # 3-level taxonomy hints
+    category_hint: Optional[
+        Literal[
+            "Tutoring & Test Prep",
+            "Music",
+            "Dance",
+            "Languages",
+            "Sports & Fitness",
+            "Arts",
+            "Hobbies & Life Skills",
+        ]
+    ] = Field(
+        default=None,
+        description="Primary category the user is searching in.",
+    )
+
+    subcategory_hint: Optional[str] = Field(
         default=None,
         description=(
-            "Detected category: 'music', 'tutoring', 'sports', 'language', " "or null if unclear."
+            "Specific subcategory within the category (e.g., 'Martial Arts' within "
+            "Sports & Fitness, 'Test Prep' within Tutoring & Test Prep). "
+            "Only include if the query clearly targets a subcategory."
+        ),
+    )
+
+    service_hint: Optional[str] = Field(
+        default=None,
+        description=(
+            "Specific service name if the query targets an exact service "
+            "(e.g., 'Karate', 'SAT Prep', 'Piano'). "
+            "Only include if the query names a specific bookable service."
         ),
     )

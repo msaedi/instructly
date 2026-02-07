@@ -37,9 +37,11 @@ from app.services.search.patterns import (
     PRICE_PER_HOUR,
     PRICE_UNDER_DOLLAR,
     PRICE_UNDER_IMPLICIT,
+    SERVICE_KEYWORDS,
     SKILL_ADVANCED,
     SKILL_BEGINNER,
     SKILL_INTERMEDIATE,
+    SUBCATEGORY_KEYWORDS,
     TEEN_KEYWORDS,
     TIME_AFTER,
     TIME_AFTERNOON,
@@ -66,6 +68,17 @@ DateType = datetime.date
 
 # Lesson type enum for online/in-person filtering
 LessonType = Literal["online", "in_person", "any"]
+
+# Map proper taxonomy category names → price_threshold DB keys
+_CATEGORY_TO_PRICE_KEY: Dict[str, str] = {
+    "Music": "music",
+    "Tutoring & Test Prep": "tutoring",
+    "Sports & Fitness": "sports",
+    "Dance": "sports",
+    "Languages": "language",
+    "Arts": "general",
+    "Hobbies & Life Skills": "general",
+}
 
 
 @dataclass
@@ -104,6 +117,11 @@ class ParsedQuery:
     # Audience hint (for ranking, NOT filtering)
     audience_hint: Optional[Literal["kids", "adults"]] = None
     skill_level: Optional[Literal["beginner", "intermediate", "advanced"]] = None
+
+    # 3-level taxonomy hints (category → subcategory → service)
+    category_hint: Optional[str] = None  # "Music", "Sports & Fitness", etc.
+    subcategory_hint: Optional[str] = None  # "Martial Arts", "Test Prep", etc.
+    service_hint: Optional[str] = None  # "Karate", "SAT Prep", etc.
 
     # Meta
     urgency: Optional[Literal["high", "medium", "low"]] = None
@@ -199,6 +217,9 @@ class QueryParser:
 
         # What remains is the service query
         result.service_query = self._clean_service_query(working_query)
+
+        # Detect 3-level taxonomy hints (service → subcategory → category)
+        result = self._detect_taxonomy(result)
 
         # Check if LLM is needed for complex queries
         result.needs_llm = self._check_complexity(result, working_query)
@@ -681,8 +702,9 @@ class QueryParser:
         if result.max_price is not None or result.price_intent is None:
             return result  # Already have explicit price or no intent
 
-        # Detect category from service query
-        category = self._detect_category(result.service_query or result.original_query)
+        # Detect category from service query and normalise to price-threshold key
+        raw_category = self._detect_category(result.service_query or result.original_query)
+        category = _CATEGORY_TO_PRICE_KEY.get(raw_category, raw_category)
 
         # Load thresholds if needed
         if self._price_thresholds is None:
@@ -709,12 +731,47 @@ class QueryParser:
         return result
 
     def _detect_category(self, query: str) -> str:
-        """Detect service category from query text."""
+        """Detect service category from query text (for price intent resolution)."""
         query_lower = query.lower()
-        for category, keywords in CATEGORY_KEYWORDS.items():
-            if any(kw in query_lower for kw in keywords):
-                return category
+        # CATEGORY_KEYWORDS maps keyword→category_name; check longest keywords first
+        for keyword in sorted(CATEGORY_KEYWORDS, key=len, reverse=True):
+            if keyword in query_lower:
+                return CATEGORY_KEYWORDS[keyword]
         return "general"
+
+    def _detect_taxonomy(self, result: ParsedQuery) -> ParsedQuery:
+        """Detect 3-level taxonomy hints from the service query.
+
+        Resolution priority: service → subcategory → category (most specific wins).
+        """
+        text = (result.service_query or result.original_query).lower()
+
+        # 1. Try SERVICE_KEYWORDS (most specific)
+        for keyword in sorted(SERVICE_KEYWORDS, key=len, reverse=True):
+            if keyword in text:
+                result.service_hint = SERVICE_KEYWORDS[keyword]
+                # Derive subcategory and category from service match
+                if keyword in SUBCATEGORY_KEYWORDS:
+                    result.subcategory_hint = SUBCATEGORY_KEYWORDS[keyword]
+                if keyword in CATEGORY_KEYWORDS:
+                    result.category_hint = CATEGORY_KEYWORDS[keyword]
+                return result
+
+        # 2. Try SUBCATEGORY_KEYWORDS
+        for keyword in sorted(SUBCATEGORY_KEYWORDS, key=len, reverse=True):
+            if keyword in text:
+                result.subcategory_hint = SUBCATEGORY_KEYWORDS[keyword]
+                if keyword in CATEGORY_KEYWORDS:
+                    result.category_hint = CATEGORY_KEYWORDS[keyword]
+                return result
+
+        # 3. Try CATEGORY_KEYWORDS (broadest)
+        for keyword in sorted(CATEGORY_KEYWORDS, key=len, reverse=True):
+            if keyword in text:
+                result.category_hint = CATEGORY_KEYWORDS[keyword]
+                return result
+
+        return result
 
     def _load_price_thresholds(self) -> None:
         """Load price thresholds for current region from database."""
