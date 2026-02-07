@@ -53,6 +53,7 @@ if TYPE_CHECKING:
     from .search_event_repository import SearchEventRepository
     from .search_history_repository import SearchHistoryRepository
     from .service_catalog_repository import ServiceAnalyticsRepository, ServiceCatalogRepository
+    from .taxonomy_filter_repository import TaxonomyFilterRepository
 
     # SlotManagerRepository removed - bitmap-only storage now
     from .user_repository import UserRepository
@@ -388,3 +389,10 @@ class RepositoryFactory:
         from .review_repository import ReviewTipRepository
 
         return ReviewTipRepository(db)
+
+    @staticmethod
+    def create_taxonomy_filter_repository(db: Session) -> "TaxonomyFilterRepository":
+        """Create repository for taxonomy filter operations."""
+        from .taxonomy_filter_repository import TaxonomyFilterRepository
+
+        return TaxonomyFilterRepository(db)

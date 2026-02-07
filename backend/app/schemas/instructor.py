@@ -11,7 +11,7 @@ These will be reimplemented differently in the new booking system.
 
 from datetime import datetime
 import logging
-from typing import Any, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer
 
@@ -209,6 +209,10 @@ class ServiceBase(StandardizedModel):
     offers_online: Optional[bool] = Field(
         default=None,
         description="Whether the instructor offers online lessons for this service",
+    )
+    filter_selections: Dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']})",
     )
     duration_options: List[int] = Field(
         default=[60],

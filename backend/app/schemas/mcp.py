@@ -276,7 +276,7 @@ class MCPServiceCatalogItem(StrictModel):
     id: str
     name: str
     slug: str
-    category_slug: Optional[str] = None
+    subcategory_name: Optional[str] = None
     category_name: Optional[str] = None
     is_active: bool
 
