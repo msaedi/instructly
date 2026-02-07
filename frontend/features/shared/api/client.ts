@@ -14,23 +14,32 @@ import type {
   ApiErrorResponse,
   AllServicesWithInstructorsResponse,
   BookingCreate,
+  CategoryDetail as ApiCategoryDetail,
+  CategorySummary as ApiCategorySummary,
   CategoryTreeNode,
   CategoryWithSubcategories,
   components,
   CatalogService as ApiCatalogService,
   CatalogServiceMinimal,
+  FilterValidationResponse as ApiFilterValidationResponse,
   InstructorFilterContext as ApiInstructorFilterContext,
+  InstructorService as ApiInstructorService,
   NaturalLanguageSearchResponse as GenNaturalLanguageSearchResponse,
   Booking,
   BookingStatus,
   SearchHistoryResponse,
+  ServiceCatalogDetail as ApiServiceCatalogDetail,
+  ServiceCatalogSummary as ApiServiceCatalogSummary,
   ServiceCategory as ApiServiceCategory,
   SubcategoryBrief as ApiSubcategoryBrief,
+  SubcategoryDetail as ApiSubcategoryDetail,
   SubcategoryFilterResponse as ApiSubcategoryFilterResponse,
   SubcategoryWithServices as ApiSubcategoryWithServices,
   TopCategoryItem as ApiTopCategoryItem,
   TopCategoryServiceItem as ApiTopCategoryServiceItem,
   TopServicesPerCategoryResponse as ApiTopServicesPerCategoryResponse,
+  UpdateFilterSelectionsRequest,
+  ValidateFiltersRequest,
 } from '@/features/shared/api/types';
 
 // Type aliases for generated types
@@ -638,6 +647,50 @@ export const publicApi = {
   async getServiceFilterContext(serviceId: string) {
     return cleanFetch<ApiInstructorFilterContext>(`/api/v1/services/catalog/${serviceId}/filter-context`);
   },
+
+  // ── Slug-based catalog browse endpoints ─────────────────────
+
+  /**
+   * List all active categories with subcategory counts
+   */
+  async listCatalogCategories() {
+    return cleanFetch<ApiCategorySummary[]>('/api/v1/catalog/categories');
+  },
+
+  /**
+   * Get category detail by slug with subcategory listing
+   */
+  async getCatalogCategory(slug: string) {
+    return cleanFetch<ApiCategoryDetail>(`/api/v1/catalog/categories/${slug}`);
+  },
+
+  /**
+   * Get subcategory detail by slug pair with services and filters
+   */
+  async getCatalogSubcategory(categorySlug: string, subcategorySlug: string) {
+    return cleanFetch<ApiSubcategoryDetail>(`/api/v1/catalog/categories/${categorySlug}/${subcategorySlug}`);
+  },
+
+  /**
+   * Get single service detail by ID
+   */
+  async getCatalogService(serviceId: string) {
+    return cleanFetch<ApiServiceCatalogDetail>(`/api/v1/catalog/services/${serviceId}`);
+  },
+
+  /**
+   * List services in a subcategory by ID
+   */
+  async listCatalogSubcategoryServices(subcategoryId: string) {
+    return cleanFetch<ApiServiceCatalogSummary[]>(`/api/v1/catalog/subcategories/${subcategoryId}/services`);
+  },
+
+  /**
+   * Get filter definitions for a subcategory by ID
+   */
+  async getCatalogSubcategoryFilters(subcategoryId: string) {
+    return cleanFetch<ApiSubcategoryFilterResponse[]>(`/api/v1/catalog/subcategories/${subcategoryId}/filters`);
+  },
 };
 
 /**
@@ -791,6 +844,28 @@ export const protectedApi = {
     return authFetch<Booking>(PROTECTED_ENDPOINTS.bookings.reschedule(bookingId), {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  },
+
+  // ── Instructor filter management ────────────────────────────
+
+  /**
+   * Update filter selections on an instructor service
+   */
+  async updateFilterSelections(instructorServiceId: string, data: UpdateFilterSelectionsRequest) {
+    return authFetch<ApiInstructorService>(`/api/v1/services/instructor/services/${instructorServiceId}/filters`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Validate filter selections for a catalog service
+   */
+  async validateFilterSelections(data: ValidateFiltersRequest) {
+    return authFetch<ApiFilterValidationResponse>('/api/v1/services/instructor/services/validate-filters', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   },
 };
