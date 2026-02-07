@@ -1017,17 +1017,26 @@ def _ensure_rbac_roles():
 
 
 def _ensure_catalog_data():
-    """Ensure catalog data is seeded for tests."""
-    # Import here to avoid circular imports
-    from scripts.seed_catalog_only import seed_catalog
+    """Ensure catalog data is seeded for tests (3-level taxonomy)."""
+    # Import via importlib since scripts/seed_data/ has no __init__.py
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "seed_taxonomy",
+        os.path.join(backend_dir, "scripts", "seed_data", "seed_taxonomy.py"),
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    seed_taxonomy = mod.seed_taxonomy
 
     # Create a separate session to check
     session = TestSessionLocal()
     try:
-        # Check if catalog already exists
+        # Check if the 3-level taxonomy is already present
         existing_categories = session.query(ServiceCategory).count()
         existing_services = session.query(ServiceCatalog).count()
-        required_category_names = {"Music", "Sports & Fitness"}
+        required_category_names = {"Music", "Sports & Fitness", "Tutoring & Test Prep"}
         required_service_slugs = {"piano", "guitar", "yoga"}
         category_names = {row[0] for row in session.query(ServiceCategory.name).all()}
         service_slugs = {row[0] for row in session.query(ServiceCatalog.slug).all()}
@@ -1037,12 +1046,12 @@ def _ensure_catalog_data():
         )
 
         if existing_categories == 0 or existing_services == 0 or missing_required:
-            print("\n🌱 Seeding catalog data for tests...")
-            # Close session before seeding (seed_catalog creates its own)
+            print("\n🌱 Seeding taxonomy data for tests...")
+            # Close session before seeding (seed_taxonomy creates its own)
             session.close()
 
-            # Seed using the test database URL
-            seed_catalog(db_url=TEST_DATABASE_URL, verbose=False)
+            # Seed using the taxonomy seeder (DELETE-then-INSERT, idempotent)
+            seed_taxonomy(db_url=TEST_DATABASE_URL, verbose=False)
 
             # Verify seeding worked
             session = TestSessionLocal()

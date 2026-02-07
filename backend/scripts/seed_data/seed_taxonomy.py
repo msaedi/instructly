@@ -52,13 +52,62 @@ def _ulid() -> str:
 # ════════════════════════════════════════════════════════════════════
 
 CATEGORIES = [
-    {"name": "Tutoring & Test Prep", "icon_name": "book-open", "display_order": 1},
-    {"name": "Music", "icon_name": "music", "display_order": 2},
-    {"name": "Dance", "icon_name": "disc", "display_order": 3},
-    {"name": "Languages", "icon_name": "globe", "display_order": 4},
-    {"name": "Sports & Fitness", "icon_name": "trophy", "display_order": 5},
-    {"name": "Arts", "icon_name": "palette", "display_order": 6},
-    {"name": "Hobbies & Life Skills", "icon_name": "sparkles", "display_order": 7},
+    {
+        "name": "Tutoring & Test Prep",
+        "slug": "tutoring",
+        "subtitle": "Academic STEM Tech",
+        "description": "Find expert tutors and test prep instructors in NYC",
+        "icon_name": "book-open",
+        "display_order": 1,
+    },
+    {
+        "name": "Music",
+        "slug": "music",
+        "subtitle": "Instrument Voice Theory",
+        "description": "Private music lessons with verified NYC instructors",
+        "icon_name": "music",
+        "display_order": 2,
+    },
+    {
+        "name": "Dance",
+        "slug": "dance",
+        "subtitle": "Ballet Latin Street",
+        "description": "Dance classes and private lessons across NYC",
+        "icon_name": "disc",
+        "display_order": 3,
+    },
+    {
+        "name": "Languages",
+        "slug": "languages",
+        "subtitle": "World Languages ESL",
+        "description": "Language lessons with native and fluent speakers in NYC",
+        "icon_name": "globe",
+        "display_order": 4,
+    },
+    {
+        "name": "Sports & Fitness",
+        "slug": "sports",
+        "subtitle": "Coaching Training Athletics",
+        "description": "Sports coaching and personal training in NYC",
+        "icon_name": "trophy",
+        "display_order": 5,
+    },
+    {
+        "name": "Arts",
+        "slug": "arts",
+        "subtitle": "Visual Performing Applied",
+        "description": "Art classes, workshops, and creative instruction in NYC",
+        "icon_name": "palette",
+        "display_order": 6,
+    },
+    {
+        "name": "Hobbies & Life Skills",
+        "slug": "hobbies",
+        "subtitle": "Cooking Coaching Wellness",
+        "description": "Life skills coaching, culinary classes, and more in NYC",
+        "icon_name": "sparkles",
+        "display_order": 7,
+    },
 ]
 
 
@@ -654,6 +703,7 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
         "filter_options": 0,
         "subcategory_filters": 0,
         "subcategory_filter_options": 0,
+        "instructor_slugs": 0,
     }
 
     with Session(engine) as session:
@@ -680,14 +730,24 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
         for cat in CATEGORIES:
             cat_id = _ulid()
             cat_name_to_id[cat["name"]] = cat_id
+            meta_title = f"{cat['name']} | InstaInstru"
             session.execute(
                 text("""
-                    INSERT INTO service_categories (id, name, display_order, icon_name, created_at)
-                    VALUES (:id, :name, :display_order, :icon_name, NOW())
+                    INSERT INTO service_categories
+                        (id, name, slug, subtitle, description, meta_title, meta_description,
+                         display_order, icon_name, created_at)
+                    VALUES
+                        (:id, :name, :slug, :subtitle, :description, :meta_title, :meta_description,
+                         :display_order, :icon_name, NOW())
                 """),
                 {
                     "id": cat_id,
                     "name": cat["name"],
+                    "slug": cat["slug"],
+                    "subtitle": cat.get("subtitle", ""),
+                    "description": cat.get("description", ""),
+                    "meta_title": meta_title,
+                    "meta_description": cat.get("description", ""),
                     "display_order": cat["display_order"],
                     "icon_name": cat["icon_name"],
                 },
@@ -710,14 +770,17 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
                 sub_key = f"{cat_name} > {sub_name}"
                 sub_key_to_id[sub_key] = sub_id
 
+                sub_slug = slugify(sub_name)
                 session.execute(
                     text("""
-                        INSERT INTO service_subcategories (id, category_id, name, display_order, created_at)
-                        VALUES (:id, :category_id, :name, :display_order, NOW())
+                        INSERT INTO service_subcategories
+                            (id, category_id, slug, name, display_order, is_active, created_at)
+                        VALUES (:id, :category_id, :slug, :name, :display_order, true, NOW())
                     """),
                     {
                         "id": sub_id,
                         "category_id": cat_id,
+                        "slug": sub_slug,
                         "name": sub_name,
                         "display_order": sub_order,
                     },
@@ -734,9 +797,11 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
                         text("""
                             INSERT INTO service_catalog
                                 (id, subcategory_id, name, slug, eligible_age_groups,
+                                 default_duration_minutes, online_capable,
                                  display_order, is_active, created_at)
                             VALUES
                                 (:id, :subcategory_id, :name, :slug, :eligible_age_groups,
+                                 60, true,
                                  :display_order, true, NOW())
                         """),
                         {
@@ -879,6 +944,41 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
                 n_filters = len(filters)
                 print(f"  + {sub_key}: {n_filters} filters")
 
+        # ── 6. Generate instructor profile slugs ──
+        if verbose:
+            print("\n👤 Generating instructor profile slugs...")
+
+        # Fetch instructor profiles missing slugs
+        rows = session.execute(
+            text("""
+                SELECT ip.id, u.first_name, u.last_name
+                FROM instructor_profiles ip
+                JOIN users u ON u.id = ip.user_id
+                WHERE ip.slug IS NULL
+            """)
+        ).fetchall()
+
+        for row in rows:
+            ip_id, first_name, last_name = row
+            display_name = f"{first_name or ''} {last_name or ''}".strip()
+            if display_name:
+                name_part = slugify(display_name)
+                id_part = ip_id[:8].lower()
+                slug = f"{name_part}-{id_part}"
+            else:
+                slug = f"instructor-{ip_id[:8].lower()}"
+
+            session.execute(
+                text("UPDATE instructor_profiles SET slug = :slug WHERE id = :id"),
+                {"slug": slug, "id": ip_id},
+            )
+            stats["instructor_slugs"] += 1
+
+        if verbose and stats["instructor_slugs"]:
+            print(f"  + Updated {stats['instructor_slugs']} instructor slugs")
+        elif verbose:
+            print("  (no instructor profiles need slugs)")
+
         session.commit()
 
     # ── Summary ──
@@ -893,6 +993,7 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
         print(f"  Filter Options:           {stats['filter_options']}")
         print(f"  Subcategory Filters:      {stats['subcategory_filters']}")
         print(f"  Subcategory Filter Opts:  {stats['subcategory_filter_options']}")
+        print(f"  Instructor Slugs:         {stats['instructor_slugs']}")
         print("=" * 60)
 
         # Verify expected counts
