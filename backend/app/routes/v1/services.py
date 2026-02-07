@@ -6,13 +6,20 @@ Versioned service endpoints under /api/v1/services.
 All business logic delegated to InstructorService.
 
 Endpoints:
-    GET /categories                    → Get all service categories (public)
-    GET /catalog                       → Get catalog services (public)
-    GET /catalog/top-per-category      → Top services per category (public)
-    GET /catalog/all-with-instructors  → All services with instructor counts (public)
-    GET /catalog/kids-available        → Services with kids-capable instructors (public)
-    GET /search                        → Search for instructors by service (public)
-    POST /instructor/add               → Add service to instructor profile (instructor)
+    GET /categories                          → Get all service categories (public)
+    GET /categories/browse                   → Categories with subcategory briefs (public)
+    GET /categories/{id}/tree                → Full 3-level tree for a category (public)
+    GET /categories/{id}/subcategories       → Subcategories for a category (public)
+    GET /subcategories/{id}                  → Subcategory with services (public)
+    GET /subcategories/{id}/filters          → Filters for a subcategory (public)
+    GET /catalog                             → Get catalog services (public)
+    GET /catalog/top-per-category            → Top services per category (public)
+    GET /catalog/all-with-instructors        → All services with instructor counts (public)
+    GET /catalog/kids-available              → Services with kids-capable instructors (public)
+    GET /catalog/by-age-group/{age_group}    → Services by age group (public)
+    GET /catalog/{id}/filter-context         → Filter context for a service (public)
+    GET /search                              → Search for instructors by service (public)
+    POST /instructor/add                     → Add service to instructor profile (instructor)
 """
 
 import asyncio
@@ -45,6 +52,13 @@ from ...schemas.service_catalog_responses import (
     TopServicesMetadata,
     TopServicesPerCategoryResponse,
 )
+from ...schemas.subcategory import (
+    CategoryTreeResponse,
+    CategoryWithSubcategories,
+    SubcategoryBrief,
+    SubcategoryWithServices,
+)
+from ...schemas.taxonomy_filter import InstructorFilterContext, SubcategoryFilterResponse
 from ...services.instructor_service import InstructorService
 from ...utils.strict import model_filter
 
@@ -69,24 +83,25 @@ async def get_service_categories(
 @router.get("/catalog", response_model=List[CatalogServiceResponse])
 async def get_catalog_services(
     response: Response,
-    category: Optional[str] = Query(None, description="Filter by category slug"),
+    category_id: Optional[str] = Query(None, description="Filter by category ID"),
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> List[CatalogServiceResponse]:
     """
     Get available services from the catalog.
 
-    Optionally filter by category slug (e.g., 'music-arts', 'academic').
+    Optionally filter by category ID.
     """
     try:
         services = await asyncio.to_thread(
-            instructor_service.get_available_catalog_services, category_slug=category
+            instructor_service.get_available_catalog_services, category_id=category_id
         )
         response.headers["Cache-Control"] = "public, max-age=1800"
         return cast(List[CatalogServiceResponse], services)
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=f"Category '{category}' not found"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Category '{category_id}' not found",
             )
         raise
 
@@ -225,7 +240,6 @@ async def get_top_services_per_category(
         category_payload = {
             "id": str(category.get("id", "")),
             "name": category.get("name"),
-            "slug": category.get("slug"),
             "icon_name": category.get("icon_name"),
             "services": services_clean,
         }
@@ -273,11 +287,12 @@ async def get_all_services_with_instructors(
         for service_raw in services_raw:
             service_payload = {
                 "id": str(service_raw.get("id", "")),
-                "category_id": str(service_raw.get("category_id", "")),
+                "subcategory_id": str(service_raw.get("subcategory_id", "")),
                 "name": service_raw.get("name"),
                 "slug": service_raw.get("slug"),
                 "description": service_raw.get("description"),
                 "search_terms": service_raw.get("search_terms"),
+                "eligible_age_groups": service_raw.get("eligible_age_groups"),
                 "display_order": service_raw.get("display_order"),
                 "online_capable": service_raw.get("online_capable"),
                 "requires_certification": service_raw.get("requires_certification"),
@@ -296,7 +311,6 @@ async def get_all_services_with_instructors(
         category_payload = {
             "id": str(category.get("id", "")),
             "name": category.get("name"),
-            "slug": category.get("slug"),
             "subtitle": category.get("subtitle"),
             "description": category.get("description"),
             "icon_name": category.get("icon_name"),
@@ -319,6 +333,113 @@ async def get_all_services_with_instructors(
     return AllServicesWithInstructorsResponse(
         **model_filter(AllServicesWithInstructorsResponse, response_payload)
     )
+
+
+# ── Taxonomy navigation endpoints ──────────────────────────────
+
+
+@router.get("/categories/browse", response_model=List[CategoryWithSubcategories])
+async def get_categories_with_subcategories(
+    response: Response,
+    instructor_service: InstructorService = Depends(get_instructor_service),
+) -> List[CategoryWithSubcategories]:
+    """Get all categories with subcategory briefs (for browse page). Cached 1hr."""
+    data = await asyncio.to_thread(instructor_service.get_categories_with_subcategories)
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    return cast(List[CategoryWithSubcategories], data)
+
+
+@router.get("/categories/{category_id}/tree", response_model=CategoryTreeResponse)
+async def get_category_tree(
+    category_id: str,
+    response: Response,
+    instructor_service: InstructorService = Depends(get_instructor_service),
+) -> CategoryTreeResponse:
+    """Get full 3-level tree for a category. Cached 1hr."""
+    try:
+        data = await asyncio.to_thread(instructor_service.get_category_tree, category_id)
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    return CategoryTreeResponse(**model_filter(CategoryTreeResponse, data))
+
+
+@router.get("/categories/{category_id}/subcategories", response_model=List[SubcategoryBrief])
+async def get_subcategories_for_category(
+    category_id: str,
+    response: Response,
+    instructor_service: InstructorService = Depends(get_instructor_service),
+) -> List[SubcategoryBrief]:
+    """Get subcategories for a category (brief list)."""
+    try:
+        tree = await asyncio.to_thread(instructor_service.get_category_tree, category_id)
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    return cast(
+        List[SubcategoryBrief],
+        tree.get("subcategories", []),
+    )
+
+
+@router.get("/subcategories/{subcategory_id}", response_model=SubcategoryWithServices)
+async def get_subcategory_with_services(
+    subcategory_id: str,
+    response: Response,
+    instructor_service: InstructorService = Depends(get_instructor_service),
+) -> SubcategoryWithServices:
+    """Get a subcategory with its services."""
+    try:
+        data = await asyncio.to_thread(
+            instructor_service.get_subcategory_with_services, subcategory_id
+        )
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
+    response.headers["Cache-Control"] = "public, max-age=1800"
+    return SubcategoryWithServices(**model_filter(SubcategoryWithServices, data))
+
+
+@router.get(
+    "/subcategories/{subcategory_id}/filters",
+    response_model=List[SubcategoryFilterResponse],
+)
+async def get_subcategory_filters(
+    subcategory_id: str,
+    response: Response,
+    instructor_service: InstructorService = Depends(get_instructor_service),
+) -> List[SubcategoryFilterResponse]:
+    """Get filter definitions for a subcategory."""
+    data = await asyncio.to_thread(instructor_service.get_subcategory_filters, subcategory_id)
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    return cast(List[SubcategoryFilterResponse], data)
+
+
+@router.get("/catalog/by-age-group/{age_group}", response_model=List[CatalogServiceResponse])
+async def get_services_by_age_group(
+    age_group: str,
+    response: Response,
+    instructor_service: InstructorService = Depends(get_instructor_service),
+) -> List[CatalogServiceResponse]:
+    """Get catalog services eligible for an age group."""
+    data = await asyncio.to_thread(instructor_service.get_services_by_age_group, age_group)
+    response.headers["Cache-Control"] = "public, max-age=1800"
+    return cast(List[CatalogServiceResponse], data)
+
+
+@router.get(
+    "/catalog/{service_id}/filter-context",
+    response_model=InstructorFilterContext,
+)
+async def get_service_filter_context(
+    service_id: str,
+    instructor_service: InstructorService = Depends(get_instructor_service),
+) -> InstructorFilterContext:
+    """Get filter context for instructor onboarding (available filters + eligible age groups)."""
+    try:
+        data = await asyncio.to_thread(instructor_service.get_service_filter_context, service_id)
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
+    return InstructorFilterContext(**model_filter(InstructorFilterContext, data))
 
 
 @router.get("/catalog/kids-available", response_model=List[CatalogServiceMinimalResponse])
