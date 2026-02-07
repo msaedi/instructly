@@ -31,7 +31,7 @@ class CatalogServiceResponse(StrictModel):
     subcategory_id: str
     category_name: Optional[str] = None
     name: str
-    slug: str
+    slug: Optional[str] = None
     description: Optional[str] = None
     search_terms: List[str] = []
     eligible_age_groups: List[str] = Field(
@@ -52,7 +52,7 @@ class CatalogServiceMinimalResponse(StrictModel):
 
     id: str
     name: str
-    slug: str
+    slug: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
 

@@ -69,6 +69,9 @@ class ServiceCategory(Base):
     description = Column(Text, nullable=True)
     display_order = Column(Integer, nullable=False, default=0, index=True)
     icon_name = Column(String(50), nullable=True)
+    slug = Column(String(50), nullable=True)
+    meta_title = Column(String(200), nullable=True)
+    meta_description = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -162,12 +165,15 @@ class ServiceCatalog(Base):
         index=True,
     )
     name = Column(String, nullable=False)
-    slug = Column(String, nullable=False, unique=True, index=True)
+    slug = Column(String(150), nullable=True)
     description = Column(Text, nullable=True)
     search_terms: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     eligible_age_groups: Mapped[List[str]] = mapped_column(
         StringArrayType, nullable=False, default=["toddler", "kids", "teens", "adults"]
     )
+    default_duration_minutes = Column(Integer, nullable=False, default=60)
+    price_floor_in_person_cents = Column(Integer, nullable=True)
+    price_floor_online_cents = Column(Integer, nullable=True)
     display_order = Column(Integer, nullable=False, default=999, index=True)
     embedding = Column(Vector(384), nullable=True)  # MiniLM (legacy)
     # OpenAI text-embedding-3-small embeddings (1536 dimensions)

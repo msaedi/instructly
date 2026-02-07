@@ -84,6 +84,7 @@ class InstructorProfile(Base):
     # Profile information
     bio = Column(Text, nullable=True)
     years_experience = Column(Integer, nullable=True)
+    slug = Column(String(200), nullable=True)
 
     # Booking preferences
     min_advance_booking_hours = Column(Integer, nullable=False, default=2)
