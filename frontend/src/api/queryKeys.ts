@@ -77,6 +77,35 @@ export const queryKeys = {
   },
 
   /**
+   * 3-level taxonomy domain (Category → Subcategory → Service)
+   */
+  taxonomy: {
+    /** All taxonomy queries */
+    all: ['taxonomy'] as const,
+
+    /** Categories with subcategory briefs (browse page) */
+    categoriesWithSubcategories: ['taxonomy', 'categories-browse'] as const,
+
+    /** Full 3-level tree for a category */
+    categoryTree: (categoryId: string) => ['taxonomy', 'tree', categoryId] as const,
+
+    /** Subcategories for a category */
+    subcategoriesByCategory: (categoryId: string) => ['taxonomy', 'subcategories', categoryId] as const,
+
+    /** Subcategory with services */
+    subcategory: (subcategoryId: string) => ['taxonomy', 'subcategory', subcategoryId] as const,
+
+    /** Filters for a subcategory */
+    subcategoryFilters: (subcategoryId: string) => ['taxonomy', 'filters', subcategoryId] as const,
+
+    /** Services by age group */
+    servicesByAgeGroup: (ageGroup: string) => ['taxonomy', 'by-age-group', ageGroup] as const,
+
+    /** Filter context for instructor service editing */
+    filterContext: (serviceId: string) => ['taxonomy', 'filter-context', serviceId] as const,
+  },
+
+  /**
    * Availability domain
    */
   availability: {

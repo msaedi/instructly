@@ -289,7 +289,7 @@ async function ensureServiceCatalogLoaded(): Promise<void> {
       if (!resp || resp.error || !resp.data) return;
       const categories = resp.data.categories ?? [];
       for (const cat of categories) {
-        const categorySlug = cat.slug as string;
+        const categorySlug = (cat.name ?? '').toLowerCase().replace(/&/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
         const services = cat.services ?? [];
         for (const svc of services) {
           const meta: ServiceMeta = {

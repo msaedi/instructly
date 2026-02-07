@@ -26,14 +26,20 @@ import type {
   CatalogServiceMinimalResponse,
   CatalogServiceResponse,
   CategoryResponse,
+  CategoryTreeResponse,
+  CategoryWithSubcategories,
   GetCatalogServicesApiV1ServicesCatalogGetParams,
   GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams,
   HTTPValidationError,
+  InstructorFilterContext,
   InstructorServiceCapabilitiesUpdate,
   InstructorServiceCreate,
   InstructorServiceResponse,
   SearchServicesApiV1ServicesSearchGetParams,
   ServiceSearchResponse,
+  SubcategoryBrief,
+  SubcategoryFilterResponse,
+  SubcategoryWithServices,
   TopServicesPerCategoryResponse,
 } from '../instructly.schemas';
 
@@ -45,7 +51,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * Get available services from the catalog.
 
-Optionally filter by category slug (e.g., 'music-arts', 'academic').
+Optionally filter by category ID.
  * @summary Get Catalog Services
  */
 export const getGetCatalogServicesApiV1ServicesCatalogGetUrl = (
@@ -431,6 +437,193 @@ export function useGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstr
 }
 
 /**
+ * Get catalog services eligible for an age group.
+ * @summary Get Services By Age Group
+ */
+export const getGetServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGetUrl = (
+  ageGroup: string
+) => {
+  return `/api/v1/services/catalog/by-age-group/${ageGroup}`;
+};
+
+export const getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet = async (
+  ageGroup: string,
+  options?: RequestInit
+): Promise<CatalogServiceResponse[]> => {
+  return customFetch<CatalogServiceResponse[]>(
+    getGetServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGetUrl(ageGroup),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getGetServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGetQueryKey = (
+  ageGroup: string
+) => {
+  return [`/api/v1/services/catalog/by-age-group/${ageGroup}`] as const;
+};
+
+export const getGetServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  ageGroup: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGetQueryKey(ageGroup);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>>
+  > = ({ signal }) =>
+    getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet(ageGroup, {
+      signal,
+      ...requestOptions,
+    });
+
+  return { queryKey, queryFn, enabled: !!ageGroup, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>>
+>;
+export type GetServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet<
+  TData = Awaited<
+    ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  ageGroup: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>
+          >,
+          TError,
+          Awaited<ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet<
+  TData = Awaited<
+    ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  ageGroup: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>
+          >,
+          TError,
+          Awaited<ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet<
+  TData = Awaited<
+    ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  ageGroup: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Services By Age Group
+ */
+
+export function useGetServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet<
+  TData = Awaited<
+    ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  ageGroup: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetServicesByAgeGroupApiV1ServicesCatalogByAgeGroupAgeGroupGetQueryOptions(
+      ageGroup,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * Return catalog services that have at least one active instructor who teaches kids.
 
 Minimal payload: id, name, slug. Cached for 5 minutes.
@@ -794,6 +987,210 @@ export function useGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGe
 }
 
 /**
+ * Get filter context for instructor onboarding (available filters + eligible age groups).
+ * @summary Get Service Filter Context
+ */
+export const getGetServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGetUrl = (
+  serviceId: string
+) => {
+  return `/api/v1/services/catalog/${serviceId}/filter-context`;
+};
+
+export const getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet = async (
+  serviceId: string,
+  options?: RequestInit
+): Promise<InstructorFilterContext> => {
+  return customFetch<InstructorFilterContext>(
+    getGetServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGetUrl(serviceId),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getGetServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGetQueryKey = (
+  serviceId: string
+) => {
+  return [`/api/v1/services/catalog/${serviceId}/filter-context`] as const;
+};
+
+export const getGetServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  serviceId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGetQueryKey(serviceId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>>
+  > = ({ signal }) =>
+    getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet(serviceId, {
+      signal,
+      ...requestOptions,
+    });
+
+  return { queryKey, queryFn, enabled: !!serviceId, ...queryOptions } as UseQueryOptions<
+    Awaited<
+      ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+    >,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>>
+  >;
+export type GetServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet<
+  TData = Awaited<
+    ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  serviceId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+          >
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet<
+  TData = Awaited<
+    ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  serviceId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+          >
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet<
+  TData = Awaited<
+    ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  serviceId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Service Filter Context
+ */
+
+export function useGetServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet<
+  TData = Awaited<
+    ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  serviceId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetServiceFilterContextApiV1ServicesCatalogServiceIdFilterContextGetQueryOptions(
+      serviceId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * Get all service categories (cached for 1 hour).
  * @summary Get Service Categories
  */
@@ -933,6 +1330,583 @@ export function useGetServiceCategoriesApiV1ServicesCategoriesGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetServiceCategoriesApiV1ServicesCategoriesGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Get all categories with subcategory briefs (for browse page). Cached 1hr.
+ * @summary Get Categories With Subcategories
+ */
+export const getGetCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGetUrl = () => {
+  return `/api/v1/services/categories/browse`;
+};
+
+export const getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet = async (
+  options?: RequestInit
+): Promise<CategoryWithSubcategories[]> => {
+  return customFetch<CategoryWithSubcategories[]>(
+    getGetCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGetUrl(),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getGetCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGetQueryKey = () => {
+  return [`/api/v1/services/categories/browse`] as const;
+};
+
+export const getGetCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>
+  >,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>>
+  > = ({ signal }) =>
+    getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>>
+>;
+export type GetCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGetQueryError =
+  ErrorType<unknown>;
+
+export function useGetCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet<
+  TData = Awaited<
+    ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>
+  >,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>
+          >,
+          TError,
+          Awaited<ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet<
+  TData = Awaited<
+    ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>
+  >,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>
+          >,
+          TError,
+          Awaited<ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet<
+  TData = Awaited<
+    ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>
+  >,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Categories With Subcategories
+ */
+
+export function useGetCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet<
+  TData = Awaited<
+    ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>
+  >,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetCategoriesWithSubcategoriesApiV1ServicesCategoriesBrowseGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Get subcategories for a category (brief list).
+ * @summary Get Subcategories For Category
+ */
+export const getGetSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGetUrl = (
+  categoryId: string
+) => {
+  return `/api/v1/services/categories/${categoryId}/subcategories`;
+};
+
+export const getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet = async (
+  categoryId: string,
+  options?: RequestInit
+): Promise<SubcategoryBrief[]> => {
+  return customFetch<SubcategoryBrief[]>(
+    getGetSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGetUrl(categoryId),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getGetSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGetQueryKey =
+  (categoryId: string) => {
+    return [`/api/v1/services/categories/${categoryId}/subcategories`] as const;
+  };
+
+export const getGetSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGetQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<
+        typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet
+      >
+    >,
+    TError = ErrorType<HTTPValidationError>,
+  >(
+    categoryId: string,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+      request?: SecondParameter<typeof customFetch>;
+    }
+  ) => {
+    const { query: queryOptions, request: requestOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getGetSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGetQueryKey(
+        categoryId
+      );
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<
+          typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet
+        >
+      >
+    > = ({ signal }) =>
+      getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet(categoryId, {
+        signal,
+        ...requestOptions,
+      });
+
+    return { queryKey, queryFn, enabled: !!categoryId, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<
+          typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet
+        >
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type GetSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGetQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet
+      >
+    >
+  >;
+export type GetSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet<
+  TData = Awaited<
+    ReturnType<typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  categoryId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet
+            >
+          >
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet<
+  TData = Awaited<
+    ReturnType<typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  categoryId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet
+            >
+          >
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet<
+  TData = Awaited<
+    ReturnType<typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  categoryId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Subcategories For Category
+ */
+
+export function useGetSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet<
+  TData = Awaited<
+    ReturnType<typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  categoryId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof getSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGet
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetSubcategoriesForCategoryApiV1ServicesCategoriesCategoryIdSubcategoriesGetQueryOptions(
+      categoryId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Get full 3-level tree for a category. Cached 1hr.
+ * @summary Get Category Tree
+ */
+export const getGetCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGetUrl = (
+  categoryId: string
+) => {
+  return `/api/v1/services/categories/${categoryId}/tree`;
+};
+
+export const getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet = async (
+  categoryId: string,
+  options?: RequestInit
+): Promise<CategoryTreeResponse> => {
+  return customFetch<CategoryTreeResponse>(
+    getGetCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGetUrl(categoryId),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getGetCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGetQueryKey = (
+  categoryId: string
+) => {
+  return [`/api/v1/services/categories/${categoryId}/tree`] as const;
+};
+
+export const getGetCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  categoryId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGetQueryKey(categoryId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>
+  > = ({ signal }) =>
+    getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet(categoryId, {
+      signal,
+      ...requestOptions,
+    });
+
+  return { queryKey, queryFn, enabled: !!categoryId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>
+>;
+export type GetCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet<
+  TData = Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  categoryId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>,
+          TError,
+          Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet<
+  TData = Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  categoryId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>,
+          TError,
+          Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet<
+  TData = Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  categoryId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Category Tree
+ */
+
+export function useGetCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet<
+  TData = Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  categoryId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetCategoryTreeApiV1ServicesCategoriesCategoryIdTreeGetQueryOptions(
+    categoryId,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1204,6 +2178,431 @@ export function useSearchServicesApiV1ServicesSearchGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getSearchServicesApiV1ServicesSearchGetQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Get a subcategory with its services.
+ * @summary Get Subcategory With Services
+ */
+export const getGetSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGetUrl = (
+  subcategoryId: string
+) => {
+  return `/api/v1/services/subcategories/${subcategoryId}`;
+};
+
+export const getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet = async (
+  subcategoryId: string,
+  options?: RequestInit
+): Promise<SubcategoryWithServices> => {
+  return customFetch<SubcategoryWithServices>(
+    getGetSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGetUrl(subcategoryId),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getGetSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGetQueryKey = (
+  subcategoryId: string
+) => {
+  return [`/api/v1/services/subcategories/${subcategoryId}`] as const;
+};
+
+export const getGetSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  subcategoryId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGetQueryKey(subcategoryId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>>
+  > = ({ signal }) =>
+    getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet(subcategoryId, {
+      signal,
+      ...requestOptions,
+    });
+
+  return { queryKey, queryFn, enabled: !!subcategoryId, ...queryOptions } as UseQueryOptions<
+    Awaited<
+      ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+    >,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>>
+  >;
+export type GetSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet<
+  TData = Awaited<
+    ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  subcategoryId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+          >
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet<
+  TData = Awaited<
+    ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  subcategoryId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+          >
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet<
+  TData = Awaited<
+    ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  subcategoryId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Subcategory With Services
+ */
+
+export function useGetSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet<
+  TData = Awaited<
+    ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  subcategoryId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetSubcategoryWithServicesApiV1ServicesSubcategoriesSubcategoryIdGetQueryOptions(
+      subcategoryId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Get filter definitions for a subcategory.
+ * @summary Get Subcategory Filters
+ */
+export const getGetSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGetUrl = (
+  subcategoryId: string
+) => {
+  return `/api/v1/services/subcategories/${subcategoryId}/filters`;
+};
+
+export const getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet = async (
+  subcategoryId: string,
+  options?: RequestInit
+): Promise<SubcategoryFilterResponse[]> => {
+  return customFetch<SubcategoryFilterResponse[]>(
+    getGetSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGetUrl(subcategoryId),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getGetSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGetQueryKey = (
+  subcategoryId: string
+) => {
+  return [`/api/v1/services/subcategories/${subcategoryId}/filters`] as const;
+};
+
+export const getGetSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGetQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet>
+    >,
+    TError = ErrorType<HTTPValidationError>,
+  >(
+    subcategoryId: string,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+      request?: SecondParameter<typeof customFetch>;
+    }
+  ) => {
+    const { query: queryOptions, request: requestOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getGetSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGetQueryKey(
+        subcategoryId
+      );
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet>
+      >
+    > = ({ signal }) =>
+      getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet(subcategoryId, {
+        signal,
+        ...requestOptions,
+      });
+
+    return { queryKey, queryFn, enabled: !!subcategoryId, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type GetSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGetQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet>
+    >
+  >;
+export type GetSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet<
+  TData = Awaited<
+    ReturnType<typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  subcategoryId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet
+            >
+          >
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet<
+  TData = Awaited<
+    ReturnType<typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  subcategoryId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet
+            >
+          >
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet<
+  TData = Awaited<
+    ReturnType<typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  subcategoryId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Subcategory Filters
+ */
+
+export function useGetSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet<
+  TData = Awaited<
+    ReturnType<typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  subcategoryId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetSubcategoryFiltersApiV1ServicesSubcategoriesSubcategoryIdFiltersGetQueryOptions(
+      subcategoryId,
+      options
+    );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

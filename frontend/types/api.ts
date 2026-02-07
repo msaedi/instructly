@@ -503,8 +503,8 @@ export interface ServiceCatalogItem {
   /** Service name */
   name: string;
 
-  /** Category this service belongs to */
-  category_id: string;
+  /** Subcategory this service belongs to (ULID) */
+  subcategory_id: string;
 
   /** Optional description */
   description?: string;

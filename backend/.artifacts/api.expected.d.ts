@@ -5023,6 +5023,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/services/catalog/by-age-group/{age_group}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_services_by_age_group_api_v1_services_catalog_by_age_group__age_group__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/services/catalog/kids-available": {
  parameters: {
  query?: never;
@@ -5055,6 +5071,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/services/catalog/{service_id}/filter-context": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_service_filter_context_api_v1_services_catalog__service_id__filter_context_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/services/categories": {
  parameters: {
  query?: never;
@@ -5063,6 +5095,54 @@ export type paths = {
  cookie?: never;
  };
  get: operations["get_service_categories_api_v1_services_categories_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/services/categories/browse": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_categories_with_subcategories_api_v1_services_categories_browse_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/services/categories/{category_id}/subcategories": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_subcategories_for_category_api_v1_services_categories__category_id__subcategories_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/services/categories/{category_id}/tree": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_category_tree_api_v1_services_categories__category_id__tree_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -5095,6 +5175,38 @@ export type paths = {
  cookie?: never;
  };
  get: operations["search_services_api_v1_services_search_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/services/subcategories/{subcategory_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_subcategory_with_services_api_v1_services_subcategories__subcategory_id__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/services/subcategories/{subcategory_id}/filters": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_subcategory_filters_api_v1_services_subcategories__subcategory_id__filters_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -6743,10 +6855,10 @@ export type components = {
  slug: string;
  };
  CatalogServiceResponse: {
- category?: string | null;
- category_id: string;
+ category_name?: string | null;
  description?: string | null;
  display_order?: number | null;
+ eligible_age_groups?: string[];
  id: string;
  max_recommended_price?: number | null;
  min_recommended_price?: number | null;
@@ -6755,6 +6867,7 @@ export type components = {
  requires_certification?: boolean | null;
  search_terms: string[];
  slug: string;
+ subcategory_id: string;
  typical_duration_options: number[];
  };
  CategoryMetrics: {
@@ -6787,17 +6900,16 @@ export type components = {
  icon_name?: string | null;
  id: string;
  name: string;
- slug: string;
  subtitle?: string | null;
  };
  CategoryServiceDetail: {
  active_instructors: number;
  actual_max_price?: number | null;
  actual_min_price?: number | null;
- category_id: string;
  demand_score: number;
  description?: string | null;
  display_order?: number | null;
+ eligible_age_groups?: string[];
  id: string;
  instructor_count: number;
  is_active?: boolean | null;
@@ -6807,15 +6919,33 @@ export type components = {
  requires_certification?: boolean | null;
  search_terms?: string[];
  slug: string;
+ subcategory_id: string;
  };
  CategorySortBy: "revenue" | "bookings" | "growth" | "conversion";
+ CategoryTreeResponse: {
+ description?: string | null;
+ display_order: number;
+ icon_name?: string | null;
+ id: string;
+ name: string;
+ subcategories?: components["schemas"]["SubcategoryWithServices"][];
+ subtitle?: string | null;
+ };
  CategoryWithServices: {
  description?: string | null;
  icon_name?: string | null;
  id: string;
  name: string;
  services?: components["schemas"]["CategoryServiceDetail"][];
- slug: string;
+ subtitle?: string | null;
+ };
+ CategoryWithSubcategories: {
+ description?: string | null;
+ display_order: number;
+ icon_name?: string | null;
+ id: string;
+ name: string;
+ subcategories?: components["schemas"]["SubcategoryBrief"][];
  subtitle?: string | null;
  };
  CeleryQueuesData: {
@@ -7218,6 +7348,12 @@ export type components = {
  favorites: components["schemas"]["FavoritedInstructor"][];
  total: number;
  };
+ FilterOptionResponse: {
+ display_name: string;
+ display_order: number;
+ id: string;
+ value: string;
+ };
  FinalizeProfilePicturePayload: {
  object_key: string;
  };
@@ -7341,6 +7477,12 @@ export type components = {
  ok: boolean;
  payout_id?: string | null;
  status?: string | null;
+ };
+ InstructorFilterContext: {
+ available_filters?: components["schemas"]["SubcategoryFilterResponse"][];
+ current_selections?: {
+ [key: string]: string[];
+ };
  };
  InstructorInfo: {
  first_name: string;
@@ -7947,11 +8089,11 @@ export type components = {
  };
  MCPServiceCatalogItem: {
  category_name?: string | null;
- category_slug?: string | null;
  id: string;
  is_active: boolean;
  name: string;
  slug: string;
+ subcategory_name?: string | null;
  };
  MCPServiceCatalogResponse: {
  data: components["schemas"]["MCPServiceCatalogData"];
@@ -9496,6 +9638,9 @@ export type components = {
  description?: string | null;
  duration_options: number[];
  equipment_required?: string[] | null;
+ filter_selections?: {
+ [key: string]: string[];
+ };
  hourly_rate: number | string;
  levels_taught?: string[] | null;
  location_types?: string[] | null;
@@ -9536,6 +9681,9 @@ export type components = {
  display_order?: number | null;
  duration_options: number[];
  equipment_required?: string[] | null;
+ filter_selections?: {
+ [key: string]: string[];
+ };
  hourly_rate: number;
  id: string;
  is_active?: boolean | null;
@@ -9635,6 +9783,24 @@ export type components = {
  first_name: string;
  id: string;
  last_name: string;
+ };
+ SubcategoryBrief: {
+ id: string;
+ name: string;
+ service_count: number;
+ };
+ SubcategoryFilterResponse: {
+ filter_display_name: string;
+ filter_key: string;
+ filter_type: string;
+ options?: components["schemas"]["FilterOptionResponse"][];
+ };
+ SubcategoryWithServices: {
+ category_id: string;
+ display_order: number;
+ id: string;
+ name: string;
+ services?: components["schemas"]["CatalogServiceResponse"][];
  };
  SuccessResponse: {
  data?: {
@@ -9750,7 +9916,6 @@ export type components = {
  id: string;
  name: string;
  services?: components["schemas"]["TopCategoryServiceItem"][];
- slug: string;
  };
  TopCategoryServiceItem: {
  active_instructors: number;
@@ -20241,7 +20406,7 @@ export interface operations {
  get_catalog_services_api_v1_services_catalog_get: {
  parameters: {
  query?: {
- category?: string | null;
+ category_id?: string | null;
  };
  header?: never;
  path?: never;
@@ -20282,6 +20447,35 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AllServicesWithInstructorsResponse"];
+ };
+ };
+ };
+ };
+ get_services_by_age_group_api_v1_services_catalog_by_age_group__age_group__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ age_group: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CatalogServiceResponse"][];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
  };
  };
  };
@@ -20334,6 +20528,35 @@ export interface operations {
  };
  };
  };
+ get_service_filter_context_api_v1_services_catalog__service_id__filter_context_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ service_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InstructorFilterContext"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  get_service_categories_api_v1_services_categories_get: {
  parameters: {
  query?: never;
@@ -20349,6 +20572,83 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["CategoryResponse"][];
+ };
+ };
+ };
+ };
+ get_categories_with_subcategories_api_v1_services_categories_browse_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CategoryWithSubcategories"][];
+ };
+ };
+ };
+ };
+ get_subcategories_for_category_api_v1_services_categories__category_id__subcategories_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ category_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SubcategoryBrief"][];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_category_tree_api_v1_services_categories__category_id__tree_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ category_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CategoryTreeResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
  };
  };
  };
@@ -20401,6 +20701,64 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["ServiceSearchResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_subcategory_with_services_api_v1_services_subcategories__subcategory_id__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ subcategory_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SubcategoryWithServices"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_subcategory_filters_api_v1_services_subcategories__subcategory_id__filters_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ subcategory_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SubcategoryFilterResponse"][];
  };
  };
  422: {

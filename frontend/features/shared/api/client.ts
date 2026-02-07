@@ -10,17 +10,24 @@ import { getSessionId, refreshSession } from '@/lib/sessionTracking';
 import { withApiBase } from '@/lib/apiBase';
 import { NEXT_PUBLIC_APP_URL as APP_URL } from '@/lib/env';
 import type {
+  AgeGroup,
   ApiErrorResponse,
   AllServicesWithInstructorsResponse,
   BookingCreate,
+  CategoryTreeNode,
+  CategoryWithSubcategories,
   components,
   CatalogService as ApiCatalogService,
   CatalogServiceMinimal,
+  InstructorFilterContext as ApiInstructorFilterContext,
   NaturalLanguageSearchResponse as GenNaturalLanguageSearchResponse,
   Booking,
   BookingStatus,
   SearchHistoryResponse,
   ServiceCategory as ApiServiceCategory,
+  SubcategoryBrief as ApiSubcategoryBrief,
+  SubcategoryFilterResponse as ApiSubcategoryFilterResponse,
+  SubcategoryWithServices as ApiSubcategoryWithServices,
   TopCategoryItem as ApiTopCategoryItem,
   TopCategoryServiceItem as ApiTopCategoryServiceItem,
   TopServicesPerCategoryResponse as ApiTopServicesPerCategoryResponse,
@@ -549,11 +556,11 @@ export const publicApi = {
   },
 
   /**
-   * Get catalog services, optionally filtered by category
+   * Get catalog services, optionally filtered by category ID
    */
-  async getCatalogServices(categorySlug?: string) {
+  async getCatalogServices(categoryId?: string) {
     return cleanFetch<CatalogService[]>('/api/v1/services/catalog', {
-      params: categorySlug ? { category: categorySlug } : {},
+      params: categoryId ? { category_id: categoryId } : {},
     });
   },
 
@@ -579,6 +586,57 @@ export const publicApi = {
    */
   async getKidsAvailableServices() {
     return cleanFetch<CatalogServiceMinimal[]>('/api/v1/services/catalog/kids-available');
+  },
+
+  // ── 3-level taxonomy endpoints ────────────────────────────────
+
+  /**
+   * Get all categories with subcategory briefs (for browse page)
+   */
+  async getCategoriesWithSubcategories() {
+    return cleanFetch<CategoryWithSubcategories[]>('/api/v1/services/categories/browse');
+  },
+
+  /**
+   * Get full 3-level tree for a category (category → subcategories → services)
+   */
+  async getCategoryTree(categoryId: string) {
+    return cleanFetch<CategoryTreeNode>(`/api/v1/services/categories/${categoryId}/tree`);
+  },
+
+  /**
+   * Get subcategories for a category (lightweight briefs)
+   */
+  async getSubcategoriesByCategory(categoryId: string) {
+    return cleanFetch<ApiSubcategoryBrief[]>(`/api/v1/services/categories/${categoryId}/subcategories`);
+  },
+
+  /**
+   * Get a subcategory with its services
+   */
+  async getSubcategoryWithServices(subcategoryId: string) {
+    return cleanFetch<ApiSubcategoryWithServices>(`/api/v1/services/subcategories/${subcategoryId}`);
+  },
+
+  /**
+   * Get available filters for a subcategory
+   */
+  async getSubcategoryFilters(subcategoryId: string) {
+    return cleanFetch<ApiSubcategoryFilterResponse[]>(`/api/v1/services/subcategories/${subcategoryId}/filters`);
+  },
+
+  /**
+   * Get catalog services eligible for a specific age group
+   */
+  async getServicesByAgeGroup(ageGroup: AgeGroup) {
+    return cleanFetch<ApiCatalogService[]>(`/api/v1/services/catalog/by-age-group/${ageGroup}`);
+  },
+
+  /**
+   * Get filter context for instructor service editing (available filters + current selections)
+   */
+  async getServiceFilterContext(serviceId: string) {
+    return cleanFetch<ApiInstructorFilterContext>(`/api/v1/services/catalog/${serviceId}/filter-context`);
   },
 };
 

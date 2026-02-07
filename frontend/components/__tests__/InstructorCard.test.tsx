@@ -151,8 +151,8 @@ describe('InstructorCard', () => {
     mockUseRecentReviews.mockReturnValue({ data: null });
     mockUseServicesCatalog.mockReturnValue({
       data: [
-        { id: 'cat-1', name: 'Piano', description: 'Piano lessons', category_id: 'music' },
-        { id: 'cat-2', name: 'Guitar', description: 'Guitar lessons', category_id: 'music' },
+        { id: 'cat-1', name: 'Piano', description: 'Piano lessons', subcategory_id: '01HABCTESTSUBCAT0000000001' },
+        { id: 'cat-2', name: 'Guitar', description: 'Guitar lessons', subcategory_id: '01HABCTESTSUBCAT0000000002' },
       ],
     });
     Object.defineProperty(window, 'sessionStorage', {
