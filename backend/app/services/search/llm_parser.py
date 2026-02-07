@@ -53,8 +53,8 @@ Available fields:
 - skill_level: "beginner", "intermediate", or "advanced"
 - urgency: "high" (urgent/asap), "medium" (soon), "low" (flexible)
 - category_hint: One of "Tutoring & Test Prep", "Music", "Dance", "Languages", "Sports & Fitness", "Arts", "Hobbies & Life Skills", or null
-- subcategory_hint: Specific subcategory within the category (e.g., "Martial Arts", "Test Prep", "Strings"), or null
-- service_hint: Exact bookable service name (e.g., "Karate", "SAT Prep", "Piano"), or null
+- subcategory_hint: Specific subcategory within the category (e.g., "Martial Arts", "Test Prep", "Piano"), or null
+- service_hint: Exact bookable service name (e.g., "Karate", "SAT", "Piano"), or null
 
 Today's date is {current_date}.
 

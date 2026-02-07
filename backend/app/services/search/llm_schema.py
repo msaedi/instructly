@@ -120,7 +120,7 @@ class LLMParsedQuery(BaseModel):
         default=None,
         description=(
             "Specific service name if the query targets an exact service "
-            "(e.g., 'Karate', 'SAT Prep', 'Piano'). "
+            "(e.g., 'Karate', 'SAT', 'Piano'). "
             "Only include if the query names a specific bookable service."
         ),
     )
