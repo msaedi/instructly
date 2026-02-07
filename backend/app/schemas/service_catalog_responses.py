@@ -96,7 +96,6 @@ class TopCategoryItem(StrictModel):
 
     id: str
     name: str
-    slug: str
     icon_name: Optional[str] = None
     services: List[TopCategoryServiceItem] = Field(default_factory=list)
 
@@ -144,7 +143,6 @@ class CategoryWithServices(StrictModel):
 
     id: str
     name: str
-    slug: str
     subtitle: Optional[str] = None
     description: Optional[str] = None
     icon_name: Optional[str] = None

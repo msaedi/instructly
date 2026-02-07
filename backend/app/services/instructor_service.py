@@ -107,6 +107,7 @@ class InstructorService(BaseService):
         self.service_area_repository = RepositoryFactory.create_instructor_service_area_repository(
             db
         )
+        self.taxonomy_filter_repository = RepositoryFactory.create_taxonomy_filter_repository(db)
 
     @BaseService.measure_operation("get_instructor_profile")
     def get_instructor_profile(
@@ -836,6 +837,19 @@ class InstructorService(BaseService):
             catalog_id = service_data.service_catalog_id
             updated_catalog_ids.add(catalog_id)
 
+            # Validate filter_selections if present
+            if hasattr(service_data, "filter_selections") and service_data.filter_selections:
+                catalog_svc = self.catalog_repository.get_by_id(catalog_id)
+                if catalog_svc:
+                    is_valid, errors = self.taxonomy_filter_repository.validate_filter_selections(
+                        subcategory_id=catalog_svc.subcategory_id,
+                        selections=service_data.filter_selections,
+                    )
+                    if not is_valid:
+                        raise BusinessRuleException(
+                            f"Invalid filter selections: {'; '.join(errors)}"
+                        )
+
             if catalog_id in services_by_catalog_id:
                 # Update existing service
                 existing_service = services_by_catalog_id[catalog_id]
@@ -1264,7 +1278,7 @@ class InstructorService(BaseService):
     # Catalog-aware methods
     @BaseService.measure_operation("get_available_catalog_services")
     def get_available_catalog_services(
-        self, category_slug: Optional[str] = None
+        self, category_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get available services from the catalog.
@@ -1273,13 +1287,13 @@ class InstructorService(BaseService):
         with analytics-driven order updates.
 
         Args:
-            category_slug: Optional category filter
+            category_id: Optional category ID filter
 
         Returns:
             List of catalog service dictionaries
         """
         # Try cache first (5-minute TTL for analytics freshness)
-        cache_key = f"catalog:services:{category_slug or 'all'}"
+        cache_key = f"catalog:services:{category_id or 'all'}"
         debug_mode = os.getenv("AVAILABILITY_PERF_DEBUG") == "1"
         if self.cache_service:
             cached_result = self.cache_service.get(cache_key)
@@ -1287,14 +1301,6 @@ class InstructorService(BaseService):
                 if debug_mode:
                     logger.debug("[catalog] cache hit for %s", cache_key)
                 return cast(JsonList, cached_result)
-
-        # Get category ID if slug provided
-        category_id = None
-        if category_slug:
-            category = self.category_repository.find_one_by(slug=category_slug)
-            if not category:
-                raise NotFoundException(f"Category '{category_slug}' not found")
-            category_id = category.id
 
         # Use optimized repository method with eager loading
         services = self.catalog_repository.get_active_services_with_categories(
@@ -1332,7 +1338,6 @@ class InstructorService(BaseService):
                 "id": cat.id,
                 "name": cat.name,
                 "subtitle": getattr(cat, "subtitle", None),
-                "slug": cat.id,
                 "description": cat.description,
                 "display_order": cat.display_order,
                 "icon_name": getattr(cat, "icon_name", None),
@@ -1355,6 +1360,8 @@ class InstructorService(BaseService):
         hourly_rate: float,
         custom_description: Optional[str] = None,
         duration_options: Optional[List[int]] = None,
+        filter_selections: Optional[Dict[str, List[str]]] = None,
+        age_groups: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Create an instructor service linked to a catalog entry.
@@ -1365,13 +1372,15 @@ class InstructorService(BaseService):
             hourly_rate: Instructor's rate for this service
             custom_description: Optional custom description
             duration_options: Optional custom durations (uses catalog defaults if not provided)
+            filter_selections: Optional filter selections for this subcategory
+            age_groups: Optional age groups the instructor teaches
 
         Returns:
             Created service dictionary
 
         Raises:
             NotFoundException: If instructor or catalog service not found
-            BusinessRuleException: If service already exists
+            BusinessRuleException: If service already exists or filter selections invalid
         """
         # Get instructor profile
         profile = self.profile_repository.find_one_by(user_id=instructor_id)
@@ -1383,6 +1392,23 @@ class InstructorService(BaseService):
         if not catalog_service:
             raise NotFoundException("Catalog service not found")
 
+        # Validate filter_selections against subcategory filters
+        if filter_selections:
+            is_valid, errors = self.taxonomy_filter_repository.validate_filter_selections(
+                subcategory_id=catalog_service.subcategory_id,
+                selections=filter_selections,
+            )
+            if not is_valid:
+                raise BusinessRuleException(f"Invalid filter selections: {'; '.join(errors)}")
+
+        # Validate age_groups against eligible_age_groups
+        if age_groups and catalog_service.eligible_age_groups:
+            invalid = set(age_groups) - set(catalog_service.eligible_age_groups)
+            if invalid:
+                raise BusinessRuleException(
+                    f"Age groups {sorted(invalid)} not eligible for {catalog_service.name}"
+                )
+
         # Check if already exists
         existing = self.service_repository.find_one_by(
             instructor_profile_id=profile.id, service_catalog_id=catalog_service_id, is_active=True
@@ -1392,14 +1418,19 @@ class InstructorService(BaseService):
 
         with self.transaction():
             # Create the instructor service
-            service = self.service_repository.create(
-                instructor_profile_id=profile.id,
-                service_catalog_id=catalog_service_id,
-                hourly_rate=hourly_rate,
-                description=custom_description,
-                duration_options=duration_options or [60],  # Default to 60 minutes if not specified
-                is_active=True,
-            )
+            create_kwargs: Dict[str, Any] = {
+                "instructor_profile_id": profile.id,
+                "service_catalog_id": catalog_service_id,
+                "hourly_rate": hourly_rate,
+                "description": custom_description,
+                "duration_options": duration_options or [60],
+                "is_active": True,
+            }
+            if filter_selections:
+                create_kwargs["filter_selections"] = filter_selections
+            if age_groups:
+                create_kwargs["age_groups"] = age_groups
+            service = self.service_repository.create(**create_kwargs)
 
         # Invalidate caches
         if self.cache_service:
@@ -1418,12 +1449,13 @@ class InstructorService(BaseService):
         """Convert catalog service to dictionary."""
         return {
             "id": service.id,
-            "category_id": service.subcategory.category_id if service.subcategory else None,
-            "category": service.category_name,
+            "subcategory_id": service.subcategory_id,
+            "category_name": service.category_name,
             "name": service.name,
             "slug": service.slug,
             "description": service.description,
-            "search_terms": service.search_terms or [],  # Default to empty list if None
+            "search_terms": service.search_terms or [],
+            "eligible_age_groups": service.eligible_age_groups or [],
             "display_order": service.display_order,
             "online_capable": service.online_capable,
             "requires_certification": service.requires_certification,
@@ -1456,7 +1488,7 @@ class InstructorService(BaseService):
     def search_services_semantic(
         self,
         query_embedding: List[float],
-        category_id: Optional[int] = None,
+        category_id: Optional[str] = None,
         online_capable: Optional[bool] = None,
         limit: int = 10,
         threshold: float = 0.7,
@@ -1485,7 +1517,7 @@ class InstructorService(BaseService):
         filtered_results = []
         for service, score in similar_services:
             if category_id and (
-                not service.subcategory or service.subcategory.category_id != str(category_id)
+                not service.subcategory or service.subcategory.category_id != category_id
             ):
                 continue
             if online_capable is not None and service.online_capable != online_capable:
@@ -1700,7 +1732,6 @@ class InstructorService(BaseService):
             category_data: JsonDict = {
                 "id": category.id,
                 "name": category.name,
-                "slug": category.id,
                 "icon_name": category.icon_name,
                 "services": services_list,
             }
@@ -1779,7 +1810,6 @@ class InstructorService(BaseService):
             category_data: JsonDict = {
                 "id": category.id,
                 "name": category.name,
-                "slug": category.id,
                 "subtitle": category.subtitle if hasattr(category, "subtitle") else "",
                 "description": category.description,
                 "icon_name": category.icon_name,
@@ -1803,11 +1833,12 @@ class InstructorService(BaseService):
 
                 service_data = {
                     "id": service.id,
-                    "category_id": service.subcategory.category_id if service.subcategory else None,
+                    "subcategory_id": service.subcategory_id,
                     "name": service.name,
                     "slug": service.slug,
                     "description": service.description,
                     "search_terms": service.search_terms or [],
+                    "eligible_age_groups": service.eligible_age_groups or [],
                     "display_order": service.display_order,
                     "online_capable": service.online_capable,
                     "requires_certification": service.requires_certification,
@@ -1860,6 +1891,158 @@ class InstructorService(BaseService):
             self.cache_service.set(cache_key, result, ttl=300)
             logger.debug(f"Cached all {total_services} services with instructor data for 5 minutes")
 
+        return result
+
+    # ── Taxonomy navigation methods ─────────────────────────────
+
+    @BaseService.measure_operation("get_categories_with_subcategories")
+    def get_categories_with_subcategories(self) -> List[Dict[str, Any]]:
+        """Get all categories with subcategory briefs (for browse page). Cached 1hr."""
+        cache_key = "categories:with-subcategories"
+        if self.cache_service:
+            cached = self.cache_service.get(cache_key)
+            if cached:
+                return cast(JsonList, cached)
+
+        categories = self.catalog_repository.get_categories_with_subcategories()
+        result: JsonList = []
+        for cat in sorted(categories, key=lambda c: c.display_order):
+            result.append(
+                {
+                    "id": cat.id,
+                    "name": cat.name,
+                    "subtitle": getattr(cat, "subtitle", None),
+                    "description": cat.description,
+                    "display_order": cat.display_order,
+                    "icon_name": getattr(cat, "icon_name", None),
+                    "subcategories": [
+                        {
+                            "id": sub.id,
+                            "name": sub.name,
+                            "service_count": len(sub.services) if hasattr(sub, "services") else 0,
+                        }
+                        for sub in sorted(
+                            getattr(cat, "subcategories", []),
+                            key=lambda s: s.display_order,
+                        )
+                    ],
+                }
+            )
+
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, ttl=3600)
+        return result
+
+    @BaseService.measure_operation("get_category_tree")
+    def get_category_tree(self, category_id: str) -> Dict[str, Any]:
+        """Get full 3-level tree for a category. Cached 1hr."""
+        cache_key = f"categories:tree:{category_id}"
+        if self.cache_service:
+            cached = self.cache_service.get(cache_key)
+            if cached:
+                return cast(JsonDict, cached)
+
+        category = self.catalog_repository.get_category_tree(category_id)
+        if not category:
+            raise NotFoundException("Category not found")
+
+        result: JsonDict = {
+            "id": category.id,
+            "name": category.name,
+            "subtitle": getattr(category, "subtitle", None),
+            "description": category.description,
+            "display_order": category.display_order,
+            "icon_name": getattr(category, "icon_name", None),
+            "subcategories": [],
+        }
+        subcategories_list = cast(JsonList, result["subcategories"])
+        for sub in sorted(getattr(category, "subcategories", []), key=lambda s: s.display_order):
+            sub_data: JsonDict = {
+                "id": sub.id,
+                "name": sub.name,
+                "category_id": sub.category_id,
+                "display_order": sub.display_order,
+                "services": [
+                    self._catalog_service_to_dict(svc) for svc in getattr(sub, "services", [])
+                ],
+            }
+            subcategories_list.append(sub_data)
+
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, ttl=3600)
+        return result
+
+    @BaseService.measure_operation("get_subcategory_with_services")
+    def get_subcategory_with_services(self, subcategory_id: str) -> Dict[str, Any]:
+        """Get subcategory with its services. Cached 30min."""
+        cache_key = f"subcategory:services:{subcategory_id}"
+        if self.cache_service:
+            cached = self.cache_service.get(cache_key)
+            if cached:
+                return cast(JsonDict, cached)
+
+        sub = self.catalog_repository.get_subcategory_with_services(subcategory_id)
+        if not sub:
+            raise NotFoundException("Subcategory not found")
+
+        result: JsonDict = {
+            "id": sub.id,
+            "name": sub.name,
+            "category_id": sub.category_id,
+            "display_order": sub.display_order,
+            "services": [
+                self._catalog_service_to_dict(svc) for svc in getattr(sub, "services", [])
+            ],
+        }
+
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, ttl=1800)
+        return result
+
+    @BaseService.measure_operation("get_subcategory_filters")
+    def get_subcategory_filters(self, subcategory_id: str) -> List[Dict[str, Any]]:
+        """Get filter definitions for a subcategory. Cached 1hr."""
+        cache_key = f"subcategory:filters:{subcategory_id}"
+        if self.cache_service:
+            cached = self.cache_service.get(cache_key)
+            if cached:
+                return cast(JsonList, cached)
+
+        result = self.taxonomy_filter_repository.get_filters_for_subcategory(subcategory_id)
+
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, ttl=3600)
+        return result
+
+    @BaseService.measure_operation("get_service_filter_context")
+    def get_service_filter_context(self, service_id: str) -> Dict[str, Any]:
+        """Get filter context for instructor onboarding (filters + eligible age groups)."""
+        service = self.catalog_repository.get_service_with_subcategory(service_id)
+        if not service:
+            raise NotFoundException("Service not found")
+
+        filters = self.taxonomy_filter_repository.get_filters_for_subcategory(
+            service.subcategory_id
+        )
+        return {
+            "available_filters": filters,
+            "current_selections": {},
+        }
+
+    @BaseService.measure_operation("get_services_by_age_group")
+    def get_services_by_age_group(self, age_group: str) -> List[Dict[str, Any]]:
+        """Get services eligible for an age group. Cached 30min."""
+        cache_key = f"catalog:age-group:{age_group}"
+        if self.cache_service:
+            cached = self.cache_service.get(cache_key)
+            if cached:
+                return cast(JsonList, cached)
+
+        services = self.catalog_repository.get_services_by_eligible_age_group(age_group)
+        result = [self._catalog_service_to_dict(svc) for svc in services]
+
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, ttl=1800)
         return result
 
     @BaseService.measure_operation("get_kids_available_services")
