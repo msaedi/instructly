@@ -2627,6 +2627,32 @@ export interface CatalogServiceResponse {
   typical_duration_options?: number[];
 }
 
+/**
+ * Subcategory summary for listing within a category page.
+ */
+export interface SubcategorySummary {
+  description?: string | null;
+  id: string;
+  name: string;
+  service_count?: number;
+  slug?: string | null;
+}
+
+/**
+ * Full category detail for /categories/{slug} pages.
+
+Includes subcategory listing with counts.
+ */
+export interface CategoryDetail {
+  description?: string | null;
+  id: string;
+  meta_description?: string | null;
+  meta_title?: string | null;
+  name: string;
+  slug?: string | null;
+  subcategories?: SubcategorySummary[];
+}
+
 export interface CategoryMetrics {
   /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
   avg_price: string;
@@ -2689,6 +2715,17 @@ export const CategorySortBy = {
   growth: 'growth',
   conversion: 'conversion',
 } as const;
+
+/**
+ * Lightweight category for homepage grid.
+ */
+export interface CategorySummary {
+  description?: string | null;
+  id: string;
+  name: string;
+  slug?: string | null;
+  subcategory_count?: number;
+}
 
 /**
  * Subcategory with nested services (for category detail / onboarding).
@@ -3734,6 +3771,14 @@ export interface FilterOptionResponse {
   id: string;
   /** Machine-readable value (e.g., 'elementary') */
   value: string;
+}
+
+/**
+ * Response for filter validation.
+ */
+export interface FilterValidationResponse {
+  errors?: string[];
+  valid: boolean;
 }
 
 export interface FinalizeProfilePicturePayload {
@@ -7872,6 +7917,33 @@ export interface ServiceAreasUpdateRequest {
 }
 
 /**
+ * Full service detail for instructor onboarding or detail pages.
+ */
+export interface ServiceCatalogDetail {
+  default_duration_minutes?: number;
+  description?: string | null;
+  eligible_age_groups?: string[];
+  id: string;
+  name: string;
+  price_floor_in_person_cents?: number | null;
+  price_floor_online_cents?: number | null;
+  slug?: string | null;
+  subcategory_id?: string;
+  subcategory_name?: string | null;
+}
+
+/**
+ * Lightweight service listing within a subcategory.
+ */
+export interface ServiceCatalogSummary {
+  default_duration_minutes?: number;
+  eligible_age_groups?: string[];
+  id: string;
+  name: string;
+  slug?: string | null;
+}
+
+/**
  * Metadata describing instructor search results.
  */
 export interface ServiceSearchMetadata {
@@ -7996,6 +8068,23 @@ export interface StudentBadgeView {
   progress?: BadgeProgressView | null;
   slug: string;
   status?: string | null;
+}
+
+/**
+ * Full subcategory detail for /category/subcategory pages.
+
+Includes nested services and applicable filters.
+ */
+export interface SubcategoryDetail {
+  category: CategoryResponse;
+  description?: string | null;
+  filters?: SubcategoryFilterResponse[];
+  id: string;
+  meta_description?: string | null;
+  meta_title?: string | null;
+  name: string;
+  services?: CatalogServiceResponse[];
+  slug?: string | null;
 }
 
 /**
@@ -8255,6 +8344,19 @@ export interface UpdateConversationStateResponse {
 }
 
 /**
+ * Filter key → selected option values
+ */
+export type UpdateFilterSelectionsRequestFilterSelections = { [key: string]: string[] };
+
+/**
+ * Request to update filter selections on an instructor service.
+ */
+export interface UpdateFilterSelectionsRequest {
+  /** Filter key → selected option values */
+  filter_selections: UpdateFilterSelectionsRequestFilterSelections;
+}
+
+/**
  * Request to update a single preference.
  */
 export interface UpdatePreferenceRequest {
@@ -8378,6 +8480,21 @@ export interface UserUpdate {
   phone?: string | null;
   timezone?: string | null;
   zip_code?: string | null;
+}
+
+/**
+ * Filter key → selected option values
+ */
+export type ValidateFiltersRequestFilterSelections = { [key: string]: string[] };
+
+/**
+ * Request to validate filter selections for a catalog service.
+ */
+export interface ValidateFiltersRequest {
+  /** Filter key → selected option values */
+  filter_selections: ValidateFiltersRequestFilterSelections;
+  /** Catalog service ID */
+  service_catalog_id: string;
 }
 
 export type ValidateWeekRequestCurrentWeek = { [key: string]: TimeSlot[] };

@@ -4,7 +4,7 @@ Schemas for service catalog endpoints.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import ConfigDict, Field
 
@@ -128,6 +128,35 @@ class ServiceCatalogSummary(StrictModel):
     name: str
     eligible_age_groups: List[str] = Field(default_factory=list)
     default_duration_minutes: int = 60
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
+
+
+# ── Phase 4: filter operation schemas ──
+
+
+class UpdateFilterSelectionsRequest(StrictRequestModel):
+    """Request to update filter selections on an instructor service."""
+
+    filter_selections: Dict[str, List[str]] = Field(
+        ..., description="Filter key → selected option values"
+    )
+
+
+class ValidateFiltersRequest(StrictRequestModel):
+    """Request to validate filter selections for a catalog service."""
+
+    service_catalog_id: str = Field(..., description="Catalog service ID")
+    filter_selections: Dict[str, List[str]] = Field(
+        ..., description="Filter key → selected option values"
+    )
+
+
+class FilterValidationResponse(StrictModel):
+    """Response for filter validation."""
+
+    valid: bool
+    errors: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
 

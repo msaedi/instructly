@@ -28,6 +28,7 @@ import type {
   CategoryResponse,
   CategoryTreeResponse,
   CategoryWithSubcategories,
+  FilterValidationResponse,
   GetCatalogServicesApiV1ServicesCatalogGetParams,
   GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams,
   HTTPValidationError,
@@ -41,6 +42,8 @@ import type {
   SubcategoryFilterResponse,
   SubcategoryWithServices,
   TopServicesPerCategoryResponse,
+  UpdateFilterSelectionsRequest,
+  ValidateFiltersRequest,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
@@ -2011,6 +2014,255 @@ export const useAddServiceToProfileApiV1ServicesInstructorAddPost = <
     queryClient
   );
 };
+/**
+ * Validate filter selections without saving. Requires INSTRUCTOR role.
+ * @summary Validate Filter Selections
+ */
+export const getValidateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPostUrl =
+  () => {
+    return `/api/v1/services/instructor/services/validate-filters`;
+  };
+
+export const validateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPost = async (
+  validateFiltersRequest: ValidateFiltersRequest,
+  options?: RequestInit
+): Promise<FilterValidationResponse> => {
+  return customFetch<FilterValidationResponse>(
+    getValidateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPostUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(validateFiltersRequest),
+    }
+  );
+};
+
+export const getValidateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof validateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPost
+        >
+      >,
+      TError,
+      { data: ValidateFiltersRequest },
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof validateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPost>
+    >,
+    TError,
+    { data: ValidateFiltersRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'validateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPost',
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof validateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPost
+        >
+      >,
+      { data: ValidateFiltersRequest }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return validateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPost(
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type ValidateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof validateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPost>
+    >
+  >;
+export type ValidateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPostMutationBody =
+  ValidateFiltersRequest;
+export type ValidateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Validate Filter Selections
+ */
+export const useValidateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof validateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPost
+        >
+      >,
+      TError,
+      { data: ValidateFiltersRequest },
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof validateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPost>
+  >,
+  TError,
+  { data: ValidateFiltersRequest },
+  TContext
+> => {
+  return useMutation(
+    getValidateFilterSelectionsApiV1ServicesInstructorServicesValidateFiltersPostMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
+/**
+ * Update filter selections on an instructor service. Requires INSTRUCTOR role.
+ * @summary Update Filter Selections
+ */
+export const getUpdateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPutUrl =
+  (instructorServiceId: string) => {
+    return `/api/v1/services/instructor/services/${instructorServiceId}/filters`;
+  };
+
+export const updateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPut =
+  async (
+    instructorServiceId: string,
+    updateFilterSelectionsRequest: UpdateFilterSelectionsRequest,
+    options?: RequestInit
+  ): Promise<InstructorServiceResponse> => {
+    return customFetch<InstructorServiceResponse>(
+      getUpdateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPutUrl(
+        instructorServiceId
+      ),
+      {
+        ...options,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(updateFilterSelectionsRequest),
+      }
+    );
+  };
+
+export const getUpdateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPutMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof updateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPut
+        >
+      >,
+      TError,
+      { instructorServiceId: string; data: UpdateFilterSelectionsRequest },
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof updateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPut
+      >
+    >,
+    TError,
+    { instructorServiceId: string; data: UpdateFilterSelectionsRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'updateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPut',
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof updateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPut
+        >
+      >,
+      { instructorServiceId: string; data: UpdateFilterSelectionsRequest }
+    > = (props) => {
+      const { instructorServiceId, data } = props ?? {};
+
+      return updateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPut(
+        instructorServiceId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type UpdateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPutMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof updateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPut
+      >
+    >
+  >;
+export type UpdateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPutMutationBody =
+  UpdateFilterSelectionsRequest;
+export type UpdateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Update Filter Selections
+ */
+export const useUpdateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPut =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof updateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPut
+          >
+        >,
+        TError,
+        { instructorServiceId: string; data: UpdateFilterSelectionsRequest },
+        TContext
+      >;
+      request?: SecondParameter<typeof customFetch>;
+    },
+    queryClient?: QueryClient
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof updateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPut
+      >
+    >,
+    TError,
+    { instructorServiceId: string; data: UpdateFilterSelectionsRequest },
+    TContext
+  > => {
+    return useMutation(
+      getUpdateFilterSelectionsApiV1ServicesInstructorServicesInstructorServiceIdFiltersPutMutationOptions(
+        options
+      ),
+      queryClient
+    );
+  };
 /**
  * Search for instructors by service.
 

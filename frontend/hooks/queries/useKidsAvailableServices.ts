@@ -28,7 +28,7 @@ import { CACHE_TIMES } from '@/lib/react-query/queryClient';
 interface KidsService {
   id: string;
   name: string;
-  slug: string;
+  slug?: string | null;
 }
 
 /**

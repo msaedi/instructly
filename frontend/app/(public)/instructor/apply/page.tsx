@@ -503,7 +503,7 @@ export default function InstructorApplyPage() {
                 >
                   <option value="">{servicesLoading ? 'Loading subcategories...' : 'Select a subcategory'}</option>
                   {subcategoryOptions.map((item) => (
-                    <option key={item.slug} value={item.slug}>{item.name}</option>
+                    <option key={item.slug ?? item.id} value={item.slug ?? ''}>{item.name}</option>
                   ))}
                 </select>
                 {errors.subcategory && (

@@ -1482,6 +1482,92 @@ class InstructorService(BaseService):
             "updated_at": service.updated_at,
         }
 
+    # ── Filter selection management ─────────────────────────────
+
+    @BaseService.measure_operation("update_filter_selections")
+    def update_filter_selections(
+        self,
+        instructor_id: str,
+        instructor_service_id: str,
+        filter_selections: Dict[str, List[str]],
+    ) -> Dict[str, Any]:
+        """Update filter selections on an existing instructor service.
+
+        Args:
+            instructor_id: Instructor's user ID (for ownership check).
+            instructor_service_id: ID of the instructor_service row.
+            filter_selections: New filter selections dict.
+
+        Returns:
+            Updated service dictionary.
+
+        Raises:
+            NotFoundException: If service or profile not found.
+            BusinessRuleException: If not owner or selections invalid.
+        """
+        profile = self.profile_repository.find_one_by(user_id=instructor_id)
+        if not profile:
+            raise NotFoundException("Instructor profile not found")
+
+        service = self.service_repository.find_one_by(id=instructor_service_id)
+        if not service:
+            raise NotFoundException("Instructor service not found")
+
+        if service.instructor_profile_id != profile.id:
+            raise BusinessRuleException("You do not own this service")
+
+        # Validate filter selections against the subcategory's allowed filters
+        catalog_service = self.catalog_repository.get_by_id(service.service_catalog_id)
+        if not catalog_service:
+            raise NotFoundException("Catalog service not found")
+
+        if filter_selections:
+            is_valid, errors = self.taxonomy_filter_repository.validate_filter_selections(
+                subcategory_id=catalog_service.subcategory_id,
+                selections=filter_selections,
+            )
+            if not is_valid:
+                raise BusinessRuleException(f"Invalid filter selections: {'; '.join(errors)}")
+
+        with self.transaction():
+            self.service_repository.update(service.id, filter_selections=filter_selections)
+
+        if self.cache_service:
+            self._invalidate_instructor_caches(instructor_id)
+
+        invalidate_on_service_change(service.id, "update")
+
+        service.catalog_entry = catalog_service
+        return self._instructor_service_to_dict(service)
+
+    @BaseService.measure_operation("validate_filter_selections")
+    def validate_filter_selections_for_service(
+        self,
+        service_catalog_id: str,
+        selections: Dict[str, List[str]],
+    ) -> Dict[str, Any]:
+        """Validate filter selections without saving.
+
+        Args:
+            service_catalog_id: Catalog service to validate against.
+            selections: Filter selections to check.
+
+        Returns:
+            {"valid": bool, "errors": [...]}
+
+        Raises:
+            NotFoundException: If catalog service not found.
+        """
+        catalog_service = self.catalog_repository.get_by_id(service_catalog_id)
+        if not catalog_service:
+            raise NotFoundException("Catalog service not found")
+
+        is_valid, errors = self.taxonomy_filter_repository.validate_filter_selections(
+            subcategory_id=catalog_service.subcategory_id,
+            selections=selections,
+        )
+        return {"valid": is_valid, "errors": errors}
+
     # New methods for enhanced search and analytics
 
     @BaseService.measure_operation("search_services_semantic")

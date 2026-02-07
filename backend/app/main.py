@@ -106,6 +106,7 @@ from .routes.v1 import (
     availability_windows as availability_windows_v1,
     beta as beta_v1,
     bookings as bookings_v1,
+    catalog as catalog_v1,
     codebase_metrics as codebase_metrics_v1,
     config as config_v1,
     conversations as conversations_v1,
@@ -1095,6 +1096,7 @@ api_v1.include_router(sse_v1.router, prefix="/sse")  # type: ignore[attr-defined
 api_v1.include_router(conversations_v1.router, prefix="/conversations")  # type: ignore[attr-defined]
 api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr-defined]
 api_v1.include_router(services_v1.router, prefix="/services")  # type: ignore[attr-defined]
+api_v1.include_router(catalog_v1.router, prefix="/catalog")  # type: ignore[attr-defined]
 api_v1.include_router(favorites_v1.router, prefix="/favorites")  # type: ignore[attr-defined]
 api_v1.include_router(addresses_v1.router, prefix="/addresses")  # type: ignore[attr-defined]
 api_v1.include_router(search_v1.router, prefix="/search")  # type: ignore[attr-defined]
@@ -1256,6 +1258,7 @@ PUBLIC_OPEN_PREFIXES = (
     "/api/v1/r/",  # Referral short URLs
     "/api/v1/instructors",  # v1 instructors endpoints are public (some require auth via dependency)
     "/api/v1/services",  # v1 services endpoints are public (catalog browsing)
+    "/api/v1/catalog",  # v1 catalog browse endpoints are public (slug-based taxonomy navigation)
     "/api/v1/search",  # v1 search endpoints are public (require_beta_phase_access via dependency)
     "/api/v1/addresses/zip",  # ZIP lookup is public
     "/api/v1/addresses/places",  # Place autocomplete/details are public
