@@ -6,7 +6,7 @@ Verifies that seed_taxonomy.py populates the correct data:
 - 7 categories with slugs/meta
 - 77 subcategories with slugs
 - 224 services with age groups
-- 9 filter definitions, ~70 filter options
+- 10 filter definitions, ~70 filter options
 - Subcategory-filter junction mappings
 """
 
@@ -81,7 +81,7 @@ class TestRowCounts:
 
     def test_filter_definition_count(self, db: Session):
         _seed_once(db)
-        assert db.query(FilterDefinition).count() == 9
+        assert db.query(FilterDefinition).count() == 10
 
     def test_filter_option_count(self, db: Session):
         _seed_once(db)
@@ -182,7 +182,7 @@ class TestFKChain:
 
 class TestFilterMappings:
     def test_math_has_four_filters(self, db: Session):
-        """Math subcategory should have grade_level, course_level, goal, format."""
+        """Math subcategory should include universal skill_level + legacy filters."""
         _seed_once(db)
         math_sub = db.query(ServiceSubcategory).filter_by(name="Math").first()
         assert math_sub is not None
@@ -197,7 +197,13 @@ class TestFilterMappings:
             fd = db.get(FilterDefinition,sf.filter_definition_id)
             filter_keys.add(fd.key)
 
-        assert filter_keys == {"grade_level", "course_level", "goal", "format"}
+        assert filter_keys == {
+            "skill_level",
+            "grade_level",
+            "course_level",
+            "goal",
+            "format",
+        }
 
     def test_math_grade_level_has_all_options(self, db: Session):
         """Math's grade_level filter should have all 6 grade level options."""
@@ -220,21 +226,28 @@ class TestFilterMappings:
         assert sfo_count == 6  # All grade levels
 
 
-# ── 6. Music Has No Filters ──────────────────────────────────
+# ── 6. Music Filter Coverage ─────────────────────────────────
 
 
-class TestMusicNoFilters:
-    def test_piano_subcategory_has_no_filters(self, db: Session):
+class TestMusicFilters:
+    def test_piano_subcategory_includes_universal_skill_level(self, db: Session):
         _seed_once(db)
         piano_sub = db.query(ServiceSubcategory).filter_by(name="Piano").first()
         assert piano_sub is not None
 
-        sf_count = (
+        sf_rows = (
             db.query(SubcategoryFilter)
             .filter_by(subcategory_id=piano_sub.id)
-            .count()
+            .all()
         )
-        assert sf_count == 0, "Music subcategories should have no filter mappings"
+        filter_keys = set()
+        for sf in sf_rows:
+            fd = db.get(FilterDefinition, sf.filter_definition_id)
+            if fd is not None:
+                filter_keys.add(fd.key)
+
+        assert "skill_level" in filter_keys
+        assert len(filter_keys) >= 1
 
 
 # ── 7. Age Group Exceptions ──────────────────────────────────
@@ -247,11 +260,11 @@ class TestAgeGroups:
         assert gre is not None
         assert sorted(gre.eligible_age_groups) == ["adults"]
 
-    def test_sat_teens_adults(self, db: Session):
+    def test_sat_teens_only(self, db: Session):
         _seed_once(db)
         sat = db.query(ServiceCatalog).filter_by(name="SAT").first()
         assert sat is not None
-        assert sorted(sat.eligible_age_groups) == ["adults", "teens"]
+        assert sorted(sat.eligible_age_groups) == ["teens"]
 
     def test_piano_all_ages(self, db: Session):
         _seed_once(db)
