@@ -191,19 +191,16 @@ def test_validate_catalog_ids_invalid_raises():
         service._validate_catalog_ids(["cat-1", "cat-2"])
 
 
-def test_resolve_and_apply_location_types():
+def test_normalize_capability_flags():
     service = _build_service()
 
-    svc = SimpleNamespace(offers_travel=True, offers_at_location=False, offers_online=True)
-    assert service._resolve_location_types(svc) == ["in_person", "online"]
-
-    updates = {"offers_travel": True, "offers_at_location": False, "offers_online": True}
-    service._apply_location_type_capabilities(updates)
-    assert updates["location_types"] == ["in_person", "online"]
+    updates = {"offers_travel": True, "offers_at_location": None, "offers_online": True}
+    service._normalize_capability_flags(updates)
+    assert updates == {"offers_travel": True, "offers_online": True}
 
     updates = {}
-    service._apply_location_type_capabilities(updates, apply_defaults=True)
-    assert updates["location_types"] == ["online"]
+    service._normalize_capability_flags(updates, apply_defaults=True)
+    assert updates == {"offers_travel": False, "offers_at_location": False, "offers_online": True}
 
 
 def test_update_service_capabilities_updates_and_invalidates_cache():

@@ -490,10 +490,9 @@ class TestInstructorServiceEnhancements:
             instructor_profile_id=mock_instructor_profile.id,
             service_catalog_id=service.id,
             hourly_rate=80,
-            experience_level="intermediate",
             equipment_required=["Computer", "Python installed"],
-            levels_taught=["Beginner", "Intermediate"],
-            age_groups=["18+"],
+            filter_selections={"skill_level": ["beginner", "intermediate"]},
+            age_groups=["adults"],
             offers_online=True,
             offers_travel=False,
             offers_at_location=False,
@@ -633,32 +632,30 @@ class TestEnhancedModels:
             instructor_profile_id=mock_instructor_profile.id,
             service_catalog_id=catalog_service.id,
             hourly_rate=75,
-            experience_level="expert",
             description="Custom description",
             requirements="Basic knowledge required",
             duration_options=[30, 60, 90],
             equipment_required=["Laptop", "Notebook"],
-            levels_taught=["Beginner", "Intermediate", "Advanced"],
-            age_groups=["16-18", "18+"],
+            filter_selections={"skill_level": ["beginner", "intermediate", "advanced"]},
+            age_groups=["kids", "teens"],
             offers_travel=True,
             offers_at_location=True,
             offers_online=True,
-            max_distance_miles=20,
             is_active=True,
         )
         db.add(instructor_service)
         db.commit()
 
         saved = db.query(InstructorService).filter_by(id=instructor_service.id).first()
-        assert saved.experience_level == "expert"
         assert saved.requirements == "Basic knowledge required"
         assert saved.equipment_required == ["Laptop", "Notebook"]
-        assert saved.levels_taught == ["Beginner", "Intermediate", "Advanced"]
-        assert saved.age_groups == ["16-18", "18+"]
+        assert saved.filter_selections == {
+            "skill_level": ["beginner", "intermediate", "advanced"]
+        }
+        assert saved.age_groups == ["kids", "teens"]
         assert saved.offers_travel is True
         assert saved.offers_at_location is True
         assert saved.offers_online is True
-        assert saved.max_distance_miles == 20
 
 
 @pytest.fixture

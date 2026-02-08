@@ -13543,6 +13543,10 @@ export type components = {
              *     ]
              */
             duration_options: number[];
+            /** Filter Selections */
+            filter_selections?: {
+                [key: string]: string[];
+            };
             /** Hourly Rate */
             hourly_rate: number;
             /** Id */
@@ -13552,11 +13556,6 @@ export type components = {
              * @default true
              */
             is_active: boolean;
-            /**
-             * Location Types
-             * @description Legacy location types (in_person, online)
-             */
-            location_types?: string[] | null;
             /** Name */
             name: string;
             /**
@@ -19228,7 +19227,7 @@ export type components = {
         ServiceCreate: {
             /**
              * Age Groups
-             * @description Age groups this service is offered to. Allowed: 'kids', 'adults'. Use both for both.
+             * @description Age groups this service is offered to. Allowed: 'toddler', 'kids', 'teens', 'adults'.
              */
             age_groups?: string[] | null;
             /** Description */
@@ -19258,16 +19257,6 @@ export type components = {
              * @description Hourly rate in USD
              */
             hourly_rate: number | string;
-            /**
-             * Levels Taught
-             * @description Levels taught. Allowed: 'beginner', 'intermediate', 'advanced'
-             */
-            levels_taught?: string[] | null;
-            /**
-             * Location Types
-             * @description Where lessons are offered. Allowed: 'in_person', 'online'
-             */
-            location_types?: string[] | null;
             /**
              * Offers At Location
              * @description Whether the instructor offers lessons at their location for this service
@@ -19405,7 +19394,7 @@ export type components = {
         ServiceResponse: {
             /**
              * Age Groups
-             * @description Age groups this service is offered to. Allowed: 'kids', 'adults'. Use both for both.
+             * @description Age groups this service is offered to. Allowed: 'toddler', 'kids', 'teens', 'adults'.
              */
             age_groups?: string[] | null;
             /** Description */
@@ -19447,16 +19436,6 @@ export type components = {
              * @description Whether this service is currently active for the instructor
              */
             is_active?: boolean | null;
-            /**
-             * Levels Taught
-             * @description Levels taught. Allowed: 'beginner', 'intermediate', 'advanced'
-             */
-            levels_taught?: string[] | null;
-            /**
-             * Location Types
-             * @description Where lessons are offered. Allowed: 'in_person', 'online'
-             */
-            location_types?: string[] | null;
             /**
              * Name
              * @description Resolved name of the service from the catalog

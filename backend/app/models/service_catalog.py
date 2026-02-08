@@ -312,16 +312,12 @@ class InstructorService(Base):
         instructor_profile_id: FK to instructor_profiles
         service_catalog_id: FK to service_catalog
         hourly_rate: Instructor's rate for this service
-        experience_level: Level of experience
         description: Instructor's custom description
         requirements: Requirements for students
         duration_options: Available session durations in minutes
         equipment_required: Equipment needed for the service
-        levels_taught: Skill levels the instructor teaches
         age_groups: Age groups the instructor works with
-        location_types: Types of locations offered
         filter_selections: JSONB of instructor's filter choices (e.g., {"grade_level": ["elementary"]})
-        max_distance_miles: Maximum travel distance for in-person sessions
         is_active: Whether currently offered (soft delete)
         created_at: Timestamp when created
         updated_at: Timestamp when last updated
@@ -347,16 +343,13 @@ class InstructorService(Base):
         index=True,
     )
     hourly_rate = Column(Numeric(10, 2), nullable=False)
-    experience_level = Column(String(50), nullable=True)
     description = Column(Text, nullable=True)
     requirements = Column(Text, nullable=True)
     duration_options: Mapped[List[int]] = mapped_column(
         IntegerArrayType, nullable=False, default=[60]
     )
     equipment_required: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
-    levels_taught: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     age_groups: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
-    location_types: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     filter_selections = Column(
         JSONB(astext_type=Text()).with_variant(JSON(), "sqlite"),
         nullable=False,
@@ -366,7 +359,6 @@ class InstructorService(Base):
     offers_travel = Column(Boolean, nullable=False, default=False)
     offers_at_location = Column(Boolean, nullable=False, default=False)
     offers_online = Column(Boolean, nullable=False, default=True)
-    max_distance_miles = Column(Integer, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -461,17 +453,13 @@ class InstructorService(Base):
             "name": self.catalog_entry.name if self.catalog_entry else "Unknown Service",
             "category": self.category,
             "hourly_rate": self.hourly_rate,
-            "experience_level": self.experience_level,
             "description": self.description
             or (self.catalog_entry.description if self.catalog_entry else None),
             "requirements": self.requirements,
             "duration_options": self.duration_options,
             "equipment_required": self.equipment_required,
-            "levels_taught": self.levels_taught,
             "age_groups": self.age_groups,
             "filter_selections": self.filter_selections,
-            "location_types": self.location_types,
-            "max_distance_miles": self.max_distance_miles,
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,

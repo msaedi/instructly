@@ -94,11 +94,8 @@ class InstructorServiceResponse(StrictModel):
     category: str
     hourly_rate: float
     description: Optional[str] = None
+    filter_selections: Dict[str, List[str]] = Field(default_factory=dict)
     duration_options: List[int] = [60]
-    location_types: Optional[List[str]] = Field(
-        default=None,
-        description="Legacy location types (in_person, online)",
-    )
     offers_travel: bool = False
     offers_at_location: bool = False
     offers_online: bool = True

@@ -7,10 +7,11 @@ Adapted to actual InstaInstru schema:
 - Reviews aggregated from reviews table (not stored on instructor_profiles)
 - Photo presence checked via users.profile_picture_key
 - Background check status via instructor_profiles.bgc_status
-- Service audience/skills via instructor_services.age_groups and levels_taught
+- Service audience/skills via instructor_services.age_groups and filter_selections.skill_level
 """
 from __future__ import annotations
 
+import json
 import os
 import threading
 import time
@@ -18,6 +19,8 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from ..models.service_catalog import InstructorService
 
 _GLOBAL_AVG_RATING_TTL_S = int(os.getenv("NL_SEARCH_GLOBAL_AVG_RATING_TTL_S", "600"))
 _GLOBAL_AVG_RATING_CACHE: Optional[float] = None
@@ -33,7 +36,7 @@ class RankingRepository:
     - users: profile picture presence
     - instructor_profiles: bio, last_active_at, response_rate, bgc_status, identity_verified_at
     - reviews: aggregated ratings and review counts
-    - instructor_services: age_groups, levels_taught
+    - instructor_services: age_groups, filter_selections.skill_level
     - instructor_service_areas + region_boundaries: distance calculations
     """
 
@@ -224,7 +227,7 @@ class RankingRepository:
         service_ids: List[str],
     ) -> Dict[str, List[str]]:
         """
-        Get skill levels for services from levels_taught column.
+        Get skill levels for services from filter_selections.skill_level.
 
         Returns dict mapping service_id to list of skill levels.
         Empty or null defaults to ["all"].
@@ -232,22 +235,32 @@ class RankingRepository:
         if not service_ids:
             return {}
 
-        query = text(
-            """
-            SELECT
-                id as service_id,
-                COALESCE(levels_taught, ARRAY['all']) as skill_levels
-            FROM instructor_services
-            WHERE id = ANY(:service_ids)
-        """
-        )
-
-        result = self.db.execute(query, {"service_ids": service_ids})
-
         skills: Dict[str, List[str]] = {}
-        for row in result:
-            skill_list = list(row.skill_levels) if row.skill_levels else ["all"]
-            skills[row.service_id] = skill_list
+        rows = (
+            self.db.query(InstructorService.id, InstructorService.filter_selections)
+            .filter(InstructorService.id.in_(service_ids))
+            .all()
+        )
+        for service_id, filter_selections in rows:
+            skill_levels: List[str] = []
+            selections: Dict[str, Any] = {}
+            if isinstance(filter_selections, dict):
+                selections = filter_selections
+            elif isinstance(filter_selections, str):
+                try:
+                    decoded = json.loads(filter_selections)
+                    if isinstance(decoded, dict):
+                        selections = decoded
+                except Exception:
+                    selections = {}
+
+            if selections:
+                raw_levels = selections.get("skill_level", [])
+                if isinstance(raw_levels, list):
+                    skill_levels = [
+                        str(level).strip().lower() for level in raw_levels if str(level).strip()
+                    ]
+            skills[str(service_id)] = skill_levels or ["all"]
 
         return skills
 

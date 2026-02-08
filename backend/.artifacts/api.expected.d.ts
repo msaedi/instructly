@@ -7754,10 +7754,12 @@ export type components = {
  created_at?: string | null;
  description?: string | null;
  duration_options: number[];
+ filter_selections?: {
+ [key: string]: string[];
+ };
  hourly_rate: number;
  id: string;
  is_active: boolean;
- location_types?: string[] | null;
  name: string;
  offers_at_location: boolean;
  offers_online: boolean;
@@ -9809,8 +9811,6 @@ export type components = {
  [key: string]: string[];
  };
  hourly_rate: number | string;
- levels_taught?: string[] | null;
- location_types?: string[] | null;
  offers_at_location?: boolean | null;
  offers_online?: boolean | null;
  offers_travel?: boolean | null;
@@ -9854,8 +9854,6 @@ export type components = {
  hourly_rate: number;
  id: string;
  is_active?: boolean | null;
- levels_taught?: string[] | null;
- location_types?: string[] | null;
  name?: string | null;
  offers_at_location: boolean;
  offers_online: boolean;
