@@ -278,10 +278,12 @@ const findNextAvailableSlot = (
     return null;
   };
 
-  // Helper function to get service name from catalog
-  const getServiceName = (serviceId: string): string => {
-    const service = serviceCatalog.find((s) => s.id === serviceId);
-    return service?.name || '';
+  // Helper function to get service name — prefer inline name, fall back to catalog lookup
+  const getServiceName = (svc: { service_catalog_id: string; service_catalog_name?: string; skill?: string }): string => {
+    if (svc.service_catalog_name) return svc.service_catalog_name;
+    if (svc.skill) return svc.skill;
+    const catalogEntry = serviceCatalog.find((s) => s.id === svc.service_catalog_id);
+    return catalogEntry?.name || '';
   };
 
   const nextAvailableSlot = useMemo(() => {
@@ -436,7 +438,7 @@ const findNextAvailableSlot = (
               {/* Services as pills */}
               <div className={`flex gap-2 ${compact ? 'mt-2 mb-1' : 'mt-3 mb-2'}`}>
                 {instructor.services.map((service, idx) => {
-                  const serviceName = getServiceName(service.service_catalog_id);
+                  const serviceName = getServiceName(service);
                   if (!serviceName) return null;
                   const isHighlighted =
                     (highlightServiceCatalogId || '').trim().toLowerCase() ===
@@ -742,7 +744,7 @@ const findNextAvailableSlot = (
                   const bookingData = {
                     instructorId: instructor.user_id,
                     instructorName: `${instructor.user.first_name} ${instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}`,
-                    lessonType: getServiceName(at(instructor.services, 0)?.service_catalog_id || '') || 'Service',
+                    lessonType: (at(instructor.services, 0) ? getServiceName(at(instructor.services, 0)!) : '') || 'Service',
                     date: nextAvailableSlot.date,
                     startTime: nextAvailableSlot.time,
                     endTime: calculateEndTime(nextAvailableSlot.time, resolvedDurationMinutes),
