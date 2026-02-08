@@ -441,6 +441,8 @@ export function Chat({
 
   // Live timestamp ticker - triggers re-render every minute for relative timestamps
   const tick = useLiveTimestamp();
+  const relativeNow = React.useMemo(() => new Date(tick * 60000), [tick]);
+  const nowMs = tick * 60000;
 
   const latestUnreadMessageId = React.useMemo(() => {
     let latest: { id: string; ts: number } | null = null;
@@ -635,8 +637,7 @@ export function Chat({
 	    if (message.sender_id !== currentUserId) return false;
 	    if (message.is_deleted) return false;
 	    const created = new Date(message.created_at).getTime();
-	    const now = Date.now();
-	    const diffMinutes = (now - created) / 60000;
+	    const diffMinutes = (nowMs - created) / 60000;
 	    return diffMinutes <= editWindowMinutes;
 	  };
 
@@ -657,7 +658,7 @@ export function Chat({
   const normalizedMessages = React.useMemo<NormalizedMessage[]>(() => {
     return allMessages.map((message) => {
       const isOwn = message.sender_id === currentUserId;
-      const timestampLabel = formatRelativeTimestamp(message.created_at);
+      const timestampLabel = formatRelativeTimestamp(message.created_at, relativeNow);
       const receipts = mergedReadReceipts[message.id] || [];
       const readStatus: 'sent' | 'delivered' | 'read' | undefined = isOwn
         ? (receipts.length > 0 ? 'read' : message.delivered_at ? 'delivered' : 'sent')
@@ -701,8 +702,7 @@ export function Chat({
         readTimestampLabel,
       });
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- tick triggers periodic re-render for live timestamps
-  }, [allMessages, currentUserId, mergedReadReceipts, lastOwnReadMessageId, userReactions, reactionDeltas, hasReacted, tick]);
+  }, [allMessages, currentUserId, mergedReadReceipts, lastOwnReadMessageId, userReactions, reactionDeltas, hasReacted, relativeNow]);
 
   // Group messages by date (normalized)
   const messagesByDate = React.useMemo(() => {
@@ -714,45 +714,38 @@ export function Chat({
     }, {} as Record<string, NormalizedMessage[]>);
   }, [normalizedMessages]);
 
-  // Connection status component
-  const ConnectionIndicator = () => {
-    if (connectionStatus === ConnectionStatus.CONNECTED) {
-      return null;
-    }
-
-    return (
-      <div className={cn(
-        'flex items-center justify-center py-2 px-4 text-sm',
-        connectionStatus === ConnectionStatus.ERROR && 'bg-red-50 text-red-700',
-        connectionStatus === ConnectionStatus.DISCONNECTED && 'bg-gray-50 text-gray-700'
-      )}>
-        {connectionStatus === ConnectionStatus.ERROR && (
-          <>
-            <AlertCircle className="w-4 h-4 mr-2" />
-            Connection error
-            <button
-              onClick={reconnect}
-              className="ml-2 underline hover:no-underline"
-            >
-              Retry
-            </button>
-          </>
-        )}
-        {connectionStatus === ConnectionStatus.DISCONNECTED && (
-          <>
-            <WifiOff className="w-4 h-4 mr-2" />
-            Disconnected
-            <button
-              onClick={reconnect}
-              className="ml-2 underline hover:no-underline"
-            >
-              Connect
-            </button>
-          </>
-        )}
-      </div>
-    );
-  };
+  const connectionIndicator = connectionStatus === ConnectionStatus.CONNECTED ? null : (
+    <div className={cn(
+      'flex items-center justify-center py-2 px-4 text-sm',
+      connectionStatus === ConnectionStatus.ERROR && 'bg-red-50 text-red-700',
+      connectionStatus === ConnectionStatus.DISCONNECTED && 'bg-gray-50 text-gray-700'
+    )}>
+      {connectionStatus === ConnectionStatus.ERROR && (
+        <>
+          <AlertCircle className="w-4 h-4 mr-2" />
+          Connection error
+          <button
+            onClick={reconnect}
+            className="ml-2 underline hover:no-underline"
+          >
+            Retry
+          </button>
+        </>
+      )}
+      {connectionStatus === ConnectionStatus.DISCONNECTED && (
+        <>
+          <WifiOff className="w-4 h-4 mr-2" />
+          Disconnected
+          <button
+            onClick={reconnect}
+            className="ml-2 underline hover:no-underline"
+          >
+            Connect
+          </button>
+        </>
+      )}
+    </div>
+  );
 
   // Optional typing indicator bar (ephemeral)
   // We will show this via SSE hook in phase 2 UI update (placeholder)
@@ -793,7 +786,7 @@ export function Chat({
     <div className={cn('relative flex flex-col h-full min-h-0 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-900', className)}>
       {/* Connection status */}
       <div className="sticky top-0 z-10">
-        <ConnectionIndicator />
+        {connectionIndicator}
       </div>
 
       {/* Messages container */}

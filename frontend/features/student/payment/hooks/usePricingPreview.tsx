@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import { ApiProblemError } from '@/lib/api/fetch';
 import { logger } from '@/lib/logger';
 import {

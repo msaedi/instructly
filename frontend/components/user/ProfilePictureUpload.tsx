@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import ImageCropModal from '@/components/modals/ImageCropModal';
@@ -51,6 +52,7 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
   }, [shouldFetchExisting, user?.id, user?.profile_picture_version]);
   const fetchedUrls = useProfilePictureUrls(rawId ? [rawId] : [], 'display');
   const existingUrl = rawId && user?.id ? fetchedUrls[String(user.id)] ?? null : null;
+  const displayUrl = previewUrl || existingUrl;
 
   // Measure trigger circle size if custom trigger provided
   React.useEffect(() => {
@@ -192,11 +194,13 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
           {/* underlying trigger */}
           <span className="block transition-transform group-hover:scale-105">{trigger}</span>
           {/* current or preview image overlay constrained to the circle area */}
-          {(previewUrl || existingUrl) && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={previewUrl || existingUrl || ''}
+          {displayUrl && (
+            <Image
+              src={displayUrl}
               alt="Profile"
+              width={overlaySize}
+              height={overlaySize}
+              unoptimized
               className="absolute top-0 object-cover rounded-full transition-transform duration-150 ease-in-out group-hover:scale-105"
               style={{ width: overlaySize, height: overlaySize, left: '50%', transform: 'translateX(-50%)', filter: isUploading ? 'grayscale(20%) opacity(0.9)' : undefined }}
             />

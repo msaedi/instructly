@@ -201,6 +201,15 @@ repos:
         pass_filenames: true
         description: Block raw /api/ strings in app code - use Orval-generated hooks instead
 
+      - id: frontend-no-eslint-suppressions
+        name: Frontend block eslint-disable suppressions
+        entry: frontend/scripts/precommit_no_lint_suppressions.sh
+        language: script
+        files: ^frontend/.*\.(ts|tsx|js|jsx|mjs|cjs)$
+        exclude: ^frontend/(node_modules|\.next|src/api/generated|types/generated)/
+        pass_filenames: true
+        description: Fail if inline eslint-disable suppressions are introduced
+
       - id: backend-no-focused-tests
         name: Backend block focused tests
         entry: backend/scripts/precommit_block_only_tests.sh

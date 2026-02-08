@@ -339,8 +339,10 @@ export default function InstructorDashboardNew() {
     }
     try {
       // Recompute after font loading as it can shift layout
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (document as any).fonts?.ready?.then?.(() => computeSidebarOffset());
+      const fontsReady = document.fonts?.ready;
+      if (fontsReady) {
+        void fontsReady.then(() => computeSidebarOffset());
+      }
     } catch {}
     return () => {
       window.removeEventListener('resize', onResize);

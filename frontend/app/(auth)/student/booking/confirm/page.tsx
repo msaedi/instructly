@@ -79,10 +79,6 @@ export default function BookingConfirmationPage() {
           bookingId: '',
           instructorId: rd.instructorId,
           instructorName: rd.instructorName || 'Instructor',
-          // Preserve service ULID for downstream API call
-          // Also carry it on the top-level object for convenience
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
           serviceId: rd.serviceId,
           lessonType: rd.serviceName || 'Lesson',
           date: new Date(rd.date),
