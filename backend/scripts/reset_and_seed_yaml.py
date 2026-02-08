@@ -8,8 +8,11 @@ Usage:
   Production: SITE_MODE=prod python backend/scripts/reset_and_seed_yaml.py (requires confirmation)
 """
 
+from collections import Counter
 from contextlib import contextmanager
+from difflib import SequenceMatcher
 from pathlib import Path
+import re
 import sys
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -57,6 +60,71 @@ from app.utils.time_utils import time_to_minutes
 
 
 class DatabaseSeeder:
+    _INSTRUCTOR_ALLOWED_KEYS = {
+        "email",
+        "phone",
+        "profile",
+        "availability_pattern",
+        "current_tier_pct",
+        "seed_completed_last_30d",
+        "seed_randomize_categories",
+        "first_name",
+        "last_name",
+        "zip_code",
+        "account_status",
+    }
+    _PROFILE_ALLOWED_KEYS = {
+        "bio",
+        "years_experience",
+        "services",
+    }
+    _SERVICE_ALLOWED_KEYS = {
+        "name",
+        "service_slug",
+        "service_catalog_id",
+        "description",
+        "price",
+        "hourly_rate",
+        "duration_options",
+        "requirements",
+        "equipment_required",
+        "age_groups",
+        "offers_travel",
+        "offers_at_location",
+        "offers_online",
+        "filter_selections",
+    }
+    _SERVICE_TOKEN_STOPWORDS = {
+        "a",
+        "an",
+        "and",
+        "application",
+        "at",
+        "classes",
+        "class",
+        "coaching",
+        "elementary",
+        "for",
+        "in",
+        "lesson",
+        "lessons",
+        "of",
+        "on",
+        "prep",
+        "professional",
+        "service",
+        "services",
+        "skills",
+        "the",
+        "to",
+        "training",
+        "tutoring",
+        "up",
+        "various",
+        "with",
+    }
+    _DYNAMIC_MATCH_MIN_SCORE = 0.35
+
     def __init__(self, db: Optional[Session] = None):
         # Use absolute path based on script location
         seed_data_path = Path(__file__).parent / "seed_data"
@@ -99,6 +167,156 @@ class DatabaseSeeder:
         else:
             print("ℹ️  No Stripe account mapping file found (config/stripe_test_accounts.json)")
             return {}
+
+    @classmethod
+    def _normalize_seed_text(cls, value: str) -> str:
+        text_value = re.sub(r"[^a-z0-9]+", " ", (value or "").strip().lower())
+        return " ".join(text_value.split())
+
+    @classmethod
+    def _tokenize_seed_text(cls, value: str) -> set[str]:
+        return {
+            token
+            for token in cls._normalize_seed_text(value).split()
+            if token and token not in cls._SERVICE_TOKEN_STOPWORDS
+        }
+
+    @staticmethod
+    def _jaccard_similarity(left: set[str], right: set[str]) -> float:
+        if not left or not right:
+            return 0.0
+        return len(left & right) / len(left | right)
+
+    def _audit_instructors_yaml_shape(self, instructors: Sequence[Dict[str, Any]]) -> None:
+        """Validate instructors.yaml shape against the current schema contract."""
+        instructor_unknown: Counter[str] = Counter()
+        profile_unknown: Counter[str] = Counter()
+        service_unknown: Counter[str] = Counter()
+
+        for instructor in instructors:
+            for key in instructor.keys():
+                if key not in self._INSTRUCTOR_ALLOWED_KEYS:
+                    instructor_unknown[key] += 1
+
+            profile = instructor.get("profile") or {}
+            if not isinstance(profile, dict):
+                continue
+
+            for key in profile.keys():
+                if key not in self._PROFILE_ALLOWED_KEYS:
+                    profile_unknown[key] += 1
+
+            services = profile.get("services") or []
+            if not isinstance(services, list):
+                continue
+
+            for service in services:
+                if not isinstance(service, dict):
+                    continue
+                for key in service.keys():
+                    if key not in self._SERVICE_ALLOWED_KEYS:
+                        service_unknown[key] += 1
+
+        print("🔎 Instructors YAML audit:")
+        if instructor_unknown:
+            print(f"  ⚠️ Unknown instructor-level keys: {dict(instructor_unknown)}")
+        if profile_unknown:
+            print(f"  ⚠️ Unknown profile-level keys: {dict(profile_unknown)}")
+        if service_unknown:
+            print(f"  ⚠️ Unknown service-level keys: {dict(service_unknown)}")
+        if instructor_unknown or profile_unknown or service_unknown:
+            raise ValueError(
+                "instructors.yaml contains unsupported keys. "
+                "Remove outdated fields and use the current schema contract."
+            )
+
+    def _resolve_catalog_service(
+        self,
+        *,
+        service_data: Dict[str, Any],
+        instructor_data: Dict[str, Any],
+        catalog_services: Sequence[ServiceCatalog],
+        catalog_by_id: Dict[str, ServiceCatalog],
+        catalog_by_slug: Dict[str, ServiceCatalog],
+        catalog_by_name_lc: Dict[str, list[ServiceCatalog]],
+        catalog_by_normalized_name: Dict[str, list[ServiceCatalog]],
+        min_score: Optional[float] = None,
+    ) -> tuple[Optional[ServiceCatalog], str, float]:
+        """Resolve a YAML service entry to a ServiceCatalog row with dynamic fallback."""
+        explicit_service_id = str(service_data.get("service_catalog_id") or "").strip()
+        if explicit_service_id and explicit_service_id in catalog_by_id:
+            return catalog_by_id[explicit_service_id], "service_catalog_id", 1.0
+
+        explicit_slug = str(service_data.get("service_slug") or service_data.get("slug") or "").strip().lower()
+        if explicit_slug and explicit_slug in catalog_by_slug:
+            return catalog_by_slug[explicit_slug], "service_slug", 1.0
+
+        service_name = str(service_data.get("name") or "").strip()
+        if not service_name:
+            return None, "missing_name", 0.0
+        service_name_lc = service_name.lower()
+        if service_name_lc in catalog_by_name_lc:
+            exact_matches = catalog_by_name_lc[service_name_lc]
+            if exact_matches:
+                return exact_matches[0], "exact_name", 1.0
+
+        normalized_name = self._normalize_seed_text(service_name)
+        if normalized_name and normalized_name in catalog_by_normalized_name:
+            normalized_matches = catalog_by_normalized_name[normalized_name]
+            if normalized_matches:
+                return normalized_matches[0], "normalized_name", 0.95
+
+        profile = instructor_data.get("profile") or {}
+        instructor_bio = str(profile.get("bio") or "")
+        service_description = str(service_data.get("description") or "")
+
+        name_tokens = self._tokenize_seed_text(service_name)
+        detail_tokens = self._tokenize_seed_text(f"{service_name} {service_description}")
+        bio_tokens = self._tokenize_seed_text(instructor_bio)
+        normalized_service_name = self._normalize_seed_text(service_name)
+
+        best_service: Optional[ServiceCatalog] = None
+        best_score = 0.0
+        for candidate in catalog_services:
+            candidate_name = str(getattr(candidate, "name", "") or "")
+            candidate_slug = str(getattr(candidate, "slug", "") or "")
+            candidate_tokens = self._tokenize_seed_text(f"{candidate_name} {candidate_slug}")
+
+            name_similarity = max(
+                SequenceMatcher(None, normalized_service_name, self._normalize_seed_text(candidate_name)).ratio(),
+                SequenceMatcher(None, normalized_service_name, self._normalize_seed_text(candidate_slug)).ratio(),
+            )
+            token_similarity = self._jaccard_similarity(detail_tokens, candidate_tokens)
+            base_name_similarity = self._jaccard_similarity(name_tokens, candidate_tokens)
+            bio_similarity = self._jaccard_similarity(bio_tokens, candidate_tokens)
+
+            score = (
+                (0.50 * name_similarity)
+                + (0.25 * token_similarity)
+                + (0.20 * base_name_similarity)
+                + (0.05 * bio_similarity)
+            )
+            if name_tokens & candidate_tokens:
+                score += 0.08
+
+            # Strong keyword nudges for common near-matches.
+            if "coding" in detail_tokens and "coding" in candidate_tokens:
+                score += 0.15
+            if "karate" in detail_tokens and "karate" in candidate_tokens:
+                score += 0.20
+            if "jazz" in detail_tokens and "jazz" in candidate_tokens:
+                score += 0.10
+            if "esl" in detail_tokens and ("esl" in candidate_tokens or "efl" in candidate_tokens):
+                score += 0.12
+
+            if score > best_score:
+                best_score = score
+                best_service = candidate
+
+        threshold = self._DYNAMIC_MATCH_MIN_SCORE if min_score is None else min_score
+        if best_service and best_score >= threshold:
+            return best_service, "fuzzy", best_score
+        return None, "unresolved", best_score
 
     @staticmethod
     def _get_env_int(key: str, default: int) -> int:
@@ -380,6 +598,7 @@ class DatabaseSeeder:
     def create_instructors(self, *, seed_tier_maintenance: bool = True):
         """Create instructor accounts with profiles and services from YAML"""
         instructors = self.loader.get_instructors()
+        self._audit_instructors_yaml_shape(instructors)
         password = self.loader.get_default_password()
 
         with self._session_scope() as session:
@@ -393,9 +612,30 @@ class DatabaseSeeder:
             # Pre-hash password ONCE (bcrypt is expensive ~500ms per hash)
             hashed_password = get_password_hash(password)
 
-            # Pre-load catalog services ONCE (not inside loop!)
-            catalog_services = session.query(ServiceCatalog).all()
-            service_map = {s.name: s for s in catalog_services}
+            # Pre-load active catalog services and lookup tables once.
+            catalog_services = (
+                session.query(ServiceCatalog)
+                .filter(ServiceCatalog.is_active.is_(True))
+                .all()
+            )
+            catalog_by_id = {svc.id: svc for svc in catalog_services}
+            catalog_by_slug = {
+                str(svc.slug).strip().lower(): svc
+                for svc in catalog_services
+                if str(getattr(svc, "slug", "") or "").strip()
+            }
+            catalog_by_name_lc: Dict[str, list[ServiceCatalog]] = {}
+            catalog_by_normalized_name: Dict[str, list[ServiceCatalog]] = {}
+            for svc in catalog_services:
+                name_lc = str(svc.name).strip().lower()
+                if name_lc:
+                    catalog_by_name_lc.setdefault(name_lc, []).append(svc)
+                normalized_name = self._normalize_seed_text(str(svc.name))
+                if normalized_name:
+                    catalog_by_normalized_name.setdefault(normalized_name, []).append(svc)
+
+            resolution_stats: Counter[str] = Counter()
+            unresolved_service_entries: list[dict[str, Any]] = []
 
             # PHASE 1: Create all User objects first (for FK constraints)
             user_data_map = {}  # email -> (user_id, user, instructor_data)
@@ -430,13 +670,11 @@ class DatabaseSeeder:
                 # Create instructor profile
                 profile_data = instructor_data.get("profile", {})
                 # Determine seeded onboarding status
-                _has_services = len(profile_data.get("services", [])) > 0
                 _is_active_account = account_status == "active"
                 _now = datetime.now(timezone.utc)
 
                 # Use values as-is from YAML (backend enforces validation at runtime)
                 _bio = profile_data.get("bio", "").strip()
-                _areas_list = profile_data.get("areas", [])
 
                 current_tier_pct_value = float(instructor_data.get("current_tier_pct", 15.00))
                 seed_completed_last_30d = int(instructor_data.get("seed_completed_last_30d") or 0)
@@ -454,7 +692,7 @@ class DatabaseSeeder:
                     current_tier_pct=current_tier_pct_value,
                     last_tier_eval_at=_now,
                     # Onboarding defaults for seeded instructors
-                    skills_configured=_has_services,
+                    skills_configured=False,
                     identity_verified_at=_now,
                     identity_verification_session_id=None,
                     background_check_object_key=None,
@@ -490,17 +728,46 @@ class DatabaseSeeder:
                         )
                     )
 
-                # Create services from catalog (using pre-loaded service_map)
+                # Create services from catalog (using dynamic resolver + pre-built lookups)
                 service_count = 0
+                assigned_catalog_ids: set[str] = set()
+                requested_services = profile_data.get("services", []) or []
 
-                for service_data in profile_data.get("services", []):
-                    service_name = service_data["name"]
-
-                    # Find matching catalog service
-                    catalog_service = service_map.get(service_name)
-                    if not catalog_service:
-                        print(f"  ⚠️  Service '{service_name}' not found in catalog, skipping")
+                for service_data in requested_services:
+                    if not isinstance(service_data, dict):
                         continue
+                    service_name = str(service_data.get("name") or "").strip()
+                    catalog_service, resolution_source, resolution_score = self._resolve_catalog_service(
+                        service_data=service_data,
+                        instructor_data=instructor_data,
+                        catalog_services=catalog_services,
+                        catalog_by_id=catalog_by_id,
+                        catalog_by_slug=catalog_by_slug,
+                        catalog_by_name_lc=catalog_by_name_lc,
+                        catalog_by_normalized_name=catalog_by_normalized_name,
+                    )
+                    resolution_stats[resolution_source] += 1
+                    if not catalog_service:
+                        unresolved_service_entries.append(
+                            {
+                                "email": user.email,
+                                "service_name": service_name or "<missing>",
+                                "score": round(float(resolution_score), 3),
+                            }
+                        )
+                        print(
+                            f"  ⚠️  Service '{service_name or '<missing>'}' not found in catalog, skipping "
+                            f"(best score={resolution_score:.3f})"
+                        )
+                        continue
+                    if catalog_service.id in assigned_catalog_ids:
+                        continue
+                    assigned_catalog_ids.add(catalog_service.id)
+                    if resolution_source not in {"service_catalog_id", "service_slug", "exact_name"}:
+                        print(
+                            f"  ℹ️  Mapped '{service_name}' → '{catalog_service.name}' "
+                            f"via {resolution_source} (score={resolution_score:.3f})"
+                        )
 
                     # Normalize age_groups to canonical taxonomy values.
                     raw_groups = service_data.get("age_groups") or []
@@ -559,36 +826,33 @@ class DatabaseSeeder:
                         except Exception:
                             pass
 
-                    # Normalize skill levels into filter_selections.skill_level.
+                    # Use filter selections as provided in YAML.
                     filter_selections = dict(service_data.get("filter_selections") or {})
-                    raw_levels = service_data.get("levels_taught") or []
-                    skill_levels = []
-                    for level in raw_levels:
-                        normalized_level = str(level).strip().lower()
-                        if normalized_level in {"beginner", "intermediate", "advanced"}:
-                            if normalized_level not in skill_levels:
-                                skill_levels.append(normalized_level)
-                    if skill_levels:
-                        filter_selections["skill_level"] = skill_levels
 
                     # Create instructor service linked to catalog (pre-generate ULID)
+                    hourly_rate = service_data.get("hourly_rate", service_data.get("price"))
+                    if hourly_rate is None:
+                        print(f"  ⚠️  Service '{service_name}' missing price/hourly_rate, skipping")
+                        continue
                     service_id = str(ulid.ULID())
-                    loc_types = [str(lt).strip().lower() for lt in (service_data.get("location_types") or [])]
-                    in_person = "in_person" in loc_types or "in-person" in loc_types
-                    offers_online = "online" in loc_types or not loc_types
+                    offers_travel = bool(service_data.get("offers_travel", False))
+                    offers_at_location = bool(service_data.get("offers_at_location", False))
+                    offers_online = bool(service_data.get("offers_online", True))
+                    if not (offers_travel or offers_at_location or offers_online):
+                        offers_online = True
                     service = InstructorService(
                         id=service_id,
                         instructor_profile_id=profile_id,
                         service_catalog_id=catalog_service.id,
-                        hourly_rate=service_data["price"],
+                        hourly_rate=hourly_rate,
                         description=service_data.get("description"),
                         duration_options=service_data.get("duration_options", [60]),
                         requirements=service_data.get("requirements"),
                         equipment_required=service_data.get("equipment_required"),
                         age_groups=normalized_groups or None,
                         filter_selections=filter_selections or {},
-                        offers_travel=in_person,
-                        offers_at_location=in_person,
+                        offers_travel=offers_travel,
+                        offers_at_location=offers_at_location,
                         offers_online=offers_online,
                         is_active=True,
                     )
@@ -596,6 +860,8 @@ class DatabaseSeeder:
                     self.created_services[f"{user.email}:{service_name}"] = service_id
                     service_count += 1
                     plan_entry["service_ids"].append(service_id)
+
+                profile.skills_configured = service_count > 0
 
                 # Create Stripe connected account if mapping exists
                 if user.email in self.stripe_mapping and self.stripe_mapping[user.email]:
@@ -618,6 +884,20 @@ class DatabaseSeeder:
                     f"  ✅ Created instructor: {user.first_name} {user.last_name} with {service_count} services{status_info}"
                 )
 
+            if unresolved_service_entries:
+                sample_lines = [
+                    "  - {email}: '{service_name}' (best_score={score})".format(
+                        email=row["email"],
+                        service_name=row["service_name"],
+                        score=row["score"],
+                    )
+                    for row in unresolved_service_entries[:20]
+                ]
+                raise ValueError(
+                    "instructors.yaml contains services that do not exist in the current catalog.\n"
+                    + "\n".join(sample_lines)
+                )
+
             if seed_tier_maintenance:
                 self._seed_tier_maintenance_sessions(session)
             session.commit()
@@ -633,6 +913,8 @@ class DatabaseSeeder:
             print(
                 f"   ⚠️  Including test instructors: {status_counts['suspended']} suspended, {status_counts['deactivated']} deactivated"
             )
+        if resolution_stats:
+            print(f"🔁 Service resolution stats: {dict(resolution_stats)}")
 
     def seed_tier_maintenance_sessions(self, reason: str = "") -> int:
         """Seed tier maintenance sessions using a fresh session."""

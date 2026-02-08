@@ -31790,5 +31790,107 @@
         }
       }
     }
+  },
+  {
+    "timestamp": "2026-02-08T20:30:03.939055+00:00",
+    "total_lines": 616855,
+    "total_files": 2539,
+    "backend_lines": 367392,
+    "frontend_lines": 249463,
+    "git_commits": 1559,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 217,
+          "lines": 32852
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 6546
+        },
+        "Tasks/Celery": {
+          "files": 58,
+          "lines": 15997
+        },
+        "Core/Config": {
+          "files": 38,
+          "lines": 7688
+        },
+        "Repositories": {
+          "files": 137,
+          "lines": 36015
+        },
+        "Models": {
+          "files": 51,
+          "lines": 7228
+        },
+        "Schemas": {
+          "files": 91,
+          "lines": 11524
+        },
+        "Routes/APIs": {
+          "files": 207,
+          "lines": 47161
+        },
+        "Services": {
+          "files": 367,
+          "lines": 137385
+        },
+        "Unit Tests": {
+          "files": 300,
+          "lines": 70859
+        },
+        "Integration Tests": {
+          "files": 230,
+          "lines": 50379
+        },
+        "Route Tests": {
+          "files": 106,
+          "lines": 24622
+        }
+      },
+      "frontend": {
+        "Pages": {
+          "files": 141,
+          "lines": 34463
+        },
+        "Components": {
+          "files": 326,
+          "lines": 88070
+        },
+        "Hooks": {
+          "files": 155,
+          "lines": 30151
+        },
+        "Unit Tests": {
+          "files": 305,
+          "lines": 88358
+        },
+        "Features": {
+          "files": 184,
+          "lines": 48405
+        },
+        "Public": {
+          "files": 4,
+          "lines": 943
+        },
+        "API/Lib": {
+          "files": 65,
+          "lines": 8562
+        },
+        "Types": {
+          "files": 20,
+          "lines": 2928
+        },
+        "Utils": {
+          "files": 28,
+          "lines": 3123
+        },
+        "E2E Tests": {
+          "files": 35,
+          "lines": 7471
+        }
+      }
+    }
   }
 ]
