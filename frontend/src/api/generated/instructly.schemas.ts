@@ -3612,7 +3612,7 @@ export type ServiceResponseFilterSelections = { [key: string]: string[] };
 Includes the service ID and catalog information.
  */
 export interface ServiceResponse {
-  /** Age groups this service is offered to. Allowed: 'kids', 'adults'. Use both for both. */
+  /** Age groups this service is offered to. Allowed: 'toddler', 'kids', 'teens', 'adults'. */
   age_groups?: string[] | null;
   description?: string | null;
   /** Display order hint from the catalog (nullable) */
@@ -3631,10 +3631,6 @@ export interface ServiceResponse {
   id: string;
   /** Whether this service is currently active for the instructor */
   is_active?: boolean | null;
-  /** Levels taught. Allowed: 'beginner', 'intermediate', 'advanced' */
-  levels_taught?: string[] | null;
-  /** Where lessons are offered. Allowed: 'in_person', 'online' */
-  location_types?: string[] | null;
   /** Resolved name of the service from the catalog */
   name?: string | null;
   /** Whether the instructor offers lessons at their location for this service */
@@ -4019,7 +4015,7 @@ export type ServiceCreateFilterSelections = { [key: string]: string[] };
  * Schema for creating a new service.
  */
 export interface ServiceCreate {
-  /** Age groups this service is offered to. Allowed: 'kids', 'adults'. Use both for both. */
+  /** Age groups this service is offered to. Allowed: 'toddler', 'kids', 'teens', 'adults'. */
   age_groups?: string[] | null;
   description?: string | null;
   /**
@@ -4033,10 +4029,6 @@ export interface ServiceCreate {
   filter_selections?: ServiceCreateFilterSelections;
   /** Hourly rate in USD */
   hourly_rate: number | string;
-  /** Levels taught. Allowed: 'beginner', 'intermediate', 'advanced' */
-  levels_taught?: string[] | null;
-  /** Where lessons are offered. Allowed: 'in_person', 'online' */
-  location_types?: string[] | null;
   /** Whether the instructor offers lessons at their location for this service */
   offers_at_location?: boolean | null;
   /** Whether the instructor offers online lessons for this service */
@@ -4249,6 +4241,8 @@ export interface InstructorServiceCreate {
   hourly_rate: number;
 }
 
+export type InstructorServiceResponseFilterSelections = { [key: string]: string[] };
+
 /**
  * Instructor service response with catalog info.
  */
@@ -4258,11 +4252,10 @@ export interface InstructorServiceResponse {
   created_at?: string | null;
   description?: string | null;
   duration_options?: number[];
+  filter_selections?: InstructorServiceResponseFilterSelections;
   hourly_rate: number;
   id: string;
   is_active?: boolean;
-  /** Legacy location types (in_person, online) */
-  location_types?: string[] | null;
   name: string;
   offers_at_location?: boolean;
   offers_online?: boolean;

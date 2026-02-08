@@ -366,7 +366,11 @@ class InstructorService(BaseService):
             services_data = []
             for service_data in profile_data.services:
                 service_dict = service_data.model_dump()
-                self._apply_location_type_capabilities(service_dict, apply_defaults=True)
+                self._normalize_capability_flags(service_dict, apply_defaults=True)
+                catalog_service = self.catalog_repository.get_by_id(service_data.service_catalog_id)
+                if not catalog_service:
+                    raise NotFoundException("Catalog service not found")
+                self._validate_age_groups_subset(catalog_service, service_dict.get("age_groups"))
                 service_dict["instructor_profile_id"] = profile.id
                 services_data.append(service_dict)
 
@@ -692,24 +696,10 @@ class InstructorService(BaseService):
                 f"Invalid service catalog IDs: {', '.join(map(str, invalid_ids))}"
             )
 
-    def _resolve_location_types(self, service: Service) -> List[str]:
-        """Derive location_types from capability flags."""
-        offers_travel = bool(getattr(service, "offers_travel", False))
-        offers_at_location = bool(getattr(service, "offers_at_location", False))
-        offers_online = bool(getattr(service, "offers_online", False))
-
-        types: List[str] = []
-        if offers_travel or offers_at_location:
-            types.append("in_person")
-        if offers_online:
-            types.append("online")
-        return types
-
-    def _apply_location_type_capabilities(
+    def _normalize_capability_flags(
         self, updates: Dict[str, Any], apply_defaults: bool = False
     ) -> None:
-        """Normalize capability flags and compute location_types."""
-        updates.pop("location_types", None)
+        """Normalize capability flags from service payloads."""
         for key in ("offers_travel", "offers_at_location", "offers_online"):
             if key in updates and updates[key] is None:
                 updates.pop(key, None)
@@ -719,13 +709,22 @@ class InstructorService(BaseService):
             updates.setdefault("offers_at_location", False)
             updates.setdefault("offers_online", True)
 
-        if any(key in updates for key in ("offers_travel", "offers_at_location", "offers_online")):
-            types: List[str] = []
-            if updates.get("offers_travel") or updates.get("offers_at_location"):
-                types.append("in_person")
-            if updates.get("offers_online"):
-                types.append("online")
-            updates["location_types"] = types
+    @staticmethod
+    def _validate_age_groups_subset(
+        catalog_service: ServiceCatalog,
+        age_groups: Optional[List[str]],
+    ) -> None:
+        """Ensure instructor-selected age_groups are supported by the catalog service."""
+        if not age_groups:
+            return
+        eligible = set(catalog_service.eligible_age_groups or [])
+        if not eligible:
+            return
+        invalid = sorted(set(age_groups) - eligible)
+        if invalid:
+            raise BusinessRuleException(
+                f"Age groups {invalid} not eligible for {catalog_service.name}"
+            )
 
     @BaseService.measure_operation("get_instructor_teaching_locations")
     def get_instructor_teaching_locations(
@@ -794,7 +793,6 @@ class InstructorService(BaseService):
             service.offers_at_location = updates["offers_at_location"]
         if "offers_online" in updates:
             service.offers_online = updates["offers_online"]
-        service.location_types = self._resolve_location_types(service)
 
         with self.transaction():
             self.validate_service_capabilities(service, instructor_id)
@@ -837,18 +835,19 @@ class InstructorService(BaseService):
             catalog_id = service_data.service_catalog_id
             updated_catalog_ids.add(catalog_id)
 
-            # Validate filter_selections if present
-            if hasattr(service_data, "filter_selections") and service_data.filter_selections:
-                catalog_svc = self.catalog_repository.get_by_id(catalog_id)
-                if catalog_svc:
-                    is_valid, errors = self.taxonomy_filter_repository.validate_filter_selections(
-                        subcategory_id=catalog_svc.subcategory_id,
-                        selections=service_data.filter_selections,
-                    )
-                    if not is_valid:
-                        raise BusinessRuleException(
-                            f"Invalid filter selections: {'; '.join(errors)}"
-                        )
+            catalog_svc = self.catalog_repository.get_by_id(catalog_id)
+            if not catalog_svc:
+                raise NotFoundException("Catalog service not found")
+
+            normalized_payload = service_data.model_dump()
+            self._validate_age_groups_subset(catalog_svc, normalized_payload.get("age_groups"))
+            if normalized_payload.get("filter_selections"):
+                is_valid, errors = self.taxonomy_filter_repository.validate_filter_selections(
+                    subcategory_id=catalog_svc.subcategory_id,
+                    selections=normalized_payload["filter_selections"],
+                )
+                if not is_valid:
+                    raise BusinessRuleException(f"Invalid filter selections: {'; '.join(errors)}")
 
             if catalog_id in services_by_catalog_id:
                 # Update existing service
@@ -856,7 +855,8 @@ class InstructorService(BaseService):
 
                 # Prepare updates
                 updates = service_data.model_dump()
-                self._apply_location_type_capabilities(updates)
+                self._normalize_capability_flags(updates)
+                self._validate_age_groups_subset(catalog_svc, updates.get("age_groups"))
 
                 # Reactivate if needed
                 if not existing_service.is_active:
@@ -872,7 +872,8 @@ class InstructorService(BaseService):
             else:
                 # Create new service
                 service_dict = service_data.model_dump()
-                self._apply_location_type_capabilities(service_dict, apply_defaults=True)
+                self._normalize_capability_flags(service_dict, apply_defaults=True)
+                self._validate_age_groups_subset(catalog_svc, service_dict.get("age_groups"))
                 service_dict["instructor_profile_id"] = profile_id
                 service_candidate = Service(**service_dict)
                 self.validate_service_capabilities(service_candidate, instructor_id)
@@ -1234,12 +1235,11 @@ class InstructorService(BaseService):
                     "hourly_rate": service.hourly_rate,
                     "description": service.description,
                     "age_groups": service.age_groups,
-                    "levels_taught": service.levels_taught,
+                    "filter_selections": service.filter_selections or {},
                     "equipment_required": service.equipment_required,
                     "offers_travel": getattr(service, "offers_travel", False),
                     "offers_at_location": getattr(service, "offers_at_location", False),
                     "offers_online": getattr(service, "offers_online", False),
-                    "location_types": self._resolve_location_types(service),
                     "duration_options": service.duration_options,
                     "is_active": service.is_active,
                 }
@@ -1392,22 +1392,18 @@ class InstructorService(BaseService):
         if not catalog_service:
             raise NotFoundException("Catalog service not found")
 
+        merged_filter_selections = dict(filter_selections or {})
+
         # Validate filter_selections against subcategory filters
-        if filter_selections:
+        if merged_filter_selections:
             is_valid, errors = self.taxonomy_filter_repository.validate_filter_selections(
                 subcategory_id=catalog_service.subcategory_id,
-                selections=filter_selections,
+                selections=merged_filter_selections,
             )
             if not is_valid:
                 raise BusinessRuleException(f"Invalid filter selections: {'; '.join(errors)}")
 
-        # Validate age_groups against eligible_age_groups
-        if age_groups and catalog_service.eligible_age_groups:
-            invalid = set(age_groups) - set(catalog_service.eligible_age_groups)
-            if invalid:
-                raise BusinessRuleException(
-                    f"Age groups {sorted(invalid)} not eligible for {catalog_service.name}"
-                )
+        self._validate_age_groups_subset(catalog_service, age_groups)
 
         # Check if already exists
         existing = self.service_repository.find_one_by(
@@ -1426,8 +1422,8 @@ class InstructorService(BaseService):
                 "duration_options": duration_options or [60],
                 "is_active": True,
             }
-            if filter_selections:
-                create_kwargs["filter_selections"] = filter_selections
+            if merged_filter_selections:
+                create_kwargs["filter_selections"] = merged_filter_selections
             if age_groups:
                 create_kwargs["age_groups"] = age_groups
             service = self.service_repository.create(**create_kwargs)
@@ -1472,11 +1468,11 @@ class InstructorService(BaseService):
             "category": service.category,  # From catalog
             "hourly_rate": service.hourly_rate,
             "description": service.description or service.catalog_entry.description,
+            "filter_selections": service.filter_selections or {},
             "duration_options": service.duration_options,
             "offers_travel": getattr(service, "offers_travel", False),
             "offers_at_location": getattr(service, "offers_at_location", False),
             "offers_online": getattr(service, "offers_online", False),
-            "location_types": self._resolve_location_types(service),
             "is_active": service.is_active,
             "created_at": service.created_at,
             "updated_at": service.updated_at,

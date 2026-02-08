@@ -502,7 +502,7 @@ class DatabaseSeeder:
                         print(f"  ⚠️  Service '{service_name}' not found in catalog, skipping")
                         continue
 
-                    # Normalize age_groups to allowed values: 'kids' and 'adults' only
+                    # Normalize age_groups to canonical taxonomy values.
                     raw_groups = service_data.get("age_groups") or []
                     normalized_groups = []
                     for g in raw_groups:
@@ -512,9 +512,17 @@ class DatabaseSeeder:
                                 if val not in normalized_groups:
                                     normalized_groups.append(val)
                             continue
-                        if v in {"kids", "children", "child", "teen", "teens", "youth"}:
+                        if v in {"kids", "children", "child"}:
                             if "kids" not in normalized_groups:
                                 normalized_groups.append("kids")
+                            continue
+                        if v in {"teen", "teens", "youth"}:
+                            if "teens" not in normalized_groups:
+                                normalized_groups.append("teens")
+                            continue
+                        if v in {"toddler", "toddlers", "infant", "infants"}:
+                            if "toddler" not in normalized_groups:
+                                normalized_groups.append("toddler")
                             continue
                         if v in {"adult", "adults"}:
                             if "adults" not in normalized_groups:
@@ -522,18 +530,46 @@ class DatabaseSeeder:
                             continue
                         # drop unknown values
 
-                    # Default to 'adults' to match frontend behavior when unspecified
+                    # Default to 'adults' when unspecified.
                     if not normalized_groups:
                         normalized_groups = ["adults"]
 
-                    # Ensure ~20% of seeded services include kids for testing, if not already
-                    try:
-                        import random as _random
+                    # Keep seeded age groups aligned with catalog eligibility.
+                    eligible_groups = [
+                        str(v).strip().lower()
+                        for v in (getattr(catalog_service, "eligible_age_groups", None) or [])
+                        if str(v).strip()
+                    ]
+                    if eligible_groups:
+                        eligible_set = set(eligible_groups)
+                        normalized_groups = [g for g in normalized_groups if g in eligible_set]
+                        if not normalized_groups:
+                            for fallback in ("adults", "kids", "teens", "toddler"):
+                                if fallback in eligible_set:
+                                    normalized_groups = [fallback]
+                                    break
 
-                        if ("kids" not in normalized_groups) and (_random.random() < 0.20):
-                            normalized_groups.append("kids")
-                    except Exception:
-                        pass
+                    # Ensure ~20% of seeded services include kids for testing, when eligible.
+                    if eligible_groups and "kids" in eligible_groups:
+                        try:
+                            import random as _random
+
+                            if ("kids" not in normalized_groups) and (_random.random() < 0.20):
+                                normalized_groups.append("kids")
+                        except Exception:
+                            pass
+
+                    # Normalize skill levels into filter_selections.skill_level.
+                    filter_selections = dict(service_data.get("filter_selections") or {})
+                    raw_levels = service_data.get("levels_taught") or []
+                    skill_levels = []
+                    for level in raw_levels:
+                        normalized_level = str(level).strip().lower()
+                        if normalized_level in {"beginner", "intermediate", "advanced"}:
+                            if normalized_level not in skill_levels:
+                                skill_levels.append(normalized_level)
+                    if skill_levels:
+                        filter_selections["skill_level"] = skill_levels
 
                     # Create instructor service linked to catalog (pre-generate ULID)
                     service_id = str(ulid.ULID())
@@ -547,16 +583,13 @@ class DatabaseSeeder:
                         hourly_rate=service_data["price"],
                         description=service_data.get("description"),
                         duration_options=service_data.get("duration_options", [60]),
-                        experience_level=service_data.get("experience_level"),
                         requirements=service_data.get("requirements"),
                         equipment_required=service_data.get("equipment_required"),
-                        levels_taught=service_data.get("levels_taught"),
                         age_groups=normalized_groups or None,
-                        location_types=service_data.get("location_types"),
+                        filter_selections=filter_selections or {},
                         offers_travel=in_person,
                         offers_at_location=in_person,
                         offers_online=offers_online,
-                        max_distance_miles=service_data.get("max_distance_miles"),
                         is_active=True,
                     )
                     session.add(service)

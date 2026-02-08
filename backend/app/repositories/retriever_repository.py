@@ -208,7 +208,7 @@ class RetrieverRepository:
                 ins.offers_online,
                 ip.user_id as instructor_id,
                 ins.duration_options,
-                ins.levels_taught,
+                ins.filter_selections,
                 ins.age_groups,
                 ss.name as subcategory_name,
                 scat.name as category_name
@@ -239,7 +239,9 @@ class RetrieverRepository:
                 "offers_online": row.offers_online,
                 "instructor_id": str(row.instructor_id),
                 "duration_options": row.duration_options,
-                "levels_taught": row.levels_taught,
+                "filter_selections": row.filter_selections
+                if isinstance(row.filter_selections, dict)
+                else {},
                 "age_groups": row.age_groups,
                 "subcategory_name": row.subcategory_name,
                 "category_name": row.category_name,

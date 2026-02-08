@@ -43,7 +43,7 @@ def _service_for(db: Session, instructor: User) -> InstructorService:
             offers_at_location=False,
             offers_online=False,
             age_groups=['adults'],
-            levels_taught=['beginner'],
+            filter_selections={"skill_level": ["beginner"]},
             is_active=True,
         )
         db.add(service)
