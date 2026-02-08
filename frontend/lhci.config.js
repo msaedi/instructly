@@ -1,6 +1,4 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
 const budgets = require('./lhci.budgets.json');
-/* eslint-enable @typescript-eslint/no-require-imports */
 
 const isMain = process.env.GITHUB_REF === 'refs/heads/main';
 const parsedPort =

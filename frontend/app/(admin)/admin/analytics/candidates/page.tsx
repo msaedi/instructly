@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { RefreshCw, BarChart3, Table } from 'lucide-react';
 import * as Select from '@radix-ui/react-select';
 import { ChevronDown, Check } from 'lucide-react';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import {
   analyticsApi,
@@ -32,7 +32,7 @@ export default function CandidatesAnalyticsDashboard() {
   const [scoreDist, setScoreDist] = useState<{ gte_0_90: number; gte_0_80_lt_0_90: number; gte_0_70_lt_0_80: number; lt_0_70: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -51,12 +51,11 @@ export default function CandidatesAnalyticsDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [days, token]);
 
   useEffect(() => {
     void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, days]);
+  }, [refresh]);
 
   if (authLoading) {
     return (

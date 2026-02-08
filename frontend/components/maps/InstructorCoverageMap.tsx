@@ -69,11 +69,7 @@ export default function InstructorCoverageMap({
   showSearchAreaButton = false,
   onSearchArea,
 }: InstructorCoverageMapProps) {
-  const [fc, setFc] = useState<FeatureCollection | null>(featureCollection || null);
-
-  useEffect(() => {
-    setFc(featureCollection || null);
-  }, [featureCollection]);
+  const fc = featureCollection ?? null;
 
   const mapCenter: LatLngExpression = useMemo(
     () => [40.7831, -73.9712],
@@ -81,11 +77,13 @@ export default function InstructorCoverageMap({
   ); // Manhattan default
 
   // Basemap style selection (Jawg sunny/dark when token present)
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    setIsDark(mq.matches);
     const handler = (e: MediaQueryListEvent) => setIsDark(e.matches);
     mq.addEventListener?.('change', handler);
     return () => mq.removeEventListener?.('change', handler);
@@ -98,18 +96,8 @@ export default function InstructorCoverageMap({
       : `https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=${jawgToken}`
     : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
   const fallbackUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-  const [tileUrl, setTileUrl] = useState<string>(primaryUrl);
   const [jawgFailed, setJawgFailed] = useState<boolean>(false);
-
-  // Live theme switching: update tiles when theme changes, unless Jawg previously failed
-  useEffect(() => {
-    if (jawgToken && !jawgFailed) {
-      setTileUrl(primaryUrl);
-    } else if (!jawgToken) {
-      setTileUrl(fallbackUrl);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDark, jawgToken, jawgFailed]);
+  const tileUrl = jawgToken && !jawgFailed ? primaryUrl : fallbackUrl;
 
   const containerStyle = {
     height: typeof height === 'number' ? `${height}px` : (height as string),
@@ -135,7 +123,6 @@ export default function InstructorCoverageMap({
           eventHandlers={{
             tileerror: () => {
               setJawgFailed(true);
-              if (tileUrl !== fallbackUrl) setTileUrl(fallbackUrl);
             },
           } as LeafletEventHandlerFnMap}
         />

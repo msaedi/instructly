@@ -1,14 +1,17 @@
-import { formatDistanceToNow, format as formatDate } from 'date-fns';
+import { formatDistance, format as formatDate } from 'date-fns';
 
 /**
  * Format a date/time as relative time (e.g., "just now", "2 minutes ago")
  * Shared across student and instructor message views.
  */
-export function formatRelativeTimestamp(input: string | Date | null | undefined): string {
+export function formatRelativeTimestamp(
+  input: string | Date | null | undefined,
+  now: Date = new Date(),
+): string {
   if (!input) return '';
   const date = typeof input === 'string' ? new Date(input) : input;
   if (Number.isNaN(date.getTime())) return '';
-  return formatDistanceToNow(date, { addSuffix: true });
+  return formatDistance(date, now, { addSuffix: true });
 }
 
 /**

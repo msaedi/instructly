@@ -7,7 +7,7 @@
  * This file should remain ~200-300 lines as the main coordinator.
  */
 
-import { useState, useRef, useEffect, useMemo, useCallback, type KeyboardEvent, Fragment } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, startTransition, type KeyboardEvent, Fragment } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -173,9 +173,11 @@ export default function MessagesPage() {
       // Check if the conversation exists in the current list
       const conversationExists = conversations.some((c) => c.id === conversationFromUrl);
       if (conversationExists) {
-        setSelectedChat(conversationFromUrl);
-        // Ensure we're in inbox view to see the conversation
-        setMessageDisplay('inbox');
+        startTransition(() => {
+          setSelectedChat(conversationFromUrl);
+          // Ensure we're in inbox view to see the conversation
+          setMessageDisplay('inbox');
+        });
       }
     }
   }, [conversationFromUrl, conversations]);
@@ -308,6 +310,8 @@ export default function MessagesPage() {
 
   // Live timestamp ticker - triggers re-render every minute for relative timestamps
   const tick = useLiveTimestamp();
+  const relativeNow = useMemo(() => new Date(tick * 60000), [tick]);
+  const nowMs = tick * 60000;
 
   // Use ref to store latest handleSSEMessage to avoid re-render loop
   const handleSSEMessageRef = useRef(handleSSEMessage);
@@ -420,9 +424,9 @@ export default function MessagesPage() {
     if (message.isDeleted) return false;
     const created = message.createdAt ? new Date(message.createdAt).getTime() : undefined;
     if (!created) return false;
-    const diffMinutes = (Date.now() - created) / 60000;
+    const diffMinutes = (nowMs - created) / 60000;
     return diffMinutes <= editWindowMinutes;
-  }, [currentUser?.id, editWindowMinutes]);
+  }, [currentUser, editWindowMinutes, nowMs]);
 
   // Subscribe to active conversation's events using conversation_id (NOT booking_id!)
   // Phase 7: SSE must use conversation_id because one conversation spans multiple bookings.
@@ -465,9 +469,9 @@ export default function MessagesPage() {
     primaryBookingId: null,
     studentId: null,
     instructorId: currentUser?.id ?? null,
-    latestMessageAt: Date.now(),
+    latestMessageAt: tick * 60000,
     latestMessageId: null,
-  }), [composeRecipient, currentUser?.id]);
+  }), [composeRecipient, currentUser?.id, tick]);
 
   const conversationSource = useMemo(() => {
     if (messageDisplay === 'inbox') {
@@ -493,7 +497,7 @@ export default function MessagesPage() {
       const currentReaction: string | null =
         message.id in userReactions ? userReactions[message.id]! : (message.my_reactions?.[0] ?? null);
 
-      const timestampLabel = formatRelativeTimestamp(message.createdAt);
+      const timestampLabel = formatRelativeTimestamp(message.createdAt, relativeNow);
       const isLastRead = message.id === lastInstructorReadMessageId;
       const readTimestampLabel =
         isLastRead && readReceiptCount > 0
@@ -533,8 +537,7 @@ export default function MessagesPage() {
         attachments,
       });
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- tick triggers periodic re-render for live timestamps
-  }, [threadMessages, mergedReadReceipts, lastInstructorReadMessageId, userReactions, currentUser?.id, tick]);
+  }, [threadMessages, mergedReadReceipts, lastInstructorReadMessageId, userReactions, currentUser?.id, relativeNow]);
 
   // Get primary booking ID for a thread
   const getPrimaryBookingId = useCallback((threadId: string | null) => {
@@ -571,7 +574,9 @@ export default function MessagesPage() {
     const isCurrentSelectionValid = selectedChat && filteredConversations.some(c => c.id === selectedChat);
 
     if (!selectedChat || !isCurrentSelectionValid) {
-      setSelectedChat(filteredConversations[0]?.id ?? null);
+      startTransition(() => {
+        setSelectedChat(filteredConversations[0]?.id ?? null);
+      });
     }
   }, [filteredConversations, selectedChat, mailSection]);
 
@@ -581,7 +586,9 @@ export default function MessagesPage() {
   // Clear selection when switching display modes to allow auto-select to pick first conversation
   useEffect(() => {
     if (messageDisplay !== prevMessageDisplayRef.current) {
-      setSelectedChat(null);
+      startTransition(() => {
+        setSelectedChat(null);
+      });
     }
   }, [messageDisplay]);
 
@@ -626,7 +633,9 @@ export default function MessagesPage() {
   useEffect(() => {
     const draftValue = draftsByThread[getDraftKey(selectedChat)] ?? '';
     if (draftValue !== messageText) {
-      setMessageText(draftValue);
+      startTransition(() => {
+        setMessageText(draftValue);
+      });
     }
   }, [selectedChat, draftsByThread, getDraftKey, messageText]);
 
@@ -907,7 +916,6 @@ export default function MessagesPage() {
                               if (isImage) {
                                 return (
                                   <div key={attachment.id} className="overflow-hidden rounded-lg bg-white/10 border border-white/20">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                       src={attachment.url}
                                       alt={attachment.name ?? 'attachment'}

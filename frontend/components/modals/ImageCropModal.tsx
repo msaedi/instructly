@@ -199,7 +199,6 @@ export default function ImageCropModal({
           aria-label="Image crop area"
         >
           {image && natural && (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={image.src}
               alt="To be cropped"

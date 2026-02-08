@@ -32,6 +32,11 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
   const [hasMounted, setHasMounted] = React.useState(false);
   const [canAutoRotate, setCanAutoRotate] = React.useState(false);
   const [rotationTick, setRotationTick] = React.useState(0);
+  const bgUrlRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    bgUrlRef.current = bgUrl;
+  }, [bgUrl]);
 
   React.useEffect(() => {
     setHasMounted(true);
@@ -58,6 +63,7 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
 
     async function resolveBg() {
       let resolvedUrl: string | null = null;
+      let lowQualityUrl: string | null = null;
 
       const isAuthOrHome = pathname === '/' || pathname === '' || pathname.startsWith('/login') || pathname.startsWith('/signup');
       const effectiveActivity = isAuthOrHome ? (activity || null) : (activity || ctxActivity || null);
@@ -92,13 +98,14 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
       }
 
       // If URL didn't change, avoid resetting state to prevent stuck blur
-      const urlChanged = resolvedUrl !== bgUrl;
+      const urlChanged = resolvedUrl !== bgUrlRef.current;
       if (urlChanged) {
+        bgUrlRef.current = resolvedUrl;
         setBgUrl(resolvedUrl);
         setIsLoaded(false);
         setIsLowReady(false);
-        const low = generateLowQuality(resolvedUrl);
-        setLqUrl(low);
+        lowQualityUrl = generateLowQuality(resolvedUrl);
+        setLqUrl(lowQualityUrl);
       } else {
         // No change; ensure we are considered loaded
         setIsLoaded(true);
@@ -119,16 +126,15 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
         img.onerror = () => setIsLoaded(true);
       }
 
-      if (urlChanged && lqUrl) {
+      if (urlChanged && lowQualityUrl) {
         const lq = new Image();
-        lq.src = lqUrl;
+        lq.src = lowQualityUrl;
         lq.onload = () => setIsLowReady(true);
         lq.onerror = () => setIsLowReady(true);
       }
     }
 
     void resolveBg();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- bgUrl and lqUrl are state variables set within the effect
   }, [pathname, ctxActivity, ctxOverrides, overrides, activity, hasMounted, rotationTick]);
 
   // Auto-rotate while staying on the same page when multiple variants exist

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import Image from 'next/image';
 import { fetchWithAuth } from '@/lib/api';
 import { toast } from 'sonner';
 import { useTfaStatus } from '@/hooks/queries/useTfaStatus';
@@ -157,8 +158,14 @@ export default function TfaModal({ onClose, onChanged }: Props) {
         {step === 'show' && (
           <>
             {qr && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={qr} alt="QR code for authenticator app" className="mx-auto h-40 w-40" />
+              <Image
+                src={qr}
+                alt="QR code for authenticator app"
+                width={160}
+                height={160}
+                unoptimized
+                className="mx-auto h-40 w-40"
+              />
             )}
             {secret && (
               <div className="text-sm text-gray-700">
