@@ -18,12 +18,11 @@ Usage:
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 import re
 import sys
 from typing import Any
-
-import ulid
 
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -43,8 +42,18 @@ def slugify(name: str) -> str:
     return s.strip("-")
 
 
-def _ulid() -> str:
-    return str(ulid.ULID())
+CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+
+def deterministic_id(namespace: str, key: str) -> str:
+    """Generate a stable 26-char ULID-like ID from namespace + key."""
+    digest = hashlib.sha256(f"{namespace}:{key}".encode("utf-8")).digest()[:16]
+    num = int.from_bytes(digest, "big")
+    chars: list[str] = []
+    for _ in range(26):
+        chars.append(CROCKFORD_ALPHABET[num & 31])
+        num >>= 5
+    return "".join(reversed(chars))
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -214,71 +223,142 @@ TAXONOMY: dict[str, list[tuple[str, int, list[str]]]] = {
 # ════════════════════════════════════════════════════════════════════
 # ELIGIBLE AGE GROUP OVERRIDES
 # ════════════════════════════════════════════════════════════════════
-# Default is {"toddler", "kids", "teens", "adults"} — only list exceptions.
+# Default is {"kids", "teens", "adults"} — only list exceptions.
 
-DEFAULT_AGE_GROUPS = ["toddler", "kids", "teens", "adults"]
+DEFAULT_AGE_GROUPS = ["kids", "teens", "adults"]
 
 AGE_GROUP_OVERRIDES: dict[str, list[str]] = {
-    # Adults only
-    "Wine Tasting": ["adults"],
-    "Mixology": ["adults"],
-    "Paint & Sip": ["adults"],
-    "Dating Coaching": ["adults"],
-    "Couples Massage": ["adults"],
-    "Partner Yoga": ["adults"],
-    "Life Coaching": ["adults"],
-    "Career Coaching": ["adults"],
-    "Spiritual Coaching": ["adults"],
-    "Newborn Sleep Coaching": ["adults"],
-    "Infant Massage": ["adults"],
-    "Parenting Coaching": ["adults"],
-    "Accountability Partner": ["adults"],
-    "Business Etiquette": ["adults"],
-    "Reiki": ["adults"],
-    "GRE": ["adults"],
-    "GMAT": ["adults"],
-    "LSAT": ["adults"],
-    "MCAT": ["adults"],
-    # Teens + Adults
-    "Driving": ["teens", "adults"],
-    "Coffee Tasting": ["teens", "adults"],
-    "Interview Prep": ["teens", "adults"],
-    "Public Speaking": ["teens", "adults"],
-    "Tarot": ["teens", "adults"],
-    "Astrology": ["teens", "adults"],
-    "SAT": ["teens", "adults"],
-    "ACT": ["teens", "adults"],
-    "PSAT": ["teens", "adults"],
-    "TOEFL": ["teens", "adults"],
-    "IELTS": ["teens", "adults"],
-    "Regents": ["teens", "adults"],
-    "GED": ["teens", "adults"],
-    "College Essays": ["teens", "adults"],
-    # Kids + Teens
-    "SHSAT": ["kids", "teens"],
-    "SSAT": ["kids", "teens"],
-    "ISEE": ["kids", "teens"],
-    "Kids Coding (Scratch)": ["kids", "teens"],
-    "Kids Table Manners": ["kids", "teens"],
-    # Toddler + Kids
-    "STEM for Littles": ["toddler", "kids"],
+    # ── Toddler + Kids + Teens + Adults (Suzuki / early-start universal) ── 6 services
+    "Piano": ["toddler", "kids", "teens", "adults"],
+    "Violin": ["toddler", "kids", "teens", "adults"],
+    "Ballet": ["toddler", "kids", "teens", "adults"],
+    "Sign Language": ["toddler", "kids", "teens", "adults"],
+    "Swimming": ["toddler", "kids", "teens", "adults"],
+    "Gymnastics": ["toddler", "kids", "teens", "adults"],
+    # ── Toddler + Kids ── 14 services
     "Math Through Play": ["toddler", "kids"],
-    "Storytime": ["toddler", "kids"],
     "Phonics": ["toddler", "kids"],
+    "Storytime": ["toddler", "kids"],
+    "STEM for Littles": ["toddler", "kids"],
+    "Grown Up & Me Dance": ["toddler", "kids"],
+    "Developmental Movement": ["toddler", "kids"],
     "Sensory Art": ["toddler", "kids"],
     "Messy Art": ["toddler", "kids"],
     "Kids Scribble": ["toddler", "kids"],
     "Grown Up & Me Art": ["toddler", "kids"],
-    "Grown Up & Me Dance": ["toddler", "kids"],
-    "Developmental Movement": ["toddler", "kids"],
     "Clay Play": ["toddler", "kids"],
-    "Make & Take": ["toddler", "kids"],
-    "Craft Homework": ["toddler", "kids"],
-    "Beading": ["toddler", "kids"],
     "Little Builders": ["toddler", "kids"],
     "Cooking for Littles": ["toddler", "kids"],
-    # Toddler only
+    "Kids Table Manners": ["toddler", "kids"],
+    # ── Toddler only ── 2 services
     "ISR (Infant Self-Rescue)": ["toddler"],
+    "Infant Massage": ["toddler"],
+    # ── Kids only ── 4 services
+    "Kids Coding (Scratch)": ["kids"],
+    "Make & Take": ["kids"],
+    "Craft Homework": ["kids"],
+    "Beading": ["kids"],
+    # ── Kids + Teens ── 9 services
+    "SHSAT": ["kids", "teens"],
+    "SSAT": ["kids", "teens"],
+    "ISEE": ["kids", "teens"],
+    "Executive Function": ["kids", "teens"],
+    "Dyslexia": ["kids", "teens"],
+    "Dyscalculia": ["kids", "teens"],
+    "ADHD": ["kids", "teens"],
+    "IEP Support": ["kids", "teens"],
+    "Homework Help": ["kids", "teens"],
+    # ── Teens only ── 5 services
+    "SAT": ["teens"],
+    "ACT": ["teens"],
+    "PSAT": ["teens"],
+    "Regents": ["teens"],
+    "College Essays": ["teens"],
+    # ── Teens + Adults ── 59 services
+    "Trigonometry": ["teens", "adults"],
+    "Calculus": ["teens", "adults"],
+    "Statistics": ["teens", "adults"],
+    "TOEFL": ["teens", "adults"],
+    "IELTS": ["teens", "adults"],
+    "GED": ["teens", "adults"],
+    "Biology": ["teens", "adults"],
+    "Chemistry": ["teens", "adults"],
+    "Physics": ["teens", "adults"],
+    "Environmental Science": ["teens", "adults"],
+    "History & Social Studies": ["teens", "adults"],
+    "Economics": ["teens", "adults"],
+    "Python": ["teens", "adults"],
+    "JavaScript": ["teens", "adults"],
+    "Web Development": ["teens", "adults"],
+    "AI & Machine Learning": ["teens", "adults"],
+    "Bass": ["teens", "adults"],
+    "Double Bass": ["teens", "adults"],
+    "Bassoon": ["teens", "adults"],
+    "Tuba": ["teens", "adults"],
+    "Music Production": ["teens", "adults"],
+    "DJing": ["teens", "adults"],
+    "Songwriting": ["teens", "adults"],
+    "Composition": ["teens", "adults"],
+    "Salsa": ["teens", "adults"],
+    "Bachata": ["teens", "adults"],
+    "Swing": ["teens", "adults"],
+    "Flamenco": ["teens", "adults"],
+    "Zumba": ["teens", "adults"],
+    "Boxing": ["teens", "adults"],
+    "Muay Thai": ["teens", "adults"],
+    "Krav Maga": ["teens", "adults"],
+    "MMA": ["teens", "adults"],
+    "Tai Chi": ["teens", "adults"],
+    "Personal Training": ["teens", "adults"],
+    "Pilates": ["teens", "adults"],
+    "Partner Yoga": ["teens", "adults"],
+    "Running": ["teens", "adults"],
+    "Illustration": ["teens", "adults"],
+    "Oil": ["teens", "adults"],
+    "Photography": ["teens", "adults"],
+    "Fashion Design": ["teens", "adults"],
+    "Filmmaking": ["teens", "adults"],
+    "Graphic Design": ["teens", "adults"],
+    "Calligraphy": ["teens", "adults"],
+    "Woodworking": ["teens", "adults"],
+    "Candle Making": ["teens", "adults"],
+    "Floral Design": ["teens", "adults"],
+    "Sushi Making": ["teens", "adults"],
+    "Knife Skills": ["teens", "adults"],
+    "Cuisines": ["teens", "adults"],
+    "Interview Prep": ["teens", "adults"],
+    "Public Speaking": ["teens", "adults"],
+    "Makeup": ["teens", "adults"],
+    "Styling": ["teens", "adults"],
+    "Nail Art": ["teens", "adults"],
+    "Meditation": ["teens", "adults"],
+    "Breathwork": ["teens", "adults"],
+    "Driving": ["teens", "adults"],
+    # ── Adults only ── 24 services
+    "GRE": ["adults"],
+    "GMAT": ["adults"],
+    "LSAT": ["adults"],
+    "MCAT": ["adults"],
+    "Tango": ["adults"],
+    "Wedding Dance": ["adults"],
+    "Barre": ["adults"],
+    "Paint & Sip": ["adults"],
+    "Mixology": ["adults"],
+    "Coffee Tasting": ["adults"],
+    "Latte Art": ["adults"],
+    "Wine Tasting": ["adults"],
+    "Life Coaching": ["adults"],
+    "Career Coaching": ["adults"],
+    "Parenting Coaching": ["adults"],
+    "Spiritual Coaching": ["adults"],
+    "Newborn Sleep Coaching": ["adults"],
+    "Dating Coaching": ["adults"],
+    "Accountability Partner": ["adults"],
+    "Business Etiquette": ["adults"],
+    "Couples Massage": ["adults"],
+    "Tarot": ["adults"],
+    "Astrology": ["adults"],
+    "Reiki": ["adults"],
 }
 
 
@@ -287,6 +367,7 @@ AGE_GROUP_OVERRIDES: dict[str, list[str]] = {
 # ════════════════════════════════════════════════════════════════════
 
 FILTER_DEFINITIONS = [
+    {"key": "skill_level", "display_name": "Skill Level", "filter_type": "multi_select"},
     {"key": "grade_level", "display_name": "Grade Level", "filter_type": "multi_select"},
     {"key": "course_level", "display_name": "Course Level", "filter_type": "multi_select"},
     {"key": "goal", "display_name": "Goal", "filter_type": "multi_select"},
@@ -299,6 +380,11 @@ FILTER_DEFINITIONS = [
 ]
 
 FILTER_OPTIONS: dict[str, list[tuple[str, str]]] = {
+    "skill_level": [
+        ("beginner", "Beginner"),
+        ("intermediate", "Intermediate"),
+        ("advanced", "Advanced"),
+    ],
     "grade_level": [
         ("pre_k", "Pre-K"),
         ("elementary", "Elementary (K-5)"),
@@ -333,9 +419,9 @@ FILTER_OPTIONS: dict[str, list[tuple[str, str]]] = {
         ("audition_prep", "Audition Prep"),
     ],
     "format": [
-        ("one_time_session", "One-time Session"),
+        ("one_time", "One-time"),
         ("ongoing", "Ongoing"),
-        ("intensive_prep", "Intensive Prep"),
+        ("intensive", "Intensive"),
         ("individual", "Individual"),
         ("small_group", "Small Group"),
         ("team", "Team"),
@@ -387,66 +473,102 @@ FILTER_OPTIONS: dict[str, list[tuple[str, str]]] = {
 ALL = "ALL"
 
 # ════════════════════════════════════════════════════════════════════
-# SUBCATEGORY ↔ FILTER MAPPINGS
+# SUBCATEGORY ↔ FILTER MAPPINGS (NON-SKILL-LEVEL FILTERS)
 # ════════════════════════════════════════════════════════════════════
 # Format: { "Category > Subcategory": { "filter_key": [option_values] or ALL } }
 
-SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = {
+BASE_SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = {
     # ── TUTORING & TEST PREP ──
     "Tutoring & Test Prep > Math": {
         "grade_level": ALL,
         "course_level": ALL,
         "goal": ["homework_help", "test_prep", "enrichment", "remedial", "college_prep"],
-        "format": ["one_time_session", "ongoing", "intensive_prep"],
+        "format": ["one_time", "ongoing", "intensive"],
     },
     "Tutoring & Test Prep > Reading": {
         "grade_level": ["pre_k", "elementary", "middle_school", "high_school"],
         "goal": ["homework_help", "enrichment", "remedial", "learning_differences"],
-        "format": ["one_time_session", "ongoing"],
+        "format": ["one_time", "ongoing"],
     },
     "Tutoring & Test Prep > Test Prep": {
         "grade_level": ["middle_school", "high_school", "college", "adult"],
         "goal": ["test_prep", "college_prep"],
-        "format": ["one_time_session", "ongoing", "intensive_prep"],
+        "format": ["one_time", "ongoing", "intensive"],
     },
     "Tutoring & Test Prep > English": {
         "grade_level": ALL,
         "course_level": ALL,
         "goal": ["homework_help", "test_prep", "enrichment", "remedial", "college_prep"],
-        "format": ["one_time_session", "ongoing", "intensive_prep"],
+        "format": ["one_time", "ongoing", "intensive"],
     },
     "Tutoring & Test Prep > Science": {
         "grade_level": ["middle_school", "high_school", "college"],
         "course_level": ALL,
         "goal": ["homework_help", "test_prep", "enrichment", "remedial", "college_prep"],
-        "format": ["one_time_session", "ongoing", "intensive_prep"],
+        "format": ["one_time", "ongoing", "intensive"],
     },
     "Tutoring & Test Prep > Coding & STEM": {
         "grade_level": ALL,
         "goal": ["enrichment", "college_prep", "career_prep"],
-        "format": ["one_time_session", "ongoing"],
+        "format": ["one_time", "ongoing"],
     },
     "Tutoring & Test Prep > Learning Support": {
         "grade_level": ["pre_k", "elementary", "middle_school", "high_school"],
         "goal": ["remedial", "learning_differences"],
-        "format": ["ongoing"],
         "specialization": ["general", "dyslexia_reading", "adhd", "dyscalculia", "iep_support", "executive_function"],
     },
     "Tutoring & Test Prep > Homework Help": {
         "grade_level": ["elementary", "middle_school", "high_school"],
-        "format": ["one_time_session", "ongoing"],
+        "format": ["one_time", "ongoing"],
     },
     "Tutoring & Test Prep > History & Social Studies": {
         "grade_level": ["middle_school", "high_school", "college"],
         "course_level": ALL,
         "goal": ["homework_help", "test_prep", "enrichment"],
-        "format": ["one_time_session", "ongoing"],
+        "format": ["one_time", "ongoing"],
     },
     "Tutoring & Test Prep > Economics": {
         "grade_level": ["high_school", "college"],
         "course_level": ALL,
         "goal": ["homework_help", "test_prep", "enrichment"],
-        "format": ["one_time_session", "ongoing"],
+        "format": ["one_time", "ongoing"],
+    },
+    # ── MUSIC ──
+    "Music > Piano": {
+        "goal": ["hobby", "performance", "competition", "audition_prep"],
+    },
+    "Music > Guitar": {
+        "goal": ["hobby", "performance", "competition", "audition_prep"],
+    },
+    "Music > Voice & Singing": {
+        "goal": ["hobby", "performance", "competition", "audition_prep"],
+    },
+    "Music > Violin": {
+        "goal": ["hobby", "performance", "competition", "audition_prep"],
+    },
+    "Music > Drums & Percussion": {
+        "goal": ["hobby", "performance", "competition", "audition_prep"],
+    },
+    "Music > Ukulele": {
+        "goal": ["hobby", "performance", "competition", "audition_prep"],
+    },
+    "Music > Cello": {
+        "goal": ["hobby", "performance", "competition", "audition_prep"],
+    },
+    "Music > Orchestral Strings": {
+        "goal": ["hobby", "performance", "competition", "audition_prep"],
+    },
+    "Music > Woodwinds": {
+        "goal": ["hobby", "performance", "competition", "audition_prep"],
+    },
+    "Music > Brass": {
+        "goal": ["hobby", "performance", "competition", "audition_prep"],
+    },
+    "Music > Music Theory": {
+        "goal": ["hobby", "audition_prep", "college_prep"],
+    },
+    "Music > Music Production": {
+        "goal": ["hobby", "professional", "career_prep"],
     },
     # ── DANCE ──
     "Dance > Ballet": {
@@ -454,7 +576,6 @@ SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = {
         "goal": ["recreation", "performance", "competition", "audition_prep"],
     },
     "Dance > Jazz & Contemporary": {
-        "style": ["contemporary"],
         "goal": ["recreation", "performance", "competition", "audition_prep"],
     },
     "Dance > Hip Hop": {
@@ -470,11 +591,7 @@ SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = {
         "goal": ["recreation", "performance", "competition"],
     },
     "Dance > Acro": {
-        "style": ["contemporary"],
         "goal": ["recreation", "performance", "competition"],
-    },
-    "Dance > Kids Dance": {
-        "goal": ["recreation"],
     },
     "Dance > Cultural & Folk": {
         "goal": ["recreation", "performance"],
@@ -522,7 +639,6 @@ SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = {
     "Languages > Japanese": {
         "focus": ALL,
         "learner_type": ALL,
-        "specialization": ["technical"],
     },
     "Languages > Hebrew": {
         "focus": ALL,
@@ -531,12 +647,9 @@ SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = {
     "Languages > German": {
         "focus": ALL,
         "learner_type": ALL,
-        "specialization": ["technical"],
     },
     "Languages > Sign Language": {
         "focus": ["conversational", "academic"],
-        "learner_type": ["new_learner"],
-        "specialization": ["medical"],
     },
     "Languages > Other Languages": {
         "focus": ["conversational", "academic", "travel"],
@@ -545,7 +658,6 @@ SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = {
     # ── SPORTS & FITNESS ──
     "Sports & Fitness > Swimming": {
         "goal": ["recreation", "fitness", "competition"],
-        "format": ["individual"],
     },
     "Sports & Fitness > Martial Arts": {
         "goal": ["recreation", "fitness", "competition", "self_defense"],
@@ -558,10 +670,6 @@ SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = {
     "Sports & Fitness > Gymnastics": {
         "goal": ["recreation", "fitness", "competition"],
         "format": ["individual", "small_group"],
-    },
-    "Sports & Fitness > Personal Training": {
-        "goal": ["fitness"],
-        "format": ["individual"],
     },
     "Sports & Fitness > Yoga & Pilates": {
         "goal": ["recreation", "fitness"],
@@ -581,7 +689,6 @@ SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = {
     },
     "Sports & Fitness > Chess": {
         "goal": ["recreation", "competition"],
-        "format": ["individual"],
     },
     "Sports & Fitness > More Sports": {
         "goal": ["recreation", "fitness", "competition"],
@@ -596,41 +703,23 @@ SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = {
         "medium": ["watercolor", "oil", "acrylic"],
         "goal": ["hobby", "portfolio", "professional"],
     },
-    "Arts > Kids Art": {
-        "goal": ["hobby"],
-    },
     "Arts > Pottery": {
-        "medium": ["clay"],
         "goal": ["hobby", "portfolio"],
     },
     "Arts > Photography": {
-        "medium": ["digital"],
         "goal": ["hobby", "portfolio", "professional"],
     },
     "Arts > Acting": {
         "goal": ["hobby", "performance", "audition_prep", "professional"],
     },
     "Arts > Fashion Design": {
-        "medium": ["fabric"],
         "goal": ["hobby", "portfolio", "professional"],
     },
     "Arts > Filmmaking": {
-        "medium": ["digital"],
         "goal": ["hobby", "portfolio", "professional"],
     },
     "Arts > Graphic Design": {
-        "medium": ["digital"],
         "goal": ["hobby", "portfolio", "professional", "career_prep"],
-    },
-    "Arts > Calligraphy": {
-        "goal": ["hobby"],
-    },
-    "Arts > Sewing & Knitting": {
-        "medium": ["fabric"],
-        "goal": ["hobby"],
-    },
-    "Arts > Crafts & Making": {
-        "goal": ["hobby"],
     },
     # ── HOBBIES & LIFE SKILLS ──
     "Hobbies & Life Skills > Food & Drink": {
@@ -646,7 +735,6 @@ SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = {
     },
     "Hobbies & Life Skills > Life & Career Coaching": {
         "goal": ["career_prep", "professional"],
-        "format": ["ongoing"],
     },
     "Hobbies & Life Skills > Makeup & Styling": {
         "goal": ["hobby", "professional"],
@@ -659,18 +747,31 @@ SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = {
         "goal": ["recreation", "hobby"],
         "format": ["workshop", "ongoing"],
     },
-    "Hobbies & Life Skills > Spiritual": {
-        "goal": ["hobby"],
-        "format": ["workshop", "ongoing"],
-    },
+    "Hobbies & Life Skills > Spiritual": {"format": ["workshop", "ongoing"]},
     "Hobbies & Life Skills > Magic": {
         "goal": ["hobby", "performance"],
         "format": ["workshop", "ongoing"],
     },
-    "Hobbies & Life Skills > Driving": {
-        "format": ["ongoing"],
-    },
 }
+
+
+def _build_subcategory_filter_map() -> dict[str, dict[str, Any]]:
+    """
+    Apply universal `skill_level` to all subcategories.
+
+    Any subcategory not explicitly listed in BASE_SUBCATEGORY_FILTER_MAP will
+    receive `skill_level` only.
+    """
+    result: dict[str, dict[str, Any]] = {}
+    for category_name, subcategories in TAXONOMY.items():
+        for subcategory_name, _order, _services in subcategories:
+            sub_key = f"{category_name} > {subcategory_name}"
+            additional_filters = BASE_SUBCATEGORY_FILTER_MAP.get(sub_key, {})
+            result[sub_key] = {"skill_level": ALL, **additional_filters}
+    return result
+
+
+SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = _build_subcategory_filter_map()
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -727,9 +828,12 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
             print("\n📂 Seeding categories...")
 
         cat_name_to_id: dict[str, str] = {}
+        cat_name_to_slug: dict[str, str] = {}
         for cat in CATEGORIES:
-            cat_id = _ulid()
+            cat_slug = cat["slug"]
+            cat_id = deterministic_id("category", cat_slug)
             cat_name_to_id[cat["name"]] = cat_id
+            cat_name_to_slug[cat["name"]] = cat_slug
             meta_title = f"{cat['name']} | InstaInstru"
             session.execute(
                 text("""
@@ -765,12 +869,13 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
 
         for cat_name, subcats in TAXONOMY.items():
             cat_id = cat_name_to_id[cat_name]
+            cat_slug = cat_name_to_slug[cat_name]
             for sub_name, sub_order, services in subcats:
-                sub_id = _ulid()
+                sub_slug = slugify(sub_name)
+                sub_id = deterministic_id("subcategory", f"{cat_slug}:{sub_slug}")
                 sub_key = f"{cat_name} > {sub_name}"
                 sub_key_to_id[sub_key] = sub_id
 
-                sub_slug = slugify(sub_name)
                 session.execute(
                     text("""
                         INSERT INTO service_subcategories
@@ -788,10 +893,10 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
                 stats["subcategories"] += 1
 
                 for svc_name in services:
-                    svc_id = _ulid()
+                    svc_slug = slugify(svc_name)
+                    svc_id = deterministic_id("service", f"{cat_slug}:{sub_slug}:{svc_slug}")
                     svc_display_order += 1
                     age_groups = AGE_GROUP_OVERRIDES.get(svc_name, DEFAULT_AGE_GROUPS)
-                    svc_slug = slugify(svc_name)
 
                     session.execute(
                         text("""
@@ -824,7 +929,7 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
 
         filter_key_to_id: dict[str, str] = {}
         for fd in FILTER_DEFINITIONS:
-            fd_id = _ulid()
+            fd_id = deterministic_id("filter", fd["key"])
             filter_key_to_id[fd["key"]] = fd_id
             session.execute(
                 text("""
@@ -853,7 +958,7 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
             fd_id = filter_key_to_id[filter_key]
             option_lookup[filter_key] = {}
             for order, (value, display_name) in enumerate(options):
-                opt_id = _ulid()
+                opt_id = deterministic_id("option", f"{filter_key}:{value}")
                 option_lookup[filter_key][value] = opt_id
                 session.execute(
                     text("""
@@ -892,7 +997,7 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
                     continue
 
                 # Create subcategory_filters row
-                sf_id = _ulid()
+                sf_id = deterministic_id("subcategory_filter", f"{sub_id}:{filter_key}")
                 session.execute(
                     text("""
                         INSERT INTO subcategory_filters
@@ -923,7 +1028,10 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
                         print(f"  ⚠ Option not found: {filter_key}.{opt_value}")
                         continue
 
-                    sfo_id = _ulid()
+                    sfo_id = deterministic_id(
+                        "subcategory_filter_option",
+                        f"{sf_id}:{opt_value}",
+                    )
                     session.execute(
                         text("""
                             INSERT INTO subcategory_filter_options
@@ -1001,7 +1109,7 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
             "categories": 7,
             "subcategories": 77,
             "services": 224,
-            "filter_definitions": 9,
+            "filter_definitions": 10,
         }
         all_ok = True
         for key, expected_count in expected.items():
