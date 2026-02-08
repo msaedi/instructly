@@ -658,7 +658,7 @@ function SearchPageInner() {
   const category = searchParams.get('category') || '';
   const serviceCatalogId = searchParams.get('service_catalog_id') || '';
   const serviceNameFromUrl = searchParams.get('service_name') || '';
-  const ageGroup = searchParams.get('age_group') || '';
+  const audience = searchParams.get('audience') || searchParams.get('age_group') || '';
   const fromSource = searchParams.get('from') || '';
   const builtSearchQuery = useMemo(() => {
     if (!query) return '';
@@ -1372,7 +1372,7 @@ function SearchPageInner() {
               <RateLimitBanner rateLimit={rateLimit} />
 
             {/* Kids banner */}
-            {ageGroup === 'kids' && (
+            {audience === 'kids' && (
               <div className="mb-3 rounded-md bg-blue-50 border border-blue-200 text-blue-900 px-3 py-2 text-sm">
                 Showing instructors who teach kids
               </div>

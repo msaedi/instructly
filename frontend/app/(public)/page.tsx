@@ -1,21 +1,19 @@
 // frontend/app/(public)/page.tsx
 'use client';
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 // import removed; background handled globally
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { type TopServiceSummary } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import { BRAND_LEGAL_NAME } from '@/lib/branding';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
-import { RoleName, SearchType } from '@/types/enums';
+import { RoleName } from '@/types/enums';
 import { NotificationBar } from '@/components/NotificationBar';
-import { useFeaturedServices } from '@/hooks/queries/useHomepage';
-import { useServiceCategories } from '@/hooks/queries/useServices';
+import { HomeCatalogCascade } from '@/components/catalog/HomeCatalogCascade';
 import { getActivityBackground } from '@/lib/services/assetService';
 import {
   Search,
@@ -27,16 +25,8 @@ import {
   Shield,
   DollarSign,
   CheckCircle,
-  Globe,
-  Music,
-  Dumbbell,
-  Sparkles,
-  BookOpen,
-  Palette,
-
   X,
 } from 'lucide-react';
-import { recordSearch } from '@/lib/searchTracking';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useBeta } from '@/contexts/BetaContext';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
@@ -113,46 +103,8 @@ const PrivacySettings = dynamic(
   }
 );
 
-// Map backend icon_name to Lucide icon components (static — must be outside component for useMemo stability)
-const ICON_MAP: Record<string, React.ComponentType> = {
-  'palette': Palette,
-  'dumbbell': Dumbbell,
-  'book-open': BookOpen,
-  'globe': Globe,
-  'music': Music,
-  'sparkles': Sparkles,
-  'lightbulb': Sparkles,
-};
-
-const FALLBACK_CATEGORIES = [
-  { icon: BookOpen, id: 'fallback-tutoring', name: 'Tutoring & Test Prep', subtitle: 'SAT prep, math tutoring & more' },
-  { icon: Music, id: 'fallback-music', name: 'Music', subtitle: 'Piano, guitar, voice & more' },
-  { icon: Sparkles, id: 'fallback-dance', name: 'Dance', subtitle: 'Ballet, hip-hop, salsa & more' },
-  { icon: Globe, id: 'fallback-languages', name: 'Languages', subtitle: 'Spanish, French & more' },
-  { icon: Dumbbell, id: 'fallback-sports', name: 'Sports & Fitness', subtitle: 'Tennis, swimming & more' },
-  { icon: Palette, id: 'fallback-arts', name: 'Arts', subtitle: 'Drawing, painting & more' },
-  { icon: Sparkles, id: 'fallback-hobbies', name: 'Hobbies & Life Skills', subtitle: 'Cooking, gardening & more' },
-] as const;
-
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
-  // Always start with default value to avoid hydration mismatch
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
-  const [isTouchDevice, setIsTouchDevice] = useState(false);
-
-  // Restore saved category from sessionStorage after hydration
-  // This is the correct pattern for hydration-safe browser storage reading -
-  // must happen in useEffect to avoid SSR/client mismatch
-  useEffect(() => {
-    const saved = sessionStorage.getItem('homeSelectedCategory');
-    if (saved) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: restoring state from browser storage after hydration
-      setSelectedCategory(saved);
-    }
-    // Detect touch device
-    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
-  }, []);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [userHasBookingHistory, setUserHasBookingHistory] = useState<boolean | null>(null);
   const isClient = useSyncExternalStore(
@@ -183,52 +135,12 @@ export default function HomePage() {
   const shouldReserveNotificationBarSpace =
     (hasSessionCookie && isAuthLoading) || isAuthenticated;
 
-  // React Query hooks for fetching data with caching
-  // These prevent duplicate API calls and improve performance
-  const { data: topServicesData } = useFeaturedServices();
-  const { data: categoriesData } = useServiceCategories();
-
-  // Process the cached data into the format the component expects
-  const categoryServices = topServicesData ? (() => {
-    const servicesMap: Record<string, TopServiceSummary[]> = {};
-    const categories = topServicesData.categories ?? [];
-    categories.forEach((category) => {
-      servicesMap[category.id] = category.services ?? [];
-    });
-    return servicesMap;
-  })() : {};
-
   const heroLeftImageSrc = ensureHeroPanelSize(getActivityBackground('home', 'desktop'));
   const heroRightImageSrc = ensureHeroPanelSize(getActivityBackground('music', 'desktop'));
 
   // Fetch top services on mount (client-only) to avoid SSR/client hook order issues
 
   // Note: Do not early-return before all hooks have run; gate rendering in JSX instead
-
-  const categories = useMemo(() => {
-    const fromDb = categoriesData ?? [];
-    return fromDb.length > 0
-      ? [...fromDb]
-          .sort((a, b) => (a.display_order ?? 999) - (b.display_order ?? 999))
-          .map((c) => ({
-            icon: ICON_MAP[c.icon_name ?? ''] || Sparkles,
-            id: c.id,
-            name: c.name,
-            subtitle: c.subtitle || '',
-          }))
-      : [...FALLBACK_CATEGORIES];
-  }, [categoriesData]);
-
-  // Default to first category when data loads and no saved selection
-  useEffect(() => {
-    if (!selectedCategory && categories.length > 0) {
-      const first = categories[0];
-      if (first) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: setting default category after data loads
-        setSelectedCategory(first.id);
-      }
-    }
-  }, [categories, selectedCategory]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -482,171 +394,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Categories */}
-      {!hideStudentUi && (
-      <section className="py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex justify-center items-start space-x-10 ml-15">
-            {categories.map((category) => {
-              const IconComponent = category.icon;
-              const isSelected = category.id === selectedCategory;
-              return (
-                <div
-                  key={category.id}
-                  onClick={async () => {
-                    setSelectedCategory(category.id);
-                    // Clear hover on click to prevent stuck hover states
-                    setHoveredCategory(null);
-
-                    // Persist selection so Back restores it
-                    if (typeof window !== 'undefined') {
-                      sessionStorage.setItem('homeSelectedCategory', category.id);
-                    }
-
-                    // Record search for category selection
-                    await recordSearch(
-                      {
-                        query: `${category.name} lessons`,
-                        search_type: SearchType.CATEGORY,
-                        results_count: null,
-                      },
-                      isAuthenticated
-                    );
-                  }}
-                  onMouseEnter={() => !isTouchDevice && setHoveredCategory(category.id)}
-                  onMouseLeave={() => !isTouchDevice && setHoveredCategory(null)}
-                  onTouchStart={() => {
-                    // For touch devices, prevent hover state
-                    setHoveredCategory(null);
-                  }}
-                  className="group flex flex-col items-center cursor-pointer transition-colors duration-200 relative w-20 select-none"
-                >
-                  <IconComponent
-                    size={32}
-                    strokeWidth={1.5}
-                    className={`mb-2 transition-colors ${
-                      isSelected
-                        ? 'text-gray-900 dark:text-gray-100'
-                        : 'text-gray-500 group-hover:text-gray-900 dark:group-hover:text-gray-100'
-                    }`}
-                  />
-                  <p
-                    className={`text-sm font-medium mb-3 transition-colors whitespace-nowrap ${
-                      isSelected
-                        ? 'text-gray-900 dark:text-gray-100'
-                        : 'text-gray-500 group-hover:text-gray-900 dark:group-hover:text-gray-100'
-                    }`}
-                  >
-                    {category.name}
-                  </p>
-                  <p
-                    className={`text-xs text-gray-500 text-center transition-opacity duration-200 h-4 flex items-center justify-center whitespace-nowrap ${
-                      isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                    }`}
-                  >
-                    {category.subtitle || ''}
-                  </p>
-                  {isSelected && (
-                    <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 w-16 h-1 bg-[#FFD700] rounded-full"></div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-      )}
-
-      {/* Service Capsules */}
-      {!hideStudentUi && (
-      <section className="py-6 bg-transparent dark:bg-transparent">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-wrap justify-center gap-2 min-h-[48px] items-center">
-            {(() => {
-              const activeCategory = hoveredCategory || selectedCategory;
-              const services = categoryServices[activeCategory] || [];
-
-              if (services.length === 0) {
-                return (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 italic">
-                    No services available for this category
-                  </p>
-                );
-              }
-
-              // Take first 7 services
-              const servicesToShow = services.slice(0, 7);
-
-              // Create array of all pills to render
-              const pills = [];
-
-              // Add service pills
-              servicesToShow.forEach((service, index) => {
-                const href = `/search?service_catalog_id=${service.id}&service_name=${encodeURIComponent(service.name)}&from=home`;
-                pills.push(
-                  <Link
-                    key={service.id}
-                    href={href}
-                    onClick={async () => {
-                      // Track navigation source as backup
-                      if (typeof window !== 'undefined') {
-                        sessionStorage.setItem('navigationFrom', '/');
-                        logger.debug('Set navigation source from homepage', {
-                          navigationFrom: '/',
-                          serviceId: service.id,
-                        });
-
-                        // Persist current category so Back restores it
-                        sessionStorage.setItem('homeSelectedCategory', activeCategory);
-                      }
-
-                      // Don't track here - let the search page track with correct results count
-                    }}
-                    className="group relative px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-white transition-all duration-200 cursor-pointer animate-fade-in-up"
-                    style={{
-                      animationDelay: `${index * 50}ms`,
-                      animationFillMode: 'both',
-                    }}
-                  >
-                    {service.name}
-                    {/* Hover effect border */}
-                    <span className="absolute inset-0 rounded-full border-2 border-transparent group-hover:border-[#FFD700] transition-all duration-200 opacity-0 group-hover:opacity-100"></span>
-                  </Link>
-                );
-              });
-
-              // Always add the "•••" pill as the 8th item
-              pills.push(
-                <Link
-                  key={`more-${activeCategory}`} // Use activeCategory in key to force re-render
-                  href="/services"
-                  onClick={() => {
-                    // Track navigation source
-                    if (typeof window !== 'undefined') {
-                      sessionStorage.setItem('navigationFrom', '/');
-                      logger.debug('Set navigation source from homepage to services', {
-                        navigationFrom: '/',
-                      });
-                    }
-                  }}
-                  className="group relative px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-white transition-all duration-200 cursor-pointer animate-fade-in-up"
-                  style={{
-                    animationDelay: `${7 * 50}ms`,
-                    animationFillMode: 'both',
-                  }}
-                >
-                  •••
-                  {/* Hover effect border */}
-                  <span className="absolute inset-0 rounded-full border-2 border-transparent group-hover:border-[#FFD700] transition-all duration-200 opacity-0 group-hover:opacity-100"></span>
-                </Link>
-              );
-
-              return pills;
-            })()}
-          </div>
-        </div>
-      </section>
-      )}
+      {!hideStudentUi && <HomeCatalogCascade isAuthenticated={isAuthenticated} />}
 
       {/* Book Again OR How It Works - render on client only to avoid SSR/client mismatch */}
       {shouldShowBookAgain ? (
@@ -842,10 +590,10 @@ export default function HomePage() {
               <ul className="space-y-2">
                 <li>
                   <Link
-                    href="/categories"
+                    href="/services"
                     className="text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
                   >
-                    All Categories
+                    All Services
                   </Link>
                 </li>
                 <li>
