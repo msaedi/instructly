@@ -5,9 +5,6 @@ instructors:
     bio: Julliard-trained pianist with 15 years of teaching experience. Specializes
       in classical and jazz piano.
     years_experience: 15
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
     - name: Piano
       description: Classical, jazz, and contemporary piano for all levels
@@ -16,24 +13,23 @@ instructors:
       - 30
       - 45
       - 60
-      experience_level: expert
       equipment_required:
       - Piano or Keyboard
       - Music Stand
-      levels_taught:
-      - beginner
-      - intermediate
-      - advanced
       age_groups:
       - Kids
       - Teens
       - Adults
-      location_types:
-      - in_person
-      - online
-      max_distance_miles: 10
+      filter_selections:
+        skill_level:
+        - beginner
+        - intermediate
+        - advanced
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: flexible_academic
-  current_tier_pct: 10.00
+  current_tier_pct: 10.0
   seed_completed_last_30d: 12
   first_name: Sarah
   last_name: Chen
@@ -44,9 +40,6 @@ instructors:
     bio: Former concert pianist offering affordable lessons for beginners. Patient
       and encouraging teaching style.
     years_experience: 8
-    areas:
-    - Queens
-    - Brooklyn
     services:
     - name: Piano
       description: Piano fundamentals and music theory
@@ -54,17 +47,17 @@ instructors:
       duration_options:
       - 30
       - 45
-      experience_level: intermediate
-      levels_taught:
-      - beginner
-      - intermediate
       age_groups:
       - Kids
       - Teens
       - Adults
-      location_types:
-      - in_person
-      max_distance_miles: 15
+      filter_selections:
+        skill_level:
+        - beginner
+        - intermediate
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: evenings_weekends
   first_name: Michael
   last_name: Rodriguez
@@ -74,19 +67,15 @@ instructors:
   profile:
     bio: Electronic music producer teaching modern keyboard and synthesis techniques.
     years_experience: 6
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
     - name: Keyboard
       description: Digital keyboards, synthesizers, and music production
       price: 85.0
       duration_options:
       - 60
-      experience_level: intermediate
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Jason
   last_name: Park
@@ -97,10 +86,6 @@ instructors:
     bio: Session guitarist with 20 years experience. Rock, blues, jazz, and classical
       styles.
     years_experience: 20
-    areas:
-    - Manhattan
-    - Queens
-    - Brooklyn
     services:
     - name: Guitar
       description: Acoustic and electric guitar for all styles
@@ -109,10 +94,9 @@ instructors:
       - 30
       - 45
       - 60
-      experience_level: expert
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: full_availability
   first_name: Carlos
   last_name: Garcia
@@ -123,21 +107,18 @@ instructors:
     bio: Broadway performer with vocal coaching expertise. Belt, mix, and classical
       techniques.
     years_experience: 12
-    areas:
-    - Manhattan
     services:
-    - name: Voice
+    - name: Voice & Singing
       description: Vocal technique, performance, and audition prep
       price: 95.0
       duration_options:
       - 45
       - 60
-      experience_level: expert
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: mornings_only
-  current_tier_pct: 12.00
+  current_tier_pct: 12.0
   seed_completed_last_30d: 6
   first_name: Amanda
   last_name: Johnson
@@ -147,21 +128,19 @@ instructors:
   profile:
     bio: NY Philharmonic violinist offering advanced classical training.
     years_experience: 18
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
     - name: Violin
       description: Classical violin technique and repertoire
       price: 150.0
       duration_options:
       - 60
-      experience_level: expert
-      levels_taught:
-      - intermediate
-      - advanced
-      location_types:
-      - in_person
+      filter_selections:
+        skill_level:
+        - intermediate
+        - advanced
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: weekends_only
   first_name: Yuki
   last_name: Tanaka
@@ -171,19 +150,16 @@ instructors:
   profile:
     bio: Studio drummer specializing in rock, jazz, and Latin rhythms.
     years_experience: 10
-    areas:
-    - Brooklyn
-    - Queens
     services:
-    - name: Drums
+    - name: Drums & Percussion
       description: Drum kit, hand percussion, and rhythm training
       price: 85.0
       duration_options:
       - 45
       - 60
-      experience_level: intermediate
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: evenings_weekends
   first_name: Marcus
   last_name: Williams
@@ -193,11 +169,8 @@ instructors:
   profile:
     bio: Multi-instrumentalist teaching various instruments and music theory.
     years_experience: 14
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
-    - name: Bass Guitar
+    - name: Bass
       description: Electric and upright bass techniques
       price: 80.0
       duration_options:
@@ -227,9 +200,6 @@ instructors:
   profile:
     bio: Jazz saxophonist with experience in classical and contemporary styles.
     years_experience: 9
-    areas:
-    - Queens
-    - Manhattan
     services:
     - name: Saxophone
       description: Alto, tenor, and soprano sax for jazz and classical
@@ -237,9 +207,9 @@ instructors:
       duration_options:
       - 45
       - 60
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: standard_weekday
   first_name: Robert
   last_name: Davis
@@ -249,9 +219,6 @@ instructors:
   profile:
     bio: Published songwriter helping artists develop their creative voice.
     years_experience: 7
-    areas:
-    - Brooklyn
-    - Manhattan
     services:
     - name: Songwriting
       description: Lyric writing, melody, and song structure
@@ -259,9 +226,9 @@ instructors:
       duration_options:
       - 60
       - 90
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Lily
   last_name: Anderson
@@ -271,25 +238,22 @@ instructors:
   profile:
     bio: MIT graduate specializing in making math fun for elementary students.
     years_experience: 8
-    areas:
-    - Manhattan
-    - Queens
     services:
-    - name: Math Tutoring Elementary
+    - name: Math Through Play
       description: K-5 math with engaging, hands-on methods
       price: 90.0
       duration_options:
       - 30
       - 45
       - 60
-      experience_level: expert
-      levels_taught:
-      - beginner
       age_groups:
       - Kids
-      location_types:
-      - in_person
-      - online
+      filter_selections:
+        skill_level:
+        - beginner
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: flexible_academic
   first_name: Jennifer
   last_name: Kim
@@ -300,23 +264,21 @@ instructors:
     bio: Former elementary school teacher with a passion for building strong math
       foundations.
     years_experience: 5
-    areas:
-    - Brooklyn
-    - Queens
     services:
-    - name: Math Tutoring Elementary
+    - name: Math Through Play
       description: Patient, encouraging approach to elementary math
       price: 85.0
       duration_options:
       - 30
       - 45
-      levels_taught:
-      - beginner
       age_groups:
       - Kids
-      location_types:
-      - in_person
-      - online
+      filter_selections:
+        skill_level:
+        - beginner
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Thomas
   last_name: Lee
@@ -326,20 +288,16 @@ instructors:
   profile:
     bio: Perfect SAT scorer with proven strategies to boost scores 200+ points.
     years_experience: 10
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
-    - name: SAT Prep
+    - name: SAT
       description: Comprehensive SAT prep with personalized study plans
       price: 150.0
       duration_options:
       - 90
       - 120
-      experience_level: expert
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: weekends_only
   first_name: Rachel
   last_name: Patel
@@ -349,18 +307,16 @@ instructors:
   profile:
     bio: Harvard grad offering affordable SAT prep with flexible scheduling.
     years_experience: 4
-    areas:
-    - Queens
-    - Brooklyn
     services:
-    - name: SAT Prep
+    - name: SAT
       description: SAT math and verbal strategies
       price: 85.0
       duration_options:
       - 60
       - 90
-      location_types:
-      - online
+      offers_travel: false
+      offers_at_location: false
+      offers_online: true
   availability_pattern: evenings_weekends
   first_name: Steven
   last_name: Chang
@@ -370,26 +326,23 @@ instructors:
   profile:
     bio: High school math teacher specializing in algebra and pre-calculus.
     years_experience: 12
-    areas:
-    - Brooklyn
-    - Manhattan
     services:
-    - name: Algebra I
+    - name: Algebra
       description: Foundations of algebra with real-world applications
       price: 85.0
       duration_options:
       - 60
-      location_types:
-      - in_person
-      - online
-    - name: Algebra II
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
+    - name: Algebra
       description: Advanced algebra and trigonometry
       price: 90.0
       duration_options:
       - 60
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: standard_weekday
   first_name: Maria
   last_name: Gonzalez
@@ -399,8 +352,6 @@ instructors:
   profile:
     bio: PhD in Physics offering high-level science tutoring.
     years_experience: 15
-    areas:
-    - Manhattan
     services:
     - name: Physics
       description: AP Physics, college physics, and physics olympiad prep
@@ -408,18 +359,17 @@ instructors:
       duration_options:
       - 60
       - 90
-      experience_level: expert
-      location_types:
-      - in_person
-      - online
-    - name: Calculus AP
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
+    - name: Calculus
       description: AP Calculus AB/BC and college calculus
       price: 110.0
       duration_options:
       - 60
       - 90
   availability_pattern: flexible_academic
-  current_tier_pct: 15.00
+  current_tier_pct: 15.0
   seed_completed_last_30d: 0
   seed_randomize_categories: true
   first_name: James
@@ -430,19 +380,15 @@ instructors:
   profile:
     bio: Former pharmaceutical researcher teaching chemistry with practical examples.
     years_experience: 9
-    areas:
-    - Queens
-    - Brooklyn
-    - Manhattan
     services:
     - name: Chemistry
       description: General chemistry, AP Chemistry, and organic chemistry
       price: 85.0
       duration_options:
       - 60
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: mornings_only
   first_name: Susan
   last_name: Martinez
@@ -452,11 +398,8 @@ instructors:
   profile:
     bio: Google engineer teaching coding to the next generation.
     years_experience: 6
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
-    - name: Coding
+    - name: Kids Coding (Scratch)
       description: Scratch, Python, and web development for kids and teens
       price: 95.0
       duration_options:
@@ -465,8 +408,9 @@ instructors:
       age_groups:
       - Kids
       - Teens
-      location_types:
-      - online
+      offers_travel: false
+      offers_at_location: false
+      offers_online: true
     - name: Python
       description: Python programming from basics to advanced
       price: 100.0
@@ -482,23 +426,22 @@ instructors:
   profile:
     bio: Reading specialist with dyslexia training and phonics expertise.
     years_experience: 11
-    areas:
-    - Manhattan
-    - Queens
     services:
-    - name: Reading Tutoring Elementary
+    - name: Reading
       description: Phonics, comprehension, and reading fluency
       price: 80.0
       duration_options:
       - 30
       - 45
       - 60
-      levels_taught:
-      - beginner
       age_groups:
       - Kids
-      location_types:
-      - in_person
+      filter_selections:
+        skill_level:
+        - beginner
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: full_availability
   first_name: Patricia
   last_name: Brown
@@ -508,18 +451,15 @@ instructors:
   profile:
     bio: Test prep specialist with 10 years of ACT coaching experience.
     years_experience: 10
-    areas:
-    - Brooklyn
-    - Manhattan
     services:
-    - name: ACT Prep
+    - name: ACT
       description: Complete ACT preparation with practice tests
       price: 130.0
       duration_options:
       - 90
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: weekends_only
   first_name: Kevin
   last_name: Zhang
@@ -529,9 +469,6 @@ instructors:
   profile:
     bio: NASM certified personal trainer specializing in strength and conditioning.
     years_experience: 8
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
     - name: Personal Training
       description: Customized fitness programs for all fitness levels
@@ -539,10 +476,9 @@ instructors:
       duration_options:
       - 45
       - 60
-      experience_level: expert
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: early_bird
   first_name: Marcus
   last_name: Johnson
@@ -552,17 +488,15 @@ instructors:
   profile:
     bio: Former athlete offering affordable personal training for beginners.
     years_experience: 4
-    areas:
-    - Queens
-    - Brooklyn
     services:
     - name: Personal Training
       description: Weight loss, muscle building, and general fitness
       price: 85.0
       duration_options:
       - 45
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: mornings_only
   first_name: Jessica
   last_name: Rivera
@@ -572,8 +506,6 @@ instructors:
   profile:
     bio: RYT-500 yoga instructor specializing in Vinyasa and Yin yoga.
     years_experience: 12
-    areas:
-    - Manhattan
     services:
     - name: Yoga
       description: Private yoga sessions tailored to your needs
@@ -581,10 +513,9 @@ instructors:
       duration_options:
       - 60
       - 90
-      experience_level: expert
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: early_bird
   first_name: Priya
   last_name: Sharma
@@ -594,17 +525,15 @@ instructors:
   profile:
     bio: Gentle yoga instructor focusing on stress relief and flexibility.
     years_experience: 6
-    areas:
-    - Brooklyn
-    - Queens
     services:
     - name: Yoga
       description: Hatha yoga, restorative yoga, and meditation
       price: 85.0
       duration_options:
       - 60
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: flexible_academic
   first_name: Emma
   last_name: White
@@ -614,9 +543,6 @@ instructors:
   profile:
     bio: Former competitive swimmer teaching all levels from beginner to advanced.
     years_experience: 10
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
     - name: Swimming
       description: Private swimming lessons at your pool or local facility
@@ -628,8 +554,9 @@ instructors:
       - Kids
       - Teens
       - Adults
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: mornings_only
   first_name: Michael
   last_name: Turner
@@ -639,9 +566,6 @@ instructors:
   profile:
     bio: USPTA certified tennis pro with junior development expertise.
     years_experience: 9
-    areas:
-    - Queens
-    - Manhattan
     services:
     - name: Tennis
       description: Tennis technique, strategy, and match play
@@ -652,8 +576,9 @@ instructors:
       - Kids
       - Teens
       - Adults
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: full_availability
   first_name: Sophia
   last_name: Rodriguez
@@ -663,11 +588,8 @@ instructors:
   profile:
     bio: Former college basketball player teaching fundamentals and advanced skills.
     years_experience: 7
-    areas:
-    - Brooklyn
-    - Queens
     services:
-    - name: Basketball Skills
+    - name: Basketball
       description: Shooting, dribbling, defense, and game IQ
       price: 90.0
       duration_options:
@@ -675,8 +597,9 @@ instructors:
       age_groups:
       - Kids
       - Teens
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: afternoons_evenings
   first_name: Dwayne
   last_name: Jackson
@@ -686,11 +609,8 @@ instructors:
   profile:
     bio: 5th degree black belt teaching traditional karate and self-defense.
     years_experience: 20
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
-    - name: Martial Arts
+    - name: Karate
       description: Karate, self-defense, and discipline training
       price: 80.0
       duration_options:
@@ -700,8 +620,9 @@ instructors:
       - Kids
       - Teens
       - Adults
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: evenings_weekends
   first_name: Ken
   last_name: Yamamoto
@@ -711,17 +632,15 @@ instructors:
   profile:
     bio: Certified Pilates instructor specializing in core strength and rehabilitation.
     years_experience: 8
-    areas:
-    - Manhattan
     services:
     - name: Pilates
       description: Mat Pilates and reformer sessions
       price: 95.0
       duration_options:
       - 60
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: standard_weekday
   first_name: Lauren
   last_name: Clark
@@ -731,18 +650,15 @@ instructors:
   profile:
     bio: Marathon runner and certified coach helping you reach your running goals.
     years_experience: 6
-    areas:
-    - Brooklyn
-    - Manhattan
-    - Queens
     services:
     - name: Running
       description: 5K to marathon training, form analysis, and injury prevention
       price: 90.0
       duration_options:
       - 60
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: early_bird
   first_name: Chris
   last_name: Evans
@@ -752,9 +668,6 @@ instructors:
   profile:
     bio: Native Spanish speaker from Madrid with teaching certification.
     years_experience: 10
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
     - name: Spanish
       description: Conversational Spanish, grammar, and business Spanish
@@ -762,10 +675,9 @@ instructors:
       duration_options:
       - 45
       - 60
-      experience_level: expert
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: flexible_academic
   first_name: Carlos
   last_name: Mendez
@@ -775,9 +687,6 @@ instructors:
   profile:
     bio: Argentinian teacher offering fun, affordable Spanish lessons.
     years_experience: 5
-    areas:
-    - Queens
-    - Brooklyn
     services:
     - name: Spanish
       description: Spanish for beginners and intermediate learners
@@ -785,8 +694,9 @@ instructors:
       duration_options:
       - 30
       - 45
-      location_types:
-      - online
+      offers_travel: false
+      offers_at_location: false
+      offers_online: true
   availability_pattern: evenings_weekends
   first_name: Lucia
   last_name: Fernandez
@@ -796,18 +706,15 @@ instructors:
   profile:
     bio: TEFL certified instructor with experience teaching business professionals.
     years_experience: 12
-    areas:
-    - Manhattan
     services:
-    - name: ESL
+    - name: English (ESL/EFL)
       description: English as a Second Language for all levels
       price: 80.0
       duration_options:
       - 60
-      experience_level: expert
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: standard_weekday
   first_name: Jennifer
   last_name: Taylor
@@ -817,9 +724,6 @@ instructors:
   profile:
     bio: Native French speaker from Paris teaching language and culture.
     years_experience: 8
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
     - name: French
       description: French conversation, grammar, and pronunciation
@@ -827,9 +731,9 @@ instructors:
       duration_options:
       - 45
       - 60
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Pierre
   last_name: Dubois
@@ -839,18 +743,15 @@ instructors:
   profile:
     bio: Beijing native teaching Mandarin to business professionals and students.
     years_experience: 15
-    areas:
-    - Manhattan
-    - Queens
     services:
-    - name: Mandarin Chinese
+    - name: Mandarin
       description: HSK prep, business Chinese, and conversation
       price: 85.0
       duration_options:
       - 60
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: flexible_academic
   first_name: Wei
   last_name: Zhang
@@ -860,9 +761,6 @@ instructors:
   profile:
     bio: Roman native sharing the beauty of Italian language and culture.
     years_experience: 7
-    areas:
-    - Brooklyn
-    - Manhattan
     services:
     - name: Italian
       description: Italian for travel, business, or personal enrichment
@@ -870,8 +768,9 @@ instructors:
       duration_options:
       - 45
       - 60
-      location_types:
-      - online
+      offers_travel: false
+      offers_at_location: false
+      offers_online: true
   availability_pattern: evenings_weekends
   first_name: Marco
   last_name: Rossi
@@ -881,8 +780,6 @@ instructors:
   profile:
     bio: Polyglot teaching multiple European languages with cultural insights.
     years_experience: 11
-    areas:
-    - Manhattan
     services:
     - name: German
       description: German for business and academic purposes
@@ -903,18 +800,15 @@ instructors:
   profile:
     bio: Tokyo native teaching Japanese language and business etiquette.
     years_experience: 9
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
     - name: Japanese
       description: JLPT prep, conversational Japanese, and kanji
       price: 80.0
       duration_options:
       - 60
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Yuki
   last_name: Nakamura
@@ -924,20 +818,16 @@ instructors:
   profile:
     bio: Certified ASL instructor and interpreter with deaf community experience.
     years_experience: 13
-    areas:
-    - Queens
-    - Brooklyn
-    - Manhattan
     services:
-    - name: Sign Language ASL
+    - name: Sign Language
       description: American Sign Language for beginners to advanced
       price: 90.0
       duration_options:
       - 45
       - 60
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: full_availability
   first_name: Sarah
   last_name: Mitchell
@@ -947,17 +837,15 @@ instructors:
   profile:
     bio: Seoul native teaching Korean with K-pop and K-drama cultural context.
     years_experience: 5
-    areas:
-    - Manhattan
-    - Queens
     services:
     - name: Korean
       description: Korean language, Hangul, and cultural immersion
       price: 75.0
       duration_options:
       - 60
-      location_types:
-      - online
+      offers_travel: false
+      offers_at_location: false
+      offers_online: true
   availability_pattern: evenings_weekends
   first_name: Jin
   last_name: Park
@@ -967,9 +855,6 @@ instructors:
   profile:
     bio: Professional photographer teaching composition and editing techniques.
     years_experience: 12
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
     - name: Photography
       description: Digital photography, composition, and Lightroom editing
@@ -977,9 +862,9 @@ instructors:
       duration_options:
       - 90
       - 120
-      experience_level: expert
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: weekends_only
   first_name: David
   last_name: Chen
@@ -989,18 +874,15 @@ instructors:
   profile:
     bio: Instagram photographer teaching mobile photography and social media.
     years_experience: 4
-    areas:
-    - Queens
-    - Brooklyn
     services:
     - name: Photography
       description: Smartphone photography and basic editing
       price: 85.0
       duration_options:
       - 60
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: flexible_academic
   first_name: Lisa
   last_name: Nguyen
@@ -1010,8 +892,6 @@ instructors:
   profile:
     bio: MFA in Fine Arts teaching classical drawing techniques.
     years_experience: 15
-    areas:
-    - Manhattan
     services:
     - name: Drawing
       description: Pencil, charcoal, and figure drawing
@@ -1022,8 +902,9 @@ instructors:
       - Kids
       - Teens
       - Adults
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: standard_weekday
   first_name: Robert
   last_name: Lewis
@@ -1033,9 +914,6 @@ instructors:
   profile:
     bio: Broadway actress offering acting and audition coaching.
     years_experience: 10
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
     - name: Acting
       description: Scene study, monologues, and audition prep
@@ -1043,9 +921,9 @@ instructors:
       duration_options:
       - 60
       - 90
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Michelle
   last_name: Adams
@@ -1055,8 +933,6 @@ instructors:
   profile:
     bio: Former ABT dancer teaching classical ballet technique.
     years_experience: 18
-    areas:
-    - Manhattan
     services:
     - name: Ballet
       description: Classical ballet for intermediate and advanced dancers
@@ -1064,14 +940,16 @@ instructors:
       duration_options:
       - 60
       - 90
-      levels_taught:
-      - intermediate
-      - advanced
       age_groups:
       - Kids
       - Teens
-      location_types:
-      - in_person
+      filter_selections:
+        skill_level:
+        - intermediate
+        - advanced
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: mornings_only
   first_name: Anastasia
   last_name: Petrova
@@ -1081,16 +959,13 @@ instructors:
   profile:
     bio: Contemporary artist teaching various painting techniques.
     years_experience: 9
-    areas:
-    - Brooklyn
-    - Queens
     services:
-    - name: Painting Watercolor
+    - name: Watercolor
       description: Watercolor techniques from basic to advanced
       price: 80.0
       duration_options:
       - 90
-    - name: Painting Acrylic
+    - name: Acrylic
       description: Acrylic painting and mixed media
       price: 85.0
       duration_options:
@@ -1104,11 +979,8 @@ instructors:
   profile:
     bio: Professional dancer and choreographer teaching hip hop and street styles.
     years_experience: 8
-    areas:
-    - Brooklyn
-    - Manhattan
     services:
-    - name: Hip Hop Dance
+    - name: Hip Hop
       description: Hip hop choreography and freestyle
       price: 90.0
       duration_options:
@@ -1117,8 +989,9 @@ instructors:
       - Kids
       - Teens
       - Adults
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: evenings_weekends
   first_name: Tyrone
   last_name: Washington
@@ -1128,8 +1001,6 @@ instructors:
   profile:
     bio: Ceramic artist with studio space for hands-on pottery lessons.
     years_experience: 11
-    areas:
-    - Brooklyn
     services:
     - name: Pottery
       description: Wheel throwing and hand building techniques
@@ -1139,8 +1010,9 @@ instructors:
       age_groups:
       - Teens
       - Adults
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: full_availability
   first_name: Emily
   last_name: Stone
@@ -1150,18 +1022,16 @@ instructors:
   profile:
     bio: Digital artist teaching Photoshop, Illustrator, and Procreate.
     years_experience: 6
-    areas:
-    - Manhattan
-    - Queens
     services:
-    - name: Digital Art
+    - name: Illustration
       description: Digital illustration and design fundamentals
       price: 85.0
       duration_options:
       - 60
       - 90
-      location_types:
-      - online
+      offers_travel: false
+      offers_at_location: false
+      offers_online: true
   availability_pattern: flexible_academic
   first_name: Jason
   last_name: Kim
@@ -1171,11 +1041,8 @@ instructors:
   profile:
     bio: Professional jazz dancer with Broadway and commercial experience.
     years_experience: 12
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
-    - name: Jazz Dance
+    - name: Jazz & Contemporary
       description: Jazz technique, leaps, turns, and combinations
       price: 80.0
       duration_options:
@@ -1183,8 +1050,9 @@ instructors:
       age_groups:
       - Kids
       - Teens
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: afternoons_evenings
   first_name: Nicole
   last_name: Harris
@@ -1194,8 +1062,6 @@ instructors:
   profile:
     bio: Certified life coach with PhD in Psychology. Executive and personal coaching.
     years_experience: 15
-    areas:
-    - Manhattan
     services:
     - name: Life Coaching
       description: Goal setting, career transitions, and personal development
@@ -1203,10 +1069,9 @@ instructors:
       duration_options:
       - 60
       - 90
-      experience_level: expert
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: standard_weekday
   first_name: Rachel
   last_name: Green
@@ -1216,17 +1081,15 @@ instructors:
   profile:
     bio: Life coach specializing in work-life balance and stress management.
     years_experience: 7
-    areas:
-    - Brooklyn
-    - Queens
     services:
     - name: Life Coaching
       description: Practical strategies for personal and professional growth
       price: 85.0
       duration_options:
       - 60
-      location_types:
-      - online
+      offers_travel: false
+      offers_at_location: false
+      offers_online: true
   availability_pattern: evenings_weekends
   first_name: James
   last_name: Foster
@@ -1236,18 +1099,16 @@ instructors:
   profile:
     bio: Michelin-trained chef teaching home cooking and advanced techniques.
     years_experience: 20
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
-    - name: Cooking Various Cuisines
+    - name: Cuisines
       description: Italian, French, and modern American cuisine
       price: 120.0
       duration_options:
       - 90
       - 120
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: flexible_academic
   first_name: Antonio
   last_name: Ricci
@@ -1257,15 +1118,13 @@ instructors:
   profile:
     bio: Certified sommelier offering wine education and tasting experiences.
     years_experience: 12
-    areas:
-    - Manhattan
     services:
     - name: Wine Tasting
       description: Wine tasting techniques and food pairing
       price: 100.0
       duration_options:
       - 90
-    - name: Wine Appreciation
+    - name: Wine Tasting
       description: Wine regions, varietals, and collecting
       price: 95.0
       duration_options:
@@ -1279,9 +1138,6 @@ instructors:
   profile:
     bio: TEDx speaker and communication coach for executives and professionals.
     years_experience: 10
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
     - name: Public Speaking
       description: Presentation skills, speech writing, and confidence building
@@ -1289,9 +1145,9 @@ instructors:
       duration_options:
       - 60
       - 90
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: standard_weekday
   first_name: Mark
   last_name: Stevens
@@ -1301,18 +1157,16 @@ instructors:
   profile:
     bio: Celebrity makeup artist teaching personal and professional techniques.
     years_experience: 8
-    areas:
-    - Manhattan
-    - Queens
     services:
-    - name: Makeup Application
+    - name: Makeup
       description: Personal makeup lessons and special event looks
       price: 90.0
       duration_options:
       - 60
       - 90
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: full_availability
   first_name: Ashley
   last_name: James
@@ -1322,9 +1176,6 @@ instructors:
   profile:
     bio: Chess master with FIDE rating teaching strategy and tactics.
     years_experience: 16
-    areas:
-    - Brooklyn
-    - Manhattan
     services:
     - name: Chess
       description: Chess strategy, tactics, and tournament prep
@@ -1335,9 +1186,9 @@ instructors:
       - Kids
       - Teens
       - Adults
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Vladimir
   last_name: Petrov
@@ -1347,8 +1198,6 @@ instructors:
   profile:
     bio: Former HR director helping professionals navigate career transitions.
     years_experience: 14
-    areas:
-    - Manhattan
     services:
     - name: Career Coaching
       description: Resume building, interview prep, and career strategy
@@ -1356,8 +1205,9 @@ instructors:
       duration_options:
       - 60
       - 90
-      location_types:
-      - online
+      offers_travel: false
+      offers_at_location: false
+      offers_online: true
   availability_pattern: flexible_academic
   first_name: Linda
   last_name: Thompson
@@ -1367,18 +1217,15 @@ instructors:
   profile:
     bio: Certified dog trainer and behaviorist with 15 years experience.
     years_experience: 15
-    areas:
-    - Brooklyn
-    - Queens
-    - Manhattan
     services:
     - name: Dog Training
       description: Basic obedience, behavior modification, and puppy training
       price: 85.0
       duration_options:
       - 60
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: weekends_only
   first_name: Jessica
   last_name: Cooper
@@ -1388,11 +1235,8 @@ instructors:
   profile:
     bio: French pastry chef teaching artisan baking and dessert techniques.
     years_experience: 13
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
-    - name: Baking & Pastry
+    - name: Baking
       description: French pastries, artisan breads, and cake decorating
       price: 100.0
       duration_options:
@@ -1401,8 +1245,9 @@ instructors:
       - Kids
       - Teens
       - Adults
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: mornings_only
   first_name: Claire
   last_name: Dubois
@@ -1413,9 +1258,6 @@ instructors:
   profile:
     bio: Experienced music teacher currently on temporary leave.
     years_experience: 12
-    areas:
-    - Brooklyn
-    - Manhattan
     services:
     - name: Guitar
       description: Classical guitar technique and repertoire
@@ -1433,10 +1275,6 @@ instructors:
   profile:
     bio: Award-winning yoga instructor taking a brief sabbatical.
     years_experience: 15
-    areas:
-    - Manhattan
-    - Queens
-    - Brooklyn
     services:
     - name: Yoga
       description: Vinyasa and restorative yoga
@@ -1460,9 +1298,6 @@ instructors:
     bio: Elementary school art teacher specializing in fun, creative projects for
       kids.
     years_experience: 8
-    areas:
-    - Brooklyn
-    - Queens
     services:
     - name: Drawing
       description: Fun drawing lessons for kids - cartoons, animals, and more!
@@ -1472,17 +1307,19 @@ instructors:
       - 60
       age_groups:
       - Kids
-      location_types:
-      - in_person
-    - name: Painting Watercolor
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
+    - name: Watercolor
       description: Messy, fun watercolor projects for young artists
       price: 80.0
       duration_options:
       - 60
       age_groups:
       - Kids
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: afternoons_evenings
   first_name: Emily
   last_name: Carter
@@ -1492,11 +1329,8 @@ instructors:
   profile:
     bio: Children's music specialist making learning fun with songs and games.
     years_experience: 6
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
-    - name: Voice
+    - name: Voice & Singing
       description: Kids singing lessons with Disney songs and fun exercises
       price: 85.0
       duration_options:
@@ -1504,10 +1338,10 @@ instructors:
       - 45
       age_groups:
       - Kids
-      location_types:
-      - in_person
-      - online
-    - name: Drums
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
+    - name: Drums & Percussion
       description: Beginning drums for kids - rhythm games and basic beats
       price: 85.0
       duration_options:
@@ -1515,8 +1349,9 @@ instructors:
       - 45
       age_groups:
       - Kids
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: flexible_academic
   first_name: Tommy
   last_name: Nguyen
@@ -1526,9 +1361,6 @@ instructors:
   profile:
     bio: Making language learning fun for kids through games, songs, and stories.
     years_experience: 7
-    areas:
-    - Queens
-    - Manhattan
     services:
     - name: Spanish
       description: Spanish for kids through games, songs, and cultural activities
@@ -1538,9 +1370,9 @@ instructors:
       - 45
       age_groups:
       - Kids
-      location_types:
-      - in_person
-      - online
+      offers_travel: true
+      offers_at_location: true
+      offers_online: true
     - name: French
       description: Fun French lessons for children with songs and activities
       price: 65.0
@@ -1549,8 +1381,9 @@ instructors:
       - 45
       age_groups:
       - Kids
-      location_types:
-      - online
+      offers_travel: false
+      offers_at_location: false
+      offers_online: true
   availability_pattern: afternoons_evenings
   first_name: Isabella
   last_name: Santos
@@ -1560,11 +1393,8 @@ instructors:
   profile:
     bio: PhD scientist making STEM fun and accessible for young minds.
     years_experience: 10
-    areas:
-    - Manhattan
-    - Brooklyn
     services:
-    - name: Coding
+    - name: Kids Coding (Scratch)
       description: Scratch programming and fun coding games for kids 7-12
       price: 70.0
       duration_options:
@@ -1572,8 +1402,9 @@ instructors:
       - 60
       age_groups:
       - Kids
-      location_types:
-      - online
+      offers_travel: false
+      offers_at_location: false
+      offers_online: true
     - name: Robotics
       description: Build and program simple robots - perfect for curious kids!
       price: 80.0
@@ -1582,8 +1413,9 @@ instructors:
       age_groups:
       - Kids
       - Teens
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: weekends_only
   first_name: Sarah
   last_name: Johnson
@@ -1593,9 +1425,6 @@ instructors:
   profile:
     bio: Former Disney performer teaching kids to dance with joy and confidence.
     years_experience: 9
-    areas:
-    - Brooklyn
-    - Queens
     services:
     - name: Ballet
       description: Pre-ballet and beginning ballet for little dancers
@@ -1604,19 +1433,22 @@ instructors:
       - 45
       age_groups:
       - Kids
-      levels_taught:
-      - beginner
-      location_types:
-      - in_person
-    - name: Jazz Dance
+      filter_selections:
+        skill_level:
+        - beginner
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
+    - name: Jazz & Contemporary
       description: Fun, energetic jazz dance for kids with popular music
       price: 85.0
       duration_options:
       - 45
       age_groups:
       - Kids
-      location_types:
-      - in_person
+      offers_travel: true
+      offers_at_location: true
+      offers_online: false
   availability_pattern: afternoons_evenings
   first_name: Brittany
   last_name: Jones
@@ -1627,10 +1459,8 @@ instructors:
   profile:
     bio: Former professional chef no longer taking students.
     years_experience: 20
-    areas:
-    - Manhattan
     services:
-    - name: Cooking Various Cuisines
+    - name: Cuisines
       description: Professional cooking techniques
       price: 120.0
       duration_options:
