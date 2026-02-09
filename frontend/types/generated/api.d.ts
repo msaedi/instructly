@@ -15316,6 +15316,13 @@ export type components = {
              */
             filters_applied?: string[];
             /**
+             * Inferred Filters
+             * @description Taxonomy filter values inferred from query text post-resolution
+             */
+            inferred_filters?: {
+                [key: string]: string[];
+            };
+            /**
              * Latency Ms
              * @description Total search latency in ms
              */

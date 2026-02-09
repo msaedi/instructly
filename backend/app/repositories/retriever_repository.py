@@ -53,6 +53,7 @@ class RetrieverRepository:
                 sc.description,
                 ins.hourly_rate as price_per_hour,
                 ip.user_id as instructor_id,
+                ss.id as subcategory_id,
                 ss.name as subcategory_name,
                 scat.name as category_name,
                 -- Normalize cosine distance to similarity score (0-1)
@@ -91,6 +92,7 @@ class RetrieverRepository:
                 "description": row.description,
                 "price_per_hour": int(row.price_per_hour),
                 "instructor_id": row.instructor_id,
+                "subcategory_id": row.subcategory_id,
                 "subcategory_name": row.subcategory_name,
                 "category_name": row.category_name,
                 "vector_score": float(row.vector_score),
@@ -127,6 +129,7 @@ class RetrieverRepository:
                 sc.description,
                 ins.hourly_rate as price_per_hour,
                 ip.user_id as instructor_id,
+                ss.id as subcategory_id,
                 ss.name as subcategory_name,
                 scat.name as category_name,
                 GREATEST(
@@ -170,6 +173,7 @@ class RetrieverRepository:
                 "description": row.description,
                 "price_per_hour": int(row.price_per_hour),
                 "instructor_id": row.instructor_id,
+                "subcategory_id": row.subcategory_id,
                 "subcategory_name": row.subcategory_name,
                 "category_name": row.category_name,
                 "text_score": float(row.text_score),

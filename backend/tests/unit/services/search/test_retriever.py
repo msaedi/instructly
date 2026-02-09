@@ -139,6 +139,44 @@ class TestHybridSearch:
         assert abs(overlap_candidate.hybrid_score - expected_hybrid) < 0.001
 
     @pytest.mark.asyncio
+    async def test_subcategory_id_is_preserved_on_candidates(
+        self,
+        retriever: PostgresRetriever,
+        sample_parsed_query: ParsedQuery,
+        mock_repository: Mock,
+    ) -> None:
+        """Candidates should carry subcategory context for downstream inference."""
+        mock_repository.vector_search.return_value = [
+            {
+                "id": "svc_001",
+                "catalog_id": "cat_001",
+                "name": "Algebra",
+                "description": "Math support",
+                "price_per_hour": 50,
+                "instructor_id": "inst_001",
+                "subcategory_id": "sub_math",
+                "vector_score": 0.95,
+            }
+        ]
+        mock_repository.text_search.return_value = [
+            {
+                "id": "svc_001",
+                "catalog_id": "cat_001",
+                "name": "Algebra",
+                "description": "Math support",
+                "price_per_hour": 50,
+                "instructor_id": "inst_001",
+                "subcategory_id": "sub_math",
+                "text_score": 0.90,
+            }
+        ]
+
+        result = await retriever.search(sample_parsed_query)
+
+        assert len(result.candidates) == 1
+        assert result.candidates[0].subcategory_id == "sub_math"
+
+    @pytest.mark.asyncio
     async def test_vector_only_candidate_gets_penalty(
         self,
         retriever: PostgresRetriever,

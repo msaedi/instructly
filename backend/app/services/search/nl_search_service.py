@@ -70,6 +70,7 @@ from app.services.search.retriever import (
     ServiceCandidate,
 )
 from app.services.search.search_cache import SearchCacheService
+from app.services.search.taxonomy_filter_extractor import extract_inferred_filters
 
 if TYPE_CHECKING:
     from app.services.cache_service import CacheService
@@ -123,6 +124,10 @@ LOCATION_LLM_TOP_K = int(os.getenv("LOCATION_LLM_TOP_K", "5"))
 LOCATION_TIER4_HIGH_CONFIDENCE = float(os.getenv("LOCATION_TIER4_HIGH_CONFIDENCE", "0.85"))
 LOCATION_LLM_CONFIDENCE_THRESHOLD = float(os.getenv("LOCATION_LLM_CONFIDENCE_THRESHOLD", "0.7"))
 LOCATION_LLM_EMBEDDING_THRESHOLD = float(os.getenv("LOCATION_LLM_EMBEDDING_THRESHOLD", "0.7"))
+
+# Top-match subcategory consensus for post-retrieval taxonomy inference.
+TOP_MATCH_SUBCATEGORY_CANDIDATES = 5
+TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS = 2
 
 
 @dataclass
@@ -267,6 +272,9 @@ class PostOpenAIData:
     filter_failed: bool
     ranking_failed: bool
     skip_vector: bool
+    inferred_filters: Dict[str, List[str]] = field(default_factory=dict)
+    effective_taxonomy_filters: Dict[str, List[str]] = field(default_factory=dict)
+    effective_subcategory_id: Optional[str] = None
 
 
 class NLSearchService:
@@ -954,6 +962,7 @@ class NLSearchService:
                 limit,
                 metrics,
                 filter_result=post_data.filter_result,
+                inferred_filters=post_data.inferred_filters,
                 budget=budget,
             )
             response_build_ms = int((time.perf_counter() - response_build_start) * 1000)
@@ -1107,6 +1116,41 @@ class NLSearchService:
             }
 
         return payload or None
+
+    @staticmethod
+    def _resolve_effective_subcategory_id(
+        candidates: List[ServiceCandidate],
+        *,
+        explicit_subcategory_id: Optional[str],
+    ) -> Optional[str]:
+        """Resolve subcategory context with explicit-param priority then top-match consensus."""
+        if explicit_subcategory_id:
+            normalized = str(explicit_subcategory_id).strip()
+            if normalized:
+                return normalized
+
+        top_candidates = candidates[:TOP_MATCH_SUBCATEGORY_CANDIDATES]
+        candidate_subcategory_ids = [
+            str(candidate.subcategory_id).strip()
+            for candidate in top_candidates
+            if candidate.subcategory_id
+        ]
+        if not candidate_subcategory_ids:
+            return None
+
+        top_subcategory_id = candidate_subcategory_ids[0]
+        if len(candidate_subcategory_ids) == 1:
+            return top_subcategory_id
+
+        consensus_count = sum(
+            1
+            for subcategory_id in candidate_subcategory_ids
+            if subcategory_id == top_subcategory_id
+        )
+        if consensus_count >= TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS:
+            return top_subcategory_id
+
+        return None
 
     @staticmethod
     def _normalize_location_text(text_value: str) -> str:
@@ -2032,13 +2076,37 @@ class NLSearchService:
                 require_text_match=require_text_match,
             )
 
-            if taxonomy_filter_selections or subcategory_id:
-                taxonomy_repository = TaxonomyFilterRepository(db)
+            explicit_taxonomy_filters = self._normalize_taxonomy_filter_selections(
+                taxonomy_filter_selections
+            )
+            explicit_subcategory_id = str(subcategory_id).strip() if subcategory_id else None
+            effective_subcategory_id = self._resolve_effective_subcategory_id(
+                candidates,
+                explicit_subcategory_id=explicit_subcategory_id,
+            )
+
+            taxonomy_repository = TaxonomyFilterRepository(db)
+            inferred_filters: Dict[str, List[str]] = {}
+            if effective_subcategory_id:
+                subcategory_filters = taxonomy_repository.get_filters_for_subcategory(
+                    effective_subcategory_id
+                )
+                inferred_filters = extract_inferred_filters(
+                    original_query=parsed_query.original_query,
+                    filter_definitions=subcategory_filters,
+                    existing_explicit_filters=explicit_taxonomy_filters,
+                    parser_skill_level=parsed_query.skill_level,
+                )
+
+            # Inferred filters are returned in metadata only. Hard filtering is explicit-only.
+            hard_taxonomy_filters = explicit_taxonomy_filters
+            hard_subcategory_id = explicit_subcategory_id
+            if hard_taxonomy_filters or hard_subcategory_id:
                 candidate_service_ids = [candidate.service_id for candidate in candidates]
                 matching_service_ids = taxonomy_repository.find_matching_service_ids(
                     service_ids=candidate_service_ids,
-                    subcategory_id=subcategory_id,
-                    filter_selections=taxonomy_filter_selections or {},
+                    subcategory_id=hard_subcategory_id,
+                    filter_selections=hard_taxonomy_filters,
                     active_only=True,
                 )
 
@@ -2088,11 +2156,11 @@ class NLSearchService:
                     soft_filtering_used=False,
                     location_resolution=location_resolution,
                 )
-            if taxonomy_filter_selections or subcategory_id:
+            if hard_taxonomy_filters or hard_subcategory_id:
                 taxonomy_filters_applied = list(filter_result.filters_applied)
-                if subcategory_id:
+                if hard_subcategory_id:
                     taxonomy_filters_applied.append("subcategory")
-                for key in sorted((taxonomy_filter_selections or {}).keys()):
+                for key in sorted(hard_taxonomy_filters.keys()):
                     taxonomy_filters_applied.append(f"taxonomy:{key}")
                 filter_result.filters_applied = list(dict.fromkeys(taxonomy_filters_applied))
             filter_latency_ms = int((time.perf_counter() - filter_start) * 1000)
@@ -2161,6 +2229,9 @@ class NLSearchService:
                 filter_failed=filter_failed,
                 ranking_failed=ranking_failed,
                 skip_vector=skip_vector,
+                inferred_filters=inferred_filters,
+                effective_taxonomy_filters=hard_taxonomy_filters,
+                effective_subcategory_id=effective_subcategory_id,
             )
 
     async def _hydrate_instructor_results(
@@ -2670,6 +2741,7 @@ class NLSearchService:
         metrics: SearchMetrics,
         *,
         filter_result: Optional[FilterResult] = None,
+        inferred_filters: Optional[Dict[str, List[str]]] = None,
         budget: Optional[RequestBudget] = None,
     ) -> NLSearchResponse:
         """
@@ -2730,6 +2802,7 @@ class NLSearchService:
             skipped_operations=list(budget.skipped_operations) if budget else [],
             parsing_mode=parsed_query.parsing_mode,
             filters_applied=filter_result.filters_applied if filter_result else [],
+            inferred_filters=inferred_filters or {},
             soft_filtering_used=filter_result.soft_filtering_used if filter_result else False,
             filter_stats=filter_result.filter_stats if filter_result else None,
             soft_filter_message=soft_filter_message,

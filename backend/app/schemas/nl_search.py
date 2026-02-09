@@ -363,6 +363,10 @@ class NLSearchMeta(BaseModel):
     filters_applied: List[str] = Field(
         default_factory=list, description="Filters applied during constraint filtering"
     )
+    inferred_filters: Dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="Taxonomy filter values inferred from query text post-resolution",
+    )
     soft_filtering_used: bool = Field(
         False, description="Whether soft filtering/relaxation was applied"
     )

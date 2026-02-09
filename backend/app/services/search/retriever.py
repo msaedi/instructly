@@ -85,6 +85,7 @@ class ServiceCandidate:
     description: Optional[str]
     price_per_hour: int
     instructor_id: str
+    subcategory_id: Optional[str] = None
 
 
 @dataclass
@@ -329,6 +330,7 @@ class PostgresRetriever:
                     "description": row["description"],
                     "price_per_hour": row["price_per_hour"],
                     "instructor_id": row["instructor_id"],
+                    "subcategory_id": row.get("subcategory_id"),
                 },
             )
             for row in rows
@@ -366,6 +368,7 @@ class PostgresRetriever:
                     "description": row["description"],
                     "price_per_hour": row["price_per_hour"],
                     "instructor_id": row["instructor_id"],
+                    "subcategory_id": row.get("subcategory_id"),
                 },
             )
             for row in rows
@@ -472,6 +475,9 @@ class PostgresRetriever:
                     else None,
                     price_per_hour=int(service_data["price_per_hour"]),
                     instructor_id=str(service_data["instructor_id"]),
+                    subcategory_id=str(service_data["subcategory_id"])
+                    if service_data.get("subcategory_id")
+                    else None,
                 )
             )
 
@@ -516,6 +522,7 @@ class PostgresRetriever:
                 description=str(data["description"]) if data["description"] else None,
                 price_per_hour=int(data["price_per_hour"]),
                 instructor_id=str(data["instructor_id"]),
+                subcategory_id=str(data["subcategory_id"]) if data.get("subcategory_id") else None,
             )
             for service_id, (score, data) in text_results.items()
         ]

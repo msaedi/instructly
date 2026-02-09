@@ -86,6 +86,7 @@ class SearchBatchRepository:
                     "description": row["description"],
                     "price_per_hour": row["price_per_hour"],
                     "instructor_id": row["instructor_id"],
+                    "subcategory_id": row.get("subcategory_id"),
                 },
             )
             for row in rows
@@ -107,6 +108,7 @@ class SearchBatchRepository:
                     "description": row["description"],
                     "price_per_hour": row["price_per_hour"],
                     "instructor_id": row["instructor_id"],
+                    "subcategory_id": row.get("subcategory_id"),
                 },
             )
             for row in rows
