@@ -303,9 +303,7 @@ async def test_list_instructors_forwards_taxonomy_filters():
         age_group=None,
         skill_level="beginner,intermediate,beginner",
         subcategory_id="01HSUBCATEGORY00000000000000",
-        goal="enrichment",
-        format_values="one_time",
-        style="jazz",
+        content_filters="goal:enrichment|format:one_time|style:jazz|grade_level:6th,7th",
         page=1,
         per_page=20,
         instructor_service=service,
@@ -317,6 +315,7 @@ async def test_list_instructors_forwards_taxonomy_filters():
         "goal": ["enrichment"],
         "format": ["one_time"],
         "style": ["jazz"],
+        "grade_level": ["6th", "7th"],
     }
     assert service.last_kwargs["subcategory_id"] == "01HSUBCATEGORY00000000000000"
 
@@ -333,9 +332,7 @@ async def test_list_instructors_rejects_invalid_skill_level():
             age_group=None,
             skill_level="expert",
             subcategory_id=None,
-            goal=None,
-            format_values=None,
-            style=None,
+            content_filters=None,
             page=1,
             per_page=20,
             instructor_service=service,
@@ -343,6 +340,98 @@ async def test_list_instructors_rejects_invalid_skill_level():
 
     assert exc.value.status_code == 400
     assert "Invalid skill_level" in str(exc.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_list_instructors_ignores_malformed_content_filter_segments():
+    result = {"instructors": [], "metadata": {"total_found": 0}}
+    service = _InstructorServiceListStub(result)
+
+    await instructors_routes.list_instructors(
+        service_catalog_id="catalog-1",
+        min_price=None,
+        max_price=None,
+        age_group=None,
+        skill_level=None,
+        subcategory_id=None,
+        content_filters="goal:enrichment|broken|:missing_key|format:",
+        page=1,
+        per_page=20,
+        instructor_service=service,
+    )
+
+    assert service.last_kwargs is not None
+    assert service.last_kwargs["taxonomy_filter_selections"] == {"goal": ["enrichment"]}
+
+
+@pytest.mark.asyncio
+async def test_list_instructors_skill_level_param_overrides_content_filters_skill_level():
+    result = {"instructors": [], "metadata": {"total_found": 0}}
+    service = _InstructorServiceListStub(result)
+
+    await instructors_routes.list_instructors(
+        service_catalog_id="catalog-1",
+        min_price=None,
+        max_price=None,
+        age_group=None,
+        skill_level="advanced",
+        subcategory_id=None,
+        content_filters="skill_level:beginner,intermediate|goal:enrichment",
+        page=1,
+        per_page=20,
+        instructor_service=service,
+    )
+
+    assert service.last_kwargs is not None
+    assert service.last_kwargs["taxonomy_filter_selections"] == {
+        "skill_level": ["advanced"],
+        "goal": ["enrichment"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_list_instructors_rejects_content_filters_with_too_many_keys():
+    service = _InstructorServiceListStub({"instructors": [], "metadata": {"total_found": 0}})
+
+    with pytest.raises(HTTPException) as exc:
+        await instructors_routes.list_instructors(
+            service_catalog_id="catalog-1",
+            min_price=None,
+            max_price=None,
+            age_group=None,
+            skill_level=None,
+            subcategory_id=None,
+            content_filters="|".join(f"k{i}:v" for i in range(11)),
+            page=1,
+            per_page=20,
+            instructor_service=service,
+        )
+
+    assert exc.value.status_code == 400
+    assert "at most 10 keys" in str(exc.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_list_instructors_rejects_content_filters_with_too_many_values_for_key():
+    service = _InstructorServiceListStub({"instructors": [], "metadata": {"total_found": 0}})
+    too_many_values = ",".join(f"v{i}" for i in range(21))
+
+    with pytest.raises(HTTPException) as exc:
+        await instructors_routes.list_instructors(
+            service_catalog_id="catalog-1",
+            min_price=None,
+            max_price=None,
+            age_group=None,
+            skill_level=None,
+            subcategory_id=None,
+            content_filters=f"goal:{too_many_values}",
+            page=1,
+            per_page=20,
+            instructor_service=service,
+        )
+
+    assert exc.value.status_code == 400
+    assert "at most 20 values" in str(exc.value.detail)
 
 
 @pytest.mark.asyncio

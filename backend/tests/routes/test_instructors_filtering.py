@@ -265,7 +265,7 @@ class TestInstructorsFilteringAPI:
         db.commit()
 
         response = client.get(
-            f"/api/v1/instructors/?service_catalog_id={service_catalog.id}&skill_level=beginner,intermediate&goal=enrichment"
+            f"/api/v1/instructors/?service_catalog_id={service_catalog.id}&skill_level=beginner,intermediate&content_filters=goal:enrichment"
         )
         assert response.status_code == 200
         data = response.json()

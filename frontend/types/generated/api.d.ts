@@ -27599,12 +27599,8 @@ export interface operations {
                 skill_level?: string | null;
                 /** @description Optional subcategory ULID context */
                 subcategory_id?: string | null;
-                /** @description Comma-separated taxonomy goal filters */
-                goal?: string | null;
-                /** @description Comma-separated taxonomy format filters */
-                format?: string | null;
-                /** @description Comma-separated taxonomy style filters */
-                style?: string | null;
+                /** @description Pipe-delimited taxonomy content filters in the format 'key:val1,val2|key2:val3'. Max 10 keys and 20 values per key. */
+                content_filters?: string | null;
                 /** @description Page number */
                 page?: number;
                 /** @description Items per page */
@@ -31816,12 +31812,8 @@ export interface operations {
                 skill_level?: string | null;
                 /** @description Optional subcategory ULID context */
                 subcategory_id?: string | null;
-                /** @description Comma-separated taxonomy goal filters */
-                goal?: string | null;
-                /** @description Comma-separated taxonomy format filters */
-                format?: string | null;
-                /** @description Comma-separated taxonomy style filters */
-                style?: string | null;
+                /** @description Pipe-delimited taxonomy content filters in the format 'key:val1,val2|key2:val3'. Max 10 keys and 20 values per key. */
+                content_filters?: string | null;
                 /** @description Include detailed diagnostics (admin only) */
                 diagnostics?: boolean;
                 /** @description Force skip Tier 5 LLM (admin only) */
