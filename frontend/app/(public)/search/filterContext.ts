@@ -32,6 +32,7 @@ type ResolveSubcategoryContextResult = {
 };
 
 const SKILL_LEVEL_SET = new Set<SkillLevelValue>(['beginner', 'intermediate', 'advanced']);
+const ULID_REGEX = /^[0-9A-HJKMNP-TV-Z]{26}$/i;
 
 const parseNonEmpty = (value?: string | null): string | null => {
   if (!value) return null;
@@ -122,8 +123,32 @@ export const resolveSubcategoryContext = (
 ): ResolveSubcategoryContextResult => {
   const explicitSubcategoryId = parseNonEmpty(input.explicitSubcategoryId);
   if (explicitSubcategoryId) {
+    const resolvedExplicit = resolveSubcategoryParam(explicitSubcategoryId, input.lookup);
+    if (resolvedExplicit) {
+      return {
+        resolvedSubcategoryId: resolvedExplicit,
+        inferredSubcategoryId: null,
+      };
+    }
+
+    const inferredFromService = inferSubcategoryFromService(input);
+    if (inferredFromService) {
+      return {
+        resolvedSubcategoryId: inferredFromService,
+        inferredSubcategoryId: inferredFromService,
+      };
+    }
+
+    // Keep ULID-like explicit values as-is to preserve direct-link behavior.
+    if (ULID_REGEX.test(explicitSubcategoryId)) {
+      return {
+        resolvedSubcategoryId: explicitSubcategoryId,
+        inferredSubcategoryId: null,
+      };
+    }
+
     return {
-      resolvedSubcategoryId: explicitSubcategoryId,
+      resolvedSubcategoryId: null,
       inferredSubcategoryId: null,
     };
   }

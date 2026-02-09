@@ -279,10 +279,20 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
     sessionStorage.removeItem('homeSelectedCategory');
   };
 
-  const buildSearchHref = (service: CategoryServiceDetail): string =>
-    `/search?service_catalog_id=${encodeURIComponent(service.id)}&service_name=${encodeURIComponent(
-      service.name
-    )}&audience=${encodeURIComponent(CURRENT_AUDIENCE)}&from=home`;
+  const buildSearchHref = (service: CategoryServiceDetail): string => {
+    const params = new URLSearchParams({
+      service_catalog_id: service.id,
+      service_name: service.name,
+      audience: CURRENT_AUDIENCE,
+      from: 'home',
+    });
+
+    if (service.subcategory_id) {
+      params.set('subcategory_id', service.subcategory_id);
+    }
+
+    return `/search?${params.toString()}`;
+  };
 
   const navigateToService = (service: CategoryServiceDetail) => {
     persistNavContext(activeCategory);

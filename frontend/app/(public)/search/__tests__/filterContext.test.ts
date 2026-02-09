@@ -37,17 +37,30 @@ const createLookup = (): SubcategoryResolutionLookup => ({
 });
 
 describe('filterContext helpers', () => {
-  it('prioritizes explicit subcategory_id', () => {
+  it('prioritizes explicit subcategory_id when it is a known id', () => {
     const resolved = resolveSubcategoryContext({
-      explicitSubcategoryId: 'sub-explicit',
+      explicitSubcategoryId: 'sub-2',
       subcategoryParam: 'Math',
       serviceCatalogId: 'svc-1',
       lookup: createLookup(),
     });
 
     expect(resolved).toEqual({
-      resolvedSubcategoryId: 'sub-explicit',
+      resolvedSubcategoryId: 'sub-2',
       inferredSubcategoryId: null,
+    });
+  });
+
+  it('falls back to service inference when explicit subcategory_id is invalid', () => {
+    const resolved = resolveSubcategoryContext({
+      explicitSubcategoryId: 'invalid-value',
+      serviceCatalogId: 'svc-1',
+      lookup: createLookup(),
+    });
+
+    expect(resolved).toEqual({
+      resolvedSubcategoryId: 'sub-1',
+      inferredSubcategoryId: 'sub-1',
     });
   });
 

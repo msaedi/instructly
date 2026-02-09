@@ -194,6 +194,7 @@ describe('HomeCatalogCascade', () => {
     fireEvent.click(await screen.findByRole('button', { name: /music theory/i }));
 
     expect(pushMock).toHaveBeenCalledWith(expect.stringContaining('service_catalog_id=svc-theory'));
+    expect(pushMock).toHaveBeenCalledWith(expect.stringContaining('subcategory_id=sub-theory'));
     expect(pushMock).toHaveBeenCalledWith(expect.stringContaining('audience=adults'));
   });
 
@@ -230,6 +231,7 @@ describe('HomeCatalogCascade', () => {
     const pianoLink = await screen.findByRole('link', { name: 'Piano' });
 
     expect(pianoLink).toHaveAttribute('href', expect.stringContaining('audience=adults'));
+    expect(pianoLink).toHaveAttribute('href', expect.stringContaining('subcategory_id=sub-piano'));
   });
 
   it('keeps the more link unscoped so services page shows all categories', async () => {

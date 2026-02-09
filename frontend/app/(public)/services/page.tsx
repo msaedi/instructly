@@ -360,10 +360,20 @@ export default function AllServicesPage() {
                   );
                 }
 
+                const searchParams = new URLSearchParams({
+                  service_catalog_id: service.id,
+                  service_name: service.name,
+                  audience: activeAudience,
+                  from: 'services',
+                });
+                if (service.subcategory_id) {
+                  searchParams.set('subcategory_id', service.subcategory_id);
+                }
+
                 return (
                   <Link
                     key={service.id}
-                    href={`/search?service_catalog_id=${service.id}&service_name=${encodeURIComponent(service.name)}&audience=${encodeURIComponent(activeAudience)}&from=services`}
+                    href={`/search?${searchParams.toString()}`}
                     onClick={async () => {
                       if (typeof window !== 'undefined') {
                         sessionStorage.setItem('navigationFrom', '/services');

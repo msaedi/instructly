@@ -58,6 +58,23 @@ function MapReadyHandler() {
   return null;
 }
 
+function MapLifecycleGuard() {
+  const map = useMap();
+
+  useEffect(() => {
+    return () => {
+      // Guard against Leaflet transition callbacks firing after unmount.
+      try {
+        map.stop();
+      } catch {
+        // no-op
+      }
+    };
+  }, [map]);
+
+  return null;
+}
+
 export default function InstructorCoverageMap({
   featureCollection,
   height = 420,
@@ -112,11 +129,15 @@ export default function InstructorCoverageMap({
         style={{ height: '100%', width: '100%' }}
         attributionControl={false}
         zoomControl={false}
+        zoomAnimation={false}
+        markerZoomAnimation={false}
+        fadeAnimation={false}
         whenReady={() => {
           logger.debug('MapContainer whenReady');
         }}
       >
         <MapReadyHandler />
+        <MapLifecycleGuard />
 
         <TileLayer
           url={tileUrl}
@@ -255,7 +276,8 @@ function FitToCoverage({
         if (bounds && bounds.isValid()) {
           map.fitBounds(bounds, {
             paddingTopLeft: [20, 20],
-            paddingBottomRight: [20, 60]
+            paddingBottomRight: [20, 60],
+            animate: false,
           });
           if (hasCoverage) hasCoverageFitRef.current = true;
           if (hasPins) hasPinsFitRef.current = true;
@@ -309,7 +331,7 @@ function FitToCoverage({
           map.flyToBounds(bounds, {
             paddingTopLeft: [40, 40],
             paddingBottomRight: [40, 80],
-            duration: 0.8,
+            animate: false,
           });
         }
       } catch {}
@@ -515,7 +537,7 @@ function CustomControls() {
             map.on('moveend', end);
             map.on('zoomend', end);
             if (farMove) {
-              map.flyTo(latlng, targetZoom, { duration: 0.45, animate: true });
+              map.flyTo(latlng, targetZoom, { animate: false });
             } else {
               map.setView(latlng, targetZoom, { animate: false });
             }

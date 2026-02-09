@@ -31,6 +31,7 @@ import {
   type SkillLevelOption,
 } from '@/components/search/filterTypes';
 import { CURRENT_AUDIENCE, type AudienceMode } from '@/lib/audience';
+import { logger } from '@/lib/logger';
 import {
   buildContentFiltersParam,
   buildSkillLevelParam,
@@ -43,6 +44,8 @@ import {
   sanitizeContentFiltersForSubcategory,
   type SubcategoryResolutionLookup,
 } from './filterContext';
+
+const IS_TAXONOMY_DEBUG_ENABLED = process.env.NODE_ENV !== 'production';
 
 type SortOption = 'recommended' | 'price_asc' | 'price_desc' | 'rating';
 
@@ -775,7 +778,7 @@ function SearchPageInner() {
     };
   }, [allServicesWithInstructors, categoriesWithSubcategories]);
 
-  const { resolvedSubcategoryId } = useMemo(
+  const { resolvedSubcategoryId, inferredSubcategoryId } = useMemo(
     () =>
       resolveSubcategoryContext({
         explicitSubcategoryId,
@@ -795,7 +798,11 @@ function SearchPageInner() {
     ]
   );
 
-  const { data: resolvedSubcategoryFilters } = useSubcategoryFilters(resolvedSubcategoryId ?? '');
+  const {
+    data: resolvedSubcategoryFilters,
+    isLoading: isSubcategoryFiltersLoading,
+    error: subcategoryFiltersError,
+  } = useSubcategoryFilters(resolvedSubcategoryId ?? '');
 
   const taxonomyContentFilters = useMemo(
     () =>
@@ -804,6 +811,58 @@ function SearchPageInner() {
         : [],
     [resolvedSubcategoryFilters, resolvedSubcategoryId]
   );
+
+  useEffect(() => {
+    if (!IS_TAXONOMY_DEBUG_ENABLED) return;
+    logger.debug('[search:taxonomy] resolveSubcategoryContext', {
+      explicitSubcategoryId,
+      subcategoryParam,
+      serviceCatalogId,
+      serviceParam,
+      serviceNameFromUrl,
+      resolvedSubcategoryId,
+      inferredSubcategoryId,
+      lookupStats: {
+        subcategoryCount: subcategoryLookup.subcategoryIds.size,
+        serviceCatalogMappingCount: subcategoryLookup.serviceByCatalogId.size,
+      },
+    });
+  }, [
+    explicitSubcategoryId,
+    inferredSubcategoryId,
+    resolvedSubcategoryId,
+    serviceCatalogId,
+    serviceNameFromUrl,
+    serviceParam,
+    subcategoryLookup,
+    subcategoryParam,
+  ]);
+
+  useEffect(() => {
+    if (!IS_TAXONOMY_DEBUG_ENABLED) return;
+    logger.debug('[search:taxonomy] useSubcategoryFilters', {
+      resolvedSubcategoryId,
+      isSubcategoryFiltersLoading,
+      hasError: Boolean(subcategoryFiltersError),
+      errorMessage:
+        subcategoryFiltersError instanceof Error ? subcategoryFiltersError.message : null,
+      filterKeys: (resolvedSubcategoryFilters ?? []).map((filter) => filter.filter_key),
+    });
+  }, [
+    isSubcategoryFiltersLoading,
+    resolvedSubcategoryFilters,
+    resolvedSubcategoryId,
+    subcategoryFiltersError,
+  ]);
+
+  useEffect(() => {
+    if (!IS_TAXONOMY_DEBUG_ENABLED) return;
+    logger.debug('[search:taxonomy] getDynamicContentFiltersFromTaxonomy', {
+      resolvedSubcategoryId,
+      taxonomyContentFilterKeys: taxonomyContentFilters.map((filter) => filter.key),
+      taxonomyContentFilterCount: taxonomyContentFilters.length,
+    });
+  }, [resolvedSubcategoryId, taxonomyContentFilters]);
 
   const skillLevelOptions = useMemo<SkillLevelOption[]>(() => {
     if (!resolvedSubcategoryId) {
@@ -977,6 +1036,53 @@ function SearchPageInner() {
       nlSearchMeta: meta,
     };
   }, [searchQueryEnabled, searchResponse, serviceCatalogId]);
+
+  const inferredSubcategoryIdFromResults = useMemo(() => {
+    if (resolvedSubcategoryId || instructors.length === 0) {
+      return null;
+    }
+
+    const matchedSubcategoryIds = new Set<string>();
+    instructors.forEach((instructor) => {
+      const services = Array.isArray(instructor.services) ? instructor.services : [];
+      services.forEach((service) => {
+        const catalogId = (service.service_catalog_id || '').trim().toLowerCase();
+        if (!catalogId) return;
+        const subcategoryId = subcategoryLookup.serviceByCatalogId.get(catalogId);
+        if (!subcategoryId) return;
+        matchedSubcategoryIds.add(subcategoryId);
+      });
+    });
+
+    return matchedSubcategoryIds.size === 1 ? Array.from(matchedSubcategoryIds)[0] ?? null : null;
+  }, [instructors, resolvedSubcategoryId, subcategoryLookup.serviceByCatalogId]);
+
+  useEffect(() => {
+    if (resolvedSubcategoryId || !inferredSubcategoryIdFromResults) {
+      return;
+    }
+
+    const params = new URLSearchParams(searchParamsString);
+    if (params.get('subcategory_id')) {
+      return;
+    }
+
+    params.set('subcategory_id', inferredSubcategoryIdFromResults);
+    const queryString = params.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+
+    if (IS_TAXONOMY_DEBUG_ENABLED) {
+      logger.debug('[search:taxonomy] inferred subcategory from search results', {
+        inferredSubcategoryIdFromResults,
+      });
+    }
+  }, [
+    inferredSubcategoryIdFromResults,
+    pathname,
+    resolvedSubcategoryId,
+    router,
+    searchParamsString,
+  ]);
 
   const hasMore = Boolean(hasNextPage);
 
