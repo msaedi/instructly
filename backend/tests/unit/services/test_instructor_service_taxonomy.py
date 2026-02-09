@@ -498,7 +498,7 @@ class TestGetServiceCategoriesUpdated:
             subtitle=None,
             icon_name=None,
         )
-        svc.category_repository.get_all.return_value = [cat]
+        svc.category_repository.get_all_active.return_value = [cat]
 
         result = svc.get_service_categories()
 
