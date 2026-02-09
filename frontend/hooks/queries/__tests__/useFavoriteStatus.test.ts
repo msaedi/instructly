@@ -69,6 +69,19 @@ describe('useFavoriteStatus', () => {
       });
     });
 
+    it('defaults to false when API payload is missing is_favorited', async () => {
+      favoritesApiMock.check.mockResolvedValue({} as never);
+
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(() => useFavoriteStatus('inst-1'), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(result.current.data).toBe(false);
+    });
+
     it('does not fetch when user is not authenticated', async () => {
       useAuthMock.mockReturnValue({ user: null });
 
