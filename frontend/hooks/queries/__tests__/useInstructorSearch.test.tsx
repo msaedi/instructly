@@ -57,7 +57,7 @@ describe('useInstructorSearch', () => {
     expect(result.current.data?.mode).toBe('nl');
   });
 
-  it('forwards skill level and subcategory context to NL search', async () => {
+  it('forwards taxonomy context params to NL search', async () => {
     searchWithNaturalLanguageMock.mockResolvedValue({
       status: 200,
       data: { results: [], meta: { total_results: 0 } },
@@ -69,6 +69,7 @@ describe('useInstructorSearch', () => {
           searchQuery: 'piano',
           skillLevelCsv: 'beginner,advanced',
           subcategoryId: 'subcat-1',
+          contentFiltersParam: 'goal:enrichment,competition',
         }),
       { wrapper: createWrapper() }
     );
@@ -77,6 +78,7 @@ describe('useInstructorSearch', () => {
     expect(searchWithNaturalLanguageMock).toHaveBeenCalledWith('piano', {
       skill_level: 'beginner,advanced',
       subcategory_id: 'subcat-1',
+      content_filters: 'goal:enrichment,competition',
     });
   });
 
@@ -127,7 +129,7 @@ describe('useInstructorSearch', () => {
     expect(result.current.data?.mode).toBe('catalog');
   });
 
-  it('forwards skill level and subcategory context to catalog search', async () => {
+  it('forwards taxonomy context params to catalog search', async () => {
     const catalogPayload = {
       items: [{ id: 'inst-1' }],
       total: 1,
@@ -148,6 +150,7 @@ describe('useInstructorSearch', () => {
           serviceCatalogId: 'svc-1',
           skillLevelCsv: 'intermediate',
           subcategoryId: 'subcat-1',
+          contentFiltersParam: 'style:jazz',
         }),
       { wrapper: createWrapper() }
     );
@@ -157,6 +160,7 @@ describe('useInstructorSearch', () => {
       service_catalog_id: 'svc-1',
       skill_level: 'intermediate',
       subcategory_id: 'subcat-1',
+      content_filters: 'style:jazz',
       page: 1,
       per_page: 20,
     });

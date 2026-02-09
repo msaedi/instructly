@@ -21,6 +21,7 @@ import { useOnboardingStepStatus } from '@/features/instructor-onboarding/useOnb
 import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import { useAllServicesWithInstructors, useServiceCategories } from '@/hooks/queries/useServices';
 import { useCategoriesWithSubcategories, useSubcategoryFilters } from '@/hooks/queries/useTaxonomy';
+import { formatFilterLabel } from '@/lib/taxonomy/formatFilterLabel';
 import type { ServiceLocationType } from '@/types/instructor';
 import { queryKeys } from '@/src/api/queryKeys';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
@@ -68,31 +69,6 @@ const AUDIENCE_LABELS: Record<AudienceGroup, string> = {
   kids: 'Kids',
   teens: 'Teens',
   adults: 'Adults',
-};
-
-const SPECIAL_FILTER_OPTION_LABELS: Record<string, string> = {
-  pre_k: 'Pre-K',
-  ap: 'AP',
-  ib: 'IB',
-  adhd: 'ADHD',
-  iep_support: 'IEP Support',
-  esl: 'ESL',
-  homework_help: 'Homework Help',
-  test_prep: 'Test Prep',
-  audition_prep: 'Audition Prep',
-  college_prep: 'College Prep',
-  career_prep: 'Career Prep',
-  middle_school: 'Middle School',
-  high_school: 'High School',
-  small_group: 'Small Group',
-  one_time: 'One-time',
-  dyslexia_reading: 'Dyslexia/Reading',
-  executive_function: 'Executive Function',
-  heritage_speaker: 'Heritage Speaker',
-  school_support: 'School Support',
-  self_defense: 'Self-Defense',
-  learning_differences: 'Learning Differences',
-  new_learner: 'New Learner',
 };
 
 const hasAnyLocationOption = (service: ServiceCapabilities) =>
@@ -197,27 +173,6 @@ const defaultFilterSelections = (eligibleAgeGroups: AudienceGroup[]): FilterSele
   age_groups:
     eligibleAgeGroups.length > 0 ? [...eligibleAgeGroups] : [...ALL_AUDIENCE_GROUPS],
 });
-
-const titleCaseFromKey = (value: string): string =>
-  value
-    .split('_')
-    .filter((part) => part.length > 0)
-    .map((part) => part[0]?.toUpperCase() + part.slice(1))
-    .join(' ');
-
-const formatFilterOptionLabel = (
-  optionValue: string,
-  displayName?: string | null
-): string => {
-  const normalized = optionValue.trim().toLowerCase();
-  if (SPECIAL_FILTER_OPTION_LABELS[normalized]) {
-    return SPECIAL_FILTER_OPTION_LABELS[normalized];
-  }
-  if (displayName && displayName.trim().length > 0) {
-    return displayName;
-  }
-  return titleCaseFromKey(normalized);
-};
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0;
@@ -375,7 +330,7 @@ function RefineFiltersSection({
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                         >
-                          {formatFilterOptionLabel(option.value, option.display_name)}
+                          {formatFilterLabel(option.value, option.display_name)}
                         </button>
                       );
                     })}

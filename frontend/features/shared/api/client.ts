@@ -348,6 +348,7 @@ export const publicApi = {
     params?: {
       skill_level?: string;
       subcategory_id?: string;
+      content_filters?: string;
     }
   ): Promise<ApiResponse<GenNaturalLanguageSearchResponse>> {
     // Use optionalAuthFetch to allow unauthenticated searches
@@ -357,6 +358,7 @@ export const publicApi = {
         q: query,
         ...(params?.skill_level ? { skill_level: params.skill_level } : {}),
         ...(params?.subcategory_id ? { subcategory_id: params.subcategory_id } : {}),
+        ...(params?.content_filters ? { content_filters: params.content_filters } : {}),
       },
     });
   },
@@ -479,6 +481,7 @@ export const publicApi = {
     max_price?: number; // Maximum hourly rate
     skill_level?: string; // Comma-separated skill levels
     subcategory_id?: string; // Optional subcategory context for taxonomy filtering
+    content_filters?: string; // Taxonomy content filters: key:val1,val2|key2:val3
     page?: number; // Page number (1-based)
     per_page?: number; // Items per page
   }) {

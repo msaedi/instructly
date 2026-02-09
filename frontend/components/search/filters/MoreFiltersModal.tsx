@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 
 import {
+  type TaxonomyContentFilterDefinition,
   UNIVERSAL_SKILL_LEVEL_OPTIONS,
   type FilterState,
   type SkillLevelOption,
@@ -27,6 +28,7 @@ interface MoreFiltersModalProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   skillLevelOptions?: SkillLevelOption[];
+  taxonomyContentFilters?: TaxonomyContentFilterDefinition[];
 }
 
 export function MoreFiltersModal({
@@ -35,10 +37,12 @@ export function MoreFiltersModal({
   filters,
   onFiltersChange,
   skillLevelOptions = UNIVERSAL_SKILL_LEVEL_OPTIONS,
+  taxonomyContentFilters = [],
 }: MoreFiltersModalProps) {
   const [draft, setDraft] = useState({
     duration: filters.duration,
     skillLevel: filters.skillLevel,
+    contentFilters: filters.contentFilters,
     minRating: filters.minRating,
   });
 
@@ -57,6 +61,7 @@ export function MoreFiltersModal({
     const cleared = {
       duration: [] as FilterState['duration'],
       skillLevel: [] as FilterState['skillLevel'],
+      contentFilters: {} as FilterState['contentFilters'],
       minRating: 'any' as const,
     };
     setDraft(cleared);
@@ -151,6 +156,57 @@ export function MoreFiltersModal({
               ))}
             </div>
           </div>
+
+          {taxonomyContentFilters.map((filterDefinition) => (
+            <div key={filterDefinition.key}>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                {filterDefinition.label}
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {filterDefinition.options.map((option) => {
+                  const selectedValues = draft.contentFilters[filterDefinition.key] ?? [];
+                  const isSelected = selectedValues.includes(option.value);
+
+                  return (
+                    <label
+                      key={option.value}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
+                        isSelected
+                          ? 'bg-purple-100 border-purple-300 text-purple-700'
+                          : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() =>
+                          setDraft((current) => {
+                            const nextValues = toggleArrayValue(
+                              current.contentFilters[filterDefinition.key] ?? [],
+                              option.value
+                            );
+                            const nextContentFilters = { ...current.contentFilters };
+                            if (nextValues.length > 0) {
+                              nextContentFilters[filterDefinition.key] = nextValues;
+                            } else {
+                              delete nextContentFilters[filterDefinition.key];
+                            }
+
+                            return {
+                              ...current,
+                              contentFilters: nextContentFilters,
+                            };
+                          })
+                        }
+                        className="sr-only"
+                      />
+                      <span className="text-sm">{option.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
 
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Min Rating</h3>
