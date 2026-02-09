@@ -344,12 +344,20 @@ export const publicApi = {
    * Uses AI-powered search to understand queries like "piano lessons under $50 today"
    */
   async searchWithNaturalLanguage(
-    query: string
+    query: string,
+    params?: {
+      skill_level?: string;
+      subcategory_id?: string;
+    }
   ): Promise<ApiResponse<GenNaturalLanguageSearchResponse>> {
     // Use optionalAuthFetch to allow unauthenticated searches
     // but include auth token if available for search history tracking
     return optionalAuthFetch<GenNaturalLanguageSearchResponse>('/api/v1/search', {
-      params: { q: query },
+      params: {
+        q: query,
+        ...(params?.skill_level ? { skill_level: params.skill_level } : {}),
+        ...(params?.subcategory_id ? { subcategory_id: params.subcategory_id } : {}),
+      },
     });
   },
 
@@ -469,6 +477,8 @@ export const publicApi = {
     service_catalog_id: string; // Required: Service catalog ID (ULID string)
     min_price?: number; // Minimum hourly rate
     max_price?: number; // Maximum hourly rate
+    skill_level?: string; // Comma-separated skill levels
+    subcategory_id?: string; // Optional subcategory context for taxonomy filtering
     page?: number; // Page number (1-based)
     per_page?: number; // Items per page
   }) {

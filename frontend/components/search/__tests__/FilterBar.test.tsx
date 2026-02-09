@@ -81,12 +81,11 @@ describe('FilterBar', () => {
 
     await user.click(screen.getByText('30 min'));
     await user.click(screen.getByText('Beginner'));
-    await user.click(screen.getByText('Kids (under 18)'));
     await user.click(screen.getByText('4.5+ stars'));
 
     await user.click(screen.getByRole('button', { name: 'Apply' }));
 
-    const badge = within(screen.getByRole('button', { name: /more filters/i })).getByText('4');
+    const badge = within(screen.getByRole('button', { name: /more filters/i })).getByText('3');
     expect(badge).toBeInTheDocument();
   });
 
@@ -112,8 +111,7 @@ describe('FilterBar', () => {
           priceMin: 50,
           priceMax: 200,
           location: 'online',
-          level: ['beginner'],
-          audience: ['kids'],
+          skillLevel: ['beginner'],
           minRating: '4',
         }}
       />
@@ -140,6 +138,6 @@ describe('FilterBar', () => {
     await user.click(screen.getByRole('button', { name: /more filters/i }));
     await user.click(screen.getByRole('button', { name: /clear all/i }));
     const moreButton = screen.getByRole('button', { name: /more filters/i });
-    expect(within(moreButton).queryByText('4')).not.toBeInTheDocument();
+    expect(within(moreButton).queryByText('3')).not.toBeInTheDocument();
   });
 });

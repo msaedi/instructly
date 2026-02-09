@@ -10,8 +10,7 @@ interface MoreFiltersButtonProps {
 export function MoreFiltersButton({ filters, onClick }: MoreFiltersButtonProps) {
   const activeCount = [
     filters.duration.length > 0,
-    filters.level.length > 0,
-    filters.audience.length > 0,
+    filters.skillLevel.length > 0,
     filters.minRating !== 'any',
   ].filter(Boolean).length;
 

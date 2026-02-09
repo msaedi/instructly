@@ -202,6 +202,33 @@ describe('publicApi', () => {
     expect(headers['X-Guest-Session-ID']).toBe('guest-session');
     getItemSpy.mockRestore();
   });
+
+  it('passes taxonomy context params for natural language search', async () => {
+    await publicApi.searchWithNaturalLanguage('piano', {
+      skill_level: 'beginner,advanced',
+      subcategory_id: 'sub-123',
+    });
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const requestUrl = new URL(calledUrl);
+    expect(requestUrl.searchParams.get('q')).toBe('piano');
+    expect(requestUrl.searchParams.get('skill_level')).toBe('beginner,advanced');
+    expect(requestUrl.searchParams.get('subcategory_id')).toBe('sub-123');
+  });
+
+  it('passes taxonomy context params for catalog search', async () => {
+    await publicApi.searchInstructors({
+      service_catalog_id: 'svc-1',
+      skill_level: 'intermediate',
+      subcategory_id: 'sub-456',
+    });
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const requestUrl = new URL(calledUrl);
+    expect(requestUrl.searchParams.get('service_catalog_id')).toBe('svc-1');
+    expect(requestUrl.searchParams.get('skill_level')).toBe('intermediate');
+    expect(requestUrl.searchParams.get('subcategory_id')).toBe('sub-456');
+  });
 });
 
 describe('protectedApi.getInstructorBookings', () => {
@@ -216,6 +243,7 @@ describe('protectedApi.getInstructorBookings', () => {
       json: async () => ({}),
     });
     global.fetch = fetchMock as unknown as typeof global.fetch;
+    document.cookie = 'guest_id=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
   });
 
   afterEach(() => {

@@ -1185,9 +1185,13 @@ function Step3SkillsPricingInner() {
       <OnboardingProgressHeader activeStep="skill-selection" stepStatus={stepStatus} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-        <div className="mb-4 sm:mb-6 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">What do you teach?</h1>
-          <p className="text-gray-600">Choose your skills and set your rates</p>
+        <div className="mb-4 sm:mb-6 bg-white border-0 rounded-none p-4 sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            What do you teach?
+          </h1>
+          <p className="text-gray-600">
+            Choose your skills and set your rates
+          </p>
         </div>
         <div className="sm:hidden h-px bg-gray-200/80 -mx-4" />
 

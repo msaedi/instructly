@@ -3,23 +3,16 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 
-import type { FilterState } from '../filterTypes';
+import {
+  UNIVERSAL_SKILL_LEVEL_OPTIONS,
+  type FilterState,
+  type SkillLevelOption,
+} from '../filterTypes';
 
 const DURATION_OPTIONS = [
   { value: 30, label: '30 min' },
   { value: 45, label: '45 min' },
   { value: 60, label: '60 min' },
-] as const;
-
-const LEVEL_OPTIONS = [
-  { value: 'beginner', label: 'Beginner' },
-  { value: 'intermediate', label: 'Intermediate' },
-  { value: 'advanced', label: 'Advanced' },
-] as const;
-
-const AUDIENCE_OPTIONS = [
-  { value: 'adults', label: 'Adults' },
-  { value: 'kids', label: 'Kids (under 18)' },
 ] as const;
 
 const RATING_OPTIONS = [
@@ -33,6 +26,7 @@ interface MoreFiltersModalProps {
   onClose: () => void;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
+  skillLevelOptions?: SkillLevelOption[];
 }
 
 export function MoreFiltersModal({
@@ -40,11 +34,11 @@ export function MoreFiltersModal({
   onClose,
   filters,
   onFiltersChange,
+  skillLevelOptions = UNIVERSAL_SKILL_LEVEL_OPTIONS,
 }: MoreFiltersModalProps) {
   const [draft, setDraft] = useState({
     duration: filters.duration,
-    level: filters.level,
-    audience: filters.audience,
+    skillLevel: filters.skillLevel,
     minRating: filters.minRating,
   });
 
@@ -62,8 +56,7 @@ export function MoreFiltersModal({
   const handleClear = () => {
     const cleared = {
       duration: [] as FilterState['duration'],
-      level: [] as FilterState['level'],
-      audience: [] as FilterState['audience'],
+      skillLevel: [] as FilterState['skillLevel'],
       minRating: 'any' as const,
     };
     setDraft(cleared);
@@ -129,53 +122,26 @@ export function MoreFiltersModal({
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Level</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+              Skill Level
+            </h3>
             <div className="flex flex-wrap gap-2">
-              {LEVEL_OPTIONS.map((option) => (
+              {skillLevelOptions.map((option) => (
                 <label
                   key={option.value}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
-                    draft.level.includes(option.value)
+                    draft.skillLevel.includes(option.value)
                       ? 'bg-purple-100 border-purple-300 text-purple-700'
                       : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'
                   }`}
                 >
                   <input
                     type="checkbox"
-                    checked={draft.level.includes(option.value)}
+                    checked={draft.skillLevel.includes(option.value)}
                     onChange={() =>
                       setDraft((current) => ({
                         ...current,
-                        level: toggleArrayValue(current.level, option.value),
-                      }))
-                    }
-                    className="sr-only"
-                  />
-                  <span className="text-sm">{option.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Audience</h3>
-            <div className="flex flex-wrap gap-2">
-              {AUDIENCE_OPTIONS.map((option) => (
-                <label
-                  key={option.value}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
-                    draft.audience.includes(option.value)
-                      ? 'bg-purple-100 border-purple-300 text-purple-700'
-                      : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={draft.audience.includes(option.value)}
-                    onChange={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        audience: toggleArrayValue(current.audience, option.value),
+                        skillLevel: toggleArrayValue(current.skillLevel, option.value),
                       }))
                     }
                     className="sr-only"
