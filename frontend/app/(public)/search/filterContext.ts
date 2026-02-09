@@ -328,26 +328,64 @@ export const buildContentFiltersParam = (
   return segments.length > 0 ? segments.join('|') : null;
 };
 
-export const getDynamicContentFiltersFromTaxonomy = (
-  filters: SubcategoryFilterResponse[] | undefined
-): TaxonomyContentFilterDefinition[] => {
+type DynamicFilterSourceOption = {
+  value?: unknown;
+  display_name?: unknown;
+  label?: unknown;
+};
+
+type DynamicFilterSource = {
+  filter_key?: unknown;
+  key?: unknown;
+  filter_display_name?: unknown;
+  label?: unknown;
+  filter_type?: unknown;
+  type?: unknown;
+  options?: unknown;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const buildDynamicContentFilters = (filters: DynamicFilterSource[]): TaxonomyContentFilterDefinition[] => {
   if (!filters || filters.length === 0) {
     return [];
   }
 
   const definitions: TaxonomyContentFilterDefinition[] = [];
   for (const filter of filters) {
-    const key = normalizeContentFilterKey(filter.filter_key);
+    const key = normalizeContentFilterKey(
+      typeof filter.filter_key === 'string' ? filter.filter_key : (filter.key as string | null | undefined)
+    );
     if (!key || key === 'skill_level') continue;
+
+    const label = parseNonEmpty(
+      typeof filter.filter_display_name === 'string'
+        ? filter.filter_display_name
+        : (filter.label as string | null | undefined)
+    ) ?? formatFilterLabel(key);
 
     const options: TaxonomyContentFilterDefinition['options'] = [];
     const seen = new Set<string>();
-    for (const option of filter.options ?? []) {
-      const normalizedValue = normalizeContentFilterValue(option.value);
+    const rawOptions = Array.isArray(filter.options) ? filter.options : [];
+    for (const option of rawOptions) {
+      if (!isRecord(option)) continue;
+      const dynamicOption = option as DynamicFilterSourceOption;
+      const normalizedValue = normalizeContentFilterValue(
+        typeof dynamicOption.value === 'string' ? dynamicOption.value : null
+      );
       if (!normalizedValue || seen.has(normalizedValue)) continue;
+
+      const displayName =
+        typeof dynamicOption.display_name === 'string'
+          ? dynamicOption.display_name
+          : typeof dynamicOption.label === 'string'
+            ? dynamicOption.label
+            : null;
+
       options.push({
         value: normalizedValue,
-        label: formatFilterLabel(normalizedValue, option.display_name),
+        label: formatFilterLabel(normalizedValue, displayName),
       });
       seen.add(normalizedValue);
     }
@@ -355,7 +393,7 @@ export const getDynamicContentFiltersFromTaxonomy = (
     if (options.length === 0) continue;
     definitions.push({
       key,
-      label: parseNonEmpty(filter.filter_display_name) ?? formatFilterLabel(key),
+      label,
       options,
     });
   }
@@ -363,12 +401,30 @@ export const getDynamicContentFiltersFromTaxonomy = (
   return definitions;
 };
 
-export const sanitizeContentFiltersForSubcategory = (
-  selections: ContentFilterSelections,
+export const getDynamicContentFiltersFromTaxonomy = (
   filters: SubcategoryFilterResponse[] | undefined
+): TaxonomyContentFilterDefinition[] => {
+  return buildDynamicContentFilters(filters ?? []);
+};
+
+export const getDynamicContentFiltersFromSearchMeta = (
+  filters: unknown
+): TaxonomyContentFilterDefinition[] => {
+  if (!Array.isArray(filters)) {
+    return [];
+  }
+
+  const normalizedFilters = filters.filter((filter): filter is DynamicFilterSource =>
+    isRecord(filter)
+  );
+  return buildDynamicContentFilters(normalizedFilters);
+};
+
+export const sanitizeContentFiltersForDefinitions = (
+  selections: ContentFilterSelections,
+  definitions: TaxonomyContentFilterDefinition[]
 ): ContentFilterSelections => {
   const normalizedSelections = normalizeContentFilterSelections(selections);
-  const definitions = getDynamicContentFiltersFromTaxonomy(filters);
   if (!definitions.length) {
     return {};
   }
@@ -394,3 +450,12 @@ export const sanitizeContentFiltersForSubcategory = (
 
   return sanitized;
 };
+
+export const sanitizeContentFiltersForSubcategory = (
+  selections: ContentFilterSelections,
+  filters: SubcategoryFilterResponse[] | undefined
+): ContentFilterSelections =>
+  sanitizeContentFiltersForDefinitions(
+    selections,
+    getDynamicContentFiltersFromTaxonomy(filters)
+  );

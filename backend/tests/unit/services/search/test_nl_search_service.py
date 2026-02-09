@@ -19,6 +19,8 @@ import pytest
 from app.repositories.search_batch_repository import CachedAliasInfo, RegionInfo, RegionLookup
 from app.schemas.nl_search import (
     InstructorSummary,
+    NLSearchContentFilterDefinition,
+    NLSearchContentFilterOption,
     NLSearchResponse,
     NLSearchResultItem,
     RatingSummary,
@@ -414,6 +416,43 @@ class TestBuildInstructorResponse:
         )
 
         assert response.meta.inferred_filters == {"course_level": ["ap"]}
+
+    def test_includes_effective_subcategory_and_available_filters_in_meta(
+        self, sample_parsed_query: ParsedQuery, sample_instructor_results: List[NLSearchResultItem]
+    ) -> None:
+        service = NLSearchService()
+        metrics = SearchMetrics()
+
+        response = service._build_instructor_response(
+            "ap math",
+            sample_parsed_query,
+            sample_instructor_results,
+            limit=20,
+            metrics=metrics,
+            inferred_filters={"course_level": ["ap"]},
+            effective_subcategory_id="sub_math",
+            effective_subcategory_name="Math",
+            available_content_filters=[
+                NLSearchContentFilterDefinition(
+                    key="course_level",
+                    label="Course Level",
+                    type="multi_select",
+                    options=[
+                        NLSearchContentFilterOption(value="regular", label="Regular"),
+                        NLSearchContentFilterOption(value="ap", label="AP"),
+                    ],
+                )
+            ],
+        )
+
+        assert response.meta.effective_subcategory_id == "sub_math"
+        assert response.meta.effective_subcategory_name == "Math"
+        assert len(response.meta.available_content_filters) == 1
+        assert response.meta.available_content_filters[0].key == "course_level"
+        assert [option.value for option in response.meta.available_content_filters[0].options] == [
+            "regular",
+            "ap",
+        ]
 
 
 class TestTransformInstructorResults:
@@ -1431,6 +1470,7 @@ class TestPostOpenAIBurstTaxonomyInference:
                 "options": [{"value": "ap", "display_name": "AP"}],
             }
         ]
+        taxonomy_repository_mock.get_subcategory_name.return_value = "Tutoring"
         taxonomy_repository_mock.find_matching_service_ids.return_value = {"svc_1"}
 
         monkeypatch.setattr(
@@ -1506,6 +1546,8 @@ class TestPostOpenAIBurstTaxonomyInference:
         assert post_data.inferred_filters == {"course_level": ["ap"]}
         assert post_data.effective_taxonomy_filters == {"goal": ["enrichment"]}
         assert post_data.effective_subcategory_id == "sub_tutoring"
+        assert post_data.effective_subcategory_name == "Tutoring"
+        assert [f.key for f in post_data.available_content_filters] == ["course_level"]
 
     def test_infers_subcategory_from_top_matches_for_ap_math_pattern(self, monkeypatch) -> None:
         service = NLSearchService()
@@ -1613,6 +1655,7 @@ class TestPostOpenAIBurstTaxonomyInference:
                 "options": [{"value": "ap", "display_name": "AP"}],
             }
         ]
+        taxonomy_repository_mock.get_subcategory_name.return_value = "Math"
         taxonomy_repository_mock.find_matching_service_ids.return_value = {
             "svc_1",
             "svc_2",
@@ -1682,6 +1725,8 @@ class TestPostOpenAIBurstTaxonomyInference:
         assert post_data.inferred_filters == {"course_level": ["ap"]}
         assert post_data.effective_taxonomy_filters == {}
         assert post_data.effective_subcategory_id == "sub_math"
+        assert post_data.effective_subcategory_name == "Math"
+        assert [f.key for f in post_data.available_content_filters] == ["course_level"]
 
     def test_explicit_subcategory_applies_hard_filter(self, monkeypatch) -> None:
         service = NLSearchService()
@@ -1756,6 +1801,7 @@ class TestPostOpenAIBurstTaxonomyInference:
         retriever_repo_mock.get_instructor_cards.return_value = []
         taxonomy_repository_mock = Mock()
         taxonomy_repository_mock.get_filters_for_subcategory.return_value = []
+        taxonomy_repository_mock.get_subcategory_name.return_value = "Math"
         taxonomy_repository_mock.find_matching_service_ids.return_value = {"svc_1"}
 
         monkeypatch.setattr(

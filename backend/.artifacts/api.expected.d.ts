@@ -8488,12 +8488,25 @@ export type components = {
  status: string;
  timestamp: string;
  };
+ NLSearchContentFilterDefinition: {
+ key: string;
+ label: string;
+ options?: components["schemas"]["NLSearchContentFilterOption"][];
+ type: string;
+ };
+ NLSearchContentFilterOption: {
+ label: string;
+ value: string;
+ };
  NLSearchMeta: {
+ available_content_filters?: components["schemas"]["NLSearchContentFilterDefinition"][];
  cache_hit: boolean;
  corrected_query?: string | null;
  degradation_reasons?: string[];
  degraded: boolean;
  diagnostics?: components["schemas"]["SearchDiagnostics"] | null;
+ effective_subcategory_id?: string | null;
+ effective_subcategory_name?: string | null;
  filter_stats?: {
  [key: string]: number;
  } | null;

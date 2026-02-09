@@ -99,6 +99,17 @@ class TaxonomyFilterRepository:
 
         return results
 
+    def get_subcategory_name(self, subcategory_id: str) -> Optional[str]:
+        """Return subcategory display name for metadata purposes."""
+        from ..models.subcategory import ServiceSubcategory
+
+        return cast(
+            Optional[str],
+            self.db.query(ServiceSubcategory.name)
+            .filter(ServiceSubcategory.id == subcategory_id)
+            .scalar(),
+        )
+
     # ── Validation ───────────────────────────────────────────────
 
     def validate_filter_selections(

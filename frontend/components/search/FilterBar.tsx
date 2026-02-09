@@ -10,6 +10,7 @@ import { LocationFilter } from './filters/LocationFilter';
 import { MoreFiltersButton } from './filters/MoreFiltersButton';
 import { MoreFiltersModal } from './filters/MoreFiltersModal';
 import {
+  type ContentFilterSelections,
   type FilterState,
   type SkillLevelOption,
   type TaxonomyContentFilterDefinition,
@@ -21,6 +22,7 @@ interface FilterBarProps {
   rightSlot?: ReactNode;
   skillLevelOptions?: SkillLevelOption[];
   taxonomyContentFilters?: TaxonomyContentFilterDefinition[];
+  suggestedContentFilters?: ContentFilterSelections;
 }
 
 type DropdownKey = 'date' | 'time' | 'price' | 'location';
@@ -31,6 +33,7 @@ export function FilterBar({
   rightSlot,
   skillLevelOptions,
   taxonomyContentFilters,
+  suggestedContentFilters,
 }: FilterBarProps) {
   const [openDropdown, setOpenDropdown] = useState<DropdownKey | null>(null);
   const [isMoreFiltersOpen, setIsMoreFiltersOpen] = useState(false);
@@ -123,6 +126,7 @@ export function FilterBar({
               onFiltersChange={onFiltersChange}
               {...(skillLevelOptions ? { skillLevelOptions } : {})}
               {...(taxonomyContentFilters ? { taxonomyContentFilters } : {})}
+              {...(suggestedContentFilters ? { suggestedContentFilters } : {})}
             />,
             document.body
           )

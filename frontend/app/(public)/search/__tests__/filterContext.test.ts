@@ -3,11 +3,13 @@ import { UNIVERSAL_SKILL_LEVEL_OPTIONS } from '@/components/search/filterTypes';
 import {
   buildContentFiltersParam,
   buildSkillLevelParam,
+  getDynamicContentFiltersFromSearchMeta,
   getDynamicContentFiltersFromTaxonomy,
   getSkillLevelOptionsFromTaxonomy,
   parseContentFiltersParam,
   parseSkillLevelParam,
   resolveSubcategoryContext,
+  sanitizeContentFiltersForDefinitions,
   sanitizeContentFiltersForSubcategory,
   type SubcategoryResolutionLookup,
 } from '../filterContext';
@@ -198,5 +200,54 @@ describe('filterContext helpers', () => {
   it('returns empty dynamic filters and selections when no subcategory context exists', () => {
     expect(getDynamicContentFiltersFromTaxonomy(undefined)).toEqual([]);
     expect(sanitizeContentFiltersForSubcategory({ goal: ['enrichment'] }, undefined)).toEqual({});
+  });
+
+  it('builds dynamic filters from search meta definitions and skips skill_level', () => {
+    expect(
+      getDynamicContentFiltersFromSearchMeta([
+        {
+          key: 'course_level',
+          label: 'Course Level',
+          type: 'multi_select',
+          options: [
+            { value: 'ap', label: 'AP' },
+            { value: 'honors', label: 'Honors' },
+          ],
+        },
+        {
+          key: 'skill_level',
+          label: 'Skill Level',
+          type: 'multi_select',
+          options: [{ value: 'beginner', label: 'Beginner' }],
+        },
+      ])
+    ).toEqual([
+      {
+        key: 'course_level',
+        label: 'Course Level',
+        options: [
+          { value: 'ap', label: 'AP' },
+          { value: 'honors', label: 'Honors' },
+        ],
+      },
+    ]);
+  });
+
+  it('sanitizes filters against generic taxonomy definitions', () => {
+    expect(
+      sanitizeContentFiltersForDefinitions(
+        { course_level: ['ap', 'ib'], style: ['jazz'] },
+        [
+          {
+            key: 'course_level',
+            label: 'Course Level',
+            options: [
+              { value: 'regular', label: 'Regular' },
+              { value: 'ap', label: 'AP' },
+            ],
+          },
+        ]
+      )
+    ).toEqual({ course_level: ['ap'] });
   });
 });

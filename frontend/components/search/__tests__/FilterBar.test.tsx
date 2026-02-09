@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 
 import { FilterBar } from '../FilterBar';
 import {
+  type ContentFilterSelections,
   DEFAULT_FILTERS,
   type FilterState,
   type TaxonomyContentFilterDefinition,
@@ -12,9 +13,11 @@ import {
 const Harness = ({
   initialFilters = DEFAULT_FILTERS,
   taxonomyContentFilters,
+  suggestedContentFilters,
 }: {
   initialFilters?: FilterState;
   taxonomyContentFilters?: TaxonomyContentFilterDefinition[];
+  suggestedContentFilters?: ContentFilterSelections;
 }) => {
   const [filters, setFilters] = useState<FilterState>(initialFilters);
 
@@ -24,6 +27,7 @@ const Harness = ({
       onFiltersChange={setFilters}
       rightSlot={<div>Sort</div>}
       {...(taxonomyContentFilters ? { taxonomyContentFilters } : {})}
+      {...(suggestedContentFilters ? { suggestedContentFilters } : {})}
     />
   );
 };
@@ -142,6 +146,29 @@ describe('FilterBar', () => {
     await user.click(screen.getByRole('button', { name: /more filters/i }));
     expect(screen.queryByText('Goal')).not.toBeInTheDocument();
     expect(screen.queryByText('Format')).not.toBeInTheDocument();
+  });
+
+  it('keeps inferred suggestions soft until user applies', async () => {
+    const user = userEvent.setup();
+    render(
+      <Harness
+        taxonomyContentFilters={TAXONOMY_CONTENT_FILTERS}
+        suggestedContentFilters={{ goal: ['competition'] }}
+      />
+    );
+
+    const moreButton = screen.getByRole('button', { name: /more filters/i });
+    expect(within(moreButton).queryByText('1')).not.toBeInTheDocument();
+
+    await user.click(moreButton);
+    const competitionLabel = screen.getByText('Competition').closest('label');
+    expect(competitionLabel).toBeTruthy();
+    const competitionInput = competitionLabel?.querySelector('input[type="checkbox"]');
+    expect(competitionInput).toBeTruthy();
+    expect((competitionInput as HTMLInputElement).checked).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    expect(within(screen.getByRole('button', { name: /more filters/i })).getByText('1')).toBeInTheDocument();
   });
 
   it('closes dropdowns on escape', async () => {

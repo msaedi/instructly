@@ -341,6 +341,25 @@ class SearchDiagnostics(BaseModel):
     vector_search_used: bool = Field(..., description="Whether vector search was used")
 
 
+class NLSearchContentFilterOption(BaseModel):
+    """Taxonomy content filter option surfaced in NL search metadata."""
+
+    value: str = Field(..., description="Machine-readable option value")
+    label: str = Field(..., description="Human-readable option label")
+
+
+class NLSearchContentFilterDefinition(BaseModel):
+    """Taxonomy content filter definition surfaced in NL search metadata."""
+
+    key: str = Field(..., description="Machine-readable filter key")
+    label: str = Field(..., description="Human-readable filter label")
+    type: str = Field(..., description="Filter type (single_select|multi_select)")
+    options: List[NLSearchContentFilterOption] = Field(
+        default_factory=list,
+        description="Available options for this filter key",
+    )
+
+
 class NLSearchMeta(BaseModel):
     """Search response metadata."""
 
@@ -366,6 +385,21 @@ class NLSearchMeta(BaseModel):
     inferred_filters: Dict[str, List[str]] = Field(
         default_factory=dict,
         description="Taxonomy filter values inferred from query text post-resolution",
+    )
+    effective_subcategory_id: Optional[str] = Field(
+        None,
+        description="Resolved subcategory id used to derive taxonomy filter definitions",
+    )
+    effective_subcategory_name: Optional[str] = Field(
+        None,
+        description="Resolved subcategory name used to derive taxonomy filter definitions",
+    )
+    available_content_filters: List[NLSearchContentFilterDefinition] = Field(
+        default_factory=list,
+        description=(
+            "Taxonomy content filter definitions available for this search context "
+            "(excludes hard application until user explicitly applies filters)"
+        ),
     )
     soft_filtering_used: bool = Field(
         False, description="Whether soft filtering/relaxation was applied"
