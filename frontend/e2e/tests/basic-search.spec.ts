@@ -101,7 +101,12 @@ test.describe('Basic Search Flow', () => {
       'Vary': 'Origin',
     });
 
-    await page.route('**/services/catalog/top-per-category', async (route) => {
+    const categoryId = '01J5TESTCATG00000000000001';
+    const subcategoryId = '01J5TESTSUBC00000000000001';
+    const pianoServiceId = '01J5TESTSERV00000000000001';
+    const keyboardServiceId = '01J5TESTSERV00000000000002';
+
+    await page.route('**/services/catalog/all-with-instructors', async (route) => {
       if (route.request().method() === 'OPTIONS') {
         await route.fulfill({ status: 204, headers: allow(route) });
         return;
@@ -113,12 +118,32 @@ test.describe('Basic Search Flow', () => {
         body: JSON.stringify({
           categories: [
             {
-              id: 1,
+              id: categoryId,
               name: 'Music',
-              slug: 'music',
-              services: [ { id: '01J5TESTSERV00000000000001', name: 'Piano', slug: 'piano', demand_score: 90, active_instructors: 5, is_trending: false, display_order: 1 } ]
+              subtitle: '',
+              icon_name: 'music',
+              services: [
+                {
+                  id: pianoServiceId,
+                  name: 'Piano',
+                  subcategory_id: subcategoryId,
+                  eligible_age_groups: ['adults'],
+                  instructor_count: 5,
+                  active_instructors: 5,
+                  display_order: 1,
+                },
+                {
+                  id: keyboardServiceId,
+                  name: 'Keyboard',
+                  subcategory_id: subcategoryId,
+                  eligible_age_groups: ['adults'],
+                  instructor_count: 3,
+                  active_instructors: 3,
+                  display_order: 2,
+                },
+              ],
             }
-          ]
+          ],
         }),
       });
     });
@@ -133,7 +158,22 @@ test.describe('Basic Search Flow', () => {
         contentType: 'application/json',
         headers: allow(route),
         body: JSON.stringify([
-          { id: 1, name: 'Music', slug: 'music', subtitle: '', description: 'Learn instruments', icon_name: 'music' }
+          { id: categoryId, name: 'Music', slug: 'music', subtitle: '', description: 'Learn instruments', icon_name: 'music' }
+        ]),
+      });
+    });
+
+    await page.route('**/services/categories/*/subcategories', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: allow(route) });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: allow(route),
+        body: JSON.stringify([
+          { id: subcategoryId, name: 'Piano', service_count: 2 }
         ]),
       });
     });
@@ -147,7 +187,7 @@ test.describe('Basic Search Flow', () => {
         status: 200,
         contentType: 'application/json',
         headers: allow(route),
-        body: JSON.stringify([ { id: '01J5TESTSERV00000000000001', name: 'Piano', slug: 'piano' } ]),
+        body: JSON.stringify([ { id: pianoServiceId, name: 'Piano', slug: 'piano' } ]),
       });
     });
 
@@ -161,17 +201,21 @@ test.describe('Basic Search Flow', () => {
 
     // Ensure homepage selects a category that we provide top services for
     await page.addInitScript(() => {
-      try { sessionStorage.setItem('homeSelectedCategory', 'music'); } catch {}
+      try { sessionStorage.setItem('homeSelectedCategory', '01J5TESTCATG00000000000001'); } catch {}
     });
     await page.goto('/');
 
-    // Click any service pill from top-per-category
-    const serviceLink = page.locator('a[href*="/search?service_catalog_id="]').first();
-    await serviceLink.waitFor({ state: 'visible', timeout: 10000 });
+    // Click through the current homepage flow: subcategory -> service pill
+    const subcategoryButton = page.getByRole('button', { name: /^Piano/i });
+    await expect(subcategoryButton).toBeVisible();
+    await subcategoryButton.click();
+
+    const serviceLink = page.getByRole('link', { name: 'Keyboard' });
+    await expect(serviceLink).toBeVisible();
     await serviceLink.click();
 
-    // Verify we're on the search page with service filter (ULID format)
-    await expect(page).toHaveURL(/\/search\?service_catalog_id=[0-9A-Z]{26}/);
+    // Verify we're on the search page with the selected service filter
+    await expect(page).toHaveURL(new RegExp(`/search\\?.*service_catalog_id=${keyboardServiceId}`));
   });
 
   test('shows available instructors section', async ({ page }) => {

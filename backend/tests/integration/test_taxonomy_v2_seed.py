@@ -56,7 +56,7 @@ def _seed_once(db: Session) -> None:
             return  # Already seeded with full taxonomy
 
     # Need to seed — close ORM session, run seeder with its own connection
-    db_url = str(db.bind.url)
+    db_url = db.bind.url.render_as_string(hide_password=False)
     db.close()
 
     seed_taxonomy = _load_seeder()
@@ -293,7 +293,7 @@ class TestIdempotency:
         svc_count_1 = db.query(ServiceCatalog).count()
 
         # Re-seed (force by running directly)
-        db_url = str(db.bind.url)
+        db_url = db.bind.url.render_as_string(hide_password=False)
         db.close()
 
         seed_taxonomy = _load_seeder()

@@ -130,3 +130,15 @@ def test_skips_skill_level_when_parser_already_derived_it() -> None:
     )
 
     assert inferred == {}
+
+
+def test_empty_query_returns_empty_dict() -> None:
+    definitions = [_definition(key="level", options=[("a", "A")])]
+    assert extract_inferred_filters(
+        original_query="",
+        filter_definitions=definitions,
+    ) == {}
+    assert extract_inferred_filters(
+        original_query="   ",
+        filter_definitions=definitions,
+    ) == {}
