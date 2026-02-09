@@ -23,8 +23,8 @@ categories:
     display_order: 3
     icon_name: "book-open"
 
-  - name: "Language"
-    slug: "language"
+  - name: "Languages"
+    slug: "languages"
     subtitle: ""
     description: "Foreign languages, ESL, and conversation practice"
     display_order: 4

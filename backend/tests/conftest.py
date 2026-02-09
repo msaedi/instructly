@@ -1036,7 +1036,12 @@ def _ensure_catalog_data():
         # Check if the 3-level taxonomy is already present
         existing_categories = session.query(ServiceCategory).count()
         existing_services = session.query(ServiceCatalog).count()
-        required_category_names = {"Music", "Sports & Fitness", "Tutoring & Test Prep"}
+        required_category_names = {
+            "Music",
+            "Sports & Fitness",
+            "Tutoring & Test Prep",
+            "Languages",
+        }
         required_service_slugs = {"piano", "guitar", "yoga"}
         category_names = {row[0] for row in session.query(ServiceCategory.name).all()}
         service_slugs = {row[0] for row in session.query(ServiceCatalog.slug).all()}
@@ -2091,7 +2096,7 @@ def sample_categories(db: Session) -> list[ServiceCategory]:
             display_order=2,
         ),
         ServiceCategory(
-            name="Language",
+            name="Languages",
             subtitle="Learn new languages",
             description="Language instruction",
             display_order=3,
