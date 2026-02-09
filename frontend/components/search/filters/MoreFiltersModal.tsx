@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
 import {
@@ -9,6 +9,7 @@ import {
   type FilterState,
   type SkillLevelOption,
 } from '../filterTypes';
+import { logger } from '@/lib/logger';
 
 const DURATION_OPTIONS = [
   { value: 30, label: '30 min' },
@@ -45,6 +46,14 @@ export function MoreFiltersModal({
     contentFilters: filters.contentFilters,
     minRating: filters.minRating,
   });
+
+  useEffect(() => {
+    if (!isOpen || process.env.NODE_ENV === 'production') return;
+    logger.debug('[search:taxonomy] MoreFiltersModal taxonomy props', {
+      taxonomyContentFilterCount: taxonomyContentFilters.length,
+      taxonomyContentFilterKeys: taxonomyContentFilters.map((filter) => filter.key),
+    });
+  }, [isOpen, taxonomyContentFilters]);
 
   const toggleArrayValue = <T,>(list: T[], value: T): T[] =>
     list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
