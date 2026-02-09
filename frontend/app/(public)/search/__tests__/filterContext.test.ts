@@ -1,10 +1,14 @@
 import { UNIVERSAL_SKILL_LEVEL_OPTIONS } from '@/components/search/filterTypes';
 
 import {
+  buildContentFiltersParam,
   buildSkillLevelParam,
+  getDynamicContentFiltersFromTaxonomy,
   getSkillLevelOptionsFromTaxonomy,
+  parseContentFiltersParam,
   parseSkillLevelParam,
   resolveSubcategoryContext,
+  sanitizeContentFiltersForSubcategory,
   type SubcategoryResolutionLookup,
 } from '../filterContext';
 
@@ -119,5 +123,67 @@ describe('filterContext helpers', () => {
       { value: 'advanced', label: 'Advanced' },
     ]);
     expect(fallbackOptions).toEqual(UNIVERSAL_SKILL_LEVEL_OPTIONS);
+  });
+
+  it('parses content_filters with dedupe and malformed segment tolerance', () => {
+    expect(
+      parseContentFiltersParam(
+        'goal:enrichment,competition,competition|badsegment|format:one_on_one,,small_group|:oops'
+      )
+    ).toEqual({
+      goal: ['enrichment', 'competition'],
+      format: ['one_on_one', 'small_group'],
+    });
+  });
+
+  it('builds canonical content_filters param in supplied key order', () => {
+    expect(
+      buildContentFiltersParam(
+        {
+          format: ['small_group', 'one_on_one'],
+          goal: ['competition', 'enrichment'],
+        },
+        ['goal', 'format']
+      )
+    ).toBe('goal:competition,enrichment|format:small_group,one_on_one');
+  });
+
+  it('sanitizes stale content filter selections against taxonomy definitions', () => {
+    const taxonomy = [
+      {
+        filter_key: 'goal',
+        filter_display_name: 'Goal',
+        filter_type: 'multi_select',
+        options: [
+          { id: '1', value: 'enrichment', display_name: 'Enrichment', display_order: 1 },
+          { id: '2', value: 'competition', display_name: 'Competition', display_order: 2 },
+        ],
+      },
+      {
+        filter_key: 'format',
+        filter_display_name: 'Format',
+        filter_type: 'multi_select',
+        options: [{ id: '3', value: 'one_on_one', display_name: 'One-on-One', display_order: 1 }],
+      },
+    ];
+
+    expect(
+      sanitizeContentFiltersForSubcategory(
+        {
+          goal: ['enrichment', 'invalid'],
+          format: ['one_on_one', 'small_group'],
+          style: ['jazz'],
+        },
+        taxonomy
+      )
+    ).toEqual({
+      goal: ['enrichment'],
+      format: ['one_on_one'],
+    });
+  });
+
+  it('returns empty dynamic filters and selections when no subcategory context exists', () => {
+    expect(getDynamicContentFiltersFromTaxonomy(undefined)).toEqual([]);
+    expect(sanitizeContentFiltersForSubcategory({ goal: ['enrichment'] }, undefined)).toEqual({});
   });
 });

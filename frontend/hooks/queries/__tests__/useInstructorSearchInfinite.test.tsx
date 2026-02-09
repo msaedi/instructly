@@ -120,6 +120,7 @@ describe('useInstructorSearchInfinite', () => {
           serviceCatalogId: 'svc-3',
           skillLevelCsv: 'advanced',
           subcategoryId: 'subcat-22',
+          contentFiltersParam: 'goal:enrichment',
         }),
       { wrapper: createWrapper() }
     );
@@ -129,6 +130,7 @@ describe('useInstructorSearchInfinite', () => {
       service_catalog_id: 'svc-3',
       skill_level: 'advanced',
       subcategory_id: 'subcat-22',
+      content_filters: 'goal:enrichment',
       page: 1,
       per_page: 20,
     });

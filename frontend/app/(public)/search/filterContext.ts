@@ -1,9 +1,12 @@
 import {
+  type ContentFilterSelections,
+  type TaxonomyContentFilterDefinition,
   UNIVERSAL_SKILL_LEVEL_OPTIONS,
   type SkillLevelOption,
   type SkillLevelValue,
 } from '@/components/search/filterTypes';
 import type { SubcategoryFilterResponse } from '@/features/shared/api/types';
+import { formatFilterLabel } from '@/lib/taxonomy/formatFilterLabel';
 
 export type SubcategoryResolutionLookup = {
   subcategoryIds: Set<string>;
@@ -41,6 +44,12 @@ const normalizeSkillLevelValue = (value?: string | null): SkillLevelValue | null
   if (!parsed) return null;
   return SKILL_LEVEL_SET.has(parsed as SkillLevelValue) ? (parsed as SkillLevelValue) : null;
 };
+
+const normalizeContentFilterKey = (value?: string | null): string | null =>
+  parseNonEmpty(value)?.toLowerCase() ?? null;
+
+const normalizeContentFilterValue = (value?: string | null): string | null =>
+  parseNonEmpty(value)?.toLowerCase() ?? null;
 
 export const normalizeLookupKey = (value: string): string =>
   value.trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
@@ -198,4 +207,165 @@ export const buildSkillLevelParam = (
   }
 
   return orderedSelected.join(',');
+};
+
+export const parseContentFiltersParam = (value?: string | null): ContentFilterSelections => {
+  const rawValue = parseNonEmpty(value);
+  if (!rawValue) return {};
+
+  const parsed: ContentFilterSelections = {};
+  for (const segment of rawValue.split('|')) {
+    const normalizedSegment = segment.trim();
+    if (!normalizedSegment) continue;
+
+    const colonIndex = normalizedSegment.indexOf(':');
+    if (colonIndex <= 0) continue;
+
+    const normalizedKey = normalizeContentFilterKey(normalizedSegment.slice(0, colonIndex));
+    if (!normalizedKey) continue;
+
+    const rawValues = normalizedSegment
+      .slice(colonIndex + 1)
+      .split(',')
+      .map((entry) => normalizeContentFilterValue(entry))
+      .filter((entry): entry is string => Boolean(entry));
+
+    if (!rawValues.length) continue;
+
+    const existingValues = parsed[normalizedKey] ?? [];
+    const seenValues = new Set(existingValues);
+    for (const rawEntry of rawValues) {
+      if (seenValues.has(rawEntry)) continue;
+      existingValues.push(rawEntry);
+      seenValues.add(rawEntry);
+    }
+    parsed[normalizedKey] = existingValues;
+  }
+
+  return parsed;
+};
+
+const normalizeContentFilterSelections = (
+  selections: ContentFilterSelections
+): ContentFilterSelections => {
+  const normalized: ContentFilterSelections = {};
+
+  for (const [rawKey, rawValues] of Object.entries(selections)) {
+    const normalizedKey = normalizeContentFilterKey(rawKey);
+    if (!normalizedKey || !Array.isArray(rawValues)) continue;
+
+    const dedupedValues: string[] = [];
+    const seen = new Set<string>();
+    for (const rawValue of rawValues) {
+      const normalizedValue = normalizeContentFilterValue(rawValue);
+      if (!normalizedValue || seen.has(normalizedValue)) continue;
+      dedupedValues.push(normalizedValue);
+      seen.add(normalizedValue);
+    }
+
+    if (dedupedValues.length > 0) {
+      normalized[normalizedKey] = dedupedValues;
+    }
+  }
+
+  return normalized;
+};
+
+export const buildContentFiltersParam = (
+  selections: ContentFilterSelections,
+  orderedKeys: string[] = []
+): string | null => {
+  const normalizedSelections = normalizeContentFilterSelections(selections);
+  const keys = Object.keys(normalizedSelections);
+  if (!keys.length) return null;
+
+  const orderedKeyList: string[] = [];
+  const normalizedOrder = orderedKeys
+    .map((key) => normalizeContentFilterKey(key))
+    .filter((key): key is string => Boolean(key));
+
+  for (const key of normalizedOrder) {
+    if (normalizedSelections[key]) {
+      orderedKeyList.push(key);
+    }
+  }
+
+  const orderedSet = new Set(orderedKeyList);
+  const remaining = keys.filter((key) => !orderedSet.has(key)).sort();
+  const finalOrder = [...orderedKeyList, ...remaining];
+  const segments = finalOrder
+    .map((key) => {
+      const values = normalizedSelections[key];
+      if (!values || values.length === 0) return null;
+      return `${key}:${values.join(',')}`;
+    })
+    .filter((segment): segment is string => Boolean(segment));
+  return segments.length > 0 ? segments.join('|') : null;
+};
+
+export const getDynamicContentFiltersFromTaxonomy = (
+  filters: SubcategoryFilterResponse[] | undefined
+): TaxonomyContentFilterDefinition[] => {
+  if (!filters || filters.length === 0) {
+    return [];
+  }
+
+  const definitions: TaxonomyContentFilterDefinition[] = [];
+  for (const filter of filters) {
+    const key = normalizeContentFilterKey(filter.filter_key);
+    if (!key || key === 'skill_level') continue;
+
+    const options: TaxonomyContentFilterDefinition['options'] = [];
+    const seen = new Set<string>();
+    for (const option of filter.options ?? []) {
+      const normalizedValue = normalizeContentFilterValue(option.value);
+      if (!normalizedValue || seen.has(normalizedValue)) continue;
+      options.push({
+        value: normalizedValue,
+        label: formatFilterLabel(normalizedValue, option.display_name),
+      });
+      seen.add(normalizedValue);
+    }
+
+    if (options.length === 0) continue;
+    definitions.push({
+      key,
+      label: parseNonEmpty(filter.filter_display_name) ?? formatFilterLabel(key),
+      options,
+    });
+  }
+
+  return definitions;
+};
+
+export const sanitizeContentFiltersForSubcategory = (
+  selections: ContentFilterSelections,
+  filters: SubcategoryFilterResponse[] | undefined
+): ContentFilterSelections => {
+  const normalizedSelections = normalizeContentFilterSelections(selections);
+  const definitions = getDynamicContentFiltersFromTaxonomy(filters);
+  if (!definitions.length) {
+    return {};
+  }
+
+  const allowedValuesByKey = new Map<string, Set<string>>();
+  for (const definition of definitions) {
+    allowedValuesByKey.set(
+      definition.key,
+      new Set(definition.options.map((option) => option.value))
+    );
+  }
+
+  const sanitized: ContentFilterSelections = {};
+  for (const [key, values] of Object.entries(normalizedSelections)) {
+    const allowedValues = allowedValuesByKey.get(key);
+    if (!allowedValues) continue;
+
+    const keptValues = values.filter((value) => allowedValues.has(value));
+    if (keptValues.length > 0) {
+      sanitized[key] = keptValues;
+    }
+  }
+
+  return sanitized;
 };

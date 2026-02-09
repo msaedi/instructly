@@ -3,9 +3,19 @@ import userEvent from '@testing-library/user-event';
 import React, { useState } from 'react';
 
 import { FilterBar } from '../FilterBar';
-import { DEFAULT_FILTERS, type FilterState } from '../filterTypes';
+import {
+  DEFAULT_FILTERS,
+  type FilterState,
+  type TaxonomyContentFilterDefinition,
+} from '../filterTypes';
 
-const Harness = ({ initialFilters = DEFAULT_FILTERS }: { initialFilters?: FilterState }) => {
+const Harness = ({
+  initialFilters = DEFAULT_FILTERS,
+  taxonomyContentFilters,
+}: {
+  initialFilters?: FilterState;
+  taxonomyContentFilters?: TaxonomyContentFilterDefinition[];
+}) => {
   const [filters, setFilters] = useState<FilterState>(initialFilters);
 
   return (
@@ -13,9 +23,29 @@ const Harness = ({ initialFilters = DEFAULT_FILTERS }: { initialFilters?: Filter
       filters={filters}
       onFiltersChange={setFilters}
       rightSlot={<div>Sort</div>}
+      {...(taxonomyContentFilters ? { taxonomyContentFilters } : {})}
     />
   );
 };
+
+const TAXONOMY_CONTENT_FILTERS: TaxonomyContentFilterDefinition[] = [
+  {
+    key: 'goal',
+    label: 'Goal',
+    options: [
+      { value: 'enrichment', label: 'Enrichment' },
+      { value: 'competition', label: 'Competition' },
+    ],
+  },
+  {
+    key: 'format',
+    label: 'Format',
+    options: [
+      { value: 'one_on_one', label: 'One-on-One' },
+      { value: 'small_group', label: 'Small Group' },
+    ],
+  },
+];
 
 describe('FilterBar', () => {
   it('renders filter buttons and keeps only one dropdown open at a time', async () => {
@@ -89,6 +119,31 @@ describe('FilterBar', () => {
     expect(badge).toBeInTheDocument();
   });
 
+  it('renders taxonomy content filters when provided and counts them as active', async () => {
+    const user = userEvent.setup();
+    render(<Harness taxonomyContentFilters={TAXONOMY_CONTENT_FILTERS} />);
+
+    await user.click(screen.getByRole('button', { name: /more filters/i }));
+    expect(screen.getByText('Goal')).toBeInTheDocument();
+    expect(screen.getByText('Format')).toBeInTheDocument();
+
+    await user.click(screen.getByText('Enrichment'));
+    await user.click(screen.getByText('One-on-One'));
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    const badge = within(screen.getByRole('button', { name: /more filters/i })).getByText('2');
+    expect(badge).toBeInTheDocument();
+  });
+
+  it('does not render taxonomy content sections without subcategory context filters', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await user.click(screen.getByRole('button', { name: /more filters/i }));
+    expect(screen.queryByText('Goal')).not.toBeInTheDocument();
+    expect(screen.queryByText('Format')).not.toBeInTheDocument();
+  });
+
   it('closes dropdowns on escape', async () => {
     const user = userEvent.setup();
     render(<Harness />);
@@ -112,6 +167,7 @@ describe('FilterBar', () => {
           priceMax: 200,
           location: 'online',
           skillLevel: ['beginner'],
+          contentFilters: { goal: ['enrichment'] },
           minRating: '4',
         }}
       />
@@ -138,6 +194,6 @@ describe('FilterBar', () => {
     await user.click(screen.getByRole('button', { name: /more filters/i }));
     await user.click(screen.getByRole('button', { name: /clear all/i }));
     const moreButton = screen.getByRole('button', { name: /more filters/i });
-    expect(within(moreButton).queryByText('3')).not.toBeInTheDocument();
+    expect(within(moreButton).queryByText('4')).not.toBeInTheDocument();
   });
 });
