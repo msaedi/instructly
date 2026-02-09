@@ -91,8 +91,10 @@ class _AddressServiceStub:
 class _InstructorServiceListStub:
     def __init__(self, payload):
         self._payload = payload
+        self.last_kwargs = None
 
-    def get_instructors_filtered(self, *_args, **_kwargs):
+    def get_instructors_filtered(self, *_args, **kwargs):
+        self.last_kwargs = kwargs
         return self._payload
 
 
@@ -284,6 +286,63 @@ async def test_list_instructors_returns_paginated():
     assert response.per_page == 1
     assert response.has_next is True
     assert len(response.items) == 2
+
+
+@pytest.mark.asyncio
+async def test_list_instructors_forwards_taxonomy_filters():
+    result = {
+        "instructors": [],
+        "metadata": {"total_found": 0},
+    }
+    service = _InstructorServiceListStub(result)
+
+    await instructors_routes.list_instructors(
+        service_catalog_id="catalog-1",
+        min_price=None,
+        max_price=None,
+        age_group=None,
+        skill_level="beginner,intermediate,beginner",
+        subcategory_id="01HSUBCATEGORY00000000000000",
+        goal="enrichment",
+        format_values="one_time",
+        style="jazz",
+        page=1,
+        per_page=20,
+        instructor_service=service,
+    )
+
+    assert service.last_kwargs is not None
+    assert service.last_kwargs["taxonomy_filter_selections"] == {
+        "skill_level": ["beginner", "intermediate"],
+        "goal": ["enrichment"],
+        "format": ["one_time"],
+        "style": ["jazz"],
+    }
+    assert service.last_kwargs["subcategory_id"] == "01HSUBCATEGORY00000000000000"
+
+
+@pytest.mark.asyncio
+async def test_list_instructors_rejects_invalid_skill_level():
+    service = _InstructorServiceListStub({"instructors": [], "metadata": {"total_found": 0}})
+
+    with pytest.raises(HTTPException) as exc:
+        await instructors_routes.list_instructors(
+            service_catalog_id="catalog-1",
+            min_price=None,
+            max_price=None,
+            age_group=None,
+            skill_level="expert",
+            subcategory_id=None,
+            goal=None,
+            format_values=None,
+            style=None,
+            page=1,
+            per_page=20,
+            instructor_service=service,
+        )
+
+    assert exc.value.status_code == 400
+    assert "Invalid skill_level" in str(exc.value.detail)
 
 
 @pytest.mark.asyncio

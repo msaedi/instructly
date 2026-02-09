@@ -167,6 +167,45 @@ def test_search_admin_flags_allow_admin(
     assert response.status_code == 200
 
 
+def test_search_accepts_taxonomy_filters_and_forwards(client, monkeypatch) -> None:
+    captured_kwargs: dict = {}
+
+    async def fake_search(self, query: str, **kwargs) -> NLSearchResponse:
+        captured_kwargs.update(kwargs)
+        return _make_search_response(query)
+
+    monkeypatch.setattr(NLSearchService, "search", fake_search)
+
+    response = client.get(
+        "/api/v1/search",
+        params={
+            "q": "piano lessons",
+            "skill_level": "beginner, intermediate, beginner",
+            "goal": "enrichment,,test_prep",
+            "format": "one_time",
+            "style": "jazz",
+            "subcategory_id": "01HXYZSUBCATEGORY0000000000",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured_kwargs["explicit_skill_levels"] == ["beginner", "intermediate"]
+    assert captured_kwargs["subcategory_id"] == "01HXYZSUBCATEGORY0000000000"
+    assert captured_kwargs["taxonomy_filter_selections"] == {
+        "skill_level": ["beginner", "intermediate"],
+        "goal": ["enrichment", "test_prep"],
+        "format": ["one_time"],
+        "style": ["jazz"],
+    }
+
+
+def test_search_rejects_invalid_skill_level_param(client) -> None:
+    response = client.get("/api/v1/search", params={"q": "piano lessons", "skill_level": "expert"})
+
+    assert response.status_code == 400
+    assert "Invalid skill_level" in response.json()["detail"]
+
+
 def test_search_health_endpoint(client, monkeypatch) -> None:
     fake_cache = FakeCacheService(cached={"search:response:version": "1"})
     monkeypatch.setattr(fake_cache, "get", AsyncMock(return_value="1"))

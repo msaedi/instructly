@@ -160,6 +160,27 @@ class TestResponseCache:
         assert key1 != key2
 
     @pytest.mark.asyncio
+    async def test_cache_key_different_for_different_filter_payloads(
+        self, search_cache: SearchCacheService, mock_cache_service: Mock
+    ) -> None:
+        mock_cache_service.get.return_value = "1"
+
+        key1 = await search_cache._response_cache_key(
+            "piano",
+            None,
+            {"taxonomy": {"skill_level": ["beginner"]}},
+            limit=20,
+        )
+        key2 = await search_cache._response_cache_key(
+            "piano",
+            None,
+            {"taxonomy": {"skill_level": ["advanced"]}},
+            limit=20,
+        )
+
+        assert key1 != key2
+
+    @pytest.mark.asyncio
     async def test_invalidation_increments_version(
         self, search_cache: SearchCacheService, mock_cache_service: Mock
     ) -> None:

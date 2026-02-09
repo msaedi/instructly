@@ -27595,6 +27595,16 @@ export interface operations {
                 max_price?: number;
                 /** @description Filter by age group: 'kids' or 'adults' */
                 age_group?: string;
+                /** @description Comma-separated skill levels (beginner,intermediate,advanced) */
+                skill_level?: string | null;
+                /** @description Optional subcategory ULID context */
+                subcategory_id?: string | null;
+                /** @description Comma-separated taxonomy goal filters */
+                goal?: string | null;
+                /** @description Comma-separated taxonomy format filters */
+                format?: string | null;
+                /** @description Comma-separated taxonomy style filters */
+                style?: string | null;
                 /** @description Page number */
                 page?: number;
                 /** @description Items per page */
@@ -31802,6 +31812,16 @@ export interface operations {
                 region?: string;
                 /** @description Maximum results to return */
                 limit?: number;
+                /** @description Comma-separated skill levels (beginner,intermediate,advanced) */
+                skill_level?: string | null;
+                /** @description Optional subcategory ULID context */
+                subcategory_id?: string | null;
+                /** @description Comma-separated taxonomy goal filters */
+                goal?: string | null;
+                /** @description Comma-separated taxonomy format filters */
+                format?: string | null;
+                /** @description Comma-separated taxonomy style filters */
+                style?: string | null;
                 /** @description Include detailed diagnostics (admin only) */
                 diagnostics?: boolean;
                 /** @description Force skip Tier 5 LLM (admin only) */

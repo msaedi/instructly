@@ -16486,6 +16486,11 @@ export interface operations {
  min_price?: number;
  max_price?: number;
  age_group?: string;
+ skill_level?: string | null;
+ subcategory_id?: string | null;
+ goal?: string | null;
+ format?: string | null;
+ style?: string | null;
  page?: number;
  per_page?: number;
  };
@@ -20348,6 +20353,11 @@ export interface operations {
  lng?: number | null;
  region?: string;
  limit?: number;
+ skill_level?: string | null;
+ subcategory_id?: string | null;
+ goal?: string | null;
+ format?: string | null;
+ style?: string | null;
  diagnostics?: boolean;
  force_skip_tier5?: boolean;
  force_skip_tier4?: boolean;

@@ -9579,6 +9579,26 @@ export type ListInstructorsApiV1InstructorsGetParams = {
    */
   age_group?: string;
   /**
+   * Comma-separated skill levels (beginner,intermediate,advanced)
+   */
+  skill_level?: string | null;
+  /**
+   * Optional subcategory ULID context
+   */
+  subcategory_id?: string | null;
+  /**
+   * Comma-separated taxonomy goal filters
+   */
+  goal?: string | null;
+  /**
+   * Comma-separated taxonomy format filters
+   */
+  format?: string | null;
+  /**
+   * Comma-separated taxonomy style filters
+   */
+  style?: string | null;
+  /**
    * Page number
    * @minimum 1
    */
@@ -9784,6 +9804,26 @@ export type NlSearchApiV1SearchGetParams = {
    * @maximum 50
    */
   limit?: number;
+  /**
+   * Comma-separated skill levels (beginner,intermediate,advanced)
+   */
+  skill_level?: string | null;
+  /**
+   * Optional subcategory ULID context
+   */
+  subcategory_id?: string | null;
+  /**
+   * Comma-separated taxonomy goal filters
+   */
+  goal?: string | null;
+  /**
+   * Comma-separated taxonomy format filters
+   */
+  format?: string | null;
+  /**
+   * Comma-separated taxonomy style filters
+   */
+  style?: string | null;
   /**
    * Include detailed diagnostics (admin only)
    */
