@@ -211,6 +211,8 @@ class InstructorService(BaseService):
         max_price: Optional[float] = None,
         age_group: Optional[str] = None,
         service_area_boroughs: Optional[Sequence[str]] = None,
+        taxonomy_filter_selections: Optional[Dict[str, List[str]]] = None,
+        subcategory_id: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> Dict[str, Any]:
@@ -226,6 +228,8 @@ class InstructorService(BaseService):
             min_price: Minimum hourly rate filter
             max_price: Maximum hourly rate filter
             service_area_boroughs: Optional collection of borough labels to filter by
+            taxonomy_filter_selections: Optional taxonomy filter selections (skill_level/goal/etc.)
+            subcategory_id: Optional subcategory context for taxonomy filtering
             skip: Number of records to skip for pagination
             limit: Maximum number of records to return
 
@@ -241,6 +245,8 @@ class InstructorService(BaseService):
             "price_range": min_price is not None or max_price is not None,
             "age_group": age_group is not None,
             "service_area_boroughs": bool(service_area_boroughs),
+            "taxonomy_filters": bool(taxonomy_filter_selections),
+            "subcategory_id": subcategory_id is not None,
             "filters_count": sum(
                 [
                     search is not None,
@@ -249,6 +255,8 @@ class InstructorService(BaseService):
                     max_price is not None,
                     age_group is not None,
                     bool(service_area_boroughs),
+                    bool(taxonomy_filter_selections),
+                    subcategory_id is not None,
                 ]
             ),
         }
@@ -259,6 +267,7 @@ class InstructorService(BaseService):
             f"Search: {filter_info['search']}, "
             f"Service Catalog: {filter_info['service_catalog']}, "
             f"Price: {filter_info['price_range']}, "
+            f"Taxonomy: {filter_info['taxonomy_filters']}, "
             f"Pagination: skip={skip}, limit={limit}"
         )
 
@@ -288,6 +297,57 @@ class InstructorService(BaseService):
             if instructor_dict["services"]:
                 instructors.append(instructor_dict)
 
+        normalized_taxonomy_filters: Dict[str, List[str]] = {}
+        for raw_key, raw_values in (taxonomy_filter_selections or {}).items():
+            key = str(raw_key).strip().lower()
+            if not key:
+                continue
+            values: List[str] = []
+            seen_values: Set[str] = set()
+            for raw_value in raw_values or []:
+                value = str(raw_value).strip().lower()
+                if not value or value in seen_values:
+                    continue
+                seen_values.add(value)
+                values.append(value)
+            if values:
+                normalized_taxonomy_filters[key] = values
+
+        if normalized_taxonomy_filters or subcategory_id:
+            candidate_service_ids: List[str] = []
+            for instructor in instructors:
+                for service in instructor.get("services", []):
+                    service_id = service.get("id")
+                    if service_id is not None:
+                        candidate_service_ids.append(str(service_id))
+
+            if candidate_service_ids:
+                matching_service_ids = self.taxonomy_filter_repository.find_matching_service_ids(
+                    service_ids=candidate_service_ids,
+                    subcategory_id=subcategory_id,
+                    filter_selections=normalized_taxonomy_filters,
+                    active_only=True,
+                )
+            else:
+                matching_service_ids = set()
+
+            if matching_service_ids:
+                filtered_instructors: List[JsonDict] = []
+                for instructor in instructors:
+                    services = instructor.get("services", [])
+                    matching_services = [
+                        service
+                        for service in services
+                        if str(service.get("id")) in matching_service_ids
+                    ]
+                    if matching_services:
+                        instructor_copy = dict(instructor)
+                        instructor_copy["services"] = matching_services
+                        filtered_instructors.append(instructor_copy)
+                instructors = filtered_instructors
+            else:
+                instructors = []
+
         # Build metadata about applied filters
         applied_filters: JsonDict = {}
         if search:
@@ -302,6 +362,10 @@ class InstructorService(BaseService):
             applied_filters["service_area_boroughs"] = list(service_area_boroughs)
         if age_group is not None:
             applied_filters["age_group"] = age_group
+        if subcategory_id:
+            applied_filters["subcategory_id"] = subcategory_id
+        if normalized_taxonomy_filters:
+            applied_filters.update(normalized_taxonomy_filters)
 
         metadata: JsonDict = {
             "filters_applied": applied_filters,

@@ -261,6 +261,21 @@ class TestCacheCheck:
 
         assert result is None
 
+    @pytest.mark.asyncio
+    async def test_passes_filters_to_cache_lookup(self, mock_search_cache: Mock) -> None:
+        service = NLSearchService(search_cache=mock_search_cache)
+        filters = {"taxonomy": {"skill_level": ["beginner"]}, "subcategory_id": "sub-1"}
+
+        await service._check_cache("piano lessons", None, limit=20, filters=filters)
+
+        mock_search_cache.get_cached_response.assert_awaited_once_with(
+            "piano lessons",
+            None,
+            filters=filters,
+            limit=20,
+            region_code="nyc",
+        )
+
 
 class TestBuildInstructorResponse:
     """Tests for instructor-level response building."""
@@ -690,6 +705,168 @@ class TestSearchPipeline:
             mock_metrics.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_explicit_skill_level_overrides_nl_and_threads_taxonomy_filters(
+        self,
+        mock_search_cache: Mock,
+        sample_instructor_results: List[NLSearchResultItem],
+    ) -> None:
+        mock_search_cache.get_cached_response.return_value = None
+        mock_search_cache.get_cached_parsed_query.return_value = None
+
+        service = NLSearchService(search_cache=mock_search_cache)
+        parsed_query = ParsedQuery(
+            original_query="beginner piano",
+            service_query="piano",
+            parsing_mode="regex",
+            skill_level="beginner",
+        )
+        pre_data = PreOpenAIData(
+            parsed_query=parsed_query,
+            parse_latency_ms=5,
+            text_results={},
+            text_latency_ms=0,
+            has_service_embeddings=True,
+            best_text_score=0.0,
+            require_text_match=False,
+            skip_vector=False,
+            region_lookup=None,
+            location_resolution=ResolvedLocation.from_not_found(),
+            location_normalized=None,
+            cached_alias_normalized=None,
+            fuzzy_score=None,
+        )
+        post_data = PostOpenAIData(
+            filter_result=FilterResult(
+                candidates=[],
+                total_before_filter=0,
+                total_after_filter=0,
+                filters_applied=[],
+                soft_filtering_used=False,
+            ),
+            ranking_result=RankingResult(results=[], total_results=0),
+            retrieval_candidates=[],
+            instructor_rows=[],
+            distance_meters={},
+            text_latency_ms=0,
+            vector_latency_ms=0,
+            filter_latency_ms=0,
+            rank_latency_ms=0,
+            vector_search_used=False,
+            total_candidates=0,
+            filter_failed=False,
+            ranking_failed=False,
+            skip_vector=False,
+        )
+
+        with (
+            patch.object(service, "_run_pre_openai_burst", return_value=pre_data),
+            patch.object(
+                service,
+                "_embed_query_with_timeout",
+                new_callable=AsyncMock,
+                return_value=([0.1], 5, None),
+            ),
+            patch.object(service, "_run_post_openai_burst", return_value=post_data) as mock_post,
+            patch.object(
+                service, "_hydrate_instructor_results", new_callable=AsyncMock
+            ) as mock_hydrate,
+            patch("app.services.search.nl_search_service.record_search_metrics"),
+        ):
+            mock_hydrate.return_value = sample_instructor_results
+
+            await service.search(
+                "beginner piano",
+                explicit_skill_levels=["advanced", "intermediate"],
+                taxonomy_filter_selections={"goal": ["enrichment"]},
+                subcategory_id="sub-1",
+            )
+
+        assert mock_post.call_args.args[1].skill_level is None
+        assert mock_post.call_args.args[8] == {
+            "goal": ["enrichment"],
+            "skill_level": ["advanced", "intermediate"],
+        }
+        assert mock_post.call_args.args[9] == "sub-1"
+        assert (
+            mock_search_cache.get_cached_response.await_args.kwargs["filters"]["taxonomy"][
+                "skill_level"
+            ]
+            == ["advanced", "intermediate"]
+        )
+
+    @pytest.mark.asyncio
+    async def test_single_explicit_skill_level_sets_ranking_hint(
+        self,
+        mock_search_cache: Mock,
+    ) -> None:
+        mock_search_cache.get_cached_response.return_value = None
+        mock_search_cache.get_cached_parsed_query.return_value = None
+
+        service = NLSearchService(search_cache=mock_search_cache)
+        parsed_query = ParsedQuery(
+            original_query="beginner piano",
+            service_query="piano",
+            parsing_mode="regex",
+            skill_level="beginner",
+        )
+        pre_data = PreOpenAIData(
+            parsed_query=parsed_query,
+            parse_latency_ms=5,
+            text_results={},
+            text_latency_ms=0,
+            has_service_embeddings=True,
+            best_text_score=0.0,
+            require_text_match=False,
+            skip_vector=False,
+            region_lookup=None,
+            location_resolution=ResolvedLocation.from_not_found(),
+            location_normalized=None,
+            cached_alias_normalized=None,
+            fuzzy_score=None,
+        )
+        post_data = PostOpenAIData(
+            filter_result=FilterResult(
+                candidates=[],
+                total_before_filter=0,
+                total_after_filter=0,
+                filters_applied=[],
+                soft_filtering_used=False,
+            ),
+            ranking_result=RankingResult(results=[], total_results=0),
+            retrieval_candidates=[],
+            instructor_rows=[],
+            distance_meters={},
+            text_latency_ms=0,
+            vector_latency_ms=0,
+            filter_latency_ms=0,
+            rank_latency_ms=0,
+            vector_search_used=False,
+            total_candidates=0,
+            filter_failed=False,
+            ranking_failed=False,
+            skip_vector=False,
+        )
+
+        with (
+            patch.object(service, "_run_pre_openai_burst", return_value=pre_data),
+            patch.object(
+                service,
+                "_embed_query_with_timeout",
+                new_callable=AsyncMock,
+                return_value=([0.1], 5, None),
+            ),
+            patch.object(service, "_run_post_openai_burst", return_value=post_data) as mock_post,
+            patch.object(
+                service, "_hydrate_instructor_results", new_callable=AsyncMock, return_value=[]
+            ),
+            patch("app.services.search.nl_search_service.record_search_metrics"),
+        ):
+            await service.search("piano", explicit_skill_levels=["advanced"])
+
+        assert mock_post.call_args.args[1].skill_level == "advanced"
+        assert mock_post.call_args.args[8] == {"skill_level": ["advanced"]}
+
+    @pytest.mark.asyncio
     async def test_falls_back_to_text_only_when_embedding_unavailable(
         self,
         mock_search_cache: Mock,
@@ -910,6 +1087,36 @@ class TestResponseCaching:
 
         # Should not raise
         await service._cache_response("piano", None, response, limit=20)
+
+    @pytest.mark.asyncio
+    async def test_passes_filters_to_cache_response(
+        self,
+        mock_search_cache: Mock,
+        sample_parsed_query: ParsedQuery,
+        sample_instructor_results: List[NLSearchResultItem],
+    ) -> None:
+        service = NLSearchService(search_cache=mock_search_cache)
+        metrics = SearchMetrics()
+        response = service._build_instructor_response(
+            "piano",
+            sample_parsed_query,
+            sample_instructor_results,
+            limit=20,
+            metrics=metrics,
+        )
+        filters = {"taxonomy": {"skill_level": ["beginner"]}, "subcategory_id": "sub-1"}
+
+        await service._cache_response("piano", None, response, limit=20, filters=filters)
+
+        mock_search_cache.cache_response.assert_awaited_once_with(
+            "piano",
+            response.model_dump(),
+            user_location=None,
+            filters=filters,
+            limit=20,
+            ttl=None,
+            region_code="nyc",
+        )
 
 
 class TestNLSearchServiceHelpers:

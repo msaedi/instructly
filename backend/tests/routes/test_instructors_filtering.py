@@ -235,6 +235,56 @@ class TestInstructorsFilteringAPI:
         # Pydantic validation error
         assert resp.status_code in (400, 422)
 
+    def test_taxonomy_content_filters_apply_or_within_key_and_across_keys(
+        self, client, sample_instructors, db: Session
+    ):
+        """skill_level uses OR semantics, while different keys are ANDed."""
+        service_catalog = db.query(ServiceCatalog).first()
+        assert service_catalog is not None
+
+        scoped_services = (
+            db.query(Service)
+            .filter(Service.service_catalog_id == service_catalog.id)
+            .filter(Service.is_active == True)
+            .order_by(Service.id.asc())
+            .all()
+        )
+        if len(scoped_services) < 2:
+            pytest.skip("Need at least two active services for taxonomy filter assertions")
+
+        scoped_services[0].filter_selections = {
+            "skill_level": ["beginner"],
+            "goal": ["enrichment"],
+        }
+        scoped_services[1].filter_selections = {
+            "skill_level": ["advanced"],
+            "goal": ["test_prep"],
+        }
+        for service in scoped_services[2:]:
+            service.filter_selections = {}
+        db.commit()
+
+        response = client.get(
+            f"/api/v1/instructors/?service_catalog_id={service_catalog.id}&skill_level=beginner,intermediate&goal=enrichment"
+        )
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["items"], "Expected at least one matching instructor"
+        for instructor in data["items"]:
+            matching_service = next(
+                (
+                    service
+                    for service in instructor["services"]
+                    if service["service_catalog_id"] == service_catalog.id
+                ),
+                None,
+            )
+            assert matching_service is not None
+            selections = matching_service.get("filter_selections") or {}
+            assert "beginner" in (selections.get("skill_level") or [])
+            assert "enrichment" in (selections.get("goal") or [])
+
     def test_pagination_parameters(self, client, sample_instructors, db: Session):
         """Test page and per_page parameters."""
         # Get a service catalog ID

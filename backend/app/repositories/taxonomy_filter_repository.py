@@ -11,6 +11,8 @@ Handles all data access for the flexible filter system:
 import logging
 from typing import Any, Dict, List, Optional, Set, Tuple, cast
 
+from sqlalchemy import Text as SAText, cast as sa_cast, func
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Session, joinedload
 
 from ..models.filter import (
@@ -173,6 +175,117 @@ class TaxonomyFilterRepository:
             List[FilterDefinition],
             query.order_by(FilterDefinition.display_order).all(),
         )
+
+    def find_matching_service_ids(
+        self,
+        service_ids: List[str],
+        filter_selections: Dict[str, List[str]],
+        *,
+        subcategory_id: Optional[str] = None,
+        active_only: bool = True,
+    ) -> Set[str]:
+        """Return candidate instructor_service IDs that satisfy taxonomy filters.
+
+        Semantics:
+          - OR within each key: skill_level=beginner,intermediate matches either value.
+          - AND across keys: skill_level + goal requires both key-level matches.
+        """
+        from ..models.service_catalog import ServiceCatalog
+
+        candidate_ids = [str(service_id) for service_id in service_ids if service_id]
+        if not candidate_ids:
+            return set()
+
+        normalized_filters: Dict[str, List[str]] = {}
+        for raw_key, raw_values in (filter_selections or {}).items():
+            key = str(raw_key).strip().lower()
+            if not key:
+                continue
+
+            values: List[str] = []
+            seen_values: Set[str] = set()
+            for raw_value in raw_values or []:
+                value = str(raw_value).strip().lower()
+                if not value or value in seen_values:
+                    continue
+                seen_values.add(value)
+                values.append(value)
+            if values:
+                normalized_filters[key] = values
+
+        base_query = (
+            self.db.query(InstructorService.id, InstructorService.filter_selections)
+            .join(
+                ServiceCatalog,
+                InstructorService.service_catalog_id == ServiceCatalog.id,
+            )
+            .filter(InstructorService.id.in_(candidate_ids))
+        )
+
+        if active_only:
+            base_query = base_query.filter(InstructorService.is_active.is_(True))
+        if subcategory_id:
+            base_query = base_query.filter(ServiceCatalog.subcategory_id == subcategory_id)
+
+        dialect_name = (
+            self.db.bind.dialect.name.lower()
+            if self.db.bind and self.db.bind.dialect and self.db.bind.dialect.name
+            else ""
+        )
+        if dialect_name == "postgresql" and normalized_filters:
+            pg_query = base_query
+            for key, values in normalized_filters.items():
+                json_values_expr = func.coalesce(
+                    InstructorService.filter_selections.op("->")(key),
+                    sa_cast("[]", JSONB),
+                )
+                pg_query = pg_query.filter(
+                    json_values_expr.op("?|")(sa_cast(values, ARRAY(SAText())))
+                )
+
+            rows = pg_query.all()
+            return {str(row[0]) for row in rows if row and row[0]}
+
+        # Non-Postgres fallback (or empty filters): evaluate in Python for portability.
+        rows = base_query.all()
+        if not normalized_filters:
+            return {str(row[0]) for row in rows if row and row[0]}
+
+        matching_ids: Set[str] = set()
+        for service_id, selections in rows:
+            if not service_id:
+                continue
+            if self._matches_filter_selections(
+                selections=selections or {},
+                requested=normalized_filters,
+            ):
+                matching_ids.add(str(service_id))
+
+        return matching_ids
+
+    @staticmethod
+    def _matches_filter_selections(
+        *,
+        selections: Dict[str, Any],
+        requested: Dict[str, List[str]],
+    ) -> bool:
+        """Return True when selections satisfy OR-within-key and AND-across-key rules."""
+        for key, requested_values in requested.items():
+            raw_values = selections.get(key, [])
+            if not isinstance(raw_values, list):
+                return False
+
+            candidate_values = {
+                str(value).strip().lower() for value in raw_values if str(value).strip()
+            }
+            requested_set = {
+                str(value).strip().lower() for value in requested_values if str(value).strip()
+            }
+
+            if requested_set and candidate_values.isdisjoint(requested_set):
+                return False
+
+        return True
 
     # ── Instructor search by filters ─────────────────────────────
 

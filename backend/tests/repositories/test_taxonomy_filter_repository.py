@@ -249,3 +249,176 @@ class TestFindInstructorsByFilters:
             filter_selections={},
         )
         assert isinstance(results, list)
+
+
+class TestFindMatchingServiceIds:
+    def test_or_within_key_returns_any_matching_value(self, db, taxonomy_data, test_instructor):
+        profile = (
+            db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == test_instructor.id)
+            .first()
+        )
+        assert profile is not None
+
+        second_catalog = ServiceCatalog(
+            subcategory_id=taxonomy_data["sub_with_filters"].id,
+            name=f"TFR Service 2 {_uid()}",
+            slug=f"tfr-svc-2-{_uid()}",
+            display_order=1,
+            is_active=True,
+        )
+        db.add(second_catalog)
+        db.flush()
+
+        beginner_row = InstructorService(
+            instructor_profile_id=profile.id,
+            service_catalog_id=taxonomy_data["service"].id,
+            hourly_rate=55.0,
+            duration_options=[60],
+            is_active=True,
+            filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
+        )
+        middle_row = InstructorService(
+            instructor_profile_id=profile.id,
+            service_catalog_id=second_catalog.id,
+            hourly_rate=65.0,
+            duration_options=[60],
+            is_active=True,
+            filter_selections={taxonomy_data["filter_key"]: ["middle"]},
+        )
+        db.add_all([beginner_row, middle_row])
+        db.commit()
+
+        repo = TaxonomyFilterRepository(db)
+        matching = repo.find_matching_service_ids(
+            service_ids=[beginner_row.id, middle_row.id],
+            subcategory_id=taxonomy_data["sub_with_filters"].id,
+            filter_selections={taxonomy_data["filter_key"]: ["elementary", "middle"]},
+        )
+
+        assert beginner_row.id in matching
+        assert middle_row.id in matching
+
+    def test_and_across_keys_with_subcategory_constraint(self, db, taxonomy_data, test_instructor):
+        profile = (
+            db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == test_instructor.id)
+            .first()
+        )
+        assert profile is not None
+
+        uid = _uid()
+        goal_key = f"tfr_goal_{uid}"
+        goal_definition = FilterDefinition(
+            key=goal_key,
+            display_name="Goal",
+            filter_type="multi_select",
+        )
+        db.add(goal_definition)
+        db.flush()
+
+        enrichment = FilterOption(
+            filter_definition_id=goal_definition.id,
+            value="enrichment",
+            display_name="Enrichment",
+            display_order=0,
+        )
+        test_prep = FilterOption(
+            filter_definition_id=goal_definition.id,
+            value="test_prep",
+            display_name="Test Prep",
+            display_order=1,
+        )
+        db.add_all([enrichment, test_prep])
+        db.flush()
+
+        goal_sub_filter = SubcategoryFilter(
+            subcategory_id=taxonomy_data["sub_with_filters"].id,
+            filter_definition_id=goal_definition.id,
+            display_order=1,
+        )
+        db.add(goal_sub_filter)
+        db.flush()
+
+        db.add_all(
+            [
+                SubcategoryFilterOption(
+                    subcategory_filter_id=goal_sub_filter.id,
+                    filter_option_id=enrichment.id,
+                    display_order=0,
+                ),
+                SubcategoryFilterOption(
+                    subcategory_filter_id=goal_sub_filter.id,
+                    filter_option_id=test_prep.id,
+                    display_order=1,
+                ),
+            ]
+        )
+        db.flush()
+
+        second_catalog = ServiceCatalog(
+            subcategory_id=taxonomy_data["sub_with_filters"].id,
+            name=f"TFR Service 3 {uid}",
+            slug=f"tfr-svc-3-{uid}",
+            display_order=2,
+            is_active=True,
+        )
+        other_sub_catalog = ServiceCatalog(
+            subcategory_id=taxonomy_data["sub_without_filters"].id,
+            name=f"TFR Service Other {uid}",
+            slug=f"tfr-svc-other-{uid}",
+            display_order=0,
+            is_active=True,
+        )
+        db.add_all([second_catalog, other_sub_catalog])
+        db.flush()
+
+        matching_all = InstructorService(
+            instructor_profile_id=profile.id,
+            service_catalog_id=taxonomy_data["service"].id,
+            hourly_rate=70.0,
+            duration_options=[60],
+            is_active=True,
+            filter_selections={
+                taxonomy_data["filter_key"]: ["elementary"],
+                goal_key: ["enrichment"],
+            },
+        )
+        wrong_goal = InstructorService(
+            instructor_profile_id=profile.id,
+            service_catalog_id=second_catalog.id,
+            hourly_rate=75.0,
+            duration_options=[60],
+            is_active=True,
+            filter_selections={
+                taxonomy_data["filter_key"]: ["elementary"],
+                goal_key: ["test_prep"],
+            },
+        )
+        wrong_subcategory = InstructorService(
+            instructor_profile_id=profile.id,
+            service_catalog_id=other_sub_catalog.id,
+            hourly_rate=80.0,
+            duration_options=[60],
+            is_active=True,
+            filter_selections={
+                taxonomy_data["filter_key"]: ["elementary"],
+                goal_key: ["enrichment"],
+            },
+        )
+        db.add_all([matching_all, wrong_goal, wrong_subcategory])
+        db.commit()
+
+        repo = TaxonomyFilterRepository(db)
+        matching = repo.find_matching_service_ids(
+            service_ids=[matching_all.id, wrong_goal.id, wrong_subcategory.id],
+            subcategory_id=taxonomy_data["sub_with_filters"].id,
+            filter_selections={
+                taxonomy_data["filter_key"]: ["elementary"],
+                goal_key: ["enrichment"],
+            },
+        )
+
+        assert matching_all.id in matching
+        assert wrong_goal.id not in matching
+        assert wrong_subcategory.id not in matching

@@ -377,3 +377,38 @@ class TestInstructorServiceFiltering:
             limit=100,
         )
         assert result["metadata"]["filters_applied"] == {"age_group": "kids"}
+
+    def test_taxonomy_filters_prune_services_and_include_metadata(
+        self, instructor_service, mock_profile_repository
+    ):
+        profile_one = self.create_mock_profile(
+            1, "John", "Doe", "Beginner-focused teacher", [("Piano", 80.0)]
+        )
+        profile_two = self.create_mock_profile(
+            2, "Jane", "Smith", "Advanced-focused teacher", [("Piano", 90.0)]
+        )
+        profile_one.instructor_services[0].id = "svc-1"
+        profile_two.instructor_services[0].id = "svc-2"
+
+        mock_profile_repository.find_by_filters.return_value = [profile_one, profile_two]
+
+        taxonomy_repo = Mock()
+        taxonomy_repo.find_matching_service_ids.return_value = {"svc-1"}
+        instructor_service.taxonomy_filter_repository = taxonomy_repo
+
+        result = instructor_service.get_instructors_filtered(
+            service_catalog_id="catalog-1",
+            taxonomy_filter_selections={"skill_level": ["beginner"]},
+            subcategory_id="sub-123",
+        )
+
+        taxonomy_repo.find_matching_service_ids.assert_called_once_with(
+            service_ids=["svc-1", "svc-2"],
+            subcategory_id="sub-123",
+            filter_selections={"skill_level": ["beginner"]},
+            active_only=True,
+        )
+        assert len(result["instructors"]) == 1
+        assert result["instructors"][0]["services"][0]["id"] == "svc-1"
+        assert result["metadata"]["filters_applied"]["subcategory_id"] == "sub-123"
+        assert result["metadata"]["filters_applied"]["skill_level"] == ["beginner"]
