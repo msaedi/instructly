@@ -186,4 +186,50 @@ describe('GlobalBackground', () => {
     }
     jest.useRealTimers();
   });
+
+  it('rotates backgrounds while the document is visible', async () => {
+    jest.useFakeTimers();
+
+    const originalVisibilityDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      'visibilityState'
+    );
+
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'visible',
+    });
+
+    mockUsePathname.mockReturnValue('/lessons');
+    (hasMultipleVariantsForService as jest.Mock).mockResolvedValue(true);
+    (getSmartBackgroundForService as jest.Mock).mockResolvedValue('/activities/guitar.jpg');
+
+    render(
+      <GlobalBackground
+        activity="guitar"
+        overrides={{ enableRotation: true, rotationInterval: 50 }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(getSmartBackgroundForService).toHaveBeenCalled();
+    });
+
+    const beforeAdvance = (getSmartBackgroundForService as jest.Mock).mock.calls.length;
+
+    act(() => {
+      jest.advanceTimersByTime(200);
+    });
+
+    await waitFor(() => {
+      expect((getSmartBackgroundForService as jest.Mock).mock.calls.length).toBeGreaterThan(
+        beforeAdvance
+      );
+    });
+
+    if (originalVisibilityDescriptor) {
+      Object.defineProperty(document, 'visibilityState', originalVisibilityDescriptor);
+    }
+    jest.useRealTimers();
+  });
 });

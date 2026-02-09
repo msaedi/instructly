@@ -53,8 +53,31 @@ describe('useInstructorSearch', () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(searchWithNaturalLanguageMock).toHaveBeenCalledWith('piano lessons');
+    expect(searchWithNaturalLanguageMock).toHaveBeenCalledWith('piano lessons', {});
     expect(result.current.data?.mode).toBe('nl');
+  });
+
+  it('forwards skill level and subcategory context to NL search', async () => {
+    searchWithNaturalLanguageMock.mockResolvedValue({
+      status: 200,
+      data: { results: [], meta: { total_results: 0 } },
+    });
+
+    const { result } = renderHook(
+      () =>
+        useInstructorSearch({
+          searchQuery: 'piano',
+          skillLevelCsv: 'beginner,advanced',
+          subcategoryId: 'subcat-1',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(searchWithNaturalLanguageMock).toHaveBeenCalledWith('piano', {
+      skill_level: 'beginner,advanced',
+      subcategory_id: 'subcat-1',
+    });
   });
 
   it('surfaces rate limit metadata on NL search', async () => {
@@ -102,6 +125,41 @@ describe('useInstructorSearch', () => {
     });
     expect(validateWithZodMock).toHaveBeenCalled();
     expect(result.current.data?.mode).toBe('catalog');
+  });
+
+  it('forwards skill level and subcategory context to catalog search', async () => {
+    const catalogPayload = {
+      items: [{ id: 'inst-1' }],
+      total: 1,
+      page: 1,
+      per_page: 20,
+      has_next: false,
+      has_prev: false,
+    };
+    searchInstructorsMock.mockResolvedValue({
+      status: 200,
+      data: catalogPayload,
+    });
+    validateWithZodMock.mockResolvedValue(catalogPayload);
+
+    const { result } = renderHook(
+      () =>
+        useInstructorSearch({
+          serviceCatalogId: 'svc-1',
+          skillLevelCsv: 'intermediate',
+          subcategoryId: 'subcat-1',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(searchInstructorsMock).toHaveBeenCalledWith({
+      service_catalog_id: 'svc-1',
+      skill_level: 'intermediate',
+      subcategory_id: 'subcat-1',
+      page: 1,
+      per_page: 20,
+    });
   });
 
   it('does not run when no search criteria provided', async () => {

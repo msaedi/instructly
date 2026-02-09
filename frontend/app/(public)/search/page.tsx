@@ -20,9 +20,25 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useInstructorSearchInfinite } from '@/hooks/queries/useInstructorSearch';
 import { useInstructorCoverage } from '@/hooks/queries/useInstructorCoverage';
 import { usePublicAvailability, type InstructorAvailabilitySummary } from '@/hooks/queries/usePublicAvailability';
+import { useAllServicesWithInstructors } from '@/hooks/queries/useServices';
+import { useCategoriesWithSubcategories, useSubcategoryFilters } from '@/hooks/queries/useTaxonomy';
 import { AlertTriangle, ChevronDown } from 'lucide-react';
 import { FilterBar } from '@/components/search/FilterBar';
-import { DEFAULT_FILTERS, type FilterState } from '@/components/search/filterTypes';
+import {
+  DEFAULT_FILTERS,
+  UNIVERSAL_SKILL_LEVEL_OPTIONS,
+  type FilterState,
+  type SkillLevelOption,
+} from '@/components/search/filterTypes';
+import { CURRENT_AUDIENCE, type AudienceMode } from '@/lib/audience';
+import {
+  buildSkillLevelParam,
+  getSkillLevelOptionsFromTaxonomy,
+  normalizeLookupKey,
+  parseSkillLevelParam,
+  resolveSubcategoryContext,
+  type SubcategoryResolutionLookup,
+} from './filterContext';
 
 type SortOption = 'recommended' | 'price_asc' | 'price_desc' | 'rating';
 
@@ -157,6 +173,39 @@ const normalizeTeachingLocations = (
 const getOptionalBoolean = (record: Record<string, unknown>, key: string): boolean | undefined => {
   const value = record[key];
   return typeof value === 'boolean' ? value : undefined;
+};
+
+const normalizeStringSelections = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean)
+    : [];
+
+const getFilterSelectionValues = (
+  service: Instructor['services'][number] | null | undefined,
+  key: string
+): string[] => {
+  if (!service || typeof service !== 'object') return [];
+  const rawSelections = (service as { filter_selections?: unknown }).filter_selections;
+  if (!rawSelections || typeof rawSelections !== 'object') return [];
+  const value = (rawSelections as Record<string, unknown>)[key];
+  return normalizeStringSelections(value);
+};
+
+const parseAudienceMode = (value: string | null): AudienceMode => {
+  if (!value) return CURRENT_AUDIENCE;
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === 'toddler' ||
+    normalized === 'kids' ||
+    normalized === 'teens' ||
+    normalized === 'adults'
+  ) {
+    return normalized;
+  }
+  return CURRENT_AUDIENCE;
 };
 
 type NormalizedSearchResult = {
@@ -313,9 +362,8 @@ const normalizeSearchResults = (input: NormalizeSearchInput): NormalizedSearchRe
           distance_mi: distanceMi,
           distance_km: distanceKm,
           _matchedServiceContext: {
-            levels: [] as string[],
+            skill_level: [] as string[],
             age_groups: [] as string[],
-            location_types: [] as string[],
           },
           relevance_score: relevanceScore,
           _matchedServiceCatalogId: bestServiceCatalogId || null,
@@ -352,19 +400,17 @@ const normalizeSearchResults = (input: NormalizeSearchInput): NormalizedSearchRe
               (matchId || '').trim().toLowerCase()
         ) || item.services[0]
       : undefined;
-    const levels = Array.isArray(highlightedService?.levels_taught) ? highlightedService.levels_taught : [];
-    const ageGroups = Array.isArray(highlightedService?.age_groups) ? highlightedService.age_groups : [];
-    const locationTypes = Array.isArray(highlightedService?.location_types)
-      ? highlightedService.location_types
-      : [];
+    const skillLevels = getFilterSelectionValues(highlightedService, 'skill_level');
+    const fallbackLevels = normalizeStringSelections(highlightedService?.levels_taught);
+    const ageGroups = getFilterSelectionValues(highlightedService, 'age_groups');
+    const fallbackAgeGroups = normalizeStringSelections(highlightedService?.age_groups);
     return {
       ...item,
       ...(teachingLocations.length ? { teaching_locations: teachingLocations } : {}),
       _matchedServiceCatalogId: matchId,
       _matchedServiceContext: {
-        levels,
-        age_groups: ageGroups,
-        location_types: locationTypes,
+        skill_level: skillLevels.length ? skillLevels : fallbackLevels,
+        age_groups: ageGroups.length ? ageGroups : fallbackAgeGroups,
       },
     };
   });
@@ -654,16 +700,150 @@ function SearchPageInner() {
     });
   }, []);
 
+  const searchParamsString = searchParams.toString();
   const query = searchParams.get('q') || '';
   const category = searchParams.get('category') || '';
   const serviceCatalogId = searchParams.get('service_catalog_id') || '';
+  const serviceParam = searchParams.get('service') || '';
   const serviceNameFromUrl = searchParams.get('service_name') || '';
-  const audience = searchParams.get('audience') || searchParams.get('age_group') || '';
+  const explicitSubcategoryId = searchParams.get('subcategory_id') || '';
+  const subcategoryParam = searchParams.get('subcategory') || '';
+  const activeAudience = parseAudienceMode(
+    searchParams.get('audience') || searchParams.get('age_group')
+  );
   const fromSource = searchParams.get('from') || '';
+  const parsedSkillLevelFromUrl = useMemo(() => {
+    const params = new URLSearchParams(searchParamsString);
+    return parseSkillLevelParam(params.get('skill_level'));
+  }, [searchParamsString]);
+
+  const { data: categoriesWithSubcategories } = useCategoriesWithSubcategories();
+  const { data: allServicesWithInstructors } = useAllServicesWithInstructors();
+
+  const subcategoryLookup = useMemo<SubcategoryResolutionLookup>(() => {
+    const subcategoryIds = new Set<string>();
+    const subcategoryIdsByLower = new Map<string, string>();
+    const subcategoryByName = new Map<string, string>();
+    const serviceByCatalogId = new Map<string, string>();
+    const serviceBySlug = new Map<string, string>();
+    const serviceByName = new Map<string, string>();
+
+    for (const categoryItem of categoriesWithSubcategories ?? []) {
+      for (const subcategory of categoryItem.subcategories ?? []) {
+        if (!subcategory?.id) continue;
+        const subcategoryId = subcategory.id.trim();
+        if (!subcategoryId) continue;
+        subcategoryIds.add(subcategoryId);
+        subcategoryIdsByLower.set(subcategoryId.toLowerCase(), subcategoryId);
+        if (subcategory.name) {
+          subcategoryByName.set(normalizeLookupKey(subcategory.name), subcategoryId);
+        }
+      }
+    }
+
+    for (const categoryItem of allServicesWithInstructors?.categories ?? []) {
+      for (const service of categoryItem.services ?? []) {
+        const subcategoryId = service.subcategory_id?.trim();
+        if (!subcategoryId) continue;
+        if (service.id) {
+          serviceByCatalogId.set(service.id.trim().toLowerCase(), subcategoryId);
+        }
+        if (service.slug) {
+          serviceBySlug.set(normalizeLookupKey(service.slug), subcategoryId);
+        }
+        if (service.name) {
+          serviceByName.set(normalizeLookupKey(service.name), subcategoryId);
+        }
+      }
+    }
+
+    return {
+      subcategoryIds,
+      subcategoryIdsByLower,
+      subcategoryByName,
+      serviceByCatalogId,
+      serviceBySlug,
+      serviceByName,
+    };
+  }, [allServicesWithInstructors, categoriesWithSubcategories]);
+
+  const { resolvedSubcategoryId } = useMemo(
+    () =>
+      resolveSubcategoryContext({
+        explicitSubcategoryId,
+        subcategoryParam,
+        serviceCatalogId,
+        serviceParam,
+        serviceName: serviceNameFromUrl,
+        lookup: subcategoryLookup,
+      }),
+    [
+      explicitSubcategoryId,
+      subcategoryParam,
+      serviceCatalogId,
+      serviceParam,
+      serviceNameFromUrl,
+      subcategoryLookup,
+    ]
+  );
+
+  const { data: resolvedSubcategoryFilters } = useSubcategoryFilters(resolvedSubcategoryId ?? '');
+
+  const skillLevelOptions = useMemo<SkillLevelOption[]>(() => {
+    if (!resolvedSubcategoryId) {
+      return UNIVERSAL_SKILL_LEVEL_OPTIONS;
+    }
+    return getSkillLevelOptionsFromTaxonomy(resolvedSubcategoryFilters);
+  }, [resolvedSubcategoryFilters, resolvedSubcategoryId]);
+
+  const selectedSkillLevel = useMemo(() => {
+    const allowedValues = new Set(skillLevelOptions.map((option) => option.value));
+    return parsedSkillLevelFromUrl.filter((value) => allowedValues.has(value));
+  }, [parsedSkillLevelFromUrl, skillLevelOptions]);
+
+  const filtersWithSkillLevel = useMemo<FilterState>(
+    () => ({
+      ...filters,
+      skillLevel: selectedSkillLevel,
+    }),
+    [filters, selectedSkillLevel]
+  );
+
   const builtSearchQuery = useMemo(() => {
     if (!query) return '';
     return buildQueryWithFilters(query, filters);
   }, [query, filters]);
+
+  const skillLevelCsv = useMemo(
+    () => buildSkillLevelParam(selectedSkillLevel, skillLevelOptions),
+    [selectedSkillLevel, skillLevelOptions]
+  );
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParamsString);
+    let hasChanges = false;
+
+    if (!params.get('subcategory_id') && resolvedSubcategoryId) {
+      params.set('subcategory_id', resolvedSubcategoryId);
+      hasChanges = true;
+    }
+
+    const existingSkillLevelParam = params.get('skill_level');
+    if (skillLevelCsv) {
+      if (existingSkillLevelParam !== skillLevelCsv) {
+        params.set('skill_level', skillLevelCsv);
+        hasChanges = true;
+      }
+    } else if (existingSkillLevelParam) {
+      params.delete('skill_level');
+      hasChanges = true;
+    }
+
+    if (!hasChanges) return;
+
+    const queryString = params.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+  }, [pathname, resolvedSubcategoryId, router, searchParamsString, skillLevelCsv]);
 
   const searchQueryEnabled = Boolean(builtSearchQuery || serviceCatalogId);
   const {
@@ -676,6 +856,8 @@ function SearchPageInner() {
   } = useInstructorSearchInfinite({
     searchQuery: builtSearchQuery,
     serviceCatalogId,
+    ...(resolvedSubcategoryId ? { subcategoryId: resolvedSubcategoryId } : {}),
+    ...(skillLevelCsv ? { skillLevelCsv } : {}),
     perPage: 20,
     enabled: searchQueryEnabled,
   });
@@ -904,41 +1086,28 @@ function SearchPageInner() {
         if (!filters.duration.some((duration) => durations.has(duration))) return false;
       }
 
-      if (filters.level.length > 0) {
+      if (selectedSkillLevel.length > 0) {
         const levels = new Set<string>();
         activeServices.forEach((svc) => {
-          if (!Array.isArray(svc.levels_taught)) return;
-          svc.levels_taught.forEach((level) => {
-            if (typeof level === 'string') levels.add(level.trim().toLowerCase());
-          });
+          getFilterSelectionValues(svc, 'skill_level').forEach((level) => levels.add(level));
+          normalizeStringSelections(svc.levels_taught).forEach((level) => levels.add(level));
         });
-        const contextLevels = Array.isArray(instructor._matchedServiceContext?.levels)
-          ? instructor._matchedServiceContext?.levels
-          : [];
-        contextLevels.forEach((level) => {
-          if (typeof level === 'string') levels.add(level.trim().toLowerCase());
-        });
+        normalizeStringSelections(instructor._matchedServiceContext?.skill_level).forEach((level) =>
+          levels.add(level)
+        );
         if (levels.size === 0) return false;
-        if (!filters.level.some((level) => levels.has(level))) return false;
+        if (!selectedSkillLevel.some((level) => levels.has(level))) return false;
       }
 
-      if (filters.audience.length > 0) {
-        const audiences = new Set<string>();
-        activeServices.forEach((svc) => {
-          if (!Array.isArray(svc.age_groups)) return;
-          svc.age_groups.forEach((group) => {
-            if (typeof group === 'string') audiences.add(group.trim().toLowerCase());
-          });
-        });
-        const contextAudiences = Array.isArray(instructor._matchedServiceContext?.age_groups)
-          ? instructor._matchedServiceContext?.age_groups
-          : [];
-        contextAudiences.forEach((group) => {
-          if (typeof group === 'string') audiences.add(group.trim().toLowerCase());
-        });
-        if (audiences.size === 0) return false;
-        if (!filters.audience.some((group) => audiences.has(group))) return false;
-      }
+      const audiences = new Set<string>();
+      activeServices.forEach((svc) => {
+        getFilterSelectionValues(svc, 'age_groups').forEach((group) => audiences.add(group));
+        normalizeStringSelections(svc.age_groups).forEach((group) => audiences.add(group));
+      });
+      normalizeStringSelections(instructor._matchedServiceContext?.age_groups).forEach((group) =>
+        audiences.add(group)
+      );
+      if (audiences.size > 0 && !audiences.has(activeAudience)) return false;
 
       if (filters.minRating !== 'any') {
         const ratingValue = typeof instructor.rating === 'number' ? instructor.rating : 0;
@@ -952,7 +1121,7 @@ function SearchPageInner() {
 
       return true;
     });
-  }, [availabilityByInstructor, filters, instructors]);
+  }, [activeAudience, availabilityByInstructor, filters, instructors, selectedSkillLevel]);
 
   const instructorCapabilities = useMemo(() => {
     const map = new Map<string, { offersTravel: boolean; offersAtLocation: boolean; offersOnline: boolean }>();
@@ -1300,8 +1469,25 @@ function SearchPageInner() {
           <div className={`px-6 ${isStacked ? 'pt-1 pb-1' : 'pt-0 md:pt-2 pb-1 md:pb-3'}`}>
             <div className={`bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 ${isStacked ? 'p-1' : 'p-1 md:p-4'}`}>
               <FilterBar
-                filters={filters}
+                filters={filtersWithSkillLevel}
+                skillLevelOptions={skillLevelOptions}
                 onFiltersChange={(nextFilters) => {
+                  const params = new URLSearchParams(searchParamsString);
+                  const nextSkillLevelCsv = buildSkillLevelParam(
+                    nextFilters.skillLevel,
+                    skillLevelOptions
+                  );
+                  if (nextSkillLevelCsv) {
+                    params.set('skill_level', nextSkillLevelCsv);
+                  } else {
+                    params.delete('skill_level');
+                  }
+                  const queryString = params.toString();
+                  if (queryString !== searchParamsString) {
+                    router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
+                      scroll: false,
+                    });
+                  }
                   setFilters(nextFilters);
                   setMapFilterIds(null);
                   setShowSearchAreaButton(false);
@@ -1372,7 +1558,7 @@ function SearchPageInner() {
               <RateLimitBanner rateLimit={rateLimit} />
 
             {/* Kids banner */}
-            {audience === 'kids' && (
+            {activeAudience === 'kids' && (
               <div className="mb-3 rounded-md bg-blue-50 border border-blue-200 text-blue-900 px-3 py-2 text-sm">
                 Showing instructors who teach kids
               </div>
