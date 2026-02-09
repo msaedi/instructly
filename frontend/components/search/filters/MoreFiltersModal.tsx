@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
 import {
+  type ContentFilterSelections,
   type TaxonomyContentFilterDefinition,
   UNIVERSAL_SKILL_LEVEL_OPTIONS,
   type FilterState,
@@ -23,6 +24,9 @@ const RATING_OPTIONS = [
   { value: '4.5', label: '4.5+ stars' },
 ] as const;
 
+const EMPTY_TAXONOMY_CONTENT_FILTERS: TaxonomyContentFilterDefinition[] = [];
+const EMPTY_SUGGESTED_CONTENT_FILTERS: ContentFilterSelections = {};
+
 interface MoreFiltersModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,6 +34,36 @@ interface MoreFiltersModalProps {
   onFiltersChange: (filters: FilterState) => void;
   skillLevelOptions?: SkillLevelOption[];
   taxonomyContentFilters?: TaxonomyContentFilterDefinition[];
+  suggestedContentFilters?: ContentFilterSelections;
+}
+
+function buildInitialDraft(
+  filters: FilterState,
+  taxonomyContentFilters: TaxonomyContentFilterDefinition[],
+  suggestedContentFilters: ContentFilterSelections
+) {
+  const mergedContentFilters: ContentFilterSelections = { ...filters.contentFilters };
+  for (const filterDefinition of taxonomyContentFilters) {
+    if ((mergedContentFilters[filterDefinition.key] ?? []).length > 0) {
+      continue;
+    }
+
+    const suggestedValues = suggestedContentFilters[filterDefinition.key] ?? [];
+    if (!suggestedValues.length) continue;
+
+    const allowedValues = new Set(filterDefinition.options.map((option) => option.value));
+    const nextValues = suggestedValues.filter((value) => allowedValues.has(value));
+    if (nextValues.length > 0) {
+      mergedContentFilters[filterDefinition.key] = nextValues;
+    }
+  }
+
+  return {
+    duration: filters.duration,
+    skillLevel: filters.skillLevel,
+    contentFilters: mergedContentFilters,
+    minRating: filters.minRating,
+  };
 }
 
 export function MoreFiltersModal({
@@ -38,14 +72,12 @@ export function MoreFiltersModal({
   filters,
   onFiltersChange,
   skillLevelOptions = UNIVERSAL_SKILL_LEVEL_OPTIONS,
-  taxonomyContentFilters = [],
+  taxonomyContentFilters = EMPTY_TAXONOMY_CONTENT_FILTERS,
+  suggestedContentFilters = EMPTY_SUGGESTED_CONTENT_FILTERS,
 }: MoreFiltersModalProps) {
-  const [draft, setDraft] = useState({
-    duration: filters.duration,
-    skillLevel: filters.skillLevel,
-    contentFilters: filters.contentFilters,
-    minRating: filters.minRating,
-  });
+  const [draft, setDraft] = useState(() =>
+    buildInitialDraft(filters, taxonomyContentFilters, suggestedContentFilters)
+  );
 
   useEffect(() => {
     if (!isOpen || process.env.NODE_ENV === 'production') return;

@@ -15275,10 +15275,57 @@ export type components = {
             timestamp: string;
         };
         /**
+         * NLSearchContentFilterDefinition
+         * @description Taxonomy content filter definition surfaced in NL search metadata.
+         */
+        NLSearchContentFilterDefinition: {
+            /**
+             * Key
+             * @description Machine-readable filter key
+             */
+            key: string;
+            /**
+             * Label
+             * @description Human-readable filter label
+             */
+            label: string;
+            /**
+             * Options
+             * @description Available options for this filter key
+             */
+            options?: components["schemas"]["NLSearchContentFilterOption"][];
+            /**
+             * Type
+             * @description Filter type (single_select|multi_select)
+             */
+            type: string;
+        };
+        /**
+         * NLSearchContentFilterOption
+         * @description Taxonomy content filter option surfaced in NL search metadata.
+         */
+        NLSearchContentFilterOption: {
+            /**
+             * Label
+             * @description Human-readable option label
+             */
+            label: string;
+            /**
+             * Value
+             * @description Machine-readable option value
+             */
+            value: string;
+        };
+        /**
          * NLSearchMeta
          * @description Search response metadata.
          */
         NLSearchMeta: {
+            /**
+             * Available Content Filters
+             * @description Taxonomy content filter definitions available for this search context (excludes hard application until user explicitly applies filters)
+             */
+            available_content_filters?: components["schemas"]["NLSearchContentFilterDefinition"][];
             /**
              * Cache Hit
              * @description Whether response was from cache
@@ -15303,6 +15350,16 @@ export type components = {
             degraded: boolean;
             /** @description Detailed diagnostics for admin tooling */
             diagnostics?: components["schemas"]["SearchDiagnostics"] | null;
+            /**
+             * Effective Subcategory Id
+             * @description Resolved subcategory id used to derive taxonomy filter definitions
+             */
+            effective_subcategory_id?: string | null;
+            /**
+             * Effective Subcategory Name
+             * @description Resolved subcategory name used to derive taxonomy filter definitions
+             */
+            effective_subcategory_name?: string | null;
             /**
              * Filter Stats
              * @description Filter stage counts for debugging (optional)

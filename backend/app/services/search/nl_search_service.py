@@ -36,6 +36,8 @@ from app.schemas.nl_search import (
     InstructorSummary,
     LocationResolutionInfo,
     LocationTierResult,
+    NLSearchContentFilterDefinition,
+    NLSearchContentFilterOption,
     NLSearchMeta,
     NLSearchResponse,
     NLSearchResultItem,
@@ -275,6 +277,8 @@ class PostOpenAIData:
     inferred_filters: Dict[str, List[str]] = field(default_factory=dict)
     effective_taxonomy_filters: Dict[str, List[str]] = field(default_factory=dict)
     effective_subcategory_id: Optional[str] = None
+    effective_subcategory_name: Optional[str] = None
+    available_content_filters: List[NLSearchContentFilterDefinition] = field(default_factory=list)
 
 
 class NLSearchService:
@@ -963,6 +967,9 @@ class NLSearchService:
                 metrics,
                 filter_result=post_data.filter_result,
                 inferred_filters=post_data.inferred_filters,
+                effective_subcategory_id=post_data.effective_subcategory_id,
+                effective_subcategory_name=post_data.effective_subcategory_name,
+                available_content_filters=post_data.available_content_filters,
                 budget=budget,
             )
             response_build_ms = int((time.perf_counter() - response_build_start) * 1000)
@@ -1097,6 +1104,52 @@ class NLSearchService:
             if values:
                 normalized[key] = values
         return normalized
+
+    @staticmethod
+    def _build_available_content_filters(
+        filter_definitions: List[Dict[str, Any]],
+    ) -> List[NLSearchContentFilterDefinition]:
+        """Convert repository taxonomy filter definitions to API metadata schema."""
+        available_filters: List[NLSearchContentFilterDefinition] = []
+
+        for raw_filter in filter_definitions:
+            key = str(raw_filter.get("filter_key") or "").strip().lower()
+            if not key:
+                continue
+
+            label = str(raw_filter.get("filter_display_name") or key).strip() or key
+            filter_type = str(raw_filter.get("filter_type") or "multi_select").strip()
+
+            options: List[NLSearchContentFilterOption] = []
+            seen_values: set[str] = set()
+            for raw_option in raw_filter.get("options", []) or []:
+                raw_value = str(raw_option.get("value") or "").strip().lower()
+                if not raw_value or raw_value in seen_values:
+                    continue
+                seen_values.add(raw_value)
+
+                display_name = str(raw_option.get("display_name") or "").strip()
+                option_label = display_name or raw_value
+                options.append(
+                    NLSearchContentFilterOption(
+                        value=raw_value,
+                        label=option_label,
+                    )
+                )
+
+            if not options:
+                continue
+
+            available_filters.append(
+                NLSearchContentFilterDefinition(
+                    key=key,
+                    label=label,
+                    type=filter_type,
+                    options=options,
+                )
+            )
+
+        return available_filters
 
     @staticmethod
     def _build_cache_filters(
@@ -2087,9 +2140,17 @@ class NLSearchService:
 
             taxonomy_repository = TaxonomyFilterRepository(db)
             inferred_filters: Dict[str, List[str]] = {}
+            effective_subcategory_name: Optional[str] = None
+            available_content_filters: List[NLSearchContentFilterDefinition] = []
             if effective_subcategory_id:
                 subcategory_filters = taxonomy_repository.get_filters_for_subcategory(
                     effective_subcategory_id
+                )
+                effective_subcategory_name = taxonomy_repository.get_subcategory_name(
+                    effective_subcategory_id
+                )
+                available_content_filters = self._build_available_content_filters(
+                    subcategory_filters
                 )
                 inferred_filters = extract_inferred_filters(
                     original_query=parsed_query.original_query,
@@ -2232,6 +2293,8 @@ class NLSearchService:
                 inferred_filters=inferred_filters,
                 effective_taxonomy_filters=hard_taxonomy_filters,
                 effective_subcategory_id=effective_subcategory_id,
+                effective_subcategory_name=effective_subcategory_name,
+                available_content_filters=available_content_filters,
             )
 
     async def _hydrate_instructor_results(
@@ -2742,6 +2805,9 @@ class NLSearchService:
         *,
         filter_result: Optional[FilterResult] = None,
         inferred_filters: Optional[Dict[str, List[str]]] = None,
+        effective_subcategory_id: Optional[str] = None,
+        effective_subcategory_name: Optional[str] = None,
+        available_content_filters: Optional[List[NLSearchContentFilterDefinition]] = None,
         budget: Optional[RequestBudget] = None,
     ) -> NLSearchResponse:
         """
@@ -2803,6 +2869,9 @@ class NLSearchService:
             parsing_mode=parsed_query.parsing_mode,
             filters_applied=filter_result.filters_applied if filter_result else [],
             inferred_filters=inferred_filters or {},
+            effective_subcategory_id=effective_subcategory_id,
+            effective_subcategory_name=effective_subcategory_name,
+            available_content_filters=available_content_filters or [],
             soft_filtering_used=filter_result.soft_filtering_used if filter_result else False,
             filter_stats=filter_result.filter_stats if filter_result else None,
             soft_filter_message=soft_filter_message,

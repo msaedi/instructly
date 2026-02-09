@@ -25,6 +25,7 @@ import { useCategoriesWithSubcategories, useSubcategoryFilters } from '@/hooks/q
 import { AlertTriangle, ChevronDown } from 'lucide-react';
 import { FilterBar } from '@/components/search/FilterBar';
 import {
+  type ContentFilterSelections,
   DEFAULT_FILTERS,
   UNIVERSAL_SKILL_LEVEL_OPTIONS,
   type FilterState,
@@ -35,12 +36,14 @@ import { logger } from '@/lib/logger';
 import {
   buildContentFiltersParam,
   buildSkillLevelParam,
+  getDynamicContentFiltersFromSearchMeta,
   getDynamicContentFiltersFromTaxonomy,
   getSkillLevelOptionsFromTaxonomy,
   normalizeLookupKey,
   parseContentFiltersParam,
   parseSkillLevelParam,
   resolveSubcategoryContext,
+  sanitizeContentFiltersForDefinitions,
   sanitizeContentFiltersForSubcategory,
   type SubcategoryResolutionLookup,
 } from './filterContext';
@@ -48,6 +51,11 @@ import {
 const IS_TAXONOMY_DEBUG_ENABLED = process.env.NODE_ENV !== 'production';
 
 type SortOption = 'recommended' | 'price_asc' | 'price_desc' | 'rating';
+type AggregatedSearchData = {
+  instructors: Instructor[];
+  totalResults: number;
+  nlSearchMeta: Record<string, unknown> | null;
+};
 
 function RateLimitBanner({ rateLimit }: { rateLimit: { seconds: number } | null }) {
   if (!rateLimit) return null;
@@ -804,7 +812,7 @@ function SearchPageInner() {
     error: subcategoryFiltersError,
   } = useSubcategoryFilters(resolvedSubcategoryId ?? '');
 
-  const taxonomyContentFilters = useMemo(
+  const taxonomyContentFiltersFromSubcategory = useMemo(
     () =>
       resolvedSubcategoryId
         ? getDynamicContentFiltersFromTaxonomy(resolvedSubcategoryFilters)
@@ -859,10 +867,10 @@ function SearchPageInner() {
     if (!IS_TAXONOMY_DEBUG_ENABLED) return;
     logger.debug('[search:taxonomy] getDynamicContentFiltersFromTaxonomy', {
       resolvedSubcategoryId,
-      taxonomyContentFilterKeys: taxonomyContentFilters.map((filter) => filter.key),
-      taxonomyContentFilterCount: taxonomyContentFilters.length,
+      taxonomyContentFilterKeys: taxonomyContentFiltersFromSubcategory.map((filter) => filter.key),
+      taxonomyContentFilterCount: taxonomyContentFiltersFromSubcategory.length,
     });
-  }, [resolvedSubcategoryId, taxonomyContentFilters]);
+  }, [resolvedSubcategoryId, taxonomyContentFiltersFromSubcategory]);
 
   const skillLevelOptions = useMemo<SkillLevelOption[]>(() => {
     if (!resolvedSubcategoryId) {
@@ -879,7 +887,7 @@ function SearchPageInner() {
   const selectedContentFilters = useMemo(
     () => {
       if (!resolvedSubcategoryId) {
-        return {};
+        return parsedContentFiltersFromUrl;
       }
       if (!resolvedSubcategoryFilters) {
         return parsedContentFiltersFromUrl;
@@ -914,9 +922,9 @@ function SearchPageInner() {
     () =>
       buildContentFiltersParam(
         selectedContentFilters,
-        taxonomyContentFilters.map((filterDefinition) => filterDefinition.key)
+        taxonomyContentFiltersFromSubcategory.map((filterDefinition) => filterDefinition.key)
       ),
-    [selectedContentFilters, taxonomyContentFilters]
+    [selectedContentFilters, taxonomyContentFiltersFromSubcategory]
   );
 
   useEffect(() => {
@@ -983,7 +991,7 @@ function SearchPageInner() {
   const loading = searchQueryEnabled ? isSearchLoading : false;
   const loadingMore = isFetchingNextPage;
 
-  const { instructors, totalResults, nlSearchMeta } = useMemo(() => {
+  const { instructors, totalResults, nlSearchMeta } = useMemo<AggregatedSearchData>(() => {
     const pages = searchResponse?.pages ?? [];
     if (!searchQueryEnabled || pages.length === 0) {
       return { instructors: [], totalResults: 0, nlSearchMeta: null };
@@ -1036,6 +1044,63 @@ function SearchPageInner() {
       nlSearchMeta: meta,
     };
   }, [searchQueryEnabled, searchResponse, serviceCatalogId]);
+
+  const taxonomyContentFiltersFromMeta = useMemo(
+    () =>
+      getDynamicContentFiltersFromSearchMeta(
+        isRecord(nlSearchMeta) ? nlSearchMeta['available_content_filters'] : undefined
+      ),
+    [nlSearchMeta]
+  );
+
+  const taxonomyContentFilters = useMemo(
+    () =>
+      resolvedSubcategoryId
+        ? taxonomyContentFiltersFromSubcategory
+        : taxonomyContentFiltersFromMeta,
+    [resolvedSubcategoryId, taxonomyContentFiltersFromMeta, taxonomyContentFiltersFromSubcategory]
+  );
+
+  const inferredContentFiltersFromMeta = useMemo<ContentFilterSelections>(() => {
+    if (!isRecord(nlSearchMeta) || !isRecord(nlSearchMeta['inferred_filters'])) {
+      return {};
+    }
+
+    const normalized: ContentFilterSelections = {};
+    for (const [rawKey, rawValues] of Object.entries(nlSearchMeta['inferred_filters'])) {
+      const key = rawKey.trim().toLowerCase();
+      if (!key || key === 'skill_level' || !Array.isArray(rawValues)) continue;
+
+      const values = rawValues
+        .filter((value): value is string => typeof value === 'string')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean);
+      if (values.length > 0) {
+        normalized[key] = Array.from(new Set(values));
+      }
+    }
+
+    return normalized;
+  }, [nlSearchMeta]);
+
+  const suggestedContentFilters = useMemo<ContentFilterSelections>(() => {
+    const sanitizedSuggestions = sanitizeContentFiltersForDefinitions(
+      inferredContentFiltersFromMeta,
+      taxonomyContentFilters
+    );
+    if (!Object.keys(sanitizedSuggestions).length) {
+      return {};
+    }
+
+    const suggestions: ContentFilterSelections = {};
+    for (const [key, values] of Object.entries(sanitizedSuggestions)) {
+      if ((selectedContentFilters[key] ?? []).length > 0) {
+        continue;
+      }
+      suggestions[key] = values;
+    }
+    return suggestions;
+  }, [inferredContentFiltersFromMeta, selectedContentFilters, taxonomyContentFilters]);
 
   const inferredSubcategoryIdFromResults = useMemo(() => {
     if (resolvedSubcategoryId || instructors.length === 0) {
@@ -1638,6 +1703,7 @@ function SearchPageInner() {
                 filters={filtersWithTaxonomy}
                 skillLevelOptions={skillLevelOptions}
                 taxonomyContentFilters={taxonomyContentFilters}
+                suggestedContentFilters={suggestedContentFilters}
                 onFiltersChange={(nextFilters) => {
                   const params = new URLSearchParams(searchParamsString);
                   const nextSkillLevelCsv = buildSkillLevelParam(

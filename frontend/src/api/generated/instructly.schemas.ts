@@ -5318,6 +5318,30 @@ export interface MonitoringDashboardResponse {
 }
 
 /**
+ * Taxonomy content filter option surfaced in NL search metadata.
+ */
+export interface NLSearchContentFilterOption {
+  /** Human-readable option label */
+  label: string;
+  /** Machine-readable option value */
+  value: string;
+}
+
+/**
+ * Taxonomy content filter definition surfaced in NL search metadata.
+ */
+export interface NLSearchContentFilterDefinition {
+  /** Machine-readable filter key */
+  key: string;
+  /** Human-readable filter label */
+  label: string;
+  /** Available options for this filter key */
+  options?: NLSearchContentFilterOption[];
+  /** Filter type (single_select|multi_select) */
+  type: string;
+}
+
+/**
  * Filter stage counts for debugging (optional)
  */
 export type NLSearchMetaFilterStats = { [key: string]: number } | null;
@@ -5462,6 +5486,8 @@ export interface ParsedQueryInfo {
  * Search response metadata.
  */
 export interface NLSearchMeta {
+  /** Taxonomy content filter definitions available for this search context (excludes hard application until user explicitly applies filters) */
+  available_content_filters?: NLSearchContentFilterDefinition[];
   /** Whether response was from cache */
   cache_hit?: boolean;
   /** Typo-corrected query if different */
@@ -5472,6 +5498,10 @@ export interface NLSearchMeta {
   degraded?: boolean;
   /** Detailed diagnostics for admin tooling */
   diagnostics?: SearchDiagnostics | null;
+  /** Resolved subcategory id used to derive taxonomy filter definitions */
+  effective_subcategory_id?: string | null;
+  /** Resolved subcategory name used to derive taxonomy filter definitions */
+  effective_subcategory_name?: string | null;
   /** Filter stage counts for debugging (optional) */
   filter_stats?: NLSearchMetaFilterStats;
   /** Filters applied during constraint filtering */
