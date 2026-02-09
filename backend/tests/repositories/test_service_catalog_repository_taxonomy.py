@@ -194,6 +194,26 @@ class TestGetServiceWithSubcategory:
         assert result is None
 
 
+class TestGetSubcategoryIdsForCatalogIds:
+    def test_returns_mapping_for_existing_catalog_ids(self, db: Session, taxonomy_tree):
+        repo = ServiceCatalogRepository(db)
+        mapping = repo.get_subcategory_ids_for_catalog_ids(
+            [
+                taxonomy_tree["svc_a1_1"].id,
+                taxonomy_tree["svc_a2_1"].id,
+                "01JNONEXISTENT000000000000",
+            ]
+        )
+
+        assert mapping[taxonomy_tree["svc_a1_1"].id] == taxonomy_tree["sub_a1"].id
+        assert mapping[taxonomy_tree["svc_a2_1"].id] == taxonomy_tree["sub_a2"].id
+        assert "01JNONEXISTENT000000000000" not in mapping
+
+    def test_returns_empty_mapping_for_empty_input(self, db: Session):
+        repo = ServiceCatalogRepository(db)
+        assert repo.get_subcategory_ids_for_catalog_ids([]) == {}
+
+
 class TestGetServicesByEligibleAgeGroup:
     def test_kids_returns_matching_services(self, db: Session, taxonomy_tree):
         repo = ServiceCatalogRepository(db)

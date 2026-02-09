@@ -756,6 +756,32 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             .first(),
         )
 
+    def get_subcategory_ids_for_catalog_ids(self, service_catalog_ids: List[str]) -> Dict[str, str]:
+        """Fetch subcategory IDs for a batch of service catalog IDs.
+
+        Args:
+            service_catalog_ids: Catalog IDs to resolve.
+
+        Returns:
+            Dict mapping service_catalog_id -> subcategory_id.
+        """
+        unique_catalog_ids = [
+            service_id for service_id in dict.fromkeys(service_catalog_ids) if service_id
+        ]
+        if not unique_catalog_ids:
+            return {}
+
+        rows = (
+            self.db.query(ServiceCatalog.id, ServiceCatalog.subcategory_id)
+            .filter(ServiceCatalog.id.in_(unique_catalog_ids))
+            .all()
+        )
+        return {
+            str(catalog_id): str(subcategory_id)
+            for catalog_id, subcategory_id in rows
+            if catalog_id and subcategory_id
+        }
+
     def search_services_by_name(self, query: str, limit: int = 15) -> List[ServiceCatalog]:
         """Text search across service names for autocomplete.
 

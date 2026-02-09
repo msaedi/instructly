@@ -8498,6 +8498,9 @@ export type components = {
  [key: string]: number;
  } | null;
  filters_applied?: string[];
+ inferred_filters?: {
+ [key: string]: string[];
+ };
  latency_ms: number;
  limit: number;
  location_message?: string | null;

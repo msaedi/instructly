@@ -5323,6 +5323,11 @@ export interface MonitoringDashboardResponse {
 export type NLSearchMetaFilterStats = { [key: string]: number } | null;
 
 /**
+ * Taxonomy filter values inferred from query text post-resolution
+ */
+export type NLSearchMetaInferredFilters = { [key: string]: string[] };
+
+/**
  * Details for parse pipeline stage.
  */
 export interface ParseStageDetails {
@@ -5471,6 +5476,8 @@ export interface NLSearchMeta {
   filter_stats?: NLSearchMetaFilterStats;
   /** Filters applied during constraint filtering */
   filters_applied?: string[];
+  /** Taxonomy filter values inferred from query text post-resolution */
+  inferred_filters?: NLSearchMetaInferredFilters;
   /**
    * Total search latency in ms
    * @minimum 0
