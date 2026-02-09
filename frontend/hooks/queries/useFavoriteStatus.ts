@@ -34,7 +34,10 @@ export function useFavoriteStatus(instructorId: string, initialValue?: boolean) 
     queryKey: ['favorites', 'check', instructorId],
     queryFn: async () => {
       const res = await favoritesApi.check(instructorId);
-      return res.is_favorited;
+      // React Query query functions must never resolve `undefined`.
+      // If the API returns an unexpected payload (for example an auth/problem body),
+      // default to `false` instead of bubbling an undefined value into the cache.
+      return typeof res?.is_favorited === 'boolean' ? res.is_favorited : false;
     },
     enabled: isAuthenticated && !!instructorId,
     staleTime: CACHE_TIMES.FREQUENT, // 5 minutes
