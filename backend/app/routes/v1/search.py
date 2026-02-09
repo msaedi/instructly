@@ -16,7 +16,7 @@ Endpoints:
 import asyncio
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
@@ -54,6 +54,7 @@ from ...services.permission_service import PermissionService
 from ...services.search.config import get_search_config
 from ...services.search.nl_search_service import NLSearchService, get_search_inflight_count
 from ...services.search.patterns import NEAR_ME
+from .taxonomy_filter_query import parse_taxonomy_filter_query_params
 
 logger = logging.getLogger(__name__)
 
@@ -61,24 +62,6 @@ SEARCH_ANALYTICS_TIMEOUT_S = float(os.getenv("SEARCH_ANALYTICS_TIMEOUT_S", "0.5"
 
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["search-v1"])
-
-_ALLOWED_SKILL_LEVELS = {"beginner", "intermediate", "advanced"}
-
-
-def _parse_csv_query_param(raw_value: Optional[str]) -> List[str]:
-    """Parse comma-separated query param into normalized unique values."""
-    if raw_value is None or not isinstance(raw_value, str):
-        return []
-
-    values: List[str] = []
-    seen: set[str] = set()
-    for token in raw_value.split(","):
-        normalized = token.strip().lower()
-        if not normalized or normalized in seen:
-            continue
-        seen.add(normalized)
-        values.append(normalized)
-    return values
 
 
 @router.get(
@@ -97,11 +80,14 @@ async def nl_search(
         description="Comma-separated skill levels (beginner,intermediate,advanced)",
     ),
     subcategory_id: Optional[str] = Query(None, description="Optional subcategory ULID context"),
-    goal: Optional[str] = Query(None, description="Comma-separated taxonomy goal filters"),
-    format_values: Optional[str] = Query(
-        None, alias="format", description="Comma-separated taxonomy format filters"
+    content_filters: Optional[str] = Query(
+        None,
+        description=(
+            "Pipe-delimited taxonomy content filters in the format "
+            "'key:val1,val2|key2:val3'. "
+            "Max 10 keys and 20 values per key."
+        ),
     ),
-    style: Optional[str] = Query(None, description="Comma-separated taxonomy style filters"),
     diagnostics: bool = Query(False, description="Include detailed diagnostics (admin only)"),
     force_skip_tier5: bool = Query(False, description="Force skip Tier 5 LLM (admin only)"),
     force_skip_tier4: bool = Query(False, description="Force skip Tier 4 embedding (admin only)"),
@@ -149,31 +135,16 @@ async def nl_search(
             detail="Query cannot be empty or whitespace-only",
         )
 
-    skill_levels = _parse_csv_query_param(skill_level)
-    invalid_skill_levels = sorted(
-        level for level in skill_levels if level not in _ALLOWED_SKILL_LEVELS
-    )
-    if invalid_skill_levels:
+    try:
+        taxonomy_filter_selections, skill_levels = parse_taxonomy_filter_query_params(
+            skill_level=skill_level,
+            content_filters=content_filters,
+        )
+    except ValueError as exc:
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Invalid skill_level value(s): "
-                f"{', '.join(invalid_skill_levels)}. Allowed: beginner, intermediate, advanced"
-            ),
+            detail=str(exc),
         )
-
-    taxonomy_filter_selections: Dict[str, List[str]] = {}
-    goal_values = _parse_csv_query_param(goal)
-    style_values = _parse_csv_query_param(style)
-    format_values_list = _parse_csv_query_param(format_values)
-    if skill_levels:
-        taxonomy_filter_selections["skill_level"] = skill_levels
-    if goal_values:
-        taxonomy_filter_selections["goal"] = goal_values
-    if format_values_list:
-        taxonomy_filter_selections["format"] = format_values_list
-    if style_values:
-        taxonomy_filter_selections["style"] = style_values
 
     # Validate location (both or neither)
     user_location: Optional[tuple[float, float]] = None

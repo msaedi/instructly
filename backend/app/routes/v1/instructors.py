@@ -18,7 +18,7 @@ Endpoints:
 
 import asyncio
 import logging
-from typing import Dict, List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 from fastapi.params import Path
@@ -60,6 +60,7 @@ from ...services.address_service import AddressService
 from ...services.cache_service import CacheServiceSyncAdapter
 from ...services.favorites_service import FavoritesService
 from ...services.instructor_service import InstructorService
+from .taxonomy_filter_query import parse_taxonomy_filter_query_params
 
 logger = logging.getLogger(__name__)
 
@@ -67,23 +68,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["instructors-v1"])
 
 ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
-_ALLOWED_SKILL_LEVELS = {"beginner", "intermediate", "advanced"}
-
-
-def _parse_csv_query_param(raw_value: Optional[str]) -> List[str]:
-    """Parse comma-separated query param into normalized unique values."""
-    if raw_value is None or not isinstance(raw_value, str):
-        return []
-
-    values: List[str] = []
-    seen: set[str] = set()
-    for token in raw_value.split(","):
-        normalized = token.strip().lower()
-        if not normalized or normalized in seen:
-            continue
-        seen.add(normalized)
-        values.append(normalized)
-    return values
 
 
 def get_address_service(db: Session = Depends(get_db)) -> AddressService:
@@ -108,11 +92,14 @@ async def list_instructors(
         description="Comma-separated skill levels (beginner,intermediate,advanced)",
     ),
     subcategory_id: Optional[str] = Query(None, description="Optional subcategory ULID context"),
-    goal: Optional[str] = Query(None, description="Comma-separated taxonomy goal filters"),
-    format_values: Optional[str] = Query(
-        None, alias="format", description="Comma-separated taxonomy format filters"
+    content_filters: Optional[str] = Query(
+        None,
+        description=(
+            "Pipe-delimited taxonomy content filters in the format "
+            "'key:val1,val2|key2:val3'. "
+            "Max 10 keys and 20 values per key."
+        ),
     ),
-    style: Optional[str] = Query(None, description="Comma-separated taxonomy style filters"),
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -128,31 +115,16 @@ async def list_instructors(
     """
     skip = (page - 1) * per_page
 
-    skill_levels = _parse_csv_query_param(skill_level)
-    invalid_skill_levels = sorted(
-        level for level in skill_levels if level not in _ALLOWED_SKILL_LEVELS
-    )
-    if invalid_skill_levels:
+    try:
+        taxonomy_filter_selections, _ = parse_taxonomy_filter_query_params(
+            skill_level=skill_level,
+            content_filters=content_filters,
+        )
+    except ValueError as exc:
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Invalid skill_level value(s): "
-                f"{', '.join(invalid_skill_levels)}. Allowed: beginner, intermediate, advanced"
-            ),
+            detail=str(exc),
         )
-
-    taxonomy_filter_selections: Dict[str, List[str]] = {}
-    goal_values = _parse_csv_query_param(goal)
-    style_values = _parse_csv_query_param(style)
-    format_values_list = _parse_csv_query_param(format_values)
-    if skill_levels:
-        taxonomy_filter_selections["skill_level"] = skill_levels
-    if goal_values:
-        taxonomy_filter_selections["goal"] = goal_values
-    if format_values_list:
-        taxonomy_filter_selections["format"] = format_values_list
-    if style_values:
-        taxonomy_filter_selections["style"] = style_values
 
     # Validate filter parameters
     try:

@@ -181,9 +181,7 @@ def test_search_accepts_taxonomy_filters_and_forwards(client, monkeypatch) -> No
         params={
             "q": "piano lessons",
             "skill_level": "beginner, intermediate, beginner",
-            "goal": "enrichment,,test_prep",
-            "format": "one_time",
-            "style": "jazz",
+            "content_filters": "goal:enrichment,,test_prep|format:one_time|style:jazz",
             "subcategory_id": "01HXYZSUBCATEGORY0000000000",
         },
     )
@@ -199,11 +197,103 @@ def test_search_accepts_taxonomy_filters_and_forwards(client, monkeypatch) -> No
     }
 
 
+def test_search_ignores_malformed_content_filter_segments(client, monkeypatch) -> None:
+    captured_kwargs: dict = {}
+
+    async def fake_search(self, query: str, **kwargs) -> NLSearchResponse:
+        captured_kwargs.update(kwargs)
+        return _make_search_response(query)
+
+    monkeypatch.setattr(NLSearchService, "search", fake_search)
+
+    response = client.get(
+        "/api/v1/search",
+        params={
+            "q": "piano lessons",
+            "content_filters": "goal:enrichment|broken|:missing_key|format:",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured_kwargs["taxonomy_filter_selections"] == {"goal": ["enrichment"]}
+
+
+def test_search_accepts_arbitrary_content_filter_key(client, monkeypatch) -> None:
+    captured_kwargs: dict = {}
+
+    async def fake_search(self, query: str, **kwargs) -> NLSearchResponse:
+        captured_kwargs.update(kwargs)
+        return _make_search_response(query)
+
+    monkeypatch.setattr(NLSearchService, "search", fake_search)
+
+    response = client.get(
+        "/api/v1/search",
+        params={
+            "q": "math tutoring",
+            "content_filters": "grade_level:6th,7th|goal:enrichment",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured_kwargs["taxonomy_filter_selections"] == {
+        "grade_level": ["6th", "7th"],
+        "goal": ["enrichment"],
+    }
+
+
+def test_search_skill_level_param_overrides_content_filters_skill_level(client, monkeypatch) -> None:
+    captured_kwargs: dict = {}
+
+    async def fake_search(self, query: str, **kwargs) -> NLSearchResponse:
+        captured_kwargs.update(kwargs)
+        return _make_search_response(query)
+
+    monkeypatch.setattr(NLSearchService, "search", fake_search)
+
+    response = client.get(
+        "/api/v1/search",
+        params={
+            "q": "piano lessons",
+            "skill_level": "advanced",
+            "content_filters": "skill_level:beginner,intermediate|goal:enrichment",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured_kwargs["taxonomy_filter_selections"] == {
+        "skill_level": ["advanced"],
+        "goal": ["enrichment"],
+    }
+
+
 def test_search_rejects_invalid_skill_level_param(client) -> None:
     response = client.get("/api/v1/search", params={"q": "piano lessons", "skill_level": "expert"})
 
     assert response.status_code == 400
     assert "Invalid skill_level" in response.json()["detail"]
+
+
+def test_search_rejects_content_filters_with_too_many_keys(client) -> None:
+    too_many_keys = "|".join(f"k{i}:v" for i in range(11))
+    response = client.get(
+        "/api/v1/search",
+        params={"q": "piano lessons", "content_filters": too_many_keys},
+    )
+
+    assert response.status_code == 400
+    assert "at most 10 keys" in response.json()["detail"]
+
+
+def test_search_rejects_content_filters_with_too_many_values_per_key(client) -> None:
+    too_many_values = ",".join(f"v{i}" for i in range(21))
+    response = client.get(
+        "/api/v1/search",
+        params={"q": "piano lessons", "content_filters": f"goal:{too_many_values}"},
+    )
+
+    assert response.status_code == 400
+    assert "at most 20 values" in response.json()["detail"]
 
 
 def test_search_health_endpoint(client, monkeypatch) -> None:

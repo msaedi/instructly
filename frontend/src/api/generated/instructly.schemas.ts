@@ -9587,17 +9587,9 @@ export type ListInstructorsApiV1InstructorsGetParams = {
    */
   subcategory_id?: string | null;
   /**
-   * Comma-separated taxonomy goal filters
+   * Pipe-delimited taxonomy content filters in the format 'key:val1,val2|key2:val3'. Max 10 keys and 20 values per key.
    */
-  goal?: string | null;
-  /**
-   * Comma-separated taxonomy format filters
-   */
-  format?: string | null;
-  /**
-   * Comma-separated taxonomy style filters
-   */
-  style?: string | null;
+  content_filters?: string | null;
   /**
    * Page number
    * @minimum 1
@@ -9813,17 +9805,9 @@ export type NlSearchApiV1SearchGetParams = {
    */
   subcategory_id?: string | null;
   /**
-   * Comma-separated taxonomy goal filters
+   * Pipe-delimited taxonomy content filters in the format 'key:val1,val2|key2:val3'. Max 10 keys and 20 values per key.
    */
-  goal?: string | null;
-  /**
-   * Comma-separated taxonomy format filters
-   */
-  format?: string | null;
-  /**
-   * Comma-separated taxonomy style filters
-   */
-  style?: string | null;
+  content_filters?: string | null;
   /**
    * Include detailed diagnostics (admin only)
    */
