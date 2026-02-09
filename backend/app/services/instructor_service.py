@@ -26,7 +26,7 @@ from ..core.exceptions import (
     ServiceException,
 )
 from ..models.instructor import InstructorPreferredPlace, InstructorProfile
-from ..models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from ..models.service_catalog import InstructorService as Service, ServiceCatalog
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from ..repositories.instructor_preferred_place_repository import (
@@ -98,7 +98,7 @@ class InstructorService(BaseService):
         )
         # Add catalog repositories - use specialized repository for search capabilities
         self.catalog_repository = RepositoryFactory.create_service_catalog_repository(db)
-        self.category_repository = RepositoryFactory.create_base_repository(db, ServiceCategory)
+        self.category_repository = RepositoryFactory.create_category_repository(db)
         self.analytics_repository = RepositoryFactory.create_service_analytics_repository(db)
         self.preferred_place_repository = (
             preferred_place_repository
@@ -1332,7 +1332,7 @@ class InstructorService(BaseService):
                 logger.debug("Cache hit for service categories")
                 return cast(JsonList, cached)
 
-        categories = self.category_repository.get_all()
+        categories = self.category_repository.get_all_active()
         result = [
             {
                 "id": cat.id,
@@ -1794,7 +1794,7 @@ class InstructorService(BaseService):
                 return cast(JsonDict, cached_result)
 
         # Get all categories
-        categories = self.category_repository.get_all()
+        categories = self.category_repository.get_all_active()
 
         categories_data: JsonList = []
         result: JsonDict = {
@@ -1874,7 +1874,7 @@ class InstructorService(BaseService):
                 return cast(JsonDict, cached_result)
 
         # Get all categories
-        categories = self.category_repository.get_all()
+        categories = self.category_repository.get_all_active()
 
         categories_data: JsonList = []
         result: JsonDict = {

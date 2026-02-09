@@ -124,6 +124,13 @@ def test_critical_tasks_are_decorated() -> None:
         ),
         ("app.tasks.retention_tasks", "purge_soft_deleted_task", "nightly-retention-purge"),
         ("app.tasks.celery_app", "run_availability_retention", "availability-retention-daily"),
+        ("app.tasks.privacy_tasks", "generate_privacy_report", "generate-privacy-report"),
+        ("app.tasks.analytics", "calculate_analytics", "calculate-service-analytics"),
+        (
+            "app.tasks.search_analytics",
+            "generate_search_insights",
+            "generate-search-insights",
+        ),
     ]
 
     for module_name, task_attr, slug in task_mappings:
@@ -155,6 +162,9 @@ def test_slugs_tuple_matches_config_keys() -> None:
         ("append-codebase-metrics-history", True),
         ("nightly-retention-purge", True),
         ("availability-retention-daily", True),
+        ("generate-privacy-report", True),
+        ("calculate-service-analytics", True),
+        ("generate-search-insights", True),
         ("some-other-task", False),
         ("notifications-dispatch-pending", False),
     ],

@@ -545,7 +545,7 @@ def test_get_service_categories_cache_hit_and_set():
     assert service.get_service_categories() == [{"id": "cached"}]
 
     service.cache_service.get.return_value = None
-    service.category_repository.get_all.return_value = [
+    service.category_repository.get_all_active.return_value = [
         SimpleNamespace(
             id="cat-2",
             name="Music",
@@ -687,7 +687,7 @@ def test_get_top_services_per_category_cache_hit_and_set():
 
     service.cache_service.get.return_value = None
     category = SimpleNamespace(id="cat-1", name="Music", slug="music", icon_name=None, display_order=1)
-    service.category_repository.get_all.return_value = [category]
+    service.category_repository.get_all_active.return_value = [category]
     service.catalog_repository.get_active_services_with_categories.return_value = [
         SimpleNamespace(id="svc-1", name="Piano", slug="piano", display_order=1)
     ]
