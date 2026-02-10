@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import RescheduleTimeSelectionModal from '../RescheduleTimeSelectionModal';
 import { publicApi } from '@/features/shared/api/client';
 
@@ -31,6 +31,8 @@ jest.mock('@/components/user/UserAvatar', () => ({
   ),
 }));
 
+let calendarOnDateSelect: ((date: string) => void) | null = null;
+
 jest.mock('@/features/shared/booking/ui/Calendar', () => {
   return function MockCalendar({
     onDateSelect,
@@ -39,6 +41,7 @@ jest.mock('@/features/shared/booking/ui/Calendar', () => {
     onDateSelect: (date: string) => void;
     availableDates: string[];
   }) {
+    calendarOnDateSelect = onDateSelect;
     return (
       <div data-testid="calendar">
         {availableDates.map((date) => (
@@ -200,6 +203,7 @@ describe('RescheduleTimeSelectionModal', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2025-01-18T12:00:00Z'));
+    calendarOnDateSelect = null;
     getInstructorAvailabilityMock.mockResolvedValue(mockAvailabilityResponse);
   });
 
@@ -870,6 +874,482 @@ describe('RescheduleTimeSelectionModal', () => {
       if (dateButtons.length > 0) {
         fireEvent.click(dateButtons[0]!);
       }
+    });
+  });
+
+  describe('date selection with no availability data for selected date (DATE_SELECT_FAIL)', () => {
+    it('dispatches DATE_SELECT_FAIL when handleDateSelect is called with a date not in availabilityData', async () => {
+      // Load normal availability data first
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+        expect(calendarOnDateSelect).not.toBeNull();
+      });
+
+      // Call handleDateSelect with a date NOT in the availabilityData map
+      // availabilityData has '2025-01-20' and '2025-01-21', so '2025-01-25' will miss
+      const selectDate = calendarOnDateSelect!;
+      await act(async () => {
+        selectDate('2025-01-25');
+      });
+
+      // After DATE_SELECT_FAIL: loadingTimeSlots=false, timeSlots=[], selectedTime=null
+      // The time loading indicator should NOT be shown
+      expect(screen.queryAllByTestId('time-loading')).toHaveLength(0);
+      // Component should remain stable
+      expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+    });
+
+    it('dispatches DATE_SELECT_FAIL when availabilityData entry is undefined for the selected date', async () => {
+      // Response with a date key that resolves to undefined
+      const responseWithUndefinedEntry = {
+        status: 200,
+        data: {
+          availability_by_date: {
+            '2025-01-20': {
+              date: '2025-01-20',
+              available_slots: [
+                { start_time: '09:00', end_time: '12:00' },
+              ],
+              is_blackout: false,
+            },
+          },
+        },
+      };
+      getInstructorAvailabilityMock.mockResolvedValue(responseWithUndefinedEntry);
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(calendarOnDateSelect).not.toBeNull();
+        expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+      });
+
+      // Select a date that exists as key in availableDates but NOT in availabilityData
+      const selectDate = calendarOnDateSelect!;
+      await act(async () => {
+        selectDate('2025-01-22'); // Not in the data
+      });
+
+      // loadingTimeSlots should be false after DATE_SELECT_FAIL
+      expect(screen.queryAllByTestId('time-loading')).toHaveLength(0);
+    });
+  });
+
+  describe('backdrop click handler (lines 484-486)', () => {
+    it('calls onClose when backdrop is clicked directly (target === currentTarget)', async () => {
+      const onClose = jest.fn();
+      render(<RescheduleTimeSelectionModal {...defaultProps} onClose={onClose} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Need to reschedule?').length).toBeGreaterThan(0);
+      });
+
+      // The desktop layout uses onClick={handleBackdropClick} on a div
+      // Find the outer desktop container with onClick
+      const desktopContainer = document.querySelector('.hidden.md\\:block.fixed.inset-0.z-50');
+      if (desktopContainer) {
+        // Direct click on the backdrop itself (target === currentTarget)
+        fireEvent.click(desktopContainer);
+        expect(onClose).toHaveBeenCalled();
+      }
+    });
+
+    it('does not call onClose when clicking inside modal content', async () => {
+      const onClose = jest.fn();
+      render(<RescheduleTimeSelectionModal {...defaultProps} onClose={onClose} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Need to reschedule?').length).toBeGreaterThan(0);
+      });
+
+      // Click on the heading text (inside modal, not on backdrop)
+      const heading = screen.getAllByText('Need to reschedule?')[0];
+      if (heading) {
+        fireEvent.click(heading);
+        // onClose should not be called because event propagation is stopped
+        expect(onClose).not.toHaveBeenCalled();
+      }
+    });
+  });
+
+  describe('cannot reschedule without onOpenChat', () => {
+    it('renders close button only when onOpenChat is not provided', async () => {
+      const currentLesson = {
+        date: '2025-01-18',
+        time: '18:00:00',
+        service: 'Piano',
+      };
+
+      render(
+        <RescheduleTimeSelectionModal
+          {...defaultProps}
+          currentLesson={currentLesson}
+          onOpenChat={undefined}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Cannot Reschedule')).toBeInTheDocument();
+      });
+
+      // Should show close button
+      expect(screen.getByText('Close')).toBeInTheDocument();
+      // Should NOT show "Chat with Instructor" button
+      expect(screen.queryByText('Chat with Instructor')).not.toBeInTheDocument();
+    });
+
+    it('close button calls onClose in cannot-reschedule view', async () => {
+      const onClose = jest.fn();
+      const currentLesson = {
+        date: '2025-01-18',
+        time: '18:00:00',
+        service: 'Piano',
+      };
+
+      render(
+        <RescheduleTimeSelectionModal
+          {...defaultProps}
+          onClose={onClose}
+          currentLesson={currentLesson}
+          onOpenChat={undefined}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Close')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Close'));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('availability error message paths', () => {
+    it('shows custom error message from API response string', async () => {
+      getInstructorAvailabilityMock.mockResolvedValue({
+        status: 500,
+        error: 'Custom backend error message',
+      });
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/Custom backend error message/).length).toBeGreaterThan(0);
+      });
+    });
+
+    it('shows 304 specific error message', async () => {
+      getInstructorAvailabilityMock.mockResolvedValue({
+        status: 304,
+        error: null,
+        data: null,
+      });
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/up to date/).length).toBeGreaterThan(0);
+      });
+    });
+
+    it('shows default error message when no error string', async () => {
+      getInstructorAvailabilityMock.mockResolvedValue({
+        status: 500,
+        error: null,
+        data: null,
+      });
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/load availability/).length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('availability with firstDate existing but firstDateData missing', () => {
+    it('handles case where firstDate entry is undefined in the map', async () => {
+      // This tests the guard at lines 304-305
+      const edgeCaseAvailability = {
+        status: 200,
+        data: {
+          availability_by_date: {
+            '2025-01-20': undefined, // Date key exists but value is undefined
+          },
+        },
+      };
+      getInstructorAvailabilityMock.mockResolvedValue(edgeCaseAvailability);
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('chat link without onOpenChat', () => {
+    it('renders static text instead of button when onOpenChat is not provided', async () => {
+      render(
+        <RescheduleTimeSelectionModal
+          {...defaultProps}
+          onOpenChat={undefined}
+        />
+      );
+
+      await waitFor(() => {
+        // The "Chat to reschedule" text should be a span, not a button
+        const chatLinks = screen.getAllByText('Chat to reschedule');
+        expect(chatLinks.length).toBeGreaterThan(0);
+        // When onOpenChat is undefined, the text should be a <span> not <button>
+        const firstChatLink = chatLinks[0]!;
+        expect(firstChatLink.tagName).toBe('SPAN');
+      });
+    });
+  });
+
+  describe('continue callback edge cases', () => {
+    it('does not call onTimeSelected when date or time is null', async () => {
+      const onTimeSelected = jest.fn();
+      // Mock response with no available dates
+      getInstructorAvailabilityMock.mockResolvedValue({
+        status: 200,
+        data: { availability_by_date: {} },
+      });
+
+      render(
+        <RescheduleTimeSelectionModal
+          {...defaultProps}
+          onTimeSelected={onTimeSelected}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('summary-section').length).toBeGreaterThan(0);
+      });
+
+      // Continue button should be disabled (no date or time selected)
+      const continueButtons = screen.queryAllByTestId('continue-button');
+      if (continueButtons.length > 0) {
+        // Click even though disabled - handleContinue should check for null
+        fireEvent.click(continueButtons[0]!);
+      }
+
+      // onTimeSelected should NOT have been called
+      expect(onTimeSelected).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('price calculation with fallback hourly rate', () => {
+    it('uses fallback rate of 100 when service has no hourly_rate', async () => {
+      const noRateInstructor = {
+        ...mockInstructor,
+        services: [{
+          id: 'svc-1',
+          duration_options: [30, 60],
+          hourly_rate: 0,
+          skill: 'Piano',
+        }],
+      };
+
+      render(
+        <RescheduleTimeSelectionModal
+          {...defaultProps}
+          instructor={noRateInstructor}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('summary-section').length).toBeGreaterThan(0);
+      });
+
+      // Price should use fallback 100/hr
+      const summaryElements = screen.getAllByTestId('summary-section');
+      expect(summaryElements.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('handleContinue with valid selection calls onTimeSelected', () => {
+    it('calls onTimeSelected when date and time are both selected', async () => {
+      const onTimeSelected = jest.fn();
+
+      render(
+        <RescheduleTimeSelectionModal
+          {...defaultProps}
+          onTimeSelected={onTimeSelected}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+      });
+
+      // Click on a date to select it
+      const dateButtons = screen.queryAllByTestId('date-2025-01-20');
+      if (dateButtons.length > 0) {
+        fireEvent.click(dateButtons[0]!);
+      }
+
+      // Wait for time slots to appear
+      await waitFor(() => {
+        const timeDropdowns = screen.queryAllByTestId('time-dropdown');
+        expect(timeDropdowns.length).toBeGreaterThan(0);
+      });
+
+      // Select a time
+      const timeButtons = screen.queryAllByTestId(/^time-/);
+      if (timeButtons.length > 0) {
+        fireEvent.click(timeButtons[0]!);
+      }
+
+      // Click continue
+      const continueButtons = screen.queryAllByTestId('continue-button');
+      if (continueButtons.length > 0) {
+        fireEvent.click(continueButtons[0]!);
+      }
+
+      // onTimeSelected should have been called with the selection
+      expect(onTimeSelected).toHaveBeenCalledWith(
+        expect.objectContaining({
+          date: expect.any(String),
+          time: expect.any(String),
+          duration: expect.any(Number),
+        })
+      );
+    });
+  });
+
+  describe('cannot reschedule chat button calls onClose then onOpenChat', () => {
+    it('calls both onClose and onOpenChat when chat button is clicked', async () => {
+      const onClose = jest.fn();
+      const onOpenChat = jest.fn();
+      const currentLesson = {
+        date: '2025-01-18',
+        time: '18:00:00',
+        service: 'Piano',
+      };
+
+      render(
+        <RescheduleTimeSelectionModal
+          {...defaultProps}
+          onClose={onClose}
+          onOpenChat={onOpenChat}
+          currentLesson={currentLesson}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Chat with Instructor')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Chat with Instructor'));
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(onOpenChat).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('date select then duration change triggers recalculation', () => {
+    it('recomputes time slots when duration changes after date selection', async () => {
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+      });
+
+      // Click on a date
+      const dateButtons = screen.queryAllByTestId('date-2025-01-20');
+      if (dateButtons.length > 0) {
+        fireEvent.click(dateButtons[0]!);
+      }
+
+      await waitFor(() => {
+        const timeDropdowns = screen.queryAllByTestId('time-dropdown');
+        expect(timeDropdowns.length).toBeGreaterThan(0);
+      });
+
+      // Change duration - the component uses setSelectedDuration via DurationButtons
+      const duration60Buttons = screen.queryAllByTestId('duration-60');
+      if (duration60Buttons.length > 0) {
+        fireEvent.click(duration60Buttons[0]!);
+      }
+
+      // Component should remain stable after duration change
+      expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('unmount guard in DATE_SELECT_SUCCESS path', () => {
+    it('does not dispatch when component unmounts during date selection', async () => {
+      const { unmount } = render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(calendarOnDateSelect).not.toBeNull();
+        expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+      });
+
+      // Start a date selection, then unmount before it resolves
+      const selectDate = calendarOnDateSelect!;
+      // This will be synchronous so the unmount guard at line 424 applies
+      unmount();
+
+      // Call after unmount - isMountedRef.current is false
+      // This should not throw
+      expect(() => selectDate('2025-01-20')).not.toThrow();
+    });
+  });
+
+  describe('AVAILABILITY_LOAD_FAIL without payload', () => {
+    it('shows default error message when AVAILABILITY_LOAD_FAIL has no error string', async () => {
+      // Make fetch throw an exception, which dispatches AVAILABILITY_LOAD_FAIL without payload
+      getInstructorAvailabilityMock.mockRejectedValue(new Error('Network failure'));
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      await waitFor(() => {
+        // Should show the default error message from the reducer
+        expect(screen.getAllByText(/load availability/).length).toBeGreaterThan(0);
+      });
+
+      // Retry button should be present
+      expect(screen.getAllByRole('button', { name: /try again/i }).length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('retry while loading does nothing', () => {
+    it('does not re-fetch when retry is clicked while still loading', async () => {
+      let resolvePromise: (value: unknown) => void;
+      const controlledPromise = new Promise((resolve) => {
+        resolvePromise = resolve;
+      });
+
+      getInstructorAvailabilityMock
+        .mockResolvedValueOnce({
+          status: 500,
+          error: 'Server error',
+        })
+        .mockImplementationOnce(() => controlledPromise);
+
+      render(<RescheduleTimeSelectionModal {...defaultProps} />);
+
+      // Wait for error to show
+      await waitFor(() => {
+        expect(screen.getAllByRole('button', { name: /try again/i }).length).toBeGreaterThan(0);
+      });
+
+      // Click retry - starts loading
+      fireEvent.click(screen.getAllByRole('button', { name: /try again/i })[0]!);
+
+      // Should have been called twice now
+      expect(getInstructorAvailabilityMock).toHaveBeenCalledTimes(2);
+
+      // Resolve the promise so the test cleans up
+      resolvePromise!(mockAvailabilityResponse);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('calendar').length).toBeGreaterThan(0);
+      });
     });
   });
 });

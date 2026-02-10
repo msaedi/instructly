@@ -182,6 +182,19 @@ describe('formatCents', () => {
   it('rounds to the nearest dollar', () => {
     expect(formatCents(995)).toBe('$10');
   });
+
+  it('formats exactly one dollar', () => {
+    expect(formatCents(100)).toBe('$1');
+  });
+
+  it('formats large amounts correctly', () => {
+    expect(formatCents(9999)).toBe('$100');
+  });
+
+  it('formats small sub-dollar amounts', () => {
+    // 49 cents rounds to $0 since maximumFractionDigits is 0
+    expect(formatCents(49)).toBe('$0');
+  });
 });
 
 describe('getPayoutStatusDisplay', () => {
@@ -189,11 +202,27 @@ describe('getPayoutStatusDisplay', () => {
     expect(getPayoutStatusDisplay('pending_live')).toEqual({ label: 'Awaiting Go-Live', color: 'gray' });
   });
 
+  it('maps pending_lesson to awaiting first lesson', () => {
+    expect(getPayoutStatusDisplay('pending_lesson')).toEqual({ label: 'Awaiting First Lesson', color: 'yellow' });
+  });
+
+  it('maps pending_transfer to processing payout', () => {
+    expect(getPayoutStatusDisplay('pending_transfer')).toEqual({ label: 'Processing Payout', color: 'blue' });
+  });
+
   it('maps paid to green status', () => {
     expect(getPayoutStatusDisplay('paid')).toEqual({ label: 'Paid', color: 'green' });
   });
 
+  it('maps failed to red status', () => {
+    expect(getPayoutStatusDisplay('failed')).toEqual({ label: 'Payout Failed', color: 'red' });
+  });
+
   it('falls back to unknown for unexpected values', () => {
     expect(getPayoutStatusDisplay('unknown' as never)).toEqual({ label: 'Unknown', color: 'gray' });
+  });
+
+  it('falls back to unknown for empty string', () => {
+    expect(getPayoutStatusDisplay('' as never)).toEqual({ label: 'Unknown', color: 'gray' });
   });
 });

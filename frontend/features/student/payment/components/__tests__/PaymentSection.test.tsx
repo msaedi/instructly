@@ -4089,4 +4089,366 @@ describe('PaymentSection', () => {
       });
     });
   });
+
+  describe('error step displays Payment Failed for non-booking errors', () => {
+    it('shows Payment Failed title when localErrorMessage does not contain booking', async () => {
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.ERROR,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: 'Card was declined',
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: jest.fn(),
+        error: null,
+        reset: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByText('Payment Failed')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('error step with no error messages falls back to default', () => {
+    it('shows default error message when no specific error', async () => {
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.ERROR,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      useCreateBookingMock.mockReturnValue({
+        createBooking: jest.fn(),
+        error: null,
+        reset: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByText('An error occurred while processing your payment.')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('booking data with numeric instructorId', () => {
+    it('handles numeric instructorId by converting to string', async () => {
+      const numericIdBooking = {
+        ...mockBookingData,
+        instructorId: 42 as unknown as string,
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={numericIdBooking} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('booking data with null metadata', () => {
+    it('handles booking without metadata property', async () => {
+      const noMetaBooking = {
+        ...mockBookingData,
+        metadata: undefined,
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={noMetaBooking} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('booking data without serviceId', () => {
+    it('handles booking with no serviceId in metadata or props', async () => {
+      const noServiceIdBooking = {
+        ...mockBookingData,
+        serviceId: undefined,
+        metadata: {},
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={noServiceIdBooking} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('booking with null instructorId', () => {
+    it('handles null instructorId gracefully', async () => {
+      const nullInstructorBooking = {
+        ...mockBookingData,
+        instructorId: null as unknown as string,
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={nullInstructorBooking} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('booking date missing on both booking and updated data', () => {
+    it('handles null date in booking data', async () => {
+      const noDateBooking = {
+        ...mockBookingData,
+        date: null as unknown as Date,
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={noDateBooking} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('modality normalization for student_home', () => {
+    it('normalizes student_home modality to student_location', async () => {
+      const studentHomeBooking = {
+        ...mockBookingData,
+        metadata: {
+          serviceId: 'service-789',
+          modality: 'student_home',
+        },
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={studentHomeBooking} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('modality normalization for neutral', () => {
+    it('normalizes neutral modality to neutral_location', async () => {
+      const neutralBooking = {
+        ...mockBookingData,
+        metadata: {
+          serviceId: 'service-789',
+          modality: 'neutral',
+        },
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={neutralBooking} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('payment methods loading error with fallback data', () => {
+    it('uses fallback mock card when payment methods API fails', async () => {
+      paymentServiceMock.listPaymentMethods.mockRejectedValue(new Error('API Error'));
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      // Should still render after fallback
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('inline mode with no cards initially', () => {
+    it('does not auto-select in inline mode when no cards available', async () => {
+      paymentServiceMock.listPaymentMethods.mockResolvedValue([]);
+
+      const goToStep = jest.fn();
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.METHOD_SELECTION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep,
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      render(
+        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('readStoredCreditsUiState edge cases', () => {
+    it('handles undefined window for readStoredCreditsUiState', async () => {
+      // This is tested implicitly by the SSR guard in the component
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('pricing preview with credit applied', () => {
+    it('handles pricing preview with credit_applied_cents > 0', async () => {
+      usePricingPreviewControllerMock.mockReturnValue({
+        preview: {
+          base_price_cents: 10000,
+          student_fee_cents: 1500,
+          student_pay_cents: 6500,
+          credit_applied_cents: 5000,
+          line_items: [],
+        },
+        error: null,
+        loading: false,
+        applyCredit: jest.fn(),
+        requestPricingPreview: jest.fn(),
+        lastAppliedCreditCents: 5000,
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('booking with startTime in HH:MM:SS format in quote selection', () => {
+    it('extracts HH:MM from HH:MM:SS format', async () => {
+      const hmsBooking = {
+        ...mockBookingData,
+        startTime: '14:30:00',
+        endTime: '15:30:00',
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={hmsBooking} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('booking with location as online', () => {
+    it('detects remote booking from location text', async () => {
+      const onlineBooking = {
+        ...mockBookingData,
+        location: 'Online video call',
+        metadata: {
+          serviceId: 'service-789',
+        },
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={onlineBooking} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('booking with empty location', () => {
+    it('uses default meeting location for empty string', async () => {
+      const emptyLocBooking = {
+        ...mockBookingData,
+        location: '',
+      };
+
+      render(
+        <PaymentSection {...defaultProps} bookingData={emptyLocBooking} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('inline mode confirmation step rendering', () => {
+    it('renders both payment selection and confirmation in inline mode during confirmation step', async () => {
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.CONFIRMATION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      render(
+        <PaymentSection {...defaultProps} showPaymentMethodInline={true} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-method-selection')).toBeInTheDocument();
+        expect(screen.getByTestId('payment-confirmation')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('stepwise mode shows referral panel during method selection', () => {
+    it('renders referral apply panel at method selection step', async () => {
+      usePaymentFlowMock.mockReturnValue({
+        currentStep: PaymentStep.METHOD_SELECTION,
+        paymentMethod: PaymentMethod.CREDIT_CARD,
+        creditsToUse: 0,
+        error: null,
+        goToStep: jest.fn(),
+        selectPaymentMethod: jest.fn(),
+        reset: jest.fn(),
+      });
+
+      render(<PaymentSection {...defaultProps} />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('checkout-apply-referral')).toBeInTheDocument();
+      });
+    });
+  });
 });

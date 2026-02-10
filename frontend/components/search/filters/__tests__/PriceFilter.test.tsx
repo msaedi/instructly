@@ -107,4 +107,96 @@ describe('PriceFilter', () => {
     // Now the button label should reflect the applied filter
     expect(screen.getByRole('button', { name: '$50 - $200' })).toBeInTheDocument();
   });
+
+  it('shows label with only min set (max defaults to PRICE_MAX)', () => {
+    render(<Harness initialMin={50} initialMax={null} />);
+
+    // Label should show "$50 - $300" since max is null and falls back to PRICE_MAX
+    expect(screen.getByRole('button', { name: '$50 - $300' })).toBeInTheDocument();
+  });
+
+  it('shows label with only max set (min defaults to PRICE_MIN)', () => {
+    render(<Harness initialMin={null} initialMax={200} />);
+
+    // Label should show "$30 - $200" since min is null and falls back to PRICE_MIN
+    expect(screen.getByRole('button', { name: '$30 - $200' })).toBeInTheDocument();
+  });
+
+  it('preserves draft changes while the dropdown stays open (isOpen=true path)', async () => {
+    const user = userEvent.setup();
+    render(<Harness initialMin={50} initialMax={200} />);
+
+    // Open
+    await user.click(screen.getByRole('button', { name: '$50 - $200' }));
+
+    // Modify draft min
+    const spinbuttons = screen.getAllByRole('spinbutton');
+    fireEvent.change(spinbuttons[0]!, { target: { value: '80' } });
+
+    // Apply -- proves draft edits survived while open (isOpen=true path of handleToggle)
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    expect(screen.getByRole('button', { name: '$80 - $200' })).toBeInTheDocument();
+  });
+
+  it('resets draft when re-opening the dropdown after unsaved changes', async () => {
+    const user = userEvent.setup();
+    render(<Harness initialMin={50} initialMax={200} />);
+
+    // Open
+    await user.click(screen.getByRole('button', { name: '$50 - $200' }));
+
+    // Change the min draft
+    const spinbuttons = screen.getAllByRole('spinbutton');
+    fireEvent.change(spinbuttons[0]!, { target: { value: '100' } });
+
+    // Close without applying
+    await user.click(screen.getByRole('button', { name: '$50 - $200' }));
+
+    // Re-open: draft should be reset to committed values
+    await user.click(screen.getByRole('button', { name: '$50 - $200' }));
+
+    const resetSpinbuttons = screen.getAllByRole('spinbutton');
+    expect(resetSpinbuttons[0]).toHaveValue(50);
+    expect(resetSpinbuttons[1]).toHaveValue(200);
+  });
+
+  it('clamps min number input to PRICE_MIN when set below', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await user.click(screen.getByRole('button', { name: 'Price' }));
+
+    const spinbuttons = screen.getAllByRole('spinbutton');
+    // Try to set min below PRICE_MIN (30)
+    fireEvent.change(spinbuttons[0]!, { target: { value: '10' } });
+
+    // Should be clamped to PRICE_MIN (30)
+    expect(screen.getByText('$30/hr')).toBeInTheDocument();
+  });
+
+  it('clamps max number input to PRICE_MAX when set above', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await user.click(screen.getByRole('button', { name: 'Price' }));
+
+    const spinbuttons = screen.getAllByRole('spinbutton');
+    // Try to set max above PRICE_MAX (300)
+    fireEvent.change(spinbuttons[1]!, { target: { value: '500' } });
+
+    // Should be clamped to PRICE_MAX (300)
+    expect(screen.getByText('$300/hr')).toBeInTheDocument();
+  });
+
+  it('clears the filter and closes the dropdown', async () => {
+    const user = userEvent.setup();
+    render(<Harness initialMin={50} initialMax={200} />);
+
+    await user.click(screen.getByRole('button', { name: '$50 - $200' }));
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+
+    expect(screen.getByRole('button', { name: 'Price' })).toBeInTheDocument();
+    expect(screen.queryByText('Price Range')).not.toBeInTheDocument();
+  });
 });

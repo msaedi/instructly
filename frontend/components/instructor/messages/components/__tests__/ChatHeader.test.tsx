@@ -183,6 +183,148 @@ describe('ChatHeader', () => {
     });
   });
 
+  describe('date/time formatting edge cases', () => {
+    it('formats midnight (00:00) as 12am — hour12 === 0 branch', () => {
+      const conv = {
+        ...mockConversation,
+        nextBooking: {
+          id: 'booking-midnight',
+          service_name: 'Midnight Session',
+          date: '2025-03-01',
+          start_time: '00:00',
+        },
+        upcomingBookingCount: 1,
+      } as ConversationEntry;
+      render(
+        <ChatHeader {...defaultProps} activeConversation={conv} />
+      );
+
+      const menuButton = screen.getByRole('button', { expanded: false });
+      fireEvent.click(menuButton);
+
+      // 00:00 → hours=0, 0%12=0, hour12=12 → "12am"
+      // Multiple elements (badge + menu) may match, use getAllByText
+      expect(screen.getAllByText(/12am/).length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('formats noon (12:00) as 12pm', () => {
+      const conv = {
+        ...mockConversation,
+        nextBooking: {
+          id: 'booking-noon',
+          service_name: 'Noon Session',
+          date: '2025-03-01',
+          start_time: '12:00',
+        },
+        upcomingBookingCount: 1,
+      } as ConversationEntry;
+      render(
+        <ChatHeader {...defaultProps} activeConversation={conv} />
+      );
+
+      const menuButton = screen.getByRole('button', { expanded: false });
+      fireEvent.click(menuButton);
+
+      // 12:00 → hours=12, 12%12=0, hour12=12 → "12pm"
+      expect(screen.getAllByText(/12pm/).length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('formats time with minutes for non-zero minutes', () => {
+      const conv = {
+        ...mockConversation,
+        nextBooking: {
+          id: 'booking-minutes',
+          service_name: 'Afternoon Class',
+          date: '2025-03-01',
+          start_time: '15:45',
+        },
+        upcomingBookingCount: 1,
+      } as ConversationEntry;
+      render(
+        <ChatHeader {...defaultProps} activeConversation={conv} />
+      );
+
+      const menuButton = screen.getByRole('button', { expanded: false });
+      fireEvent.click(menuButton);
+
+      // 15:45 → "3:45pm"
+      expect(screen.getAllByText(/3:45pm/).length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('formats date correctly as "MMM d"', () => {
+      const conv = {
+        ...mockConversation,
+        nextBooking: {
+          id: 'booking-date',
+          service_name: 'Date Test',
+          date: '2025-12-08',
+          start_time: '10:00',
+        },
+        upcomingBookingCount: 1,
+      } as ConversationEntry;
+      render(
+        <ChatHeader {...defaultProps} activeConversation={conv} />
+      );
+
+      const menuButton = screen.getByRole('button', { expanded: false });
+      fireEvent.click(menuButton);
+
+      // Dec 8
+      expect(screen.getAllByText(/Dec 8/).length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('click outside thread menu', () => {
+    it('closes menu when clicking outside', () => {
+      render(
+        <ChatHeader {...defaultProps} activeConversation={mockConversation} />
+      );
+
+      const menuButton = screen.getByRole('button', { expanded: false });
+      fireEvent.click(menuButton);
+      expect(screen.getByRole('menu')).toBeInTheDocument();
+
+      // Click outside the menu
+      fireEvent.click(document.body);
+
+      // Menu should close
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('upcoming bookings singular/plural', () => {
+    it('shows singular "booking" for +1 more', () => {
+      render(
+        <ChatHeader {...defaultProps} activeConversation={mockConversationWithBooking} />
+      );
+
+      const menuButton = screen.getByRole('button', { expanded: false });
+      fireEvent.click(menuButton);
+
+      // upcomingBookingCount=2, so "+1 more upcoming booking" (singular)
+      expect(screen.getByText(/\+1 more upcoming booking$/)).toBeInTheDocument();
+    });
+
+    it('shows plural "bookings" for +2 more', () => {
+      const conv: ConversationEntry = {
+        ...mockConversationWithBooking,
+        upcomingBookingCount: 3,
+        upcomingBookings: [
+          ...mockConversationWithBooking.upcomingBookings!,
+          { id: 'booking-789', service_name: 'Vocal Lesson', date: '2025-01-25', start_time: '16:00' },
+        ],
+      };
+      render(
+        <ChatHeader {...defaultProps} activeConversation={conv} />
+      );
+
+      const menuButton = screen.getByRole('button', { expanded: false });
+      fireEvent.click(menuButton);
+
+      expect(screen.getByText(/\+2 more upcoming bookings$/)).toBeInTheDocument();
+    });
+  });
+
   describe('compose view', () => {
     const composeProps: ChatHeaderProps = {
       ...defaultProps,

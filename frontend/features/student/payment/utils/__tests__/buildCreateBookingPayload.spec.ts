@@ -243,4 +243,350 @@ describe('buildCreateBookingPayload', () => {
       }),
     ).toThrow('Booking start and end times are required to build payload');
   });
+
+  it('throws when duration is zero and start/end produce a non-positive diff', () => {
+    // endTime is before startTime, so diff is negative => cannot determine duration
+    expect(() =>
+      buildCreateBookingPayload({
+        instructorId: 'inst-dur',
+        serviceId: 'svc-dur',
+        bookingDate: '2025-05-06',
+        booking: {
+          ...baseBooking,
+          duration: 0,
+          startTime: '3:00pm',
+          endTime: '2:00pm', // end before start
+          metadata: {},
+        },
+      }),
+    ).toThrow('Unable to determine selected duration for booking payload');
+  });
+
+  it('throws when duration is NaN string and times are equal', () => {
+    expect(() =>
+      buildCreateBookingPayload({
+        instructorId: 'inst-dur2',
+        serviceId: 'svc-dur2',
+        bookingDate: '2025-05-06',
+        booking: {
+          ...baseBooking,
+          duration: 'abc' as unknown as number,
+          startTime: '10:00',
+          endTime: '10:00', // same as start
+          metadata: {},
+        },
+      }),
+    ).toThrow('Unable to determine selected duration for booking payload');
+  });
+
+  it('normalizes location_type "home" to student_location via fallback', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-home',
+      serviceId: 'svc-home',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        location: 'My home address',
+        metadata: {},
+      },
+    });
+
+    expect(payload.location_type).toBe('student_location');
+  });
+
+  it('normalizes location_type "virtual" to online', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-virt',
+      serviceId: 'svc-virt',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        location: 'Virtual meeting room',
+        metadata: {},
+      },
+    });
+
+    expect(payload.location_type).toBe('online');
+  });
+
+  it('falls back to student_location when normalizeHint returns null for unrecognized strings', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-unk',
+      serviceId: 'svc-unk',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        location: 'Somewhere random',
+        metadata: {
+          modality: 'unknown-modality',
+          location_type: 'unrecognized-location',
+        },
+      },
+    });
+
+    expect(payload.location_type).toBe('student_location');
+  });
+
+  it('normalizeHint returns null for whitespace-only strings', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-ws',
+      serviceId: 'svc-ws',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        location: '   ',
+        metadata: {
+          modality: '   ',
+          location_type: '   ',
+        },
+      },
+    });
+
+    // All hints are whitespace-only, so normalizeHint returns null for each
+    // Falls back to default 'student_location'
+    expect(payload.location_type).toBe('student_location');
+    // booking.location is '   ' (whitespace) which is truthy, so fallbackLocation = '   '
+    // meetingLocation = locationAddress ?? fallbackLocation ?? ...
+    // locationAddress = booking.location = '   ', so meeting_location = '   '
+    expect(payload.meeting_location).toBe('   ');
+  });
+
+  it('normalizeHint handles non-string values (number, boolean)', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-nonstr',
+      serviceId: 'svc-nonstr',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        location: 'Park',
+        metadata: {
+          modality: 42 as unknown as string,
+          location_type: true as unknown as string,
+        },
+      },
+    });
+
+    // Non-string values cause normalizeHint to return null
+    // Fallback to booking.location which is 'Park' => not a recognized keyword => student_location
+    expect(payload.location_type).toBe('student_location');
+  });
+
+  it('normalizes "in-person" modality to student_location', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-ip',
+      serviceId: 'svc-ip',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        location: 'Some place',
+        metadata: {
+          modality: 'in-person',
+        },
+      },
+    });
+
+    expect(payload.location_type).toBe('student_location');
+  });
+
+  it('omits location_address, lat, lng, placeId for online bookings', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-online',
+      serviceId: 'svc-online',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        location: 'Online session',
+        metadata: { modality: 'remote' },
+        address: {
+          fullAddress: '123 Should Be Ignored',
+          lat: 40.0,
+          lng: -73.0,
+          placeId: 'place_ignored',
+        },
+      },
+    });
+
+    expect(payload.location_type).toBe('online');
+    // location_address is undefined for online, but fallbackLocation = 'Online session' which is truthy
+    // meetingLocation = locationAddress ?? fallbackLocation ?? ...
+    // Since locationAddress is undefined AND fallbackLocation is 'Online session', meeting_location = 'Online session'
+    expect(payload.meeting_location).toBe('Online session');
+    expect(payload).not.toHaveProperty('location_address');
+    expect(payload).not.toHaveProperty('location_lat');
+    expect(payload).not.toHaveProperty('location_lng');
+    expect(payload).not.toHaveProperty('location_place_id');
+  });
+
+  it('uses "Online" as meeting_location when booking.location is empty for online bookings', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-online2',
+      serviceId: 'svc-online2',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        location: '',
+        metadata: { modality: 'remote' },
+      },
+    });
+
+    expect(payload.location_type).toBe('online');
+    expect(payload.meeting_location).toBe('Online');
+  });
+
+  it('omits timezone when instructorTimezone is whitespace-only', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-tz',
+      serviceId: 'svc-tz',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        metadata: { modality: 'remote' },
+      },
+      instructorTimezone: '   ',
+    });
+
+    expect(payload).not.toHaveProperty('timezone');
+  });
+
+  it('resolves timezone from metadata fallback chain', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-tzfb',
+      serviceId: 'svc-tzfb',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        metadata: {
+          modality: 'remote',
+          lessonTimezone: 'America/Los_Angeles',
+        },
+      },
+    });
+
+    expect(payload.timezone).toBe('America/Los_Angeles');
+  });
+
+  it('resolves timezone from instructorTimezone metadata key', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-tzfb2',
+      serviceId: 'svc-tzfb2',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        metadata: {
+          modality: 'remote',
+          instructorTimezone: 'America/Denver',
+        },
+      },
+    });
+
+    expect(payload.timezone).toBe('America/Denver');
+  });
+
+  it('uses metadata place_id as fallback for location_place_id', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-pid',
+      serviceId: 'svc-pid',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        location: '456 Oak Ave',
+        metadata: {
+          modality: 'in_person',
+          place_id: 'place_from_metadata',
+        },
+      },
+    });
+
+    expect(payload.location_place_id).toBe('place_from_metadata');
+  });
+
+  it('uses duration from metadata durationMinutes key when booking.duration is null', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-dm',
+      serviceId: 'svc-dm',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        duration: null as unknown as number,
+        metadata: {
+          modality: 'remote',
+          durationMinutes: 45,
+        },
+      },
+    });
+
+    expect(payload.selected_duration).toBe(45);
+  });
+
+  it('uses duration from metadata duration_minutes key when booking.duration is undefined', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-dm2',
+      serviceId: 'svc-dm2',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        duration: undefined as unknown as number,
+        metadata: {
+          modality: 'remote',
+          duration_minutes: 90,
+        },
+      },
+    });
+
+    expect(payload.selected_duration).toBe(90);
+  });
+
+  it('normalizeNumber handles string number in metadata', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-nn',
+      serviceId: 'svc-nn',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        location: '789 Elm St',
+        metadata: {
+          modality: 'in_person',
+          location_lat: '40.7128',
+          location_lng: '-74.0060',
+        },
+      },
+    });
+
+    expect(payload.location_lat).toBe(40.7128);
+    expect(payload.location_lng).toBe(-74.006);
+  });
+
+  it('normalizeNumber returns undefined for non-finite string', () => {
+    const payload = buildCreateBookingPayload({
+      instructorId: 'inst-nf',
+      serviceId: 'svc-nf',
+      bookingDate: '2025-05-06',
+      booking: {
+        ...baseBooking,
+        location: 'Some location',
+        metadata: {
+          modality: 'in_person',
+          location_lat: 'not-a-number',
+          location_lng: '',
+        },
+      },
+    });
+
+    expect(payload).not.toHaveProperty('location_lat');
+    expect(payload).not.toHaveProperty('location_lng');
+  });
+
+  it('throws when endTime is missing', () => {
+    expect(() =>
+      buildCreateBookingPayload({
+        instructorId: 'inst-no-end',
+        serviceId: 'svc-no-end',
+        bookingDate: '2025-09-01',
+        booking: {
+          ...baseBooking,
+          endTime: '',
+        },
+      }),
+    ).toThrow('Booking start and end times are required to build payload');
+  });
 });

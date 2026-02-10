@@ -376,4 +376,125 @@ describe('BookingModalWithPayment', () => {
 
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('shows alert when selectedService is null during submit (lines 168-170)', async () => {
+    useAuthMock.mockReturnValue({
+      user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+      isAuthenticated: true,
+      redirectToLogin: jest.fn(),
+    });
+
+    // Create an instructor with no services so selectedService will be null
+    const instructorNoServices: Instructor = {
+      ...instructor,
+      services: [],
+    };
+
+    renderModal({ instructor: instructorNoServices });
+
+    // Go to booking details
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+    // Fill in all required fields
+    const inputs = getTextInputs();
+    const phoneInput = inputs[2]!;
+    await userEvent.type(phoneInput, '555-1111');
+    await userEvent.click(screen.getByRole('checkbox'));
+
+    // Click submit - should trigger the !selectedService alert
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Payment' }));
+
+    expect(window.alert).toHaveBeenCalledWith('Please select a service');
+  });
+
+  it('handles service with non-numeric hourly_rate gracefully', () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      redirectToLogin: jest.fn(),
+    });
+
+    const instructorBadRate: Instructor = {
+      ...instructor,
+      services: [
+        {
+          id: 'service-1',
+          skill: 'Piano',
+          hourly_rate: 'not_a_number' as unknown as number,
+          duration_options: [60],
+          duration: 60,
+        },
+      ],
+    };
+
+    renderModal({ instructor: instructorBadRate });
+
+    // Should display $0.00 total since rate is NaN
+    expect(screen.getByText(/\$0\.00 total/)).toBeInTheDocument();
+  });
+
+  it('handles user with null full_name and email', async () => {
+    useAuthMock.mockReturnValue({
+      user: { full_name: null, email: null },
+      isAuthenticated: true,
+      redirectToLogin: jest.fn(),
+    });
+
+    renderModal();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+    // Should show booking details form without crashing
+    expect(screen.getByText('Booking Details')).toBeInTheDocument();
+  });
+
+  it('does not show back button on success step', async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    useAuthMock.mockReturnValue({
+      user: { full_name: 'Jane Doe', email: 'jane@example.com' },
+      isAuthenticated: true,
+      redirectToLogin: jest.fn(),
+    });
+
+    renderModal();
+
+    await user.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+    const inputs = getTextInputs();
+    await user.clear(inputs[0]!);
+    await user.type(inputs[0]!, 'Jane Doe');
+    await user.clear(inputs[1]!);
+    await user.type(inputs[1]!, 'jane@example.com');
+    await user.type(inputs[2]!, '555-1111');
+    await user.click(screen.getByRole('checkbox'));
+
+    await user.click(screen.getByRole('button', { name: 'Continue to Payment' }));
+    await user.click(screen.getByRole('button', { name: 'Mock Success' }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Booking Confirmed!').length).toBeGreaterThan(0);
+    });
+
+    // Back button should NOT be shown on success step
+    expect(screen.queryByRole('button', { name: 'Go back' })).not.toBeInTheDocument();
+
+    act(() => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    jest.useRealTimers();
+  });
+
+  it('does not show service dropdown when only one service', () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      redirectToLogin: jest.fn(),
+    });
+
+    renderModal(); // Default instructor has 1 service
+
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
 });

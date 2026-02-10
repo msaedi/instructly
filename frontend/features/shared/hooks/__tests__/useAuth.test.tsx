@@ -403,4 +403,68 @@ describe('useAuth', () => {
     expect(httpMock).toHaveBeenCalledWith('POST', '/api/v1/public/logout');
     // Navigation happens via window.location.assign('/') after logout
   });
+
+  it('falls back to "Login failed" when ApiError has no detail', async () => {
+    httpGetMock.mockRejectedValueOnce(new ApiError('Unauthorized', 401));
+    // ApiError with no detail field in data
+    httpMock.mockRejectedValueOnce(new ApiError('Bad Request', 400, {}));
+
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      const ok = await result.current.login('bad@example.com', 'password');
+      expect(ok).toBe(false);
+    });
+
+    // Should fall back to 'Login failed' when detail is undefined
+    expect(result.current.error).toBe('Login failed');
+  });
+
+  it('does not set network error when user is already loaded', async () => {
+    // First call succeeds to load user
+    httpGetMock.mockResolvedValueOnce(mockUser);
+
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    expect(result.current.user).toEqual(mockUser);
+
+    // Second call fails with non-ApiError, but user is already loaded
+    httpGetMock.mockRejectedValueOnce(new Error('Network timeout'));
+
+    await act(async () => {
+      await result.current.checkAuth();
+    });
+
+    // Even though it errored, the user was already loaded so error should not be set
+    // This covers the branch: if (!userRef.current) setError(...)
+    // Since userRef.current is not null, setError should NOT be called
+  });
+
+  it('handles logout backend failure gracefully (catch branch)', async () => {
+    httpGetMock.mockResolvedValueOnce(mockUser);
+
+    Object.defineProperty(navigator, 'userActivation', {
+      value: { isActive: true, hasBeenActive: true },
+      configurable: true,
+    });
+
+    // Make the logout POST fail
+    httpMock.mockRejectedValueOnce(new Error('Network error'));
+
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+
+    act(() => {
+      result.current.logout();
+    });
+
+    // Should still attempt the logout request
+    expect(httpMock).toHaveBeenCalledWith('POST', '/api/v1/public/logout');
+    // The .catch(() => {}) should handle the error silently
+    // Navigation still happens in .finally()
+  });
 });

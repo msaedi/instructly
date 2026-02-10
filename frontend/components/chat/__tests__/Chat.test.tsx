@@ -3354,3 +3354,333 @@ describe('Chat MessageBubble edit/delete/react handlers (lines 865-914)', () => 
     });
   });
 });
+
+describe('Chat key repeat handling', () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    queryClient = new QueryClient();
+    mockUseSendConversationMessage.mockReturnValue({
+      mutateAsync: jest.fn(),
+      isPending: false,
+    });
+    mockUseSendConversationTyping.mockReturnValue({ mutate: jest.fn() });
+    mockUseMarkMessagesAsRead.mockReturnValue({ mutate: jest.fn() });
+    mockUseEditMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseDeleteMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseAddReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseRemoveReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseConversationMessages.mockImplementation(() => defaultHistoryResponse([]));
+    mockUseMessageStream.mockReturnValue({
+      isConnected: true,
+      connectionError: null,
+      subscribe: jest.fn(() => jest.fn()),
+    });
+  });
+
+  it('ignores repeated Enter key events (e.repeat = true)', async () => {
+    const sendMutateAsync = jest.fn();
+    mockUseSendConversationMessage.mockReturnValue({
+      mutateAsync: sendMutateAsync,
+      isPending: false,
+    });
+
+    const { container } = render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('textarea')).toBeInTheDocument();
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    fireEvent.change(textarea, { target: { value: 'Hello' } });
+    // Simulate held key (e.repeat = true)
+    fireEvent.keyDown(textarea, { key: 'Enter', repeat: true });
+
+    // Should not send because repeat is true
+    expect(sendMutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('Chat date separator yesterday branch', () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    queryClient = new QueryClient();
+    mockUseSendConversationMessage.mockReturnValue({
+      mutateAsync: jest.fn(),
+      isPending: false,
+    });
+    mockUseSendConversationTyping.mockReturnValue({ mutate: jest.fn() });
+    mockUseMarkMessagesAsRead.mockReturnValue({ mutate: jest.fn() });
+    mockUseEditMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseDeleteMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseAddReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseRemoveReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseMessageStream.mockReturnValue({
+      isConnected: true,
+      connectionError: null,
+      subscribe: jest.fn(() => jest.fn()),
+    });
+  });
+
+  it('renders "Yesterday" separator for messages from yesterday', async () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(14, 0, 0, 0);
+
+    const msg = buildMessage('msg-yesterday', {
+      content: 'Yesterday message',
+      created_at: yesterday.toISOString(),
+    });
+
+    mockUseConversationMessages.mockImplementation(() => defaultHistoryResponse([msg]));
+
+    const { getByText } = render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(getByText('Yesterday')).toBeInTheDocument();
+    });
+  });
+
+  it('renders formatted date for older messages', async () => {
+    const oldDate = new Date('2024-06-15T10:00:00Z');
+
+    const msg = buildMessage('msg-old', {
+      content: 'Old message',
+      created_at: oldDate.toISOString(),
+    });
+
+    mockUseConversationMessages.mockImplementation(() => defaultHistoryResponse([msg]));
+
+    const { getByText } = render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(getByText('Old message')).toBeInTheDocument();
+    });
+
+    // Should show formatted date like "Saturday, June 15"
+    expect(getByText(/June 15/)).toBeInTheDocument();
+  });
+});
+
+describe('Chat SSE message delivered_at merging', () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    queryClient = new QueryClient();
+    mockUseSendConversationMessage.mockReturnValue({
+      mutateAsync: jest.fn(),
+      isPending: false,
+    });
+    mockUseSendConversationTyping.mockReturnValue({ mutate: jest.fn() });
+    mockUseMarkMessagesAsRead.mockReturnValue({ mutate: jest.fn() });
+    mockUseEditMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseDeleteMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseAddReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseRemoveReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseConversationMessages.mockImplementation(() => defaultHistoryResponse([]));
+  });
+
+  it('marks message as read when SSE message is from another user', async () => {
+    const markMutate = jest.fn();
+    mockUseMarkMessagesAsRead.mockReturnValue({ mutate: markMutate });
+
+    let capturedOnMessage: ((msg: unknown, isMine: boolean) => void) | undefined;
+    const subscribeMock = jest.fn((_conversationId: string, handlers: { onMessage?: (msg: unknown, isMine: boolean) => void }) => {
+      capturedOnMessage = handlers.onMessage;
+      return jest.fn();
+    });
+
+    mockUseMessageStream.mockReturnValue({
+      isConnected: true,
+      connectionError: null,
+      subscribe: subscribeMock,
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(subscribeMock).toHaveBeenCalled();
+    });
+
+    // Simulate SSE message from another user
+    if (capturedOnMessage) {
+      capturedOnMessage(
+        {
+          id: 'sse-msg-1',
+          content: 'Hello from other',
+          sender_id: 'other-user-id',
+          sender_name: 'Other User',
+          created_at: new Date().toISOString(),
+        },
+        false
+      );
+    }
+
+    await waitFor(() => {
+      expect(markMutate).toHaveBeenCalledWith({ message_ids: ['sse-msg-1'] });
+    });
+  });
+
+  it('does NOT mark message as read when SSE message is from self', async () => {
+    const markMutate = jest.fn();
+    mockUseMarkMessagesAsRead.mockReturnValue({ mutate: markMutate });
+
+    let capturedOnMessage: ((msg: unknown, isMine: boolean) => void) | undefined;
+    const subscribeMock = jest.fn((_conversationId: string, handlers: { onMessage?: (msg: unknown, isMine: boolean) => void }) => {
+      capturedOnMessage = handlers.onMessage;
+      return jest.fn();
+    });
+
+    mockUseMessageStream.mockReturnValue({
+      isConnected: true,
+      connectionError: null,
+      subscribe: subscribeMock,
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(subscribeMock).toHaveBeenCalled();
+    });
+
+    // Simulate SSE message from current user (own message echo)
+    if (capturedOnMessage) {
+      capturedOnMessage(
+        {
+          id: 'sse-msg-own',
+          content: 'My echo',
+          sender_id: baseProps.currentUserId,
+          sender_name: baseProps.currentUserName,
+          created_at: new Date().toISOString(),
+        },
+        true
+      );
+    }
+
+    // Give it time to process, then check markAsRead was NOT called
+    await new Promise((r) => setTimeout(r, 50));
+    expect(markMutate).not.toHaveBeenCalled();
+  });
+});
+
+describe('Chat empty messages state', () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    queryClient = new QueryClient();
+    mockUseSendConversationMessage.mockReturnValue({
+      mutateAsync: jest.fn(),
+      isPending: false,
+    });
+    mockUseSendConversationTyping.mockReturnValue({ mutate: jest.fn() });
+    mockUseMarkMessagesAsRead.mockReturnValue({ mutate: jest.fn() });
+    mockUseEditMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseDeleteMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseAddReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseRemoveReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseConversationMessages.mockImplementation(() => defaultHistoryResponse([]));
+    mockUseMessageStream.mockReturnValue({
+      isConnected: true,
+      connectionError: null,
+      subscribe: jest.fn(() => jest.fn()),
+    });
+  });
+
+  it('shows empty state message when no messages exist', async () => {
+    const { getByText } = render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(getByText('No messages yet. Start the conversation!')).toBeInTheDocument();
+    });
+  });
+});
+
+describe('Chat send without bookingId', () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    queryClient = new QueryClient();
+    mockUseSendConversationTyping.mockReturnValue({ mutate: jest.fn() });
+    mockUseMarkMessagesAsRead.mockReturnValue({ mutate: jest.fn() });
+    mockUseEditMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseDeleteMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseAddReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseRemoveReaction.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseConversationMessages.mockImplementation(() => defaultHistoryResponse([]));
+    mockUseMessageStream.mockReturnValue({
+      isConnected: true,
+      connectionError: null,
+      subscribe: jest.fn(() => jest.fn()),
+    });
+  });
+
+  it('sends message without bookingId when bookingId is undefined', async () => {
+    const sendMutateAsync = jest.fn().mockResolvedValue({
+      id: 'sent-msg-1',
+      created_at: new Date().toISOString(),
+    });
+    mockUseSendConversationMessage.mockReturnValue({
+      mutateAsync: sendMutateAsync,
+      isPending: false,
+    });
+
+    const propsWithoutBooking = { ...baseProps, bookingId: undefined };
+
+    const { container } = render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...propsWithoutBooking} />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('textarea')).toBeInTheDocument();
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    fireEvent.change(textarea, { target: { value: 'Test message' } });
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false });
+
+    await waitFor(() => {
+      expect(sendMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationId: baseProps.conversationId,
+          content: 'Test message',
+        })
+      );
+    });
+
+    // Should not include bookingId in the payload
+    const callArgs = sendMutateAsync.mock.calls[0]?.[0];
+    expect(callArgs).not.toHaveProperty('bookingId');
+  });
+});

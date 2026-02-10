@@ -311,5 +311,220 @@ describe('PayoutsDashboard', () => {
 
       expect(screen.getByText('Platform fees withheld')).toBeInTheDocument();
     });
+
+    it('displays fractional percentage from pricing tiers', () => {
+      usePricingConfigMock.mockReturnValue({
+        config: {
+          instructor_tiers: [{ min: 0, pct: 0.125 }],
+        },
+      });
+
+      render(<PayoutsDashboard instructorId="inst-123" />, {
+        wrapper: createWrapper(),
+      });
+
+      // 0.125 * 100 = 12.5 which has a fractional part, so toFixed(1)
+      expect(screen.getByText('12.5% service fee')).toBeInTheDocument();
+    });
+
+    it('handles tier with non-number pct value', () => {
+      usePricingConfigMock.mockReturnValue({
+        config: {
+          instructor_tiers: [{ min: 0, pct: undefined }],
+        },
+      });
+
+      render(<PayoutsDashboard instructorId="inst-123" />, {
+        wrapper: createWrapper(),
+      });
+
+      // pct is not a number, so platformFeePct is null
+      expect(screen.getByText('Platform fees withheld')).toBeInTheDocument();
+    });
+
+    it('sorts tiers by min value and uses lowest tier', () => {
+      usePricingConfigMock.mockReturnValue({
+        config: {
+          instructor_tiers: [
+            { min: 10000, pct: 0.10 },
+            { min: 0, pct: 0.20 },
+          ],
+        },
+      });
+
+      render(<PayoutsDashboard instructorId="inst-123" />, {
+        wrapper: createWrapper(),
+      });
+
+      // Should use the tier with min=0 (20%)
+      expect(screen.getByText('20% service fee')).toBeInTheDocument();
+    });
+
+    it('renders standard label in payout info when no fee config', () => {
+      usePricingConfigMock.mockReturnValue({
+        config: null,
+      });
+
+      render(<PayoutsDashboard instructorId="inst-123" />, {
+        wrapper: createWrapper(),
+      });
+
+      // The payout information section should use 'standard' fallback
+      expect(screen.getByText(/standard service fee/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('earnings null/missing field handling', () => {
+    it('does not render earnings cards when earnings is null', () => {
+      useInstructorEarningsMock.mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+      });
+
+      render(<PayoutsDashboard instructorId="inst-123" />, {
+        wrapper: createWrapper(),
+      });
+
+      // Title should still render
+      expect(screen.getByText('Payouts & Earnings')).toBeInTheDocument();
+      // Earnings cards should not render
+      expect(screen.queryByText('Total Earnings')).not.toBeInTheDocument();
+      expect(screen.queryByText('Total Bookings')).not.toBeInTheDocument();
+    });
+
+    it('handles earnings with null total_earned and average_earning', () => {
+      useInstructorEarningsMock.mockReturnValue({
+        data: {
+          total_earned: null,
+          total_fees: null,
+          booking_count: 0,
+          average_earning: null,
+          period_start: null,
+          period_end: null,
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<PayoutsDashboard instructorId="inst-123" />, {
+        wrapper: createWrapper(),
+      });
+
+      // Should render $0.00 for nullish values
+      expect(screen.getAllByText('$0.00').length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('uses fallback dates when period_start/period_end are empty strings', () => {
+      useInstructorEarningsMock.mockReturnValue({
+        data: {
+          ...mockEarnings,
+          period_start: '',
+          period_end: '',
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(<PayoutsDashboard instructorId="inst-123" />, {
+        wrapper: createWrapper(),
+      });
+
+      // With empty strings, the fallback dates should be used
+      expect(screen.getByText(/This month/)).toBeInTheDocument();
+    });
+  });
+
+  describe('dashboard button states', () => {
+    it('shows "Opening..." text while dashboard link is loading', async () => {
+      // Create a never-resolving promise to keep the loading state
+      paymentServiceMock.getDashboardLink.mockImplementation(
+        () => new Promise(() => {})
+      );
+
+      render(<PayoutsDashboard instructorId="inst-123" />, {
+        wrapper: createWrapper(),
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /view stripe dashboard/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Opening...')).toBeInTheDocument();
+      });
+    });
+
+    it('disables all buttons while dashboard is loading', async () => {
+      paymentServiceMock.getDashboardLink.mockImplementation(
+        () => new Promise(() => {})
+      );
+
+      render(<PayoutsDashboard instructorId="inst-123" />, {
+        wrapper: createWrapper(),
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /view stripe dashboard/i }));
+
+      await waitFor(() => {
+        const buttons = screen.getAllByRole('button');
+        // The open analytics button is separate
+        const quickActionButtons = buttons.filter(
+          (b) =>
+            b.textContent?.includes('Opening...') ||
+            b.textContent?.includes('Update Banking Info') ||
+            b.textContent?.includes('Tax Documents')
+        );
+        quickActionButtons.forEach((button) => {
+          expect(button).toBeDisabled();
+        });
+      });
+    });
+
+    it('handles dashboard response without URL (no window.open called)', async () => {
+      const mockOpen = jest.fn();
+      window.open = mockOpen;
+
+      paymentServiceMock.getDashboardLink.mockResolvedValue({
+        dashboard_url: '',
+        expires_in_minutes: 15,
+      });
+
+      render(<PayoutsDashboard instructorId="inst-123" />, {
+        wrapper: createWrapper(),
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /view stripe dashboard/i }));
+
+      await waitFor(() => {
+        // Empty string is falsy, so window.open should NOT be called
+        expect(mockOpen).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('combined error display', () => {
+    it('shows local error over query error', async () => {
+      useInstructorEarningsMock.mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: new Error('Query failed'),
+      });
+
+      paymentServiceMock.getDashboardLink.mockRejectedValue(new Error('Dashboard failed'));
+
+      render(<PayoutsDashboard instructorId="inst-123" />, {
+        wrapper: createWrapper(),
+      });
+
+      // Initially the query error should show
+      expect(screen.getByText('Failed to load earnings data')).toBeInTheDocument();
+
+      // Click to trigger dashboard error
+      fireEvent.click(screen.getByRole('button', { name: /view stripe dashboard/i }));
+
+      await waitFor(() => {
+        // Local error should take priority (displayError = error || queryError)
+        expect(screen.getByText(/failed to open stripe dashboard/i)).toBeInTheDocument();
+      });
+    });
   });
 });

@@ -850,6 +850,522 @@ describe('getGuestSessionId', () => {
   });
 });
 
+describe('publicApi 3-level taxonomy endpoints', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    if (originalFetch) {
+      global.fetch = originalFetch;
+    } else {
+      // @ts-expect-error cleanup when fetch was initially undefined
+      delete global.fetch;
+    }
+  });
+
+  it('getCategoriesWithSubcategories calls browse endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [{ id: 'cat-1', subcategories: [] }],
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    const result = await publicApi.getCategoriesWithSubcategories();
+
+    expect(result.data).toEqual([{ id: 'cat-1', subcategories: [] }]);
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/services/categories/browse');
+  });
+
+  it('getCategoryTree calls tree endpoint with category ID', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'cat-1', children: [] }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await publicApi.getCategoryTree('cat-123');
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/services/categories/cat-123/tree');
+  });
+
+  it('getSubcategoriesByCategory calls subcategories endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [],
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await publicApi.getSubcategoriesByCategory('cat-456');
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/services/categories/cat-456/subcategories');
+  });
+
+  it('getSubcategoryWithServices calls subcategory detail endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'sub-1', services: [] }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await publicApi.getSubcategoryWithServices('sub-123');
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/services/subcategories/sub-123');
+  });
+
+  it('getSubcategoryFilters calls filters endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [],
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await publicApi.getSubcategoryFilters('sub-456');
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/services/subcategories/sub-456/filters');
+  });
+
+  it('getServicesByAgeGroup calls by-age-group endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [],
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await publicApi.getServicesByAgeGroup('kids');
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/services/catalog/by-age-group/kids');
+  });
+
+  it('getServiceFilterContext calls filter-context endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ filters: [], selections: {} }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await publicApi.getServiceFilterContext('svc-123');
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/services/catalog/svc-123/filter-context');
+  });
+});
+
+describe('publicApi slug-based catalog endpoints', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    if (originalFetch) {
+      global.fetch = originalFetch;
+    } else {
+      // @ts-expect-error cleanup when fetch was initially undefined
+      delete global.fetch;
+    }
+  });
+
+  it('listCatalogCategories calls catalog categories endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [],
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await publicApi.listCatalogCategories();
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/catalog/categories');
+  });
+
+  it('getCatalogCategory calls category-by-slug endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ slug: 'music', subcategories: [] }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await publicApi.getCatalogCategory('music');
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/catalog/categories/music');
+  });
+
+  it('getCatalogSubcategory calls subcategory-by-slugs endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ slug: 'piano' }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await publicApi.getCatalogSubcategory('music', 'piano');
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/catalog/categories/music/piano');
+  });
+
+  it('getCatalogService calls service-by-id endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'svc-1', name: 'Piano Lessons' }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await publicApi.getCatalogService('svc-1');
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/catalog/services/svc-1');
+  });
+
+  it('listCatalogSubcategoryServices calls subcategory services endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [],
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await publicApi.listCatalogSubcategoryServices('sub-1');
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/catalog/subcategories/sub-1/services');
+  });
+
+  it('getCatalogSubcategoryFilters calls subcategory filters endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [],
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await publicApi.getCatalogSubcategoryFilters('sub-2');
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/catalog/subcategories/sub-2/filters');
+  });
+});
+
+describe('protectedApi filter management', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    if (originalFetch) {
+      global.fetch = originalFetch;
+    } else {
+      // @ts-expect-error cleanup when fetch was initially undefined
+      delete global.fetch;
+    }
+  });
+
+  it('updateFilterSelections sends PUT request with data', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'isvc-1', filter_selections: {} }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await protectedApi.updateFilterSelections('isvc-1', {
+      filter_selections: { style: ['jazz', 'classical'] },
+    } as Parameters<typeof protectedApi.updateFilterSelections>[1]);
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/services/instructor/services/isvc-1/filters');
+    expect((options as RequestInit).method).toBe('PUT');
+  });
+
+  it('validateFilterSelections sends POST request with data', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ valid: true, errors: [] }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await protectedApi.validateFilterSelections({
+      service_catalog_id: 'svc-1',
+      filter_selections: { style: ['jazz'] },
+    } as Parameters<typeof protectedApi.validateFilterSelections>[0]);
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toContain('/api/v1/services/instructor/services/validate-filters');
+    expect((options as RequestInit).method).toBe('POST');
+  });
+});
+
+describe('protectedApi booking edge cases', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    if (originalFetch) {
+      global.fetch = originalFetch;
+    } else {
+      // @ts-expect-error cleanup when fetch was initially undefined
+      delete global.fetch;
+    }
+  });
+
+  it('getBookings with no params sends no query string', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ items: [] }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await protectedApi.getBookings();
+
+    const [url] = fetchMock.mock.calls[0];
+    const requestUrl = new URL(url as string, window.location.origin);
+    expect(requestUrl.searchParams.toString()).toBe('');
+  });
+
+  it('getBookings with uppercase status passes through', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ items: [] }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await protectedApi.getBookings({ status: 'CONFIRMED' });
+
+    const [url] = fetchMock.mock.calls[0];
+    const requestUrl = new URL(url as string, window.location.origin);
+    expect(requestUrl.searchParams.get('status')).toBe('CONFIRMED');
+  });
+
+  it('getBookings omits undefined status', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ items: [] }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await protectedApi.getBookings({ status: undefined, page: 2 });
+
+    const [url] = fetchMock.mock.calls[0];
+    const requestUrl = new URL(url as string, window.location.origin);
+    expect(requestUrl.searchParams.has('status')).toBe(false);
+    expect(requestUrl.searchParams.get('page')).toBe('2');
+  });
+
+  it('getInstructorBookings with no params sends no query string', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ items: [] }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await protectedApi.getInstructorBookings();
+
+    const [url] = fetchMock.mock.calls[0];
+    const requestUrl = new URL(url as string, window.location.origin);
+    expect(requestUrl.searchParams.toString()).toBe('');
+  });
+
+  it('getInstructorUpcomingBookings caps perPage to 100', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await protectedApi.getInstructorUpcomingBookings(1, 200);
+
+    const [url] = fetchMock.mock.calls[0];
+    const requestUrl = new URL(url as string, window.location.origin);
+    expect(requestUrl.searchParams.get('per_page')).toBe('100');
+  });
+
+  it('getInstructorCompletedBookings caps perPage to 100', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await protectedApi.getInstructorCompletedBookings(1, 300);
+
+    const [url] = fetchMock.mock.calls[0];
+    const requestUrl = new URL(url as string, window.location.origin);
+    expect(requestUrl.searchParams.get('per_page')).toBe('100');
+  });
+});
+
+describe('cleanFetch URL routing', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    if (originalFetch) {
+      global.fetch = originalFetch;
+    } else {
+      // @ts-expect-error cleanup when fetch was initially undefined
+      delete global.fetch;
+    }
+  });
+
+  it('skips proxy for endpoints already prefixed with /api/proxy', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await cleanFetch('/api/proxy/api/v1/test');
+
+    const [url] = fetchMock.mock.calls[0];
+    // Should not double-prefix with proxy
+    expect(url).toContain('/api/proxy/api/v1/test');
+    expect(url).not.toContain('/api/proxy/api/proxy');
+  });
+
+  it('handles error response with string detail value', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ detail: 'Invalid input parameters' }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    const response = await cleanFetch('https://example.com/api/v1/test');
+
+    expect(response.error).toBe('Invalid input parameters');
+  });
+
+  it('handles error response with null detail value', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ detail: null }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    const response = await cleanFetch('https://example.com/api/v1/test');
+
+    expect(response.error).toBe('Error: 500');
+  });
+
+  it('includes credentials: include by default', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await cleanFetch('https://example.com/api/v1/test');
+
+    const [, options] = fetchMock.mock.calls[0];
+    expect((options as RequestInit).credentials).toBe('include');
+  });
+});
+
+describe('publicApi search context', () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    getSessionIdMock.mockReturnValue('session-1');
+    document.cookie = 'guest_id=guest-123';
+  });
+
+  afterEach(() => {
+    if (originalFetch) {
+      global.fetch = originalFetch;
+    } else {
+      // @ts-expect-error cleanup when fetch was initially undefined
+      delete global.fetch;
+    }
+  });
+
+  it('recordSearchHistory preserves provided search_context', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 1 }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    const customContext = { page: '/custom', source: 'deeplink' };
+    await publicApi.recordSearchHistory({
+      search_query: 'guitar',
+      search_type: 'text',
+      search_context: customContext,
+    });
+
+    const [, options] = fetchMock.mock.calls[0];
+    const body = JSON.parse((options as RequestInit).body as string) as {
+      search_context?: Record<string, unknown>;
+    };
+    // Should keep the provided context, not generate default
+    expect(body.search_context).toEqual(customContext);
+  });
+
+  it('searchWithNaturalLanguage omits empty filter params', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ results: [] }),
+      headers: new Headers(),
+    });
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await publicApi.searchWithNaturalLanguage('piano', {});
+
+    const [url] = fetchMock.mock.calls[0];
+    const requestUrl = new URL(url as string, window.location.origin);
+    expect(requestUrl.searchParams.get('q')).toBe('piano');
+    expect(requestUrl.searchParams.has('skill_level')).toBe(false);
+    expect(requestUrl.searchParams.has('subcategory_id')).toBe(false);
+    expect(requestUrl.searchParams.has('content_filters')).toBe(false);
+  });
+});
+
 describe('analytics headers', () => {
   const originalFetch = global.fetch;
 

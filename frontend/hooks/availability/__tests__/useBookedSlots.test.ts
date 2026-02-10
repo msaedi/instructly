@@ -149,6 +149,98 @@ describe('useBookedSlots', () => {
     );
   });
 
+  it('handles null booked_slots in response data (not an array)', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ booked_slots: null }),
+    });
+
+    const { result } = renderHook(() => useBookedSlots());
+
+    await act(async () => {
+      await result.current.fetchBookedSlots(new Date('2025-01-06T00:00:00Z'));
+    });
+
+    // When booked_slots is null, the Array.isArray check should return false
+    // and the fallback empty array should be used
+    expect(result.current.bookedSlots).toEqual([]);
+    expect(result.current.bookingError).toBeNull();
+    expect(result.current.isLoadingBookings).toBe(false);
+  });
+
+  it('handles undefined data in response (no booked_slots key)', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce({
+      ok: true,
+      json: jest.fn().mockResolvedValue({}),
+    });
+
+    const { result } = renderHook(() => useBookedSlots());
+
+    await act(async () => {
+      await result.current.fetchBookedSlots(new Date('2025-01-06T00:00:00Z'));
+    });
+
+    expect(result.current.bookedSlots).toEqual([]);
+    expect(result.current.bookingError).toBeNull();
+  });
+
+  it('does not cache when enableCache is false', async () => {
+    const slot = createSlot({ booking_id: 'no-cache-1' });
+    fetchWithAuthMock.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ booked_slots: [slot] }),
+    });
+
+    const { result } = renderHook(() => useBookedSlots({ enableCache: false }));
+
+    const weekStart = new Date('2025-01-06T00:00:00Z');
+
+    await act(async () => {
+      await result.current.fetchBookedSlots(weekStart);
+    });
+
+    await act(async () => {
+      await result.current.fetchBookedSlots(weekStart);
+    });
+
+    // Without caching, both fetches should hit the API
+    expect(fetchWithAuthMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not log cache status in production mode', async () => {
+    Object.defineProperty(process.env, 'NODE_ENV', {
+      value: 'production',
+      writable: true,
+      configurable: true,
+    });
+    jest.useFakeTimers();
+
+    const slot = createSlot();
+    fetchWithAuthMock.mockResolvedValueOnce({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ booked_slots: [slot] }),
+    });
+
+    const { result } = renderHook(() => useBookedSlots());
+
+    await act(async () => {
+      await result.current.fetchBookedSlots(new Date('2025-01-06T00:00:00Z'));
+    });
+
+    const { logger } = jest.requireMock('@/lib/logger') as { logger: { debug: jest.Mock } };
+    logger.debug.mockClear();
+
+    act(() => {
+      jest.advanceTimersByTime(30000);
+    });
+
+    // In production mode, cache status should not be logged
+    const cacheStatusCalls = logger.debug.mock.calls.filter(
+      (call: unknown[]) => call[0] === 'Booking cache status'
+    );
+    expect(cacheStatusCalls).toHaveLength(0);
+  });
+
   it('uses cache and refresh bypasses it', async () => {
     const slot = createSlot({ booking_id: 'booking-2' });
     fetchWithAuthMock.mockResolvedValue({

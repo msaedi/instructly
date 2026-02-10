@@ -49,6 +49,34 @@ describe('notificationPreferencesApi.getPreferences', () => {
   });
 });
 
+describe('parseErrorMessage fallback chain', () => {
+  beforeEach(() => {
+    fetchWithAuthMock.mockReset();
+  });
+
+  it('uses message field when detail is absent', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce(
+      makeResponse({ ok: false, json: { message: 'Custom error' } })
+    );
+
+    await expect(notificationPreferencesApi.getPreferences()).rejects.toThrow('Custom error');
+  });
+
+  it('uses fallback when error body has no detail or message', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce(makeResponse({ ok: false, json: {} }));
+
+    await expect(notificationPreferencesApi.getPreferences()).rejects.toThrow('Failed to load preferences');
+  });
+
+  it('uses fallback when detail is null', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce(
+      makeResponse({ ok: false, json: { detail: null } })
+    );
+
+    await expect(notificationPreferencesApi.getPreferences()).rejects.toThrow('Failed to load preferences');
+  });
+});
+
 describe('notificationPreferencesApi.updatePreference', () => {
   beforeEach(() => {
     fetchWithAuthMock.mockReset();

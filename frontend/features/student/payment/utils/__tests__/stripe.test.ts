@@ -106,4 +106,59 @@ describe('getStripeErrorMessage', () => {
       'An unexpected error occurred. Please try again.'
     );
   });
+
+  it('returns the message for validation_error type', () => {
+    const { stripeModule } = setupModule('pk_live_123');
+    expect(
+      stripeModule.getStripeErrorMessage({
+        type: 'validation_error',
+        message: 'Your postal code is incomplete.',
+      }),
+    ).toBe('Your postal code is incomplete.');
+  });
+
+  it('returns default message for non-card/validation error types with message', () => {
+    const { stripeModule } = setupModule('pk_live_123');
+    // type=api_error is not card_error or validation_error, so even with message it falls through
+    const result = stripeModule.getStripeErrorMessage({
+      type: 'api_error',
+      message: 'Internal server error',
+    });
+    // It has both 'type' and 'message' in the object, but type doesn't match card_error/validation_error
+    // so it falls through to the code check. No 'code' property, so returns default.
+    expect(result).toBe('An unexpected error occurred. Please try again.');
+  });
+
+  it('returns default message for object without type, message, or code', () => {
+    const { stripeModule } = setupModule('pk_live_123');
+    expect(stripeModule.getStripeErrorMessage({ foo: 'bar' })).toBe(
+      'An unexpected error occurred. Please try again.'
+    );
+  });
+
+  it('returns default message for undefined', () => {
+    const { stripeModule } = setupModule('pk_live_123');
+    expect(stripeModule.getStripeErrorMessage(undefined)).toBe(
+      'An unexpected error occurred. Please try again.'
+    );
+  });
+
+  it('returns default message for number', () => {
+    const { stripeModule } = setupModule('pk_live_123');
+    expect(stripeModule.getStripeErrorMessage(42)).toBe(
+      'An unexpected error occurred. Please try again.'
+    );
+  });
+
+  it('handles object with both type+message and code (type takes precedence)', () => {
+    const { stripeModule } = setupModule('pk_live_123');
+    // If type is card_error, it returns message even if code also exists
+    expect(
+      stripeModule.getStripeErrorMessage({
+        type: 'card_error',
+        message: 'Card was declined',
+        code: 'insufficient_funds',
+      }),
+    ).toBe('Card was declined');
+  });
 });

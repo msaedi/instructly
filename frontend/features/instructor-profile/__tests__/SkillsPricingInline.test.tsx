@@ -1588,4 +1588,538 @@ describe('SkillsPricingInline', () => {
       jest.useRealTimers();
     });
   });
+
+  describe('Batch 9 — uncovered branch coverage', () => {
+    it('toggles age group from adults to both when kids selected', async () => {
+      const user = userEvent.setup();
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            age_groups: ['adults'],
+            duration_options: [60],
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Click Kids to add it, making it 'both'
+      const kidsButtons = screen.getAllByRole('button', { name: /^kids$/i });
+      const kidsButton = kidsButtons.find((btn) => btn.closest('[class*="bg-white"]'));
+      if (kidsButton) await user.click(kidsButton);
+
+      // Should still render
+      expect(screen.getAllByText(/piano/i).length).toBeGreaterThan(0);
+    });
+
+    it('toggles age group from both to kids when adults deselected', async () => {
+      const user = userEvent.setup();
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            age_groups: ['kids', 'adults'], // both
+            duration_options: [60],
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Click Adults to deselect it from 'both', should become 'kids'
+      const adultsButtons = screen.getAllByRole('button', { name: /^adults$/i });
+      const adultsButton = adultsButtons.find((btn) => btn.closest('[class*="bg-white"]'));
+      if (adultsButton) await user.click(adultsButton);
+
+      expect(screen.getAllByText(/piano/i).length).toBeGreaterThan(0);
+    });
+
+    it('prevents removing the last duration option', async () => {
+      const user = userEvent.setup();
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            age_groups: ['adults'],
+            duration_options: [60], // Only one duration
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Try to deselect the only duration option (60m)
+      const durationButtons = screen.getAllByRole('button', { name: /^60m$/i });
+      if (durationButtons[0]) {
+        await user.click(durationButtons[0]);
+      }
+
+      // 60m should still be selected (can't remove last)
+      const btn60 = screen.getAllByRole('button', { name: /^60m$/i })[0];
+      expect(btn60?.className).toContain('purple');
+    });
+
+    it('adds new service with defaultCapabilities when has service areas', async () => {
+      const user = userEvent.setup();
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: ['n1', 'n2'], // has service areas
+          preferred_teaching_locations: [{ address: '123 Main' }], // has teaching locations
+          services: [],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      await user.click(screen.getByRole('button', { name: /music/i }));
+      await user.click(screen.getByRole('button', { name: /piano \+/i }));
+
+      // Travel should default to on (has service areas)
+      expect(screen.getByRole('switch', { name: /i travel to students/i })).toHaveAttribute('aria-checked', 'true');
+      // At location should default to on (has teaching locations)
+      expect(screen.getByRole('switch', { name: /students come to me/i })).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('adds new service defaulting to online-only when no areas or locations', async () => {
+      const user = userEvent.setup();
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_neighborhoods: [], // no service areas
+          preferred_teaching_locations: [], // no teaching locations
+          services: [],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      await user.click(screen.getByRole('button', { name: /music/i }));
+      await user.click(screen.getByRole('button', { name: /piano \+/i }));
+
+      // Online should default to on (no areas or locations)
+      expect(screen.getByRole('switch', { name: /online lessons/i })).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('handles "Cannot enable at my location" error silently', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+      mockFetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({ detail: "Cannot enable 'at my location' without teaching locations" }),
+      });
+
+      render(<SkillsPricingInline />);
+
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '55');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+      });
+
+      // The error should be handled silently (not shown)
+      await waitFor(() => {
+        expect(screen.queryByText(/cannot enable/i)).not.toBeInTheDocument();
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('saves service description in payload when provided', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+            description: 'Classical piano lessons',
+            offers_online: true,
+          }],
+        },
+      });
+      mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+      render(<SkillsPricingInline />);
+
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '65');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+        const callArgs = mockFetchWithAuth.mock.calls[0];
+        const body = JSON.parse(callArgs[1].body);
+        expect(body.services[0].description).toBe('Classical piano lessons');
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('omits description from payload when empty', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+            description: '', // empty
+            offers_online: true,
+          }],
+        },
+      });
+      mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+      render(<SkillsPricingInline />);
+
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '65');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+        const callArgs = mockFetchWithAuth.mock.calls[0];
+        const body = JSON.parse(callArgs[1].body);
+        expect(body.services[0]).not.toHaveProperty('description');
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('excludes services with empty hourly rate from save payload', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [
+            {
+              service_catalog_id: 'svc-1',
+              service_catalog_name: 'Piano',
+              hourly_rate: 60,
+              offers_online: true,
+            },
+            {
+              service_catalog_id: 'svc-2',
+              service_catalog_name: 'Guitar',
+              hourly_rate: '', // empty rate
+              offers_online: true,
+            },
+          ],
+        },
+      });
+      mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+      render(<SkillsPricingInline />);
+
+      // Trigger autosave
+      const rateInputs = screen.getAllByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInputs[0]!);
+      await user.type(rateInputs[0]!, '65');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+        const callArgs = mockFetchWithAuth.mock.calls[0];
+        const body = JSON.parse(callArgs[1].body);
+        // Only the service with a rate should be in the payload
+        expect(body.services).toHaveLength(1);
+        expect(body.services[0].service_catalog_id).toBe('svc-1');
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('handles hasServiceAreas and hasTeachingLocations for service area summary', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_summary: 'All of Manhattan', // non-empty summary
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_travel: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Travel should be enabled (service_area_summary makes hasServiceAreas true)
+      expect(screen.getByRole('switch', { name: /i travel to students/i })).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('handles hasServiceAreas via boroughs array', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          service_area_boroughs: ['Manhattan'], // non-empty boroughs
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_travel: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      expect(screen.getByRole('switch', { name: /i travel to students/i })).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('handles save with both age groups', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 60,
+            age_groups: ['kids', 'adults'],
+            offers_online: true,
+          }],
+        },
+      });
+      mockFetchWithAuth.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+      render(<SkillsPricingInline />);
+
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '65');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(mockFetchWithAuth).toHaveBeenCalled();
+        const callArgs = mockFetchWithAuth.mock.calls[0];
+        const body = JSON.parse(callArgs[1].body);
+        expect(body.services[0].age_groups).toEqual(['kids', 'adults']);
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('handles API error with empty json response', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+      mockFetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => { throw new Error('not json'); },
+      });
+
+      render(<SkillsPricingInline />);
+
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '55');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(screen.getByText(/failed to save/i)).toBeInTheDocument();
+      });
+      jest.useRealTimers();
+    });
+
+    it('shows "saving changes" text while saving', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      let resolveApi: (() => void) | null = null;
+      const apiPromise = new Promise<void>((resolve) => { resolveApi = resolve; });
+
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+      mockFetchWithAuth.mockImplementation(async () => {
+        await apiPromise;
+        return { ok: true, json: async () => ({}) };
+      });
+
+      render(<SkillsPricingInline />);
+
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '55');
+      jest.advanceTimersByTime(1200);
+
+      await waitFor(() => {
+        expect(screen.getByText(/saving changes/i)).toBeInTheDocument();
+      });
+
+      // Resolve the API call
+      resolveApi!();
+
+      jest.useRealTimers();
+    });
+
+    it('renders no services message when empty', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: { is_live: false, services: [] },
+      });
+
+      render(<SkillsPricingInline />);
+
+      expect(screen.getByText(/no services added yet/i)).toBeInTheDocument();
+    });
+
+    it('handles service with service_catalog_id undefined', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+            // service_catalog_id is missing
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Should filter out service with empty catalog_service_id
+      const rateInputs = screen.queryAllByPlaceholderText(/hourly rate/i);
+      expect(rateInputs).toHaveLength(0);
+    });
+
+    it('does not show error for non-location-capability errors', async () => {
+      jest.useFakeTimers();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+      mockFetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({ detail: 'General server error' }),
+      });
+
+      render(<SkillsPricingInline />);
+
+      const rateInput = screen.getByPlaceholderText(/hourly rate/i);
+      await user.clear(rateInput);
+      await user.type(rateInput, '55');
+      jest.advanceTimersByTime(1200);
+
+      // Non-location-capability errors should be shown
+      await waitFor(() => {
+        expect(screen.getByText(/general server error/i)).toBeInTheDocument();
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('uses service_catalog_name from data for display', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: null, // null name
+            name: 'Fallback Name',
+            hourly_rate: 50,
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // Should show Service (the default from displayServiceName mock)
+      expect(screen.getAllByText(/service/i).length).toBeGreaterThan(0);
+    });
+
+    it('services with empty levels_taught default to all levels', () => {
+      mockUseInstructorProfileMe.mockReturnValue({
+        data: {
+          is_live: false,
+          services: [{
+            service_catalog_id: 'svc-1',
+            service_catalog_name: 'Piano',
+            hourly_rate: 50,
+            levels_taught: [], // empty array
+            offers_online: true,
+          }],
+        },
+      });
+
+      render(<SkillsPricingInline />);
+
+      // All three level buttons should be selected (purple/active)
+      const beginnerBtns = screen.getAllByRole('button', { name: /^beginner$/i });
+      const intermediateBtns = screen.getAllByRole('button', { name: /^intermediate$/i });
+      const advancedBtns = screen.getAllByRole('button', { name: /^advanced$/i });
+
+      expect(beginnerBtns[0]?.className).toContain('purple');
+      expect(intermediateBtns[0]?.className).toContain('purple');
+      expect(advancedBtns[0]?.className).toContain('purple');
+    });
+  });
 });

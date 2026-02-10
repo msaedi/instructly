@@ -97,4 +97,120 @@ describe('usePublicAvailability', () => {
     });
     expect(result.current['inst-b']).toBeUndefined();
   });
+
+  it('returns null for response with missing data field', async () => {
+    getInstructorAvailabilityMock.mockResolvedValueOnce({
+      status: 200,
+      data: null,
+    });
+
+    const { result } = renderHook(() => usePublicAvailability(['inst-c']), {
+      wrapper: createWrapper(),
+    });
+
+    // The combine function skips entries where data is null,
+    // so inst-c should not be in the result
+    await waitFor(() => {
+      expect(getInstructorAvailabilityMock).toHaveBeenCalled();
+    });
+    expect(result.current['inst-c']).toBeUndefined();
+  });
+
+  it('handles availability_by_date being undefined (uses || {} fallback)', async () => {
+    getInstructorAvailabilityMock.mockResolvedValueOnce({
+      status: 200,
+      data: {
+        availability_by_date: undefined,
+        timezone: 'America/New_York',
+      },
+    });
+
+    const { result } = renderHook(() => usePublicAvailability(['inst-d']), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current['inst-d']).toBeDefined();
+    });
+
+    expect(result.current['inst-d']?.availabilityByDate).toEqual({});
+    expect(result.current['inst-d']?.timezone).toBe('America/New_York');
+  });
+
+  it('handles day with null available_slots (uses || [] fallback)', async () => {
+    getInstructorAvailabilityMock.mockResolvedValueOnce({
+      status: 200,
+      data: {
+        availability_by_date: {
+          '2025-01-15': {
+            available_slots: null,
+            is_blackout: false,
+          },
+        },
+        timezone: null,
+      },
+    });
+
+    const { result } = renderHook(() => usePublicAvailability(['inst-e']), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current['inst-e']).toBeDefined();
+    });
+
+    expect(result.current['inst-e']?.availabilityByDate['2025-01-15']?.available_slots).toEqual([]);
+    // timezone null should become undefined via ?? undefined
+    expect(result.current['inst-e']?.timezone).toBeUndefined();
+  });
+
+  it('skips null day entries in availability_by_date', async () => {
+    getInstructorAvailabilityMock.mockResolvedValueOnce({
+      status: 200,
+      data: {
+        availability_by_date: {
+          '2025-01-20': null,
+          '2025-01-21': {
+            available_slots: [{ start_time: '10:00', end_time: '11:00' }],
+            is_blackout: false,
+          },
+        },
+        timezone: 'UTC',
+      },
+    });
+
+    const { result } = renderHook(() => usePublicAvailability(['inst-f']), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current['inst-f']).toBeDefined();
+    });
+
+    // Null day should be skipped
+    expect(result.current['inst-f']?.availabilityByDate['2025-01-20']).toBeUndefined();
+    // Valid day should be present
+    expect(result.current['inst-f']?.availabilityByDate['2025-01-21']?.available_slots).toHaveLength(1);
+  });
+
+  it('filters out empty string instructor IDs', async () => {
+    getInstructorAvailabilityMock.mockResolvedValueOnce({
+      status: 200,
+      data: {
+        availability_by_date: {},
+        timezone: 'UTC',
+      },
+    });
+
+    const { result } = renderHook(() => usePublicAvailability(['inst-g', '', 'inst-g']), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current['inst-g']).toBeDefined();
+    });
+
+    // Empty string should be filtered, and duplicates deduped
+    expect(getInstructorAvailabilityMock).toHaveBeenCalledTimes(1);
+  });
 });

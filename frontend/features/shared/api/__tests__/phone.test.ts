@@ -49,6 +49,34 @@ describe('phoneApi.getPhoneStatus', () => {
   });
 });
 
+describe('parseErrorMessage fallback chain', () => {
+  beforeEach(() => {
+    fetchWithAuthMock.mockReset();
+  });
+
+  it('uses message field when detail is absent', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce(
+      makeResponse({ ok: false, json: { message: 'Custom error' } })
+    );
+
+    await expect(phoneApi.getPhoneStatus()).rejects.toThrow('Custom error');
+  });
+
+  it('uses fallback when error body has no detail or message', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce(makeResponse({ ok: false, json: {} }));
+
+    await expect(phoneApi.getPhoneStatus()).rejects.toThrow('Failed to load phone status');
+  });
+
+  it('uses fallback when detail is null', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce(
+      makeResponse({ ok: false, json: { detail: null } })
+    );
+
+    await expect(phoneApi.getPhoneStatus()).rejects.toThrow('Failed to load phone status');
+  });
+});
+
 describe('phoneApi.updatePhoneNumber', () => {
   beforeEach(() => {
     fetchWithAuthMock.mockReset();

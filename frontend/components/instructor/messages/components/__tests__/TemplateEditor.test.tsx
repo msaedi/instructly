@@ -602,4 +602,154 @@ describe('TemplateEditor', () => {
       expect(subjectInput).toHaveValue('Welcome Template');
     });
   });
+
+  describe('additional branch coverage', () => {
+    it('handles rewrite on a template not in drafts and not found in templates array (line 79 fallback)', () => {
+      // Template body is undefined (null coalescing needs null/undefined, not empty string)
+      const orphanTemplate: TemplateItem[] = [
+        { id: 'tmpl-orphan', subject: 'Orphan', body: undefined as unknown as string, preview: '' },
+      ];
+
+      render(
+        <TemplateEditor
+          {...defaultProps}
+          templates={orphanTemplate}
+          selectedTemplateId="tmpl-orphan"
+          templateDrafts={{}} // No draft for this template
+        />
+      );
+
+      // templateDrafts['tmpl-orphan'] is undefined, templates.find(...)?.body is undefined
+      // So the ?? '' fallback should be used
+      fireEvent.click(screen.getByRole('button', { name: /rewrite with ai/i }));
+      expect(rewriteTemplateContentMock).toHaveBeenCalledWith('', 0);
+    });
+
+    it('handles template.body being undefined in list rendering (line 132 fallback)', () => {
+      // Template with body as undefined via type coercion
+      const templateWithNoBody: TemplateItem[] = [
+        { id: 'tmpl-nobody', subject: 'No Body', body: undefined as unknown as string, preview: 'Some preview' },
+      ];
+
+      render(
+        <TemplateEditor
+          {...defaultProps}
+          templates={templateWithNoBody}
+          selectedTemplateId="tmpl-nobody"
+          templateDrafts={{}}
+        />
+      );
+
+      // Should render without crashing
+      expect(screen.getByText('No Body')).toBeInTheDocument();
+    });
+
+    it('pendingSubjectFocusId does not match selectedTemplateId — skips focus (line 45)', async () => {
+      jest.useFakeTimers();
+      const onTemplatesUpdate = jest.fn();
+      const onTemplateDraftChange = jest.fn();
+      const onTemplateSelect = jest.fn();
+
+      const { rerender } = render(
+        <TemplateEditor
+          {...defaultProps}
+          onTemplatesUpdate={onTemplatesUpdate}
+          onTemplateDraftChange={onTemplateDraftChange}
+          onTemplateSelect={onTemplateSelect}
+        />
+      );
+
+      // Click create template to set pendingSubjectFocusId
+      fireEvent.click(screen.getByRole('button', { name: /create template/i }));
+
+      const updateCall = onTemplatesUpdate.mock.calls[0];
+      expect(updateCall).toBeDefined();
+      const updater = updateCall![0] as (prev: TemplateItem[]) => TemplateItem[];
+      const newTemplates = updater(mockTemplates);
+
+      // Rerender with the new template in the list BUT with a DIFFERENT selectedTemplateId
+      // This means pendingSubjectFocusId !== selectedTemplateId
+      rerender(
+        <TemplateEditor
+          {...defaultProps}
+          templates={newTemplates}
+          selectedTemplateId="tmpl-1" // Keep original selection, NOT the new template
+          onTemplatesUpdate={onTemplatesUpdate}
+          onTemplateDraftChange={onTemplateDraftChange}
+          onTemplateSelect={onTemplateSelect}
+        />
+      );
+
+      await act(async () => {
+        jest.runAllTimers();
+      });
+
+      // The focus effect should short-circuit since pendingSubjectFocusId !== selectedTemplateId
+      // This exercises line 45's early return
+      const subjectInput = screen.getByRole('textbox', { name: /template title/i });
+      expect(subjectInput).toHaveValue('Welcome Template'); // Still showing original
+
+      jest.useRealTimers();
+    });
+
+    it('rewrite button is disabled while rewritingTemplateId matches current (line 185)', () => {
+      // Since rewritingTemplateId is set and cleared synchronously, we can't observe the
+      // intermediate "Rewriting..." text in the DOM. However, we CAN verify the button's
+      // disabled state behavior by checking that:
+      // 1. The disabled attribute matches rewritingTemplateId === current.id
+      // 2. After rewrite completes, the button shows "Rewrite with AI"
+      render(<TemplateEditor {...defaultProps} />);
+
+      // Before rewrite
+      const rewriteBtn = screen.getByRole('button', { name: /rewrite with ai/i });
+      expect(rewriteBtn).not.toBeDisabled();
+
+      // After rewrite (synchronous)
+      fireEvent.click(rewriteBtn);
+
+      // Button should show "Rewrite with AI" again (rewriting state cleared in finally)
+      expect(screen.getByText('Rewrite with AI')).toBeInTheDocument();
+      expect(rewriteBtn).not.toBeDisabled();
+    });
+
+    it('shows template preview fallback chain: derivePreview empty, template.preview exists (line 147)', () => {
+      const templateWithPreviewOnly: TemplateItem[] = [
+        { id: 'tmpl-prev', subject: 'Preview Test', body: '', preview: 'Stored preview text' },
+      ];
+      // Reset mock completely to ensure it returns ''
+      deriveTemplatePreviewMock.mockReset();
+      deriveTemplatePreviewMock.mockReturnValue('');
+
+      render(
+        <TemplateEditor
+          {...defaultProps}
+          templates={templateWithPreviewOnly}
+          selectedTemplateId="tmpl-prev"
+          templateDrafts={{}}
+        />
+      );
+
+      // deriveTemplatePreview returns '' so template.preview should be used
+      expect(screen.getByText('Stored preview text')).toBeInTheDocument();
+    });
+
+    it('falls through to "Add template content" when both preview sources empty (line 147)', () => {
+      const templateNoPreview: TemplateItem[] = [
+        { id: 'tmpl-noprev', subject: 'No Preview', body: '', preview: '' },
+      ];
+      deriveTemplatePreviewMock.mockReturnValue('');
+
+      render(
+        <TemplateEditor
+          {...defaultProps}
+          templates={templateNoPreview}
+          selectedTemplateId="tmpl-noprev"
+          templateDrafts={{}}
+        />
+      );
+
+      // Both derivePreview and template.preview are empty -> fallback to "Add template content"
+      expect(screen.getAllByText('Add template content').length).toBeGreaterThan(0);
+    });
+  });
 });

@@ -253,6 +253,89 @@ describe('useAdminAuth', () => {
     expect(result.current.isAdmin).toBe(true);
   });
 
+  it('should encode the current path when redirecting unauthenticated user from a non-root path', () => {
+    // Use history.pushState to set the browser URL in jsdom
+    window.history.pushState({}, '', '/admin/dashboard?tab=metrics');
+
+    mockUseAuth.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: null,
+      login: jest.fn(),
+      logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
+    });
+
+    mockUsePermissions.mockReturnValue({
+      hasPermission: jest.fn().mockReturnValue(false),
+      hasAnyPermission: jest.fn(),
+      hasAllPermissions: jest.fn(),
+      canBookLessons: jest.fn(),
+      canManageInstructorProfile: jest.fn(),
+      canViewAnalytics: jest.fn(),
+      isAdmin: jest.fn(),
+      permissions: [],
+    });
+
+    renderHook(() => useAdminAuth());
+
+    // Should encode the current path in the redirect param
+    expect(mockPush).toHaveBeenCalledWith(
+      `/login?redirect=${encodeURIComponent('/admin/dashboard?tab=metrics')}`
+    );
+
+    // Restore location
+    window.history.pushState({}, '', '/');
+  });
+
+  it('should encode the current path when authenticated user lacks admin permissions on a non-root page', () => {
+    window.history.pushState({}, '', '/admin/users');
+
+    const mockUser = {
+      id: '1',
+      email: 'student@test.com',
+      first_name: 'Student',
+      last_name: 'User',
+      roles: [],
+      permissions: [PermissionName.CREATE_BOOKINGS],
+      is_active: true,
+      created_at: '',
+      updated_at: '',
+    };
+
+    mockUseAuth.mockReturnValue({
+      user: mockUser as User,
+      isAuthenticated: true,
+      isLoading: false,
+      error: null,
+      login: jest.fn(),
+      logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
+    });
+
+    mockUsePermissions.mockReturnValue({
+      hasPermission: jest.fn().mockReturnValue(false),
+      hasAnyPermission: jest.fn(),
+      hasAllPermissions: jest.fn(),
+      canBookLessons: jest.fn(),
+      canManageInstructorProfile: jest.fn(),
+      canViewAnalytics: jest.fn(),
+      isAdmin: jest.fn(),
+      permissions: [PermissionName.CREATE_BOOKINGS],
+    });
+
+    renderHook(() => useAdminAuth());
+
+    expect(mockPush).toHaveBeenCalledWith(
+      `/login?redirect=${encodeURIComponent('/admin/users')}`
+    );
+
+    window.history.pushState({}, '', '/');
+  });
+
   it('should handle state changes and re-evaluate permissions', () => {
     // Start with no user
     mockUseAuth.mockReturnValue({

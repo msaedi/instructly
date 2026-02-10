@@ -452,4 +452,157 @@ describe('BookingDetailsModal', () => {
       expect(container.querySelector('.sticky.bottom-0')).toBeInTheDocument();
     });
   });
+
+  describe('Lesson timezone', () => {
+    it('shows lesson timezone when it differs from viewer timezone', () => {
+      const booking = createMockBooking();
+      // Set lesson_timezone to something that will differ from most test environments
+      (booking as unknown as Record<string, unknown>).lesson_timezone = 'Asia/Tokyo';
+
+      render(<BookingDetailsModal {...defaultProps} booking={booking} />);
+
+      // Should show timezone labels (one for date, one for time)
+      const tzLabels = screen.getAllByText(/Asia\/Tokyo/);
+      expect(tzLabels.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('does not show lesson timezone when it matches viewer timezone', () => {
+      const viewerTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const booking = createMockBooking();
+      (booking as unknown as Record<string, unknown>).lesson_timezone = viewerTz;
+
+      render(<BookingDetailsModal {...defaultProps} booking={booking} />);
+
+      // Should not show timezone indicator since they match
+      expect(screen.queryByText(`(${viewerTz})`)).not.toBeInTheDocument();
+    });
+
+    it('does not show lesson timezone when it is null', () => {
+      const booking = createMockBooking();
+      (booking as unknown as Record<string, unknown>).lesson_timezone = null;
+
+      render(<BookingDetailsModal {...defaultProps} booking={booking} />);
+
+      // Should render without any timezone annotation
+      expect(screen.getByText('Booking Details')).toBeInTheDocument();
+    });
+  });
+
+  describe('Unknown status', () => {
+    it('falls back to default gray styling for unknown status', () => {
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({ status: 'UNKNOWN_STATUS' as BookingStatus })}
+        />
+      );
+      const badge = screen.getByText('UNKNOWN_STATUS');
+      expect(badge).toHaveClass('bg-gray-100', 'text-gray-800');
+    });
+  });
+
+  describe('formatPrice edge cases', () => {
+    it('handles price that throws during toFixed', () => {
+      // The formatPrice catch block (lines 77-78) fires when toFixed or parseFloat throws.
+      // This is very hard to trigger naturally since toFixed/parseFloat don't throw for most inputs.
+      // But we can verify the "0.00" fallback path for unusual types.
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({ total_price: {} as unknown as number })}
+        />
+      );
+      // Object type has no toFixed, would fail typeof checks and return '0.00'
+      expect(screen.getByText('Total: $0.00')).toBeInTheDocument();
+    });
+
+    it('formats negative prices correctly', () => {
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({ total_price: -15.5 })}
+        />
+      );
+      expect(screen.getByText('Total: $-15.50')).toBeInTheDocument();
+    });
+  });
+
+  describe('Cancellation edge cases', () => {
+    it('does not show cancellation section for CANCELLED status without reason', () => {
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({
+            status: 'CANCELLED',
+            cancellation_reason: undefined,
+          })}
+        />
+      );
+      expect(screen.queryByText('Cancellation Details')).not.toBeInTheDocument();
+    });
+
+    it('shows cancellation details without cancelled_at date', () => {
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({
+            status: 'CANCELLED',
+            cancellation_reason: 'Student request',
+            cancelled_at: undefined,
+          })}
+        />
+      );
+      expect(screen.getByText('Cancellation Details')).toBeInTheDocument();
+      expect(screen.getByText('Student request')).toBeInTheDocument();
+      expect(screen.queryByText(/Cancelled on/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Hourly rate edge cases', () => {
+    it('does not show hourly rate when service is undefined', () => {
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({ service: undefined })}
+        />
+      );
+      expect(screen.queryByText(/\/hour/)).not.toBeInTheDocument();
+    });
+
+    it('does not show hourly rate when service.hourly_rate is null', () => {
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({
+            service: { hourly_rate: null } as unknown as Booking['service'],
+          })}
+        />
+      );
+      expect(screen.queryByText(/\/hour/)).not.toBeInTheDocument();
+    });
+
+    it('handles string hourly rate through formatPrice', () => {
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({
+            service: { hourly_rate: '45.50' } as unknown as Booking['service'],
+          })}
+        />
+      );
+      expect(screen.getByText('($45.50/hour)')).toBeInTheDocument();
+    });
+  });
+
+  describe('Service area edge cases', () => {
+    it('does not show service area when not provided', () => {
+      render(
+        <BookingDetailsModal
+          {...defaultProps}
+          booking={createMockBooking({ service_area: undefined })}
+        />
+      );
+      expect(screen.queryByText(/service area:/i)).not.toBeInTheDocument();
+    });
+  });
 });

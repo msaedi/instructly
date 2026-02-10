@@ -681,6 +681,157 @@ describe('useProfilePictureUrls', () => {
     });
   });
 
+  describe('default parameters', () => {
+    it('returns empty map when called with no arguments', async () => {
+      const { result } = renderHook(() => useProfilePictureUrls(), {
+        wrapper: createWrapper(),
+      });
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(result.current).toEqual({});
+    });
+
+    it('handles null-like rawUserIds by defaulting to empty array', async () => {
+      // The function defaults rawUserIds to [] but the serialization also handles null
+      const { result } = renderHook(
+        () => useProfilePictureUrls(undefined, 'original'),
+        { wrapper: createWrapper() }
+      );
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(result.current).toEqual({});
+    });
+  });
+
+  describe('parseRawId edge cases', () => {
+    it('handles version delimiter with empty base string', async () => {
+      // "::v=5" should produce id="" which gets filtered out
+      const { result } = renderHook(
+        () => useProfilePictureUrls(['::v=5']),
+        { wrapper: createWrapper() }
+      );
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // Empty id should be filtered out
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(result.current).toEqual({});
+    });
+
+    it('handles version delimiter with empty version part', async () => {
+      // "user-empty-ver::v=" should parse version as NaN -> fallback to 0
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          urls: { 'user-empty-ver': 'https://cdn/avatar/empty-ver' },
+        }),
+      } as Response);
+
+      const { result } = renderHook(
+        () => useProfilePictureUrls(['user-empty-ver::v=']),
+        { wrapper: createWrapper() }
+      );
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await waitFor(() => {
+        expect(result.current['user-empty-ver']).toBe('https://cdn/avatar/empty-ver');
+      });
+    });
+  });
+
+  describe('batch chunking', () => {
+    it('chunks requests into batches of 50', async () => {
+      // Create 60 unique user IDs to force chunking
+      const userIds = Array.from({ length: 60 }, (_, i) => `user-chunk-${i}`);
+      const urls: Record<string, string> = {};
+      userIds.forEach((id) => {
+        urls[id] = `https://cdn/avatar/${id}`;
+      });
+
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ urls }),
+      } as Response);
+
+      renderHook(
+        () => useProfilePictureUrls(userIds),
+        { wrapper: createWrapper() }
+      );
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Should have been called twice (50 + 10)
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('concurrent requests deduplication', () => {
+    it('deduplicates requests across concurrent hook instances', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          urls: { 'user-shared': 'https://cdn/avatar/shared' },
+        }),
+      } as Response);
+
+      const wrapper = createWrapper();
+
+      // Both hooks request the same user
+      renderHook(() => useProfilePictureUrls(['user-shared']), { wrapper });
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Should only make 1 request even though multiple hooks requested the same ID
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('test helper', () => {
     it('__clearAvatarCacheForTesting clears all state', () => {
       // This is implicitly tested by beforeEach, but let's be explicit

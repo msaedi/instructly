@@ -523,4 +523,141 @@ describe('StripeOnboarding', () => {
       expect(detailsLabel).toBeInTheDocument();
     });
   });
+
+  describe('startOnboarding with onboarding_url (redirect path)', () => {
+    // JSDOM's window.location.href is non-configurable — cannot be mocked or spied on.
+    // Intercept the JSDOM "Not implemented: navigation" error that fires when assigning to it,
+    // while passing all other console.error calls through.
+    let consoleErrorSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      const original = console.error.bind(console);
+      consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+        if (typeof args[0] === 'string' && args[0].includes('Not implemented: navigation')) return;
+        original(...args);
+      });
+    });
+
+    afterEach(() => {
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('calls startOnboarding and triggers redirect when onboarding_url is provided', async () => {
+      paymentServiceMock.getOnboardingStatus.mockResolvedValue({
+        has_account: false,
+        onboarding_completed: false,
+        charges_enabled: false,
+        payouts_enabled: false,
+        details_submitted: false,
+        requirements: [],
+      });
+      paymentServiceMock.startOnboarding.mockResolvedValue({
+        account_id: 'acct_123',
+        already_onboarded: false,
+        onboarding_url: 'https://connect.stripe.com/setup/abc',
+      });
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /connect stripe account/i })).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /connect stripe account/i }));
+
+      await waitFor(() => {
+        expect(paymentServiceMock.startOnboarding).toHaveBeenCalled();
+      });
+
+      // Verify startOnboarding was called with redirect URL returned;
+      // JSDOM does not support actual navigation, so we verify the API path instead
+      expect(paymentServiceMock.getOnboardingStatus).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('dashboard link without URL', () => {
+    it('does not open window when dashboard_url is empty', async () => {
+      const mockOpen = jest.fn();
+      window.open = mockOpen;
+
+      paymentServiceMock.getOnboardingStatus.mockResolvedValue({
+        has_account: true,
+        onboarding_completed: true,
+        charges_enabled: true,
+        payouts_enabled: true,
+        details_submitted: true,
+        requirements: [],
+      });
+      paymentServiceMock.getDashboardLink.mockResolvedValue({
+        dashboard_url: '',
+        expires_in_minutes: 15,
+      });
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /view payouts dashboard/i })).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /view payouts dashboard/i }));
+
+      await waitFor(() => {
+        expect(paymentServiceMock.getDashboardLink).toHaveBeenCalled();
+      });
+
+      // window.open should not be called with empty string
+      expect(mockOpen).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('error on completed state', () => {
+    it('shows error message alongside completed state when dashboard fails', async () => {
+      paymentServiceMock.getOnboardingStatus.mockResolvedValue({
+        has_account: true,
+        onboarding_completed: true,
+        charges_enabled: true,
+        payouts_enabled: true,
+        details_submitted: true,
+        requirements: [],
+      });
+      paymentServiceMock.getDashboardLink.mockRejectedValue(new Error('Dashboard fail'));
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Stripe Account Connected')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /view payouts dashboard/i }));
+
+      await waitFor(() => {
+        // error + onboardingStatus both present: shows error inline on completed page
+        expect(screen.getByText('Failed to open dashboard. Please try again.')).toBeInTheDocument();
+        // The completed page should still be visible
+        expect(screen.getByText('Stripe Account Connected')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('incomplete onboarding without requirements', () => {
+    it('does not show requirements section when array is empty', async () => {
+      paymentServiceMock.getOnboardingStatus.mockResolvedValue({
+        has_account: true,
+        onboarding_completed: false,
+        charges_enabled: false,
+        payouts_enabled: false,
+        details_submitted: false,
+        requirements: [],
+      });
+
+      render(<StripeOnboarding instructorId={mockInstructorId} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Complete Your Setup')).toBeInTheDocument();
+      });
+
+      // Should NOT show the requirements heading when list is empty
+      expect(screen.queryByText('Remaining Requirements:')).not.toBeInTheDocument();
+    });
+  });
 });

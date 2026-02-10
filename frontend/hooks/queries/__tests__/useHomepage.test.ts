@@ -281,4 +281,63 @@ describe('useHomepageData', () => {
     await waitFor(() => expect(result.current.isAnyLoading).toBe(false));
     expect(result.current.recentSearches.error?.message).toBe('Recent failed');
   });
+
+  it('omits data key from upcomingBookings when query data is undefined (unauthenticated)', async () => {
+    useCurrentUserMock.mockReturnValue(null);
+    queryFnMock.mockReturnValue(() => Promise.resolve(undefined));
+    getRecentSearchesMock.mockResolvedValueOnce({ data: [], status: 200 });
+    getTopServicesMock.mockResolvedValueOnce({ data: null, status: 200 });
+    convertApiResponseMock.mockImplementation((response) => response.data ?? null);
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useHomepageData(), { wrapper });
+
+    await waitFor(() => expect(result.current.isAnyLoading).toBe(false));
+
+    // When unauthenticated, upcomingBookings and bookingHistory should NOT have data key
+    expect(result.current.upcomingBookings).not.toHaveProperty('data');
+    expect(result.current.bookingHistory).not.toHaveProperty('data');
+    // featuredServices also has undefined data, so no data key either
+    expect(result.current.featuredServices).not.toHaveProperty('data');
+  });
+
+  it('includes data key in all sections when all queries return data', async () => {
+    useCurrentUserMock.mockReturnValue({ id: 'user-7' });
+    queryFnMock.mockReturnValue(() => Promise.resolve({ items: [{ id: 'up1' }] }));
+    getRecentSearchesMock.mockResolvedValueOnce({ data: [{ id: 's1' }], status: 200 });
+    getTopServicesMock.mockResolvedValueOnce({ data: { categories: ['music'] }, status: 200 });
+    convertApiResponseMock.mockImplementation((response) => response.data);
+    httpJsonMock.mockResolvedValueOnce({ items: [{ id: 'h1' }] });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useHomepageData(), { wrapper });
+
+    await waitFor(() => expect(result.current.isAnyLoading).toBe(false));
+
+    // All sections should have data key present
+    expect(result.current.upcomingBookings).toHaveProperty('data');
+    expect(result.current.upcomingBookings.data?.items).toHaveLength(1);
+    expect(result.current.featuredServices).toHaveProperty('data');
+    expect(result.current.featuredServices.data).toEqual({ categories: ['music'] });
+    expect(result.current.bookingHistory).toHaveProperty('data');
+    expect(result.current.bookingHistory.data?.items).toHaveLength(1);
+  });
+
+  it('reports isInitialLoading true when some queries are loading without data', async () => {
+    useCurrentUserMock.mockReturnValue({ id: 'user-8' });
+    // Make upcoming resolve quickly, but never resolve history
+    queryFnMock.mockReturnValue(() => new Promise(() => { /* never resolves */ }));
+    getRecentSearchesMock.mockResolvedValueOnce({ data: [], status: 200 });
+    getTopServicesMock.mockResolvedValueOnce({ data: { categories: [] }, status: 200 });
+    convertApiResponseMock.mockImplementation((response) => response.data);
+    httpJsonMock.mockImplementation(() => new Promise(() => { /* never resolves */ }));
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useHomepageData(), { wrapper });
+
+    // While queries are still loading, isAnyLoading should be true
+    // isInitialLoading should also be true because some queries have no data yet
+    expect(result.current.isAnyLoading).toBe(true);
+    expect(result.current.isInitialLoading).toBe(true);
+  });
 });

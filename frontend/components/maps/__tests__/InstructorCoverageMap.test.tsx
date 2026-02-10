@@ -44,19 +44,15 @@ const mockMap = {
 
 // Mock react-leaflet
 jest.mock('react-leaflet', () => ({
-  MapContainer: ({ children, whenReady, attributionControl, zoomControl, ...props }: {
+  MapContainer: ({ children, whenReady }: {
     children: React.ReactNode;
     whenReady?: () => void;
-    attributionControl?: boolean;
-    zoomControl?: boolean;
     [key: string]: unknown;
   }) => {
-    void attributionControl;
-    void zoomControl;
     React.useEffect(() => {
       whenReady?.();
     }, [whenReady]);
-    return <div data-testid="map-container" {...props}>{children}</div>;
+    return <div data-testid="map-container">{children}</div>;
   },
   TileLayer: ({ url, eventHandlers }: { url: string; eventHandlers?: { tileerror?: () => void } }) => (
     <div data-testid="tile-layer" data-url={url} onClick={() => eventHandlers?.tileerror?.()} />

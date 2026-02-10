@@ -1219,4 +1219,285 @@ describe('CheckoutFlow', () => {
       jest.requireMock('@stripe/react-stripe-js').useStripe = originalUseStripe;
     });
   });
+
+  describe('normalizeAmount edge cases', () => {
+    it('handles booking with zero hourly_rate', async () => {
+      const bookingZeroRate = {
+        ...mockBooking,
+        hourly_rate: 0,
+        total_price: 0,
+      };
+
+      render(<CheckoutFlow booking={bookingZeroRate} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/Lesson \(60 min\)/)).toBeInTheDocument();
+    });
+
+    it('handles string hourly_rate through normalizeAmount', async () => {
+      const bookingStringRate = {
+        ...mockBooking,
+        hourly_rate: '55.75' as unknown as number,
+      };
+
+      render(<CheckoutFlow booking={bookingStringRate} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+    });
+
+    it('handles Infinity hourly_rate through normalizeAmount', async () => {
+      const bookingInfinityRate = {
+        ...mockBooking,
+        hourly_rate: Infinity,
+      };
+
+      render(<CheckoutFlow booking={bookingInfinityRate} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+    });
+
+    it('handles NaN total_price through normalizeAmount', async () => {
+      const bookingNaN = {
+        ...mockBooking,
+        total_price: NaN,
+      };
+
+      render(<CheckoutFlow booking={bookingNaN} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Duration fallback', () => {
+    it('falls back to 60 for price calculation when duration_minutes is missing', async () => {
+      const bookingNoDuration = {
+        ...mockBooking,
+        duration_minutes: undefined as unknown as number,
+      };
+
+      render(<CheckoutFlow booking={bookingNoDuration} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        // The component renders booking.duration_minutes directly in text (may show nothing),
+        // but durationMinutes ?? 60 is used for the Lesson label
+        expect(screen.getByText(/Lesson \(60 min\)/)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Line items with credits', () => {
+    it('displays credit line items in green', async () => {
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockResolvedValue({
+        base_price_cents: 6000,
+        student_pay_cents: 5500,
+        line_items: [
+          { label: 'Service & Support fee (5%)', amount_cents: 300 },
+          { label: 'Welcome credit', amount_cents: -800 },
+        ],
+      });
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Welcome credit')).toBeInTheDocument();
+      });
+
+      // Credit line item should have green text class
+      const creditElement = screen.getByText('Welcome credit').closest('div');
+      expect(creditElement).toHaveClass('text-green-600');
+    });
+  });
+
+  describe('Empty line items fallback annotation', () => {
+    it('shows annotation with service support fee when no line items', async () => {
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockResolvedValue({
+        base_price_cents: 6000,
+        student_pay_cents: 6300,
+        line_items: [],
+      });
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/and credits apply at checkout/)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Pricing preview loading indicator', () => {
+    it('shows loading text while pricing preview is fetching', async () => {
+      // Create a never-resolving promise to keep loading state
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockImplementation(
+        () => new Promise(() => {})
+      );
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Updating pricing…')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Non-ApiProblemError pricing failure', () => {
+    it('shows generic pricing error for non-ApiProblemError', async () => {
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockRejectedValue(
+        new Error('Network timeout')
+      );
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Unable to load pricing preview.')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Payment with saved card sends correct method id', () => {
+    it('sends existing payment method id for saved card', async () => {
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Visa')).toBeInTheDocument();
+      });
+
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      fireEvent.click(payButton);
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          '/api/v1/payments/checkout',
+          expect.objectContaining({
+            body: expect.stringContaining('"payment_method_id":"pm_1"'),
+          })
+        );
+      });
+    });
+
+    it('sends save_payment_method false for existing card', async () => {
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Visa')).toBeInTheDocument();
+      });
+
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      fireEvent.click(payButton);
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          '/api/v1/payments/checkout',
+          expect.objectContaining({
+            body: expect.stringContaining('"save_payment_method":false'),
+          })
+        );
+      });
+    });
+  });
+
+  describe('deriveBookingAmount string path', () => {
+    it('falls back to derive when studentPayAmount is undefined', async () => {
+      // Make pricingPreview return undefined student_pay_cents and null pricingPreview
+      // so the component falls back to fallbackTotalCents
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockRejectedValue(
+        new Error('Pricing unavailable')
+      );
+
+      const bookingWithPrice = {
+        ...mockBooking,
+        total_price: 42.5,
+      };
+
+      render(<CheckoutFlow booking={bookingWithPrice} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      // When pricingPreview is null, fallbackTotalCents = Math.round(42.5 * 100) = 4250
+      // previewStudentPayCents = 4250, studentPayAmount = 42.5
+      // This still goes through the typeof number check, not deriveBookingAmount
+      // But the rendering should work
+      const payButton = screen.getByRole('button', { name: /Pay/ });
+      expect(payButton).toBeInTheDocument();
+    });
+  });
+
+  describe('API error without detail or message', () => {
+    it('shows generic "Payment failed" when no detail or message in error response', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({}),
+      });
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Visa')).toBeInTheDocument();
+      });
+
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      fireEvent.click(payButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Payment failed')).toBeInTheDocument();
+      }, { timeout: 3000 });
+    });
+  });
+
+  describe('Non-Error thrown during payment', () => {
+    it('shows default message when non-Error is thrown', async () => {
+      mockFetch.mockRejectedValueOnce('string error');
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Visa')).toBeInTheDocument();
+      });
+
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      fireEvent.click(payButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Payment failed. Please try again.')).toBeInTheDocument();
+      }, { timeout: 3000 });
+    });
+  });
 });

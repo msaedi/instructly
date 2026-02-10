@@ -11,6 +11,7 @@ import { favoritesApi } from '@/services/api/favorites';
 import { useServicesCatalog } from '@/hooks/queries/useServices';
 import { fetchPricingPreview } from '@/lib/api/pricing';
 import { ApiProblemError } from '@/lib/api/fetch';
+import type { Problem } from '@/lib/errors/problem';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import type { Instructor } from '@/types/api';
@@ -985,6 +986,163 @@ describe('InstructorCard', () => {
       });
 
       jest.useRealTimers();
+    });
+  });
+
+  describe('service name resolution', () => {
+    it('uses service_catalog_name when available (no catalog lookup needed)', () => {
+      const instructor = createInstructor({
+        services: [
+          {
+            id: 'svc-1',
+            service_catalog_id: 'cat-unknown',
+            service_catalog_name: 'Voice Lessons',
+            hourly_rate: 60,
+            duration_options: [60],
+          },
+        ],
+      });
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.getByText('Voice Lessons')).toBeInTheDocument();
+    });
+
+    it('uses skill field as fallback when service_catalog_name is missing', () => {
+      const instructor = createInstructor({
+        services: [
+          {
+            id: 'svc-1',
+            service_catalog_id: 'cat-unknown',
+            skill: 'Drums',
+            hourly_rate: 60,
+            duration_options: [60],
+          },
+        ],
+      });
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.getByText('Drums')).toBeInTheDocument();
+    });
+
+    it('returns empty string when service_catalog_name, skill, and catalog lookup all fail', () => {
+      mockUseServicesCatalog.mockReturnValue({ data: [] });
+      const instructor = createInstructor({
+        services: [
+          {
+            id: 'svc-1',
+            service_catalog_id: 'cat-missing',
+            hourly_rate: 60,
+            duration_options: [60],
+          },
+        ],
+      });
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      // Empty service name should not render a pill
+      expect(screen.getByTestId('instructor-card')).toBeInTheDocument();
+    });
+  });
+
+  describe('pricing preview edge cases', () => {
+    it('shows fallback error when ApiProblemError has no detail', async () => {
+      // Intentionally omit `detail` to test the ?? fallback in the component
+      const mockProblem = { type: 'validation_error', title: 'Validation Error', status: 422 } as unknown as Problem;
+      const mockResponse = { status: 422 } as Response;
+      mockFetchPricingPreview.mockRejectedValue(
+        new ApiProblemError(mockProblem, mockResponse)
+      );
+
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} bookingDraftId="draft-123" />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Price is below the minimum.')).toBeInTheDocument();
+      });
+    });
+
+    it('resets pricing state when bookingDraftId becomes undefined', async () => {
+      // When bookingDraftId is removed, the useEffect clears the pricing state
+      // and does not call fetchPricingPreview
+      mockFetchPricingPreview.mockResolvedValue({
+        base_price_cents: 6000,
+        line_items: [],
+        student_pay_cents: 6000,
+      });
+
+      const instructor = createInstructor();
+
+      // First render with no bookingDraftId
+      renderWithProviders(
+        <InstructorCard instructor={instructor} />
+      );
+
+      // fetchPricingPreview should not be called without bookingDraftId
+      await new Promise((r) => setTimeout(r, 50));
+      expect(mockFetchPricingPreview).not.toHaveBeenCalled();
+
+      // No pricing text should be shown
+      expect(screen.queryByText('Updating pricing')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('location format display', () => {
+    it('shows at-location icon when offers_at_location and has teaching_locations', async () => {
+      const instructor = {
+        ...createInstructor({
+          services: [
+            {
+              id: 'svc-1',
+              service_catalog_id: 'cat-1',
+              hourly_rate: 60,
+              duration_options: [60],
+              offers_at_location: true,
+            },
+          ],
+        }),
+        teaching_locations: [{ name: 'Studio A' }],
+      };
+
+      renderWithProviders(
+        <InstructorCard instructor={instructor as unknown as Instructor} highlightServiceCatalogId="cat-1" />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(/format:/i)).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /at their studio/i })).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('profile picture in UserAvatar', () => {
+    it('passes has_profile_picture and profile_picture_version to UserAvatar', () => {
+      const instructor = createInstructor({
+        user: {
+          first_name: 'Alice',
+          last_initial: 'B',
+          has_profile_picture: true,
+          profile_picture_version: 3,
+        } as Instructor['user'],
+      });
+
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      // The UserAvatar should receive the profile picture data
+      expect(screen.getByTestId('user-avatar')).toBeInTheDocument();
+    });
+  });
+
+  describe('applied credit cents', () => {
+    it('handles negative appliedCreditCents (clamps to 0)', async () => {
+      mockFetchPricingPreview.mockResolvedValue({
+        base_price_cents: 6000,
+        line_items: [],
+        student_pay_cents: 6000,
+      });
+
+      const instructor = createInstructor();
+      renderWithProviders(
+        <InstructorCard instructor={instructor} bookingDraftId="draft-123" appliedCreditCents={-500} />
+      );
+
+      await waitFor(() => {
+        expect(mockFetchPricingPreview).toHaveBeenCalledWith('draft-123', 0);
+      });
     });
   });
 

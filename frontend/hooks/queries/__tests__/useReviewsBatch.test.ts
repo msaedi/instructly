@@ -162,6 +162,19 @@ describe('useRatingsBatch', () => {
       solo: { rating: 5.0, review_count: 1 },
     });
   });
+
+  it('returns empty map via queryFn when empty array but enabled is forced true', async () => {
+    // Force enabled=true with empty array to exercise the sortedIds.length === 0 branch in queryFn
+    const { result } = renderHook(() => useRatingsBatch([], true), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // queryFn should return empty map without calling the API
+    expect(result.current.data).toEqual({});
+    expect(mockGetRatingsBatch).not.toHaveBeenCalled();
+  });
 });
 
 describe('useExistingReviews', () => {
@@ -270,5 +283,19 @@ describe('useExistingReviews', () => {
     expect(result.current.data?.reviewedMap['b3']).toBe(true);
     expect(result.current.data?.reviewedMap['b4']).toBeUndefined();
     expect(result.current.data?.reviewedMap['b5']).toBeUndefined();
+  });
+
+  it('returns empty reviewedIds and map via queryFn when empty array but enabled is forced true', async () => {
+    // Force enabled=true with empty array to exercise the sortedIds.length === 0 branch in queryFn
+    const { result } = renderHook(() => useExistingReviews([], true), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // queryFn should return empty structure without calling the API
+    expect(result.current.data?.reviewedIds).toEqual([]);
+    expect(result.current.data?.reviewedMap).toEqual({});
+    expect(mockGetExistingForBookings).not.toHaveBeenCalled();
   });
 });

@@ -553,4 +553,158 @@ describe('MessageBubble', () => {
       expect(screen.getByText('🙌')).toBeInTheDocument();
     });
   });
+
+  describe('handleSave without onEdit', () => {
+    it('exits edit mode without calling onEdit when onEdit is not provided', () => {
+      render(
+        <MessageBubble
+          message={createMessage({ isOwn: true })}
+          canEdit
+          // Note: no onEdit provided
+        />
+      );
+
+      // Verify edit button is NOT shown when onEdit is undefined
+      expect(screen.queryByLabelText('Edit message')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('footer rendering for own messages with read timestamp', () => {
+    it('renders read timestamp label on right side for own message', () => {
+      const reactions: NormalizedReaction[] = [
+        { emoji: '👍', count: 1, isMine: false },
+      ];
+
+      render(
+        <MessageBubble
+          message={createMessage({
+            isOwn: true,
+            readStatus: 'read',
+            readTimestampLabel: 'Read at 4:30 PM',
+            reactions,
+          })}
+          showReadReceipt
+        />
+      );
+
+      expect(screen.getByText('Read at 4:30 PM')).toBeInTheDocument();
+      expect(screen.getByText('👍 1')).toBeInTheDocument();
+    });
+
+    it('does not render footer when no reactions and no read timestamp', () => {
+      render(
+        <MessageBubble
+          message={createMessage({ isOwn: true, readStatus: 'sent' })}
+          showReadReceipt
+        />
+      );
+
+      // Footer should not be present because:
+      // - No reactions
+      // - readStatus is 'sent' (not 'read') so no read timestamp
+      const footerTimestamp = screen.queryByText(/Read at/);
+      expect(footerTimestamp).not.toBeInTheDocument();
+    });
+  });
+
+  describe('footer rendering for left-side (other) messages', () => {
+    it('renders reactions on right for left-side bubbles', () => {
+      const reactions: NormalizedReaction[] = [
+        { emoji: '❤️', count: 3, isMine: true },
+      ];
+
+      render(
+        <MessageBubble
+          message={createMessage({
+            isOwn: false,
+            reactions,
+          })}
+        />
+      );
+
+      // Left-side bubbles should have reactions on the right
+      expect(screen.getByText('❤️ 3')).toBeInTheDocument();
+    });
+  });
+
+  describe('reaction button with reactionBusy and no onReact', () => {
+    it('does not call onReact when reactionBusy is true', async () => {
+      const reactions: NormalizedReaction[] = [
+        { emoji: '👍', count: 1, isMine: false },
+      ];
+      const onReact = jest.fn();
+
+      render(
+        <MessageBubble
+          message={createMessage({ reactions })}
+          onReact={onReact}
+          canReact
+          reactionBusy
+        />
+      );
+
+      fireEvent.click(screen.getByText('👍 1'));
+
+      // Should NOT call onReact because reactionBusy is true
+      expect(onReact).not.toHaveBeenCalled();
+    });
+
+    it('does not call onReact when onReact is not provided', async () => {
+      const reactions: NormalizedReaction[] = [
+        { emoji: '👍', count: 1, isMine: false },
+      ];
+
+      render(
+        <MessageBubble
+          message={createMessage({ reactions })}
+          // No onReact provided
+          canReact
+        />
+      );
+
+      // Click should not throw
+      fireEvent.click(screen.getByText('👍 1'));
+    });
+  });
+
+  describe('side prop override for own messages', () => {
+    it('uses left side when side="left" even for own messages', () => {
+      const { container } = render(
+        <MessageBubble
+          message={createMessage({ isOwn: true })}
+          side="left"
+        />
+      );
+
+      expect(container.querySelector('.justify-start')).toBeInTheDocument();
+    });
+  });
+
+  describe('empty attachments array', () => {
+    it('does not render attachments div when attachments array is empty', () => {
+      const { container } = render(
+        <MessageBubble
+          message={createMessage({ attachments: [] })}
+          renderAttachments={(atts) => (
+            <div data-testid="attachments">{atts.length} attachments</div>
+          )}
+        />
+      );
+
+      expect(container.querySelector('[data-testid="attachments"]')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('no timestamp label', () => {
+    it('does not render timestamp span when timestampLabel is undefined', () => {
+      render(
+        <MessageBubble
+          message={createMessage({ timestampLabel: undefined })}
+        />
+      );
+
+      // The timestamp span should not be present
+      expect(screen.queryByText('12:00 PM')).not.toBeInTheDocument();
+    });
+  });
 });

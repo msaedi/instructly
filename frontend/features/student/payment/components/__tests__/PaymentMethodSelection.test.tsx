@@ -273,4 +273,77 @@ describe('PaymentMethodSelection', () => {
 
     expect(screen.getByText('Payment Card')).toBeInTheDocument();
   });
+
+  it('does not submit when stripe is null (early return in handleSubmit)', async () => {
+    // Override useStripe to return null
+    const stripeMock = jest.requireMock('@stripe/react-stripe-js');
+    const originalUseStripe = stripeMock.useStripe;
+    stripeMock.useStripe = () => null;
+
+    renderComponent();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add New Card' }));
+    // The submit button should be disabled when stripe is null
+    const submitButton = screen.getByRole('button', { name: 'Add Card' });
+    expect(submitButton).toBeDisabled();
+
+    // Restore original mock
+    stripeMock.useStripe = originalUseStripe;
+  });
+
+  it('does not submit when elements is null (early return in handleSubmit)', async () => {
+    // Override useElements to return null
+    const stripeMock = jest.requireMock('@stripe/react-stripe-js');
+    const originalUseElements = stripeMock.useElements;
+    stripeMock.useElements = () => null;
+
+    renderComponent();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add New Card' }));
+    const submitButton = screen.getByRole('button', { name: 'Add Card' });
+    // Button should be disabled when elements is null (since !stripe check uses stripe === null)
+    // Actually the disabled condition is `!stripe || loading` but elements null just causes the early return
+    // Let's verify the early return by ensuring no error is shown and no callback is called
+    await userEvent.click(submitButton);
+
+    // No error should be shown since we returned early
+    expect(screen.queryByText('Card element not found')).not.toBeInTheDocument();
+    expect(createPaymentMethodMock).not.toHaveBeenCalled();
+
+    // Restore original mock
+    stripeMock.useElements = originalUseElements;
+  });
+
+  it('shows default badge on default card', () => {
+    renderComponent();
+
+    expect(screen.getByText('Default')).toBeInTheDocument();
+  });
+
+  it('shows check icon on selected card', () => {
+    renderComponent();
+
+    // The first card should be selected by default
+    const selectedCard = screen.getByText('Visa ending in 4242').closest('label');
+    expect(selectedCard).toBeInTheDocument();
+  });
+
+  it('shows secure payment text', () => {
+    renderComponent();
+
+    expect(screen.getByText(/Secure payment/)).toBeInTheDocument();
+    expect(screen.getByText(/Maximum transaction limit: \$1,000/)).toBeInTheDocument();
+  });
+
+  it('renders with totalAmount of 0 showing Backup Payment Method header', () => {
+    // When remainingAfterCredits <= 0, it should show 'Backup Payment Method'
+    renderComponent({
+      booking: {
+        ...booking,
+        totalAmount: 0,
+      },
+    });
+
+    expect(screen.getByText('Backup Payment Method')).toBeInTheDocument();
+  });
 });

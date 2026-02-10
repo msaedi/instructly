@@ -162,6 +162,75 @@ describe('notificationApi.deleteNotification', () => {
   });
 });
 
+describe('buildQuery edge cases', () => {
+  beforeEach(() => {
+    fetchWithAuthMock.mockReset();
+  });
+
+  it('sends no query string when params object is empty', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce(makeResponse({ ok: true, json: { items: [], total: 0 } }));
+
+    await notificationApi.getNotifications({});
+
+    expect(fetchWithAuthMock).toHaveBeenCalledWith('/api/v1/notifications', { method: 'GET' });
+  });
+
+  it('sends only limit when only limit is provided', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce(makeResponse({ ok: true, json: { items: [], total: 0 } }));
+
+    await notificationApi.getNotifications({ limit: 5 });
+
+    expect(fetchWithAuthMock).toHaveBeenCalledWith('/api/v1/notifications?limit=5', { method: 'GET' });
+  });
+
+  it('sends only offset when only offset is provided', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce(makeResponse({ ok: true, json: { items: [], total: 0 } }));
+
+    await notificationApi.getNotifications({ offset: 20 });
+
+    expect(fetchWithAuthMock).toHaveBeenCalledWith('/api/v1/notifications?offset=20', { method: 'GET' });
+  });
+
+  it('includes unread_only=false when unreadOnly is explicitly false', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce(makeResponse({ ok: true, json: { items: [], total: 0 } }));
+
+    await notificationApi.getNotifications({ unreadOnly: false });
+
+    expect(fetchWithAuthMock).toHaveBeenCalledWith(
+      '/api/v1/notifications?unread_only=false',
+      { method: 'GET' }
+    );
+  });
+});
+
+describe('parseErrorMessage fallback chain', () => {
+  beforeEach(() => {
+    fetchWithAuthMock.mockReset();
+  });
+
+  it('uses message field when detail is absent', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce(
+      makeResponse({ ok: false, json: { message: 'Server error' } })
+    );
+
+    await expect(notificationApi.getNotifications()).rejects.toThrow('Server error');
+  });
+
+  it('uses fallback when neither detail nor message exists', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce(makeResponse({ ok: false, json: {} }));
+
+    await expect(notificationApi.getNotifications()).rejects.toThrow('Failed to load notifications');
+  });
+
+  it('uses fallback when detail is null and message is absent', async () => {
+    fetchWithAuthMock.mockResolvedValueOnce(
+      makeResponse({ ok: false, json: { detail: null } })
+    );
+
+    await expect(notificationApi.getNotifications()).rejects.toThrow('Failed to load notifications');
+  });
+});
+
 describe('notificationApi.deleteAll', () => {
   beforeEach(() => {
     fetchWithAuthMock.mockReset();

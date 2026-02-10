@@ -859,6 +859,292 @@ describe('useAvailability', () => {
     });
   });
 
+  describe('applyToFutureWeeks edge cases', () => {
+    it('returns success without weeksAffected/daysWritten when not in response', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Applied successfully' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let applyResult: OperationResult;
+      await act(async () => {
+        applyResult = await result.current.applyToFutureWeeks('2025-04-15');
+      });
+
+      expect(applyResult).toEqual({
+        success: true,
+        message: 'Applied successfully',
+      });
+    });
+
+    it('falls back to default message when response has no message', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        clone: () => ({
+          json: () => Promise.resolve({}),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let applyResult: OperationResult;
+      await act(async () => {
+        applyResult = await result.current.applyToFutureWeeks('2025-04-15');
+      });
+
+      expect(applyResult?.message).toBe('Applied schedule to future range');
+    });
+
+    it('includes only weeksAffected when daysWritten is not present', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        clone: () => ({
+          json: () => Promise.resolve({
+            message: 'Applied',
+            weeks_affected: 5,
+          }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let applyResult: { success: boolean; weeksAffected?: number; daysWritten?: number };
+      await act(async () => {
+        applyResult = await result.current.applyToFutureWeeks('2025-04-15');
+      });
+
+      expect(applyResult!.weeksAffected).toBe(5);
+      expect(applyResult!.daysWritten).toBeUndefined();
+    });
+
+    it('handles null JSON response from clone', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        clone: () => ({
+          json: () => Promise.resolve(undefined),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let applyResult: OperationResult;
+      await act(async () => {
+        applyResult = await result.current.applyToFutureWeeks('2025-04-15');
+      });
+
+      expect(applyResult?.success).toBe(true);
+    });
+  });
+
+  describe('saveWeek version resolution', () => {
+    it('uses week_version from response body when ETag is absent', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved', week_version: 'wv-42' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; version?: string; weekVersion?: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult!.version).toBe('wv-42');
+      expect(saveResult!.weekVersion).toBe('wv-42');
+      expect(mockWeekScheduleState.setVersion).toHaveBeenCalledWith('wv-42');
+    });
+
+    it('uses response.version when week_version and ETag are absent', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved', version: 'resp-v3' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; version?: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult!.version).toBe('resp-v3');
+    });
+
+    it('handles response with no version information at all', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; version?: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult!.success).toBe(true);
+      expect(saveResult!.version).toBeUndefined();
+    });
+
+    it('falls back to etag as If-Match when window.__week_version is not set', async () => {
+      // etag is set via mock state but window.__week_version is not
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      expect(fetchWithAuth).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'If-Match': 'etag-123',
+          }),
+        })
+      );
+    });
+  });
+
+  describe('copyFromPreviousWeek edge cases', () => {
+    it('handles null JSON response gracefully', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(null),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let copyResult: OperationResult;
+      await act(async () => {
+        copyResult = await result.current.copyFromPreviousWeek();
+      });
+
+      expect(copyResult?.success).toBe(true);
+      expect(copyResult?.message).toBe('Copied previous week');
+    });
+
+    it('handles error response with array of messages', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ detail: ['Error one', 'Error two'] }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let copyResult: OperationResult;
+      await act(async () => {
+        copyResult = await result.current.copyFromPreviousWeek();
+      });
+
+      expect(copyResult?.success).toBe(false);
+      expect(copyResult?.message).toContain('Error one');
+      expect(copyResult?.message).toContain('Error two');
+    });
+  });
+
+  describe('extractErrorMessage edge cases', () => {
+    it('handles error response with non-stringifiable circular reference', async () => {
+      // When JSON.stringify throws, extractErrorMessage should return the fallback
+      const circularObj: Record<string, unknown> = {};
+      circularObj['self'] = circularObj;
+
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve(circularObj),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: OperationResult;
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult?.success).toBe(false);
+      // Should use fallback message since JSON.stringify would throw
+      expect(saveResult?.message).toContain('Failed to save availability');
+    });
+
+    it('handles error with detail array containing objects with msg field', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({
+            detail: [
+              { msg: 'field required', loc: ['body', 'name'] },
+              { msg: 'invalid format', loc: ['body', 'email'] },
+            ],
+          }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: OperationResult;
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult?.message).toContain('field required');
+      expect(saveResult?.message).toContain('invalid format');
+    });
+
+    it('handles error with detail array containing empty entries', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({
+            detail: [null, '', { msg: 'only valid' }],
+          }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: OperationResult;
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult?.message).toContain('only valid');
+    });
+  });
+
   describe('weekDates transformation', () => {
     it('maps weekDates info objects to Date objects', () => {
       const { result } = renderHook(() => useAvailability());

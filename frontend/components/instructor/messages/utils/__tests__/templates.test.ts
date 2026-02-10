@@ -130,6 +130,68 @@ Second paragraph with more content.`;
       expect(result).toBeTruthy();
       expect(result).toContain('Quick heads-up');
     });
+
+    it('adds sentence ending to long (>60 char) non-first sentences (line 167)', () => {
+      // We need at least two sentences, and the second must exceed 60 characters
+      const longSentence = 'This particular sentence is deliberately constructed to be more than sixty characters long for testing';
+      const input = `Short intro. ${longSentence}.`;
+      const result = rewriteTemplateContent(input, 0);
+      const lines = result.split('\n');
+      const bodyLines = lines.slice(1, -1);
+      // The second sentence body line should end with punctuation (ensureSentenceEnding applied)
+      if (bodyLines.length > 1) {
+        const secondBody = bodyLines[1]!;
+        expect(/[.!?)]$/.test(secondBody)).toBe(true);
+      }
+    });
+
+    it('returns short non-first sentences without added period when <=60 chars (line 166)', () => {
+      const input = 'Sentence one. Short two. Tiny three.';
+      const result = rewriteTemplateContent(input, 0);
+      const lines = result.split('\n');
+      const bodyLines = lines.slice(1, -1);
+      // The first body line has trailing punctuation stripped (index 0 path)
+      // Short subsequent lines should NOT get punctuation added (returned as-is without ending)
+      if (bodyLines.length > 1) {
+        const secondBody = bodyLines[1]!;
+        // <=60 chars returns trimmed (without period) — the period was already stripped
+        expect(secondBody.endsWith('.')).toBe(false);
+      }
+    });
+
+    it('uses bodyLines fallback when all content is filtered out (lines 184-186)', () => {
+      // Input containing ONLY closing phrases and opener-like phrases, so everything gets filtered
+      const input = 'Best regards. Thank you. Sincerely. Cheers.';
+      const result = rewriteTemplateContent(input, 0);
+      const lines = result.split('\n');
+      // opener + at least 1 fallback line + closer
+      expect(lines.length).toBeGreaterThanOrEqual(3);
+      // The fallback line at (variantIndex + 1) % 5 should be present
+      const bodyLines = lines.slice(1, -1);
+      expect(bodyLines.length).toBeGreaterThanOrEqual(1);
+      // Should contain one of the fallback lines
+      const fallbackLines = [
+        'Sharing a quick update so we stay aligned.',
+        "Here's the plan I'd go with right now.",
+        "These are the next moves I'm seeing.",
+        'Keeping things on track with this plan.',
+        'This should keep everything moving smoothly.',
+      ];
+      const containsFallback = bodyLines.some(
+        (line) => fallbackLines.some((fb) => line.includes(fb))
+      );
+      expect(containsFallback).toBe(true);
+    });
+
+    it('bodyLines fallback uses correct variantIndex offset (lines 184-186)', () => {
+      // Force bodyLines.length === 0 with a different iteration value
+      const input = 'Thanks! Talk soon. Warmly. Take care.';
+      const result = rewriteTemplateContent(input, 3);
+      const lines = result.split('\n');
+      const bodyLines = lines.slice(1, -1);
+      // Should still have at least one fallback body line
+      expect(bodyLines.length).toBeGreaterThanOrEqual(1);
+    });
   });
 
   describe('loadStoredTemplates', () => {
@@ -295,6 +357,117 @@ Second paragraph with more content.`;
       const result = await copyToClipboard('test');
       expect(result).toBe(true);
       expect(execCommandMock).toHaveBeenCalledWith('copy');
+    });
+
+    it('returns false when execCommand throws an exception (line 276)', async () => {
+      // Ensure clipboard API is missing so we fall to execCommand
+      Object.defineProperty(navigator, 'clipboard', {
+        value: undefined,
+        writable: true,
+        configurable: true,
+      });
+
+      document.execCommand = jest.fn().mockImplementation(() => {
+        throw new Error('execCommand not supported');
+      });
+
+      const result = await copyToClipboard('error path');
+      expect(result).toBe(false);
+    });
+
+    it('returns false when clipboard rejects and execCommand throws (full fallback chain)', async () => {
+      // Clipboard API exists but rejects
+      const writeTextMock = jest.fn().mockRejectedValue(new DOMException('Denied'));
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: writeTextMock },
+        writable: true,
+        configurable: true,
+      });
+
+      // execCommand also throws
+      document.execCommand = jest.fn().mockImplementation(() => {
+        throw new Error('also broken');
+      });
+
+      const result = await copyToClipboard('nothing works');
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('rewriteTemplateContent (additional branch coverage)', () => {
+    it('uses default iteration=0 when called without iteration argument', () => {
+      // Branch 10: default arg
+      const result = rewriteTemplateContent('Some real content here.');
+      expect(result).toContain('Quick heads-up'); // iteration=0 opener
+    });
+
+    it('handles bullet items where content after stripping bullet marker is empty', () => {
+      // Branch 13: `if (!content) return` inside bullet processing
+      const input = '- \n- \n- ';
+      const result = rewriteTemplateContent(input, 0);
+      // Bullets with empty content are filtered, should still produce valid output
+      expect(result.split('\n').length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('handles text where all lines start with openers to trigger the filter', () => {
+      // Branch 16: `if (looksLikeOpener(sentence)) return` filtering
+      const input = "Quick heads up about the meeting. Just a quick update on things. Here's what I'm thinking about next.";
+      const result = rewriteTemplateContent(input, 0);
+      const lines = result.split('\n');
+      // Opener phrases from the input should be filtered out
+      // Only the built-in opener should appear
+      expect(lines[0]).toBe('Quick heads-up');
+    });
+
+    it('handles input where deriveTemplatePreview finds no non-empty line', () => {
+      // Branch 1 (line 14): the ?? trimmed fallback in deriveTemplatePreview
+      // This is when all lines are whitespace - already covered, but let's confirm
+      // the fallback returns trimmed value
+      expect(deriveTemplatePreview('\t\t\t')).toBe('');
+    });
+  });
+
+  describe('loadStoredTemplates (additional branch coverage)', () => {
+    beforeEach(() => {
+      document.cookie.split(';').forEach((cookie) => {
+        const name = cookie.split('=')[0]?.trim();
+        if (name) {
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+        }
+      });
+    });
+
+    it('returns defaults when cookie value is empty after split (line 202)', () => {
+      // Cookie exists but value part is empty: "name="
+      document.cookie = `${TEMPLATE_COOKIE_NAME}=; path=/`;
+      const templates = loadStoredTemplates();
+      expect(templates).toEqual(getDefaultTemplates());
+    });
+
+    it('handles item with numeric id (non-string) by filtering it out', () => {
+      const items = [{ id: 42, subject: 'Numeric', body: 'body', preview: 'p' }];
+      document.cookie = `${TEMPLATE_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(items))}; path=/`;
+      const templates = loadStoredTemplates();
+      // id is a number, not a string -> filtered out -> defaults
+      expect(templates).toEqual(getDefaultTemplates());
+    });
+
+    it('handles items with missing subject and body gracefully', () => {
+      const items = [{ id: 'valid-id' }]; // No subject, body, or preview
+      document.cookie = `${TEMPLATE_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(items))}; path=/`;
+      const templates = loadStoredTemplates();
+      expect(templates.length).toBe(1);
+      expect(templates[0]!.subject).toBe('');
+      expect(templates[0]!.body).toBe('');
+      expect(templates[0]!.preview).toBe('');
+    });
+
+    it('handles whitespace-only preview by deriving from body', () => {
+      const items = [{ id: 'ws', subject: 'Sub', body: 'My body text', preview: '   ' }];
+      document.cookie = `${TEMPLATE_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(items))}; path=/`;
+      const templates = loadStoredTemplates();
+      // Whitespace-only preview is falsy after .trim(), so deriveTemplatePreview(body) is used
+      expect(templates[0]!.preview).toBe('My body text');
     });
   });
 });

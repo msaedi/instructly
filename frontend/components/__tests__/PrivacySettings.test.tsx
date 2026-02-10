@@ -60,4 +60,37 @@ describe('PrivacySettings', () => {
     expect(screen.getByText(/clear search history when i log out/i)).toBeInTheDocument();
     expect(screen.getByText(/expire after 30 days/i)).toBeInTheDocument();
   });
+
+  it('does not render loading skeleton (isLoading is always false)', () => {
+    const { container } = render(<PrivacySettings />);
+
+    // The skeleton has animate-pulse class which should never render
+    const skeleton = container.querySelector('.animate-pulse');
+    expect(skeleton).not.toBeInTheDocument();
+
+    // The main heading should be present since we are in the loaded state
+    expect(screen.getByText('Privacy Settings')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox')).toBeInTheDocument();
+  });
+
+  it('applies default empty className when none provided', () => {
+    const { container } = render(<PrivacySettings />);
+
+    const root = container.firstChild as HTMLElement;
+    expect(root).toHaveClass('privacy-settings');
+  });
+
+  it('calls setUserPreference and logger.info with false when unchecked', async () => {
+    const user = userEvent.setup();
+    render(<PrivacySettings />);
+
+    const checkbox = screen.getByRole('checkbox');
+    // Toggle on, then off
+    await user.click(checkbox);
+    await user.click(checkbox);
+
+    // Second call should be with false
+    expect(setUserPreference).toHaveBeenLastCalledWith('clearDataOnLogout', false);
+    expect(logger.info).toHaveBeenLastCalledWith('Privacy setting updated', { clearDataOnLogout: false });
+  });
 });
