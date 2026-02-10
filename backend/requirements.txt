@@ -54,7 +54,7 @@ stripe==14.3.0
 
 # Monitoring & Utilities
 prometheus-client==0.24.1
-sentry-sdk[fastapi]==2.51.0
+sentry-sdk[fastapi]==2.52.0
 # OpenTelemetry Core - PIN TO SAME MINOR VERSION
 opentelemetry-api==1.39.1
 opentelemetry-sdk==1.39.1
