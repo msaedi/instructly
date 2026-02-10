@@ -960,6 +960,16 @@ export interface AllServicesMetadata {
   updated_at: string;
 }
 
+export type CategoryServiceDetailEligibleAgeGroupsItem =
+  (typeof CategoryServiceDetailEligibleAgeGroupsItem)[keyof typeof CategoryServiceDetailEligibleAgeGroupsItem];
+
+export const CategoryServiceDetailEligibleAgeGroupsItem = {
+  toddler: 'toddler',
+  kids: 'kids',
+  teens: 'teens',
+  adults: 'adults',
+} as const;
+
 /**
  * Detailed catalog service information with instructor analytics.
  */
@@ -970,7 +980,7 @@ export interface CategoryServiceDetail {
   demand_score?: number;
   description?: string | null;
   display_order?: number | null;
-  eligible_age_groups?: string[];
+  eligible_age_groups?: CategoryServiceDetailEligibleAgeGroupsItem[];
   id: string;
   instructor_count?: number;
   is_active?: boolean | null;
@@ -2606,6 +2616,16 @@ export interface CatalogServiceMinimalResponse {
   slug?: string | null;
 }
 
+export type CatalogServiceResponseEligibleAgeGroupsItem =
+  (typeof CatalogServiceResponseEligibleAgeGroupsItem)[keyof typeof CatalogServiceResponseEligibleAgeGroupsItem];
+
+export const CatalogServiceResponseEligibleAgeGroupsItem = {
+  toddler: 'toddler',
+  kids: 'kids',
+  teens: 'teens',
+  adults: 'adults',
+} as const;
+
 /**
  * Catalog service response.
  */
@@ -2614,7 +2634,7 @@ export interface CatalogServiceResponse {
   description?: string | null;
   display_order?: number | null;
   /** Age groups this service is available for */
-  eligible_age_groups?: string[];
+  eligible_age_groups?: CatalogServiceResponseEligibleAgeGroupsItem[];
   id: string;
   max_recommended_price?: number | null;
   min_recommended_price?: number | null;
@@ -7957,13 +7977,23 @@ export interface ServiceAreasUpdateRequest {
   neighborhood_ids: string[];
 }
 
+export type ServiceCatalogDetailEligibleAgeGroupsItem =
+  (typeof ServiceCatalogDetailEligibleAgeGroupsItem)[keyof typeof ServiceCatalogDetailEligibleAgeGroupsItem];
+
+export const ServiceCatalogDetailEligibleAgeGroupsItem = {
+  toddler: 'toddler',
+  kids: 'kids',
+  teens: 'teens',
+  adults: 'adults',
+} as const;
+
 /**
  * Full service detail for instructor onboarding or detail pages.
  */
 export interface ServiceCatalogDetail {
   default_duration_minutes?: number;
   description?: string | null;
-  eligible_age_groups?: string[];
+  eligible_age_groups?: ServiceCatalogDetailEligibleAgeGroupsItem[];
   id: string;
   name: string;
   price_floor_in_person_cents?: number | null;
@@ -7973,12 +8003,22 @@ export interface ServiceCatalogDetail {
   subcategory_name?: string | null;
 }
 
+export type ServiceCatalogSummaryEligibleAgeGroupsItem =
+  (typeof ServiceCatalogSummaryEligibleAgeGroupsItem)[keyof typeof ServiceCatalogSummaryEligibleAgeGroupsItem];
+
+export const ServiceCatalogSummaryEligibleAgeGroupsItem = {
+  toddler: 'toddler',
+  kids: 'kids',
+  teens: 'teens',
+  adults: 'adults',
+} as const;
+
 /**
  * Lightweight service listing within a subcategory.
  */
 export interface ServiceCatalogSummary {
   default_duration_minutes?: number;
-  eligible_age_groups?: string[];
+  eligible_age_groups?: ServiceCatalogSummaryEligibleAgeGroupsItem[];
   id: string;
   name: string;
   slug?: string | null;

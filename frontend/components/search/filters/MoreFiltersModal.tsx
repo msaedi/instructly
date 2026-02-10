@@ -27,6 +27,44 @@ const RATING_OPTIONS = [
 const EMPTY_TAXONOMY_CONTENT_FILTERS: TaxonomyContentFilterDefinition[] = [];
 const EMPTY_SUGGESTED_CONTENT_FILTERS: ContentFilterSelections = {};
 
+function FilterChipGroup<T extends string | number>({
+  label,
+  options,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  options: readonly { value: T; label: string }[];
+  selected: readonly T[];
+  onToggle: (value: T) => void;
+}) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">{label}</h3>
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => (
+          <label
+            key={String(option.value)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
+              selected.includes(option.value)
+                ? 'bg-purple-100 border-purple-300 text-purple-700'
+                : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={selected.includes(option.value)}
+              onChange={() => onToggle(option.value)}
+              className="sr-only"
+            />
+            <span className="text-sm">{option.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface MoreFiltersModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -144,65 +182,29 @@ function MoreFiltersModalContent({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Duration</h3>
-            <div className="flex flex-wrap gap-2">
-              {DURATION_OPTIONS.map((option) => (
-                <label
-                  key={option.value}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
-                    draft.duration.includes(option.value)
-                      ? 'bg-purple-100 border-purple-300 text-purple-700'
-                      : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={draft.duration.includes(option.value)}
-                    onChange={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        duration: toggleArrayValue(current.duration, option.value),
-                      }))
-                    }
-                    className="sr-only"
-                  />
-                  <span className="text-sm">{option.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+          <FilterChipGroup
+            label="Duration"
+            options={DURATION_OPTIONS}
+            selected={draft.duration}
+            onToggle={(value) =>
+              setDraft((current) => ({
+                ...current,
+                duration: toggleArrayValue(current.duration, value),
+              }))
+            }
+          />
 
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-              Skill Level
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {skillLevelOptions.map((option) => (
-                <label
-                  key={option.value}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
-                    draft.skillLevel.includes(option.value)
-                      ? 'bg-purple-100 border-purple-300 text-purple-700'
-                      : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={draft.skillLevel.includes(option.value)}
-                    onChange={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        skillLevel: toggleArrayValue(current.skillLevel, option.value),
-                      }))
-                    }
-                    className="sr-only"
-                  />
-                  <span className="text-sm">{option.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+          <FilterChipGroup
+            label="Skill Level"
+            options={skillLevelOptions}
+            selected={draft.skillLevel}
+            onToggle={(value) =>
+              setDraft((current) => ({
+                ...current,
+                skillLevel: toggleArrayValue(current.skillLevel, value),
+              }))
+            }
+          />
 
           {taxonomyContentFilters.map((filterDefinition) => (
             <div key={filterDefinition.key}>

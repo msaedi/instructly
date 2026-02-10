@@ -1,6 +1,6 @@
 'use client';
 
-import { type ComponentType, useMemo, useState } from 'react';
+import { type ComponentType, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -144,8 +144,14 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
   });
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('');
 
-  const { data: categoriesData } = useServiceCategories();
-  const { data: servicesData } = useAllServicesWithInstructors();
+  const { data: categoriesData, isError: categoriesError } = useServiceCategories();
+  const { data: servicesData, isError: servicesError } = useAllServicesWithInstructors();
+
+  useEffect(() => {
+    if (categoriesError || servicesError) {
+      logger.warn('categories_fetch_failed', { categoriesError, servicesError });
+    }
+  }, [categoriesError, servicesError]);
 
   const filteredServicesByCategory = useMemo(() => {
     const next = new Map<string, CategoryServiceDetail[]>();
@@ -185,19 +191,25 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
       subtitle: category.subtitle ?? '',
     }));
 
-    const base =
-      fromCategoriesApi.length > 0
-        ? fromCategoriesApi
-        : fromServicesApi.length > 0
-          ? fromServicesApi
-          : FALLBACK_CATEGORIES;
+    const usingFallback =
+      fromCategoriesApi.length === 0 && fromServicesApi.length === 0;
+
+    const base = fromCategoriesApi.length > 0
+      ? fromCategoriesApi
+      : fromServicesApi.length > 0
+        ? fromServicesApi
+        : FALLBACK_CATEGORIES;
+
+    if (usingFallback && (categoriesError || servicesError)) {
+      logger.warn('Using fallback categories due to API failure');
+    }
 
     if ((servicesData?.categories ?? []).length === 0) {
       return base;
     }
 
     return base.filter((category) => filteredServicesByCategory.has(category.id));
-  }, [categoriesData, servicesData, filteredServicesByCategory]);
+  }, [categoriesData, servicesData, filteredServicesByCategory, categoriesError, servicesError]);
 
   const selectedCategoryIsValid =
     selectedCategory !== '' && categories.some((category) => category.id === selectedCategory);

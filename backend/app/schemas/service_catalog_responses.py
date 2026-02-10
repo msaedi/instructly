@@ -125,7 +125,9 @@ class CategoryServiceDetail(StrictModel):
     slug: Optional[str] = None
     description: Optional[str] = None
     search_terms: List[str] = Field(default_factory=list)
-    eligible_age_groups: List[str] = Field(default_factory=list)
+    eligible_age_groups: List[Literal["toddler", "kids", "teens", "adults"]] = Field(
+        default_factory=list
+    )
     display_order: Optional[int] = None
     online_capable: Optional[bool] = None
     requires_certification: Optional[bool] = None

@@ -352,7 +352,10 @@ async def get_categories_with_subcategories(
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> List[CategoryWithSubcategories]:
     """Get all categories with subcategory briefs (for browse page). Cached 1hr."""
-    data = await asyncio.to_thread(instructor_service.get_categories_with_subcategories)
+    try:
+        data = await asyncio.to_thread(instructor_service.get_categories_with_subcategories)
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
     response.headers["Cache-Control"] = "public, max-age=3600"
     return cast(List[CategoryWithSubcategories], data)
 
@@ -436,7 +439,10 @@ async def get_subcategory_filters(
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> List[SubcategoryFilterResponse]:
     """Get filter definitions for a subcategory."""
-    data = await asyncio.to_thread(instructor_service.get_subcategory_filters, subcategory_id)
+    try:
+        data = await asyncio.to_thread(instructor_service.get_subcategory_filters, subcategory_id)
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
     response.headers["Cache-Control"] = "public, max-age=3600"
     return cast(List[SubcategoryFilterResponse], data)
 
@@ -448,7 +454,10 @@ async def get_services_by_age_group(
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> List[CatalogServiceResponse]:
     """Get catalog services eligible for an age group."""
-    data = await asyncio.to_thread(instructor_service.get_services_by_age_group, age_group)
+    try:
+        data = await asyncio.to_thread(instructor_service.get_services_by_age_group, age_group)
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
     response.headers["Cache-Control"] = "public, max-age=1800"
     return cast(List[CatalogServiceResponse], data)
 

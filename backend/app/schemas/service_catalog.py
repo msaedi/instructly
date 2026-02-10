@@ -4,11 +4,13 @@ Schemas for service catalog endpoints.
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import ConfigDict, Field
 
 from ._strict_base import StrictModel, StrictRequestModel
+
+AgeGroup = Literal["toddler", "kids", "teens", "adults"]
 
 
 class CategoryResponse(StrictModel):
@@ -34,7 +36,7 @@ class CatalogServiceResponse(StrictModel):
     slug: Optional[str] = None
     description: Optional[str] = None
     search_terms: List[str] = Field(default_factory=list)
-    eligible_age_groups: List[str] = Field(
+    eligible_age_groups: List[AgeGroup] = Field(
         default_factory=list, description="Age groups this service is available for"
     )
     typical_duration_options: List[int] = Field(default_factory=lambda: [60])
@@ -114,22 +116,16 @@ class InstructorServiceCapabilitiesUpdate(StrictRequestModel):
     offers_online: Optional[bool] = None
 
 
-# ── Phase 3: richer catalog schemas for slug-based routing ──
-
-
 class ServiceCatalogSummary(StrictModel):
     """Lightweight service listing within a subcategory."""
 
     id: str
     slug: Optional[str] = None
     name: str
-    eligible_age_groups: List[str] = Field(default_factory=list)
+    eligible_age_groups: List[AgeGroup] = Field(default_factory=list)
     default_duration_minutes: int = 60
 
     model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
-
-
-# ── Phase 4: filter operation schemas ──
 
 
 class UpdateFilterSelectionsRequest(StrictRequestModel):

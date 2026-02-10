@@ -2213,22 +2213,29 @@ class NLSearchService:
             effective_subcategory_name: Optional[str] = None
             available_content_filters: List[NLSearchContentFilterDefinition] = []
             if effective_subcategory_id:
-                (
-                    subcategory_filters,
-                    effective_subcategory_name,
-                ) = self._load_subcategory_filter_metadata(
-                    taxonomy_repository,
-                    effective_subcategory_id,
-                )
-                available_content_filters = self._build_available_content_filters(
-                    subcategory_filters
-                )
-                inferred_filters = extract_inferred_filters(
-                    original_query=parsed_query.original_query,
-                    filter_definitions=subcategory_filters,
-                    existing_explicit_filters=explicit_taxonomy_filters,
-                    parser_skill_level=parsed_query.skill_level,
-                )
+                try:
+                    (
+                        subcategory_filters,
+                        effective_subcategory_name,
+                    ) = self._load_subcategory_filter_metadata(
+                        taxonomy_repository,
+                        effective_subcategory_id,
+                    )
+                    available_content_filters = self._build_available_content_filters(
+                        subcategory_filters
+                    )
+                    inferred_filters = extract_inferred_filters(
+                        original_query=parsed_query.original_query,
+                        filter_definitions=subcategory_filters,
+                        existing_explicit_filters=explicit_taxonomy_filters,
+                        parser_skill_level=parsed_query.skill_level,
+                    )
+                except Exception:
+                    logger.warning(
+                        "taxonomy_filter_load_failed",
+                        extra={"subcategory_id": effective_subcategory_id},
+                        exc_info=True,
+                    )
 
             # Inferred filters are returned in metadata only. Hard filtering is explicit-only.
             hard_taxonomy_filters = explicit_taxonomy_filters

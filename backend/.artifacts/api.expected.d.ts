@@ -6986,7 +6986,7 @@ export type components = {
  category_name?: string | null;
  description?: string | null;
  display_order?: number | null;
- eligible_age_groups?: string[];
+ eligible_age_groups?: ("toddler" | "kids" | "teens" | "adults")[];
  id: string;
  max_recommended_price?: number | null;
  min_recommended_price?: number | null;
@@ -7046,7 +7046,7 @@ export type components = {
  demand_score: number;
  description?: string | null;
  display_order?: number | null;
- eligible_age_groups?: string[];
+ eligible_age_groups?: ("toddler" | "kids" | "teens" | "adults")[];
  id: string;
  instructor_count: number;
  is_active?: boolean | null;
@@ -9802,7 +9802,7 @@ export type components = {
  ServiceCatalogDetail: {
  default_duration_minutes: number;
  description?: string | null;
- eligible_age_groups?: string[];
+ eligible_age_groups?: ("toddler" | "kids" | "teens" | "adults")[];
  id: string;
  name: string;
  price_floor_in_person_cents?: number | null;
@@ -9813,7 +9813,7 @@ export type components = {
  };
  ServiceCatalogSummary: {
  default_duration_minutes: number;
- eligible_age_groups?: string[];
+ eligible_age_groups?: ("toddler" | "kids" | "teens" | "adults")[];
  id: string;
  name: string;
  slug?: string | null;

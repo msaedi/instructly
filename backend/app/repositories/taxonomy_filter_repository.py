@@ -170,6 +170,41 @@ class TaxonomyFilterRepository:
 
         return len(errors) == 0, errors
 
+    def validate_filter_option_invariants(self, subcategory_id: str) -> List[str]:
+        """Verify that every SubcategoryFilterOption's option belongs to the
+        correct FilterDefinition for its parent SubcategoryFilter.
+
+        Returns a list of violation descriptions (empty = valid).
+        """
+        sub_filters: List[SubcategoryFilter] = (
+            self.db.query(SubcategoryFilter)
+            .filter(SubcategoryFilter.subcategory_id == subcategory_id)
+            .options(
+                joinedload(SubcategoryFilter.filter_definition),
+                joinedload(SubcategoryFilter.filter_options).joinedload(
+                    SubcategoryFilterOption.filter_option
+                ),
+            )
+            .all()
+        )
+
+        violations: List[str] = []
+        for sf in sub_filters:
+            fd = sf.filter_definition
+            if fd is None:
+                continue
+            for sfo in sf.filter_options:
+                fo = sfo.filter_option
+                if fo is None:
+                    continue
+                if fo.filter_definition_id != fd.id:
+                    violations.append(
+                        f"SubcategoryFilterOption {sfo.id}: option {fo.id} "
+                        f"(definition={fo.filter_definition_id}) does not match "
+                        f"SubcategoryFilter {sf.id} (definition={fd.id})"
+                    )
+        return violations
+
     def get_all_definitions(self, active_only: bool = True) -> List[FilterDefinition]:
         """All filter definitions with their options.
 
@@ -298,8 +333,12 @@ class TaxonomyFilterRepository:
     ) -> List[InstructorService]:
         """Find instructor_services matching JSONB filter_selections.
 
-        Uses the @> (contains) operator for GIN-indexed queries on
+        Uses the ?| (has-any) operator for JSONB queries on
         instructor_services.filter_selections.
+
+        Semantics:
+          - OR within each key: any value match satisfies the key.
+          - AND across keys: all keys must have at least one match.
 
         Args:
             subcategory_id: Filter to services in this subcategory.
@@ -308,8 +347,7 @@ class TaxonomyFilterRepository:
             limit: Maximum results.
 
         Returns:
-            List of InstructorService rows whose filter_selections
-            contain all specified key/value pairs.
+            List of InstructorService rows matching the filter criteria.
         """
         from ..models.service_catalog import ServiceCatalog
 
@@ -361,6 +399,10 @@ class TaxonomyFilterRepository:
 
         for raw_key, raw_values in (filter_selections or {}).items():
             if len(normalized_filters) >= MAX_FILTER_KEYS:
+                logger.warning(
+                    "filter_keys_truncated",
+                    extra={"max": MAX_FILTER_KEYS, "total": len(filter_selections or {})},
+                )
                 break
 
             key = str(raw_key).strip().lower()
@@ -380,6 +422,10 @@ class TaxonomyFilterRepository:
                 values.append(value)
 
                 if len(values) >= MAX_FILTER_VALUES_PER_KEY:
+                    logger.warning(
+                        "filter_values_truncated",
+                        extra={"key": key, "max": MAX_FILTER_VALUES_PER_KEY},
+                    )
                     break
 
             if values:

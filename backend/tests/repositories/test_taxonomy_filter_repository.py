@@ -450,3 +450,43 @@ class TestFindMatchingServiceIds:
         assert matching_all.id in matching
         assert wrong_goal.id not in matching
         assert wrong_subcategory.id not in matching
+
+    def test_inactive_services_excluded(self, db, taxonomy_data, test_instructor):
+        """Inactive instructor services are excluded by default."""
+        profile = (
+            db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == test_instructor.id)
+            .first()
+        )
+        assert profile is not None
+
+        inactive_svc = InstructorService(
+            instructor_profile_id=profile.id,
+            service_catalog_id=taxonomy_data["service"].id,
+            hourly_rate=50.0,
+            duration_options=[60],
+            is_active=False,
+            filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
+        )
+        db.add(inactive_svc)
+        db.commit()
+
+        repo = TaxonomyFilterRepository(db)
+        matching = repo.find_matching_service_ids(
+            service_ids=[inactive_svc.id],
+            subcategory_id=taxonomy_data["sub_with_filters"].id,
+            filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
+        )
+
+        assert inactive_svc.id not in matching
+
+    def test_empty_service_ids_returns_empty(self, db, taxonomy_data):
+        """Empty service_ids list returns empty set."""
+        repo = TaxonomyFilterRepository(db)
+        matching = repo.find_matching_service_ids(
+            service_ids=[],
+            subcategory_id=taxonomy_data["sub_with_filters"].id,
+            filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
+        )
+
+        assert matching == set()

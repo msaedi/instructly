@@ -51,9 +51,13 @@ class ServiceCategory(Base):
     Attributes:
         id: ULID primary key
         name: Display name (e.g., "Music")
+        subtitle: Short tagline shown below the category name
+        slug: URL-friendly identifier for routing
         description: Optional description of the category
         display_order: Order for UI display (lower numbers first)
         icon_name: Icon identifier for UI display
+        meta_title: SEO page title override
+        meta_description: SEO meta description override
         created_at: Timestamp when created
         updated_at: Timestamp when last updated
 
@@ -180,7 +184,7 @@ class ServiceCatalog(Base):
     eligible_age_groups: Mapped[List[str]] = mapped_column(
         StringArrayType,
         nullable=False,
-        default=lambda: ["toddler", "kids", "teens", "adults"],
+        default=lambda: ["kids", "teens", "adults"],
     )
     default_duration_minutes = Column(Integer, nullable=False, default=60)
     price_floor_in_person_cents = Column(Integer, nullable=True)

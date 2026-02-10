@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { convertApiResponse } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi, protectedApi } from '@/features/shared/api/client';
+import { logger } from '@/lib/logger';
 import type {
   CategorySummary,
   CategoryDetail,
@@ -16,7 +17,7 @@ import type {
 /**
  * Slug-based catalog browse hooks.
  *
- * These hooks consume the Phase 4 `/api/v1/catalog/*` endpoints
+ * These hooks consume the `/api/v1/catalog/*` endpoints
  * for public taxonomy navigation using URL slugs.
  */
 
@@ -141,6 +142,9 @@ export function useUpdateFilterSelections() {
       void queryClient.invalidateQueries({ queryKey: ['instructor', 'services'] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.taxonomy.all });
     },
+    onError: (error: Error) => {
+      logger.error('filter_selections_update_failed', error);
+    },
   });
 }
 
@@ -153,6 +157,9 @@ export function useValidateFilters() {
     mutationFn: async (data) => {
       const response = await protectedApi.validateFilterSelections(data);
       return convertApiResponse(response);
+    },
+    onError: (error: Error) => {
+      logger.error('filter_validation_failed', error);
     },
   });
 }

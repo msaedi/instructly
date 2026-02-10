@@ -5,9 +5,12 @@ from __future__ import annotations
 import logging
 from typing import Dict, List, Optional, Tuple
 
+from app.repositories.taxonomy_filter_repository import (
+    MAX_FILTER_KEYS as MAX_CONTENT_FILTER_KEYS,
+    MAX_FILTER_VALUES_PER_KEY as MAX_CONTENT_FILTER_VALUES_PER_KEY,
+)
+
 ALLOWED_SKILL_LEVELS = {"beginner", "intermediate", "advanced"}
-MAX_CONTENT_FILTER_KEYS = 10
-MAX_CONTENT_FILTER_VALUES_PER_KEY = 20
 
 logger = logging.getLogger(__name__)
 

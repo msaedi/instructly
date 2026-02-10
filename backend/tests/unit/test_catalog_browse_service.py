@@ -2,7 +2,7 @@
 """
 Unit tests for CatalogBrowseService.
 
-Mock all repositories; verify dict shapes match Phase 3 Pydantic schemas.
+Mock all repositories; verify dict shapes match Pydantic schemas.
 """
 
 from __future__ import annotations
@@ -188,6 +188,25 @@ class TestGetSubcategory:
 
         with pytest.raises(NotFoundException, match="not found"):
             svc.get_subcategory("nonexistent", "nonexistent")
+
+    def test_handles_null_category_gracefully(self) -> None:
+        svc = _build_service()
+        service = _svc(id="SVC01", is_active=True)
+        sub = _sub(
+            id="SUB01",
+            slug="orphan",
+            category=None,
+            services=[service],
+        )
+        svc.subcategory_repo.get_by_category_slug.return_value = sub
+        svc.filter_repo.get_filters_for_subcategory.return_value = []
+
+        result = svc.get_subcategory("any", "orphan")
+
+        assert result["slug"] == "orphan"
+        assert len(result["services"]) == 1
+        assert result["services"][0]["category_name"] is None
+        assert result["category"] == {}
 
     def test_excludes_inactive_services(self) -> None:
         svc = _build_service()

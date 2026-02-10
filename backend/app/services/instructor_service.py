@@ -555,8 +555,12 @@ class InstructorService(BaseService):
                             ] = f"{first_name} is a {city}-based {skills_phrase} instructor."
                         else:
                             basic_updates["bio"] = f"{first_name} is a {city}-based instructor."
-                    except Exception:
-                        # Last-resort fallback
+                    except Exception as e:
+                        logger.warning(
+                            "bio_generation_fallback",
+                            extra={"user_id": user_id, "error": str(e)},
+                            exc_info=True,
+                        )
                         basic_updates["bio"] = "Experienced instructor"
 
             if basic_updates:
@@ -919,7 +923,6 @@ class InstructorService(BaseService):
                 # Prepare updates
                 updates = service_data.model_dump()
                 self._normalize_capability_flags(updates)
-                self._validate_age_groups_subset(catalog_svc, updates.get("age_groups"))
 
                 # Reactivate if needed
                 if not existing_service.is_active:
@@ -936,7 +939,6 @@ class InstructorService(BaseService):
                 # Create new service
                 service_dict = service_data.model_dump()
                 self._normalize_capability_flags(service_dict, apply_defaults=True)
-                self._validate_age_groups_subset(catalog_svc, service_dict.get("age_groups"))
                 service_dict["instructor_profile_id"] = profile_id
                 service_candidate = Service(**service_dict)
                 self.validate_service_capabilities(service_candidate, instructor_id)

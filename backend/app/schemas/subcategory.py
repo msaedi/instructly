@@ -73,9 +73,6 @@ class CategoryTreeResponse(CategoryResponse):
     subcategories: List[SubcategoryWithServices] = Field(default_factory=list)
 
 
-# ── Phase 3 schemas: richer variants for slug-based routing ──
-
-
 class SubcategorySummary(StrictModel):
     """Subcategory summary for listing within a category page."""
 

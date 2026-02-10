@@ -11188,7 +11188,7 @@ export type components = {
              * Eligible Age Groups
              * @description Age groups this service is available for
              */
-            eligible_age_groups?: string[];
+            eligible_age_groups?: ("toddler" | "kids" | "teens" | "adults")[];
             /** Id */
             id: string;
             /** Max Recommended Price */
@@ -11321,7 +11321,7 @@ export type components = {
             /** Display Order */
             display_order?: number | null;
             /** Eligible Age Groups */
-            eligible_age_groups?: string[];
+            eligible_age_groups?: ("toddler" | "kids" | "teens" | "adults")[];
             /** Id */
             id: string;
             /**
@@ -19233,7 +19233,7 @@ export type components = {
             /** Description */
             description?: string | null;
             /** Eligible Age Groups */
-            eligible_age_groups?: string[];
+            eligible_age_groups?: ("toddler" | "kids" | "teens" | "adults")[];
             /** Id */
             id: string;
             /** Name */
@@ -19260,7 +19260,7 @@ export type components = {
              */
             default_duration_minutes: number;
             /** Eligible Age Groups */
-            eligible_age_groups?: string[];
+            eligible_age_groups?: ("toddler" | "kids" | "teens" | "adults")[];
             /** Id */
             id: string;
             /** Name */
