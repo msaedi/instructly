@@ -922,7 +922,6 @@ export default function TimeSelectionModal({
 
       // Small delay to ensure modal closes before navigation
       setTimeout(() => {
-        // Use window.location for a hard navigation to ensure sessionStorage persists
         window.location.href = '/student/booking/confirm';
       }, 100);
     }

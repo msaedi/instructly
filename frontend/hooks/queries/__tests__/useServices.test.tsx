@@ -233,4 +233,113 @@ describe('useServices hooks', () => {
       expect(getCatalogServicesMock).toHaveBeenCalledWith('music');
     });
   });
+
+  it('strips non-string description from catalog services', async () => {
+    getCatalogServicesMock.mockResolvedValue({
+      data: [
+        { id: 'svc-1', name: 'Piano', description: 'Piano lessons' },
+        { id: 'svc-2', name: 'Guitar', description: undefined },
+        { id: 'svc-3', name: 'Drums', description: 42 },
+      ],
+      status: 200,
+    });
+
+    const { result } = renderHook(() => useServicesCatalog(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // String description preserved
+    expect(result.current.data?.[0]).toHaveProperty('description', 'Piano lessons');
+    // Non-string descriptions stripped
+    expect(result.current.data?.[1]).not.toHaveProperty('description');
+    expect(result.current.data?.[2]).not.toHaveProperty('description');
+  });
+
+  it('does not fetch services by category when categoryId is empty string', async () => {
+    const { result } = renderHook(() => useServicesByCategory(''), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    expect(getCatalogServicesMock).not.toHaveBeenCalled();
+  });
+
+  it('handles infinite search with hasMore true but nextPage null', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ services: [{ id: 'svc-1' }], hasMore: true, nextPage: null }),
+    });
+    const originalFetch = global.fetch;
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    const { result } = renderHook(
+      () => useServicesInfiniteSearch({ query: 'yoga' }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    // hasMore is true but nextPage is null — hasNextPage should be false (nextPage ?? undefined = undefined)
+    expect(result.current.hasNextPage).toBe(false);
+
+    global.fetch = originalFetch;
+  });
+
+  it('handles infinite search with no filters', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ services: [], hasMore: false }),
+    });
+    const originalFetch = global.fetch;
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    const { result } = renderHook(
+      () => useServicesInfiniteSearch({}),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const callUrl = fetchMock.mock.calls[0]?.[0] as string;
+    // Should only contain page and limit, not q/category/etc.
+    expect(callUrl).toContain('page=0');
+    expect(callUrl).toContain('limit=20');
+    expect(callUrl).not.toContain('q=');
+    expect(callUrl).not.toContain('category=');
+
+    global.fetch = originalFetch;
+  });
+
+  it('progressive loading resets explicitly via reset()', async () => {
+    const { result } = renderHook(
+      ({ total }) => useProgressiveLoading(total, 5),
+      { initialProps: { total: 20 } }
+    );
+
+    expect(result.current.visibleCount).toBe(5);
+
+    act(() => { result.current.loadMore(); });
+    expect(result.current.visibleCount).toBe(15);
+
+    act(() => { result.current.reset(); });
+    expect(result.current.visibleCount).toBe(5);
+  });
+
+  it('progressive loading clamps loadMore to totalItems', async () => {
+    const { result } = renderHook(
+      () => useProgressiveLoading(8, 5),
+    );
+
+    expect(result.current.visibleCount).toBe(5);
+    expect(result.current.hasMore).toBe(true);
+
+    act(() => { result.current.loadMore(); });
+    // 5 + 10 = 15, but clamped to totalItems = 8
+    expect(result.current.visibleCount).toBe(8);
+    expect(result.current.hasMore).toBe(false);
+
+    // Calling loadMore again should be a no-op
+    act(() => { result.current.loadMore(); });
+    expect(result.current.visibleCount).toBe(8);
+  });
 });

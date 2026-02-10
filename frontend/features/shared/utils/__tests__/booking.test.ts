@@ -18,6 +18,30 @@ describe('calculateEndTime', () => {
     expect(() => calculateEndTime('', 30)).toThrow('Start time is required');
     expect(() => calculateEndTime('10', 30)).toThrow('Invalid time format');
   });
+
+  it('handles time with NaN hours from non-numeric input', () => {
+    // "abc:30" -> parseInt("abc") is NaN, fallback to 0
+    const result = calculateEndTime('abc:30', 60);
+    expect(result).toBe('01:30');
+  });
+
+  it('handles time with NaN minutes from non-numeric input', () => {
+    // "10:xyz" -> parseInt("xyz") is NaN for minutes, fallback to 0
+    const result = calculateEndTime('10:xyz', 30);
+    expect(result).toBe('10:30');
+  });
+
+  it('handles time with empty parts', () => {
+    // ":30" -> parts[0] is "", parseInt("") is NaN, fallback to 0
+    const result = calculateEndTime(':30', 60);
+    expect(result).toBe('01:30');
+  });
+
+  it('handles time where both parts are empty', () => {
+    // ":" -> parts[0]="" -> parseInt("") = NaN -> || 0, parts[1]="" -> parseInt("") = NaN -> || 0
+    const result = calculateEndTime(':', 90);
+    expect(result).toBe('01:30');
+  });
 });
 
 describe('booking intent helpers', () => {

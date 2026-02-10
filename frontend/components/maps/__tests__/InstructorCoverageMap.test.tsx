@@ -1177,4 +1177,173 @@ describe('InstructorCoverageMap', () => {
       });
     });
   });
+
+  describe('FitToCoverage focusInstructorId with locationPins (lines 316-325)', () => {
+    it('focuses on instructor pins when focusInstructorId matches pin instructorId', () => {
+      const L = jest.requireMock('leaflet');
+
+      render(
+        <InstructorCoverageMap
+          featureCollection={mockFeatureCollection}
+          showCoverage={true}
+          focusInstructorId="inst-1"
+          locationPins={[
+            { lat: 40.72, lng: -73.99, label: 'Studio A', instructorId: 'inst-1' },
+            { lat: 40.73, lng: -73.98, label: 'Studio B', instructorId: 'inst-2' },
+          ]}
+        />
+      );
+
+      // flyToBounds should be called with bounds that include the focused instructor's pin
+      expect(mockMap.flyToBounds).toHaveBeenCalled();
+      // L.latLngBounds should have been called to create pin bounds for focused pins
+      expect(L.latLngBounds).toHaveBeenCalled();
+    });
+
+    it('handles focusInstructorId with locationPins that have no matching instructor', () => {
+      render(
+        <InstructorCoverageMap
+          featureCollection={mockFeatureCollection}
+          showCoverage={true}
+          focusInstructorId="non-existent"
+          locationPins={[
+            { lat: 40.72, lng: -73.99, label: 'Studio A', instructorId: 'inst-1' },
+          ]}
+        />
+      );
+
+      // Should not crash, map should still render
+      expect(screen.getByTestId('map-container')).toBeInTheDocument();
+    });
+
+    it('focuses on instructor pins without coverage features', () => {
+      render(
+        <InstructorCoverageMap
+          featureCollection={{ type: 'FeatureCollection', features: [] }}
+          showCoverage={true}
+          focusInstructorId="inst-1"
+          locationPins={[
+            { lat: 40.72, lng: -73.99, label: 'Studio A', instructorId: 'inst-1' },
+          ]}
+        />
+      );
+
+      // Should still attempt to focus on pin bounds
+      expect(screen.getByTestId('map-container')).toBeInTheDocument();
+    });
+
+    it('handles focusInstructorId with no locationPins at all', () => {
+      render(
+        <InstructorCoverageMap
+          featureCollection={mockFeatureCollection}
+          showCoverage={true}
+          focusInstructorId="inst-1"
+          locationPins={[]}
+        />
+      );
+
+      // Should use only coverage bounds - flyToBounds or fitBounds should be called
+      // When focusInstructorId is set, the focus effect runs and may call flyToBounds
+      // if there are matching features
+      expect(screen.getByTestId('map-container')).toBeInTheDocument();
+    });
+  });
+
+  describe('MapPins with invalid or empty locations (line 349)', () => {
+    it('skips markers for locations with invalid lat/lng', () => {
+      render(
+        <InstructorCoverageMap
+          locationPins={[
+            { lat: NaN, lng: -73.99, label: 'Invalid Lat' },
+            { lat: 40.72, lng: Infinity, label: 'Invalid Lng' },
+            { lat: 40.73, lng: -73.98, label: 'Valid Pin' },
+          ]}
+        />
+      );
+
+      // Only the valid pin should create a marker
+      expect(createdPinMarkers).toHaveLength(1);
+      expect(createdPinMarkers[0]?.bindPopup).toHaveBeenCalledWith('<div>Valid Pin</div>');
+    });
+
+    it('handles empty locations array in MapPins', () => {
+      render(
+        <InstructorCoverageMap
+          locationPins={[]}
+        />
+      );
+
+      // No markers should be created
+      expect(createdPinMarkers).toHaveLength(0);
+    });
+
+    it('renders pins without labels (no bindPopup)', () => {
+      render(
+        <InstructorCoverageMap
+          locationPins={[
+            { lat: 40.72, lng: -73.99 },
+          ]}
+        />
+      );
+
+      expect(createdPinMarkers).toHaveLength(1);
+      // bindPopup should NOT be called when no label
+      expect(createdPinMarkers[0]?.bindPopup).not.toHaveBeenCalled();
+    });
+
+    it('cleans up pin markers on unmount', () => {
+      const { unmount } = render(
+        <InstructorCoverageMap
+          locationPins={[
+            { lat: 40.72, lng: -73.99, label: 'Studio' },
+            { lat: 40.73, lng: -73.98, label: 'Studio 2' },
+          ]}
+        />
+      );
+
+      expect(createdPinMarkers).toHaveLength(2);
+
+      unmount();
+
+      // All markers should be cleaned up
+      createdPinMarkers.forEach(marker => {
+        expect(marker.remove).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('FitToCoverage with only locationPins (no coverage)', () => {
+    it('fits to pin bounds when coverage is disabled but pins exist', () => {
+      const L = jest.requireMock('leaflet');
+
+      render(
+        <InstructorCoverageMap
+          showCoverage={false}
+          locationPins={[
+            { lat: 40.72, lng: -73.99, label: 'Studio A' },
+            { lat: 40.73, lng: -73.98, label: 'Studio B' },
+          ]}
+        />
+      );
+
+      // Should fit to pin bounds when only pins are available
+      expect(L.latLngBounds).toHaveBeenCalled();
+      expect(mockMap.fitBounds).toHaveBeenCalled();
+    });
+
+    it('filters invalid pins when fitting bounds', () => {
+      render(
+        <InstructorCoverageMap
+          showCoverage={false}
+          locationPins={[
+            { lat: NaN, lng: -73.99, label: 'Invalid' },
+            { lat: 40.73, lng: -73.98, label: 'Valid' },
+          ]}
+        />
+      );
+
+      // Should still render and fit to valid pins only
+      expect(screen.getByTestId('map-container')).toBeInTheDocument();
+    });
+  });
 });

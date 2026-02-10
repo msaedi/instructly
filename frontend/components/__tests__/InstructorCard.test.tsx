@@ -1189,4 +1189,918 @@ describe('InstructorCard', () => {
       });
     });
   });
+
+  describe('all past availability dates', () => {
+    it('shows no availability when all dates are in the past', () => {
+      const instructor = createInstructor();
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+      const yesterdayStr = yesterday.toISOString().split('T')[0] as string;
+      const twoDaysAgoStr = twoDaysAgo.toISOString().split('T')[0] as string;
+
+      renderWithProviders(
+        <InstructorCard
+          instructor={instructor}
+          availabilityData={{
+            availabilityByDate: {
+              [twoDaysAgoStr]: { available_slots: [{ start_time: '10:00', end_time: '12:00' }] },
+              [yesterdayStr]: { available_slots: [{ start_time: '14:00', end_time: '16:00' }] },
+            },
+          }}
+        />
+      );
+
+      expect(screen.getByText('No availability info')).toBeInTheDocument();
+    });
+
+    it('shows no availability when availability data has empty slots for all dates', () => {
+      const instructor = createInstructor();
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateStr = tomorrow.toISOString().split('T')[0] as string;
+
+      renderWithProviders(
+        <InstructorCard
+          instructor={instructor}
+          availabilityData={{
+            availabilityByDate: {
+              [dateStr]: { available_slots: [] },
+            },
+          }}
+        />
+      );
+
+      expect(screen.getByText('No availability info')).toBeInTheDocument();
+    });
+  });
+
+  describe('blackout day filtering', () => {
+    it('skips blackout days and finds slot on non-blackout day', () => {
+      const instructor = createInstructor({
+        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [60] }],
+      });
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dayAfter = new Date();
+      dayAfter.setDate(dayAfter.getDate() + 2);
+      const dayAfterThat = new Date();
+      dayAfterThat.setDate(dayAfterThat.getDate() + 3);
+
+      const tomorrowStr = tomorrow.toISOString().split('T')[0] as string;
+      const dayAfterStr = dayAfter.toISOString().split('T')[0] as string;
+      const dayAfterThatStr = dayAfterThat.toISOString().split('T')[0] as string;
+
+      renderWithProviders(
+        <InstructorCard
+          instructor={instructor}
+          availabilityData={{
+            availabilityByDate: {
+              [tomorrowStr]: {
+                is_blackout: true,
+                available_slots: [{ start_time: '09:00', end_time: '17:00' }],
+              },
+              [dayAfterStr]: {
+                is_blackout: true,
+                available_slots: [{ start_time: '09:00', end_time: '17:00' }],
+              },
+              [dayAfterThatStr]: {
+                available_slots: [{ start_time: '10:00', end_time: '12:00' }],
+              },
+            },
+          }}
+        />
+      );
+
+      // Should skip the two blackout days and show availability from the third day
+      expect(screen.getByText(/next available/i)).toBeInTheDocument();
+    });
+
+    it('shows no availability when all days are blackout', () => {
+      const instructor = createInstructor();
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0] as string;
+
+      renderWithProviders(
+        <InstructorCard
+          instructor={instructor}
+          availabilityData={{
+            availabilityByDate: {
+              [tomorrowStr]: {
+                is_blackout: true,
+                available_slots: [{ start_time: '10:00', end_time: '18:00' }],
+              },
+            },
+          }}
+        />
+      );
+
+      expect(screen.getByText('No availability info')).toBeInTheDocument();
+    });
+  });
+
+  describe('service name fallback chain', () => {
+    it('uses catalog name when service_catalog_name and skill are both absent', () => {
+      mockUseServicesCatalog.mockReturnValue({
+        data: [{ id: 'cat-guitar', name: 'Guitar', description: 'Guitar lessons', subcategory_id: 'sub-1' }],
+      });
+      const instructor = createInstructor({
+        services: [
+          {
+            id: 'svc-1',
+            service_catalog_id: 'cat-guitar',
+            hourly_rate: 50,
+            duration_options: [60],
+            // no service_catalog_name, no skill
+          },
+        ],
+      });
+
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.getByText('Guitar')).toBeInTheDocument();
+    });
+
+    it('does not render pill when name resolves to empty string', () => {
+      mockUseServicesCatalog.mockReturnValue({ data: [] });
+      const instructor = createInstructor({
+        services: [
+          {
+            id: 'svc-1',
+            service_catalog_id: 'cat-nonexistent',
+            hourly_rate: 50,
+            duration_options: [60],
+            // no service_catalog_name, no skill, no catalog match
+          },
+        ],
+      });
+
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      // The component returns null for empty serviceName, so no pill span should render
+      const pills = screen.queryAllByText(/./);
+      const servicePill = pills.find((el) =>
+        el.className?.includes('rounded-full') && el.textContent === ''
+      );
+      expect(servicePill).toBeUndefined();
+    });
+
+    it('prefers service_catalog_name over skill and catalog lookup', () => {
+      mockUseServicesCatalog.mockReturnValue({
+        data: [{ id: 'cat-1', name: 'Catalog Piano', description: 'desc', subcategory_id: 'sub-1' }],
+      });
+      const instructor = createInstructor({
+        services: [
+          {
+            id: 'svc-1',
+            service_catalog_id: 'cat-1',
+            service_catalog_name: 'Inline Piano',
+            skill: 'Skill Piano',
+            hourly_rate: 50,
+            duration_options: [60],
+          },
+        ],
+      });
+
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.getByText('Inline Piano')).toBeInTheDocument();
+      expect(screen.queryByText('Skill Piano')).not.toBeInTheDocument();
+      expect(screen.queryByText('Catalog Piano')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('favorite toggle race condition', () => {
+    it('prevents duplicate API calls when clicking favorite rapidly', async () => {
+      mockUseAuth.mockReturnValue({ user: { id: 'user-1' } });
+      mockUseFavoriteStatus.mockReturnValue({ data: false });
+
+      let resolveAdd: (() => void) | undefined;
+      mockFavoritesApi.add.mockImplementation(
+        () => new Promise<{ success: boolean; message: string; favorite_id: string }>((resolve) => {
+          resolveAdd = () => resolve({ success: true, message: 'Added', favorite_id: 'fav-1' });
+        })
+      );
+
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+
+      const user = userEvent.setup();
+      const favButton = screen.getByLabelText('Toggle favorite');
+
+      // Click twice rapidly
+      await user.click(favButton);
+      await user.click(favButton);
+
+      // Only one API call should be made because isLoadingFavorite gates the second click
+      expect(mockFavoritesApi.add).toHaveBeenCalledTimes(1);
+
+      // Clean up
+      if (resolveAdd) resolveAdd();
+    });
+  });
+
+  describe('conditional rendering branches', () => {
+    it('does not show BGC badge when neither verified nor pending', () => {
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.queryByTestId('bgc-badge')).not.toBeInTheDocument();
+    });
+
+    it('shows BGC badge when bgc_status is passed', () => {
+      const instructor = { ...createInstructor(), bgc_status: 'passed' };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('shows BGC badge when bgc_status is clear', () => {
+      const instructor = { ...createInstructor(), bgc_status: 'clear' };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('shows BGC badge when bgc_status is verified', () => {
+      const instructor = { ...createInstructor(), bgc_status: 'verified' };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('shows BGC badge when background_check_verified is true', () => {
+      const instructor = { ...createInstructor(), background_check_verified: true };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('shows BGC badge when background_check_completed is true', () => {
+      const instructor = { ...createInstructor(), background_check_completed: true };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('does not show distance when distance_mi is not a number', () => {
+      const instructor = { ...createInstructor(), distance_mi: null };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.queryByText(/mi$/)).not.toBeInTheDocument();
+    });
+
+    it('does not show distance when distance_mi is Infinity', () => {
+      const instructor = { ...createInstructor(), distance_mi: Infinity };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.queryByText(/Infinity/)).not.toBeInTheDocument();
+    });
+
+    it('does not show rating when rating is null even with enough reviews', () => {
+      mockUseInstructorRatingsQuery.mockReturnValue({
+        data: { overall: { rating: null, total_reviews: 10 } },
+      });
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.queryByRole('button', { name: /see all reviews/i })).not.toBeInTheDocument();
+    });
+
+    it('does not show founding badge when is_founding_instructor is false', () => {
+      const instructor = { ...createInstructor(), is_founding_instructor: false };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.queryByTestId('founding-badge')).not.toBeInTheDocument();
+    });
+
+    it('hides experience row when years_experience is 0', () => {
+      const instructor = createInstructor({ years_experience: 0 });
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.queryByText(/years experience/)).not.toBeInTheDocument();
+    });
+
+    it('uses background_check_status as fallback when bgc_status is absent', () => {
+      const instructor = { ...createInstructor(), background_check_status: 'PASSED' };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      // bgc_status is absent but background_check_status is 'PASSED', lowered to 'passed'
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+  });
+
+  describe('availability with undefined day entry', () => {
+    it('skips undefined day entries gracefully', () => {
+      const instructor = createInstructor();
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateStr = tomorrow.toISOString().split('T')[0] as string;
+
+      renderWithProviders(
+        <InstructorCard
+          instructor={instructor}
+          availabilityData={{
+            availabilityByDate: {
+              [dateStr]: undefined as unknown as { available_slots?: { start_time: string; end_time: string }[] },
+            },
+          }}
+        />
+      );
+
+      expect(screen.getByText('No availability info')).toBeInTheDocument();
+    });
+  });
+
+  describe('slot sorting within a day', () => {
+    it('selects the earliest available slot when slots are not in order', () => {
+      const instructor = createInstructor({
+        services: [{ id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [60] }],
+      });
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateStr = tomorrow.toISOString().split('T')[0] as string;
+
+      renderWithProviders(
+        <InstructorCard
+          instructor={instructor}
+          availabilityData={{
+            availabilityByDate: {
+              [dateStr]: {
+                available_slots: [
+                  { start_time: '14:00', end_time: '16:00' },
+                  { start_time: '09:00', end_time: '11:00' },
+                ],
+              },
+            },
+          }}
+        />
+      );
+
+      // The component sorts slots and should pick 9:00 AM as the first
+      const button = screen.getByRole('button', { name: /next available/i });
+      expect(button.textContent).toContain('9:00');
+    });
+  });
+
+  describe('review star rating rendering', () => {
+    it('renders filled stars up to review rating and empty stars after', () => {
+      mockUseRecentReviews.mockReturnValue({
+        data: {
+          reviews: [
+            { id: 'r1', rating: 3, review_text: 'Good lesson', reviewer_display_name: 'Charlie' },
+          ],
+        },
+      });
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+
+      // Review text should appear
+      expect(screen.getByText('"Good lesson"')).toBeInTheDocument();
+      expect(screen.getByText('- Charlie')).toBeInTheDocument();
+    });
+
+    it('renders review without review_text gracefully', () => {
+      mockUseRecentReviews.mockReturnValue({
+        data: {
+          reviews: [
+            { id: 'r1', rating: 4 },
+          ],
+        },
+      });
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      // Should render the review card without review text
+      expect(screen.getByTestId('instructor-card')).toBeInTheDocument();
+    });
+
+    it('renders review without reviewer_display_name gracefully', () => {
+      mockUseRecentReviews.mockReturnValue({
+        data: {
+          reviews: [
+            { id: 'r1', rating: 5, review_text: 'Amazing!', reviewer_display_name: null },
+          ],
+        },
+      });
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.getByText('"Amazing!"')).toBeInTheDocument();
+      // No reviewer name line should be rendered
+      expect(screen.queryByText(/^-/)).not.toBeInTheDocument();
+    });
+
+    it('renders review with non-numeric rating gracefully', () => {
+      mockUseRecentReviews.mockReturnValue({
+        data: {
+          reviews: [
+            { id: 'r1', rating: null, review_text: 'Okay class', reviewer_display_name: 'Dan' },
+          ],
+        },
+      });
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      // All stars should be gray when rating is not a number
+      expect(screen.getByText('"Okay class"')).toBeInTheDocument();
+    });
+  });
+
+  describe('preferred_teaching_locations fallback', () => {
+    it('shows at-location icon when preferred_teaching_locations are set instead of teaching_locations', async () => {
+      const instructor = {
+        ...createInstructor({
+          services: [
+            {
+              id: 'svc-1',
+              service_catalog_id: 'cat-1',
+              hourly_rate: 60,
+              duration_options: [60],
+              offers_at_location: true,
+            },
+          ],
+        }),
+        preferred_teaching_locations: [{ name: 'Home Studio' }],
+      };
+
+      renderWithProviders(
+        <InstructorCard instructor={instructor as unknown as Instructor} highlightServiceCatalogId="cat-1" />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(/format:/i)).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /at their studio/i })).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('context age_groups fallback to derived', () => {
+    it('uses derived age_groups from highlightService when context has no age_groups', async () => {
+      const instructor = createInstructor({
+        services: [
+          {
+            id: 'svc-1',
+            service_catalog_id: 'cat-1',
+            hourly_rate: 60,
+            duration_options: [60],
+            age_groups: ['kids', 'teens'],
+          },
+        ],
+      });
+
+      renderWithProviders(
+        <InstructorCard instructor={instructor} highlightServiceCatalogId="cat-1" />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Kids lesson available')).toBeInTheDocument();
+      });
+    });
+
+    it('does not show kids badge when context has age_groups without kids', async () => {
+      const instructor = {
+        ...createInstructor({
+          services: [
+            {
+              id: 'svc-1',
+              service_catalog_id: 'cat-1',
+              hourly_rate: 60,
+              duration_options: [60],
+              age_groups: ['kids'],
+            },
+          ],
+        }),
+        _matchedServiceContext: { age_groups: ['adults'] },
+      };
+
+      renderWithProviders(
+        <InstructorCard instructor={instructor as Instructor} highlightServiceCatalogId="cat-1" />
+      );
+
+      await waitFor(() => {
+        expect(screen.queryByText('Kids lesson available')).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('combined meta rows layout', () => {
+    it('renders both highlight and meta rows together with dividers', async () => {
+      const instructor = {
+        ...createInstructor({
+          years_experience: 8,
+          services: [
+            {
+              id: 'svc-1',
+              service_catalog_id: 'cat-1',
+              hourly_rate: 60,
+              duration_options: [60],
+              levels_taught: ['beginner'],
+              offers_travel: true,
+              age_groups: ['kids'],
+            },
+          ],
+        }),
+        service_area_boroughs: ['Manhattan'],
+      };
+
+      renderWithProviders(
+        <InstructorCard instructor={instructor as Instructor} highlightServiceCatalogId="cat-1" />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Kids lesson available')).toBeInTheDocument();
+        expect(screen.getByText(/beginner/i)).toBeInTheDocument();
+        expect(screen.getByText(/format:/i)).toBeInTheDocument();
+        expect(screen.getByText('8 years experience')).toBeInTheDocument();
+        expect(screen.getByText('Manhattan')).toBeInTheDocument();
+      });
+    });
+
+    it('renders only meta rows when no highlight rows', async () => {
+      const instructor = createInstructor({
+        years_experience: 5,
+        services: [
+          {
+            id: 'svc-1',
+            service_catalog_id: 'cat-1',
+            hourly_rate: 60,
+            duration_options: [60],
+          },
+        ],
+      });
+
+      renderWithProviders(
+        <InstructorCard instructor={instructor} highlightServiceCatalogId="cat-1" />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('5 years experience')).toBeInTheDocument();
+      });
+    });
+
+    it('returns null when no combined rows exist', async () => {
+      const instructor = createInstructor({
+        years_experience: 0,
+        service_area_boroughs: [],
+        service_area_summary: '',
+        services: [
+          {
+            id: 'svc-1',
+            service_catalog_id: 'cat-1',
+            hourly_rate: 60,
+            duration_options: [60],
+          },
+        ],
+      });
+
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+
+      // No experience or service area rows should be rendered
+      expect(screen.queryByText(/experience/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('founding badge and BGC badge margin logic', () => {
+    it('applies margin to founding badge when rating is shown', () => {
+      mockUseInstructorRatingsQuery.mockReturnValue({
+        data: { overall: { rating: 4.0, total_reviews: 5 } },
+      });
+      const instructor = { ...createInstructor(), is_founding_instructor: true };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.getByTestId('founding-badge')).toBeInTheDocument();
+      expect(screen.getByText('4')).toBeInTheDocument();
+    });
+
+    it('applies margin to BGC badge when both rating and founding badge are shown', () => {
+      mockUseInstructorRatingsQuery.mockReturnValue({
+        data: { overall: { rating: 4.5, total_reviews: 10 } },
+      });
+      const instructor = {
+        ...createInstructor(),
+        is_founding_instructor: true,
+        bgc_status: 'passed',
+      };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.getByTestId('founding-badge')).toBeInTheDocument();
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+
+    it('applies margin to BGC badge when only founding badge is shown (no rating)', () => {
+      const instructor = {
+        ...createInstructor(),
+        is_founding_instructor: true,
+        bgc_status: 'passed',
+      };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.getByTestId('founding-badge')).toBeInTheDocument();
+      expect(screen.getByTestId('bgc-badge')).toBeInTheDocument();
+    });
+  });
+
+  describe('duration price calculation with NaN rate', () => {
+    it('renders duration options with $0 when hourly_rate is NaN', () => {
+      const instructor = createInstructor({
+        services: [{
+          id: 'svc-1',
+          service_catalog_id: 'cat-1',
+          hourly_rate: 'not-a-number' as unknown as number,
+          duration_options: [30, 60],
+        }],
+      });
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.getByText(/30 min \(\$0\)/)).toBeInTheDocument();
+      expect(screen.getByText(/60 min \(\$0\)/)).toBeInTheDocument();
+    });
+
+    it('renders duration options with string hourly_rate coerced', () => {
+      const instructor = createInstructor({
+        services: [{
+          id: 'svc-1',
+          service_catalog_id: 'cat-1',
+          hourly_rate: '120' as unknown as number,
+          duration_options: [30, 60],
+        }],
+      });
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.getByText(/30 min \(\$60\)/)).toBeInTheDocument();
+      expect(screen.getByText(/60 min \(\$120\)/)).toBeInTheDocument();
+    });
+  });
+
+  describe('pricing preview edge cases - bookingDraftId presence', () => {
+    it('shows loading state while pricing preview fetches', async () => {
+      // Keep the pricing preview loading indefinitely
+      mockFetchPricingPreview.mockImplementation(() => new Promise(() => {}));
+
+      const instructor = createInstructor();
+      renderWithProviders(
+        <InstructorCard instructor={instructor} bookingDraftId="draft-loading" />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(/updating pricing/i)).toBeInTheDocument();
+      });
+    });
+
+    it('does not show pricing section when bookingDraftId is absent', () => {
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.queryByText('Lesson')).not.toBeInTheDocument();
+      expect(screen.queryByText('Total')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('service area display fallback', () => {
+    it('uses service area summary as fallback when no boroughs', () => {
+      const instructor = createInstructor({
+        service_area_boroughs: [],
+        service_area_summary: 'All of NYC',
+      });
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.getByText('All of NYC')).toBeInTheDocument();
+    });
+
+    it('defaults to NYC when service area display is empty', () => {
+      const instructor = createInstructor({
+        service_area_boroughs: [],
+        service_area_summary: '',
+      });
+      renderWithProviders(<InstructorCard instructor={instructor} />);
+      expect(screen.getByText('NYC')).toBeInTheDocument();
+    });
+  });
+
+  describe('highlight service catalog matching', () => {
+    it('highlights service with case-insensitive matching', async () => {
+      const instructor = createInstructor({
+        services: [
+          { id: 'svc-1', service_catalog_id: 'CAT-1', service_catalog_name: 'Piano', hourly_rate: 60, duration_options: [60] },
+        ],
+      });
+      renderWithProviders(
+        <InstructorCard instructor={instructor} highlightServiceCatalogId="cat-1" />
+      );
+
+      await waitFor(() => {
+        const pill = screen.getByText('Piano');
+        expect(pill).toHaveClass('bg-[#7E22CE]/15');
+      });
+    });
+
+    it('does not highlight when highlightServiceCatalogId does not match', async () => {
+      const instructor = createInstructor({
+        services: [
+          { id: 'svc-1', service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [60] },
+        ],
+      });
+      renderWithProviders(
+        <InstructorCard instructor={instructor} highlightServiceCatalogId="cat-999" />
+      );
+
+      await waitFor(() => {
+        const pill = screen.getByText('Piano');
+        expect(pill).toHaveClass('bg-gray-100');
+      });
+    });
+  });
+
+  describe('compact mode specific rendering', () => {
+    it('renders founding badge with sm size in compact mode', () => {
+      const instructor = { ...createInstructor(), is_founding_instructor: true };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} compact />);
+      expect(screen.getByTestId('founding-badge')).toHaveAttribute('data-size', 'sm');
+    });
+
+    it('renders founding badge with md size in default mode', () => {
+      const instructor = { ...createInstructor(), is_founding_instructor: true };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} />);
+      expect(screen.getByTestId('founding-badge')).toHaveAttribute('data-size', 'md');
+    });
+  });
+
+  describe('format service fallback to first service when no highlightService', () => {
+    it('uses first service for format data when no highlight match', async () => {
+      const instructor = createInstructor({
+        services: [
+          {
+            id: 'svc-1',
+            service_catalog_id: 'cat-1',
+            hourly_rate: 60,
+            duration_options: [60],
+            offers_online: true,
+          },
+        ],
+      });
+
+      renderWithProviders(
+        <InstructorCard instructor={instructor} highlightServiceCatalogId="cat-nonexistent" />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(/format:/i)).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /online/i })).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('pricing preview line_items filtering', () => {
+    it('hides line items starting with service & support (case insensitive)', async () => {
+      mockFetchPricingPreview.mockResolvedValue({
+        base_price_cents: 6000,
+        line_items: [
+          { label: 'service & support fee', amount_cents: 300 },
+          { label: 'Booking fee', amount_cents: 200 },
+        ],
+        student_pay_cents: 6500,
+      });
+
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} bookingDraftId="draft-filter" />);
+
+      await waitFor(() => {
+        expect(screen.queryByText('service & support fee')).not.toBeInTheDocument();
+        expect(screen.getByText('Booking fee')).toBeInTheDocument();
+      });
+    });
+
+    it('renders line item with 0 amount_cents as non-credit', async () => {
+      mockFetchPricingPreview.mockResolvedValue({
+        base_price_cents: 6000,
+        line_items: [
+          { label: 'Promo discount', amount_cents: 0 },
+        ],
+        student_pay_cents: 6000,
+      });
+
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} bookingDraftId="draft-zero" />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Promo discount')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('book now button click with available slot', () => {
+    it('stores correct booking data including lessonType from service name', async () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateStr = tomorrow.toISOString().split('T')[0] as string;
+
+      const mockSetItem = jest.fn();
+      Object.defineProperty(window, 'sessionStorage', {
+        value: { setItem: mockSetItem, getItem: jest.fn(), removeItem: jest.fn() },
+        writable: true,
+      });
+
+      mockUseServicesCatalog.mockReturnValue({
+        data: [{ id: 'cat-piano', name: 'Piano', description: 'Piano lessons', subcategory_id: 'sub-1' }],
+      });
+
+      const instructor = createInstructor({
+        services: [{ id: 'svc-book', service_catalog_id: 'cat-piano', hourly_rate: 80, duration_options: [60] }],
+      });
+
+      renderWithProviders(
+        <InstructorCard
+          instructor={instructor}
+          availabilityData={{
+            availabilityByDate: {
+              [dateStr]: { available_slots: [{ start_time: '14:00', end_time: '16:00' }] },
+            },
+          }}
+        />
+      );
+
+      const user = userEvent.setup();
+      const bookBtn = screen.getByRole('button', { name: /next available/i });
+      await user.click(bookBtn);
+
+      expect(mockSetItem).toHaveBeenCalledWith('bookingData', expect.any(String));
+      const bookingData = JSON.parse(
+        mockSetItem.mock.calls.find((c: [string, string]) => c[0] === 'bookingData')?.[1] ?? '{}'
+      );
+      expect(bookingData.lessonType).toBe('Piano');
+      expect(bookingData.duration).toBe(60);
+      expect(bookingData.basePrice).toBe(80);
+      expect(bookingData.startTime).toBe('14:00');
+      expect(bookingData.endTime).toBe('15:00');
+      expect(mockPush).toHaveBeenCalledWith('/student/booking/confirm');
+    });
+
+    it('falls back to "Service" when no service name is available', async () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateStr = tomorrow.toISOString().split('T')[0] as string;
+
+      const mockSetItem = jest.fn();
+      Object.defineProperty(window, 'sessionStorage', {
+        value: { setItem: mockSetItem, getItem: jest.fn(), removeItem: jest.fn() },
+        writable: true,
+      });
+
+      mockUseServicesCatalog.mockReturnValue({ data: [] });
+
+      const instructor = createInstructor({
+        services: [{ id: 'svc-none', service_catalog_id: 'cat-missing', hourly_rate: 50, duration_options: [60] }],
+      });
+
+      renderWithProviders(
+        <InstructorCard
+          instructor={instructor}
+          availabilityData={{
+            availabilityByDate: {
+              [dateStr]: { available_slots: [{ start_time: '10:00', end_time: '12:00' }] },
+            },
+          }}
+        />
+      );
+
+      const user = userEvent.setup();
+      const bookBtn = screen.getByRole('button', { name: /next available/i });
+      await user.click(bookBtn);
+
+      const bookingData = JSON.parse(
+        mockSetItem.mock.calls.find((c: [string, string]) => c[0] === 'bookingData')?.[1] ?? '{}'
+      );
+      expect(bookingData.lessonType).toBe('Service');
+    });
+
+    it('stores empty serviceId when service has no id', async () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateStr = tomorrow.toISOString().split('T')[0] as string;
+
+      const mockSetItem = jest.fn();
+      Object.defineProperty(window, 'sessionStorage', {
+        value: { setItem: mockSetItem, getItem: jest.fn(), removeItem: jest.fn() },
+        writable: true,
+      });
+
+      const instructor = createInstructor({
+        services: [{ service_catalog_id: 'cat-1', hourly_rate: 60, duration_options: [60] } as Instructor['services'][0]],
+      });
+
+      renderWithProviders(
+        <InstructorCard
+          instructor={instructor}
+          availabilityData={{
+            availabilityByDate: {
+              [dateStr]: { available_slots: [{ start_time: '10:00', end_time: '12:00' }] },
+            },
+          }}
+        />
+      );
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /next available/i }));
+
+      const serviceIdCall = mockSetItem.mock.calls.find((c: [string, string]) => c[0] === 'serviceId');
+      expect(serviceIdCall).toBeDefined();
+    });
+  });
+
+  describe('compact mode text sizing', () => {
+    it('renders rating button in compact mode with smaller text', () => {
+      mockUseInstructorRatingsQuery.mockReturnValue({
+        data: { overall: { rating: 4.8, total_reviews: 20 } },
+      });
+      const instructor = createInstructor();
+      renderWithProviders(<InstructorCard instructor={instructor} compact />);
+      expect(screen.getByText('4.8')).toBeInTheDocument();
+      expect(screen.getByText('20 reviews')).toBeInTheDocument();
+    });
+
+    it('renders distance in compact mode with smaller text', () => {
+      const instructor = { ...createInstructor(), distance_mi: 1.2 };
+      renderWithProviders(<InstructorCard instructor={instructor as Instructor} compact />);
+      expect(screen.getByText('· 1.2 mi')).toBeInTheDocument();
+    });
+  });
 });

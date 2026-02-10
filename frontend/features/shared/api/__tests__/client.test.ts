@@ -378,4 +378,70 @@ describe('SSR code paths', () => {
       getItemSpy.mockRestore();
     }
   });
+
+  it('uses proxy-adjusted URL in browser path of cleanFetch', async () => {
+    // In jsdom (browser-like environment), cleanFetch goes through the window branch
+    // which calls withApiBase to adjust the endpoint with proxy prefix
+    await cleanFetch('/api/v1/test-endpoint');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    expect(calledUrl).toContain('/api/v1/test-endpoint');
+    // withApiBase should be called in browser path
+    expect(withApiBase).toHaveBeenCalledWith('/api/v1/test-endpoint');
+  });
+
+  it('skips proxy adjustment when endpoint already starts with /api/proxy', async () => {
+    await cleanFetch('/api/proxy/api/v1/already-proxied');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    // Should NOT call withApiBase since path already starts with /api/proxy
+    expect(withApiBase).not.toHaveBeenCalled();
+    expect(calledUrl).toContain('/api/proxy/api/v1/already-proxied');
+  });
+
+  it('handles JSON parse failure gracefully', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: { get: jest.fn() },
+      json: async () => { throw new SyntaxError('Unexpected end of JSON'); },
+    });
+
+    const response = await cleanFetch('/api/v1/test');
+
+    // Should return status 200 with null data (JSON parse failed)
+    expect(response.status).toBe(200);
+    expect(response.data).toBeNull();
+  });
+
+  it('returns 429 without retryAfterSeconds when header is missing', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: { get: jest.fn(() => null) },
+      json: async () => ({}),
+    });
+
+    const response = await cleanFetch('/api/v1/search');
+
+    expect(response.status).toBe(429);
+    expect(response.error).toBe('Our hamsters are sprinting. Please try again shortly.');
+    expect((response as { retryAfterSeconds?: number }).retryAfterSeconds).toBeUndefined();
+  });
+
+  it('returns fallback error message when detail is null', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      headers: { get: jest.fn() },
+      json: async () => ({ detail: null }),
+    });
+
+    const response = await cleanFetch('/api/v1/test');
+
+    expect(response.status).toBe(500);
+    expect(response.error).toBe('Error: 500');
+  });
 });

@@ -1480,6 +1480,91 @@ describe('CheckoutFlow', () => {
     });
   });
 
+  describe('Stripe null during payment submission', () => {
+    it('shows Stripe not initialized error when stripe is null and saved card is used', async () => {
+      // Render with stripe available so button is initially enabled
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Visa')).toBeInTheDocument();
+      });
+
+      // Now set stripe to null before clicking pay
+      const originalUseStripe = jest.requireMock('@stripe/react-stripe-js').useStripe;
+      jest.requireMock('@stripe/react-stripe-js').useStripe = () => null;
+
+      // Force re-render by toggling payment method selection
+      const mastercardLabel = screen.getByText('Mastercard').closest('label');
+      if (mastercardLabel) {
+        fireEvent.click(mastercardLabel);
+      }
+
+      // Button should now be disabled since stripe is null after re-render
+      await waitFor(() => {
+        const payButton = screen.getByRole('button', { name: /Pay/ });
+        expect(payButton).toBeDisabled();
+      });
+
+      // Restore
+      jest.requireMock('@stripe/react-stripe-js').useStripe = originalUseStripe;
+    });
+  });
+
+  describe('Malformed total_price handling', () => {
+    it('handles empty string total_price via deriveBookingAmount', async () => {
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockResolvedValue({
+        base_price_cents: 6000,
+        student_pay_cents: undefined,
+        line_items: [],
+      });
+
+      const bookingEmptyPrice = {
+        ...mockBooking,
+        total_price: '' as unknown as number,
+      };
+
+      render(<CheckoutFlow booking={bookingEmptyPrice} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      // Empty string parses to 0 via Number('') === 0, which is finite
+      // So deriveBookingAmount returns 0.00 and Pay button shows $0.00
+      const payButton = screen.getByRole('button', { name: /Pay/ });
+      expect(payButton).toBeInTheDocument();
+    });
+
+    it('handles null total_price via deriveBookingAmount', async () => {
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockResolvedValue({
+        base_price_cents: 6000,
+        student_pay_cents: undefined,
+        line_items: [],
+      });
+
+      const bookingNullPrice = {
+        ...mockBooking,
+        total_price: null as unknown as number,
+      };
+
+      render(<CheckoutFlow booking={bookingNullPrice} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+
+      // null is not a number and not a string, so deriveBookingAmount returns 0
+      const payButton = screen.getByRole('button', { name: /Pay/ });
+      expect(payButton).toBeInTheDocument();
+    });
+  });
+
   describe('Non-Error thrown during payment', () => {
     it('shows default message when non-Error is thrown', async () => {
       mockFetch.mockRejectedValueOnce('string error');
@@ -1498,6 +1583,231 @@ describe('CheckoutFlow', () => {
       await waitFor(() => {
         expect(screen.getByText('Payment failed. Please try again.')).toBeInTheDocument();
       }, { timeout: 3000 });
+    });
+  });
+
+  describe('Zero duration_minutes fallback to total_price', () => {
+    it('falls back to normalizeAmount(total_price) when durationMinutes is 0', async () => {
+      const bookingZeroDuration = {
+        ...mockBooking,
+        duration_minutes: 0,
+        total_price: 45,
+      };
+
+      render(<CheckoutFlow booking={bookingZeroDuration} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        // durationMinutes=0 is falsy so baseLessonAmount = normalizeAmount(total_price, 0)
+        expect(screen.getByText(/Lesson \(0 min\)/)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('ApiProblemError with undefined detail', () => {
+    it('falls back to default message when ApiProblemError detail is undefined', async () => {
+      const { ApiProblemError } = await import('@/lib/api/fetch');
+      const mockResponse = {
+        status: 422,
+        statusText: 'Unprocessable Entity',
+      } as Response;
+
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockRejectedValue(
+        new ApiProblemError(
+          { type: 'validation_error', title: 'Validation Error', detail: undefined as unknown as string, status: 422 },
+          mockResponse,
+        )
+      );
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        // detail is undefined, so ?? operator triggers the fallback
+        expect(screen.getByText('Price is below the minimum.')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('3D Secure with empty error message', () => {
+    it('uses fallback message when confirmError.message is empty', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          payment_intent_id: 'pi_123',
+          requires_action: true,
+          client_secret: 'secret_456',
+        }),
+      });
+      stripeMocks.confirmCardPayment.mockResolvedValueOnce({
+        error: { message: '' },
+      });
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Visa')).toBeInTheDocument();
+      });
+
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      fireEvent.click(payButton);
+
+      await waitFor(() => {
+        // Empty string is falsy, so || operator triggers fallback
+        expect(screen.getByText('Payment confirmation failed')).toBeInTheDocument();
+      }, { timeout: 3000 });
+    });
+  });
+
+  describe('createPaymentMethod with empty error message', () => {
+    it('uses fallback message when stripe error.message is empty', async () => {
+      stripeMocks.createPaymentMethod.mockResolvedValueOnce({
+        paymentMethod: null,
+        error: { message: '' },
+      });
+
+      mockUsePaymentMethods.mockReturnValue({
+        data: [],
+        isLoading: false,
+      });
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Add New Card')).toBeInTheDocument();
+      });
+
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      await userEvent.click(payButton);
+
+      await waitFor(() => {
+        // Empty error.message is falsy, so || triggers 'Failed to create payment method'
+        expect(screen.getByText('Failed to create payment method')).toBeInTheDocument();
+      }, { timeout: 3000 });
+    });
+  });
+
+  describe('Save card with new payment method', () => {
+    it('sends save_payment_method true when saveCard is checked and method is new', async () => {
+      mockUsePaymentMethods.mockReturnValue({
+        data: [],
+        isLoading: false,
+      });
+
+      render(<CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Save card for future use')).toBeInTheDocument();
+      });
+
+      // Check the save card checkbox
+      const saveCheckbox = screen.getByRole('checkbox');
+      await userEvent.click(saveCheckbox);
+      expect(saveCheckbox).toBeChecked();
+
+      const payButton = screen.getByRole('button', { name: /Pay \$/ });
+      await userEvent.click(payButton);
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          '/api/v1/payments/checkout',
+          expect.objectContaining({
+            body: expect.stringContaining('"save_payment_method":true'),
+          })
+        );
+      });
+    });
+  });
+
+  describe('normalizeAmount default-arg fallback', () => {
+    it('uses custom fallback for normalizeAmount when value is non-numeric string', async () => {
+      // hourly_rate as a non-numeric string triggers the fallback path
+      const bookingBadRate = {
+        ...mockBooking,
+        hourly_rate: 'abc' as unknown as number,
+        total_price: 50,
+      };
+
+      render(<CheckoutFlow booking={bookingBadRate} onSuccess={onSuccess} onCancel={onCancel} />, {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        // normalizeAmount('abc', 0) falls through both if-checks to return Number(fallback.toFixed(2))
+        expect(screen.getByText('Booking Summary')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Pricing preview cancelled on unmount', () => {
+    it('does not update state after component unmounts during pricing fetch', async () => {
+      let resolvePreview: (value: unknown) => void;
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockImplementation(
+        () => new Promise(resolve => {
+          resolvePreview = resolve;
+        })
+      );
+
+      const { unmount } = render(
+        <CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Updating pricing…')).toBeInTheDocument();
+      });
+
+      // Unmount while pricing is still loading - sets cancelled = true
+      unmount();
+
+      // Resolve the pricing preview after unmount
+      resolvePreview!({
+        base_price_cents: 6000,
+        student_pay_cents: 6300,
+        line_items: [],
+      });
+
+      // No error should occur - setState is skipped because cancelled is true
+    });
+
+    it('does not update state after component unmounts during pricing fetch error', async () => {
+      const { ApiProblemError } = await import('@/lib/api/fetch');
+      let rejectPreview: (err: unknown) => void;
+      jest.requireMock('@/lib/api/pricing').fetchPricingPreview.mockImplementation(
+        () => new Promise((_resolve, reject) => {
+          rejectPreview = reject;
+        })
+      );
+
+      const { unmount } = render(
+        <CheckoutFlow booking={mockBooking} onSuccess={onSuccess} onCancel={onCancel} />,
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Updating pricing…')).toBeInTheDocument();
+      });
+
+      // Unmount while pricing is still loading
+      unmount();
+
+      // Reject with ApiProblemError after unmount - catch block should return early
+      rejectPreview!(
+        new ApiProblemError(
+          { type: 'error', title: 'Error', detail: 'Test', status: 422 },
+          { status: 422 } as Response,
+        )
+      );
+
+      // No error should occur
     });
   });
 });

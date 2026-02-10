@@ -408,6 +408,194 @@ describe('useInstructorProfile', () => {
     expect(service?.duration_options).toEqual([60]);
   });
 
+  it('maps service boolean flags offers_travel, offers_at_location, offers_online', async () => {
+    mockUseInstructor.mockReturnValue({
+      data: {
+        user_id: '01K2TEST00000000000000001',
+        user: { first_name: 'Test', last_initial: 'U' },
+        services: [
+          {
+            id: 'svc-flags',
+            hourly_rate: 60,
+            offers_travel: true,
+            offers_at_location: true,
+            offers_online: true,
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useInstructorProfile('01K2TEST00000000000000001'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data?.services).toBeDefined();
+    });
+
+    const service = result.current.data?.services[0];
+    expect(service?.offers_travel).toBe(true);
+    expect(service?.offers_at_location).toBe(true);
+    expect(service?.offers_online).toBe(true);
+  });
+
+  it('omits boolean flags when they are not booleans (e.g. undefined)', async () => {
+    mockUseInstructor.mockReturnValue({
+      data: {
+        user_id: '01K2TEST00000000000000001',
+        user: { first_name: 'Test', last_initial: 'U' },
+        services: [
+          {
+            id: 'svc-no-flags',
+            hourly_rate: 60,
+            // offers_travel, offers_at_location, offers_online are all undefined
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useInstructorProfile('01K2TEST00000000000000001'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data?.services).toBeDefined();
+    });
+
+    const service = result.current.data?.services[0];
+    expect(service?.offers_travel).toBeUndefined();
+    expect(service?.offers_at_location).toBeUndefined();
+    expect(service?.offers_online).toBeUndefined();
+  });
+
+  it('maps preferred_teaching_locations with approx_lat and approx_lng', async () => {
+    mockUseInstructor.mockReturnValue({
+      data: {
+        user_id: '01K2TEST00000000000000001',
+        user: { first_name: 'Test', last_initial: 'U' },
+        services: [],
+        preferred_teaching_locations: [
+          {
+            address: '123 Broadway',
+            label: 'Studio',
+            approx_lat: 40.7128,
+            approx_lng: -74.006,
+            neighborhood: 'FiDi',
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useInstructorProfile('01K2TEST00000000000000001'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data?.preferred_teaching_locations).toBeDefined();
+    });
+
+    const loc = result.current.data?.preferred_teaching_locations?.[0] as {
+      address?: string;
+      label?: string;
+      approx_lat?: number;
+      approx_lng?: number;
+      neighborhood?: string;
+    } | undefined;
+    expect(loc?.address).toBe('123 Broadway');
+    expect(loc?.label).toBe('Studio');
+    expect(loc?.approx_lat).toBe(40.7128);
+    expect(loc?.approx_lng).toBe(-74.006);
+    expect(loc?.neighborhood).toBe('FiDi');
+  });
+
+  it('omits approx_lat/lng when they are not numbers', async () => {
+    mockUseInstructor.mockReturnValue({
+      data: {
+        user_id: '01K2TEST00000000000000001',
+        user: { first_name: 'Test', last_initial: 'U' },
+        services: [],
+        preferred_teaching_locations: [
+          {
+            address: '456 Park Ave',
+            approx_lat: 'not-a-number' as unknown,
+            approx_lng: null as unknown,
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useInstructorProfile('01K2TEST00000000000000001'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data?.preferred_teaching_locations).toBeDefined();
+    });
+
+    const loc = result.current.data?.preferred_teaching_locations?.[0] as {
+      address?: string;
+      approx_lat?: number;
+      approx_lng?: number;
+    } | undefined;
+    expect(loc?.address).toBe('456 Park Ave');
+    // Non-numeric values should be omitted
+    expect(loc?.approx_lat).toBeUndefined();
+    expect(loc?.approx_lng).toBeUndefined();
+  });
+
+  it('keeps location with only neighborhood set', async () => {
+    mockUseInstructor.mockReturnValue({
+      data: {
+        user_id: '01K2TEST00000000000000001',
+        user: { first_name: 'Test', last_initial: 'U' },
+        services: [],
+        preferred_teaching_locations: [
+          {
+            neighborhood: 'SoHo',
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useInstructorProfile('01K2TEST00000000000000001'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data?.preferred_teaching_locations).toBeDefined();
+    });
+
+    const loc = result.current.data?.preferred_teaching_locations?.[0] as {
+      neighborhood?: string;
+    } | undefined;
+    expect(loc?.neighborhood).toBe('SoHo');
+  });
+
+  it('maps background_check_status as bgc_status fallback', async () => {
+    mockUseInstructor.mockReturnValue({
+      data: {
+        user_id: '01K2TEST00000000000000001',
+        user: { first_name: 'Test', last_initial: 'U' },
+        services: [],
+        background_check_status: 'clear',
+        background_check_verified: true,
+        background_check_completed: true,
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useInstructorProfile('01K2TEST00000000000000001'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.data).toBeDefined();
+    });
+
+    const profile = result.current.data as unknown as { bgc_status?: string; background_check_completed?: boolean };
+    expect(profile?.bgc_status).toBe('clear');
+    expect(profile?.background_check_completed).toBe(true);
+  });
+
   it('handles NaN hourly_rate', async () => {
     mockUseInstructor.mockReturnValue({
       data: {

@@ -340,4 +340,67 @@ describe('useHomepageData', () => {
     expect(result.current.isAnyLoading).toBe(true);
     expect(result.current.isInitialLoading).toBe(true);
   });
+
+  it('handles recentSearches returning empty array data', async () => {
+    useCurrentUserMock.mockReturnValue(null);
+    queryFnMock.mockReturnValue(() => Promise.resolve(undefined));
+    getRecentSearchesMock.mockResolvedValueOnce({ data: [], status: 200 });
+    getTopServicesMock.mockResolvedValueOnce({ data: { categories: [] }, status: 200 });
+    convertApiResponseMock.mockImplementation((response) => response.data);
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useHomepageData(), { wrapper });
+
+    await waitFor(() => expect(result.current.isAnyLoading).toBe(false));
+    // recentSearches always includes data key (no conditional spread)
+    expect(result.current.recentSearches.data).toEqual([]);
+    expect(result.current.recentSearches.error).toBeNull();
+  });
+
+  it('isInitialLoading is false when all queries have data even if refetching', async () => {
+    useCurrentUserMock.mockReturnValue({ id: 'user-10' });
+    queryFnMock.mockReturnValue(() => Promise.resolve({ items: [{ id: 'b1' }] }));
+    getRecentSearchesMock.mockResolvedValue({ data: [{ id: 's1' }], status: 200 });
+    getTopServicesMock.mockResolvedValue({ data: { categories: ['cat'] }, status: 200 });
+    convertApiResponseMock.mockImplementation((response) => response.data);
+    httpJsonMock.mockResolvedValue({ items: [{ id: 'h1' }] });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useHomepageData(), { wrapper });
+
+    await waitFor(() => expect(result.current.isAnyLoading).toBe(false));
+
+    // When all queries have resolved data, isInitialLoading should be false
+    expect(result.current.isInitialLoading).toBe(false);
+    expect(result.current.upcomingBookings.data).toBeDefined();
+    expect(result.current.featuredServices.data).toBeDefined();
+  });
+
+  it('surfaces individual query errors without affecting other queries', async () => {
+    useCurrentUserMock.mockReturnValue({ id: 'user-11' });
+    // Upcoming bookings fail
+    queryFnMock.mockReturnValue(() => Promise.reject(new Error('Auth expired')));
+    // Searches succeed
+    getRecentSearchesMock.mockResolvedValueOnce({ data: [{ id: 's1' }], status: 200 });
+    // Featured services succeed
+    getTopServicesMock.mockResolvedValueOnce({ data: { categories: ['music'] }, status: 200 });
+    convertApiResponseMock.mockImplementation((response) => response.data);
+    // History fails
+    httpJsonMock.mockRejectedValueOnce(new Error('History auth expired'));
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useHomepageData(), { wrapper });
+
+    await waitFor(() => expect(result.current.isAnyLoading).toBe(false));
+
+    // Upcoming bookings should have error
+    expect(result.current.upcomingBookings.error?.message).toBe('Auth expired');
+    // Recent searches should still have data
+    expect(result.current.recentSearches.data).toEqual([{ id: 's1' }]);
+    expect(result.current.recentSearches.error).toBeNull();
+    // Featured services should still have data
+    expect(result.current.featuredServices.data).toEqual({ categories: ['music'] });
+    // History should have error
+    expect(result.current.bookingHistory.error?.message).toBe('History auth expired');
+  });
 });

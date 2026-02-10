@@ -1179,4 +1179,438 @@ describe('useAvailability', () => {
       expect(result.current.allowPastEdits).toBe(true);
     });
   });
+
+  describe('409 version conflict edge cases', () => {
+    it('uses current_version from response body over ETag when both present', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        headers: {
+          get: (name: string) => (name === 'ETag' ? 'etag-version' : null),
+        },
+        clone: () => ({
+          json: () => Promise.resolve({ error: 'version_conflict', current_version: 'body-version' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; serverVersion?: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult!.success).toBe(false);
+      expect(saveResult!.serverVersion).toBe('body-version');
+      expect(mockWeekScheduleState.setVersion).toHaveBeenCalledWith('body-version');
+      expect(
+        (window as Window & { __week_version?: string }).__week_version
+      ).toBe('body-version');
+    });
+
+    it('falls back to ETag when current_version is not a string', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        headers: {
+          get: (name: string) => (name === 'ETag' ? 'etag-fallback' : null),
+        },
+        clone: () => ({
+          json: () => Promise.resolve({ error: 'version_conflict', current_version: 42 }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; serverVersion?: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult!.success).toBe(false);
+      expect(saveResult!.serverVersion).toBe('etag-fallback');
+      expect(mockWeekScheduleState.setVersion).toHaveBeenCalledWith('etag-fallback');
+    });
+
+    it('does not update version when neither current_version nor ETag is present', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ error: 'version_conflict' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      expect(mockWeekScheduleState.setVersion).not.toHaveBeenCalled();
+    });
+
+    it('detects version conflict via error field even when status is not 409', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ error: 'version_conflict', current_version: 'sv5' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; message: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      // version_conflict error field triggers the special message
+      expect(saveResult!.message).toContain('changed in another session');
+    });
+  });
+
+  describe('saveWeek with non-empty weekBits', () => {
+    it('computes bits delta and logs it', async () => {
+      const bits = new Uint8Array([0b11110000, 0, 0, 0, 0, 0]);
+      const savedBits = new Uint8Array([0b00001111, 0, 0, 0, 0, 0]);
+      mockWeekScheduleState.weekBits = { '2025-01-13': bits } as unknown as WeekBits;
+      mockWeekScheduleState.savedWeekBits = { '2025-01-13': savedBits } as unknown as WeekBits;
+
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; message: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      expect(saveResult!.success).toBe(true);
+      // The logger.debug should have been called with bits delta info
+      const { logger } = jest.requireMock('@/lib/logger');
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining('bitsDelta')
+      );
+    });
+  });
+
+  describe('saveWeek JSON parse failure', () => {
+    it('handles clone().json() throwing gracefully', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.reject(new Error('Malformed JSON')),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; message: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      // responseJson will be undefined due to .catch(() => undefined)
+      // The fallback message 'Availability saved' should be used
+      expect(saveResult!.success).toBe(true);
+      expect(saveResult!.message).toBe('Availability saved');
+    });
+
+    it('handles clone().json() throwing on error response', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.reject(new Error('Malformed JSON')),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let saveResult: { success: boolean; message: string };
+      await act(async () => {
+        saveResult = await result.current.saveWeek();
+      });
+
+      // responseJson is undefined, extractErrorMessage receives undefined -> fallback
+      expect(saveResult!.success).toBe(false);
+      expect(saveResult!.message).toContain('Failed to save availability');
+    });
+  });
+
+  describe('applyToFutureWeeks partial stats', () => {
+    it('includes only daysWritten when weeksAffected is not present', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        clone: () => ({
+          json: () => Promise.resolve({
+            message: 'Applied',
+            days_written: 42,
+          }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let applyResult: { success: boolean; weeksAffected?: number; daysWritten?: number };
+      await act(async () => {
+        applyResult = await result.current.applyToFutureWeeks('2025-06-30');
+      });
+
+      expect(applyResult!.daysWritten).toBe(42);
+      expect(applyResult!.weeksAffected).toBeUndefined();
+    });
+
+    it('handles non-numeric weeks_affected gracefully', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        clone: () => ({
+          json: () => Promise.resolve({
+            message: 'Applied',
+            weeks_affected: 'many',
+            days_written: 10,
+          }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let applyResult: { success: boolean; weeksAffected?: number; daysWritten?: number };
+      await act(async () => {
+        applyResult = await result.current.applyToFutureWeeks('2025-06-30');
+      });
+
+      // 'many' is not a number, so weeksAffected should be undefined
+      expect(applyResult!.weeksAffected).toBeUndefined();
+      expect(applyResult!.daysWritten).toBe(10);
+    });
+
+    it('handles clone().json() throwing in applyToFutureWeeks', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        clone: () => ({
+          json: () => Promise.reject(new Error('Parse error')),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let applyResult: { success: boolean; message: string };
+      await act(async () => {
+        applyResult = await result.current.applyToFutureWeeks('2025-06-30');
+      });
+
+      // responseJson is undefined, falls back to default message
+      expect(applyResult!.success).toBe(true);
+      expect(applyResult!.message).toBe('Applied schedule to future range');
+    });
+  });
+
+  describe('copyFromPreviousWeek JSON error on failure path', () => {
+    it('stringifies empty object when error response JSON parse fails', async () => {
+      // When res.json() rejects, the .catch returns {} as ApiErrorResponse.
+      // extractErrorMessage({}, fallback) has no detail or message field,
+      // so it falls through to JSON.stringify({}) which returns "{}".
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.reject(new Error('Parse error')),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      let copyResult: OperationResult;
+      await act(async () => {
+        copyResult = await result.current.copyFromPreviousWeek();
+      });
+
+      expect(copyResult?.success).toBe(false);
+      expect(copyResult?.message).toBe('{}');
+    });
+  });
+
+  describe('saveWeek clearExisting default behavior', () => {
+    it('defaults clearExisting to true when not specified', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      expect(fetchWithAuth).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          body: expect.stringContaining('"clear_existing":true'),
+        })
+      );
+    });
+  });
+
+  describe('allowPastEdits header on non-409 error response', () => {
+    it('does not set allowPastEdits when X-Allow-Past header is null on error', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ detail: 'Some error' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      // When allowPastHeader is null (not a string), setAllowPastEdits should NOT be called
+      expect(mockWeekScheduleState.setAllowPastEdits).not.toHaveBeenCalled();
+    });
+
+    it('does not set allowPastEdits when X-Allow-Past header is null on success', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      await act(async () => {
+        await result.current.saveWeek();
+      });
+
+      expect(mockWeekScheduleState.setAllowPastEdits).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('saveWeek with scheduleOverride triggers scheduleToBits', () => {
+    it('converts schedule override to bits and back', async () => {
+      const { fromWindows, toWindows } = jest.requireMock('@/lib/calendar/bitset');
+      const mockBits = new Uint8Array([1, 2, 3, 4, 5, 6]);
+      fromWindows.mockReturnValue(mockBits);
+      toWindows.mockReturnValue([{ start_time: '09:00', end_time: '17:00' }]);
+
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      const customSchedule: WeekSchedule = {
+        '2025-01-15': [{ start_time: '09:00', end_time: '17:00' }],
+      };
+
+      await act(async () => {
+        await result.current.saveWeek({ scheduleOverride: customSchedule });
+      });
+
+      // fromWindows should be called to convert schedule to bits
+      expect(fromWindows).toHaveBeenCalledWith([{ start_time: '09:00', end_time: '17:00' }]);
+      expect(fetchWithAuth).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          body: expect.stringContaining('"date":"2025-01-15"'),
+        })
+      );
+    });
+
+    it('skips dates with empty or null windows in scheduleOverride', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      const customSchedule: WeekSchedule = {
+        '2025-01-15': [{ start_time: '09:00', end_time: '10:00' }],
+        '2025-01-16': [],
+      };
+
+      await act(async () => {
+        await result.current.saveWeek({ scheduleOverride: customSchedule });
+      });
+
+      const body = JSON.parse(
+        (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
+      ) as { schedule: Array<{ date: string }> };
+
+      // Only the date with actual slots should be in the schedule
+      expect(body.schedule).toHaveLength(1);
+      expect(body.schedule[0]?.date).toBe('2025-01-15');
+    });
+  });
+
+  describe('saveWeek schedule sorting', () => {
+    it('sorts schedule entries by date then start_time then end_time', async () => {
+      fetchWithAuth.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        clone: () => ({
+          json: () => Promise.resolve({ message: 'Saved' }),
+        }),
+      });
+
+      const { result } = renderHook(() => useAvailability());
+
+      const customSchedule: WeekSchedule = {
+        '2025-01-16': [{ start_time: '14:00', end_time: '15:00' }],
+        '2025-01-15': [
+          { start_time: '10:00', end_time: '12:00' },
+          { start_time: '09:00', end_time: '10:00' },
+        ],
+      };
+
+      await act(async () => {
+        await result.current.saveWeek({ scheduleOverride: customSchedule });
+      });
+
+      const body = JSON.parse(
+        (fetchWithAuth.mock.calls[0] as [string, { body: string }])[1].body
+      ) as { schedule: Array<{ date: string; start_time: string; end_time: string }> };
+
+      // Should be sorted: first by date, then by start_time
+      expect(body.schedule[0]?.date).toBe('2025-01-15');
+      expect(body.schedule[0]?.start_time).toBe('09:00');
+      expect(body.schedule[1]?.date).toBe('2025-01-15');
+      expect(body.schedule[1]?.start_time).toBe('10:00');
+      expect(body.schedule[2]?.date).toBe('2025-01-16');
+    });
+  });
 });

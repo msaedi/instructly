@@ -166,7 +166,7 @@ describe('useInstructorAvailability', () => {
     });
   });
 
-  it('handles rate limit (429) response as error', async () => {
+  it('handles rate limit (429) response without retryAfterSeconds as error', async () => {
     mockedGetAvailability.mockResolvedValueOnce({
       status: 429,
       error: 'Rate limited',
@@ -180,6 +180,75 @@ describe('useInstructorAvailability', () => {
     await waitFor(() => {
       expect(result.current.isError).toBe(true);
     });
+  });
+
+  it('retries after delay when 429 response includes retryAfterSeconds', async () => {
+    // Use real timers for this test since the queryFn uses setTimeout internally
+    jest.useRealTimers();
+
+    const retryData = {
+      instructor_id: 'inst-1',
+      instructor_first_name: null,
+      instructor_last_initial: null,
+      availability_by_date: {},
+      timezone: 'UTC',
+      total_available_slots: 0,
+      earliest_available_date: '2025-01-10',
+    };
+
+    // First call returns 429 with retryAfterSeconds (use tiny delay for test speed)
+    mockedGetAvailability.mockResolvedValueOnce({
+      status: 429,
+      error: 'Rate limited',
+      data: undefined,
+      ...({ retryAfterSeconds: 0.01 } as Record<string, unknown>),
+    });
+    // Retry call succeeds
+    mockedGetAvailability.mockResolvedValueOnce({
+      status: 200,
+      data: retryData,
+    });
+
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useInstructorAvailability('inst-1'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+      expect(result.current.data?.instructor_id).toBe('inst-1');
+    });
+
+    // Should have called the API twice: initial + retry
+    expect(mockedGetAvailability).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws error when retry after 429 also fails', async () => {
+    // Use real timers for this test since the queryFn uses setTimeout internally
+    jest.useRealTimers();
+
+    // First call returns 429 with retryAfterSeconds (use tiny delay for test speed)
+    mockedGetAvailability.mockResolvedValueOnce({
+      status: 429,
+      error: 'Rate limited',
+      data: undefined,
+      ...({ retryAfterSeconds: 0.01 } as Record<string, unknown>),
+    });
+    // Retry call also fails
+    mockedGetAvailability.mockResolvedValueOnce({
+      status: 500,
+      error: 'Server error on retry',
+      data: undefined,
+    });
+
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useInstructorAvailability('inst-1'), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(mockedGetAvailability).toHaveBeenCalledTimes(2);
   });
 
   it('is disabled when instructorId is empty', async () => {

@@ -764,4 +764,430 @@ describe('PlacesAutocompleteInput', () => {
       expect(screen.getByRole('combobox')).toHaveAttribute('autocomplete', 'on');
     });
   });
+
+  describe('AbortError handling in fetch catch block', () => {
+    it('silently ignores AbortError without clearing suggestions', async () => {
+      jest.useFakeTimers();
+
+      // First render with a valid query that returns suggestions
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            { place_id: 'place-1', description: 'First Address', provider: 'google' },
+          ],
+        }),
+      });
+
+      const { rerender } = render(
+        <PlacesAutocompleteInput {...defaultProps} value="123 Main" />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('First Address')).toBeInTheDocument();
+      });
+
+      // Now update value which triggers an abort of the previous request
+      // and a new fetch that also throws AbortError
+      const abortError = new DOMException('The operation was aborted.', 'AbortError');
+      mockFetch.mockRejectedValueOnce(abortError);
+
+      rerender(
+        <PlacesAutocompleteInput {...defaultProps} value="456 Oak" />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      // AbortError should be silently ignored (not clear suggestions or show error)
+      // The component should not crash
+      expect(screen.getByRole('combobox')).toBeInTheDocument();
+
+      jest.useRealTimers();
+    });
+  });
+
+  describe('ref assignment edge cases', () => {
+    it('handles function ref callback', () => {
+      const functionRef = jest.fn();
+      render(
+        <PlacesAutocompleteInput {...defaultProps} ref={functionRef} />
+      );
+
+      expect(functionRef).toHaveBeenCalledWith(expect.any(HTMLInputElement));
+    });
+
+    it('handles null ref gracefully', () => {
+      // When ref is undefined/null, assignNodeToRef should not throw
+      render(
+        <PlacesAutocompleteInput {...defaultProps} />
+      );
+
+      expect(screen.getByRole('combobox')).toBeInTheDocument();
+    });
+  });
+
+  describe('empty and malformed prediction items', () => {
+    it('filters out items with empty place_id', async () => {
+      jest.useFakeTimers();
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            { place_id: '', description: 'Empty ID Place', provider: 'google' },
+            { place_id: '  ', description: 'Whitespace ID Place', provider: 'google' },
+            { place_id: 'valid-1', description: 'Valid Place', provider: 'google' },
+          ],
+        }),
+      });
+
+      render(
+        <PlacesAutocompleteInput {...defaultProps} value="123 Main" />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Valid Place')).toBeInTheDocument();
+      });
+
+      // Items with empty place_id should be filtered out
+      expect(screen.queryByText('Empty ID Place')).not.toBeInTheDocument();
+      expect(screen.queryByText('Whitespace ID Place')).not.toBeInTheDocument();
+
+      jest.useRealTimers();
+    });
+
+    it('handles items where data.items is not an array', async () => {
+      jest.useFakeTimers();
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: null,
+        }),
+      });
+
+      render(
+        <PlacesAutocompleteInput {...defaultProps} value="123 Main" />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      // Should not show suggestions when items is null
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+
+      jest.useRealTimers();
+    });
+
+    it('handles items with text property instead of description', async () => {
+      jest.useFakeTimers();
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            { place_id: 'place-text', text: '123 Text Address', provider: 'mapbox' },
+          ],
+        }),
+      });
+
+      render(
+        <PlacesAutocompleteInput {...defaultProps} value="123 Text" />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('123 Text Address')).toBeInTheDocument();
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('filters out suggestions with empty display text', async () => {
+      jest.useFakeTimers();
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            { place_id: 'empty-desc', description: '', text: '', provider: 'google' },
+            { place_id: 'whitespace-desc', description: '  ', text: '  ', provider: 'google' },
+            { place_id: 'valid-desc', description: 'Valid Address', provider: 'google' },
+          ],
+        }),
+      });
+
+      render(
+        <PlacesAutocompleteInput {...defaultProps} value="123 Main" />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Valid Address')).toBeInTheDocument();
+      });
+
+      // Items with empty display text return null in the map and are not rendered
+      const options = screen.getAllByRole('option');
+      expect(options).toHaveLength(1);
+
+      jest.useRealTimers();
+    });
+
+    it('handles provider with whitespace by preserving trimmed value', async () => {
+      jest.useFakeTimers();
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            { place_id: 'place-prov', description: 'Provider Test', provider: '  google  ' },
+          ],
+        }),
+      });
+
+      render(
+        <PlacesAutocompleteInput {...defaultProps} value="provider test" />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Provider Test')).toBeInTheDocument();
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('handles item with no provider', async () => {
+      jest.useFakeTimers();
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            { place_id: 'no-prov', description: 'No Provider Place', provider: '' },
+          ],
+        }),
+      });
+
+      render(
+        <PlacesAutocompleteInput {...defaultProps} value="no provider" />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('No Provider Place')).toBeInTheDocument();
+      });
+
+      jest.useRealTimers();
+    });
+  });
+
+  describe('keyboard navigation edge cases', () => {
+    it('ArrowUp from initial position wraps to last item', async () => {
+      jest.useFakeTimers();
+
+      render(<PlacesAutocompleteInput {...defaultProps} value="123 Main" />);
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('listbox')).toBeInTheDocument();
+      });
+
+      const input = screen.getByRole('combobox');
+      // Press ArrowUp from initial position (-1)
+      // prev = -1 - 1 = -2, which is < 0, so wraps to suggestions.length - 1
+      fireEvent.keyDown(input, { key: 'ArrowUp' });
+
+      const options = screen.getAllByRole('option');
+      // Should wrap to the last item
+      const lastOption = options[options.length - 1];
+      expect(lastOption).toHaveAttribute('aria-selected', 'true');
+
+      jest.useRealTimers();
+    });
+
+    it('Enter key does nothing when no item is highlighted', async () => {
+      jest.useFakeTimers();
+      const onSelectSuggestion = jest.fn();
+
+      render(
+        <PlacesAutocompleteInput
+          {...defaultProps}
+          value="123 Main"
+          onSelectSuggestion={onSelectSuggestion}
+        />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('listbox')).toBeInTheDocument();
+      });
+
+      const input = screen.getByRole('combobox');
+      // Press Enter without navigating (highlightIndex is -1)
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      // Should not select any suggestion
+      expect(onSelectSuggestion).not.toHaveBeenCalled();
+
+      jest.useRealTimers();
+    });
+
+    it('does not navigate when dropdown is closed', () => {
+      render(
+        <PlacesAutocompleteInput {...defaultProps} value="" />
+      );
+
+      const input = screen.getByRole('combobox');
+      // ArrowDown/ArrowUp/Enter/Escape should be no-ops when dropdown is closed
+      fireEvent.keyDown(input, { key: 'ArrowDown' });
+      fireEvent.keyDown(input, { key: 'ArrowUp' });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('empty trimmed value handling', () => {
+    it('clears suggestions when value is whitespace-only', async () => {
+      jest.useFakeTimers();
+
+      render(
+        <PlacesAutocompleteInput {...defaultProps} value="   " />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      // Trimmed value is empty, so no suggestions should appear
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+      expect(mockFetch).not.toHaveBeenCalled();
+
+      jest.useRealTimers();
+    });
+  });
+
+  describe('skip next fetch after selection', () => {
+    it('skips fetching after a suggestion is selected', async () => {
+      jest.useFakeTimers();
+      const onValueChange = jest.fn();
+      const onSelectSuggestion = jest.fn();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      const { rerender } = render(
+        <PlacesAutocompleteInput
+          {...defaultProps}
+          value="123 Main"
+          onValueChange={onValueChange}
+          onSelectSuggestion={onSelectSuggestion}
+        />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('123 Main St, New York, NY')).toBeInTheDocument();
+      });
+
+      // Select a suggestion
+      await user.click(screen.getByText('123 Main St, New York, NY'));
+
+      const callCount = mockFetch.mock.calls.length;
+
+      // Rerender with the selected value (simulating what onValueChange triggers)
+      rerender(
+        <PlacesAutocompleteInput
+          {...defaultProps}
+          value="123 Main St, New York, NY"
+          onValueChange={onValueChange}
+          onSelectSuggestion={onSelectSuggestion}
+        />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      // Should not have made another fetch because skipNextRef was set
+      expect(mockFetch.mock.calls.length).toBe(callCount);
+
+      jest.useRealTimers();
+    });
+  });
+
+  describe('selection with empty display text fallback', () => {
+    it('uses current value when suggestion has no display text', async () => {
+      jest.useFakeTimers();
+      const onValueChange = jest.fn();
+
+      // Create suggestions where one has both description and text empty
+      // But since these get filtered out in rendering, let's test via
+      // a suggestion with only whitespace description that still renders
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            { place_id: 'place-val', description: 'Valid Place', provider: 'google' },
+          ],
+        }),
+      });
+
+      render(
+        <PlacesAutocompleteInput
+          {...defaultProps}
+          value="search term"
+          onValueChange={onValueChange}
+        />
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(300);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Valid Place')).toBeInTheDocument();
+      });
+
+      const input = screen.getByRole('combobox');
+      // Navigate to first item and select via keyboard
+      fireEvent.keyDown(input, { key: 'ArrowDown' });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      expect(onValueChange).toHaveBeenCalledWith('Valid Place');
+
+      jest.useRealTimers();
+    });
+  });
 });

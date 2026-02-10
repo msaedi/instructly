@@ -497,4 +497,107 @@ describe('BookingModalWithPayment', () => {
 
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
+
+  it('handles non-numeric hourly_rate gracefully', () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      redirectToLogin: jest.fn(),
+    });
+
+    const instructorBadRate: Instructor = {
+      ...instructor,
+      services: [
+        { id: 'service-1', skill: 'Piano', hourly_rate: 'not-a-number' as unknown as number, duration_options: [60], duration: 60 },
+      ],
+    };
+
+    render(
+      <BookingModalWithPayment
+        isOpen
+        onClose={jest.fn()}
+        onContinueToBooking={jest.fn()}
+        instructor={instructorBadRate}
+        selectedDate="2025-01-01"
+        selectedTime="10:00"
+      />
+    );
+
+    // Should display $0.00 instead of NaN
+    expect(screen.getByText('$0.00 total')).toBeInTheDocument();
+  });
+
+  it('displays price correctly for string hourly_rate', () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      redirectToLogin: jest.fn(),
+    });
+
+    const instructorStringRate: Instructor = {
+      ...instructor,
+      services: [
+        { id: 'service-1', skill: 'Piano', hourly_rate: '75' as unknown as number, duration_options: [60], duration: 60 },
+      ],
+    };
+
+    render(
+      <BookingModalWithPayment
+        isOpen
+        onClose={jest.fn()}
+        onContinueToBooking={jest.fn()}
+        instructor={instructorStringRate}
+        selectedDate="2025-01-01"
+        selectedTime="10:00"
+      />
+    );
+
+    // Should parse "75" as 75 and display $75.00
+    expect(screen.getByText('$75.00 total')).toBeInTheDocument();
+  });
+
+  it('renders service dropdown with multiple services and correct rates', () => {
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      redirectToLogin: jest.fn(),
+    });
+
+    renderModal({ instructor: instructorMultipleServices });
+
+    const dropdown = screen.getByRole('combobox');
+    expect(dropdown).toBeInTheDocument();
+
+    // Both options should be listed
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(2);
+    expect(options[0]).toHaveTextContent('Piano');
+    expect(options[0]).toHaveTextContent('$100/hr');
+    expect(options[1]).toHaveTextContent('Guitar');
+    expect(options[1]).toHaveTextContent('$80/hr');
+  });
+
+  it('stores freeCancellationUntil for standard bookings when unauthenticated', async () => {
+    const redirectToLogin = jest.fn();
+    useAuthMock.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      redirectToLogin,
+    });
+
+    // Use a date far in the future so determineBookingType returns STANDARD
+    renderModal({ selectedDate: '2099-06-15', selectedTime: '14:00' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Continue to Booking' }));
+
+    expect(redirectToLogin).toHaveBeenCalled();
+
+    // Verify bookingData was stored with freeCancellationUntil
+    const storedData = (window.sessionStorage.setItem as jest.Mock).mock.calls.find(
+      (call: string[]) => call[0] === 'bookingData'
+    );
+    expect(storedData).toBeDefined();
+    const parsed = JSON.parse(storedData![1] as string) as Record<string, unknown>;
+    expect(parsed).toHaveProperty('freeCancellationUntil');
+  });
 });

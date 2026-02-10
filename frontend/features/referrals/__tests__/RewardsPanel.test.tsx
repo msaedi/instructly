@@ -504,4 +504,187 @@ describe('RewardsPanel', () => {
 
     expect(screen.getByText('Failed to load rewards')).toBeInTheDocument();
   });
+
+  // Line 67: compactShare, minimalTabs, compactInvite, compactTabs props
+  describe('compact layout props', () => {
+    it('renders with compactShare removing border/padding from share section', () => {
+      mockUseSWR.mockReturnValue({ data: baseLedger, error: null, isLoading: false });
+
+      const { container } = render(<RewardsPanel compactShare />);
+
+      // compactShare removes 'rounded-2xl border...' classes from section
+      // The share section should exist but without the bordered container
+      const sections = container.querySelectorAll('section');
+      expect(sections.length).toBeGreaterThan(0);
+    });
+
+    it('renders with minimalTabs for minimal tab styling', async () => {
+      const user = userEvent.setup();
+      mockUseSWR.mockReturnValue({ data: baseLedger, error: null, isLoading: false });
+
+      render(<RewardsPanel minimalTabs />);
+
+      // minimalTabs uses text-based styling instead of pill buttons
+      const unlockedTab = screen.getByRole('button', { name: /unlocked/i });
+      expect(unlockedTab).toBeInTheDocument();
+
+      // Click a tab to verify interaction works with minimal tabs
+      await user.click(screen.getByRole('button', { name: /pending/i }));
+      expect(screen.getByText(/no pending rewards/i)).toBeInTheDocument();
+    });
+
+    it('renders with compactInvite removing border/padding from invite section', () => {
+      mockUseSWR.mockReturnValue({ data: baseLedger, error: null, isLoading: false });
+
+      render(<RewardsPanel compactInvite />);
+
+      // compactInvite removes 'rounded-2xl border...' classes from invite section
+      expect(screen.getByTestId('invite-by-email')).toBeInTheDocument();
+    });
+
+    it('renders with compactTabs removing border/padding from tabs section', () => {
+      mockUseSWR.mockReturnValue({ data: baseLedger, error: null, isLoading: false });
+
+      render(<RewardsPanel compactTabs />);
+
+      // compactTabs removes 'rounded-2xl border...' classes from tabs section
+      expect(screen.getByRole('button', { name: /unlocked/i })).toBeInTheDocument();
+    });
+
+    it('renders with hideShareIcon prop', () => {
+      mockUseSWR.mockReturnValue({ data: baseLedger, error: null, isLoading: false });
+
+      const { container } = render(<RewardsPanel hideShareIcon />);
+
+      // hideShareIcon hides the Gift icon and adds flex-1 min-w-0 to parent
+      // The Gift icon aria-hidden should NOT be in the document
+      expect(container.querySelector('.lucide-gift')).not.toBeInTheDocument();
+    });
+
+    it('renders with all compact props at once', () => {
+      mockUseSWR.mockReturnValue({ data: baseLedger, error: null, isLoading: false });
+
+      render(
+        <RewardsPanel
+          compactShare
+          compactInvite
+          compactTabs
+          minimalTabs
+          hideShareIcon
+          hideHeader
+        />
+      );
+
+      // Should render without errors
+      expect(screen.getByRole('button', { name: /unlocked/i })).toBeInTheDocument();
+      expect(screen.queryByText('Your rewards')).not.toBeInTheDocument();
+    });
+  });
+
+  // Lines 134-139: setIsProcessing reset in copy/share handlers
+  describe('isProcessing state management', () => {
+    it('resets isProcessing to null after successful copy', async () => {
+      const user = userEvent.setup();
+      const writeText = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, writable: true });
+      mockUseSWR.mockReturnValue({ data: baseLedger, error: null, isLoading: false });
+
+      render(<RewardsPanel />);
+
+      // Click copy
+      await user.click(screen.getByRole('button', { name: /copy/i }));
+
+      // After copy completes, buttons should be re-enabled (isProcessing === null)
+      expect(screen.getByRole('button', { name: /share/i })).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: /copy/i })).not.toBeDisabled();
+    });
+
+    it('resets isProcessing to null after successful share', async () => {
+      const user = userEvent.setup();
+      (shareOrCopy as jest.Mock).mockResolvedValue('shared');
+      mockUseSWR.mockReturnValue({ data: baseLedger, error: null, isLoading: false });
+
+      render(<RewardsPanel />);
+
+      await user.click(screen.getByRole('button', { name: /share/i }));
+
+      // After share completes, buttons should be re-enabled
+      expect(screen.getByRole('button', { name: /share/i })).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: /copy/i })).not.toBeDisabled();
+    });
+
+    it('does not call handleShare when summary is null', async () => {
+      mockUseSWR.mockReturnValue({ data: null, error: null, isLoading: false });
+
+      render(<RewardsPanel />);
+
+      // Share button should be disabled when no summary
+      const shareBtn = screen.getByRole('button', { name: /share/i });
+      expect(shareBtn).toBeDisabled();
+    });
+
+    it('does not call handleCopy when summary is null', async () => {
+      mockUseSWR.mockReturnValue({ data: null, error: null, isLoading: false });
+
+      render(<RewardsPanel />);
+
+      // Copy button should be disabled when no summary
+      const copyBtn = screen.getByRole('button', { name: /copy/i });
+      expect(copyBtn).toBeDisabled();
+    });
+  });
+
+  // Line 281: unlock_ts display for pending rewards
+  describe('reward detail display', () => {
+    it('shows unlock date for pending rewards with unlock_ts', async () => {
+      const user = userEvent.setup();
+      mockUseSWR.mockReturnValue({
+        data: {
+          ...baseLedger,
+          pending: [
+            {
+              id: 'pending-unlock',
+              amount_cents: 2000,
+              status: 'pending',
+              created_at: '2024-12-15T00:00:00Z',
+              unlock_ts: '2025-01-15T00:00:00Z',
+            },
+          ],
+        },
+        error: null,
+        isLoading: false,
+      });
+
+      render(<RewardsPanel />);
+
+      await user.click(screen.getByRole('button', { name: /pending/i }));
+
+      // Should show unlock date info
+      expect(screen.getByText(/unlocks/i)).toBeInTheDocument();
+    });
+
+    it('does not show unlock info for unlocked rewards even with unlock_ts', () => {
+      mockUseSWR.mockReturnValue({
+        data: {
+          ...baseLedger,
+          unlocked: [
+            {
+              id: 'unlocked-with-ts',
+              amount_cents: 2000,
+              status: 'unlocked',
+              created_at: '2024-12-15T00:00:00Z',
+              unlock_ts: '2025-01-10T00:00:00Z',
+            },
+          ],
+        },
+        error: null,
+        isLoading: false,
+      });
+
+      render(<RewardsPanel />);
+
+      // For unlocked status, unlock_ts should NOT be displayed (condition: status !== 'unlocked')
+      expect(screen.queryByText(/unlocks/i)).not.toBeInTheDocument();
+    });
+  });
 });

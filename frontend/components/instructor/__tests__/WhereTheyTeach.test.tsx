@@ -79,4 +79,86 @@ describe('WhereTheyTeach', () => {
     expect(section).toHaveClass('dark:border-gray-700');
     expect(section).toHaveClass('dark:bg-gray-900');
   });
+
+  it('renders the InstructorCoverageMap with coverage data when offersTravel is true', () => {
+    const coverage = {
+      type: 'FeatureCollection' as const,
+      features: [
+        {
+          type: 'Feature' as const,
+          geometry: { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]] },
+          properties: { name: 'Test Zone' },
+        },
+      ],
+    };
+
+    render(
+      <WhereTheyTeach
+        offersTravel={true}
+        offersAtLocation={false}
+        offersOnline={true}
+        coverage={coverage}
+      />
+    );
+
+    const map = screen.getByTestId('coverage-map');
+    expect(map).toBeInTheDocument();
+    expect(map).toHaveAttribute('data-show-coverage', 'true');
+    // Legend should include both travel and online
+    expect(screen.getByText(/travels to you/i)).toBeInTheDocument();
+    expect(screen.getByText(/online/i)).toBeInTheDocument();
+  });
+
+  it('renders map with studio pins and displays approximate studio area', () => {
+    const pins = [
+      { lat: 40.7128, lng: -74.006, label: 'Midtown Manhattan' },
+      { lat: 40.7282, lng: -73.7949, label: 'Queens Studio' },
+    ];
+
+    render(
+      <WhereTheyTeach
+        offersTravel={false}
+        offersAtLocation={true}
+        offersOnline={false}
+        studioPins={pins}
+      />
+    );
+
+    const map = screen.getByTestId('coverage-map');
+    expect(map).toBeInTheDocument();
+    expect(map).toHaveAttribute('data-pin-count', '2');
+    expect(map).toHaveAttribute('data-show-coverage', 'false');
+    expect(screen.getByText(/at studio/i)).toBeInTheDocument();
+    expect(screen.getByText(/approximate studio area: midtown manhattan/i)).toBeInTheDocument();
+  });
+
+  it('does not render studio option when offersAtLocation is true but no pins provided', () => {
+    render(
+      <WhereTheyTeach
+        offersTravel={false}
+        offersAtLocation={true}
+        offersOnline={true}
+        studioPins={[]}
+      />
+    );
+
+    // Without studio pins, effectiveOffersAtLocation is false, so map should not show
+    expect(screen.queryByTestId('coverage-map')).not.toBeInTheDocument();
+    // Should show online-only since that is the only remaining option
+    expect(screen.getByText(/online lessons only/i)).toBeInTheDocument();
+  });
+
+  it('does not show studio area label when the first pin has no label', () => {
+    render(
+      <WhereTheyTeach
+        offersTravel={false}
+        offersAtLocation={true}
+        offersOnline={false}
+        studioPins={[{ lat: 40.7128, lng: -74.006 }]}
+      />
+    );
+
+    expect(screen.getByTestId('coverage-map')).toBeInTheDocument();
+    expect(screen.queryByText(/approximate studio area/i)).not.toBeInTheDocument();
+  });
 });

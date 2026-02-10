@@ -931,4 +931,215 @@ describe('useProfilePictureUrls', () => {
       });
     });
   });
+
+  describe('partial API response and cache merge branches', () => {
+    it('returns null for ids not present in aggregated or cached results', async () => {
+      // This exercises the else branch (line 172-173) in flushPendingQueue:
+      // when a request id is not in the aggregated results AND not cached
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          urls: {
+            // Intentionally only return one of two requested ids
+            'user-partial-found': 'https://cdn/avatar/partial-found',
+            // 'user-partial-gone' is NOT in the API response at all
+          },
+        }),
+      } as Response);
+
+      const { result } = renderHook(
+        () => useProfilePictureUrls(['user-partial-found', 'user-partial-gone']),
+        { wrapper: createWrapper() }
+      );
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(result.current['user-partial-found']).toBe('https://cdn/avatar/partial-found');
+      });
+      // Missing id should gracefully fall back to null
+      expect(result.current['user-partial-gone']).toBeNull();
+    });
+
+    it('handles flushPendingQueue with empty requestMap after cache dedup', async () => {
+      // First, populate the cache
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          urls: {
+            'user-all-cached': 'https://cdn/avatar/all-cached',
+          },
+        }),
+      } as Response);
+
+      const wrapper = createWrapper();
+
+      const { unmount } = renderHook(
+        () => useProfilePictureUrls(['user-all-cached']),
+        { wrapper }
+      );
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      unmount();
+      fetchMock.mockClear();
+
+      // Now enqueue the same id again. During flushPendingQueue, getCachedValue
+      // returns a value for all requests, so requestMap ends up empty.
+      // This exercises the `if (!requestMap.size)` branch.
+      const { result } = renderHook(
+        () => useProfilePictureUrls(['user-all-cached']),
+        { wrapper }
+      );
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Should still return cached value without making a new request
+      await waitFor(() => {
+        expect(result.current['user-all-cached']).toBe('https://cdn/avatar/all-cached');
+      });
+    });
+
+    it('handles request where API response does not include all requested ids (backfill null)', async () => {
+      // requestProfilePictureBatch backfills missing ids with null (line 206-209)
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          urls: {
+            // Only one out of three ids is returned by the API
+            'user-one': 'https://cdn/avatar/one',
+          },
+        }),
+      } as Response);
+
+      const { result } = renderHook(
+        () => useProfilePictureUrls(['user-one', 'user-two', 'user-three']),
+        { wrapper: createWrapper() }
+      );
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(result.current['user-one']).toBe('https://cdn/avatar/one');
+      });
+      expect(result.current['user-two']).toBeNull();
+      expect(result.current['user-three']).toBeNull();
+    });
+  });
+
+  describe('variant group deduplication across concurrent batches', () => {
+    it('deduplicates ids across multiple concurrent enqueue calls', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          urls: {
+            'user-concurrent': 'https://cdn/avatar/concurrent',
+          },
+        }),
+      } as Response);
+
+      const wrapper = createWrapper();
+
+      // Two hooks requesting the same id at the same time
+      const { result: r1 } = renderHook(
+        () => useProfilePictureUrls(['user-concurrent']),
+        { wrapper }
+      );
+
+      const { result: r2 } = renderHook(
+        () => useProfilePictureUrls(['user-concurrent']),
+        { wrapper }
+      );
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Should only make one request because the ids are deduplicated
+      // in variantGroups inside flushPendingQueue
+      await waitFor(() => {
+        expect(r1.current['user-concurrent']).toBe('https://cdn/avatar/concurrent');
+      });
+      await waitFor(() => {
+        expect(r2.current['user-concurrent']).toBe('https://cdn/avatar/concurrent');
+      });
+    });
+  });
+
+  describe('cache value lookup during flush', () => {
+    it('uses cached value from first chunk when processing second chunk with same id', async () => {
+      // Create 55 unique ids where some overlap with cached entries
+      const firstBatchIds = Array.from({ length: 50 }, (_, i) => `user-fb-${i}`);
+      const secondBatchIds = Array.from({ length: 5 }, (_, i) => `user-sb-${i}`);
+      const allIds = [...firstBatchIds, ...secondBatchIds];
+
+      const urls: Record<string, string> = {};
+      allIds.forEach((id) => {
+        urls[id] = `https://cdn/avatar/${id}`;
+      });
+
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ urls }),
+      } as Response);
+
+      const { result } = renderHook(
+        () => useProfilePictureUrls(allIds),
+        { wrapper: createWrapper() }
+      );
+
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // All ids should have URLs
+      await waitFor(() => {
+        expect(result.current['user-fb-0']).toBe('https://cdn/avatar/user-fb-0');
+      });
+      expect(result.current['user-sb-0']).toBe('https://cdn/avatar/user-sb-0');
+
+      // Should have made 2 requests (50 + 5 chunked)
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+  });
 });

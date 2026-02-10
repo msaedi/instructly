@@ -707,4 +707,112 @@ describe('MessageBubble', () => {
       expect(screen.queryByText('12:00 PM')).not.toBeInTheDocument();
     });
   });
+
+  describe('handleSave exits edit mode without onEdit (lines 47-49)', () => {
+    it('exits edit mode when save is triggered but onEdit is undefined', () => {
+      // Manually enter edit mode by providing canEdit + onEdit initially,
+      // then verify the fallback path. We need to use the component differently:
+      // Render with onEdit to enter edit mode, then test the branch
+      // that checks if (!onEdit) { setIsEditing(false); return; }
+
+      // Actually, canEdit and onEdit must both be truthy for the edit button to show.
+      // The branch at line 47 is only reached if somehow in editing mode without onEdit.
+      // This can happen if the edit callback is removed after entering edit mode.
+      // Let's test via re-render.
+      const { rerender } = render(
+        <MessageBubble
+          message={createMessage({ isOwn: true, content: 'Original' })}
+          canEdit
+          onEdit={jest.fn()}
+        />
+      );
+
+      // Enter edit mode
+      fireEvent.click(screen.getByLabelText('Edit message'));
+      expect(screen.getByRole('textbox')).toBeInTheDocument();
+
+      // Re-render without onEdit (simulates prop change)
+      rerender(
+        <MessageBubble
+          message={createMessage({ isOwn: true, content: 'Original' })}
+          canEdit
+          // No onEdit -> handleSave should hit the !onEdit branch
+        />
+      );
+
+      // The textarea should still be visible since we're in edit mode
+      const textarea = screen.getByRole('textbox');
+      // Trigger save via Enter key
+      fireEvent.change(textarea, { target: { value: 'Modified text' } });
+      fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false });
+
+      // Should exit edit mode without calling onEdit
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('mouse leave hides reaction trigger (line 219)', () => {
+    it('hides reaction trigger on mouse leave', () => {
+      const { container } = render(
+        <MessageBubble
+          message={createMessage()}
+          canReact
+          onReact={jest.fn()}
+        />
+      );
+
+      const bubble = container.querySelector('.relative.flex.flex-col');
+      expect(bubble).toBeInTheDocument();
+
+      if (bubble) {
+        // Mouse enter to show trigger
+        fireEvent.mouseEnter(bubble);
+        expect(screen.getByLabelText('Add reaction')).toBeInTheDocument();
+
+        // Mouse leave to hide trigger (line 219)
+        fireEvent.mouseLeave(bubble);
+
+        // Trigger should no longer be visible
+        expect(screen.queryByLabelText('Add reaction')).not.toBeInTheDocument();
+      }
+    });
+  });
+
+  describe('currentUserReaction and quickEmojis pass-through (lines 293-294)', () => {
+    it('passes currentUserReaction to ReactionTrigger', () => {
+      const { container } = render(
+        <MessageBubble
+          message={createMessage({ currentUserReaction: '👍' })}
+          canReact
+          onReact={jest.fn()}
+        />
+      );
+
+      const bubble = container.querySelector('.relative.flex.flex-col');
+      if (bubble) {
+        fireEvent.mouseEnter(bubble);
+      }
+
+      // ReactionTrigger receives currentEmoji prop from message.currentUserReaction
+      expect(screen.getByLabelText('Add reaction')).toBeInTheDocument();
+    });
+
+    it('passes null currentEmoji when currentUserReaction is undefined', () => {
+      const { container } = render(
+        <MessageBubble
+          message={createMessage()} // no currentUserReaction
+          canReact
+          onReact={jest.fn()}
+        />
+      );
+
+      const bubble = container.querySelector('.relative.flex.flex-col');
+      if (bubble) {
+        fireEvent.mouseEnter(bubble);
+      }
+
+      // Should render without errors with null currentEmoji
+      expect(screen.getByLabelText('Add reaction')).toBeInTheDocument();
+    });
+  });
 });

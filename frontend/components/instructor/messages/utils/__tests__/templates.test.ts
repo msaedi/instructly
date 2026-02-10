@@ -470,4 +470,288 @@ Second paragraph with more content.`;
       expect(templates[0]!.preview).toBe('My body text');
     });
   });
+
+  describe('rewriteTemplateContent (paragraph-level bullet detection)', () => {
+    it('recognizes paragraph as bullets when 60%+ of lines are bullet-formatted', () => {
+      // 3 out of 4 lines are bullets (75%) - should detect as bullet paragraph
+      const input = '- Item one\n- Item two\n- Item three\nPlain line';
+      const result = rewriteTemplateContent(input, 0);
+      // Bullet items get reformatted with the variant's bullet symbol
+      expect(result).toContain('- ');
+    });
+
+    it('treats paragraph as sentences when less than 60% of lines are bullets', () => {
+      // 1 out of 4 lines is a bullet (25%) - should NOT detect as bullet paragraph
+      const input = 'Regular line one.\nRegular line two.\nRegular line three.\n- Only bullet';
+      const result = rewriteTemplateContent(input, 0);
+      // Regular sentences should appear in some form
+      expect(result).toContain('Quick heads-up');
+    });
+
+    it('handles numbered list with parenthesis format', () => {
+      const input = '1) First step\n2) Second step\n3) Third step';
+      const result = rewriteTemplateContent(input, 0);
+      expect(result).toContain('First step');
+      expect(result).toContain('Second step');
+    });
+
+    it('handles asterisk bullets', () => {
+      const input = '* Alpha\n* Beta\n* Gamma';
+      const result = rewriteTemplateContent(input, 0);
+      expect(result).toContain('Alpha');
+      expect(result).toContain('Beta');
+    });
+
+    it('skips empty content lines in bullet processing', () => {
+      // Bullet items where the content after removing the marker is empty
+      const input = '- \n- Item with content\n- ';
+      const result = rewriteTemplateContent(input, 0);
+      // Empty bullet lines should be skipped, only "Item with content" survives
+      expect(result).toContain('Item with content');
+    });
+  });
+
+  describe('rewriteTemplateContent (sentence splitting edge cases)', () => {
+    it('handles text that does not match sentence pattern (no punctuation)', () => {
+      // splitIntoSentences: when matches returns null, returns sentenceCase(sanitized)
+      const input = 'just a plain phrase without ending punctuation';
+      const result = rewriteTemplateContent(input, 0);
+      // Should contain the content in some form
+      expect(result.toLowerCase()).toContain('just a plain phrase');
+    });
+
+    it('handles empty paragraph after split', () => {
+      const input = 'Content here.\n\n\n\n';
+      const result = rewriteTemplateContent(input, 0);
+      expect(result).toContain('Quick heads-up');
+    });
+
+    it('handles ensureSentenceEnding with text ending in exclamation', () => {
+      const input = 'Great news! Everything is ready!';
+      const result = rewriteTemplateContent(input, 0);
+      // ensureSentenceEnding should pass through text ending with !
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('handles ensureSentenceEnding with text ending in question mark', () => {
+      const input = 'Can you check this? Is it ready?';
+      const result = rewriteTemplateContent(input, 0);
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('handles ensureSentenceEnding with text ending in closing paren', () => {
+      const input = 'See the details (attached)';
+      const result = rewriteTemplateContent(input, 0);
+      expect(result.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('rewriteTemplateContent (rotateItems edge cases)', () => {
+    it('handles rotation with offset 0 (no rotation)', () => {
+      const input = 'A. B. C.';
+      const result = rewriteTemplateContent(input, 0);
+      expect(result).toBeTruthy();
+    });
+
+    it('handles higher iterations for varied rotation', () => {
+      const input = '- One\n- Two\n- Three\n- Four\n- Five';
+      const results = new Set<string>();
+      for (let i = 0; i < 5; i++) {
+        results.add(rewriteTemplateContent(input, i));
+      }
+      // Different iterations should produce different outputs
+      expect(results.size).toBeGreaterThan(1);
+    });
+  });
+
+  describe('deriveTemplatePreview (edge cases)', () => {
+    it('handles text with only empty lines followed by content', () => {
+      const text = '\n\n\nContent after blanks';
+      expect(deriveTemplatePreview(text)).toBe('Content after blanks');
+    });
+
+    it('handles exactly 80 characters (no truncation)', () => {
+      const text = 'A'.repeat(80);
+      expect(deriveTemplatePreview(text)).toBe(text);
+    });
+
+    it('handles 81 characters (truncation occurs)', () => {
+      const text = 'A'.repeat(81);
+      const result = deriveTemplatePreview(text);
+      expect(result.length).toBe(80);
+      expect(result.endsWith('...')).toBe(true);
+    });
+  });
+
+  describe('loadStoredTemplates (edge cases)', () => {
+    beforeEach(() => {
+      document.cookie.split(';').forEach((cookie) => {
+        const name = cookie.split('=')[0]?.trim();
+        if (name) {
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+        }
+      });
+    });
+
+    it('returns defaults when all items in array are invalid (empty cleaned array)', () => {
+      const items = [null, undefined, { noId: true }, 42];
+      document.cookie = `${TEMPLATE_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(items))}; path=/`;
+      const templates = loadStoredTemplates();
+      // cleaned.length === 0 -> returns defaults
+      expect(templates).toEqual(getDefaultTemplates());
+    });
+
+    it('handles item with empty string id (filtered out)', () => {
+      const items = [{ id: '', subject: 'Sub', body: 'Body', preview: 'Preview' }];
+      document.cookie = `${TEMPLATE_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(items))}; path=/`;
+      const templates = loadStoredTemplates();
+      // Empty id is falsy -> filtered out -> returns defaults
+      expect(templates).toEqual(getDefaultTemplates());
+    });
+
+    it('handles item with non-string subject, body, preview', () => {
+      const items = [{ id: 'valid', subject: 123, body: null, preview: undefined }];
+      document.cookie = `${TEMPLATE_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(items))}; path=/`;
+      const templates = loadStoredTemplates();
+      expect(templates[0]!.subject).toBe('');
+      expect(templates[0]!.body).toBe('');
+      expect(templates[0]!.preview).toBe('');
+    });
+  });
+
+  describe('rewriteTemplateContent (internal function branches)', () => {
+    it('exercises ensureSentenceEnding with empty input via sentenceCase (line 29, 70)', () => {
+      // splitIntoSentences can produce empty segments when matches contain
+      // whitespace-only parts. sentenceCase('') -> '' and ensureSentenceEnding('') -> ''
+      // Feed content that after regex splitting produces empty-ish segments
+      const input = '... ';
+      const result = rewriteTemplateContent(input, 0);
+      // Should produce valid output without crashing
+      expect(result).toContain('Quick heads-up');
+    });
+
+    it('exercises splitIntoSentences with sanitized empty (line 80)', () => {
+      // A paragraph made entirely of whitespace gets sanitized to ''
+      // which triggers if (!sanitized) return []
+      // But paragraphs are filtered with .filter(Boolean), so whitespace blocks
+      // are removed. We need a block that becomes empty after whitespace replace + trim
+      // This path is covered when paragraphs.forEach produces empty strings -
+      // covered by the trim/filter chain. Let's exercise the outer fallback.
+      const input = '\n\n\n';
+      const result = rewriteTemplateContent(input, 0);
+      // normalized is empty -> fallback
+      expect(result).toContain('Quick heads-up');
+    });
+
+    it('exercises splitIntoSentences with no regex matches (line 82)', () => {
+      // When sanitized text has no sentence-ending punctuation,
+      // the regex /[^.!?]+[.!?]?/g might still match (greedy).
+      // Actually, the regex will always match any non-empty string.
+      // To get null from .match(), the string must be empty, but we
+      // already checked for that at line 80. So line 82 is essentially
+      // dead code. But let's try to get close.
+      const input = 'Text without any sentence endings';
+      const result = rewriteTemplateContent(input, 0);
+      expect(result.toLowerCase()).toContain('text without');
+    });
+
+    it('exercises the sentence filter that skips empty sentences (line 152)', () => {
+      // If splitIntoSentences returns an empty string in its array,
+      // the forEach at line 151 should skip it via if (!sentence)
+      // This can happen if match segments are whitespace-only
+      const input = '. . . Real content here. . .';
+      const result = rewriteTemplateContent(input, 0);
+      expect(result).toBeDefined();
+    });
+
+    it('exercises dedup filter skipping empty normalized keys (line 177)', () => {
+      // Lines whose normalizeForComparison result is empty are skipped
+      // Pure punctuation/symbol lines normalize to ''
+      const input = '!!!. Real line. ???.';
+      const result = rewriteTemplateContent(input, 0);
+      expect(result.toLowerCase()).toContain('real line');
+    });
+
+    it('exercises fallbackLines nullish coalescing (line 184)', () => {
+      // variantIndex + 1 wraps within bounds, so ?? '' is never triggered
+      // in practice. But we can verify the bodyLines.length === 0 path
+      // with high iteration value
+      const input = 'Thanks! See you soon. Take care. Regards.';
+      const result = rewriteTemplateContent(input, 4);
+      const lines = result.split('\n');
+      expect(lines.length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  describe('rewriteTemplateContent (ensureSentenceEnding already-punctuated)', () => {
+    it('does not double-punctuate text ending with period', () => {
+      const input = 'This sentence ends with a period.';
+      const result = rewriteTemplateContent(input, 0);
+      // Should not end up with ".." in the body
+      expect(result).not.toContain('..');
+    });
+
+    it('does not double-punctuate text ending with question mark', () => {
+      const input = 'Is this a question?';
+      const result = rewriteTemplateContent(input, 0);
+      expect(result).not.toContain('?.');
+    });
+
+    it('does not double-punctuate text ending with closing paren', () => {
+      const input = 'See details (here)';
+      const result = rewriteTemplateContent(input, 0);
+      expect(result).toBeDefined();
+    });
+  });
+
+  describe('loadStoredTemplates (cookie parsing edge cases)', () => {
+    beforeEach(() => {
+      document.cookie.split(';').forEach((cookie) => {
+        const name = cookie.split('=')[0]?.trim();
+        if (name) {
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+        }
+      });
+    });
+
+    it('handles cookie with multiple = signs in value', () => {
+      // The split('=')[1] ?? '' handles the value extraction
+      // Encoding should handle this, but let's test the raw cookie parsing
+      const templates = [{ id: 'test', subject: 'S', body: 'B', preview: 'P' }];
+      const payload = encodeURIComponent(JSON.stringify(templates));
+      document.cookie = `${TEMPLATE_COOKIE_NAME}=${payload}; path=/`;
+      const result = loadStoredTemplates();
+      expect(result[0]?.id).toBe('test');
+    });
+
+    it('handles template item that is a non-object type (number)', () => {
+      const items = [42, 'string', true, { id: 'ok', subject: 'S', body: 'B', preview: 'P' }];
+      document.cookie = `${TEMPLATE_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(items))}; path=/`;
+      const result = loadStoredTemplates();
+      // Only the valid object with id should survive
+      expect(result).toHaveLength(1);
+      expect(result[0]?.id).toBe('ok');
+    });
+  });
+
+  describe('saveTemplatesToCookie (write error handling)', () => {
+    it('silently catches errors during cookie write', () => {
+      // Override cookie setter to throw
+      const origDescriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+      Object.defineProperty(document, 'cookie', {
+        set: () => {
+          throw new Error('Cookie write blocked');
+        },
+        get: () => '',
+        configurable: true,
+      });
+
+      expect(() => saveTemplatesToCookie(getDefaultTemplates())).not.toThrow();
+
+      // Restore
+      if (origDescriptor) {
+        Object.defineProperty(document, 'cookie', origDescriptor);
+      }
+    });
+  });
 });

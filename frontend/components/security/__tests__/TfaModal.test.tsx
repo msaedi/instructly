@@ -367,6 +367,76 @@ describe('TfaModal', () => {
     });
   });
 
+  describe('verify fallback error messages', () => {
+    it('shows default error message when verify returns ok:false without detail', async () => {
+      useTfaStatusMock.mockReturnValue({ data: { enabled: false }, isSuccess: true });
+      fetchWithAuthMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ qr_code_data_url: 'data:image/png', secret: 'ABC123' }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          json: jest.fn().mockResolvedValue({}),
+        });
+
+      renderModal();
+
+      const codeInput = await screen.findByPlaceholderText('123 456');
+      await userEvent.type(codeInput, '123456');
+      await userEvent.click(screen.getByRole('button', { name: 'Verify & Enable' }));
+
+      await waitFor(() => {
+        expect(screen.getByText("That code didn't work. Please try again.")).toBeInTheDocument();
+      });
+    });
+
+    it('shows default error message when verify response json() rejects', async () => {
+      useTfaStatusMock.mockReturnValue({ data: { enabled: false }, isSuccess: true });
+      fetchWithAuthMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ qr_code_data_url: 'data:image/png', secret: 'ABC123' }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          json: jest.fn().mockRejectedValue(new Error('Invalid JSON')),
+        });
+
+      renderModal();
+
+      const codeInput = await screen.findByPlaceholderText('123 456');
+      await userEvent.type(codeInput, '654321');
+      await userEvent.click(screen.getByRole('button', { name: 'Verify & Enable' }));
+
+      await waitFor(() => {
+        // .catch(() => ({})) returns empty object, so falls back to default message
+        expect(screen.getByText("That code didn't work. Please try again.")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('disable 2FA with json parse failure', () => {
+    it('shows default error when disable response json() rejects', async () => {
+      useTfaStatusMock.mockReturnValue({ data: { enabled: true }, isSuccess: true });
+      fetchWithAuthMock.mockResolvedValueOnce({
+        ok: false,
+        json: jest.fn().mockRejectedValue(new Error('Invalid JSON')),
+      });
+
+      renderModal();
+
+      const passwordInput = await screen.findByPlaceholderText('Current password');
+      await userEvent.type(passwordInput, 'password');
+      await userEvent.click(screen.getByRole('button', { name: 'Disable 2FA' }));
+
+      await waitFor(() => {
+        // .catch(() => ({})) returns empty object, so falls back to 'Failed to disable'
+        expect(screen.getByText('Failed to disable')).toBeInTheDocument();
+      });
+    });
+  });
+
   describe('close button', () => {
     it('closes modal via close button in show step', async () => {
       useTfaStatusMock.mockReturnValue({ data: { enabled: false }, isSuccess: true });

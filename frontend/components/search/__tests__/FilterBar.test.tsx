@@ -182,6 +182,32 @@ describe('FilterBar', () => {
     expect(screen.queryByRole('heading', { name: 'Location' })).not.toBeInTheDocument();
   });
 
+  it('renders the filter bar on the client side (useSyncExternalStore client snapshot)', () => {
+    render(<Harness />);
+
+    // The client snapshot of useSyncExternalStore returns true,
+    // allowing the MoreFiltersModal portal to render when open.
+    // Verify the component renders all expected filter buttons on the client.
+    expect(screen.getByRole('button', { name: 'Date' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Time' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Price' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Location' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /more filters/i })).toBeInTheDocument();
+  });
+
+  it('portals the MoreFiltersModal into document.body when open on the client', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await user.click(screen.getByRole('button', { name: /more filters/i }));
+
+    // The modal should be rendered via createPortal into document.body
+    const dialog = screen.getByRole('dialog', { name: /more filters/i });
+    expect(dialog).toBeInTheDocument();
+    // Verify it is a child of document.body (portaled)
+    expect(dialog.closest('body')).toBe(document.body);
+  });
+
   it('clears active filters from dropdowns and modal', async () => {
     const user = userEvent.setup();
     render(

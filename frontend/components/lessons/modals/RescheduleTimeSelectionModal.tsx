@@ -339,9 +339,9 @@ export default function RescheduleTimeSelectionModal({
           };
 
           const requiredMinutes = selectedDurationRef.current ?? 60;
-          const formattedSlots = slots.flatMap((slot: AvailabilitySlot) =>
+          const formattedSlots = [...new Set(slots.flatMap((slot: AvailabilitySlot) =>
             expandDiscreteStarts(slot.start_time, slot.end_time, SLOT_STEP_MINUTES, requiredMinutes)
-          );
+          ))];
 
           nextSelectedDate = firstDate;
           nextShowDropdown = true;
@@ -417,9 +417,9 @@ export default function RescheduleTimeSelectionModal({
           return times;
         };
 
-        const formattedSlots = slots.flatMap((slot: AvailabilitySlot) =>
+        const formattedSlots = [...new Set(slots.flatMap((slot: AvailabilitySlot) =>
           expandDiscreteStarts(slot.start_time, slot.end_time, SLOT_STEP_MINUTES, selectedDuration)
-        );
+        ))];
 
         if (!isMountedRef.current) return;
 
