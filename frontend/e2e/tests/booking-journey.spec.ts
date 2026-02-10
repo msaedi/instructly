@@ -58,8 +58,8 @@ test.describe('Student Booking Journey', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify([
-          { id: 1, name: 'Music', description: 'Learn instruments' },
-          { id: 2, name: 'Languages', description: 'Learn new languages' },
+          { id: '01J5TESTCATG00000000000001', name: 'Music', description: 'Learn instruments' },
+          { id: '01J5TESTCATG00000000000002', name: 'Languages', description: 'Learn new languages' },
         ]),
       });
     });
@@ -81,12 +81,12 @@ test.describe('Student Booking Journey', () => {
         body: JSON.stringify({
           categories: [
             {
-              id: 1,
+              id: '01J5TESTCATG00000000000001',
               name: 'Music',
               slug: 'music',
               services: [
-                { id: 1, name: 'Piano', slug: 'piano' },
-                { id: 2, name: 'Guitar', slug: 'guitar' },
+                { id: '01J5TESTSERV00000000000001', name: 'Piano', slug: 'piano' },
+                { id: '01J5TESTSERV00000000000002', name: 'Guitar', slug: 'guitar' },
               ],
             },
           ],

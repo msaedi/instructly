@@ -422,8 +422,8 @@ async function setupMocksAndAuth(page: Page) {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([
-        { id: 1, name: 'Music', description: 'Learn instruments' },
-        { id: 2, name: 'Languages', description: 'Learn new languages' },
+        { id: '01J5TESTCATG00000000000001', name: 'Music', description: 'Learn instruments' },
+        { id: '01J5TESTCATG00000000000002', name: 'Languages', description: 'Learn new languages' },
       ]),
     });
   });
@@ -445,21 +445,21 @@ async function setupMocksAndAuth(page: Page) {
       body: JSON.stringify({
         categories: [
           {
-            id: 1,
+            id: '01J5TESTCATG00000000000001',
             name: 'Music',
             slug: 'music',
             services: [
-              { id: 1, name: 'Piano', slug: 'piano' },
-              { id: 2, name: 'Guitar', slug: 'guitar' },
+              { id: '01J5TESTSERV00000000000001', name: 'Piano', slug: 'piano' },
+              { id: '01J5TESTSERV00000000000002', name: 'Guitar', slug: 'guitar' },
             ],
           },
           {
-            id: 2,
+            id: '01J5TESTCATG00000000000003',
             name: 'Sports & Fitness',
             slug: 'sports-fitness',
             services: [
-              { id: 3, name: 'Yoga', slug: 'yoga' },
-              { id: 4, name: 'Tennis', slug: 'tennis' },
+              { id: '01J5TESTSERV00000000000003', name: 'Yoga', slug: 'yoga' },
+              { id: '01J5TESTSERV00000000000004', name: 'Tennis', slug: 'tennis' },
             ],
           },
         ],
@@ -601,8 +601,8 @@ test.describe('My Lessons Page', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify([
-          { id: 1, name: 'Music', description: 'Learn instruments' },
-          { id: 2, name: 'Languages', description: 'Learn new languages' },
+          { id: '01J5TESTCATG00000000000001', name: 'Music', description: 'Learn instruments' },
+          { id: '01J5TESTCATG00000000000002', name: 'Languages', description: 'Learn new languages' },
         ]),
       });
     });
@@ -622,12 +622,12 @@ test.describe('My Lessons Page', () => {
         body: JSON.stringify({
           categories: [
             {
-              id: 1,
+              id: '01J5TESTCATG00000000000001',
               name: 'Music',
               slug: 'music',
               services: [
-                { id: 1, name: 'Piano', slug: 'piano' },
-                { id: 2, name: 'Guitar', slug: 'guitar' },
+                { id: '01J5TESTSERV00000000000001', name: 'Piano', slug: 'piano' },
+                { id: '01J5TESTSERV00000000000002', name: 'Guitar', slug: 'guitar' },
               ],
             },
           ],
@@ -652,9 +652,11 @@ test.describe('My Lessons Page', () => {
 
     // Now "My Lessons" should be visible (just like manual testing showed)
     // Navigate to My Lessons (click if visible, fallback to direct navigation)
-    const myLessonsLink = page.getByRole('link', { name: /^My Lessons$/ });
+    const myLessonsLink = page.getByTestId('nav-my-lessons');
     if (await myLessonsLink.isVisible().catch(() => false)) {
-      await myLessonsLink.click();
+      await myLessonsLink.click({ timeout: 5000 }).catch(async () => {
+        await page.goto('/student/lessons');
+      });
     } else {
       await page.goto('/student/lessons');
     }

@@ -24,7 +24,7 @@ test.describe('Basic Search Flow', () => {
         body: JSON.stringify({
           categories: [
             {
-              id: 1,
+              id: '01J5TESTCATG00000000000001',
               name: 'Music',
               slug: 'music',
               services: [ { id: '01J5TESTSERV00000000000001', name: 'Piano', slug: 'piano', demand_score: 90, active_instructors: 5, is_trending: false, display_order: 1 } ]
@@ -57,7 +57,7 @@ test.describe('Basic Search Flow', () => {
         contentType: 'application/json',
         headers: allow(route),
         body: JSON.stringify([
-          { id: 1, name: 'Music', slug: 'music', subtitle: '', description: 'Learn instruments', icon_name: 'music' }
+          { id: '01J5TESTCATG00000000000001', name: 'Music', slug: 'music', subtitle: '', description: 'Learn instruments', icon_name: 'music' }
         ]),
       });
     });

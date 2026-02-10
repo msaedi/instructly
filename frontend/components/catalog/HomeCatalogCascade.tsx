@@ -133,6 +133,10 @@ function sortServices(services: CategoryServiceDetail[]): CategoryServiceDetail[
   });
 }
 
+function toId(value: unknown): string {
+  return typeof value === 'string' ? value : String(value ?? '');
+}
+
 export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boolean }) {
   const router = useRouter();
 
@@ -157,6 +161,11 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
     const next = new Map<string, CategoryServiceDetail[]>();
 
     (servicesData?.categories ?? []).forEach((category) => {
+      const categoryId = toId(category.id);
+      if (!categoryId) {
+        return;
+      }
+
       const filtered = sortServices(
         (category.services ?? []).filter(
           (service) =>
@@ -166,7 +175,7 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
       );
 
       if (filtered.length > 0) {
-        next.set(category.id, filtered);
+        next.set(categoryId, filtered);
       }
     });
 
@@ -179,14 +188,14 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
       .sort((a, b) => (a.display_order ?? 999) - (b.display_order ?? 999))
       .map((category) => ({
         icon: ICON_MAP[category.icon_name ?? ''] || Sparkles,
-        id: category.id,
+        id: toId(category.id),
         name: category.name,
         subtitle: category.subtitle ?? '',
       }));
 
     const fromServicesApi = (servicesData?.categories ?? []).map((category) => ({
       icon: ICON_MAP[category.icon_name ?? ''] || Sparkles,
-      id: category.id,
+      id: toId(category.id),
       name: category.name,
       subtitle: category.subtitle ?? '',
     }));
@@ -230,7 +239,10 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
     const grouped = new Map<string, CategoryServiceDetail[]>();
 
     services.forEach((service) => {
-      const subcategoryId = service.subcategory_id;
+      const subcategoryId = toId(service.subcategory_id);
+      if (!subcategoryId) {
+        return;
+      }
       if (!grouped.has(subcategoryId)) {
         grouped.set(subcategoryId, []);
       }
@@ -301,14 +313,15 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
 
   const buildSearchHref = (service: CategoryServiceDetail): string => {
     const params = new URLSearchParams({
-      service_catalog_id: service.id,
+      service_catalog_id: toId(service.id),
       service_name: service.name,
       audience: CURRENT_AUDIENCE,
       from: 'home',
     });
 
-    if (service.subcategory_id) {
-      params.set('subcategory_id', service.subcategory_id);
+    const subcategoryId = toId(service.subcategory_id);
+    if (subcategoryId) {
+      params.set('subcategory_id', subcategoryId);
     }
 
     return `/search?${params.toString()}`;
@@ -356,16 +369,17 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
           <div className="flex justify-center items-start space-x-10 ml-15">
             {categories.map((category) => {
               const IconComponent = category.icon;
-              const isSelected = category.id === activeCategory;
-              const isFallback = category.id.startsWith('fallback-');
+              const categoryId = toId(category.id);
+              const isSelected = categoryId === activeCategory;
+              const isFallback = categoryId.startsWith('fallback-');
 
               return (
                 <button
                   type="button"
-                  key={category.id}
+                  key={categoryId}
                   disabled={isFallback}
                   onClick={isFallback ? undefined : () => {
-                    void handleCategoryClick(category.id, category.name);
+                    void handleCategoryClick(categoryId, category.name);
                   }}
                   className={`group flex flex-col items-center transition-colors duration-200 relative w-20 select-none ${isFallback ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                 >

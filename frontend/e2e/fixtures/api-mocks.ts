@@ -492,20 +492,20 @@ export async function setupAllMocks(
         body: JSON.stringify({
           categories: [
             {
-              id: 1,
+              id: 'cat-music',
               name: 'Music',
               slug: 'music',
               services: [
-                { id: 1, name: 'Piano', slug: 'piano', demand_score: 90, active_instructors: 5, is_trending: false, display_order: 1 },
-                { id: 2, name: 'Guitar', slug: 'guitar', demand_score: 70, active_instructors: 3, is_trending: true, display_order: 2 },
+                { id: TEST_ULIDS.service1, name: 'Piano', slug: 'piano', demand_score: 90, active_instructors: 5, is_trending: false, display_order: 1 },
+                { id: 'svc-guitar', name: 'Guitar', slug: 'guitar', demand_score: 70, active_instructors: 3, is_trending: true, display_order: 2 },
               ]
             },
             {
-              id: 2,
+              id: 'cat-fitness',
               name: 'Fitness',
               slug: 'fitness',
               services: [
-                { id: 97, name: 'Personal Training', slug: 'personal-training', demand_score: 85, active_instructors: 2, is_trending: true, display_order: 1 },
+                { id: 'svc-personal-training', name: 'Personal Training', slug: 'personal-training', demand_score: 85, active_instructors: 2, is_trending: true, display_order: 1 },
               ]
             }
           ]
@@ -572,7 +572,7 @@ export async function setupAllMocks(
       },
       body: JSON.stringify([
         {
-          id: 1,
+          id: 'cat-music',
           name: 'Music',
           slug: 'music',
           subtitle: 'Instrument Voice Theory',
@@ -580,7 +580,7 @@ export async function setupAllMocks(
           icon_name: 'music',
         },
         {
-          id: 2,
+          id: 'cat-languages',
           name: 'Languages',
           slug: 'language',
           subtitle: '',
@@ -952,7 +952,14 @@ export async function setupAllMocks(
         headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' },
         body: JSON.stringify({
           categories: [
-            { id: 1, name: 'Music', slug: 'music', services: [ { id: 1, name: 'Piano', slug: 'piano', min_price: 75, instructor_count: 5 } ] }
+            {
+              id: 'cat-music',
+              name: 'Music',
+              slug: 'music',
+              services: [
+                { id: TEST_ULIDS.service1, name: 'Piano', slug: 'piano', min_price: 75, instructor_count: 5 }
+              ]
+            }
           ]
         })
       });
@@ -973,8 +980,8 @@ export async function setupAllMocks(
         contentType: 'application/json',
         headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' },
         body: JSON.stringify([
-          { id: 1, name: 'Music', slug: 'music', subtitle: 'Instrument Voice Theory', description: 'Learn instruments', icon_name: 'music' },
-          { id: 2, name: 'Languages', slug: 'language', subtitle: '', description: 'Learn new languages', icon_name: 'globe' },
+          { id: 'cat-music', name: 'Music', slug: 'music', subtitle: 'Instrument Voice Theory', description: 'Learn instruments', icon_name: 'music' },
+          { id: 'cat-languages', name: 'Languages', slug: 'language', subtitle: '', description: 'Learn new languages', icon_name: 'globe' },
         ])
       });
       return;
