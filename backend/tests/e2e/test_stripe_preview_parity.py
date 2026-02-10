@@ -19,6 +19,7 @@ from app.models.instructor import InstructorProfile
 from app.models.payment import PlatformCredit, StripeCustomer
 from app.models.rbac import Role, UserRole as UserRoleJunction
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.services.config_service import ConfigService
 from app.services.pricing_service import PricingService
@@ -117,19 +118,33 @@ def test_stripe_preview_amount_parity_e2e():
 
         category = (
             session.query(ServiceCategory)
-            .filter(ServiceCategory.slug == "stripe-e2e")
+            .filter(ServiceCategory.name == "Stripe E2E")
             .first()
         )
         if not category:
             category = ServiceCategory(
                 name="Stripe E2E",
-                slug="stripe-e2e",
                 description="Stripe parity testing",
                 display_order=999,
             )
             session.add(category)
             session.flush()
             disposable_models.append(category)
+
+        subcategory = (
+            session.query(ServiceSubcategory)
+            .filter(ServiceSubcategory.category_id == category.id)
+            .first()
+        )
+        if not subcategory:
+            subcategory = ServiceSubcategory(
+                name="General",
+                category_id=category.id,
+                display_order=1,
+            )
+            session.add(subcategory)
+            session.flush()
+            disposable_models.append(subcategory)
 
         catalog_service = (
             session.query(ServiceCatalog)
@@ -138,7 +153,7 @@ def test_stripe_preview_amount_parity_e2e():
         )
         if not catalog_service:
             catalog_service = ServiceCatalog(
-                category_id=category.id,
+                subcategory_id=subcategory.id,
                 name="Stripe E2E Session",
                 slug="stripe-e2e-session",
                 description="Parity test session",

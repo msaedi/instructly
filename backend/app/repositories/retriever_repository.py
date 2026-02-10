@@ -53,12 +53,17 @@ class RetrieverRepository:
                 sc.description,
                 ins.hourly_rate as price_per_hour,
                 ip.user_id as instructor_id,
+                ss.id as subcategory_id,
+                ss.name as subcategory_name,
+                scat.name as category_name,
                 -- Normalize cosine distance to similarity score (0-1)
                 -- pgvector <=> returns cosine distance [0, 2] (1 - cosine_similarity),
                 -- so 1 - distance yields similarity [0, 1] for the common case (clamped at 0).
                 -- Use CAST() instead of :: to avoid SQLAlchemy parameter binding conflict.
                 GREATEST(0, 1 - (sc.embedding_v2 <=> CAST(:embedding AS vector))) as vector_score
             FROM service_catalog sc
+            JOIN service_subcategories ss ON ss.id = sc.subcategory_id
+            JOIN service_categories scat ON scat.id = ss.category_id
             JOIN instructor_services ins ON ins.service_catalog_id = sc.id
             JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
             WHERE sc.is_active = true
@@ -87,6 +92,9 @@ class RetrieverRepository:
                 "description": row.description,
                 "price_per_hour": int(row.price_per_hour),
                 "instructor_id": row.instructor_id,
+                "subcategory_id": row.subcategory_id,
+                "subcategory_name": row.subcategory_name,
+                "category_name": row.category_name,
                 "vector_score": float(row.vector_score),
             }
             for row in result
@@ -121,12 +129,17 @@ class RetrieverRepository:
                 sc.description,
                 ins.hourly_rate as price_per_hour,
                 ip.user_id as instructor_id,
+                ss.id as subcategory_id,
+                ss.name as subcategory_name,
+                scat.name as category_name,
                 GREATEST(
                     similarity(sc.name, :corrected_query),
                     similarity(sc.name, :original_query),
                     similarity(COALESCE(sc.description, ''), :corrected_query) * 0.8
                 ) as text_score
             FROM service_catalog sc
+            JOIN service_subcategories ss ON ss.id = sc.subcategory_id
+            JOIN service_categories scat ON scat.id = ss.category_id
             JOIN instructor_services ins ON ins.service_catalog_id = sc.id
             JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
             WHERE sc.is_active = true
@@ -160,6 +173,9 @@ class RetrieverRepository:
                 "description": row.description,
                 "price_per_hour": int(row.price_per_hour),
                 "instructor_id": row.instructor_id,
+                "subcategory_id": row.subcategory_id,
+                "subcategory_name": row.subcategory_name,
+                "category_name": row.category_name,
                 "text_score": float(row.text_score),
             }
             for row in result
@@ -196,10 +212,14 @@ class RetrieverRepository:
                 ins.offers_online,
                 ip.user_id as instructor_id,
                 ins.duration_options,
-                ins.levels_taught,
-                ins.age_groups
+                ins.filter_selections,
+                ins.age_groups,
+                ss.name as subcategory_name,
+                scat.name as category_name
             FROM instructor_services ins
             JOIN service_catalog sc ON sc.id = ins.service_catalog_id
+            JOIN service_subcategories ss ON ss.id = sc.subcategory_id
+            JOIN service_categories scat ON scat.id = ss.category_id
             JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
             WHERE ins.id = ANY(:ids)
                 AND ins.is_active = true
@@ -223,8 +243,12 @@ class RetrieverRepository:
                 "offers_online": row.offers_online,
                 "instructor_id": str(row.instructor_id),
                 "duration_options": row.duration_options,
-                "levels_taught": row.levels_taught,
+                "filter_selections": row.filter_selections
+                if isinstance(row.filter_selections, dict)
+                else {},
                 "age_groups": row.age_groups,
+                "subcategory_name": row.subcategory_name,
+                "category_name": row.category_name,
             }
             for row in result
         ]
@@ -533,10 +557,14 @@ class RetrieverRepository:
                     ins.hourly_rate as price_per_hour,
                     ip.user_id as instructor_id,
                     ip.id as profile_id,
+                    ss.name as subcategory_name,
+                    scat.name as category_name,
                     -- Normalize cosine distance to similarity score (0-1)
                     GREATEST(0, 1 - ((sc.embedding_v2 <=> CAST(:embedding AS vector)) / 2)) as relevance_score
                 FROM instructor_services ins
                 JOIN service_catalog sc ON sc.id = ins.service_catalog_id
+                JOIN service_subcategories ss ON ss.id = sc.subcategory_id
+                JOIN service_categories scat ON scat.id = ss.category_id
                 JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
                 WHERE sc.is_active = true
                     AND ins.is_active = true
@@ -560,6 +588,8 @@ class RetrieverRepository:
                             'name', service_name,
                             'description', service_description,
                             'price_per_hour', price_per_hour,
+                            'subcategory_name', subcategory_name,
+                            'category_name', category_name,
                             'relevance_score', relevance_score
                         ) ORDER BY relevance_score DESC
                     ) as matching_services,
@@ -697,6 +727,8 @@ class RetrieverRepository:
                     ins.hourly_rate as price_per_hour,
                     ip.user_id as instructor_id,
                     ip.id as profile_id,
+                    ss.name as subcategory_name,
+                    scat.name as category_name,
                     GREATEST(
                         similarity(sc.name, :corrected_query),
                         similarity(sc.name, :original_query),
@@ -704,6 +736,8 @@ class RetrieverRepository:
                     ) as relevance_score
                 FROM instructor_services ins
                 JOIN service_catalog sc ON sc.id = ins.service_catalog_id
+                JOIN service_subcategories ss ON ss.id = sc.subcategory_id
+                JOIN service_categories scat ON scat.id = ss.category_id
                 JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
                 WHERE sc.is_active = true
                   AND ins.is_active = true
@@ -730,6 +764,8 @@ class RetrieverRepository:
                             'name', service_name,
                             'description', service_description,
                             'price_per_hour', price_per_hour,
+                            'subcategory_name', subcategory_name,
+                            'category_name', category_name,
                             'relevance_score', relevance_score
                         ) ORDER BY relevance_score DESC
                     ) as matching_services,

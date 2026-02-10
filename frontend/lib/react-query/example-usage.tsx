@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- Example file with intentionally loose types *//**
+/**
  * React Query Usage Examples for InstaInstru
  *
  * This file demonstrates how to use the React Query foundation
@@ -16,6 +16,22 @@ import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { requireString } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
+
+type BookingFormProps = {
+  instructorId: string;
+  serviceId: string;
+};
+
+type BookingFormValues = Record<string, unknown>;
+type BookingRecord = BookingFormValues & { id: string; status: string };
+type InstructorListResponse = {
+  total: number;
+  instructors: Array<{
+    id: string;
+    user: { full_name: string };
+  }>;
+};
+type InstructorCardModel = { id: string; name: string };
 
 /**
  * Example 1: Using the useSession hook in a component
@@ -126,27 +142,27 @@ function InstructorAvailability({ instructorId }: { instructorId: string }) {
 /**
  * Example 5: Creating a booking with optimistic updates
  */
-function BookingForm({ instructorId, serviceId }: any) {
+function BookingForm({ instructorId, serviceId }: BookingFormProps) {
   const queryClient = useQueryClient();
 
-  const createBookingMutation = useMutation<any, Error, any, { previousBookings?: any }>({
-    mutationFn: mutationFn('/bookings', {
+  const createBookingMutation = useMutation<BookingRecord, Error, BookingFormValues, { previousBookings?: BookingRecord[] }>({
+    mutationFn: mutationFn<BookingRecord, BookingFormValues>('/bookings', {
       method: 'POST',
       requireAuth: true,
     }),
-    onMutate: async (newBooking: any) => {
+    onMutate: async (newBooking: BookingFormValues) => {
       // Cancel ongoing queries
       await queryClient.cancelQueries({ queryKey: queryKeys.bookings.all });
 
       // Snapshot previous value
-      const previousBookings = queryClient.getQueryData(queryKeys.bookings.all);
+      const previousBookings = queryClient.getQueryData<BookingRecord[]>(queryKeys.bookings.all);
 
       // Optimistically update
-      queryClient.setQueryData(queryKeys.bookings.all, (old: any) => {
-        return [...(old || []), { ...newBooking, id: 'temp-id', status: 'pending' }];
+      queryClient.setQueryData<BookingRecord[]>(queryKeys.bookings.all, (old = []) => {
+        return [...old, { ...newBooking, id: 'temp-id', status: 'pending' }];
       });
 
-      return { previousBookings };
+      return previousBookings ? { previousBookings } : {};
     },
     onError: (_, __, context) => {
       // Rollback on error
@@ -158,7 +174,9 @@ function BookingForm({ instructorId, serviceId }: any) {
     },
   });
 
-  const handleSubmit = async (formData: any) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = Object.fromEntries(new FormData(event.currentTarget).entries()) as BookingFormValues;
     try {
       await createBookingMutation.mutateAsync({
         instructor_id: instructorId,
@@ -188,10 +206,10 @@ function InfiniteInstructorList() {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: queryKeys.instructors.all,
     queryFn: ({ pageParam = 0 }) =>
-      queryFn('/instructors', {
+      queryFn<InstructorListResponse>('/instructors', {
         params: { offset: pageParam as number, limit: 20 },
-      }),
-    getNextPageParam: (lastPage: any, pages) => {
+      })(),
+    getNextPageParam: (lastPage: InstructorListResponse, pages: InstructorListResponse[]) => {
       const totalFetched = pages.length * 20;
       return totalFetched < lastPage.total ? totalFetched : undefined;
     },
@@ -203,7 +221,7 @@ function InfiniteInstructorList() {
     <div>
       {data?.pages.map((page, i) => (
         <div key={i}>
-          {page.instructors.map((instructor: any) => (
+          {page.instructors.map((instructor) => (
             <div key={instructor.id}>{instructor.user.full_name}</div>
           ))}
         </div>
@@ -221,7 +239,7 @@ function InfiniteInstructorList() {
 /**
  * Example 7: Prefetching data for better UX
  */
-function InstructorCard({ instructor }: any) {
+function InstructorCard({ instructor }: { instructor: InstructorCardModel }) {
   const queryClient = useQueryClient();
 
   // Prefetch instructor details on hover

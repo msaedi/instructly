@@ -15,6 +15,7 @@ from app.core.exceptions import BusinessRuleException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.services.booking_service import BookingService
 
@@ -51,11 +52,15 @@ def _create_instructor_with_service(db: Session) -> tuple[User, InstructorProfil
     db.add(profile)
     db.flush()
 
-    cat = ServiceCategory(id=str(ulid.ULID()), name="Cat", slug=f"cat-{ulid.ULID()}")
+    cat = ServiceCategory(id=str(ulid.ULID()), name="Cat")
     db.add(cat)
     db.flush()
 
-    svc_cat = ServiceCatalog(id=str(ulid.ULID()), category_id=cat.id, name="Svc", slug=f"svc-{ulid.ULID()}")
+    sub = ServiceSubcategory(id=str(ulid.ULID()), name="General", category_id=cat.id, display_order=1)
+    db.add(sub)
+    db.flush()
+
+    svc_cat = ServiceCatalog(id=str(ulid.ULID()), subcategory_id=sub.id, name="Svc", slug=f"svc-{ulid.ULID()}")
     db.add(svc_cat)
     db.flush()
 

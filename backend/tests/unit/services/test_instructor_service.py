@@ -191,19 +191,16 @@ def test_validate_catalog_ids_invalid_raises():
         service._validate_catalog_ids(["cat-1", "cat-2"])
 
 
-def test_resolve_and_apply_location_types():
+def test_normalize_capability_flags():
     service = _build_service()
 
-    svc = SimpleNamespace(offers_travel=True, offers_at_location=False, offers_online=True)
-    assert service._resolve_location_types(svc) == ["in_person", "online"]
-
-    updates = {"offers_travel": True, "offers_at_location": False, "offers_online": True}
-    service._apply_location_type_capabilities(updates)
-    assert updates["location_types"] == ["in_person", "online"]
+    updates = {"offers_travel": True, "offers_at_location": None, "offers_online": True}
+    service._normalize_capability_flags(updates)
+    assert updates == {"offers_travel": True, "offers_online": True}
 
     updates = {}
-    service._apply_location_type_capabilities(updates, apply_defaults=True)
-    assert updates["location_types"] == ["online"]
+    service._normalize_capability_flags(updates, apply_defaults=True)
+    assert updates == {"offers_travel": False, "offers_at_location": False, "offers_online": True}
 
 
 def test_update_service_capabilities_updates_and_invalidates_cache():
@@ -499,29 +496,36 @@ def test_get_available_catalog_services_cache_hit_debug(monkeypatch):
     assert service.get_available_catalog_services() == [{"id": "cached"}]
 
 
-def test_get_available_catalog_services_category_not_found():
+def test_get_available_catalog_services_with_category_id():
     service = _build_service()
     service.cache_service = MagicMock()
     service.cache_service.get.return_value = None
-    service.category_repository.find_one_by.return_value = None
+    service.catalog_repository.get_active_services_with_categories.return_value = []
 
-    with pytest.raises(NotFoundException):
-        service.get_available_catalog_services(category_slug="missing")
+    result = service.get_available_catalog_services(category_id="cat-123")
+
+    assert result == []
+    service.catalog_repository.get_active_services_with_categories.assert_called_once_with(
+        category_id="cat-123"
+    )
 
 
 def test_get_available_catalog_services_cache_miss_sets_cache():
     service = _build_service()
     service.cache_service = MagicMock()
     service.cache_service.get.return_value = None
+    mock_sub = SimpleNamespace(category=SimpleNamespace(name="Fitness"))
     service.catalog_repository.get_active_services_with_categories.return_value = [
         SimpleNamespace(
             id="svc-1",
-            category_id="cat-1",
-            category=None,
+            subcategory_id="sub-1",
+            subcategory=mock_sub,
+            category_name="Fitness",
             name="Yoga",
             slug="yoga",
             description="",
             search_terms=None,
+            eligible_age_groups=["adults"],
             display_order=1,
             online_capable=True,
             requires_certification=False,
@@ -541,7 +545,7 @@ def test_get_service_categories_cache_hit_and_set():
     assert service.get_service_categories() == [{"id": "cached"}]
 
     service.cache_service.get.return_value = None
-    service.category_repository.get_all.return_value = [
+    service.category_repository.get_all_active.return_value = [
         SimpleNamespace(
             id="cat-2",
             name="Music",
@@ -605,9 +609,15 @@ def test_search_services_semantic_filters_and_breaks():
     service._catalog_service_to_dict = MagicMock(return_value={"id": "svc"})
     service._get_service_analytics = MagicMock(return_value={})
 
-    svc_wrong = SimpleNamespace(id="svc-1", category_id=2, online_capable=True)
-    svc_right = SimpleNamespace(id="svc-2", category_id=1, online_capable=True)
-    svc_skip_online = SimpleNamespace(id="svc-3", category_id=1, online_capable=False)
+    svc_wrong = SimpleNamespace(
+        id="svc-1", subcategory=SimpleNamespace(category_id="cat-2"), online_capable=True
+    )
+    svc_right = SimpleNamespace(
+        id="svc-2", subcategory=SimpleNamespace(category_id="cat-1"), online_capable=True
+    )
+    svc_skip_online = SimpleNamespace(
+        id="svc-3", subcategory=SimpleNamespace(category_id="cat-1"), online_capable=False
+    )
 
     service.catalog_repository.find_similar_by_embedding.return_value = [
         (svc_wrong, 0.9),
@@ -616,7 +626,7 @@ def test_search_services_semantic_filters_and_breaks():
     ]
 
     results = service.search_services_semantic(
-        query_embedding=[0.1] * 3, category_id=1, online_capable=True, limit=1
+        query_embedding=[0.1] * 3, category_id="cat-1", online_capable=True, limit=1
     )
 
     assert len(results) == 1
@@ -677,7 +687,7 @@ def test_get_top_services_per_category_cache_hit_and_set():
 
     service.cache_service.get.return_value = None
     category = SimpleNamespace(id="cat-1", name="Music", slug="music", icon_name=None, display_order=1)
-    service.category_repository.get_all.return_value = [category]
+    service.category_repository.get_all_active.return_value = [category]
     service.catalog_repository.get_active_services_with_categories.return_value = [
         SimpleNamespace(id="svc-1", name="Piano", slug="piano", display_order=1)
     ]

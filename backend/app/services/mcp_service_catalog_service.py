@@ -35,12 +35,13 @@ class MCPServiceCatalogService(BaseService):
 
     @staticmethod
     def _service_to_dict(service: ServiceCatalog) -> dict[str, object]:
-        category = getattr(service, "category", None)
+        subcategory = getattr(service, "subcategory", None)
+        category = service.category  # @property traverses subcategory
         return {
             "id": service.id,
             "name": service.name,
             "slug": service.slug,
-            "category_slug": getattr(category, "slug", None),
+            "subcategory_name": getattr(subcategory, "name", None),
             "category_name": getattr(category, "name", None),
             "is_active": bool(getattr(service, "is_active", False)),
         }

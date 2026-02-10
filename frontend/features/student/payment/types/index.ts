@@ -28,6 +28,7 @@ export interface BookingAddress {
 
 export interface BookingPayment {
   bookingId: string;
+  serviceId?: string;
   instructorId: string;
   instructorName: string;
   lessonType: string;

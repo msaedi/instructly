@@ -27,6 +27,7 @@ import pytest
 from app.core.ulid_helper import generate_ulid
 from app.models import Booking, BookingStatus, InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.repositories import (
     AvailabilityRepository,
@@ -561,9 +562,14 @@ class TestInstructorProfileRepositoryValidation:
         # Get or create catalog services
         category = db.query(ServiceCategory).first()
         if not category:
-            category_ulid = generate_ulid()
-            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
+            category = ServiceCategory(name="Test Category")
             db.add(category)
+            db.flush()
+
+        subcategory = db.query(ServiceSubcategory).filter_by(category_id=category.id).first()
+        if not subcategory:
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            db.add(subcategory)
             db.flush()
 
         # Add both active and inactive services
@@ -572,7 +578,7 @@ class TestInstructorProfileRepositoryValidation:
             catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == f"validation-skill-{i}").first()
             if not catalog_service:
                 catalog_service = ServiceCatalog(
-                    name=f"Skill {i}", slug=f"validation-skill-{i}", category_id=category.id
+                    name=f"Skill {i}", slug=f"validation-skill-{i}", subcategory_id=subcategory.id
                 )
                 db.add(catalog_service)
                 db.flush()

@@ -235,6 +235,90 @@ class TestInstructorsFilteringAPI:
         # Pydantic validation error
         assert resp.status_code in (400, 422)
 
+    def test_taxonomy_content_filters_apply_or_within_key_and_across_keys(
+        self, client, sample_instructors, db: Session
+    ):
+        """skill_level uses OR semantics, while different keys are ANDed."""
+        service_catalog = db.query(ServiceCatalog).first()
+        assert service_catalog is not None
+
+        scoped_services = (
+            db.query(Service)
+            .filter(Service.service_catalog_id == service_catalog.id)
+            .filter(Service.is_active == True)
+            .order_by(Service.id.asc())
+            .all()
+        )
+        if len(scoped_services) < 2:
+            existing_profile_ids = {service.instructor_profile_id for service in scoped_services}
+            sample_user_ids = [user.id for user in sample_instructors]
+            candidate_profiles = (
+                db.query(InstructorProfile)
+                .filter(InstructorProfile.user_id.in_(sample_user_ids))
+                .order_by(InstructorProfile.id.asc())
+                .all()
+            )
+
+            for profile in candidate_profiles:
+                if profile.id in existing_profile_ids:
+                    continue
+                db.add(
+                    Service(
+                        instructor_profile_id=profile.id,
+                        service_catalog_id=service_catalog.id,
+                        hourly_rate=95.0,
+                        is_active=True,
+                        duration_options=[60],
+                    )
+                )
+                existing_profile_ids.add(profile.id)
+                if len(existing_profile_ids) >= 2:
+                    break
+
+            db.commit()
+            scoped_services = (
+                db.query(Service)
+                .filter(Service.service_catalog_id == service_catalog.id)
+                .filter(Service.is_active == True)
+                .order_by(Service.id.asc())
+                .all()
+            )
+
+        assert len(scoped_services) >= 2
+
+        scoped_services[0].filter_selections = {
+            "skill_level": ["beginner"],
+            "goal": ["enrichment"],
+        }
+        scoped_services[1].filter_selections = {
+            "skill_level": ["advanced"],
+            "goal": ["test_prep"],
+        }
+        for service in scoped_services[2:]:
+            service.filter_selections = {}
+        db.commit()
+
+        response = client.get(
+            f"/api/v1/instructors/?service_catalog_id={service_catalog.id}&skill_level=beginner,intermediate&content_filters=goal:enrichment"
+        )
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["items"], "Expected at least one matching instructor"
+        for instructor in data["items"]:
+            matching_service = next(
+                (
+                    service
+                    for service in instructor["services"]
+                    if service["service_catalog_id"] == service_catalog.id
+                ),
+                None,
+            )
+            assert matching_service is not None
+            selections = matching_service.get("filter_selections") or {}
+            assert "beginner" in (selections.get("skill_level") or [])
+            assert "enrichment" in (selections.get("goal") or [])
+
     def test_pagination_parameters(self, client, sample_instructors, db: Session):
         """Test page and per_page parameters."""
         # Get a service catalog ID
@@ -284,14 +368,23 @@ class TestInstructorsFilteringAPI:
         import uuid
 
         from app.models.service_catalog import ServiceCategory
+        from app.models.subcategory import ServiceSubcategory
 
         unique_id = str(uuid.uuid4())[:8]
-        category = ServiceCategory(name=f"Unused Category {unique_id}", slug=f"unused-category-{unique_id}")
+        category = ServiceCategory(name=f"Unused Category {unique_id}")
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(
+            name="General",
+            category_id=category.id,
+            display_order=1,
+        )
+        db.add(subcategory)
+        db.flush()
+
         unused_service = ServiceCatalog(
-            name=f"Unused Service {unique_id}", slug=f"unused-service-{unique_id}", category_id=category.id
+            name=f"Unused Service {unique_id}", slug=f"unused-service-{unique_id}", subcategory_id=subcategory.id
         )
         db.add(unused_service)
         db.commit()

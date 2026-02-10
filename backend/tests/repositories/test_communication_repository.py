@@ -7,7 +7,7 @@ from backend.tests.factories.booking_builders import create_booking_pg_safe
 from app.models.address import InstructorServiceArea
 from app.models.event_outbox import NotificationDelivery
 from app.models.notification import PushSubscription
-from app.models.service_catalog import InstructorService, ServiceCategory
+from app.models.service_catalog import InstructorService
 from app.repositories.communication_repository import CommunicationRepository
 from app.repositories.notification_delivery_repository import NotificationDeliveryRepository
 
@@ -65,10 +65,10 @@ def test_communication_repository_queries(db, test_student, test_instructor):
     db.flush()
     assert test_student.id in repo.list_push_subscription_user_ids([test_student.id])
 
-    category_id = instructor_service.catalog_entry.category_id
-    category = db.query(ServiceCategory).filter(ServiceCategory.id == category_id).first()
+    catalog_entry = instructor_service.catalog_entry
+    category = catalog_entry.category
     assert category is not None
-    category_ids = repo.resolve_category_ids([category.id, category.slug, category.name])
+    category_ids = repo.resolve_category_ids([category.id, category.name])
     assert category.id in category_ids
 
     service_area = (

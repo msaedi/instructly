@@ -229,9 +229,9 @@ const eslintConfig = [
       'no-unused-expressions': 'off',
     },
   },
-  // Disable react-refresh for Next.js layout files that need to export metadata
+  // Disable react-refresh for Next.js route files that legitimately export metadata/static values
   {
-    files: ['app/layout.tsx', 'app/**/layout.tsx'],
+    files: ['app/layout.tsx', 'app/**/layout.tsx', 'app/**/page.tsx'],
     rules: {
       'react-refresh/only-export-components': 'off',
     },
@@ -241,9 +241,22 @@ const eslintConfig = [
     files: [
       'features/shared/hooks/useAuth.tsx',
       'features/shared/hooks/usePermissions.helpers.tsx',
+      'features/student/payment/hooks/usePricingPreview.tsx',
     ],
     rules: {
       'react-refresh/only-export-components': 'off',
+    },
+  },
+  // Allow raw img in constrained cases where next/image is not viable:
+  // - chat attachments use arbitrary runtime URLs
+  // - crop modal requires direct pixel-space manipulation
+  {
+    files: [
+      'app/(auth)/instructor/messages/page.tsx',
+      'components/modals/ImageCropModal.tsx',
+    ],
+    rules: {
+      '@next/next/no-img-element': 'off',
     },
   },
   // Enforce cookies-only auth in critical surfaces (forbid localStorage token reads)

@@ -12,6 +12,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.payment import PlatformCredit
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.payment_repository import PaymentRepository
@@ -56,15 +57,22 @@ def milestone_setup(db):
     category = ServiceCategory(
         id=str(ulid.ULID()),
         name="Music",
-        slug=f"music-{str(ulid.ULID()).lower()}",
         description="Music lessons",
     )
     db.add(category)
     db.flush()
 
+    subcategory = ServiceSubcategory(
+        name="General",
+        category_id=category.id,
+        display_order=1,
+    )
+    db.add(subcategory)
+    db.flush()
+
     catalog = ServiceCatalog(
         id=str(ulid.ULID()),
-        category_id=category.id,
+        subcategory_id=subcategory.id,
         name="Piano",
         slug=f"piano-{str(ulid.ULID()).lower()}",
         description="Piano lessons",

@@ -4,6 +4,7 @@ import json
 import pytest
 
 from app.models.service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog
+import app.repositories.service_catalog_repository as _scr_module
 from app.repositories.service_catalog_repository import (
     ServiceAnalyticsRepository,
     ServiceCatalogRepository,
@@ -33,6 +34,8 @@ def test_service_catalog_repository_pg_trgm_init_failure(db, monkeypatch):
     def _boom(*_args, **_kwargs):
         raise RuntimeError("boom")
 
+    # Reset module-level cache so the check actually runs
+    monkeypatch.setattr(_scr_module, "_pg_trgm_available", None)
     monkeypatch.setattr(db, "execute", _boom)
     repo = ServiceCatalogRepository(db)
     assert repo._pg_trgm_available is False

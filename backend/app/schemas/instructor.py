@@ -11,7 +11,7 @@ These will be reimplemented differently in the new booking system.
 
 from datetime import datetime
 import logging
-from typing import Any, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer
 
@@ -184,19 +184,14 @@ class ServiceBase(StandardizedModel):
     requirements: Optional[str] = Field(None, max_length=500)
     age_groups: Optional[List[str]] = Field(
         default=None,
-        description="Age groups this service is offered to. Allowed: 'kids', 'adults'. Use both for both.",
-    )
-    levels_taught: Optional[List[str]] = Field(
-        default=None,
-        description="Levels taught. Allowed: 'beginner', 'intermediate', 'advanced'",
+        description=(
+            "Age groups this service is offered to. "
+            "Allowed: 'toddler', 'kids', 'teens', 'adults'."
+        ),
     )
     equipment_required: Optional[List[str]] = Field(
         default=None,
         description="List of equipment required (strings)",
-    )
-    location_types: Optional[List[str]] = Field(
-        default=None,
-        description="Where lessons are offered. Allowed: 'in_person', 'online'",
     )
     offers_travel: Optional[bool] = Field(
         default=None,
@@ -209,6 +204,10 @@ class ServiceBase(StandardizedModel):
     offers_online: Optional[bool] = Field(
         default=None,
         description="Whether the instructor offers online lessons for this service",
+    )
+    filter_selections: Dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']})",
     )
     duration_options: List[int] = Field(
         default=[60],
@@ -232,21 +231,21 @@ class ServiceBase(StandardizedModel):
     def validate_age_groups(cls, v: Optional[List[str]]) -> Optional[List[str]]:
         """Normalize and validate age groups.
 
-        Accepts ['kids'], ['adults'], or ['kids','adults'].
+        Accepts values from {'toddler', 'kids', 'teens', 'adults'}.
         Collapses duplicates and ignores casing. Raises if unknown values provided.
         """
         if v is None:
             return v
-        allowed = {"kids", "adults"}
+        allowed = {"toddler", "kids", "teens", "adults"}
         normalized: List[str] = []
         for item in v:
             value = str(item).strip().lower()
-            if value == "both":
-                normalized.extend(["kids", "adults"])
-            elif value in allowed:
+            if value in allowed:
                 normalized.append(value)
             else:
-                raise ValueError("age_groups must be one or more of: 'kids', 'adults'")
+                raise ValueError(
+                    "age_groups must be one or more of: 'toddler', 'kids', 'teens', 'adults'"
+                )
         # De-duplicate while preserving order
         seen: set[str] = set()
         deduped: List[str] = []
@@ -255,46 +254,6 @@ class ServiceBase(StandardizedModel):
                 seen.add(item)
                 deduped.append(item)
         return deduped
-
-    @field_validator("levels_taught")
-    def validate_levels_taught(cls, v: Optional[List[str]]) -> Optional[List[str]]:
-        """Normalize and validate levels_taught.
-
-        Allowed values: beginner, intermediate, advanced.
-        """
-        if v is None:
-            return v
-        allowed = {"beginner", "intermediate", "advanced"}
-        normalized: List[str] = []
-        for item in v:
-            value = str(item).strip().lower()
-            if value not in allowed:
-                raise ValueError(
-                    "levels_taught must be any of: 'beginner', 'intermediate', 'advanced'"
-                )
-            if value not in normalized:
-                normalized.append(value)
-        return normalized
-
-    @field_validator("location_types")
-    def validate_location_types(cls, v: Optional[List[str]]) -> Optional[List[str]]:
-        """Normalize and validate location types.
-
-        Allowed values: in_person, online.
-        """
-        if v is None:
-            return v
-        allowed = {"in_person", "online"}
-        normalized: List[str] = []
-        for item in v:
-            value = str(item).strip().lower()
-            if value == "in-person":
-                value = "in_person"
-            if value not in allowed:
-                raise ValueError("location_types must be one or more of: 'in_person', 'online'")
-            if value not in normalized:
-                normalized.append(value)
-        return normalized
 
 
 class ServiceCreate(StrictRequestModel, ServiceBase):
@@ -621,9 +580,11 @@ class InstructorProfileResponse(InstructorProfileBase):
                 description=getattr(service, "description", None),
                 requirements=getattr(service, "requirements", None),
                 age_groups=getattr(service, "age_groups", None),
-                levels_taught=getattr(service, "levels_taught", None),
                 equipment_required=getattr(service, "equipment_required", None),
-                location_types=getattr(service, "location_types", None),
+                offers_travel=bool(getattr(service, "offers_travel", False)),
+                offers_at_location=bool(getattr(service, "offers_at_location", False)),
+                offers_online=bool(getattr(service, "offers_online", True)),
+                filter_selections=getattr(service, "filter_selections", None) or {},
                 duration_options=getattr(service, "duration_options", None) or [60],
             )
             services_data.append(service_payload)

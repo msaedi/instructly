@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 
 
 def _ensure_service(db, slug: str) -> ServiceCatalog:
@@ -10,10 +11,15 @@ def _ensure_service(db, slug: str) -> ServiceCatalog:
         return service
     category = db.query(ServiceCategory).first()
     if not category:
-        category = ServiceCategory(name="Test Category", slug="test-category")
+        category = ServiceCategory(name="Test Category")
         db.add(category)
         db.flush()
-    service = ServiceCatalog(name=slug.title(), slug=slug, category_id=category.id)
+    subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+    if not subcategory:
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
+        db.flush()
+    service = ServiceCatalog(name=slug.title(), slug=slug, subcategory_id=subcategory.id)
     db.add(service)
     db.flush()
     return service

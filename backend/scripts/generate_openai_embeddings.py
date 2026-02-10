@@ -120,7 +120,8 @@ def generate_embeddings(
                     sc.search_terms,
                     cat.name as category_name
                 FROM service_catalog sc
-                LEFT JOIN service_categories cat ON cat.id = sc.category_id
+                LEFT JOIN service_subcategories sub ON sub.id = sc.subcategory_id
+                LEFT JOIN service_categories cat ON cat.id = sub.category_id
                 WHERE sc.is_active = true
                 ORDER BY sc.id
             """)
@@ -135,7 +136,8 @@ def generate_embeddings(
                     sc.search_terms,
                     cat.name as category_name
                 FROM service_catalog sc
-                LEFT JOIN service_categories cat ON cat.id = sc.category_id
+                LEFT JOIN service_subcategories sub ON sub.id = sc.subcategory_id
+                LEFT JOIN service_categories cat ON cat.id = sub.category_id
                 WHERE sc.is_active = true
                   AND (sc.embedding_v2 IS NULL OR sc.embedding_text_hash IS NULL)
                 ORDER BY sc.id

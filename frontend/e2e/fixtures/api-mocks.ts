@@ -538,9 +538,9 @@ export async function setupAllMocks(
         'Vary': 'Origin'
       },
       body: JSON.stringify([
-        { id: TEST_ULIDS.service1, name: 'Piano', category_id: '1' },
-        { id: '01J5TESTSERV00000000000002', name: 'Guitar', category_id: '1' },
-        { id: 97, name: 'Personal Training', category_id: 2 }
+        { id: TEST_ULIDS.service1, name: 'Piano', subcategory_id: '01J5TESTSUBCAT000000000001', slug: 'piano' },
+        { id: '01J5TESTSERV00000000000002', name: 'Guitar', subcategory_id: '01J5TESTSUBCAT000000000001', slug: 'guitar' },
+        { id: '01J5TESTSERV00000000000003', name: 'Personal Training', subcategory_id: '01J5TESTSUBCAT000000000002', slug: 'personal-training' }
       ])
     });
   });
@@ -857,11 +857,11 @@ export async function setupAllMocks(
         contentType: 'application/json',
         body: JSON.stringify([
           {
-            id: 1,
+            id: '01J5TESTSERV00000000000001',
             name: 'Piano',
             slug: 'piano',
             description: 'Learn to play the piano',
-            category_id: 1
+            subcategory_id: '01J5TESTSUBCAT000000000001'
           }
         ])
       });
@@ -985,7 +985,7 @@ export async function setupAllMocks(
         contentType: 'application/json',
         headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' },
         body: JSON.stringify([
-          { id: 1, name: 'Piano', slug: 'piano', description: 'Learn to play the piano', category_id: 1 }
+          { id: '01J5TESTSERV00000000000001', name: 'Piano', slug: 'piano', description: 'Learn to play the piano', subcategory_id: '01J5TESTSUBCAT000000000001' }
         ])
       });
       return;

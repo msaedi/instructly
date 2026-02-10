@@ -183,7 +183,7 @@ async def test_instructor_tools_call_client():
         status="live",
         is_founding=True,
         service_slug="guitar",
-        category_slug="music",
+        category_name="music",
         limit=10,
         cursor="cursor",
     )

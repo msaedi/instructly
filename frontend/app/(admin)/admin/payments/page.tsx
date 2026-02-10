@@ -3,7 +3,6 @@ import { Suspense } from 'react';
 
 import PaymentsAdminClient from './PaymentsAdminClient';
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const metadata: Metadata = {
   title: 'Payments Admin',
 };

@@ -27,6 +27,9 @@ jest.mock('@/features/shared/api/client', () => ({
     searchWithNaturalLanguage: jest.fn(),
     searchInstructors: jest.fn(),
     getInstructorAvailability: jest.fn(),
+    getAllServicesWithInstructors: jest.fn(),
+    getCategoriesWithSubcategories: jest.fn(),
+    getSubcategoryFilters: jest.fn(),
   },
 }));
 
@@ -64,6 +67,9 @@ const mockPublicApi = jest.requireMock('@/features/shared/api/client').publicApi
   searchWithNaturalLanguage: jest.Mock;
   searchInstructors: jest.Mock;
   getInstructorAvailability: jest.Mock;
+  getAllServicesWithInstructors: jest.Mock;
+  getCategoriesWithSubcategories: jest.Mock;
+  getSubcategoryFilters: jest.Mock;
 };
 
 const createTestQueryClient = () =>
@@ -157,6 +163,18 @@ describe('Search results map pins', () => {
 
     mockPublicApi.getInstructorAvailability.mockResolvedValue({
       data: { availability_by_date: {} },
+      status: 200,
+    });
+    mockPublicApi.getAllServicesWithInstructors.mockResolvedValue({
+      data: { categories: [], metadata: { updated_at: new Date().toISOString(), cached_for_seconds: 0, total_categories: 0 } },
+      status: 200,
+    });
+    mockPublicApi.getCategoriesWithSubcategories.mockResolvedValue({
+      data: [],
+      status: 200,
+    });
+    mockPublicApi.getSubcategoryFilters.mockResolvedValue({
+      data: [],
       status: 200,
     });
   });

@@ -67,8 +67,7 @@ const mockPerformance = {
 // Setup global mocks
 beforeAll(() => {
   // Remove ontouchstart from window if it exists
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test environment window manipulation
-  delete (window as any).ontouchstart;
+  delete (window as Window & { ontouchstart?: unknown }).ontouchstart;
 
   Object.defineProperty(window, 'innerWidth', { value: mockWindow.innerWidth, writable: true });
   Object.defineProperty(window, 'innerHeight', { value: mockWindow.innerHeight, writable: true });
@@ -115,8 +114,7 @@ beforeAll(() => {
     DateTimeFormat: jest.fn(() => ({
       resolvedOptions: () => ({ timeZone: 'America/New_York' }),
     })),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Global Intl mock in test
-  } as any;
+  } as unknown as typeof Intl;
 });
 
 describe('captureDeviceContext', () => {

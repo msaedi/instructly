@@ -130,7 +130,7 @@ class MCPInstructorBGC(StrictModel):
 
 class MCPInstructorService(StrictModel):
     name: str
-    slug: str
+    slug: Optional[str] = None
     category: str
     hourly_rate: Decimal
     is_active: bool
@@ -275,8 +275,8 @@ class MCPMetricResponse(StrictModel):
 class MCPServiceCatalogItem(StrictModel):
     id: str
     name: str
-    slug: str
-    category_slug: Optional[str] = None
+    slug: Optional[str] = None
+    subcategory_name: Optional[str] = None
     category_name: Optional[str] = None
     is_active: bool
 

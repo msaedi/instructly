@@ -3,7 +3,11 @@ import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-quer
 import { convertApiResponse } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi } from '@/features/shared/api/client';
-import type { ServiceCategory as ShimServiceCategory, ServiceSearchResponseWithPaging } from '@/features/shared/api/types';
+import type {
+  AllServicesWithInstructorsResponse,
+  ServiceCategory as ShimServiceCategory,
+  ServiceSearchResponseWithPaging,
+} from '@/features/shared/api/types';
 import type { CatalogService } from '@/features/shared/api/client';
 import type { ServiceCatalogItem } from '@/types/api';
 import { withApiBase } from '@/lib/apiBase';
@@ -68,7 +72,7 @@ export function useServiceCategories() {
  * ```
  */
 export function useAllServicesWithInstructors() {
-  return useQuery({
+  return useQuery<AllServicesWithInstructorsResponse>({
     queryKey: queryKeys.services.withInstructors,
     queryFn: async () => {
       const response = await publicApi.getAllServicesWithInstructors();
@@ -83,14 +87,14 @@ export function useAllServicesWithInstructors() {
  * Hook to fetch services by category
  * Used when filtering by a specific category
  */
-export function useServicesByCategory(categorySlug: string, enabled: boolean = true) {
+export function useServicesByCategory(categoryId: string, enabled: boolean = true) {
   return useQuery<CatalogService[]>({
-    queryKey: queryKeys.services.byCategory(categorySlug),
+    queryKey: queryKeys.services.byCategory(categoryId),
     queryFn: async () => {
-      const response = await publicApi.getCatalogServices(categorySlug);
+      const response = await publicApi.getCatalogServices(categoryId);
       return convertApiResponse(response);
     },
-    enabled: enabled && !!categorySlug,
+    enabled: enabled && !!categoryId,
     staleTime: CACHE_TIMES.SLOW, // 15 minutes
     gcTime: CACHE_TIMES.SLOW * 2, // 30 minutes
   });
@@ -181,7 +185,7 @@ export function useServicesInfiniteSearch(filters: ServiceSearchFilters) {
       params.append('limit', '20');
 
       const response = await fetch(
-        withApiBase(`/services/search?${params}`)
+        withApiBase(`/api/v1/services/search?${params}`)
       );
 
       if (!response.ok) {
@@ -300,11 +304,11 @@ export function usePrefetchServices() {
         staleTime: CACHE_TIMES.SLOW,
       });
     },
-    byCategory: (categorySlug: string) => {
+    byCategory: (categoryId: string) => {
       void queryClient.prefetchQuery({
-        queryKey: queryKeys.services.byCategory(categorySlug),
+        queryKey: queryKeys.services.byCategory(categoryId),
         queryFn: async () => {
-          const response = await publicApi.getCatalogServices(categorySlug);
+          const response = await publicApi.getCatalogServices(categoryId);
           return convertApiResponse(response);
         },
         staleTime: CACHE_TIMES.SLOW,

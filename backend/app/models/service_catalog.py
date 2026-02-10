@@ -4,10 +4,14 @@ from __future__ import annotations
 """
 Service catalog models for InstaInstru platform.
 
-This module defines the service catalog system with three models:
-1. ServiceCategory - Categories like Music, Academic, Fitness
-2. ServiceCatalog - Predefined services with standardized names
+This module defines the service catalog system with four models:
+1. ServiceCategory - Top-level categories (Music, Dance, Tutoring, etc.)
+2. ServiceCatalog - Predefined services linked to subcategories
 3. InstructorService - Links instructors to catalog services with custom pricing
+4. ServiceAnalytics - Analytics and intelligence data for services
+
+The 3-level taxonomy is: Category → Subcategory → Service
+Categories derive through subcategories (no direct category_id on services).
 """
 
 import logging
@@ -15,6 +19,7 @@ from typing import Any, Dict, List, Optional, Set, cast
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    JSON,
     Boolean,
     Column,
     DateTime,
@@ -26,6 +31,7 @@ from sqlalchemy import (
     Text,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import ulid
 
@@ -37,23 +43,26 @@ logger = logging.getLogger(__name__)
 
 class ServiceCategory(Base):
     """
-    Model representing a service category.
+    Model representing a top-level service category.
 
-    Categories organize services into logical groups like Music, Academic,
-    Fitness, etc. Each category has a unique slug for URL-friendly identifiers.
+    Categories organize subcategories into logical groups like Music, Dance,
+    Tutoring & Test Prep, etc.
 
     Attributes:
-        id: Primary key
-        name: Display name (e.g., "Music & Arts")
-        slug: URL-friendly identifier (e.g., "music-arts")
+        id: ULID primary key
+        name: Display name (e.g., "Music")
+        subtitle: Short tagline shown below the category name
+        slug: URL-friendly identifier for routing
         description: Optional description of the category
         display_order: Order for UI display (lower numbers first)
         icon_name: Icon identifier for UI display
+        meta_title: SEO page title override
+        meta_description: SEO meta description override
         created_at: Timestamp when created
         updated_at: Timestamp when last updated
 
     Relationships:
-        catalog_entries: List of ServiceCatalog entries in this category
+        subcategories: List of ServiceSubcategory entries in this category
     """
 
     __tablename__ = "service_categories"
@@ -61,55 +70,69 @@ class ServiceCategory(Base):
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     name = Column(String, nullable=False)
     subtitle = Column(String(100), nullable=True)
-    slug = Column(String, nullable=False, unique=True, index=True)
     description = Column(Text, nullable=True)
     display_order = Column(Integer, nullable=False, default=0, index=True)
     icon_name = Column(String(50), nullable=True)
+    slug = Column(String(50), nullable=True)
+    meta_title = Column(String(200), nullable=True)
+    meta_description = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    catalog_entries = relationship(
-        "ServiceCatalog",
+    subcategories = relationship(
+        "ServiceSubcategory",
         back_populates="category",
-        order_by="ServiceCatalog.name",
+        order_by="ServiceSubcategory.display_order",
     )
 
     def __repr__(self) -> str:
         """String representation."""
-        return f"<ServiceCategory {self.name} ({self.slug})>"
+        return f"<ServiceCategory {self.name} (id={self.id})>"
 
     @property
     def active_services_count(self) -> int:
-        """Count of active services in this category."""
-        return sum(1 for entry in self.catalog_entries if entry.is_active)
+        """Count of active services in this category (through subcategories)."""
+        count = 0
+        for sub in self.subcategories:
+            count += sum(1 for entry in sub.services if entry.is_active)
+        return count
 
     @property
     def instructor_count(self) -> int:
         """Count of unique instructors offering services in this category."""
         instructors: Set[str] = set()
-        for entry in self.catalog_entries:
-            for service in entry.instructor_services:
-                if service.is_active:
-                    instructors.add(service.instructor_profile_id)
+        for sub in self.subcategories:
+            for entry in sub.services:
+                for service in entry.instructor_services:
+                    if service.is_active:
+                        instructors.add(service.instructor_profile_id)
         return len(instructors)
 
-    def to_dict(self, include_services: bool = False) -> Dict[str, Any]:
-        """Convert to dictionary for API responses."""
+    def to_dict(
+        self, include_subcategories: bool = False, include_counts: bool = False
+    ) -> Dict[str, Any]:
+        """Convert to dictionary for API responses.
+
+        Args:
+            include_subcategories: Include nested subcategory dicts.
+            include_counts: Include active_services_count and instructor_count
+                (requires eager-loaded subcategories→services→instructor_services).
+        """
         data: Dict[str, Any] = {
             "id": self.id,
             "name": self.name,
-            "slug": self.slug,
             "description": self.description,
             "display_order": self.display_order,
             "icon_name": self.icon_name,
-            "active_services_count": self.active_services_count,
-            "instructor_count": self.instructor_count,
         }
+        if include_counts:
+            data["active_services_count"] = self.active_services_count
+            data["instructor_count"] = self.instructor_count
 
-        if include_services:
-            data["services"] = [
-                entry.to_dict() for entry in self.catalog_entries if entry.is_active
+        if include_subcategories:
+            data["subcategories"] = [
+                sub.to_dict(include_services=True) for sub in self.subcategories
             ]
 
         return data
@@ -120,17 +143,18 @@ class ServiceCatalog(Base):
     Model representing a predefined service in the catalog.
 
     Each catalog entry represents a standardized service that instructors
-    can offer. This ensures consistency in naming and helps with search
-    and filtering.
+    can offer. Services belong to a subcategory (and derive their category
+    through it).
 
     Attributes:
-        id: Primary key
-        category_id: Foreign key to service_categories
-        name: Standardized service name (e.g., "Piano Lessons")
-        slug: URL-friendly identifier (e.g., "piano-lessons")
+        id: ULID primary key
+        subcategory_id: FK to service_subcategories (category derived through subcategory)
+        name: Standardized service name (e.g., "Piano")
+        slug: URL-friendly identifier (e.g., "piano")
         description: Default description of the service
         search_terms: Array of search keywords
-        display_order: Order for UI display (lower numbers first)
+        eligible_age_groups: Age groups this service is available for
+        display_order: Order for UI display
         embedding: Vector embedding for semantic search
         related_services: Array of related service IDs
         online_capable: Whether this service can be offered online
@@ -140,20 +164,31 @@ class ServiceCatalog(Base):
         updated_at: Timestamp when last updated
 
     Relationships:
-        category: The ServiceCategory this belongs to
+        subcategory: The ServiceSubcategory this belongs to
         instructor_services: List of instructors offering this service
     """
 
     __tablename__ = "service_catalog"
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
-    category_id = Column(
-        String(26), ForeignKey("service_categories.id"), nullable=False, index=True
+    subcategory_id = Column(
+        String(26),
+        ForeignKey("service_subcategories.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     name = Column(String, nullable=False)
-    slug = Column(String, nullable=False, unique=True, index=True)
+    slug = Column(String(150), nullable=True)
     description = Column(Text, nullable=True)
     search_terms: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
+    eligible_age_groups: Mapped[List[str]] = mapped_column(
+        StringArrayType,
+        nullable=False,
+        default=lambda: ["kids", "teens", "adults"],
+    )
+    default_duration_minutes = Column(Integer, nullable=False, default=60)
+    price_floor_in_person_cents = Column(Integer, nullable=True)
+    price_floor_online_cents = Column(Integer, nullable=True)
     display_order = Column(Integer, nullable=False, default=999, index=True)
     embedding = Column(Vector(384), nullable=True)  # MiniLM (legacy)
     # OpenAI text-embedding-3-small embeddings (1536 dimensions)
@@ -170,7 +205,7 @@ class ServiceCatalog(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    category = relationship("ServiceCategory", back_populates="catalog_entries")
+    subcategory = relationship("ServiceSubcategory", back_populates="services")
     instructor_services = relationship(
         "InstructorService",
         back_populates="catalog_entry",
@@ -181,6 +216,21 @@ class ServiceCatalog(Base):
         """String representation."""
         status = " (inactive)" if not self.is_active else ""
         return f"<ServiceCatalog {self.name}{status}>"
+
+    @property
+    def category(self) -> Optional["ServiceCategory"]:
+        """Get the parent category through subcategory."""
+        if self.subcategory:
+            return cast(Optional["ServiceCategory"], self.subcategory.category)
+        return None
+
+    @property
+    def category_name(self) -> str:
+        """Get category name through subcategory."""
+        cat = self.category
+        if cat:
+            return cast(str, cat.name)
+        return "Unknown"
 
     @property
     def is_offered(self) -> bool:
@@ -230,13 +280,14 @@ class ServiceCatalog(Base):
 
         data: Dict[str, Any] = {
             "id": self.id,
-            "category_id": self.category_id,
-            "category_name": self.category.name,
-            "category_slug": self.category.slug,
+            "subcategory_id": self.subcategory_id,
+            "category_name": self.category_name,
+            "subcategory_name": self.subcategory.name if self.subcategory else None,
             "name": self.name,
             "slug": self.slug,
             "description": self.description,
             "search_terms": self.search_terms,
+            "eligible_age_groups": self.eligible_age_groups,
             "actual_min_price": min_price,
             "actual_max_price": max_price,
             "display_order": self.display_order,
@@ -268,23 +319,20 @@ class InstructorService(Base):
     """
     Model representing an instructor's offering of a catalog service.
 
-    This replaces the old Service model and links instructors to predefined
-    catalog services with their custom pricing and descriptions.
+    Links instructors to predefined catalog services with their custom
+    pricing, descriptions, and filter selections.
 
     Attributes:
-        id: Primary key
-        instructor_profile_id: Foreign key to instructor_profiles
-        service_catalog_id: Foreign key to service_catalog
+        id: ULID primary key
+        instructor_profile_id: FK to instructor_profiles
+        service_catalog_id: FK to service_catalog
         hourly_rate: Instructor's rate for this service
-        experience_level: Level of experience (beginner, intermediate, advanced)
-        description: Instructor's custom description (optional)
+        description: Instructor's custom description
         requirements: Requirements for students
         duration_options: Available session durations in minutes
         equipment_required: Equipment needed for the service
-        levels_taught: Skill levels the instructor teaches
         age_groups: Age groups the instructor works with
-        location_types: Types of locations offered (in-person, online)
-        max_distance_miles: Maximum travel distance for in-person sessions
+        filter_selections: JSONB of instructor's filter choices (e.g., {"grade_level": ["elementary"]})
         is_active: Whether currently offered (soft delete)
         created_at: Timestamp when created
         updated_at: Timestamp when last updated
@@ -310,20 +358,24 @@ class InstructorService(Base):
         index=True,
     )
     hourly_rate = Column(Numeric(10, 2), nullable=False)
-    experience_level = Column(String(50), nullable=True)
     description = Column(Text, nullable=True)
     requirements = Column(Text, nullable=True)
     duration_options: Mapped[List[int]] = mapped_column(
-        IntegerArrayType, nullable=False, default=[60]
+        IntegerArrayType,
+        nullable=False,
+        default=lambda: [60],
     )
     equipment_required: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
-    levels_taught: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     age_groups: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
-    location_types: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
+    filter_selections = Column(
+        JSONB(astext_type=Text()).with_variant(JSON(), "sqlite"),
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
     offers_travel = Column(Boolean, nullable=False, default=False)
     offers_at_location = Column(Boolean, nullable=False, default=False)
     offers_online = Column(Boolean, nullable=False, default=True)
-    max_distance_miles = Column(Integer, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -357,22 +409,23 @@ class InstructorService(Base):
 
     @property
     def category(self) -> str:
-        """Get category name from catalog entry."""
+        """Get category name from catalog entry (through subcategory)."""
         entry = self.catalog_entry
-        category = getattr(entry, "category", None)
-        name_value = getattr(category, "name", None)
-        if isinstance(name_value, str):
-            return name_value
+        if entry:
+            cat = entry.category
+            if cat:
+                return cast(str, cat.name)
         return "Unknown"
 
     @property
     def category_slug(self) -> str:
-        """Get category slug from catalog entry."""
+        """Get category slug for URL construction."""
         entry = self.catalog_entry
-        category = getattr(entry, "category", None)
-        slug_value = getattr(category, "slug", None)
-        if isinstance(slug_value, str):
-            return slug_value
+        if entry:
+            cat = entry.category
+            slug = getattr(cat, "slug", None)
+            if isinstance(slug, str) and slug.strip():
+                return slug
         return "unknown"
 
     def session_price(self, duration_minutes: int) -> float:
@@ -417,18 +470,14 @@ class InstructorService(Base):
             "service_catalog_id": self.service_catalog_id,
             "name": self.catalog_entry.name if self.catalog_entry else "Unknown Service",
             "category": self.category,
-            "category_slug": self.category_slug,
             "hourly_rate": self.hourly_rate,
-            "experience_level": self.experience_level,
             "description": self.description
             or (self.catalog_entry.description if self.catalog_entry else None),
             "requirements": self.requirements,
             "duration_options": self.duration_options,
             "equipment_required": self.equipment_required,
-            "levels_taught": self.levels_taught,
             "age_groups": self.age_groups,
-            "location_types": self.location_types,
-            "max_distance_miles": self.max_distance_miles,
+            "filter_selections": self.filter_selections,
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
@@ -441,33 +490,6 @@ class ServiceAnalytics(Base):
 
     This table stores calculated metrics, demand signals, and pricing intelligence
     for each service in the catalog. Data is periodically updated from usage patterns.
-
-    Attributes:
-        service_catalog_id: Primary key and foreign key to service_catalog
-        search_count_7d: Number of searches in last 7 days
-        search_count_30d: Number of searches in last 30 days
-        booking_count_7d: Number of bookings in last 7 days
-        booking_count_30d: Number of bookings in last 30 days
-        search_to_view_rate: Conversion rate from search to view
-        view_to_booking_rate: Conversion rate from view to booking
-        avg_price_booked: Average price of completed bookings
-        price_percentile_25: 25th percentile of booking prices
-        price_percentile_50: Median booking price
-        price_percentile_75: 75th percentile of booking prices
-        most_booked_duration: Most popular session duration
-        duration_distribution: JSON of duration booking counts
-        peak_hours: JSON of busiest hours
-        peak_days: JSON of busiest days
-        seasonality_index: JSON of seasonal demand patterns
-        avg_rating: Average instructor rating for this service
-        completion_rate: Percentage of bookings completed
-        active_instructors: Number of active instructors
-        total_weekly_hours: Total hours available per week
-        supply_demand_ratio: Ratio of supply to demand
-        last_calculated: When analytics were last updated
-
-    Relationships:
-        catalog_entry: The service catalog entry
     """
 
     __tablename__ = "service_analytics"

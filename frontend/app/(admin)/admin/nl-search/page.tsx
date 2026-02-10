@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { PlacesAutocompleteInput, type PlaceSuggestion } from '@/components/forms/PlacesAutocompleteInput';
 import { withApiBase } from '@/lib/apiBase';
+import { TaxonomyDiagnostics } from './components/TaxonomyDiagnostics';
 
 // Types
 type SearchConfig = components['schemas']['AdminSearchConfigResponse'];
@@ -808,6 +809,8 @@ function DiagnosticsPanel({ meta }: { meta: SearchMeta }) {
           <ParsedField label="Near Me" value={meta.parsed.use_user_location ? 'Yes' : null} />
         </div>
       </div>
+
+      <TaxonomyDiagnostics meta={meta} />
 
       {/* Filter Funnel */}
       {meta.filter_stats && (

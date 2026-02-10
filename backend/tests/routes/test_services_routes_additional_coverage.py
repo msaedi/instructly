@@ -7,6 +7,7 @@ import pytest
 
 from app.api.dependencies.auth import get_current_active_user
 from app.api.dependencies.services import get_instructor_service
+from app.core.exceptions import BusinessRuleException, NotFoundException
 from app.main import fastapi_app as app
 
 
@@ -29,7 +30,6 @@ class TestServicesRoutesAdditionalCoverage:
             {
                 "id": "1",
                 "name": "Music",
-                "slug": "music",
                 "description": "",
                 "display_order": 1,
             }
@@ -40,7 +40,7 @@ class TestServicesRoutesAdditionalCoverage:
         assert res.headers.get("Cache-Control") == "public, max-age=3600"
 
     def test_get_catalog_services_category_not_found(self, test_client, mock_instructor_service):
-        mock_instructor_service.get_available_catalog_services.side_effect = Exception("not found")
+        mock_instructor_service.get_available_catalog_services.side_effect = NotFoundException("not found")
 
         res = test_client.get("/api/v1/services/catalog?category=nope")
         assert res.status_code == 404
@@ -69,7 +69,9 @@ class TestServicesRoutesAdditionalCoverage:
 
     def test_add_service_to_profile_not_found(self, test_client, mock_instructor_service, test_instructor):
         app.dependency_overrides[get_current_active_user] = lambda: test_instructor
-        mock_instructor_service.create_instructor_service_from_catalog.side_effect = Exception("not found")
+        mock_instructor_service.create_instructor_service_from_catalog.side_effect = NotFoundException(
+            "not found"
+        )
 
         res = test_client.post(
             "/api/v1/services/instructor/add",
@@ -86,7 +88,9 @@ class TestServicesRoutesAdditionalCoverage:
 
     def test_add_service_to_profile_already_offered(self, test_client, mock_instructor_service, test_instructor):
         app.dependency_overrides[get_current_active_user] = lambda: test_instructor
-        mock_instructor_service.create_instructor_service_from_catalog.side_effect = Exception("already offer")
+        mock_instructor_service.create_instructor_service_from_catalog.side_effect = BusinessRuleException(
+            "You already offer this service"
+        )
 
         res = test_client.post(
             "/api/v1/services/instructor/add",
@@ -97,7 +101,7 @@ class TestServicesRoutesAdditionalCoverage:
                 "duration_options": [60],
             },
         )
-        assert res.status_code == 400
+        assert res.status_code == 422
 
         app.dependency_overrides.pop(get_current_active_user, None)
 
@@ -165,8 +169,8 @@ class TestServicesRoutesAdditionalCoverage:
         mock_instructor_service.get_available_catalog_services.return_value = [
             {
                 "id": "svc-1",
-                "category_id": "cat-1",
-                "category": "Music",
+                "subcategory_id": "sub-1",
+                "category_name": "Music",
                 "name": "Piano Lessons",
                 "slug": "piano",
                 "display_order": 1,
@@ -213,18 +217,18 @@ class TestServicesRoutesAdditionalCoverage:
                 {
                     "id": "cat-1",
                     "name": "Music",
-                    "slug": "music",
                     "subtitle": None,
                     "description": None,
                     "icon_name": None,
                     "services": [
                         {
                             "id": "svc-1",
-                            "category_id": "cat-1",
+                            "subcategory_id": "sub-1",
                             "name": "Piano Lessons",
                             "slug": "piano",
                             "description": None,
                             "search_terms": [],
+                            "eligible_age_groups": ["toddler", "kids", "teens", "adults"],
                             "display_order": 1,
                             "online_capable": True,
                             "requires_certification": False,

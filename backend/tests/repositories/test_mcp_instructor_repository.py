@@ -1,5 +1,6 @@
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.repositories.mcp_instructor_repository import MCPInstructorRepository
 
 
@@ -9,10 +10,17 @@ def _get_service_by_slug(db, slug: str) -> ServiceCatalog:
         return service
     category = db.query(ServiceCategory).first()
     if not category:
-        category = ServiceCategory(name="Test Category", slug="test-category")
+        category = ServiceCategory(name="Test Category")
         db.add(category)
         db.flush()
-    service = ServiceCatalog(name=slug.title(), slug=slug, category_id=category.id)
+    subcategory = db.query(ServiceSubcategory).filter(
+        ServiceSubcategory.category_id == category.id
+    ).first()
+    if not subcategory:
+        subcategory = ServiceSubcategory(name="Test Subcategory", category_id=category.id, display_order=1)
+        db.add(subcategory)
+        db.flush()
+    service = ServiceCatalog(name=slug.title(), slug=slug, subcategory_id=subcategory.id)
     db.add(service)
     db.flush()
     return service
@@ -46,7 +54,7 @@ def test_list_instructors_filters_and_cursor(db, test_instructor, test_instructo
         status="registered",
         is_founding=None,
         service_slug=None,
-        category_slug=None,
+        category_name=None,
         limit=50,
         cursor=None,
     )
@@ -57,7 +65,7 @@ def test_list_instructors_filters_and_cursor(db, test_instructor, test_instructo
         status=None,
         is_founding=None,
         service_slug="piano",
-        category_slug=None,
+        category_name=None,
         limit=1,
         cursor=None,
     )
@@ -69,7 +77,7 @@ def test_list_instructors_filters_and_cursor(db, test_instructor, test_instructo
         status=None,
         is_founding=None,
         service_slug=None,
-        category_slug=None,
+        category_name=None,
         limit=1,
         cursor=next_cursor,
     )

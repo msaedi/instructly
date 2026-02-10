@@ -26,6 +26,9 @@ export type InstructorSearchError = Error & {
 export type InstructorSearchParams = {
   searchQuery?: string;
   serviceCatalogId?: string;
+  skillLevelCsv?: string;
+  subcategoryId?: string;
+  contentFiltersParam?: string;
   page?: number;
   perPage?: number;
   enabled?: boolean;
@@ -36,6 +39,9 @@ type InstructorSearchFetchParams = {
   serviceCatalogId: string;
   page: number;
   perPage: number;
+  skillLevelCsv?: string;
+  subcategoryId?: string;
+  contentFiltersParam?: string;
   hasSearchQuery: boolean;
   hasCatalogId: boolean;
 };
@@ -59,6 +65,9 @@ export function useInstructorSearch(params: InstructorSearchParams) {
   const {
     searchQuery = '',
     serviceCatalogId = '',
+    skillLevelCsv,
+    subcategoryId,
+    contentFiltersParam,
     page = 1,
     perPage = 20,
     enabled = true,
@@ -73,6 +82,9 @@ export function useInstructorSearch(params: InstructorSearchParams) {
     queryKey: queryKeys.instructors.search({
       query: trimmedQuery || undefined,
       service_catalog_id: serviceCatalogId || undefined,
+      skill_level: skillLevelCsv || undefined,
+      subcategory_id: subcategoryId || undefined,
+      content_filters: contentFiltersParam || undefined,
       page,
       per_page: perPage,
     }),
@@ -84,6 +96,9 @@ export function useInstructorSearch(params: InstructorSearchParams) {
         serviceCatalogId,
         page,
         perPage,
+        ...(skillLevelCsv ? { skillLevelCsv } : {}),
+        ...(subcategoryId ? { subcategoryId } : {}),
+        ...(contentFiltersParam ? { contentFiltersParam } : {}),
         hasSearchQuery,
         hasCatalogId,
       }),
@@ -94,6 +109,9 @@ export function useInstructorSearchInfinite(params: InstructorSearchParams) {
   const {
     searchQuery = '',
     serviceCatalogId = '',
+    skillLevelCsv,
+    subcategoryId,
+    contentFiltersParam,
     perPage = 20,
     enabled = true,
   } = params;
@@ -107,6 +125,9 @@ export function useInstructorSearchInfinite(params: InstructorSearchParams) {
     queryKey: queryKeys.instructors.search({
       query: trimmedQuery || undefined,
       service_catalog_id: serviceCatalogId || undefined,
+      skill_level: skillLevelCsv || undefined,
+      subcategory_id: subcategoryId || undefined,
+      content_filters: contentFiltersParam || undefined,
       per_page: perPage,
     }),
     enabled: queryEnabled,
@@ -118,6 +139,9 @@ export function useInstructorSearchInfinite(params: InstructorSearchParams) {
         serviceCatalogId,
         page: typeof pageParam === 'number' ? pageParam : 1,
         perPage,
+        ...(skillLevelCsv ? { skillLevelCsv } : {}),
+        ...(subcategoryId ? { subcategoryId } : {}),
+        ...(contentFiltersParam ? { contentFiltersParam } : {}),
         hasSearchQuery,
         hasCatalogId,
       }),
@@ -138,12 +162,19 @@ const fetchInstructorSearch = async (
     serviceCatalogId,
     page,
     perPage,
+    skillLevelCsv,
+    subcategoryId,
+    contentFiltersParam,
     hasSearchQuery,
     hasCatalogId,
   } = params;
 
   if (hasSearchQuery) {
-    const response = await publicApi.searchWithNaturalLanguage(trimmedQuery);
+    const response = await publicApi.searchWithNaturalLanguage(trimmedQuery, {
+      ...(skillLevelCsv ? { skill_level: skillLevelCsv } : {}),
+      ...(subcategoryId ? { subcategory_id: subcategoryId } : {}),
+      ...(contentFiltersParam ? { content_filters: contentFiltersParam } : {}),
+    });
     if (response.status === 429) {
       const secs = (response as { retryAfterSeconds?: number }).retryAfterSeconds;
       throw toSearchError(
@@ -164,6 +195,9 @@ const fetchInstructorSearch = async (
   if (hasCatalogId) {
     const response = await publicApi.searchInstructors({
       service_catalog_id: serviceCatalogId,
+      ...(skillLevelCsv ? { skill_level: skillLevelCsv } : {}),
+      ...(subcategoryId ? { subcategory_id: subcategoryId } : {}),
+      ...(contentFiltersParam ? { content_filters: contentFiltersParam } : {}),
       page,
       per_page: perPage,
     });

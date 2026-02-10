@@ -150,6 +150,7 @@ def calculate_search_metrics(self: "Task[Any, Any]", hours_back: int = 24) -> Di
     name="app.tasks.search_analytics.generate_search_insights",
     bind=True,
 )
+@monitor_if_configured("generate-search-insights")
 def generate_search_insights(self: "Task[Any, Any]", days_back: int = 7) -> Dict[str, Any]:
     """
     Generate insights from search behavior patterns.

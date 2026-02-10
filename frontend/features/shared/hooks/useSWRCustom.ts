@@ -23,6 +23,8 @@ export function useSWRCustom<T>(
 
   // Track last fetch time for deduplication
   const lastFetchRef = useRef<number>(0);
+  const dedupingInterval = opts?.dedupingInterval ?? 2000;
+  const refreshInterval = opts?.refreshInterval;
 
   useEffect(() => {
     let cancelled = false;
@@ -36,7 +38,6 @@ export function useSWRCustom<T>(
 
       // Dedupe: skip if we fetched recently (unless skipDedupe is true)
       const now = Date.now();
-      const dedupingInterval = opts?.dedupingInterval ?? 2000;
       if (!skipDedupe && now - lastFetchRef.current < dedupingInterval) {
         return;
       }
@@ -57,18 +58,17 @@ export function useSWRCustom<T>(
     void run(true);
 
     // Optional polling if refreshInterval is explicitly set
-    if (opts?.refreshInterval && opts.refreshInterval > 0) {
+    if (refreshInterval && refreshInterval > 0) {
       refreshTimeout = setInterval(() => {
         void run(true);
-      }, opts.refreshInterval);
+      }, refreshInterval);
     }
 
     return () => {
       cancelled = true;
       if (refreshTimeout) clearInterval(refreshTimeout);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [dedupingInterval, fetcher, key, refreshInterval]);
 
   return { data, error, isLoading } as const;
 }

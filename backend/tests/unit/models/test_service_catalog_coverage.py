@@ -9,6 +9,7 @@ from app.models.service_catalog import (
     ServiceCatalog,
     ServiceCategory,
 )
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 
 
@@ -35,12 +36,22 @@ def _make_instructor_profile(user_id: str = "u1") -> InstructorProfile:
     return profile
 
 
+def _make_subcategory(
+    *,
+    sub_id: str = "sub",
+    category_id: str = "cat",
+    name: str = "General",
+) -> ServiceSubcategory:
+    return ServiceSubcategory(id=sub_id, category_id=category_id, name=name, display_order=0)
+
+
 def test_service_category_counts_and_dict() -> None:
-    category = ServiceCategory(id="cat", name="Music", slug="music")
+    category = ServiceCategory(id="cat", name="Music")
+    subcategory = _make_subcategory(category_id="cat")
 
     active_catalog = ServiceCatalog(
         id="svc1",
-        category_id="cat",
+        subcategory_id="sub",
         name="Piano Lessons",
         slug="piano-lessons",
         description="Learn piano",
@@ -48,7 +59,7 @@ def test_service_category_counts_and_dict() -> None:
     )
     inactive_catalog = ServiceCatalog(
         id="svc2",
-        category_id="cat",
+        subcategory_id="sub",
         name="Inactive",
         slug="inactive",
         is_active=False,
@@ -73,34 +84,39 @@ def test_service_category_counts_and_dict() -> None:
     )
     instructor_inactive.catalog_entry = active_catalog
 
-    active_catalog.category = category
+    active_catalog.subcategory = subcategory
     active_catalog.instructor_services = [instructor_active, instructor_inactive]
-    inactive_catalog.category = category
+    inactive_catalog.subcategory = subcategory
     inactive_catalog.instructor_services = []
 
-    category.catalog_entries = [active_catalog, inactive_catalog]
+    subcategory.category = category
+    subcategory.services = [active_catalog, inactive_catalog]
+    category.subcategories = [subcategory]
 
     assert "Music" in repr(category)
     assert category.active_services_count == 1
     assert category.instructor_count == 1
 
-    payload = category.to_dict(include_services=True)
-    assert len(payload["services"]) == 1
+    payload = category.to_dict(include_subcategories=True, include_counts=True)
+    assert len(payload["subcategories"]) == 1
     assert payload["active_services_count"] == 1
 
 
 def test_service_catalog_properties_and_match() -> None:
-    category = ServiceCategory(id="cat", name="Music", slug="music")
+    category = ServiceCategory(id="cat", name="Music")
+    subcategory = _make_subcategory(category_id="cat")
+    subcategory.category = category
+
     catalog = ServiceCatalog(
         id="svc1",
-        category_id="cat",
+        subcategory_id="sub",
         name="Piano Lessons",
         slug="piano-lessons",
         description="Learn piano basics",
         search_terms=["keys", "music"],
         is_active=True,
     )
-    catalog.category = category
+    catalog.subcategory = subcategory
 
     active_service = InstructorService(
         id="is1",
@@ -131,16 +147,19 @@ def test_service_catalog_properties_and_match() -> None:
 
 
 def test_service_catalog_to_dict_includes_instructors() -> None:
-    category = ServiceCategory(id="cat", name="Music", slug="music")
+    category = ServiceCategory(id="cat", name="Music")
+    subcategory = _make_subcategory(category_id="cat")
+    subcategory.category = category
+
     catalog = ServiceCatalog(
         id="svc1",
-        category_id="cat",
+        subcategory_id="sub",
         name="Piano Lessons",
         slug="piano-lessons",
         description="Learn piano",
         is_active=True,
     )
-    catalog.category = category
+    catalog.subcategory = subcategory
 
     instructor_profile = _make_instructor_profile("ip1")
     instructor_profile.user.first_name = "Ada"
@@ -164,16 +183,19 @@ def test_service_catalog_to_dict_includes_instructors() -> None:
 
 
 def test_instructor_service_helpers() -> None:
+    category = ServiceCategory(id="cat", slug="music", name="Music")
+    subcategory = _make_subcategory(category_id="cat")
+    subcategory.category = category
+
     catalog = ServiceCatalog(
         id="svc1",
-        category_id="cat",
+        subcategory_id="sub",
         name="Piano Lessons",
         slug="piano-lessons",
         description="Learn piano",
         is_active=True,
     )
-    category = ServiceCategory(id="cat", name="Music", slug="music")
-    catalog.category = category
+    catalog.subcategory = subcategory
 
     service = InstructorService(
         id="is1",

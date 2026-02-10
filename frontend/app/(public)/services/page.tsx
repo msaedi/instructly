@@ -1,72 +1,85 @@
 // frontend/app/(public)/services/page.tsx
 'use client';
 
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Search, Music, BookOpen, Dumbbell, Globe, Palette, Baby, Sparkles, type LucideProps } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Search, Music, BookOpen, Disc3, Dumbbell, Globe, Palette, Sparkles, Trophy, type LucideProps } from 'lucide-react';
 import type { CategoryServiceDetail, CategoryWithServices as ApiCategoryWithServices } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useAllServicesWithInstructors } from '@/hooks/queries/useServices';
-import { useKidsAvailableServices } from '@/hooks/queries/useKidsAvailableServices';
+import { useCategoriesWithSubcategories } from '@/hooks/queries/useTaxonomy';
+import { CURRENT_AUDIENCE, type AudienceMode } from '@/lib/audience';
 
 // Progressive loading configuration
 const INITIAL_SERVICES_COUNT = 15;
 const LOAD_MORE_COUNT = 10;
 
-// Category configuration with exact names and icons from homepage
-const CATEGORY_CONFIG = [
-  {
-    id: 1,
-    slug: 'music',
-    name: 'MUSIC',
-    icon: Music,
-  },
-  {
-    id: 2,
-    slug: 'tutoring',
-    name: 'TUTORING',
-    icon: BookOpen,
-  },
-  {
-    id: 3,
-    slug: 'sports-fitness',
-    name: 'SPORTS & FITNESS',
-    icon: Dumbbell,
-  },
-  {
-    id: 4,
-    slug: 'language',
-    name: 'LANGUAGE',
-    icon: Globe,
-  },
-  {
-    id: 5,
-    slug: 'arts',
-    name: 'ARTS',
-    icon: Palette,
-  },
-  {
-    id: 6,
-    slug: 'kids',
-    name: 'KIDS',
-    icon: Baby,
-  },
-  {
-    id: 7,
-    slug: 'hidden-gems',
-    name: 'HIDDEN GEMS',
-    icon: Sparkles,
-  },
-];
+// Map icon_name from backend to Lucide icon components
+const ICON_BY_NAME: Record<string, React.ForwardRefExoticComponent<Omit<LucideProps, "ref"> & React.RefAttributes<SVGSVGElement>>> = {
+  'music': Music,
+  'book-open': BookOpen,
+  'disc': Disc3,
+  'dumbbell': Dumbbell,
+  'globe': Globe,
+  'palette': Palette,
+  'sparkles': Sparkles,
+  'trophy': Trophy,
+  'lightbulb': Sparkles,
+};
 
 interface CategoryWithServices {
   id: string;
-  slug: string;
   name: string;
-  icon: React.ForwardRefExoticComponent<Omit<LucideProps, "ref"> & React.RefAttributes<SVGSVGElement>>; // Lucide icon component
-  subtitle: string;
+  icon: React.ForwardRefExoticComponent<Omit<LucideProps, "ref"> & React.RefAttributes<SVGSVGElement>>;
   services: CategoryServiceDetail[];
+  subcategories: {
+    id: string;
+    name: string;
+    services: CategoryServiceDetail[];
+  }[];
+}
+
+const VALID_AUDIENCE_MODES: AudienceMode[] = ['toddler', 'kids', 'teens', 'adults'];
+
+function normalizeAudienceMode(value: string | null): AudienceMode {
+  if (!value) {
+    return CURRENT_AUDIENCE;
+  }
+  const normalized = value.toLowerCase();
+  return VALID_AUDIENCE_MODES.includes(normalized as AudienceMode)
+    ? (normalized as AudienceMode)
+    : CURRENT_AUDIENCE;
+}
+
+function isEligibleForAudience(service: CategoryServiceDetail, audience: AudienceMode): boolean {
+  const groups = Array.isArray(service.eligible_age_groups) ? service.eligible_age_groups : [];
+  if (groups.length === 0) {
+    return false;
+  }
+  return groups.map((group) => group.toLowerCase()).includes(audience);
+}
+
+function hasActiveInstructors(service: CategoryServiceDetail): boolean {
+  const count =
+    typeof service.active_instructors === 'number'
+      ? service.active_instructors
+      : typeof service.instructor_count === 'number'
+        ? service.instructor_count
+        : 0;
+  return count > 0;
+}
+
+function sortServices(services: CategoryServiceDetail[]): CategoryServiceDetail[] {
+  return [...services].sort((a, b) => {
+    const orderA = a.display_order ?? Number.MAX_SAFE_INTEGER;
+    const orderB = b.display_order ?? Number.MAX_SAFE_INTEGER;
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+    return a.name.localeCompare(b.name);
+  });
 }
 
 export default function AllServicesPage() {
@@ -84,10 +97,8 @@ export default function AllServicesPage() {
   const [error, setError] = useState<string | null>(null);
   const [visibleServices, setVisibleServices] = useState<Record<string, number>>({});
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const searchParams = useSearchParams();
   const { /* isAuthenticated */ } = useAuth();
-
-  // Use React Query hook for kids-available services (prevents duplicate API calls)
-  const { data: kidsServices = [] } = useKidsAvailableServices();
 
   // Use React Query hook for fetching services (prevents duplicate API calls)
   const {
@@ -95,6 +106,23 @@ export default function AllServicesPage() {
     error: queryError,
     isLoading: queryLoading,
   } = useAllServicesWithInstructors();
+  const { data: taxonomyCategories } = useCategoriesWithSubcategories();
+
+  const activeAudience = normalizeAudienceMode(
+    searchParams.get('audience') ?? searchParams.get('age_group')
+  );
+  const selectedCategoryId = searchParams.get('category_id');
+  const subcategoryNameByCategory = useMemo(() => {
+    const categoryMap = new Map<string, Map<string, string>>();
+    (taxonomyCategories ?? []).forEach((category) => {
+      const subMap = new Map<string, string>();
+      (category.subcategories ?? []).forEach((subcategory) => {
+        subMap.set(subcategory.id, subcategory.name);
+      });
+      categoryMap.set(category.id, subMap);
+    });
+    return categoryMap;
+  }, [taxonomyCategories]);
 
   // Sync loading state with React Query
   useEffect(() => {
@@ -113,93 +141,117 @@ export default function AllServicesPage() {
     // If React Query has the data, use it (hook extracts .data automatically)
     if (servicesData) {
       const apiCategories: ApiCategoryWithServices[] = servicesData.categories ?? [];
-      const categories: CategoryWithServices[] = apiCategories.map((category) => {
-        const config = CATEGORY_CONFIG.find((c) => c.slug === category.slug);
-        const services = (category.services ?? []).map((service) => ({
-          ...service,
-          description: service.description ?? '',
-          search_terms: service.search_terms ?? [],
-          is_active: service.is_active ?? true,
-          is_trending: service.is_trending ?? false,
-          online_capable: service.online_capable ?? false,
-          requires_certification: service.requires_certification ?? false,
-        }));
-        return {
-          id: category.id,
-          slug: category.slug,
-          name: category.name.toUpperCase(),
-          icon: config?.icon ?? Search,
-          subtitle: category.subtitle ?? '',
-          services,
-        };
-      });
+      const categories: CategoryWithServices[] = apiCategories
+        .map((category) => {
+          const subcategoryNames = subcategoryNameByCategory.get(category.id) ?? new Map<string, string>();
+          const services = sortServices(
+            (category.services ?? [])
+              .filter((service) => isEligibleForAudience(service, activeAudience))
+              .map((service) => ({
+                ...service,
+                description: service.description ?? '',
+                search_terms: service.search_terms ?? [],
+                is_active: service.is_active ?? true,
+                is_trending: service.is_trending ?? false,
+                online_capable: service.online_capable ?? false,
+                requires_certification: service.requires_certification ?? false,
+              }))
+          );
+
+          const groupedBySubcategory = new Map<string, CategoryServiceDetail[]>();
+          services.forEach((service) => {
+            if (!groupedBySubcategory.has(service.subcategory_id)) {
+              groupedBySubcategory.set(service.subcategory_id, []);
+            }
+            groupedBySubcategory.get(service.subcategory_id)?.push(service);
+          });
+
+          const subcategories: CategoryWithServices['subcategories'] = [];
+          const seenSubcategories = new Set<string>();
+
+          subcategoryNames.forEach((name, subcategoryId) => {
+            const groupedServices = groupedBySubcategory.get(subcategoryId) ?? [];
+            if (groupedServices.length === 0) {
+              return;
+            }
+            subcategories.push({
+              id: subcategoryId,
+              name,
+              services: groupedServices,
+            });
+            seenSubcategories.add(subcategoryId);
+          });
+
+          groupedBySubcategory.forEach((groupedServices, subcategoryId) => {
+            if (groupedServices.length === 0 || seenSubcategories.has(subcategoryId)) {
+              return;
+            }
+            subcategories.push({
+              id: subcategoryId,
+              name: 'Other',
+              services: groupedServices,
+            });
+          });
+
+          return {
+            id: category.id,
+            name: category.name.toUpperCase(),
+            icon: ICON_BY_NAME[category.icon_name ?? ''] ?? Search,
+            services,
+            subcategories,
+          };
+        })
+        .filter((category) => category.services.length > 0);
+
       setCategoriesWithServices(categories);
+      setError(null);
 
       // Initialize visible services count for each category
       const initialVisible: Record<string, number> = {};
       categories.forEach((cat) => {
-        initialVisible[cat.slug] = INITIAL_SERVICES_COUNT;
+        initialVisible[cat.id] = INITIAL_SERVICES_COUNT;
       });
       setVisibleServices(initialVisible);
 
-      logger.info('Loaded all services with instructor data', {
-        categoriesCount: categories.length,
-        totalServices: servicesData.metadata.total_services,
-        cached: servicesData.metadata.cached_for_seconds,
-      });
+        logger.info('Loaded all services with instructor data', {
+          categoriesCount: categories.length,
+          totalServices: servicesData.metadata.total_services,
+          cached: servicesData.metadata.cached_for_seconds,
+          audience: activeAudience,
+        });
 
       setLoading(false);
     }
-  }, [servicesData, queryError]);
+  }, [activeAudience, queryError, servicesData, subcategoryNameByCategory]);
 
-  // Derive display categories with kids services injected at render-time to avoid race conditions
   const displayCategories = useMemo(() => {
-    const clone = categoriesWithServices.map((c) => ({ ...c, services: [...c.services] }));
-    const kidsCat = clone.find((c) => c.slug === 'kids');
-    if (kidsCat && kidsServices.length) {
-      const existingIds = new Set(kidsCat.services.map((s) => s.id));
-      const injected = kidsServices
-        .filter((ks) => !existingIds.has(ks.id))
-        .map((ks): CategoryServiceDetail => ({
-          id: ks.id,
-          category_id: kidsCat.id,
-          name: ks.name,
-          slug: ks.slug,
-          active_instructors: 0,
-          demand_score: 0,
-          instructor_count: 0,
-          is_trending: false,
-          description: '',
-          search_terms: [],
-          display_order: 0,
-          online_capable: true,
-          requires_certification: false,
-          is_active: true,
-        }));
-      kidsCat.services = [...injected, ...kidsCat.services];
+    if (!selectedCategoryId) {
+      return categoriesWithServices;
     }
-    return clone;
-  }, [categoriesWithServices, kidsServices]);
+
+    const filtered = categoriesWithServices.filter((category) => category.id === selectedCategoryId);
+    return filtered.length > 0 ? filtered : categoriesWithServices;
+  }, [categoriesWithServices, selectedCategoryId]);
 
   // Set up intersection observer for progressive loading
   useEffect(() => {
-    if (loading || categoriesWithServices.length === 0) return;
+    if (loading || displayCategories.length === 0) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            const categorySlug = entry.target.getAttribute('data-category');
-            if (categorySlug) {
+            const categoryId = entry.target.getAttribute('data-category');
+            if (categoryId) {
               setVisibleServices((prev) => {
-                const currentCount = prev[categorySlug] || INITIAL_SERVICES_COUNT;
-                const category = categoriesWithServices.find((c) => c.slug === categorySlug);
+                const currentCount = prev[categoryId] || INITIAL_SERVICES_COUNT;
+                const category = displayCategories.find((c) => c.id === categoryId);
                 const totalServices = category?.services.length || 0;
 
                 if (currentCount < totalServices) {
                   return {
                     ...prev,
-                    [categorySlug]: Math.min(currentCount + LOAD_MORE_COUNT, totalServices),
+                    [categoryId]: Math.min(currentCount + LOAD_MORE_COUNT, totalServices),
                   };
                 }
                 return prev;
@@ -216,9 +268,9 @@ export default function AllServicesPage() {
     );
 
     // Observe load more triggers
-    Object.entries(categoryRefs.current).forEach(([slug, element]) => {
+    Object.entries(categoryRefs.current).forEach(([catId, element]) => {
       if (element) {
-        const loadMoreElement = element.querySelector(`[data-load-more="${slug}"]`);
+        const loadMoreElement = element.querySelector(`[data-load-more="${catId}"]`);
         if (loadMoreElement) {
           observer.observe(loadMoreElement);
         }
@@ -226,7 +278,7 @@ export default function AllServicesPage() {
     });
 
     return () => observer.disconnect();
-  }, [loading, categoriesWithServices]);
+  }, [loading, displayCategories]);
 
   if (loading) {
     return (
@@ -255,72 +307,105 @@ export default function AllServicesPage() {
 
   // Render services for a category
   const renderCategoryServices = (category: CategoryWithServices) => {
-    const visibleCount = visibleServices[category.slug] || INITIAL_SERVICES_COUNT;
-    const visibleServicesList = category.services.slice(0, visibleCount);
+    const visibleCount = visibleServices[category.id] || INITIAL_SERVICES_COUNT;
     const hasMore = category.services.length > visibleCount;
 
+    let remaining = visibleCount;
+    const visibleSubcategories = category.subcategories
+      .map((subcategory) => {
+        if (remaining <= 0) {
+          return {
+            ...subcategory,
+            visibleServices: [] as CategoryServiceDetail[],
+          };
+        }
+
+        const visibleServicesForSubcategory = subcategory.services.slice(0, remaining);
+        remaining = Math.max(remaining - visibleServicesForSubcategory.length, 0);
+
+        return {
+          ...subcategory,
+          visibleServices: visibleServicesForSubcategory,
+        };
+      })
+      .filter((subcategory) => subcategory.visibleServices.length > 0);
+
     return (
-      <div className="space-y-1">
-        {visibleServicesList.map((service) => {
-          const hasInstructors =
-            service.instructor_count !== undefined && service.instructor_count > 0;
-
-          if (!hasInstructors) {
-            return (
-              <div
-                key={service.id}
-                className="group block text-sm px-2 py-0.5 -mx-2 rounded cursor-not-allowed relative"
-              >
-                <span className="flex text-gray-400 dark:text-gray-600 opacity-60 dark:opacity-50">
-                  <span className="flex-shrink-0 mr-1">•</span>
-                  <span className="break-words">{service.name}</span>
-                </span>
-                {/* Tooltip on hover */}
-                <div
-                  className="absolute left-0 bottom-full mb-2 px-3 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
-                  style={{ whiteSpace: 'nowrap' }}
-                >
-                  No instructors available yet - check back soon!
-                  {/* Tooltip arrow */}
-                  <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-gray-900"></div>
-                </div>
-              </div>
-            );
-          }
-
-          return (
-            <Link
-              key={service.id}
-              href={`/search?service_catalog_id=${service.id}&service_name=${encodeURIComponent(service.name)}&from=services`}
-              onClick={async () => {
-                // Track navigation source as backup
-                if (typeof window !== 'undefined') {
-                  sessionStorage.setItem('navigationFrom', '/services');
-                  logger.debug('Set navigation source from services page', {
-                    navigationFrom: '/services',
-                    serviceId: service.id,
-                  });
+      <div className="space-y-3">
+        {visibleSubcategories.map((subcategory) => (
+          <div key={subcategory.id} className="space-y-1">
+            <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              {subcategory.name}
+            </h4>
+            <div className="space-y-1">
+              {subcategory.visibleServices.map((service) => {
+                if (!hasActiveInstructors(service)) {
+                  return (
+                    <div
+                      key={service.id}
+                      className="group block text-sm px-2 py-0.5 -mx-2 rounded cursor-not-allowed relative"
+                    >
+                      <span className="flex text-gray-400 dark:text-gray-600 opacity-60 dark:opacity-50">
+                        <span className="flex-shrink-0 mr-1">•</span>
+                        <span className="break-words">{service.name}</span>
+                      </span>
+                      {/* Tooltip on hover */}
+                      <div
+                        className="absolute left-0 bottom-full mb-2 px-3 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50"
+                        style={{ whiteSpace: 'nowrap' }}
+                      >
+                        No instructors available yet - check back soon!
+                        {/* Tooltip arrow */}
+                        <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  );
                 }
 
-                // Don't record here - let the search page handle it with correct counts
-              }}
-              className="group block text-sm text-gray-700 dark:text-gray-300 hover:bg-[#FFD700] hover:!text-gray-900 px-2 py-0.5 -mx-2 rounded transition-all duration-200 cursor-pointer"
-            >
-              <span className="flex">
-                <span className="flex-shrink-0 mr-1">•</span>
-                <span className="break-words">{service.name}</span>
-              </span>
-            </Link>
-          );
-        })}
+                const searchParams = new URLSearchParams({
+                  service_catalog_id: service.id,
+                  service_name: service.name,
+                  audience: activeAudience,
+                  from: 'services',
+                });
+                if (service.subcategory_id) {
+                  searchParams.set('subcategory_id', service.subcategory_id);
+                }
+
+                return (
+                  <Link
+                    key={service.id}
+                    href={`/search?${searchParams.toString()}`}
+                    onClick={async () => {
+                      if (typeof window !== 'undefined') {
+                        sessionStorage.setItem('navigationFrom', '/services');
+                        logger.debug('Set navigation source from services page', {
+                          navigationFrom: '/services',
+                          serviceId: service.id,
+                          audience: activeAudience,
+                        });
+                      }
+                    }}
+                    className="group block text-sm text-gray-700 dark:text-gray-300 hover:bg-[#FFD700] hover:!text-gray-900 px-2 py-0.5 -mx-2 rounded transition-all duration-200 cursor-pointer"
+                  >
+                    <span className="flex">
+                      <span className="flex-shrink-0 mr-1">•</span>
+                      <span className="break-words">{service.name}</span>
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
         {hasMore && (
-          <div data-load-more={category.slug} data-category={category.slug} className="h-4" />
+          <div data-load-more={category.id} data-category={category.id} className="h-4" />
         )}
       </div>
     );
   };
 
-  // (No separate Kids column; we render kidsServices inside the existing Kids category below)
+  // Categories are rendered as columns with their services
 
   return (
     <>
@@ -356,9 +441,9 @@ export default function AllServicesPage() {
           <div className="services-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7 gap-4 items-start">
             {displayCategories.map((category) => (
               <div
-                key={category.slug}
+                key={category.id}
                 ref={(el) => {
-                  if (el) categoryRefs.current[category.slug] = el;
+                  if (el) categoryRefs.current[category.id] = el;
                 }}
                 className="flex flex-col min-h-0"
               >
@@ -369,18 +454,6 @@ export default function AllServicesPage() {
                       {React.createElement(category.icon, { className: "h-5 w-5 flex-shrink-0" })}
                       <span className="whitespace-nowrap">{category.name}</span>
                     </h3>
-                    <div className="mt-1" style={{ minHeight: '32px' }}>
-                      {category.subtitle ? (
-                        <p
-                          className="text-xs text-gray-500 dark:text-gray-400 break-words"
-                          style={{ lineHeight: '1.2', wordBreak: 'break-word' }}
-                        >
-                          {category.subtitle}
-                        </p>
-                      ) : (
-                        <div style={{ height: '32px' }} />
-                      )}
-                    </div>
                   </div>
                 </div>
 

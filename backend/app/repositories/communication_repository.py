@@ -15,6 +15,7 @@ from app.models.instructor import InstructorProfile
 from app.models.notification import PushSubscription
 from app.models.rbac import Role, UserRole
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 
 
@@ -82,7 +83,6 @@ class CommunicationRepository:
             return []
         conditions = [
             ServiceCategory.id.in_(values),
-            ServiceCategory.slug.in_(values),
             *[ServiceCategory.name.ilike(f"%{value}%") for value in values],
         ]
         rows = self.db.query(ServiceCategory.id).filter(or_(*conditions)).all()
@@ -111,7 +111,8 @@ class CommunicationRepository:
                 InstructorService, InstructorService.instructor_profile_id == InstructorProfile.id
             )
             .join(ServiceCatalog, ServiceCatalog.id == InstructorService.service_catalog_id)
-            .filter(ServiceCatalog.category_id.in_(list(category_ids)))
+            .join(ServiceSubcategory, ServiceSubcategory.id == ServiceCatalog.subcategory_id)
+            .filter(ServiceSubcategory.category_id.in_(list(category_ids)))
             .distinct()
             .all()
         )
@@ -124,7 +125,8 @@ class CommunicationRepository:
             self.db.query(Booking.student_id)
             .join(InstructorService, InstructorService.id == Booking.instructor_service_id)
             .join(ServiceCatalog, ServiceCatalog.id == InstructorService.service_catalog_id)
-            .filter(ServiceCatalog.category_id.in_(list(category_ids)))
+            .join(ServiceSubcategory, ServiceSubcategory.id == ServiceCatalog.subcategory_id)
+            .filter(ServiceSubcategory.category_id.in_(list(category_ids)))
             .distinct()
             .all()
         )

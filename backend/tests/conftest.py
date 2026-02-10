@@ -10,6 +10,11 @@ UPDATED FOR WORK STREAM #10: Bitmap-only availability design.
 All fixtures now create availability using AvailabilityDayRepository and bitmap windows.
 """
 
+# Register shared fixtures from tests/fixtures/
+pytest_plugins = [
+    "tests.fixtures.taxonomy_fixtures",
+]
+
 # Fallback in case this file is run in isolation or a different rootdir is inferred
 try:
     import backend  # noqa: F401
@@ -265,6 +270,7 @@ from app.models.service_catalog import (
     ServiceCatalog,
     ServiceCategory,
 )
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.models.webhook_event import WebhookEvent  # noqa: F401
 from app.repositories.availability_day_repository import AvailabilityDayRepository
@@ -1011,32 +1017,46 @@ def _ensure_rbac_roles():
 
 
 def _ensure_catalog_data():
-    """Ensure catalog data is seeded for tests."""
-    # Import here to avoid circular imports
-    from scripts.seed_catalog_only import seed_catalog
+    """Ensure catalog data is seeded for tests (3-level taxonomy)."""
+    # Import via importlib since scripts/seed_data/ has no __init__.py
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "seed_taxonomy",
+        os.path.join(backend_dir, "scripts", "seed_data", "seed_taxonomy.py"),
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    seed_taxonomy = mod.seed_taxonomy
 
     # Create a separate session to check
     session = TestSessionLocal()
     try:
-        # Check if catalog already exists
+        # Check if the 3-level taxonomy is already present
         existing_categories = session.query(ServiceCategory).count()
         existing_services = session.query(ServiceCatalog).count()
-        required_category_slugs = {"music", "sports-fitness"}
+        required_category_names = {
+            "Music",
+            "Sports & Fitness",
+            "Tutoring & Test Prep",
+            "Languages",
+        }
         required_service_slugs = {"piano", "guitar", "yoga"}
-        category_slugs = {row[0] for row in session.query(ServiceCategory.slug).all()}
+        category_names = {row[0] for row in session.query(ServiceCategory.name).all()}
         service_slugs = {row[0] for row in session.query(ServiceCatalog.slug).all()}
         missing_required = (
-            not required_category_slugs.issubset(category_slugs)
+            not required_category_names.issubset(category_names)
             or not required_service_slugs.issubset(service_slugs)
         )
 
         if existing_categories == 0 or existing_services == 0 or missing_required:
-            print("\n🌱 Seeding catalog data for tests...")
-            # Close session before seeding (seed_catalog creates its own)
+            print("\n🌱 Seeding taxonomy data for tests...")
+            # Close session before seeding (seed_taxonomy creates its own)
             session.close()
 
-            # Seed using the test database URL
-            seed_catalog(db_url=TEST_DATABASE_URL, verbose=False)
+            # Seed using the taxonomy seeder (DELETE-then-INSERT, idempotent)
+            seed_taxonomy(db_url=TEST_DATABASE_URL, verbose=False)
 
             # Verify seeding worked
             session = TestSessionLocal()
@@ -1047,12 +1067,12 @@ def _ensure_catalog_data():
             piano = session.query(ServiceCatalog).filter_by(slug="piano").first()
             guitar = session.query(ServiceCatalog).filter_by(slug="guitar").first()
             yoga = session.query(ServiceCatalog).filter_by(slug="yoga").first()
-            music = session.query(ServiceCategory).filter_by(slug="music").first()
-            sports = session.query(ServiceCategory).filter_by(slug="sports-fitness").first()
+            music = session.query(ServiceCategory).filter_by(name="Music").first()
+            sports = session.query(ServiceCategory).filter_by(name="Sports & Fitness").first()
 
             if not piano or not guitar or not yoga or not music or not sports:
                 raise RuntimeError(
-                    "Critical catalog entries (music, sports-fitness, piano, guitar, yoga) "
+                    "Critical catalog entries (Music, Sports & Fitness, piano, guitar, yoga) "
                     "not found after seeding"
                 )
 
@@ -2061,25 +2081,22 @@ def notification_service_with_mocked_email(db: Session, template_service, email_
 
 @pytest.fixture
 def sample_categories(db: Session) -> list[ServiceCategory]:
-    """Create sample service categories for testing."""
+    """Create sample service categories for testing (3-level taxonomy)."""
     categories = [
         ServiceCategory(
             name="Music",
-            slug="music",
             subtitle="Instrument Voice Theory",
             description="Musical instruction",
             display_order=1,
         ),
         ServiceCategory(
             name="Sports & Fitness",
-            slug="sports-fitness",
             subtitle="",
             description="Physical fitness and sports",
             display_order=2,
         ),
         ServiceCategory(
-            name="Language",
-            slug="language",
+            name="Languages",
             subtitle="Learn new languages",
             description="Language instruction",
             display_order=3,
@@ -2089,7 +2106,7 @@ def sample_categories(db: Session) -> list[ServiceCategory]:
     persisted: list[ServiceCategory] = []
     for category in categories:
         existing = (
-            db.query(ServiceCategory).filter(ServiceCategory.slug == category.slug).first()
+            db.query(ServiceCategory).filter(ServiceCategory.name == category.name).first()
         )
         if existing:
             persisted.append(existing)
@@ -2102,12 +2119,75 @@ def sample_categories(db: Session) -> list[ServiceCategory]:
 
 
 @pytest.fixture
-def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory]) -> list[ServiceCatalog]:
-    """Create sample catalog services for testing."""
-    services = [
-        # Music services
-        ServiceCatalog(
+def sample_subcategories(
+    db: Session, sample_categories: list[ServiceCategory]
+) -> list[ServiceSubcategory]:
+    """Create sample subcategories for the 3-level taxonomy."""
+    subcategories = [
+        # Music subcategories
+        ServiceSubcategory(
             category_id=sample_categories[0].id,
+            name="Piano",
+            display_order=1,
+        ),
+        ServiceSubcategory(
+            category_id=sample_categories[0].id,
+            name="Guitar",
+            display_order=2,
+        ),
+        ServiceSubcategory(
+            category_id=sample_categories[0].id,
+            name="Violin",
+            display_order=3,
+        ),
+        # Sports subcategories
+        ServiceSubcategory(
+            category_id=sample_categories[1].id,
+            name="Yoga & Pilates",
+            display_order=1,
+        ),
+        ServiceSubcategory(
+            category_id=sample_categories[1].id,
+            name="Personal Training",
+            display_order=2,
+        ),
+        # Language subcategories
+        ServiceSubcategory(
+            category_id=sample_categories[2].id,
+            name="Spanish",
+            display_order=1,
+        ),
+    ]
+
+    persisted: list[ServiceSubcategory] = []
+    for sub in subcategories:
+        existing = (
+            db.query(ServiceSubcategory)
+            .filter(
+                ServiceSubcategory.category_id == sub.category_id,
+                ServiceSubcategory.name == sub.name,
+            )
+            .first()
+        )
+        if existing:
+            persisted.append(existing)
+        else:
+            db.add(sub)
+            persisted.append(sub)
+
+    db.commit()
+    return persisted
+
+
+@pytest.fixture
+def sample_catalog_services(
+    db: Session, sample_subcategories: list[ServiceSubcategory]
+) -> list[ServiceCatalog]:
+    """Create sample catalog services for testing (3-level taxonomy)."""
+    services = [
+        # Music services (under Piano, Guitar, Violin subcategories)
+        ServiceCatalog(
+            subcategory_id=sample_subcategories[0].id,  # Piano
             name="Piano Lessons",
             slug="piano-lessons",
             description="Learn piano",
@@ -2118,7 +2198,7 @@ def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory
             is_active=True,
         ),
         ServiceCatalog(
-            category_id=sample_categories[0].id,
+            subcategory_id=sample_subcategories[1].id,  # Guitar
             name="Guitar Lessons",
             slug="guitar-lessons",
             description="Learn guitar",
@@ -2129,7 +2209,7 @@ def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory
             is_active=True,
         ),
         ServiceCatalog(
-            category_id=sample_categories[0].id,
+            subcategory_id=sample_subcategories[2].id,  # Violin
             name="Violin Lessons",
             slug="violin-lessons",
             description="Learn violin",
@@ -2141,7 +2221,7 @@ def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory
         ),
         # Sports & Fitness services
         ServiceCatalog(
-            category_id=sample_categories[1].id,
+            subcategory_id=sample_subcategories[3].id,  # Yoga & Pilates
             name="Yoga",
             slug="yoga",
             description="Yoga instruction",
@@ -2152,7 +2232,7 @@ def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory
             is_active=True,
         ),
         ServiceCatalog(
-            category_id=sample_categories[1].id,
+            subcategory_id=sample_subcategories[4].id,  # Personal Training
             name="Personal Training",
             slug="personal-training",
             description="One-on-one fitness training",
@@ -2164,7 +2244,7 @@ def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory
         ),
         # Language services
         ServiceCatalog(
-            category_id=sample_categories[2].id,
+            subcategory_id=sample_subcategories[5].id,  # Spanish
             name="Spanish",
             slug="spanish",
             description="Learn Spanish",

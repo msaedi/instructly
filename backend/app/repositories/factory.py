@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from .booking_note_repository import BookingNoteRepository
     from .booking_repository import BookingRepository
     from .bulk_operation_repository import BulkOperationRepository
+    from .category_repository import CategoryRepository
     from .communication_repository import CommunicationRepository
     from .conflict_checker_repository import ConflictCheckerRepository
     from .conversation_repository import ConversationRepository
@@ -53,6 +54,8 @@ if TYPE_CHECKING:
     from .search_event_repository import SearchEventRepository
     from .search_history_repository import SearchHistoryRepository
     from .service_catalog_repository import ServiceAnalyticsRepository, ServiceCatalogRepository
+    from .subcategory_repository import SubcategoryRepository
+    from .taxonomy_filter_repository import TaxonomyFilterRepository
 
     # SlotManagerRepository removed - bitmap-only storage now
     from .user_repository import UserRepository
@@ -388,3 +391,24 @@ class RepositoryFactory:
         from .review_repository import ReviewTipRepository
 
         return ReviewTipRepository(db)
+
+    @staticmethod
+    def create_taxonomy_filter_repository(db: Session) -> "TaxonomyFilterRepository":
+        """Create repository for taxonomy filter operations."""
+        from .taxonomy_filter_repository import TaxonomyFilterRepository
+
+        return TaxonomyFilterRepository(db)
+
+    @staticmethod
+    def create_category_repository(db: Session) -> "CategoryRepository":
+        """Create repository for service category operations."""
+        from .category_repository import CategoryRepository
+
+        return CategoryRepository(db)
+
+    @staticmethod
+    def create_subcategory_repository(db: Session) -> "SubcategoryRepository":
+        """Create repository for service subcategory operations."""
+        from .subcategory_repository import SubcategoryRepository
+
+        return SubcategoryRepository(db)

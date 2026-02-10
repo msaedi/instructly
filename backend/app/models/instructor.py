@@ -84,6 +84,7 @@ class InstructorProfile(Base):
     # Profile information
     bio = Column(Text, nullable=True)
     years_experience = Column(Integer, nullable=True)
+    slug = Column(String(200), nullable=True)
 
     # Booking preferences
     min_advance_booking_hours = Column(Integer, nullable=False, default=2)
@@ -302,21 +303,7 @@ class InstructorProfile(Base):
                 categories.add(service.catalog_entry.category.name)
         return categories
 
-    @property
-    def offered_category_slugs(self) -> Set[str]:
-        """
-        Get unique category slugs offered by this instructor.
-
-        Returns:
-            Set of category slugs
-        """
-        slugs = set()
-        for service in self.active_services:
-            if service.catalog_entry and service.catalog_entry.category:
-                slugs.add(service.catalog_entry.category.slug)
-        return slugs
-
-    def offers_service(self, service_catalog_id: int) -> bool:
+    def offers_service(self, service_catalog_id: str) -> bool:
         """
         Check if instructor offers a specific catalog service.
 
@@ -329,7 +316,7 @@ class InstructorProfile(Base):
         services = cast("list[InstructorService]", self.instructor_services)
         return any(s.service_catalog_id == service_catalog_id and s.is_active for s in services)
 
-    def get_service_by_catalog_id(self, service_catalog_id: int) -> Optional["InstructorService"]:
+    def get_service_by_catalog_id(self, service_catalog_id: str) -> Optional["InstructorService"]:
         """
         Get instructor's service by catalog ID.
 

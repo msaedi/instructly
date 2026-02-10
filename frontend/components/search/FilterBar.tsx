@@ -9,17 +9,32 @@ import { PriceFilter } from './filters/PriceFilter';
 import { LocationFilter } from './filters/LocationFilter';
 import { MoreFiltersButton } from './filters/MoreFiltersButton';
 import { MoreFiltersModal } from './filters/MoreFiltersModal';
-import type { FilterState } from './filterTypes';
+import {
+  type ContentFilterSelections,
+  type FilterState,
+  type SkillLevelOption,
+  type TaxonomyContentFilterDefinition,
+} from './filterTypes';
 
 interface FilterBarProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   rightSlot?: ReactNode;
+  skillLevelOptions?: SkillLevelOption[];
+  taxonomyContentFilters?: TaxonomyContentFilterDefinition[];
+  suggestedContentFilters?: ContentFilterSelections;
 }
 
 type DropdownKey = 'date' | 'time' | 'price' | 'location';
 
-export function FilterBar({ filters, onFiltersChange, rightSlot }: FilterBarProps) {
+export function FilterBar({
+  filters,
+  onFiltersChange,
+  rightSlot,
+  skillLevelOptions,
+  taxonomyContentFilters,
+  suggestedContentFilters,
+}: FilterBarProps) {
   const [openDropdown, setOpenDropdown] = useState<DropdownKey | null>(null);
   const [isMoreFiltersOpen, setIsMoreFiltersOpen] = useState(false);
   const isClient = useSyncExternalStore(
@@ -109,6 +124,9 @@ export function FilterBar({ filters, onFiltersChange, rightSlot }: FilterBarProp
               onClose={closeMoreFilters}
               filters={filters}
               onFiltersChange={onFiltersChange}
+              {...(skillLevelOptions ? { skillLevelOptions } : {})}
+              {...(taxonomyContentFilters ? { taxonomyContentFilters } : {})}
+              {...(suggestedContentFilters ? { suggestedContentFilters } : {})}
             />,
             document.body
           )

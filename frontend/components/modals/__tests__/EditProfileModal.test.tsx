@@ -2095,7 +2095,7 @@ describe('EditProfileModal', () => {
         ...defaultProps,
         variant: 'services' as const,
         selectedServices: [
-          { id: 'svc-1', category_id: 'cat-1', name: 'Piano Lessons', category_slug: 'music', category_name: 'Music' },
+          { id: 'svc-1', subcategory_id: '01HABCTESTSUBCAT0000000001', name: 'Piano Lessons', slug: 'piano-lessons', category_name: 'Music' },
         ],
       };
 
@@ -2384,10 +2384,10 @@ describe('EditProfileModal', () => {
           {
             id: 'svc-1',
             catalog_service_id: 'cat-svc-1',
-            category_id: 'cat-1',
+            subcategory_id: '01HABCTESTSUBCAT0000000001',
             name: 'Piano Lessons',
             hourly_rate: '10', // Low rate that might violate floor
-            category_slug: 'music',
+            slug: 'piano-lessons',
             category_name: 'Music',
             ageGroup: 'both' as const,
             description: '',

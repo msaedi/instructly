@@ -22,6 +22,7 @@ from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
 
@@ -123,24 +124,20 @@ def test_service(db, test_instructor):
     # Get or create catalog service
     catalog_service = db.query(ServiceCatalog).first()
     if not catalog_service:
-        category_ulid = generate_ulid()
-        category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
+        category = ServiceCategory(name="Test Category")
         db.add(category)
         db.flush()
-        # RBAC: Assign role
-        from app.services.permission_service import PermissionService
 
-        permission_service = PermissionService(db)
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
+        db.flush()
+
         service_ulid = generate_ulid()
         catalog_service = ServiceCatalog(
-            name="Test Service", slug=f"test-service-{service_ulid.lower()}", category_id=category.id
+            name="Test Service", slug=f"test-service-{service_ulid.lower()}", subcategory_id=subcategory.id
         )
         db.add(catalog_service)
         db.flush()
-        # RBAC: Assign role
-        from app.services.permission_service import PermissionService
-
-        permission_service = PermissionService(db)
 
     # Check if service already exists for this instructor and catalog
     existing_service = (

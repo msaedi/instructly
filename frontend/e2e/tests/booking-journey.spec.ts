@@ -225,13 +225,13 @@ test.describe('Student Booking Journey', () => {
     await context.route('**/api/v1/public/instructors/*', async (route) => {
       const url = route.request().url();
       if (!url.includes('availability')) {
-        const id = url.match(/instructors\/(\d+)/)?.[1] || '1';
+        const id = url.match(/instructors\/([^/?]+)/)?.[1] || '01HF4G12ABCDEF3456789XYZAB';
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            id: parseInt(id),
-            user_id: parseInt(id),
+            id,
+            user_id: id,
             first_name: 'Test',
             last_initial: 'I',
             hourly_rate: 100,

@@ -27,6 +27,7 @@ from app.core.exceptions import ServiceException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.schemas.payment_schemas import CheckoutResponse
 
@@ -482,18 +483,26 @@ class TestPaymentRoutes:
 
         # Create a minimal instructor service for the booking
 
-        # Create category and service if needed
-        unique_id = str(ulid.ULID())[:8]  # Use part of ULID for uniqueness
+        # Create category, subcategory and service if needed
         category = ServiceCategory(
-            id=str(ulid.ULID()), name="Test Category", slug=f"test-category-{unique_id}", description="Test"
+            id=str(ulid.ULID()), name="Test Category", description="Test"
         )
         db.add(category)
+        db.flush()
+
+        subcategory = ServiceSubcategory(
+            name="General",
+            category_id=category.id,
+            display_order=1,
+        )
+        db.add(subcategory)
+        db.flush()
 
         service = ServiceCatalog(
             id=str(ulid.ULID()),
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             name="Test Service",
-            slug=f"test-service-{unique_id}",
+            slug=f"test-service-{str(ulid.ULID())[:8]}",
             description="Test",
         )
         db.add(service)

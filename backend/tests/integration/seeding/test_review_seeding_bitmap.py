@@ -12,6 +12,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.rbac import Role, UserRole as UserRoleJunction
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.utils.bitset import bits_from_windows
 
@@ -41,13 +42,16 @@ def test_backfill_and_review_booking_creation(db: Session):
     instructor = _create_user(db, "instr-1", "instructor@example.com", is_instructor=True)
     student = _create_user(db, "stud-1", "student@example.com", is_instructor=False)
 
-    category_slug = f"music-{uuid4().hex[:8]}"
-    category = ServiceCategory(name="Music", slug=category_slug)
+    category = ServiceCategory(name="Music")
     db.add(category)
     db.flush()
 
+    subcategory = ServiceSubcategory(name="Piano", category_id=category.id, display_order=1)
+    db.add(subcategory)
+    db.flush()
+
     catalog_entry = ServiceCatalog(
-        category_id=category.id,
+        subcategory_id=subcategory.id,
         name="Piano Lessons",
         slug=f"piano-lessons-{uuid4().hex[:8]}",
         description="One-on-one piano instruction",

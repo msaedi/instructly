@@ -21,6 +21,7 @@ from app.core.exceptions import ServiceException
 from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.schemas.payment_schemas import CreateCheckoutRequest
 from app.services.cache_service import CacheService, CacheServiceSyncAdapter
@@ -120,15 +121,20 @@ class TestStripeService:
 
         # Create service category and catalog item if they don't exist
         category_ulid = str(ulid.ULID())
-        category = db.query(ServiceCategory).filter_by(slug=f"test-category-{category_ulid.lower()}").first()
+        category = db.query(ServiceCategory).first()
         if not category:
             category = ServiceCategory(
                 id=category_ulid,
                 name="Test Category",
-                slug=f"test-category-{category_ulid.lower()}",
                 description="Test category for unit tests",
             )
             db.add(category)
+            db.flush()
+
+        subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+        if not subcategory:
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            db.add(subcategory)
             db.flush()
 
         service_ulid = str(ulid.ULID())
@@ -136,7 +142,7 @@ class TestStripeService:
         if not catalog:
             catalog = ServiceCatalog(
                 id=service_ulid,
-                category_id=category.id,
+                subcategory_id=subcategory.id,
                 name="Test Service",
                 slug=f"test-service-{service_ulid.lower()}",
                 description="Test service for unit tests",

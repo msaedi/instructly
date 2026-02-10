@@ -21,6 +21,7 @@ from app.core.exceptions import ServiceException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.services.booking_service import BookingService
 from app.services.cache_service import CacheService
@@ -103,20 +104,27 @@ class TestPaymentIntegration:
         db.add(profile)
         db.flush()
 
-        # Create service category and catalog entry directly (setup)
+        # Create service category, subcategory, and catalog entry directly (setup)
         unique_suffix = str(ulid.ULID())  # Use full ULID for uniqueness
         category = ServiceCategory(
             id=str(ulid.ULID()),
             name="Music Lessons",
-            slug=f"music-lessons-{unique_suffix}",
             description="Music instruction",
         )
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(
+            name="General",
+            category_id=category.id,
+            display_order=1,
+        )
+        db.add(subcategory)
+        db.flush()
+
         service = ServiceCatalog(
             id=str(ulid.ULID()),
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             name="Piano Lessons",
             slug=f"piano-lessons-{unique_suffix}",
             description="One-on-one piano instruction",
@@ -777,20 +785,27 @@ class TestPaymentAnalytics:
         db.add(profile)
         db.flush()
 
-        # Create service category and catalog entry directly (setup)
+        # Create service category, subcategory, and catalog entry directly (setup)
         unique_suffix = str(ulid.ULID())  # Use full ULID for uniqueness
         category = ServiceCategory(
             id=str(ulid.ULID()),
             name="Music Lessons",
-            slug=f"music-lessons-{unique_suffix}",
             description="Music instruction",
         )
         db.add(category)
         db.flush()
 
+        subcategory = ServiceSubcategory(
+            name="General",
+            category_id=category.id,
+            display_order=1,
+        )
+        db.add(subcategory)
+        db.flush()
+
         service = ServiceCatalog(
             id=str(ulid.ULID()),
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             name="Piano Lessons",
             slug=f"piano-lessons-{unique_suffix}",
             description="One-on-one piano instruction",

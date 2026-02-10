@@ -1,25 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
-import type { FilterState } from '../filterTypes';
+import {
+  type ContentFilterSelections,
+  type TaxonomyContentFilterDefinition,
+  UNIVERSAL_SKILL_LEVEL_OPTIONS,
+  type FilterState,
+  type SkillLevelOption,
+} from '../filterTypes';
+import { logger } from '@/lib/logger';
 
 const DURATION_OPTIONS = [
   { value: 30, label: '30 min' },
   { value: 45, label: '45 min' },
   { value: 60, label: '60 min' },
-] as const;
-
-const LEVEL_OPTIONS = [
-  { value: 'beginner', label: 'Beginner' },
-  { value: 'intermediate', label: 'Intermediate' },
-  { value: 'advanced', label: 'Advanced' },
-] as const;
-
-const AUDIENCE_OPTIONS = [
-  { value: 'adults', label: 'Adults' },
-  { value: 'kids', label: 'Kids (under 18)' },
 ] as const;
 
 const RATING_OPTIONS = [
@@ -28,25 +24,114 @@ const RATING_OPTIONS = [
   { value: '4.5', label: '4.5+ stars' },
 ] as const;
 
+const EMPTY_TAXONOMY_CONTENT_FILTERS: TaxonomyContentFilterDefinition[] = [];
+const EMPTY_SUGGESTED_CONTENT_FILTERS: ContentFilterSelections = {};
+
+function FilterChipGroup<T extends string | number>({
+  label,
+  options,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  options: readonly { value: T; label: string }[];
+  selected: readonly T[];
+  onToggle: (value: T) => void;
+}) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">{label}</h3>
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => (
+          <label
+            key={String(option.value)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
+              selected.includes(option.value)
+                ? 'bg-purple-100 border-purple-300 text-purple-700'
+                : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={selected.includes(option.value)}
+              onChange={() => onToggle(option.value)}
+              className="sr-only"
+            />
+            <span className="text-sm">{option.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface MoreFiltersModalProps {
   isOpen: boolean;
   onClose: () => void;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
+  skillLevelOptions?: SkillLevelOption[];
+  taxonomyContentFilters?: TaxonomyContentFilterDefinition[];
+  suggestedContentFilters?: ContentFilterSelections;
 }
 
-export function MoreFiltersModal({
-  isOpen,
+interface MoreFiltersModalContentProps {
+  onClose: () => void;
+  filters: FilterState;
+  onFiltersChange: (filters: FilterState) => void;
+  skillLevelOptions: SkillLevelOption[];
+  taxonomyContentFilters: TaxonomyContentFilterDefinition[];
+  suggestedContentFilters: ContentFilterSelections;
+}
+
+function buildInitialDraft(
+  filters: FilterState,
+  taxonomyContentFilters: TaxonomyContentFilterDefinition[],
+  suggestedContentFilters: ContentFilterSelections
+) {
+  const mergedContentFilters: ContentFilterSelections = { ...filters.contentFilters };
+  for (const filterDefinition of taxonomyContentFilters) {
+    if ((mergedContentFilters[filterDefinition.key] ?? []).length > 0) {
+      continue;
+    }
+
+    const suggestedValues = suggestedContentFilters[filterDefinition.key] ?? [];
+    if (!suggestedValues.length) continue;
+
+    const allowedValues = new Set(filterDefinition.options.map((option) => option.value));
+    const nextValues = suggestedValues.filter((value) => allowedValues.has(value));
+    if (nextValues.length > 0) {
+      mergedContentFilters[filterDefinition.key] = nextValues;
+    }
+  }
+
+  return {
+    duration: filters.duration,
+    skillLevel: filters.skillLevel,
+    contentFilters: mergedContentFilters,
+    minRating: filters.minRating,
+  };
+}
+
+function MoreFiltersModalContent({
   onClose,
   filters,
   onFiltersChange,
-}: MoreFiltersModalProps) {
-  const [draft, setDraft] = useState({
-    duration: filters.duration,
-    level: filters.level,
-    audience: filters.audience,
-    minRating: filters.minRating,
-  });
+  skillLevelOptions,
+  taxonomyContentFilters,
+  suggestedContentFilters,
+}: MoreFiltersModalContentProps) {
+  const [draft, setDraft] = useState(() =>
+    buildInitialDraft(filters, taxonomyContentFilters, suggestedContentFilters)
+  );
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+    logger.debug('[search:taxonomy] MoreFiltersModal taxonomy props', {
+      taxonomyContentFilterCount: taxonomyContentFilters.length,
+      taxonomyContentFilterKeys: taxonomyContentFilters.map((filter) => filter.key),
+    });
+  }, [taxonomyContentFilters]);
 
   const toggleArrayValue = <T,>(list: T[], value: T): T[] =>
     list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
@@ -62,8 +147,8 @@ export function MoreFiltersModal({
   const handleClear = () => {
     const cleared = {
       duration: [] as FilterState['duration'],
-      level: [] as FilterState['level'],
-      audience: [] as FilterState['audience'],
+      skillLevel: [] as FilterState['skillLevel'],
+      contentFilters: {} as FilterState['contentFilters'],
       minRating: 'any' as const,
     };
     setDraft(cleared);
@@ -73,8 +158,6 @@ export function MoreFiltersModal({
     });
     onClose();
   };
-
-  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center">
@@ -99,92 +182,80 @@ export function MoreFiltersModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Duration</h3>
-            <div className="flex flex-wrap gap-2">
-              {DURATION_OPTIONS.map((option) => (
-                <label
-                  key={option.value}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
-                    draft.duration.includes(option.value)
-                      ? 'bg-purple-100 border-purple-300 text-purple-700'
-                      : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={draft.duration.includes(option.value)}
-                    onChange={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        duration: toggleArrayValue(current.duration, option.value),
-                      }))
-                    }
-                    className="sr-only"
-                  />
-                  <span className="text-sm">{option.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+          <FilterChipGroup
+            label="Duration"
+            options={DURATION_OPTIONS}
+            selected={draft.duration}
+            onToggle={(value) =>
+              setDraft((current) => ({
+                ...current,
+                duration: toggleArrayValue(current.duration, value),
+              }))
+            }
+          />
 
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Level</h3>
-            <div className="flex flex-wrap gap-2">
-              {LEVEL_OPTIONS.map((option) => (
-                <label
-                  key={option.value}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
-                    draft.level.includes(option.value)
-                      ? 'bg-purple-100 border-purple-300 text-purple-700'
-                      : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={draft.level.includes(option.value)}
-                    onChange={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        level: toggleArrayValue(current.level, option.value),
-                      }))
-                    }
-                    className="sr-only"
-                  />
-                  <span className="text-sm">{option.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+          <FilterChipGroup
+            label="Skill Level"
+            options={skillLevelOptions}
+            selected={draft.skillLevel}
+            onToggle={(value) =>
+              setDraft((current) => ({
+                ...current,
+                skillLevel: toggleArrayValue(current.skillLevel, value),
+              }))
+            }
+          />
 
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Audience</h3>
-            <div className="flex flex-wrap gap-2">
-              {AUDIENCE_OPTIONS.map((option) => (
-                <label
-                  key={option.value}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
-                    draft.audience.includes(option.value)
-                      ? 'bg-purple-100 border-purple-300 text-purple-700'
-                      : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={draft.audience.includes(option.value)}
-                    onChange={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        audience: toggleArrayValue(current.audience, option.value),
-                      }))
-                    }
-                    className="sr-only"
-                  />
-                  <span className="text-sm">{option.label}</span>
-                </label>
-              ))}
+          {taxonomyContentFilters.map((filterDefinition) => (
+            <div key={filterDefinition.key}>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                {filterDefinition.label}
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {filterDefinition.options.map((option) => {
+                  const selectedValues = draft.contentFilters[filterDefinition.key] ?? [];
+                  const isSelected = selectedValues.includes(option.value);
+
+                  return (
+                    <label
+                      key={option.value}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border ${
+                        isSelected
+                          ? 'bg-purple-100 border-purple-300 text-purple-700'
+                          : 'bg-white border-gray-100 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() =>
+                          setDraft((current) => {
+                            const nextValues = toggleArrayValue(
+                              current.contentFilters[filterDefinition.key] ?? [],
+                              option.value
+                            );
+                            const nextContentFilters = { ...current.contentFilters };
+                            if (nextValues.length > 0) {
+                              nextContentFilters[filterDefinition.key] = nextValues;
+                            } else {
+                              delete nextContentFilters[filterDefinition.key];
+                            }
+
+                            return {
+                              ...current,
+                              contentFilters: nextContentFilters,
+                            };
+                          })
+                        }
+                        className="sr-only"
+                      />
+                      <span className="text-sm">{option.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          ))}
 
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Min Rating</h3>
@@ -235,5 +306,28 @@ export function MoreFiltersModal({
         </div>
       </div>
     </div>
+  );
+}
+
+export function MoreFiltersModal({
+  isOpen,
+  onClose,
+  filters,
+  onFiltersChange,
+  skillLevelOptions = UNIVERSAL_SKILL_LEVEL_OPTIONS,
+  taxonomyContentFilters = EMPTY_TAXONOMY_CONTENT_FILTERS,
+  suggestedContentFilters = EMPTY_SUGGESTED_CONTENT_FILTERS,
+}: MoreFiltersModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <MoreFiltersModalContent
+      onClose={onClose}
+      filters={filters}
+      onFiltersChange={onFiltersChange}
+      skillLevelOptions={skillLevelOptions}
+      taxonomyContentFilters={taxonomyContentFilters}
+      suggestedContentFilters={suggestedContentFilters}
+    />
   );
 }

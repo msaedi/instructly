@@ -346,6 +346,8 @@ export interface Instructor {
     is_active?: boolean;
     /** Age groups served */
     age_groups?: string[];
+    /** Taxonomy filter selections (e.g. skill_level, age_groups) */
+    filter_selections?: Record<string, string[]>;
     /** Skill levels taught */
     levels_taught?: string[];
     /** Available modalities */
@@ -360,6 +362,7 @@ export interface Instructor {
 
   /** Additional context used by search highlighting */
   _matchedServiceContext?: {
+    skill_level?: string[];
     levels?: string[];
     age_groups?: string[];
     location_types?: ServiceLocationType[];
@@ -503,8 +506,8 @@ export interface ServiceCatalogItem {
   /** Service name */
   name: string;
 
-  /** Category this service belongs to */
-  category_id: string;
+  /** Subcategory this service belongs to (ULID) */
+  subcategory_id: string;
 
   /** Optional description */
   description?: string;

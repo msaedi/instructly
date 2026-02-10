@@ -16,6 +16,7 @@ from scripts.calculate_service_analytics import AnalyticsCalculator
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.monitoring.sentry_crons import monitor_if_configured
 from app.tasks.celery_app import BaseTask, celery_app
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ def typed_task(
     retry_backoff=True,
     retry_backoff_max=600,
 )
+@monitor_if_configured("calculate-service-analytics")
 def calculate_analytics(self: BaseTask, days_back: int = 90) -> Dict[str, Any]:
     """
     Calculate service analytics for all instructors.

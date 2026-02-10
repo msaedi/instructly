@@ -176,9 +176,9 @@ def test_service_audience_and_skills(db, test_instructor):
         .all()
     )
     services[0].age_groups = ["kids", "teens"]
-    services[0].levels_taught = None
+    services[0].filter_selections = {}
     services[1].age_groups = ["adults"]
-    services[1].levels_taught = ["beginner"]
+    services[1].filter_selections = {"skill_level": ["beginner"]}
     db.flush()
 
     audiences = repo.get_service_audience([s.id for s in services])

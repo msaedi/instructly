@@ -98,7 +98,41 @@ describe('useInstructorSearchInfinite', () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(searchWithNaturalLanguageMock).toHaveBeenCalledWith('piano');
+    expect(searchWithNaturalLanguageMock).toHaveBeenCalledWith('piano', {});
     expect(result.current.hasNextPage).toBe(false);
+  });
+
+  it('passes taxonomy params through infinite catalog search', async () => {
+    const payload = {
+      items: [{ id: 'inst-3' }],
+      total: 1,
+      page: 1,
+      per_page: 20,
+      has_next: false,
+      has_prev: false,
+    };
+    searchInstructorsMock.mockResolvedValue({ status: 200, data: payload });
+    validateWithZodMock.mockResolvedValue(payload);
+
+    const { result } = renderHook(
+      () =>
+        useInstructorSearchInfinite({
+          serviceCatalogId: 'svc-3',
+          skillLevelCsv: 'advanced',
+          subcategoryId: 'subcat-22',
+          contentFiltersParam: 'goal:enrichment',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(searchInstructorsMock).toHaveBeenCalledWith({
+      service_catalog_id: 'svc-3',
+      skill_level: 'advanced',
+      subcategory_id: 'subcat-22',
+      content_filters: 'goal:enrichment',
+      page: 1,
+      per_page: 20,
+    });
   });
 });

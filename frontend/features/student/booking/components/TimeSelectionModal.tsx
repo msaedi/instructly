@@ -422,8 +422,7 @@ export default function TimeSelectionModal({
         setSelectedTime(firstSlot);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeSlots]);  // Intentionally exclude selectedTime to avoid circular updates
+  }, [selectedTime, timeSlots]);
 
   const setDate = useCallback(
     (reason: string, nextDate: string | null) => {

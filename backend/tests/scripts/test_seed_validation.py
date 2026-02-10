@@ -12,6 +12,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.rbac import Role, UserRole as UserRoleJunction
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 from app.utils.bitset import bits_from_windows
 
@@ -41,13 +42,20 @@ def _seed_review_context(db: Session) -> None:
 
     category = ServiceCategory(
         name="Seed Validation",
-        slug=f"seed-validation-{uuid4().hex[:8]}",
     )
     db.add(category)
     db.flush()
 
-    catalog_entry = ServiceCatalog(
+    subcategory = ServiceSubcategory(
+        name="General",
         category_id=category.id,
+        display_order=1,
+    )
+    db.add(subcategory)
+    db.flush()
+
+    catalog_entry = ServiceCatalog(
+        subcategory_id=subcategory.id,
         name="Seed Validation Lesson",
         slug=f"seed-validation-{uuid4().hex[:8]}",
         description="Seed validation service",

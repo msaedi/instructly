@@ -20,11 +20,42 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useInstructorSearchInfinite } from '@/hooks/queries/useInstructorSearch';
 import { useInstructorCoverage } from '@/hooks/queries/useInstructorCoverage';
 import { usePublicAvailability, type InstructorAvailabilitySummary } from '@/hooks/queries/usePublicAvailability';
+import { useAllServicesWithInstructors } from '@/hooks/queries/useServices';
+import { useCategoriesWithSubcategories, useSubcategoryFilters } from '@/hooks/queries/useTaxonomy';
 import { AlertTriangle, ChevronDown } from 'lucide-react';
 import { FilterBar } from '@/components/search/FilterBar';
-import { DEFAULT_FILTERS, type FilterState } from '@/components/search/filterTypes';
+import {
+  type ContentFilterSelections,
+  DEFAULT_FILTERS,
+  UNIVERSAL_SKILL_LEVEL_OPTIONS,
+  type FilterState,
+  type SkillLevelOption,
+} from '@/components/search/filterTypes';
+import { CURRENT_AUDIENCE, type AudienceMode } from '@/lib/audience';
+import { logger } from '@/lib/logger';
+import {
+  buildContentFiltersParam,
+  buildSkillLevelParam,
+  getDynamicContentFiltersFromSearchMeta,
+  getDynamicContentFiltersFromTaxonomy,
+  getSkillLevelOptionsFromTaxonomy,
+  normalizeLookupKey,
+  parseContentFiltersParam,
+  parseSkillLevelParam,
+  resolveSubcategoryContext,
+  sanitizeContentFiltersForDefinitions,
+  sanitizeContentFiltersForSubcategory,
+  type SubcategoryResolutionLookup,
+} from './filterContext';
+
+const IS_TAXONOMY_DEBUG_ENABLED = process.env.NODE_ENV !== 'production';
 
 type SortOption = 'recommended' | 'price_asc' | 'price_desc' | 'rating';
+type AggregatedSearchData = {
+  instructors: Instructor[];
+  totalResults: number;
+  nlSearchMeta: Record<string, unknown> | null;
+};
 
 function RateLimitBanner({ rateLimit }: { rateLimit: { seconds: number } | null }) {
   if (!rateLimit) return null;
@@ -157,6 +188,39 @@ const normalizeTeachingLocations = (
 const getOptionalBoolean = (record: Record<string, unknown>, key: string): boolean | undefined => {
   const value = record[key];
   return typeof value === 'boolean' ? value : undefined;
+};
+
+const normalizeStringSelections = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean)
+    : [];
+
+const getFilterSelectionValues = (
+  service: Instructor['services'][number] | null | undefined,
+  key: string
+): string[] => {
+  if (!service || typeof service !== 'object') return [];
+  const rawSelections = (service as { filter_selections?: unknown }).filter_selections;
+  if (!rawSelections || typeof rawSelections !== 'object') return [];
+  const value = (rawSelections as Record<string, unknown>)[key];
+  return normalizeStringSelections(value);
+};
+
+const parseAudienceMode = (value: string | null): AudienceMode => {
+  if (!value) return CURRENT_AUDIENCE;
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === 'toddler' ||
+    normalized === 'kids' ||
+    normalized === 'teens' ||
+    normalized === 'adults'
+  ) {
+    return normalized;
+  }
+  return CURRENT_AUDIENCE;
 };
 
 type NormalizedSearchResult = {
@@ -313,9 +377,8 @@ const normalizeSearchResults = (input: NormalizeSearchInput): NormalizedSearchRe
           distance_mi: distanceMi,
           distance_km: distanceKm,
           _matchedServiceContext: {
-            levels: [] as string[],
+            skill_level: [] as string[],
             age_groups: [] as string[],
-            location_types: [] as string[],
           },
           relevance_score: relevanceScore,
           _matchedServiceCatalogId: bestServiceCatalogId || null,
@@ -352,19 +415,17 @@ const normalizeSearchResults = (input: NormalizeSearchInput): NormalizedSearchRe
               (matchId || '').trim().toLowerCase()
         ) || item.services[0]
       : undefined;
-    const levels = Array.isArray(highlightedService?.levels_taught) ? highlightedService.levels_taught : [];
-    const ageGroups = Array.isArray(highlightedService?.age_groups) ? highlightedService.age_groups : [];
-    const locationTypes = Array.isArray(highlightedService?.location_types)
-      ? highlightedService.location_types
-      : [];
+    const skillLevels = getFilterSelectionValues(highlightedService, 'skill_level');
+    const fallbackLevels = normalizeStringSelections(highlightedService?.levels_taught);
+    const ageGroups = getFilterSelectionValues(highlightedService, 'age_groups');
+    const fallbackAgeGroups = normalizeStringSelections(highlightedService?.age_groups);
     return {
       ...item,
       ...(teachingLocations.length ? { teaching_locations: teachingLocations } : {}),
       _matchedServiceCatalogId: matchId,
       _matchedServiceContext: {
-        levels,
-        age_groups: ageGroups,
-        location_types: locationTypes,
+        skill_level: skillLevels.length ? skillLevels : fallbackLevels,
+        age_groups: ageGroups.length ? ageGroups : fallbackAgeGroups,
       },
     };
   });
@@ -654,16 +715,269 @@ function SearchPageInner() {
     });
   }, []);
 
+  const searchParamsString = searchParams.toString();
   const query = searchParams.get('q') || '';
   const category = searchParams.get('category') || '';
   const serviceCatalogId = searchParams.get('service_catalog_id') || '';
+  const serviceParam = searchParams.get('service') || '';
   const serviceNameFromUrl = searchParams.get('service_name') || '';
-  const ageGroup = searchParams.get('age_group') || '';
+  const explicitSubcategoryId = searchParams.get('subcategory_id') || '';
+  const subcategoryParam = searchParams.get('subcategory') || '';
+  const activeAudience = parseAudienceMode(
+    searchParams.get('audience') || searchParams.get('age_group')
+  );
   const fromSource = searchParams.get('from') || '';
+  const parsedSkillLevelFromUrl = useMemo(() => {
+    const params = new URLSearchParams(searchParamsString);
+    return parseSkillLevelParam(params.get('skill_level'));
+  }, [searchParamsString]);
+  const parsedContentFiltersFromUrl = useMemo(() => {
+    const params = new URLSearchParams(searchParamsString);
+    return parseContentFiltersParam(params.get('content_filters'));
+  }, [searchParamsString]);
+
+  const { data: categoriesWithSubcategories } = useCategoriesWithSubcategories();
+  const { data: allServicesWithInstructors } = useAllServicesWithInstructors();
+
+  const subcategoryLookup = useMemo<SubcategoryResolutionLookup>(() => {
+    const subcategoryIds = new Set<string>();
+    const subcategoryIdsByLower = new Map<string, string>();
+    const subcategoryByName = new Map<string, string>();
+    const serviceByCatalogId = new Map<string, string>();
+    const serviceBySlug = new Map<string, string>();
+    const serviceByName = new Map<string, string>();
+
+    for (const categoryItem of categoriesWithSubcategories ?? []) {
+      for (const subcategory of categoryItem.subcategories ?? []) {
+        if (!subcategory?.id) continue;
+        const subcategoryId = subcategory.id.trim();
+        if (!subcategoryId) continue;
+        subcategoryIds.add(subcategoryId);
+        subcategoryIdsByLower.set(subcategoryId.toLowerCase(), subcategoryId);
+        if (subcategory.name) {
+          subcategoryByName.set(normalizeLookupKey(subcategory.name), subcategoryId);
+        }
+      }
+    }
+
+    for (const categoryItem of allServicesWithInstructors?.categories ?? []) {
+      for (const service of categoryItem.services ?? []) {
+        const subcategoryId = service.subcategory_id?.trim();
+        if (!subcategoryId) continue;
+        if (service.id) {
+          serviceByCatalogId.set(service.id.trim().toLowerCase(), subcategoryId);
+        }
+        if (service.slug) {
+          serviceBySlug.set(normalizeLookupKey(service.slug), subcategoryId);
+        }
+        if (service.name) {
+          serviceByName.set(normalizeLookupKey(service.name), subcategoryId);
+        }
+      }
+    }
+
+    return {
+      subcategoryIds,
+      subcategoryIdsByLower,
+      subcategoryByName,
+      serviceByCatalogId,
+      serviceBySlug,
+      serviceByName,
+    };
+  }, [allServicesWithInstructors, categoriesWithSubcategories]);
+
+  const { resolvedSubcategoryId, inferredSubcategoryId } = useMemo(
+    () =>
+      resolveSubcategoryContext({
+        explicitSubcategoryId,
+        subcategoryParam,
+        serviceCatalogId,
+        serviceParam,
+        serviceName: serviceNameFromUrl,
+        lookup: subcategoryLookup,
+      }),
+    [
+      explicitSubcategoryId,
+      subcategoryParam,
+      serviceCatalogId,
+      serviceParam,
+      serviceNameFromUrl,
+      subcategoryLookup,
+    ]
+  );
+
+  const {
+    data: resolvedSubcategoryFilters,
+    isLoading: isSubcategoryFiltersLoading,
+    error: subcategoryFiltersError,
+  } = useSubcategoryFilters(resolvedSubcategoryId ?? '');
+
+  const taxonomyContentFiltersFromSubcategory = useMemo(
+    () =>
+      resolvedSubcategoryId
+        ? getDynamicContentFiltersFromTaxonomy(resolvedSubcategoryFilters)
+        : [],
+    [resolvedSubcategoryFilters, resolvedSubcategoryId]
+  );
+
+  useEffect(() => {
+    if (!IS_TAXONOMY_DEBUG_ENABLED) return;
+    logger.debug('[search:taxonomy] resolveSubcategoryContext', {
+      explicitSubcategoryId,
+      subcategoryParam,
+      serviceCatalogId,
+      serviceParam,
+      serviceNameFromUrl,
+      resolvedSubcategoryId,
+      inferredSubcategoryId,
+      lookupStats: {
+        subcategoryCount: subcategoryLookup.subcategoryIds.size,
+        serviceCatalogMappingCount: subcategoryLookup.serviceByCatalogId.size,
+      },
+    });
+  }, [
+    explicitSubcategoryId,
+    inferredSubcategoryId,
+    resolvedSubcategoryId,
+    serviceCatalogId,
+    serviceNameFromUrl,
+    serviceParam,
+    subcategoryLookup,
+    subcategoryParam,
+  ]);
+
+  useEffect(() => {
+    if (!IS_TAXONOMY_DEBUG_ENABLED) return;
+    logger.debug('[search:taxonomy] useSubcategoryFilters', {
+      resolvedSubcategoryId,
+      isSubcategoryFiltersLoading,
+      hasError: Boolean(subcategoryFiltersError),
+      errorMessage:
+        subcategoryFiltersError instanceof Error ? subcategoryFiltersError.message : null,
+      filterKeys: (resolvedSubcategoryFilters ?? []).map((filter) => filter.filter_key),
+    });
+  }, [
+    isSubcategoryFiltersLoading,
+    resolvedSubcategoryFilters,
+    resolvedSubcategoryId,
+    subcategoryFiltersError,
+  ]);
+
+  useEffect(() => {
+    if (!IS_TAXONOMY_DEBUG_ENABLED) return;
+    logger.debug('[search:taxonomy] getDynamicContentFiltersFromTaxonomy', {
+      resolvedSubcategoryId,
+      taxonomyContentFilterKeys: taxonomyContentFiltersFromSubcategory.map((filter) => filter.key),
+      taxonomyContentFilterCount: taxonomyContentFiltersFromSubcategory.length,
+    });
+  }, [resolvedSubcategoryId, taxonomyContentFiltersFromSubcategory]);
+
+  const skillLevelOptions = useMemo<SkillLevelOption[]>(() => {
+    if (!resolvedSubcategoryId) {
+      return UNIVERSAL_SKILL_LEVEL_OPTIONS;
+    }
+    return getSkillLevelOptionsFromTaxonomy(resolvedSubcategoryFilters);
+  }, [resolvedSubcategoryFilters, resolvedSubcategoryId]);
+
+  const selectedSkillLevel = useMemo(() => {
+    const allowedValues = new Set(skillLevelOptions.map((option) => option.value));
+    return parsedSkillLevelFromUrl.filter((value) => allowedValues.has(value));
+  }, [parsedSkillLevelFromUrl, skillLevelOptions]);
+
+  const selectedContentFilters = useMemo(
+    () => {
+      if (!resolvedSubcategoryId) {
+        return parsedContentFiltersFromUrl;
+      }
+      if (subcategoryFiltersError) {
+        return parsedContentFiltersFromUrl;
+      }
+      if (!resolvedSubcategoryFilters || resolvedSubcategoryFilters.length === 0) {
+        return parsedContentFiltersFromUrl;
+      }
+      return sanitizeContentFiltersForSubcategory(
+        parsedContentFiltersFromUrl,
+        resolvedSubcategoryFilters
+      );
+    },
+    [
+      parsedContentFiltersFromUrl,
+      resolvedSubcategoryFilters,
+      resolvedSubcategoryId,
+      subcategoryFiltersError,
+    ]
+  );
+
+  const filtersWithTaxonomy = useMemo<FilterState>(
+    () => ({
+      ...filters,
+      skillLevel: selectedSkillLevel,
+      contentFilters: selectedContentFilters,
+    }),
+    [filters, selectedContentFilters, selectedSkillLevel]
+  );
+
   const builtSearchQuery = useMemo(() => {
     if (!query) return '';
     return buildQueryWithFilters(query, filters);
   }, [query, filters]);
+
+  const skillLevelCsv = useMemo(
+    () => buildSkillLevelParam(selectedSkillLevel, skillLevelOptions),
+    [selectedSkillLevel, skillLevelOptions]
+  );
+  const contentFiltersParam = useMemo(
+    () =>
+      buildContentFiltersParam(
+        selectedContentFilters,
+        taxonomyContentFiltersFromSubcategory.map((filterDefinition) => filterDefinition.key)
+      ),
+    [selectedContentFilters, taxonomyContentFiltersFromSubcategory]
+  );
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParamsString);
+    let hasChanges = false;
+
+    if (!params.get('subcategory_id') && resolvedSubcategoryId) {
+      params.set('subcategory_id', resolvedSubcategoryId);
+      hasChanges = true;
+    }
+
+    const existingSkillLevelParam = params.get('skill_level');
+    if (skillLevelCsv) {
+      if (existingSkillLevelParam !== skillLevelCsv) {
+        params.set('skill_level', skillLevelCsv);
+        hasChanges = true;
+      }
+    } else if (existingSkillLevelParam) {
+      params.delete('skill_level');
+      hasChanges = true;
+    }
+
+    const existingContentFiltersParam = params.get('content_filters');
+    if (contentFiltersParam) {
+      if (existingContentFiltersParam !== contentFiltersParam) {
+        params.set('content_filters', contentFiltersParam);
+        hasChanges = true;
+      }
+    } else if (existingContentFiltersParam) {
+      params.delete('content_filters');
+      hasChanges = true;
+    }
+
+    if (!hasChanges) return;
+
+    const queryString = params.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+  }, [
+    contentFiltersParam,
+    pathname,
+    resolvedSubcategoryId,
+    router,
+    searchParamsString,
+    skillLevelCsv,
+  ]);
 
   const searchQueryEnabled = Boolean(builtSearchQuery || serviceCatalogId);
   const {
@@ -676,13 +990,16 @@ function SearchPageInner() {
   } = useInstructorSearchInfinite({
     searchQuery: builtSearchQuery,
     serviceCatalogId,
+    ...(resolvedSubcategoryId ? { subcategoryId: resolvedSubcategoryId } : {}),
+    ...(skillLevelCsv ? { skillLevelCsv } : {}),
+    ...(contentFiltersParam ? { contentFiltersParam } : {}),
     perPage: 20,
     enabled: searchQueryEnabled,
   });
   const loading = searchQueryEnabled ? isSearchLoading : false;
   const loadingMore = isFetchingNextPage;
 
-  const { instructors, totalResults, nlSearchMeta } = useMemo(() => {
+  const { instructors, totalResults, nlSearchMeta } = useMemo<AggregatedSearchData>(() => {
     const pages = searchResponse?.pages ?? [];
     if (!searchQueryEnabled || pages.length === 0) {
       return { instructors: [], totalResults: 0, nlSearchMeta: null };
@@ -735,6 +1052,122 @@ function SearchPageInner() {
       nlSearchMeta: meta,
     };
   }, [searchQueryEnabled, searchResponse, serviceCatalogId]);
+
+  const taxonomyContentFiltersFromMeta = useMemo(
+    () =>
+      getDynamicContentFiltersFromSearchMeta(
+        isRecord(nlSearchMeta) ? nlSearchMeta['available_content_filters'] : undefined
+      ),
+    [nlSearchMeta]
+  );
+
+  const hasResolvedSubcategoryFilterDefinitions = useMemo(
+    () =>
+      Boolean(resolvedSubcategoryId) &&
+      !subcategoryFiltersError &&
+      taxonomyContentFiltersFromSubcategory.length > 0,
+    [resolvedSubcategoryId, subcategoryFiltersError, taxonomyContentFiltersFromSubcategory]
+  );
+
+  const taxonomyContentFilters = useMemo(
+    () =>
+      hasResolvedSubcategoryFilterDefinitions
+        ? taxonomyContentFiltersFromSubcategory
+        : taxonomyContentFiltersFromMeta,
+    [
+      hasResolvedSubcategoryFilterDefinitions,
+      taxonomyContentFiltersFromMeta,
+      taxonomyContentFiltersFromSubcategory,
+    ]
+  );
+
+  const inferredContentFiltersFromMeta = useMemo<ContentFilterSelections>(() => {
+    if (!isRecord(nlSearchMeta) || !isRecord(nlSearchMeta['inferred_filters'])) {
+      return {};
+    }
+
+    const normalized: ContentFilterSelections = {};
+    for (const [rawKey, rawValues] of Object.entries(nlSearchMeta['inferred_filters'])) {
+      const key = rawKey.trim().toLowerCase();
+      if (!key || key === 'skill_level' || !Array.isArray(rawValues)) continue;
+
+      const values = rawValues
+        .filter((value): value is string => typeof value === 'string')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean);
+      if (values.length > 0) {
+        normalized[key] = Array.from(new Set(values));
+      }
+    }
+
+    return normalized;
+  }, [nlSearchMeta]);
+
+  const suggestedContentFilters = useMemo<ContentFilterSelections>(() => {
+    const sanitizedSuggestions = sanitizeContentFiltersForDefinitions(
+      inferredContentFiltersFromMeta,
+      taxonomyContentFilters
+    );
+    if (!Object.keys(sanitizedSuggestions).length) {
+      return {};
+    }
+
+    const suggestions: ContentFilterSelections = {};
+    for (const [key, values] of Object.entries(sanitizedSuggestions)) {
+      if ((selectedContentFilters[key] ?? []).length > 0) {
+        continue;
+      }
+      suggestions[key] = values;
+    }
+    return suggestions;
+  }, [inferredContentFiltersFromMeta, selectedContentFilters, taxonomyContentFilters]);
+
+  const inferredSubcategoryIdFromResults = useMemo(() => {
+    if (resolvedSubcategoryId || instructors.length === 0) {
+      return null;
+    }
+
+    const matchedSubcategoryIds = new Set<string>();
+    instructors.forEach((instructor) => {
+      const services = Array.isArray(instructor.services) ? instructor.services : [];
+      services.forEach((service) => {
+        const catalogId = (service.service_catalog_id || '').trim().toLowerCase();
+        if (!catalogId) return;
+        const subcategoryId = subcategoryLookup.serviceByCatalogId.get(catalogId);
+        if (!subcategoryId) return;
+        matchedSubcategoryIds.add(subcategoryId);
+      });
+    });
+
+    return matchedSubcategoryIds.size === 1 ? Array.from(matchedSubcategoryIds)[0] ?? null : null;
+  }, [instructors, resolvedSubcategoryId, subcategoryLookup.serviceByCatalogId]);
+
+  useEffect(() => {
+    if (resolvedSubcategoryId || !inferredSubcategoryIdFromResults) {
+      return;
+    }
+
+    const params = new URLSearchParams(searchParamsString);
+    if (params.get('subcategory_id')) {
+      return;
+    }
+
+    params.set('subcategory_id', inferredSubcategoryIdFromResults);
+    const queryString = params.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+
+    if (IS_TAXONOMY_DEBUG_ENABLED) {
+      logger.debug('[search:taxonomy] inferred subcategory from search results', {
+        inferredSubcategoryIdFromResults,
+      });
+    }
+  }, [
+    inferredSubcategoryIdFromResults,
+    pathname,
+    resolvedSubcategoryId,
+    router,
+    searchParamsString,
+  ]);
 
   const hasMore = Boolean(hasNextPage);
 
@@ -904,41 +1337,28 @@ function SearchPageInner() {
         if (!filters.duration.some((duration) => durations.has(duration))) return false;
       }
 
-      if (filters.level.length > 0) {
+      if (selectedSkillLevel.length > 0) {
         const levels = new Set<string>();
         activeServices.forEach((svc) => {
-          if (!Array.isArray(svc.levels_taught)) return;
-          svc.levels_taught.forEach((level) => {
-            if (typeof level === 'string') levels.add(level.trim().toLowerCase());
-          });
+          getFilterSelectionValues(svc, 'skill_level').forEach((level) => levels.add(level));
+          normalizeStringSelections(svc.levels_taught).forEach((level) => levels.add(level));
         });
-        const contextLevels = Array.isArray(instructor._matchedServiceContext?.levels)
-          ? instructor._matchedServiceContext?.levels
-          : [];
-        contextLevels.forEach((level) => {
-          if (typeof level === 'string') levels.add(level.trim().toLowerCase());
-        });
+        normalizeStringSelections(instructor._matchedServiceContext?.skill_level).forEach((level) =>
+          levels.add(level)
+        );
         if (levels.size === 0) return false;
-        if (!filters.level.some((level) => levels.has(level))) return false;
+        if (!selectedSkillLevel.some((level) => levels.has(level))) return false;
       }
 
-      if (filters.audience.length > 0) {
-        const audiences = new Set<string>();
-        activeServices.forEach((svc) => {
-          if (!Array.isArray(svc.age_groups)) return;
-          svc.age_groups.forEach((group) => {
-            if (typeof group === 'string') audiences.add(group.trim().toLowerCase());
-          });
-        });
-        const contextAudiences = Array.isArray(instructor._matchedServiceContext?.age_groups)
-          ? instructor._matchedServiceContext?.age_groups
-          : [];
-        contextAudiences.forEach((group) => {
-          if (typeof group === 'string') audiences.add(group.trim().toLowerCase());
-        });
-        if (audiences.size === 0) return false;
-        if (!filters.audience.some((group) => audiences.has(group))) return false;
-      }
+      const audiences = new Set<string>();
+      activeServices.forEach((svc) => {
+        getFilterSelectionValues(svc, 'age_groups').forEach((group) => audiences.add(group));
+        normalizeStringSelections(svc.age_groups).forEach((group) => audiences.add(group));
+      });
+      normalizeStringSelections(instructor._matchedServiceContext?.age_groups).forEach((group) =>
+        audiences.add(group)
+      );
+      if (audiences.size > 0 && !audiences.has(activeAudience)) return false;
 
       if (filters.minRating !== 'any') {
         const ratingValue = typeof instructor.rating === 'number' ? instructor.rating : 0;
@@ -952,7 +1372,7 @@ function SearchPageInner() {
 
       return true;
     });
-  }, [availabilityByInstructor, filters, instructors]);
+  }, [activeAudience, availabilityByInstructor, filters, instructors, selectedSkillLevel]);
 
   const instructorCapabilities = useMemo(() => {
     const map = new Map<string, { offersTravel: boolean; offersAtLocation: boolean; offersOnline: boolean }>();
@@ -1300,8 +1720,36 @@ function SearchPageInner() {
           <div className={`px-6 ${isStacked ? 'pt-1 pb-1' : 'pt-0 md:pt-2 pb-1 md:pb-3'}`}>
             <div className={`bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 ${isStacked ? 'p-1' : 'p-1 md:p-4'}`}>
               <FilterBar
-                filters={filters}
+                filters={filtersWithTaxonomy}
+                skillLevelOptions={skillLevelOptions}
+                taxonomyContentFilters={taxonomyContentFilters}
+                suggestedContentFilters={suggestedContentFilters}
                 onFiltersChange={(nextFilters) => {
+                  const params = new URLSearchParams(searchParamsString);
+                  const nextSkillLevelCsv = buildSkillLevelParam(
+                    nextFilters.skillLevel,
+                    skillLevelOptions
+                  );
+                  const nextContentFiltersParam = buildContentFiltersParam(
+                    nextFilters.contentFilters,
+                    taxonomyContentFilters.map((filterDefinition) => filterDefinition.key)
+                  );
+                  if (nextSkillLevelCsv) {
+                    params.set('skill_level', nextSkillLevelCsv);
+                  } else {
+                    params.delete('skill_level');
+                  }
+                  if (nextContentFiltersParam) {
+                    params.set('content_filters', nextContentFiltersParam);
+                  } else {
+                    params.delete('content_filters');
+                  }
+                  const queryString = params.toString();
+                  if (queryString !== searchParamsString) {
+                    router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
+                      scroll: false,
+                    });
+                  }
                   setFilters(nextFilters);
                   setMapFilterIds(null);
                   setShowSearchAreaButton(false);
@@ -1372,7 +1820,7 @@ function SearchPageInner() {
               <RateLimitBanner rateLimit={rateLimit} />
 
             {/* Kids banner */}
-            {ageGroup === 'kids' && (
+            {activeAudience === 'kids' && (
               <div className="mb-3 rounded-md bg-blue-50 border border-blue-200 text-blue-900 px-3 py-2 text-sm">
                 Showing instructors who teach kids
               </div>

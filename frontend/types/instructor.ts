@@ -218,6 +218,9 @@ export interface InstructorService {
   /** Skill levels taught (e.g., 'beginner', 'intermediate', 'advanced') */
   levels_taught?: string[];
 
+  /** Instructor's filter selections for this service (e.g., {'grade_level': ['elementary']}) */
+  filter_selections?: Record<string, string[]>;
+
   /** Instructor ID (ULID string, when not nested) */
   instructor_id?: string;
 }

@@ -9,22 +9,29 @@ from app.models.service_catalog import (
     ServiceCatalog,
     ServiceCategory,
 )
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 
 
 def _catalog_setup(db):
-    category_slug = f"music-{ulid.ULID()}"
     category = ServiceCategory(
         name="Music",
-        slug=category_slug,
         description="Music lessons",
     )
     db.add(category)
     db.flush()
 
+    subcategory = ServiceSubcategory(
+        name="Piano",
+        category_id=category.id,
+        display_order=1,
+    )
+    db.add(subcategory)
+    db.flush()
+
     catalog_slug = f"piano-{ulid.ULID()}"
     catalog = ServiceCatalog(
-        category_id=category.id,
+        subcategory_id=subcategory.id,
         name="Piano",
         slug=catalog_slug,
         description="Piano lessons",

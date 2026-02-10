@@ -791,11 +791,18 @@ def seed_system_data(verbose: bool = True) -> None:
     seed_roles_and_permissions()
 
     if verbose:
-        print("\n▶ Seeding service catalog (categories + services)…")
-    from seed_catalog_only import seed_catalog  # noqa: E402
+        print("\n▶ Seeding taxonomy (categories + subcategories + services + filters)…")
+    import importlib.util  # noqa: E402
+
+    _tax_spec = importlib.util.spec_from_file_location(
+        "seed_taxonomy", Path(__file__).parent / "seed_data" / "seed_taxonomy.py"
+    )
+    _tax_mod = importlib.util.module_from_spec(_tax_spec)  # type: ignore[arg-type]
+    _tax_spec.loader.exec_module(_tax_mod)  # type: ignore[union-attr]
+    seed_taxonomy = _tax_mod.seed_taxonomy
 
     # Use the resolved database URL so the seeder prints clearly
-    seed_catalog(db_url=settings.get_database_url(), verbose=verbose)
+    seed_taxonomy(db_url=settings.get_database_url(), verbose=verbose)
 
     if verbose:
         print("\n▶ Loading region boundaries (NYC)…")
@@ -851,8 +858,16 @@ def seed_mock_data_phases(
     print_summary: bool = True,
 ) -> tuple["DatabaseSeeder", dict[str, int]]:
     """Seed mock data in phases, returning the seeder and aggregate stats."""
+    import importlib.util  # noqa: E402
+
     from reset_and_seed_yaml import DatabaseSeeder  # noqa: E402
-    from seed_catalog_only import seed_catalog  # noqa: E402
+
+    _tax_spec = importlib.util.spec_from_file_location(
+        "seed_taxonomy", Path(__file__).parent / "seed_data" / "seed_taxonomy.py"
+    )
+    _tax_mod = importlib.util.module_from_spec(_tax_spec)  # type: ignore[arg-type]
+    _tax_spec.loader.exec_module(_tax_mod)  # type: ignore[union-attr]
+    seed_taxonomy = _tax_mod.seed_taxonomy
 
     from app.services.cache_service import CacheService  # noqa: E402
     from app.services.search.cache_invalidation import init_search_cache  # noqa: E402
@@ -876,10 +891,10 @@ def seed_mock_data_phases(
         print("\n▶ Cleaning previous mock data (idempotent)…")
     seeder.reset_database()
 
-    # After cleaning, we must re-seed catalog for mapping instructor services
+    # After cleaning, we must re-seed taxonomy for mapping instructor services
     if verbose:
-        print("\n▶ Reseeding service catalog required for mock instructors…")
-    seed_catalog(db_url=settings.get_database_url(), verbose=verbose)
+        print("\n▶ Reseeding taxonomy required for mock instructors…")
+    seed_taxonomy(db_url=settings.get_database_url(), verbose=verbose)
 
     if verbose:
         print("\n▶ Creating mock users and instructors…")

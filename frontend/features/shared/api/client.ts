@@ -10,20 +10,36 @@ import { getSessionId, refreshSession } from '@/lib/sessionTracking';
 import { withApiBase } from '@/lib/apiBase';
 import { NEXT_PUBLIC_APP_URL as APP_URL } from '@/lib/env';
 import type {
+  AgeGroup,
   ApiErrorResponse,
   AllServicesWithInstructorsResponse,
   BookingCreate,
+  CategoryDetail as ApiCategoryDetail,
+  CategorySummary as ApiCategorySummary,
+  CategoryTreeNode,
+  CategoryWithSubcategories,
   components,
   CatalogService as ApiCatalogService,
   CatalogServiceMinimal,
+  FilterValidationResponse as ApiFilterValidationResponse,
+  InstructorFilterContext as ApiInstructorFilterContext,
+  InstructorService as ApiInstructorService,
   NaturalLanguageSearchResponse as GenNaturalLanguageSearchResponse,
   Booking,
   BookingStatus,
   SearchHistoryResponse,
+  ServiceCatalogDetail as ApiServiceCatalogDetail,
+  ServiceCatalogSummary as ApiServiceCatalogSummary,
   ServiceCategory as ApiServiceCategory,
+  SubcategoryBrief as ApiSubcategoryBrief,
+  SubcategoryDetail as ApiSubcategoryDetail,
+  SubcategoryFilterResponse as ApiSubcategoryFilterResponse,
+  SubcategoryWithServices as ApiSubcategoryWithServices,
   TopCategoryItem as ApiTopCategoryItem,
   TopCategoryServiceItem as ApiTopCategoryServiceItem,
   TopServicesPerCategoryResponse as ApiTopServicesPerCategoryResponse,
+  UpdateFilterSelectionsRequest,
+  ValidateFiltersRequest,
 } from '@/features/shared/api/types';
 
 // Type aliases for generated types
@@ -328,12 +344,22 @@ export const publicApi = {
    * Uses AI-powered search to understand queries like "piano lessons under $50 today"
    */
   async searchWithNaturalLanguage(
-    query: string
+    query: string,
+    params?: {
+      skill_level?: string;
+      subcategory_id?: string;
+      content_filters?: string;
+    }
   ): Promise<ApiResponse<GenNaturalLanguageSearchResponse>> {
     // Use optionalAuthFetch to allow unauthenticated searches
     // but include auth token if available for search history tracking
     return optionalAuthFetch<GenNaturalLanguageSearchResponse>('/api/v1/search', {
-      params: { q: query },
+      params: {
+        q: query,
+        ...(params?.skill_level ? { skill_level: params.skill_level } : {}),
+        ...(params?.subcategory_id ? { subcategory_id: params.subcategory_id } : {}),
+        ...(params?.content_filters ? { content_filters: params.content_filters } : {}),
+      },
     });
   },
 
@@ -382,7 +408,7 @@ export const publicApi = {
     };
 
     return unifiedFetch<{
-      id: number;
+      id: string;
       search_query: string;
       search_type: string;
       results_count: number | null;
@@ -407,7 +433,7 @@ export const publicApi = {
     results_count?: number | null;
   }) {
     return cleanFetch<{
-      id: number;
+      id: string;
       search_query: string;
       search_type: string;
       results_count: number | null;
@@ -425,7 +451,7 @@ export const publicApi = {
   async getGuestRecentSearches(guestSessionId: string, limit: number = 3) {
     return cleanFetch<
       Array<{
-        id: number;
+        id: string;
         search_query: string;
         search_type: string;
         results_count: number | null;
@@ -453,6 +479,9 @@ export const publicApi = {
     service_catalog_id: string; // Required: Service catalog ID (ULID string)
     min_price?: number; // Minimum hourly rate
     max_price?: number; // Maximum hourly rate
+    skill_level?: string; // Comma-separated skill levels
+    subcategory_id?: string; // Optional subcategory context for taxonomy filtering
+    content_filters?: string; // Taxonomy content filters: key:val1,val2|key2:val3
     page?: number; // Page number (1-based)
     per_page?: number; // Items per page
   }) {
@@ -549,11 +578,11 @@ export const publicApi = {
   },
 
   /**
-   * Get catalog services, optionally filtered by category
+   * Get catalog services, optionally filtered by category ID
    */
-  async getCatalogServices(categorySlug?: string) {
+  async getCatalogServices(categoryId?: string) {
     return cleanFetch<CatalogService[]>('/api/v1/services/catalog', {
-      params: categorySlug ? { category: categorySlug } : {},
+      params: categoryId ? { category_id: categoryId } : {},
     });
   },
 
@@ -579,6 +608,101 @@ export const publicApi = {
    */
   async getKidsAvailableServices() {
     return cleanFetch<CatalogServiceMinimal[]>('/api/v1/services/catalog/kids-available');
+  },
+
+  // ── 3-level taxonomy endpoints ────────────────────────────────
+
+  /**
+   * Get all categories with subcategory briefs (for browse page)
+   */
+  async getCategoriesWithSubcategories() {
+    return cleanFetch<CategoryWithSubcategories[]>('/api/v1/services/categories/browse');
+  },
+
+  /**
+   * Get full 3-level tree for a category (category → subcategories → services)
+   */
+  async getCategoryTree(categoryId: string) {
+    return cleanFetch<CategoryTreeNode>(`/api/v1/services/categories/${categoryId}/tree`);
+  },
+
+  /**
+   * Get subcategories for a category (lightweight briefs)
+   */
+  async getSubcategoriesByCategory(categoryId: string) {
+    return cleanFetch<ApiSubcategoryBrief[]>(`/api/v1/services/categories/${categoryId}/subcategories`);
+  },
+
+  /**
+   * Get a subcategory with its services
+   */
+  async getSubcategoryWithServices(subcategoryId: string) {
+    return cleanFetch<ApiSubcategoryWithServices>(`/api/v1/services/subcategories/${subcategoryId}`);
+  },
+
+  /**
+   * Get available filters for a subcategory
+   */
+  async getSubcategoryFilters(subcategoryId: string) {
+    return cleanFetch<ApiSubcategoryFilterResponse[]>(`/api/v1/services/subcategories/${subcategoryId}/filters`);
+  },
+
+  /**
+   * Get catalog services eligible for a specific age group
+   */
+  async getServicesByAgeGroup(ageGroup: AgeGroup) {
+    return cleanFetch<ApiCatalogService[]>(`/api/v1/services/catalog/by-age-group/${ageGroup}`);
+  },
+
+  /**
+   * Get filter context for instructor service editing (available filters + current selections)
+   */
+  async getServiceFilterContext(serviceId: string) {
+    return cleanFetch<ApiInstructorFilterContext>(`/api/v1/services/catalog/${serviceId}/filter-context`);
+  },
+
+  // ── Slug-based catalog browse endpoints ─────────────────────
+
+  /**
+   * List all active categories with subcategory counts
+   */
+  async listCatalogCategories() {
+    return cleanFetch<ApiCategorySummary[]>('/api/v1/catalog/categories');
+  },
+
+  /**
+   * Get category detail by slug with subcategory listing
+   */
+  async getCatalogCategory(slug: string) {
+    return cleanFetch<ApiCategoryDetail>(`/api/v1/catalog/categories/${encodeURIComponent(slug)}`);
+  },
+
+  /**
+   * Get subcategory detail by slug pair with services and filters
+   */
+  async getCatalogSubcategory(categorySlug: string, subcategorySlug: string) {
+    return cleanFetch<ApiSubcategoryDetail>(`/api/v1/catalog/categories/${encodeURIComponent(categorySlug)}/${encodeURIComponent(subcategorySlug)}`);
+  },
+
+  /**
+   * Get single service detail by ID
+   */
+  async getCatalogService(serviceId: string) {
+    return cleanFetch<ApiServiceCatalogDetail>(`/api/v1/catalog/services/${serviceId}`);
+  },
+
+  /**
+   * List services in a subcategory by ID
+   */
+  async listCatalogSubcategoryServices(subcategoryId: string) {
+    return cleanFetch<ApiServiceCatalogSummary[]>(`/api/v1/catalog/subcategories/${subcategoryId}/services`);
+  },
+
+  /**
+   * Get filter definitions for a subcategory by ID
+   */
+  async getCatalogSubcategoryFilters(subcategoryId: string) {
+    return cleanFetch<ApiSubcategoryFilterResponse[]>(`/api/v1/catalog/subcategories/${subcategoryId}/filters`);
   },
 };
 
@@ -733,6 +857,28 @@ export const protectedApi = {
     return authFetch<Booking>(PROTECTED_ENDPOINTS.bookings.reschedule(bookingId), {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  },
+
+  // ── Instructor filter management ────────────────────────────
+
+  /**
+   * Update filter selections on an instructor service
+   */
+  async updateFilterSelections(instructorServiceId: string, data: UpdateFilterSelectionsRequest) {
+    return authFetch<ApiInstructorService>(`/api/v1/services/instructor/services/${instructorServiceId}/filters`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Validate filter selections for a catalog service
+   */
+  async validateFilterSelections(data: ValidateFiltersRequest) {
+    return authFetch<ApiFilterValidationResponse>('/api/v1/services/instructor/services/validate-filters', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   },
 };

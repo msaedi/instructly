@@ -54,6 +54,7 @@ from ...services.permission_service import PermissionService
 from ...services.search.config import get_search_config
 from ...services.search.nl_search_service import NLSearchService, get_search_inflight_count
 from ...services.search.patterns import NEAR_ME
+from .taxonomy_filter_query import parse_taxonomy_filter_query_params
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,24 @@ async def nl_search(
     lng: Optional[float] = Query(None, ge=-180, le=180, description="User longitude"),
     region: str = Query("nyc", description="Region code for location/price lookups"),
     limit: int = Query(20, ge=1, le=50, description="Maximum results to return"),
+    skill_level: Optional[str] = Query(
+        None,
+        description="Comma-separated skill levels (beginner,intermediate,advanced)",
+    ),
+    subcategory_id: Optional[str] = Query(
+        None,
+        pattern=r"^[0-9A-Z]{26}$",
+        description="Optional subcategory ULID context",
+    ),
+    content_filters: Optional[str] = Query(
+        None,
+        max_length=2000,
+        description=(
+            "Pipe-delimited taxonomy content filters in the format "
+            "'key:val1,val2|key2:val3'. "
+            "Max 10 keys and 20 values per key."
+        ),
+    ),
     diagnostics: bool = Query(False, description="Include detailed diagnostics (admin only)"),
     force_skip_tier5: bool = Query(False, description="Force skip Tier 5 LLM (admin only)"),
     force_skip_tier4: bool = Query(False, description="Force skip Tier 4 embedding (admin only)"),
@@ -119,6 +138,17 @@ async def nl_search(
         raise HTTPException(
             status_code=400,
             detail="Query cannot be empty or whitespace-only",
+        )
+
+    try:
+        taxonomy_filter_selections, skill_levels = parse_taxonomy_filter_query_params(
+            skill_level=skill_level,
+            content_filters=content_filters,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
         )
 
     # Validate location (both or neither)
@@ -216,6 +246,9 @@ async def nl_search(
             query=q,
             user_location=user_location,
             limit=limit,
+            explicit_skill_levels=skill_levels or None,
+            subcategory_id=subcategory_id,
+            taxonomy_filter_selections=taxonomy_filter_selections or None,
             include_diagnostics=diagnostics,
             force_skip_tier5=force_skip_tier5,
             force_skip_tier4=force_skip_tier4,

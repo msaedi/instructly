@@ -18,6 +18,7 @@ Endpoints:
 
 import asyncio
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 from fastapi.params import Path
@@ -59,6 +60,7 @@ from ...services.address_service import AddressService
 from ...services.cache_service import CacheServiceSyncAdapter
 from ...services.favorites_service import FavoritesService
 from ...services.instructor_service import InstructorService
+from .taxonomy_filter_query import parse_taxonomy_filter_query_params
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +87,24 @@ async def list_instructors(
     min_price: float = Query(None, ge=0, le=1000, description="Minimum hourly rate"),
     max_price: float = Query(None, ge=0, le=1000, description="Maximum hourly rate"),
     age_group: str = Query(None, description="Filter by age group: 'kids' or 'adults'"),
+    skill_level: Optional[str] = Query(
+        None,
+        description="Comma-separated skill levels (beginner,intermediate,advanced)",
+    ),
+    subcategory_id: Optional[str] = Query(
+        None,
+        pattern=r"^[0-9A-HJKMNP-TV-Z]{26}$",
+        description="Optional subcategory ULID context",
+    ),
+    content_filters: Optional[str] = Query(
+        None,
+        max_length=2000,
+        description=(
+            "Pipe-delimited taxonomy content filters in the format "
+            "'key:val1,val2|key2:val3'. "
+            "Max 10 keys and 20 values per key."
+        ),
+    ),
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -99,6 +119,17 @@ async def list_instructors(
     Returns a standardized paginated response with 'items' field.
     """
     skip = (page - 1) * per_page
+
+    try:
+        taxonomy_filter_selections, _ = parse_taxonomy_filter_query_params(
+            skill_level=skill_level,
+            content_filters=content_filters,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
 
     # Validate filter parameters
     try:
@@ -119,6 +150,8 @@ async def list_instructors(
         min_price=filters.min_price,
         max_price=filters.max_price,
         age_group=filters.age_group,
+        taxonomy_filter_selections=taxonomy_filter_selections or None,
+        subcategory_id=subcategory_id,
         skip=skip,
         limit=per_page,
     )
@@ -450,8 +483,8 @@ def check_service_area(
         pattern=ULID_PATH_PATTERN,
         examples=["01HF4G12ABCDEF3456789XYZAB"],
     ),
-    lat: float = Query(..., description="Latitude"),
-    lng: float = Query(..., description="Longitude"),
+    lat: float = Query(..., ge=-90, le=90, description="Latitude"),
+    lng: float = Query(..., ge=-180, le=180, description="Longitude"),
     db: Session = Depends(get_db),
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> InstructorServiceAreaCheckResponse:

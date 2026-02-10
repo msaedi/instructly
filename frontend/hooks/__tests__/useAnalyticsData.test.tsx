@@ -149,4 +149,25 @@ describe('useAnalyticsData', () => {
     );
     expect(result.current.dateRange).toBe(7);
   });
+
+  it('auto-refreshes analytics data every 5 minutes', async () => {
+    jest.useFakeTimers();
+
+    try {
+      mockPayloads();
+
+      const { result } = renderHook(() => useAnalyticsData('token-123'));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(getSearchTrendsMock).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        jest.advanceTimersByTime(5 * 60 * 1000);
+        await Promise.resolve();
+      });
+
+      await waitFor(() => expect(getSearchTrendsMock).toHaveBeenCalledTimes(2));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });

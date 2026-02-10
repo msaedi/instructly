@@ -2281,7 +2281,7 @@ services:
   related_services: []
 
 # Language Category
-- category_slug: language
+- category_slug: languages
   name: Spanish
   slug: spanish
   description: ""
@@ -2309,7 +2309,7 @@ services:
   requires_certification: false
   related_services: [conversational-english, medical-spanish, legal-spanish]
 
-- category_slug: language
+- category_slug: languages
   name: ESL
   slug: esl
   description: ""
@@ -2335,7 +2335,7 @@ services:
   requires_certification: true
   related_services: [conversational-english, english-grammar]
 
-- category_slug: language
+- category_slug: languages
   name: French
   slug: french
   description: ""
@@ -2362,7 +2362,7 @@ services:
   requires_certification: false
   related_services: []
 
-- category_slug: language
+- category_slug: languages
   name: Mandarin Chinese
   slug: mandarin-chinese
   description: ""
@@ -2378,7 +2378,7 @@ services:
   requires_certification: false
   related_services: []
 
-- category_slug: language
+- category_slug: languages
   name: Italian
   slug: italian
   description: ""
@@ -2394,7 +2394,7 @@ services:
   requires_certification: false
   related_services: [soccer-skills, baseball, tennis]
 
-- category_slug: language
+- category_slug: languages
   name: Conversational English
   slug: conversational-english
   description: ""
@@ -2409,7 +2409,7 @@ services:
   requires_certification: false
   related_services: [esl, english-grammar]
 
-- category_slug: language
+- category_slug: languages
   name: German
   slug: german
   description: ""
@@ -2425,7 +2425,7 @@ services:
   requires_certification: false
   related_services: []
 
-- category_slug: language
+- category_slug: languages
   name: Japanese
   slug: japanese
   description: ""
@@ -2441,7 +2441,7 @@ services:
   requires_certification: false
   related_services: []
 
-- category_slug: language
+- category_slug: languages
   name: Sign Language ASL
   slug: sign-language-asl
   description: ""
@@ -2456,7 +2456,7 @@ services:
   requires_certification: true
   related_services: []
 
-- category_slug: language
+- category_slug: languages
   name: Korean
   slug: korean
   description: ""
@@ -2472,7 +2472,7 @@ services:
   requires_certification: false
   related_services: []
 
-- category_slug: language
+- category_slug: languages
   name: Portuguese
   slug: portuguese
   description: ""
@@ -2487,7 +2487,7 @@ services:
   requires_certification: false
   related_services: []
 
-- category_slug: language
+- category_slug: languages
   name: Russian
   slug: russian
   description: ""
@@ -2503,7 +2503,7 @@ services:
   requires_certification: false
   related_services: []
 
-- category_slug: language
+- category_slug: languages
   name: Business English
   slug: business-english
   description: ""
@@ -2518,7 +2518,7 @@ services:
   requires_certification: false
   related_services: [esl, conversational-english]
 
-- category_slug: language
+- category_slug: languages
   name: Arabic
   slug: arabic
   description: ""
@@ -2533,7 +2533,7 @@ services:
   requires_certification: false
   related_services: []
 
-- category_slug: language
+- category_slug: languages
   name: Hebrew
   slug: hebrew
   description: ""
@@ -2548,7 +2548,7 @@ services:
   requires_certification: false
   related_services: []
 
-- category_slug: language
+- category_slug: languages
   name: Accent Reduction
   slug: accent-reduction
   description: ""
@@ -2563,7 +2563,7 @@ services:
   requires_certification: true
   related_services: [esl, conversational-english]
 
-- category_slug: language
+- category_slug: languages
   name: TOEFL Prep
   slug: toefl-prep
   description: ""
@@ -2578,7 +2578,7 @@ services:
   requires_certification: false
   related_services: [esl]
 
-- category_slug: language
+- category_slug: languages
   name: Hindi
   slug: hindi
   description: ""
@@ -2593,7 +2593,7 @@ services:
   requires_certification: false
   related_services: []
 
-- category_slug: language
+- category_slug: languages
   name: English Grammar
   slug: english-grammar
   description: ""
@@ -2608,7 +2608,7 @@ services:
   requires_certification: false
   related_services: [esl, conversational-english]
 
-- category_slug: language
+- category_slug: languages
   name: Public Speaking
   slug: public-speaking
   description: ""
@@ -2623,7 +2623,7 @@ services:
   requires_certification: false
   related_services: [presentation-skills]
 
-- category_slug: language
+- category_slug: languages
   name: Medical Spanish
   slug: medical-spanish
   description: ""
@@ -2637,7 +2637,7 @@ services:
   requires_certification: false
   related_services: [spanish]
 
-- category_slug: language
+- category_slug: languages
   name: Legal Spanish
   slug: legal-spanish
   description: ""
@@ -2651,7 +2651,7 @@ services:
   requires_certification: false
   related_services: [spanish]
 
-- category_slug: language
+- category_slug: languages
   name: Travel Language Basics
   slug: travel-language-basics
   description: ""

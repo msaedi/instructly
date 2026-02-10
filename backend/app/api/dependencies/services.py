@@ -26,6 +26,7 @@ from ...services.booking_detail_service import BookingDetailService
 from ...services.booking_service import BookingService
 from ...services.bulk_operation_service import BulkOperationService
 from ...services.cache_service import CacheService, CacheServiceSyncAdapter
+from ...services.catalog_browse_service import CatalogBrowseService
 from ...services.communication_admin_service import CommunicationAdminService
 from ...services.conflict_checker import ConflictChecker
 from ...services.email import EmailService
@@ -190,6 +191,13 @@ def get_pricing_service(db: Session = Depends(get_db)) -> PricingService:
     """Provide pricing service instance for dependency injection."""
 
     return PricingService(db)
+
+
+def get_catalog_browse_service(
+    db: Session = Depends(get_db),
+) -> CatalogBrowseService:
+    """Get CatalogBrowseService instance for read-only taxonomy browsing."""
+    return CatalogBrowseService(db)
 
 
 def get_instructor_service(

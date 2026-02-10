@@ -960,6 +960,16 @@ export interface AllServicesMetadata {
   updated_at: string;
 }
 
+export type CategoryServiceDetailEligibleAgeGroupsItem =
+  (typeof CategoryServiceDetailEligibleAgeGroupsItem)[keyof typeof CategoryServiceDetailEligibleAgeGroupsItem];
+
+export const CategoryServiceDetailEligibleAgeGroupsItem = {
+  toddler: 'toddler',
+  kids: 'kids',
+  teens: 'teens',
+  adults: 'adults',
+} as const;
+
 /**
  * Detailed catalog service information with instructor analytics.
  */
@@ -967,10 +977,10 @@ export interface CategoryServiceDetail {
   active_instructors?: number;
   actual_max_price?: number | null;
   actual_min_price?: number | null;
-  category_id: string;
   demand_score?: number;
   description?: string | null;
   display_order?: number | null;
+  eligible_age_groups?: CategoryServiceDetailEligibleAgeGroupsItem[];
   id: string;
   instructor_count?: number;
   is_active?: boolean | null;
@@ -979,7 +989,8 @@ export interface CategoryServiceDetail {
   online_capable?: boolean | null;
   requires_certification?: boolean | null;
   search_terms?: string[];
-  slug: string;
+  slug?: string | null;
+  subcategory_id: string;
 }
 
 /**
@@ -991,7 +1002,6 @@ export interface CategoryWithServices {
   id: string;
   name: string;
   services?: CategoryServiceDetail[];
-  slug: string;
   subtitle?: string | null;
 }
 
@@ -2603,17 +2613,28 @@ export type CandidateTopServicesResponse = CandidateTopService[];
 export interface CatalogServiceMinimalResponse {
   id: string;
   name: string;
-  slug: string;
+  slug?: string | null;
 }
+
+export type CatalogServiceResponseEligibleAgeGroupsItem =
+  (typeof CatalogServiceResponseEligibleAgeGroupsItem)[keyof typeof CatalogServiceResponseEligibleAgeGroupsItem];
+
+export const CatalogServiceResponseEligibleAgeGroupsItem = {
+  toddler: 'toddler',
+  kids: 'kids',
+  teens: 'teens',
+  adults: 'adults',
+} as const;
 
 /**
  * Catalog service response.
  */
 export interface CatalogServiceResponse {
-  category?: string | null;
-  category_id: string;
+  category_name?: string | null;
   description?: string | null;
   display_order?: number | null;
+  /** Age groups this service is available for */
+  eligible_age_groups?: CatalogServiceResponseEligibleAgeGroupsItem[];
   id: string;
   max_recommended_price?: number | null;
   min_recommended_price?: number | null;
@@ -2621,8 +2642,35 @@ export interface CatalogServiceResponse {
   online_capable?: boolean | null;
   requires_certification?: boolean | null;
   search_terms?: string[];
-  slug: string;
+  slug?: string | null;
+  subcategory_id: string;
   typical_duration_options?: number[];
+}
+
+/**
+ * Subcategory summary for listing within a category page.
+ */
+export interface SubcategorySummary {
+  description?: string | null;
+  id: string;
+  name: string;
+  service_count?: number;
+  slug?: string | null;
+}
+
+/**
+ * Full category detail for /categories/{slug} pages.
+
+Includes subcategory listing with counts.
+ */
+export interface CategoryDetail {
+  description?: string | null;
+  id: string;
+  meta_description?: string | null;
+  meta_title?: string | null;
+  name: string;
+  slug?: string | null;
+  subcategories?: SubcategorySummary[];
 }
 
 export interface CategoryMetrics {
@@ -2676,7 +2724,6 @@ export interface CategoryResponse {
   icon_name?: string | null;
   id: string;
   name: string;
-  slug: string;
   subtitle?: string | null;
 }
 
@@ -2688,6 +2735,71 @@ export const CategorySortBy = {
   growth: 'growth',
   conversion: 'conversion',
 } as const;
+
+/**
+ * Lightweight category for homepage grid.
+ */
+export interface CategorySummary {
+  description?: string | null;
+  id: string;
+  name: string;
+  slug?: string | null;
+  subcategory_count?: number;
+}
+
+/**
+ * Subcategory with nested services (for category detail / onboarding).
+ */
+export interface SubcategoryWithServices {
+  category_id: string;
+  /** Order for UI display (lower numbers first) */
+  display_order?: number;
+  id: string;
+  /**
+   * Display name (e.g., 'Piano', 'Guitar')
+   * @maxLength 255
+   */
+  name: string;
+  services?: CatalogServiceResponse[];
+}
+
+/**
+ * Full 3-level tree: category → subcategories → services.
+
+Used for onboarding flows and admin category management.
+ */
+export interface CategoryTreeResponse {
+  description?: string | null;
+  display_order: number;
+  icon_name?: string | null;
+  id: string;
+  name: string;
+  subcategories?: SubcategoryWithServices[];
+  subtitle?: string | null;
+}
+
+/**
+ * Minimal subcategory for list views (browse page pills).
+ */
+export interface SubcategoryBrief {
+  id: string;
+  name: string;
+  /** Number of services in this subcategory */
+  service_count?: number;
+}
+
+/**
+ * Category with subcategory list (for browse page).
+ */
+export interface CategoryWithSubcategories {
+  description?: string | null;
+  display_order: number;
+  icon_name?: string | null;
+  id: string;
+  name: string;
+  subcategories?: SubcategoryBrief[];
+  subtitle?: string | null;
+}
 
 export type CeleryQueuesDataQueues = { [key: string]: number };
 
@@ -3510,12 +3622,17 @@ export interface ServiceAreaNeighborhood {
 }
 
 /**
+ * Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']})
+ */
+export type ServiceResponseFilterSelections = { [key: string]: string[] };
+
+/**
  * Schema for service responses.
 
 Includes the service ID and catalog information.
  */
 export interface ServiceResponse {
-  /** Age groups this service is offered to. Allowed: 'kids', 'adults'. Use both for both. */
+  /** Age groups this service is offered to. Allowed: 'toddler', 'kids', 'teens', 'adults'. */
   age_groups?: string[] | null;
   description?: string | null;
   /** Display order hint from the catalog (nullable) */
@@ -3527,15 +3644,13 @@ export interface ServiceResponse {
   duration_options?: number[];
   /** List of equipment required (strings) */
   equipment_required?: string[] | null;
+  /** Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']}) */
+  filter_selections?: ServiceResponseFilterSelections;
   /** Hourly rate in USD */
   hourly_rate: number;
   id: string;
   /** Whether this service is currently active for the instructor */
   is_active?: boolean | null;
-  /** Levels taught. Allowed: 'beginner', 'intermediate', 'advanced' */
-  levels_taught?: string[] | null;
-  /** Where lessons are offered. Allowed: 'in_person', 'online' */
-  location_types?: string[] | null;
   /** Resolved name of the service from the catalog */
   name?: string | null;
   /** Whether the instructor offers lessons at their location for this service */
@@ -3659,6 +3774,27 @@ export interface FavoritesList {
   favorites: FavoritedInstructor[];
   /** Total number of favorites */
   total: number;
+}
+
+/**
+ * A single filter option value.
+ */
+export interface FilterOptionResponse {
+  /** Human-readable label (e.g., 'Elementary (K-5)') */
+  display_name: string;
+  /** Order for UI display */
+  display_order?: number;
+  id: string;
+  /** Machine-readable value (e.g., 'elementary') */
+  value: string;
+}
+
+/**
+ * Response for filter validation.
+ */
+export interface FilterValidationResponse {
+  errors?: string[];
+  valid: boolean;
 }
 
 export interface FinalizeProfilePicturePayload {
@@ -3857,10 +3993,60 @@ export interface InstantPayoutResponse {
 }
 
 /**
+ * Instructor's current filter selections (filter_key -> [selected values])
+ */
+export type InstructorFilterContextCurrentSelections = { [key: string]: string[] };
+
+/**
+ * 'single_select' or 'multi_select'
+ */
+export type SubcategoryFilterResponseFilterType =
+  (typeof SubcategoryFilterResponseFilterType)[keyof typeof SubcategoryFilterResponseFilterType];
+
+export const SubcategoryFilterResponseFilterType = {
+  single_select: 'single_select',
+  multi_select: 'multi_select',
+} as const;
+
+/**
+ * A filter as it applies to a specific subcategory (with only valid options).
+
+This is the primary schema used by the frontend to render filter UI.
+ */
+export interface SubcategoryFilterResponse {
+  /** Human-readable name */
+  filter_display_name: string;
+  /** Filter key (e.g., 'grade_level') */
+  filter_key: string;
+  /** 'single_select' or 'multi_select' */
+  filter_type: SubcategoryFilterResponseFilterType;
+  /** Valid options for this subcategory */
+  options?: FilterOptionResponse[];
+}
+
+/**
+ * Filter context for instructor skill selection.
+
+Combines available filters with current selections for a specific
+subcategory+instructor combination.
+ */
+export interface InstructorFilterContext {
+  /** Filters available for this subcategory */
+  available_filters?: SubcategoryFilterResponse[];
+  /** Instructor's current filter selections (filter_key -> [selected values]) */
+  current_selections?: InstructorFilterContextCurrentSelections;
+}
+
+/**
+ * Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']})
+ */
+export type ServiceCreateFilterSelections = { [key: string]: string[] };
+
+/**
  * Schema for creating a new service.
  */
 export interface ServiceCreate {
-  /** Age groups this service is offered to. Allowed: 'kids', 'adults'. Use both for both. */
+  /** Age groups this service is offered to. Allowed: 'toddler', 'kids', 'teens', 'adults'. */
   age_groups?: string[] | null;
   description?: string | null;
   /**
@@ -3870,12 +4056,10 @@ export interface ServiceCreate {
   duration_options?: number[];
   /** List of equipment required (strings) */
   equipment_required?: string[] | null;
+  /** Instructor's filter choices for this service (e.g., {'grade_level': ['elementary']}) */
+  filter_selections?: ServiceCreateFilterSelections;
   /** Hourly rate in USD */
   hourly_rate: number | string;
-  /** Levels taught. Allowed: 'beginner', 'intermediate', 'advanced' */
-  levels_taught?: string[] | null;
-  /** Where lessons are offered. Allowed: 'in_person', 'online' */
-  location_types?: string[] | null;
   /** Whether the instructor offers lessons at their location for this service */
   offers_at_location?: boolean | null;
   /** Whether the instructor offers online lessons for this service */
@@ -4088,6 +4272,8 @@ export interface InstructorServiceCreate {
   hourly_rate: number;
 }
 
+export type InstructorServiceResponseFilterSelections = { [key: string]: string[] };
+
 /**
  * Instructor service response with catalog info.
  */
@@ -4097,11 +4283,10 @@ export interface InstructorServiceResponse {
   created_at?: string | null;
   description?: string | null;
   duration_options?: number[];
+  filter_selections?: InstructorServiceResponseFilterSelections;
   hourly_rate: number;
   id: string;
   is_active?: boolean;
-  /** Legacy location types (in_person, online) */
-  location_types?: string[] | null;
   name: string;
   offers_at_location?: boolean;
   offers_online?: boolean;
@@ -4619,7 +4804,7 @@ export interface MCPInstructorService {
   hourly_rate: string;
   is_active: boolean;
   name: string;
-  slug: string;
+  slug?: string | null;
 }
 
 export interface MCPInstructorStats {
@@ -4798,11 +4983,11 @@ export interface MCPMetricResponse {
 
 export interface MCPServiceCatalogItem {
   category_name?: string | null;
-  category_slug?: string | null;
   id: string;
   is_active: boolean;
   name: string;
-  slug: string;
+  slug?: string | null;
+  subcategory_name?: string | null;
 }
 
 export interface MCPServiceCatalogData {
@@ -5164,9 +5349,38 @@ export interface MonitoringDashboardResponse {
 }
 
 /**
+ * Taxonomy content filter option surfaced in NL search metadata.
+ */
+export interface NLSearchContentFilterOption {
+  /** Human-readable option label */
+  label: string;
+  /** Machine-readable option value */
+  value: string;
+}
+
+/**
+ * Taxonomy content filter definition surfaced in NL search metadata.
+ */
+export interface NLSearchContentFilterDefinition {
+  /** Machine-readable filter key */
+  key: string;
+  /** Human-readable filter label */
+  label: string;
+  /** Available options for this filter key */
+  options?: NLSearchContentFilterOption[];
+  /** Filter type (single_select|multi_select) */
+  type: string;
+}
+
+/**
  * Filter stage counts for debugging (optional)
  */
 export type NLSearchMetaFilterStats = { [key: string]: number } | null;
+
+/**
+ * Taxonomy filter values inferred from query text post-resolution
+ */
+export type NLSearchMetaInferredFilters = { [key: string]: string[] };
 
 /**
  * Details for parse pipeline stage.
@@ -5303,6 +5517,8 @@ export interface ParsedQueryInfo {
  * Search response metadata.
  */
 export interface NLSearchMeta {
+  /** Taxonomy content filter definitions available for this search context (excludes hard application until user explicitly applies filters) */
+  available_content_filters?: NLSearchContentFilterDefinition[];
   /** Whether response was from cache */
   cache_hit?: boolean;
   /** Typo-corrected query if different */
@@ -5313,10 +5529,16 @@ export interface NLSearchMeta {
   degraded?: boolean;
   /** Detailed diagnostics for admin tooling */
   diagnostics?: SearchDiagnostics | null;
+  /** Resolved subcategory id used to derive taxonomy filter definitions */
+  effective_subcategory_id?: string | null;
+  /** Resolved subcategory name used to derive taxonomy filter definitions */
+  effective_subcategory_name?: string | null;
   /** Filter stage counts for debugging (optional) */
   filter_stats?: NLSearchMetaFilterStats;
   /** Filters applied during constraint filtering */
   filters_applied?: string[];
+  /** Taxonomy filter values inferred from query text post-resolution */
+  inferred_filters?: NLSearchMetaInferredFilters;
   /**
    * Total search latency in ms
    * @minimum 0
@@ -7755,6 +7977,53 @@ export interface ServiceAreasUpdateRequest {
   neighborhood_ids: string[];
 }
 
+export type ServiceCatalogDetailEligibleAgeGroupsItem =
+  (typeof ServiceCatalogDetailEligibleAgeGroupsItem)[keyof typeof ServiceCatalogDetailEligibleAgeGroupsItem];
+
+export const ServiceCatalogDetailEligibleAgeGroupsItem = {
+  toddler: 'toddler',
+  kids: 'kids',
+  teens: 'teens',
+  adults: 'adults',
+} as const;
+
+/**
+ * Full service detail for instructor onboarding or detail pages.
+ */
+export interface ServiceCatalogDetail {
+  default_duration_minutes?: number;
+  description?: string | null;
+  eligible_age_groups?: ServiceCatalogDetailEligibleAgeGroupsItem[];
+  id: string;
+  name: string;
+  price_floor_in_person_cents?: number | null;
+  price_floor_online_cents?: number | null;
+  slug?: string | null;
+  subcategory_id?: string | null;
+  subcategory_name?: string | null;
+}
+
+export type ServiceCatalogSummaryEligibleAgeGroupsItem =
+  (typeof ServiceCatalogSummaryEligibleAgeGroupsItem)[keyof typeof ServiceCatalogSummaryEligibleAgeGroupsItem];
+
+export const ServiceCatalogSummaryEligibleAgeGroupsItem = {
+  toddler: 'toddler',
+  kids: 'kids',
+  teens: 'teens',
+  adults: 'adults',
+} as const;
+
+/**
+ * Lightweight service listing within a subcategory.
+ */
+export interface ServiceCatalogSummary {
+  default_duration_minutes?: number;
+  eligible_age_groups?: ServiceCatalogSummaryEligibleAgeGroupsItem[];
+  id: string;
+  name: string;
+  slug?: string | null;
+}
+
 /**
  * Metadata describing instructor search results.
  */
@@ -7880,6 +8149,23 @@ export interface StudentBadgeView {
   progress?: BadgeProgressView | null;
   slug: string;
   status?: string | null;
+}
+
+/**
+ * Full subcategory detail for /category/subcategory pages.
+
+Includes nested services and applicable filters.
+ */
+export interface SubcategoryDetail {
+  category: CategoryResponse;
+  description?: string | null;
+  filters?: SubcategoryFilterResponse[];
+  id: string;
+  meta_description?: string | null;
+  meta_title?: string | null;
+  name: string;
+  services?: CatalogServiceResponse[];
+  slug?: string | null;
 }
 
 /**
@@ -8020,7 +8306,7 @@ export interface TopCategoryServiceItem {
   id: string;
   is_trending?: boolean;
   name: string;
-  slug: string;
+  slug?: string | null;
 }
 
 /**
@@ -8031,7 +8317,6 @@ export interface TopCategoryItem {
   id: string;
   name: string;
   services?: TopCategoryServiceItem[];
-  slug: string;
 }
 
 /**
@@ -8137,6 +8422,19 @@ export const UpdateConversationStateResponseState = {
 export interface UpdateConversationStateResponse {
   id: string;
   state: UpdateConversationStateResponseState;
+}
+
+/**
+ * Filter key → selected option values
+ */
+export type UpdateFilterSelectionsRequestFilterSelections = { [key: string]: string[] };
+
+/**
+ * Request to update filter selections on an instructor service.
+ */
+export interface UpdateFilterSelectionsRequest {
+  /** Filter key → selected option values */
+  filter_selections: UpdateFilterSelectionsRequestFilterSelections;
 }
 
 /**
@@ -8263,6 +8561,21 @@ export interface UserUpdate {
   phone?: string | null;
   timezone?: string | null;
   zip_code?: string | null;
+}
+
+/**
+ * Filter key → selected option values
+ */
+export type ValidateFiltersRequestFilterSelections = { [key: string]: string[] };
+
+/**
+ * Request to validate filter selections for a catalog service.
+ */
+export interface ValidateFiltersRequest {
+  /** Filter key → selected option values */
+  filter_selections: ValidateFiltersRequestFilterSelections;
+  /** Catalog service ID */
+  service_catalog_id: string;
 }
 
 export type ValidateWeekRequestCurrentWeek = { [key: string]: TimeSlot[] };
@@ -8850,7 +9163,7 @@ export type ListInstructorsApiV1AdminMcpInstructorsGetParams = {
   status?: 'registered' | 'onboarding' | 'live' | 'paused' | null;
   is_founding?: boolean | null;
   service_slug?: string | null;
-  category_slug?: string | null;
+  category_name?: string | null;
   /**
    * @minimum 1
    * @maximum 200
@@ -9354,6 +9667,18 @@ export type ListInstructorsApiV1InstructorsGetParams = {
    */
   age_group?: string;
   /**
+   * Comma-separated skill levels (beginner,intermediate,advanced)
+   */
+  skill_level?: string | null;
+  /**
+   * Optional subcategory ULID context
+   */
+  subcategory_id?: string | null;
+  /**
+   * Pipe-delimited taxonomy content filters in the format 'key:val1,val2|key2:val3'. Max 10 keys and 20 values per key.
+   */
+  content_filters?: string | null;
+  /**
    * Page number
    * @minimum 1
    */
@@ -9560,6 +9885,18 @@ export type NlSearchApiV1SearchGetParams = {
    */
   limit?: number;
   /**
+   * Comma-separated skill levels (beginner,intermediate,advanced)
+   */
+  skill_level?: string | null;
+  /**
+   * Optional subcategory ULID context
+   */
+  subcategory_id?: string | null;
+  /**
+   * Pipe-delimited taxonomy content filters in the format 'key:val1,val2|key2:val3'. Max 10 keys and 20 values per key.
+   */
+  content_filters?: string | null;
+  /**
    * Include detailed diagnostics (admin only)
    */
   diagnostics?: boolean;
@@ -9655,9 +9992,9 @@ export type LogSearchClickApiV1SearchClickPostParams = {
 
 export type GetCatalogServicesApiV1ServicesCatalogGetParams = {
   /**
-   * Filter by category slug
+   * Filter by category ID
    */
-  category?: string | null;
+  category_id?: string | null;
 };
 
 export type GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams = {

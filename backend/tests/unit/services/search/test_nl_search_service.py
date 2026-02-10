@@ -9,6 +9,7 @@ Tests the instructor-level search pipeline with mocked components:
 - Response building
 - Response caching
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List
@@ -19,6 +20,8 @@ import pytest
 from app.repositories.search_batch_repository import CachedAliasInfo, RegionInfo, RegionLookup
 from app.schemas.nl_search import (
     InstructorSummary,
+    NLSearchContentFilterDefinition,
+    NLSearchContentFilterOption,
     NLSearchResponse,
     NLSearchResultItem,
     RatingSummary,
@@ -31,6 +34,8 @@ from app.services.search.nl_search_service import (
     TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD,
     TEXT_SKIP_VECTOR_MIN_RESULTS,
     TEXT_SKIP_VECTOR_SCORE_THRESHOLD,
+    TOP_MATCH_SUBCATEGORY_CANDIDATES,
+    TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS,
     NLSearchService,
     PipelineTimer,
     PostOpenAIData,
@@ -39,6 +44,7 @@ from app.services.search.nl_search_service import (
 )
 from app.services.search.query_parser import ParsedQuery
 from app.services.search.ranking_service import RankedResult, RankingResult
+from app.services.search.retriever import ServiceCandidate
 
 
 @pytest.fixture
@@ -261,6 +267,21 @@ class TestCacheCheck:
 
         assert result is None
 
+    @pytest.mark.asyncio
+    async def test_passes_filters_to_cache_lookup(self, mock_search_cache: Mock) -> None:
+        service = NLSearchService(search_cache=mock_search_cache)
+        filters = {"taxonomy": {"skill_level": ["beginner"]}, "subcategory_id": "sub-1"}
+
+        await service._check_cache("piano lessons", None, limit=20, filters=filters)
+
+        mock_search_cache.get_cached_response.assert_awaited_once_with(
+            "piano lessons",
+            None,
+            filters=filters,
+            limit=20,
+            region_code="nyc",
+        )
+
 
 class TestBuildInstructorResponse:
     """Tests for instructor-level response building."""
@@ -379,6 +400,60 @@ class TestBuildInstructorResponse:
         assert response.meta.parsed.max_price == 50
         assert response.meta.parsed.date is not None
         assert response.meta.parsing_mode == "llm"
+
+    def test_includes_inferred_filters_in_meta(
+        self, sample_parsed_query: ParsedQuery, sample_instructor_results: List[NLSearchResultItem]
+    ) -> None:
+        service = NLSearchService()
+        metrics = SearchMetrics()
+
+        response = service._build_instructor_response(
+            "ap math",
+            sample_parsed_query,
+            sample_instructor_results,
+            limit=20,
+            metrics=metrics,
+            inferred_filters={"course_level": ["ap"]},
+        )
+
+        assert response.meta.inferred_filters == {"course_level": ["ap"]}
+
+    def test_includes_effective_subcategory_and_available_filters_in_meta(
+        self, sample_parsed_query: ParsedQuery, sample_instructor_results: List[NLSearchResultItem]
+    ) -> None:
+        service = NLSearchService()
+        metrics = SearchMetrics()
+
+        response = service._build_instructor_response(
+            "ap math",
+            sample_parsed_query,
+            sample_instructor_results,
+            limit=20,
+            metrics=metrics,
+            inferred_filters={"course_level": ["ap"]},
+            effective_subcategory_id="sub_math",
+            effective_subcategory_name="Math",
+            available_content_filters=[
+                NLSearchContentFilterDefinition(
+                    key="course_level",
+                    label="Course Level",
+                    type="multi_select",
+                    options=[
+                        NLSearchContentFilterOption(value="regular", label="Regular"),
+                        NLSearchContentFilterOption(value="ap", label="AP"),
+                    ],
+                )
+            ],
+        )
+
+        assert response.meta.effective_subcategory_id == "sub_math"
+        assert response.meta.effective_subcategory_name == "Math"
+        assert len(response.meta.available_content_filters) == 1
+        assert response.meta.available_content_filters[0].key == "course_level"
+        assert [option.value for option in response.meta.available_content_filters[0].options] == [
+            "regular",
+            "ap",
+        ]
 
 
 class TestTransformInstructorResults:
@@ -566,7 +641,10 @@ class TestHydrateInstructorResults:
                 return None
 
         with (
-            patch("app.services.search.nl_search_service.get_db_session", return_value=_DummySessionCtx()),
+            patch(
+                "app.services.search.nl_search_service.get_db_session",
+                return_value=_DummySessionCtx(),
+            ),
             patch("app.repositories.retriever_repository.RetrieverRepository") as mock_repo_cls,
         ):
             mock_repo_cls.return_value.get_instructor_cards = Mock(return_value=instructor_cards)
@@ -688,6 +766,165 @@ class TestSearchPipeline:
             mock_hydrate.assert_awaited_once()
             mock_search_cache.cache_response.assert_awaited_once()
             mock_metrics.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_explicit_skill_level_overrides_nl_and_threads_taxonomy_filters(
+        self,
+        mock_search_cache: Mock,
+        sample_instructor_results: List[NLSearchResultItem],
+    ) -> None:
+        mock_search_cache.get_cached_response.return_value = None
+        mock_search_cache.get_cached_parsed_query.return_value = None
+
+        service = NLSearchService(search_cache=mock_search_cache)
+        parsed_query = ParsedQuery(
+            original_query="beginner piano",
+            service_query="piano",
+            parsing_mode="regex",
+            skill_level="beginner",
+        )
+        pre_data = PreOpenAIData(
+            parsed_query=parsed_query,
+            parse_latency_ms=5,
+            text_results={},
+            text_latency_ms=0,
+            has_service_embeddings=True,
+            best_text_score=0.0,
+            require_text_match=False,
+            skip_vector=False,
+            region_lookup=None,
+            location_resolution=ResolvedLocation.from_not_found(),
+            location_normalized=None,
+            cached_alias_normalized=None,
+            fuzzy_score=None,
+        )
+        post_data = PostOpenAIData(
+            filter_result=FilterResult(
+                candidates=[],
+                total_before_filter=0,
+                total_after_filter=0,
+                filters_applied=[],
+                soft_filtering_used=False,
+            ),
+            ranking_result=RankingResult(results=[], total_results=0),
+            retrieval_candidates=[],
+            instructor_rows=[],
+            distance_meters={},
+            text_latency_ms=0,
+            vector_latency_ms=0,
+            filter_latency_ms=0,
+            rank_latency_ms=0,
+            vector_search_used=False,
+            total_candidates=0,
+            filter_failed=False,
+            ranking_failed=False,
+            skip_vector=False,
+        )
+
+        with (
+            patch.object(service, "_run_pre_openai_burst", return_value=pre_data),
+            patch.object(
+                service,
+                "_embed_query_with_timeout",
+                new_callable=AsyncMock,
+                return_value=([0.1], 5, None),
+            ),
+            patch.object(service, "_run_post_openai_burst", return_value=post_data) as mock_post,
+            patch.object(
+                service, "_hydrate_instructor_results", new_callable=AsyncMock
+            ) as mock_hydrate,
+            patch("app.services.search.nl_search_service.record_search_metrics"),
+        ):
+            mock_hydrate.return_value = sample_instructor_results
+
+            await service.search(
+                "beginner piano",
+                explicit_skill_levels=["advanced", "intermediate"],
+                taxonomy_filter_selections={"goal": ["enrichment"]},
+                subcategory_id="sub-1",
+            )
+
+        assert mock_post.call_args.args[1].skill_level is None
+        assert mock_post.call_args.args[8] == {
+            "goal": ["enrichment"],
+            "skill_level": ["advanced", "intermediate"],
+        }
+        assert mock_post.call_args.args[9] == "sub-1"
+        assert mock_search_cache.get_cached_response.await_args.kwargs["filters"]["taxonomy"][
+            "skill_level"
+        ] == ["advanced", "intermediate"]
+
+    @pytest.mark.asyncio
+    async def test_single_explicit_skill_level_sets_ranking_hint(
+        self,
+        mock_search_cache: Mock,
+    ) -> None:
+        mock_search_cache.get_cached_response.return_value = None
+        mock_search_cache.get_cached_parsed_query.return_value = None
+
+        service = NLSearchService(search_cache=mock_search_cache)
+        parsed_query = ParsedQuery(
+            original_query="beginner piano",
+            service_query="piano",
+            parsing_mode="regex",
+            skill_level="beginner",
+        )
+        pre_data = PreOpenAIData(
+            parsed_query=parsed_query,
+            parse_latency_ms=5,
+            text_results={},
+            text_latency_ms=0,
+            has_service_embeddings=True,
+            best_text_score=0.0,
+            require_text_match=False,
+            skip_vector=False,
+            region_lookup=None,
+            location_resolution=ResolvedLocation.from_not_found(),
+            location_normalized=None,
+            cached_alias_normalized=None,
+            fuzzy_score=None,
+        )
+        post_data = PostOpenAIData(
+            filter_result=FilterResult(
+                candidates=[],
+                total_before_filter=0,
+                total_after_filter=0,
+                filters_applied=[],
+                soft_filtering_used=False,
+            ),
+            ranking_result=RankingResult(results=[], total_results=0),
+            retrieval_candidates=[],
+            instructor_rows=[],
+            distance_meters={},
+            text_latency_ms=0,
+            vector_latency_ms=0,
+            filter_latency_ms=0,
+            rank_latency_ms=0,
+            vector_search_used=False,
+            total_candidates=0,
+            filter_failed=False,
+            ranking_failed=False,
+            skip_vector=False,
+        )
+
+        with (
+            patch.object(service, "_run_pre_openai_burst", return_value=pre_data),
+            patch.object(
+                service,
+                "_embed_query_with_timeout",
+                new_callable=AsyncMock,
+                return_value=([0.1], 5, None),
+            ),
+            patch.object(service, "_run_post_openai_burst", return_value=post_data) as mock_post,
+            patch.object(
+                service, "_hydrate_instructor_results", new_callable=AsyncMock, return_value=[]
+            ),
+            patch("app.services.search.nl_search_service.record_search_metrics"),
+        ):
+            await service.search("piano", explicit_skill_levels=["advanced"])
+
+        assert mock_post.call_args.args[1].skill_level == "advanced"
+        assert mock_post.call_args.args[8] == {"skill_level": ["advanced"]}
 
     @pytest.mark.asyncio
     async def test_falls_back_to_text_only_when_embedding_unavailable(
@@ -846,7 +1083,12 @@ class TestLocationHandling:
 
         with (
             patch.object(service, "_run_pre_openai_burst", return_value=pre_data),
-            patch.object(service, "_embed_query_with_timeout", new_callable=AsyncMock, return_value=([0.1], 5, None)),
+            patch.object(
+                service,
+                "_embed_query_with_timeout",
+                new_callable=AsyncMock,
+                return_value=([0.1], 5, None),
+            ),
             patch.object(service, "_run_post_openai_burst", return_value=post_data) as mock_post,
             patch.object(
                 service, "_hydrate_instructor_results", new_callable=AsyncMock
@@ -911,6 +1153,36 @@ class TestResponseCaching:
         # Should not raise
         await service._cache_response("piano", None, response, limit=20)
 
+    @pytest.mark.asyncio
+    async def test_passes_filters_to_cache_response(
+        self,
+        mock_search_cache: Mock,
+        sample_parsed_query: ParsedQuery,
+        sample_instructor_results: List[NLSearchResultItem],
+    ) -> None:
+        service = NLSearchService(search_cache=mock_search_cache)
+        metrics = SearchMetrics()
+        response = service._build_instructor_response(
+            "piano",
+            sample_parsed_query,
+            sample_instructor_results,
+            limit=20,
+            metrics=metrics,
+        )
+        filters = {"taxonomy": {"skill_level": ["beginner"]}, "subcategory_id": "sub-1"}
+
+        await service._cache_response("piano", None, response, limit=20, filters=filters)
+
+        mock_search_cache.cache_response.assert_awaited_once_with(
+            "piano",
+            response.model_dump(),
+            user_location=None,
+            filters=filters,
+            limit=20,
+            ttl=None,
+            region_code="nyc",
+        )
+
 
 class TestNLSearchServiceHelpers:
     """Tests for helper utilities in the NL search pipeline."""
@@ -960,9 +1232,7 @@ class TestNLSearchServiceHelpers:
         NLSearchService._record_pre_location_tiers(timer, None)
 
         assert len(timer.location_tiers) == 3
-        assert {entry["status"] for entry in timer.location_tiers} == {
-            StageStatus.MISS.value
-        }
+        assert {entry["status"] for entry in timer.location_tiers} == {StageStatus.MISS.value}
 
     def test_compute_text_match_flags(self) -> None:
         text_results = {
@@ -979,7 +1249,9 @@ class TestNLSearchServiceHelpers:
         assert require_text_match is True
         assert skip_vector is True
 
-        best_score, require_text_match, skip_vector = NLSearchService._compute_text_match_flags("", {})
+        best_score, require_text_match, skip_vector = NLSearchService._compute_text_match_flags(
+            "", {}
+        )
 
         assert best_score == 0.0
         assert require_text_match is False
@@ -1022,6 +1294,730 @@ class TestNLSearchServiceHelpers:
         assert result.resolved is True
         assert result.region_name == "Tribeca"
 
+    def test_resolve_effective_subcategory_id_prefers_explicit_value(self) -> None:
+        service = NLSearchService()
+        candidates = [
+            ServiceCandidate(
+                service_id=f"svc_{index}",
+                service_catalog_id=f"catalog_{index}",
+                hybrid_score=0.9,
+                vector_score=None,
+                text_score=0.6,
+                name="Math",
+                description=None,
+                price_per_hour=100,
+                instructor_id=f"instructor_{index}",
+                subcategory_id="sub_math",
+            )
+            for index in range(5)
+        ]
+
+        effective_subcategory = service._resolve_effective_subcategory_id(
+            candidates,
+            explicit_subcategory_id="sub_explicit",
+        )
+
+        assert effective_subcategory == "sub_explicit"
+
+    def test_resolve_effective_subcategory_id_uses_top_match_consensus(self) -> None:
+        service = NLSearchService()
+        candidates = [
+            ServiceCandidate(
+                service_id=f"svc_{index}",
+                service_catalog_id=f"catalog_{index}",
+                hybrid_score=0.9,
+                vector_score=None,
+                text_score=0.6,
+                name="Service",
+                description=None,
+                price_per_hour=100,
+                instructor_id=f"instructor_{index}",
+                subcategory_id="sub_math" if index < 2 else "sub_kids",
+            )
+            for index in range(3)
+        ]
+
+        effective_subcategory = service._resolve_effective_subcategory_id(
+            candidates,
+            explicit_subcategory_id=None,
+        )
+
+        assert effective_subcategory == "sub_math"
+        assert TOP_MATCH_SUBCATEGORY_CANDIDATES == 5
+        assert TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS == 2
+
+    def test_resolve_effective_subcategory_id_returns_none_when_top_results_mixed(self) -> None:
+        service = NLSearchService()
+        candidates = [
+            ServiceCandidate(
+                service_id=f"svc_{index}",
+                service_catalog_id=f"catalog_{index}",
+                hybrid_score=0.9,
+                vector_score=None,
+                text_score=0.6,
+                name="Service",
+                description=None,
+                price_per_hour=100,
+                instructor_id=f"instructor_{index}",
+                subcategory_id=subcategory_id,
+            )
+            for index, subcategory_id in enumerate(["sub_a", "sub_b", "sub_c"])
+        ]
+
+        effective_subcategory = service._resolve_effective_subcategory_id(
+            candidates,
+            explicit_subcategory_id=None,
+        )
+
+        assert effective_subcategory is None
+
+    def test_resolve_effective_subcategory_id_single_result_uses_result_subcategory(self) -> None:
+        service = NLSearchService()
+        candidates = [
+            ServiceCandidate(
+                service_id="svc_1",
+                service_catalog_id="catalog_1",
+                hybrid_score=0.91,
+                vector_score=None,
+                text_score=0.6,
+                name="Piano",
+                description=None,
+                price_per_hour=120,
+                instructor_id="instructor_1",
+                subcategory_id="sub_piano",
+            )
+        ]
+
+        effective_subcategory = service._resolve_effective_subcategory_id(
+            candidates,
+            explicit_subcategory_id=None,
+        )
+
+        assert effective_subcategory == "sub_piano"
+
+
+class TestPostOpenAIBurstTaxonomyInference:
+    def test_inferred_filters_are_meta_only_when_explicit_filters_present(
+        self, monkeypatch
+    ) -> None:
+        service = NLSearchService()
+        parsed_query = ParsedQuery(
+            original_query="AP math tutoring",
+            service_query="math tutoring",
+            parsing_mode="regex",
+        )
+        pre_data = PreOpenAIData(
+            parsed_query=parsed_query,
+            parse_latency_ms=1,
+            text_results={},
+            text_latency_ms=1,
+            has_service_embeddings=True,
+            best_text_score=0.9,
+            require_text_match=False,
+            skip_vector=False,
+            region_lookup=None,
+            location_resolution=None,
+            location_normalized=None,
+            cached_alias_normalized=None,
+            fuzzy_score=None,
+            location_llm_candidates=[],
+        )
+        candidate = ServiceCandidate(
+            service_id="svc_1",
+            service_catalog_id="catalog_1",
+            hybrid_score=0.8,
+            vector_score=None,
+            text_score=0.8,
+            name="Math",
+            description=None,
+            price_per_hour=90,
+            instructor_id="inst_1",
+        )
+
+        class _DummySessionCtx:
+            def __enter__(self) -> Mock:  # type: ignore[override]
+                return Mock()
+
+            def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[override]
+                return None
+
+        class _FakeFilterService:
+            def __init__(self, **_kwargs: Any) -> None:
+                pass
+
+            def filter_candidates_sync(
+                self,
+                candidates: List[ServiceCandidate],
+                _parsed_query: ParsedQuery,
+                **_kwargs: Any,
+            ) -> FilterResult:
+                return FilterResult(
+                    candidates=[],
+                    total_before_filter=len(candidates),
+                    total_after_filter=0,
+                    filters_applied=[],
+                    soft_filtering_used=False,
+                    location_resolution=None,
+                )
+
+        class _FakeRankingService:
+            def __init__(self, **_kwargs: Any) -> None:
+                pass
+
+            def rank_candidates(self, *_args: Any, **_kwargs: Any) -> RankingResult:
+                return RankingResult(results=[], total_results=0)
+
+        retriever_repo_mock = Mock()
+        retriever_repo_mock.get_instructor_cards.return_value = []
+        taxonomy_repository_mock = Mock()
+        taxonomy_repository_mock.get_filters_for_subcategory.return_value = [
+            {
+                "filter_key": "course_level",
+                "filter_display_name": "Course Level",
+                "filter_type": "multi_select",
+                "options": [{"value": "ap", "display_name": "AP"}],
+            }
+        ]
+        taxonomy_repository_mock.get_subcategory_name.return_value = "Tutoring"
+        taxonomy_repository_mock.find_matching_service_ids.return_value = {"svc_1"}
+
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.get_db_session",
+            lambda: _DummySessionCtx(),
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.SearchBatchRepository",
+            lambda *_args, **_kwargs: Mock(),
+        )
+        monkeypatch.setattr(
+            "app.repositories.retriever_repository.RetrieverRepository",
+            lambda *_args, **_kwargs: retriever_repo_mock,
+        )
+        monkeypatch.setattr(
+            "app.repositories.filter_repository.FilterRepository",
+            lambda *_args, **_kwargs: Mock(),
+        )
+        monkeypatch.setattr(
+            "app.repositories.ranking_repository.RankingRepository",
+            lambda *_args, **_kwargs: Mock(),
+        )
+        monkeypatch.setattr(
+            "app.repositories.taxonomy_filter_repository.TaxonomyFilterRepository",
+            lambda *_args, **_kwargs: taxonomy_repository_mock,
+        )
+        monkeypatch.setattr(
+            "app.services.search.location_resolver.LocationResolver",
+            lambda *_args, **_kwargs: Mock(repository=Mock()),
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.FilterService",
+            _FakeFilterService,
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.RankingService",
+            _FakeRankingService,
+        )
+        monkeypatch.setattr(
+            service,
+            "_resolve_effective_subcategory_id",
+            lambda *_args, **_kwargs: "sub_tutoring",
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.extract_inferred_filters",
+            lambda **_kwargs: {"course_level": ["ap"]},
+        )
+        monkeypatch.setattr(
+            service.retriever,
+            "fuse_results",
+            Mock(return_value=[candidate]),
+        )
+
+        post_data = service._run_post_openai_burst(
+            pre_data,
+            parsed_query,
+            query_embedding=None,
+            location_resolution=None,
+            location_llm_cache=None,
+            unresolved_info=None,
+            user_location=None,
+            limit=20,
+            taxonomy_filter_selections={"goal": ["enrichment"]},
+            subcategory_id=None,
+        )
+
+        taxonomy_repository_mock.find_matching_service_ids.assert_called_once_with(
+            service_ids=["svc_1"],
+            subcategory_id=None,
+            filter_selections={"goal": ["enrichment"]},
+            active_only=True,
+        )
+        assert post_data.inferred_filters == {"course_level": ["ap"]}
+        assert post_data.effective_taxonomy_filters == {"goal": ["enrichment"]}
+        assert post_data.effective_subcategory_id == "sub_tutoring"
+        assert post_data.effective_subcategory_name == "Tutoring"
+        assert [f.key for f in post_data.available_content_filters] == ["course_level"]
+
+    def test_infers_subcategory_from_top_matches_for_ap_math_pattern(self, monkeypatch) -> None:
+        service = NLSearchService()
+        parsed_query = ParsedQuery(
+            original_query="AP math",
+            service_query="math",
+            parsing_mode="regex",
+        )
+        pre_data = PreOpenAIData(
+            parsed_query=parsed_query,
+            parse_latency_ms=1,
+            text_results={},
+            text_latency_ms=1,
+            has_service_embeddings=True,
+            best_text_score=0.9,
+            require_text_match=False,
+            skip_vector=False,
+            region_lookup=None,
+            location_resolution=None,
+            location_normalized=None,
+            cached_alias_normalized=None,
+            fuzzy_score=None,
+            location_llm_candidates=[],
+        )
+        candidates = [
+            ServiceCandidate(
+                service_id="svc_1",
+                service_catalog_id="catalog_1",
+                hybrid_score=0.98,
+                vector_score=None,
+                text_score=0.88,
+                name="Algebra",
+                description=None,
+                price_per_hour=100,
+                instructor_id="inst_1",
+                subcategory_id="sub_math",
+            ),
+            ServiceCandidate(
+                service_id="svc_2",
+                service_catalog_id="catalog_2",
+                hybrid_score=0.95,
+                vector_score=None,
+                text_score=0.85,
+                name="Calculus",
+                description=None,
+                price_per_hour=110,
+                instructor_id="inst_2",
+                subcategory_id="sub_math",
+            ),
+            ServiceCandidate(
+                service_id="svc_3",
+                service_catalog_id="catalog_3",
+                hybrid_score=0.93,
+                vector_score=None,
+                text_score=0.84,
+                name="Math Through Play",
+                description=None,
+                price_per_hour=90,
+                instructor_id="inst_3",
+                subcategory_id="sub_kids",
+            ),
+        ]
+
+        class _DummySessionCtx:
+            def __enter__(self) -> Mock:  # type: ignore[override]
+                return Mock()
+
+            def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[override]
+                return None
+
+        class _FakeFilterService:
+            def __init__(self, **_kwargs: Any) -> None:
+                pass
+
+            def filter_candidates_sync(
+                self,
+                incoming_candidates: List[ServiceCandidate],
+                _parsed_query: ParsedQuery,
+                **_kwargs: Any,
+            ) -> FilterResult:
+                return FilterResult(
+                    candidates=incoming_candidates,
+                    total_before_filter=len(incoming_candidates),
+                    total_after_filter=len(incoming_candidates),
+                    filters_applied=[],
+                    soft_filtering_used=False,
+                    location_resolution=None,
+                )
+
+        class _FakeRankingService:
+            def __init__(self, **_kwargs: Any) -> None:
+                pass
+
+            def rank_candidates(self, *_args: Any, **_kwargs: Any) -> RankingResult:
+                return RankingResult(results=[], total_results=0)
+
+        retriever_repo_mock = Mock()
+        retriever_repo_mock.get_instructor_cards.return_value = []
+        taxonomy_repository_mock = Mock()
+        taxonomy_repository_mock.get_filters_for_subcategory.return_value = [
+            {
+                "filter_key": "course_level",
+                "filter_display_name": "Course Level",
+                "filter_type": "multi_select",
+                "options": [{"value": "ap", "display_name": "AP"}],
+            }
+        ]
+        taxonomy_repository_mock.get_subcategory_name.return_value = "Math"
+        taxonomy_repository_mock.find_matching_service_ids.return_value = {
+            "svc_1",
+            "svc_2",
+        }
+
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.get_db_session",
+            lambda: _DummySessionCtx(),
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.SearchBatchRepository",
+            lambda *_args, **_kwargs: Mock(),
+        )
+        monkeypatch.setattr(
+            "app.repositories.retriever_repository.RetrieverRepository",
+            lambda *_args, **_kwargs: retriever_repo_mock,
+        )
+        monkeypatch.setattr(
+            "app.repositories.filter_repository.FilterRepository",
+            lambda *_args, **_kwargs: Mock(),
+        )
+        monkeypatch.setattr(
+            "app.repositories.ranking_repository.RankingRepository",
+            lambda *_args, **_kwargs: Mock(),
+        )
+        monkeypatch.setattr(
+            "app.repositories.taxonomy_filter_repository.TaxonomyFilterRepository",
+            lambda *_args, **_kwargs: taxonomy_repository_mock,
+        )
+        monkeypatch.setattr(
+            "app.services.search.location_resolver.LocationResolver",
+            lambda *_args, **_kwargs: Mock(repository=Mock()),
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.FilterService",
+            _FakeFilterService,
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.RankingService",
+            _FakeRankingService,
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.extract_inferred_filters",
+            lambda **_kwargs: {"course_level": ["ap"]},
+        )
+        monkeypatch.setattr(
+            service.retriever,
+            "fuse_results",
+            Mock(return_value=candidates),
+        )
+
+        post_data = service._run_post_openai_burst(
+            pre_data,
+            parsed_query,
+            query_embedding=None,
+            location_resolution=None,
+            location_llm_cache=None,
+            unresolved_info=None,
+            user_location=None,
+            limit=20,
+            taxonomy_filter_selections=None,
+            subcategory_id=None,
+        )
+
+        taxonomy_repository_mock.get_filters_for_subcategory.assert_called_once_with("sub_math")
+        taxonomy_repository_mock.find_matching_service_ids.assert_not_called()
+        assert post_data.inferred_filters == {"course_level": ["ap"]}
+        assert post_data.effective_taxonomy_filters == {}
+        assert post_data.effective_subcategory_id == "sub_math"
+        assert post_data.effective_subcategory_name == "Math"
+        assert [f.key for f in post_data.available_content_filters] == ["course_level"]
+
+    def test_no_effective_subcategory_returns_empty_available_content_filters(
+        self, monkeypatch
+    ) -> None:
+        service = NLSearchService()
+        parsed_query = ParsedQuery(
+            original_query="help me find a tutor",
+            service_query="tutor",
+            parsing_mode="regex",
+        )
+        pre_data = PreOpenAIData(
+            parsed_query=parsed_query,
+            parse_latency_ms=1,
+            text_results={},
+            text_latency_ms=1,
+            has_service_embeddings=True,
+            best_text_score=0.9,
+            require_text_match=False,
+            skip_vector=False,
+            region_lookup=None,
+            location_resolution=None,
+            location_normalized=None,
+            cached_alias_normalized=None,
+            fuzzy_score=None,
+            location_llm_candidates=[],
+        )
+        candidate = ServiceCandidate(
+            service_id="svc_1",
+            service_catalog_id="catalog_1",
+            hybrid_score=0.8,
+            vector_score=None,
+            text_score=0.8,
+            name="General Tutoring",
+            description=None,
+            price_per_hour=90,
+            instructor_id="inst_1",
+            subcategory_id=None,
+        )
+
+        class _DummySessionCtx:
+            def __enter__(self) -> Mock:  # type: ignore[override]
+                return Mock()
+
+            def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[override]
+                return None
+
+        class _FakeFilterService:
+            def __init__(self, **_kwargs: Any) -> None:
+                pass
+
+            def filter_candidates_sync(
+                self,
+                incoming_candidates: List[ServiceCandidate],
+                _parsed_query: ParsedQuery,
+                **_kwargs: Any,
+            ) -> FilterResult:
+                return FilterResult(
+                    candidates=incoming_candidates,
+                    total_before_filter=len(incoming_candidates),
+                    total_after_filter=len(incoming_candidates),
+                    filters_applied=[],
+                    soft_filtering_used=False,
+                    location_resolution=None,
+                )
+
+        class _FakeRankingService:
+            def __init__(self, **_kwargs: Any) -> None:
+                pass
+
+            def rank_candidates(self, *_args: Any, **_kwargs: Any) -> RankingResult:
+                return RankingResult(results=[], total_results=0)
+
+        retriever_repo_mock = Mock()
+        retriever_repo_mock.get_instructor_cards.return_value = []
+        taxonomy_repository_mock = Mock()
+        taxonomy_repository_mock.find_matching_service_ids.return_value = {"svc_1"}
+
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.get_db_session",
+            lambda: _DummySessionCtx(),
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.SearchBatchRepository",
+            lambda *_args, **_kwargs: Mock(),
+        )
+        monkeypatch.setattr(
+            "app.repositories.retriever_repository.RetrieverRepository",
+            lambda *_args, **_kwargs: retriever_repo_mock,
+        )
+        monkeypatch.setattr(
+            "app.repositories.filter_repository.FilterRepository",
+            lambda *_args, **_kwargs: Mock(),
+        )
+        monkeypatch.setattr(
+            "app.repositories.ranking_repository.RankingRepository",
+            lambda *_args, **_kwargs: Mock(),
+        )
+        monkeypatch.setattr(
+            "app.repositories.taxonomy_filter_repository.TaxonomyFilterRepository",
+            lambda *_args, **_kwargs: taxonomy_repository_mock,
+        )
+        monkeypatch.setattr(
+            "app.services.search.location_resolver.LocationResolver",
+            lambda *_args, **_kwargs: Mock(repository=Mock()),
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.FilterService",
+            _FakeFilterService,
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.RankingService",
+            _FakeRankingService,
+        )
+        monkeypatch.setattr(
+            service,
+            "_resolve_effective_subcategory_id",
+            lambda *_args, **_kwargs: None,
+        )
+        monkeypatch.setattr(
+            service.retriever,
+            "fuse_results",
+            Mock(return_value=[candidate]),
+        )
+
+        post_data = service._run_post_openai_burst(
+            pre_data,
+            parsed_query,
+            query_embedding=None,
+            location_resolution=None,
+            location_llm_cache=None,
+            unresolved_info=None,
+            user_location=None,
+            limit=20,
+            taxonomy_filter_selections=None,
+            subcategory_id=None,
+        )
+
+        taxonomy_repository_mock.get_filters_for_subcategory.assert_not_called()
+        taxonomy_repository_mock.get_subcategory_name.assert_not_called()
+        assert post_data.effective_subcategory_id is None
+        assert post_data.effective_subcategory_name is None
+        assert post_data.available_content_filters == []
+
+    def test_explicit_subcategory_applies_hard_filter(self, monkeypatch) -> None:
+        service = NLSearchService()
+        parsed_query = ParsedQuery(
+            original_query="math",
+            service_query="math",
+            parsing_mode="regex",
+        )
+        pre_data = PreOpenAIData(
+            parsed_query=parsed_query,
+            parse_latency_ms=1,
+            text_results={},
+            text_latency_ms=1,
+            has_service_embeddings=True,
+            best_text_score=0.9,
+            require_text_match=False,
+            skip_vector=False,
+            region_lookup=None,
+            location_resolution=None,
+            location_normalized=None,
+            cached_alias_normalized=None,
+            fuzzy_score=None,
+            location_llm_candidates=[],
+        )
+        candidate = ServiceCandidate(
+            service_id="svc_1",
+            service_catalog_id="catalog_1",
+            hybrid_score=0.8,
+            vector_score=None,
+            text_score=0.8,
+            name="Math",
+            description=None,
+            price_per_hour=90,
+            instructor_id="inst_1",
+            subcategory_id="sub_math",
+        )
+
+        class _DummySessionCtx:
+            def __enter__(self) -> Mock:  # type: ignore[override]
+                return Mock()
+
+            def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[override]
+                return None
+
+        class _FakeFilterService:
+            def __init__(self, **_kwargs: Any) -> None:
+                pass
+
+            def filter_candidates_sync(
+                self,
+                incoming_candidates: List[ServiceCandidate],
+                _parsed_query: ParsedQuery,
+                **_kwargs: Any,
+            ) -> FilterResult:
+                return FilterResult(
+                    candidates=incoming_candidates,
+                    total_before_filter=len(incoming_candidates),
+                    total_after_filter=len(incoming_candidates),
+                    filters_applied=[],
+                    soft_filtering_used=False,
+                    location_resolution=None,
+                )
+
+        class _FakeRankingService:
+            def __init__(self, **_kwargs: Any) -> None:
+                pass
+
+            def rank_candidates(self, *_args: Any, **_kwargs: Any) -> RankingResult:
+                return RankingResult(results=[], total_results=0)
+
+        retriever_repo_mock = Mock()
+        retriever_repo_mock.get_instructor_cards.return_value = []
+        taxonomy_repository_mock = Mock()
+        taxonomy_repository_mock.get_filters_for_subcategory.return_value = []
+        taxonomy_repository_mock.get_subcategory_name.return_value = "Math"
+        taxonomy_repository_mock.find_matching_service_ids.return_value = {"svc_1"}
+
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.get_db_session",
+            lambda: _DummySessionCtx(),
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.SearchBatchRepository",
+            lambda *_args, **_kwargs: Mock(),
+        )
+        monkeypatch.setattr(
+            "app.repositories.retriever_repository.RetrieverRepository",
+            lambda *_args, **_kwargs: retriever_repo_mock,
+        )
+        monkeypatch.setattr(
+            "app.repositories.filter_repository.FilterRepository",
+            lambda *_args, **_kwargs: Mock(),
+        )
+        monkeypatch.setattr(
+            "app.repositories.ranking_repository.RankingRepository",
+            lambda *_args, **_kwargs: Mock(),
+        )
+        monkeypatch.setattr(
+            "app.repositories.taxonomy_filter_repository.TaxonomyFilterRepository",
+            lambda *_args, **_kwargs: taxonomy_repository_mock,
+        )
+        monkeypatch.setattr(
+            "app.services.search.location_resolver.LocationResolver",
+            lambda *_args, **_kwargs: Mock(repository=Mock()),
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.FilterService",
+            _FakeFilterService,
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.RankingService",
+            _FakeRankingService,
+        )
+        monkeypatch.setattr(
+            service.retriever,
+            "fuse_results",
+            Mock(return_value=[candidate]),
+        )
+
+        post_data = service._run_post_openai_burst(
+            pre_data,
+            parsed_query,
+            query_embedding=None,
+            location_resolution=None,
+            location_llm_cache=None,
+            unresolved_info=None,
+            user_location=None,
+            limit=20,
+            taxonomy_filter_selections=None,
+            subcategory_id="sub_math",
+        )
+
+        taxonomy_repository_mock.find_matching_service_ids.assert_called_once_with(
+            service_ids=["svc_1"],
+            subcategory_id="sub_math",
+            filter_selections={},
+            active_only=True,
+        )
+        assert post_data.effective_taxonomy_filters == {}
+        assert post_data.effective_subcategory_id == "sub_math"
+
 
 class _DummyTask:
     def __init__(self, exc: Exception) -> None:
@@ -1062,8 +2058,12 @@ class TestNLSearchServiceSearchFlow:
             "app.services.search.nl_search_service._decrement_search_inflight",
             AsyncMock(),
         )
-        monkeypatch.setattr("app.services.search.nl_search_service.asyncio.to_thread", _fail_to_thread)
-        monkeypatch.setattr("app.services.search.nl_search_service.asyncio.create_task", _create_task)
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.asyncio.to_thread", _fail_to_thread
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.asyncio.create_task", _create_task
+        )
 
         with pytest.raises(RuntimeError, match="pre-openai failed"):
             await service.search("guitar lessons", budget_ms=1000)
@@ -1143,8 +2143,12 @@ class TestNLSearchServiceSearchFlow:
             "app.services.search.request_budget.RequestBudget.can_afford_vector_search",
             _can_afford_vector_search,
         )
-        monkeypatch.setattr("app.services.search.nl_search_service.asyncio.to_thread", _call_to_thread)
-        monkeypatch.setattr("app.services.search.nl_search_service.asyncio.create_task", _create_task)
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.asyncio.to_thread", _call_to_thread
+        )
+        monkeypatch.setattr(
+            "app.services.search.nl_search_service.asyncio.create_task", _create_task
+        )
         monkeypatch.setattr(service, "_run_pre_openai_burst", Mock(return_value=pre_data))
         monkeypatch.setattr(service, "_run_post_openai_burst", Mock(return_value=post_data))
         monkeypatch.setattr(service, "_hydrate_instructor_results", AsyncMock(return_value=[]))

@@ -11,12 +11,14 @@ Pipeline stages:
 6. Multi-signal ranking - quality, distance, freshness, etc.
 7. Response caching - store for future requests
 """
+
 from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
 import logging
 import os
+import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
@@ -36,6 +38,8 @@ from app.schemas.nl_search import (
     InstructorSummary,
     LocationResolutionInfo,
     LocationTierResult,
+    NLSearchContentFilterDefinition,
+    NLSearchContentFilterOption,
     NLSearchMeta,
     NLSearchResponse,
     NLSearchResultItem,
@@ -70,6 +74,7 @@ from app.services.search.retriever import (
     ServiceCandidate,
 )
 from app.services.search.search_cache import SearchCacheService
+from app.services.search.taxonomy_filter_extractor import extract_inferred_filters
 
 if TYPE_CHECKING:
     from app.services.cache_service import CacheService
@@ -123,6 +128,57 @@ LOCATION_LLM_TOP_K = int(os.getenv("LOCATION_LLM_TOP_K", "5"))
 LOCATION_TIER4_HIGH_CONFIDENCE = float(os.getenv("LOCATION_TIER4_HIGH_CONFIDENCE", "0.85"))
 LOCATION_LLM_CONFIDENCE_THRESHOLD = float(os.getenv("LOCATION_LLM_CONFIDENCE_THRESHOLD", "0.7"))
 LOCATION_LLM_EMBEDDING_THRESHOLD = float(os.getenv("LOCATION_LLM_EMBEDDING_THRESHOLD", "0.7"))
+
+# Top-match subcategory consensus for post-retrieval taxonomy inference.
+TOP_MATCH_SUBCATEGORY_CANDIDATES = 5
+TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS = 2
+SUBCATEGORY_FILTER_CACHE_TTL_SECONDS = max(
+    60,
+    int(os.getenv("NL_SEARCH_SUBCATEGORY_FILTER_CACHE_TTL_SECONDS", "180")),
+)
+SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES = 512
+_subcategory_filter_cache: Dict[str, Tuple[float, Any]] = {}
+_subcategory_filter_cache_lock = threading.Lock()
+
+
+def _get_cached_subcategory_filter_value(cache_key: str) -> Tuple[bool, Any]:
+    """Return cached value for key if present and unexpired."""
+    now = time.monotonic()
+    with _subcategory_filter_cache_lock:
+        cached = _subcategory_filter_cache.get(cache_key)
+        if cached is None:
+            return False, None
+
+        cached_at, value = cached
+        if now - cached_at > SUBCATEGORY_FILTER_CACHE_TTL_SECONDS:
+            _subcategory_filter_cache.pop(cache_key, None)
+            return False, None
+        return True, value
+
+
+def _set_cached_subcategory_filter_value(cache_key: str, value: Any) -> None:
+    """Store cached value for key with bounded size and TTL-aware eviction."""
+    now = time.monotonic()
+    with _subcategory_filter_cache_lock:
+        if len(_subcategory_filter_cache) >= SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES:
+            expired_keys = [
+                key
+                for key, (cached_at, _cached_value) in _subcategory_filter_cache.items()
+                if now - cached_at > SUBCATEGORY_FILTER_CACHE_TTL_SECONDS
+            ]
+            for key in expired_keys:
+                _subcategory_filter_cache.pop(key, None)
+
+            if len(_subcategory_filter_cache) >= SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES:
+                oldest_entries = sorted(
+                    _subcategory_filter_cache.items(),
+                    key=lambda item: item[1][0],
+                )
+                trim_count = max(1, len(oldest_entries) // 2)
+                for key, _entry in oldest_entries[:trim_count]:
+                    _subcategory_filter_cache.pop(key, None)
+
+        _subcategory_filter_cache[cache_key] = (now, value)
 
 
 @dataclass
@@ -267,6 +323,11 @@ class PostOpenAIData:
     filter_failed: bool
     ranking_failed: bool
     skip_vector: bool
+    inferred_filters: Dict[str, List[str]] = field(default_factory=dict)
+    effective_taxonomy_filters: Dict[str, List[str]] = field(default_factory=dict)
+    effective_subcategory_id: Optional[str] = None
+    effective_subcategory_name: Optional[str] = None
+    available_content_filters: List[NLSearchContentFilterDefinition] = field(default_factory=list)
 
 
 class NLSearchService:
@@ -322,6 +383,9 @@ class NLSearchService:
         user_id: Optional[str] = None,
         budget_ms: Optional[int] = None,
         *,
+        explicit_skill_levels: Optional[List[str]] = None,
+        subcategory_id: Optional[str] = None,
+        taxonomy_filter_selections: Optional[Dict[str, List[str]]] = None,
         include_diagnostics: bool = False,
         force_skip_tier5: bool = False,
         force_skip_tier4: bool = False,
@@ -346,6 +410,9 @@ class NLSearchService:
             limit: Maximum instructors to return
             user_id: Optional user ID for timezone-aware parsing
             budget_ms: Optional request budget override in milliseconds
+            explicit_skill_levels: Explicit skill-level filters from query params
+            subcategory_id: Optional taxonomy subcategory context
+            taxonomy_filter_selections: Optional taxonomy content filter selections
             include_diagnostics: Whether to include pipeline diagnostics in response
             force_skip_tier5: Force skip LLM location resolution (admin testing only)
             force_skip_tier4: Force skip embedding location resolution (admin testing only)
@@ -376,8 +443,26 @@ class NLSearchService:
         if timer:
             timer.start_stage("cache_check")
 
+        normalized_explicit_skills = self._normalize_filter_values(explicit_skill_levels)
+        effective_taxonomy_filters = self._normalize_taxonomy_filter_selections(
+            taxonomy_filter_selections
+        )
+        if normalized_explicit_skills:
+            # Explicit query params must override NL-inferred skill level hints.
+            effective_taxonomy_filters["skill_level"] = normalized_explicit_skills
+        effective_skill_levels = effective_taxonomy_filters.get("skill_level", [])
+        cache_filters = self._build_cache_filters(
+            effective_taxonomy_filters,
+            subcategory_id=subcategory_id,
+        )
+
         # Stage 0: Check cache
-        cached = await self._check_cache(query, user_location, limit)
+        cached = await self._check_cache(
+            query,
+            user_location,
+            limit,
+            filters=cache_filters,
+        )
         cache_check_ms = int((time.perf_counter() - cache_check_start) * 1000)
         if timer:
             timer.end_stage(
@@ -521,6 +606,14 @@ class NLSearchService:
             if not parsed_query_future.done():
                 parsed_query_future.set_result(pre_data.parsed_query)
             parsed_query = pre_data.parsed_query
+
+            if effective_skill_levels:
+                # Explicit skill_level query params override NL-inferred skill level.
+                if len(effective_skill_levels) == 1:
+                    parsed_query.skill_level = effective_skill_levels[0]  # type: ignore[assignment]
+                else:
+                    parsed_query.skill_level = None
+
             metrics.parse_latency_ms = pre_data.parse_latency_ms
             if timer:
                 location_tier_value = None
@@ -808,6 +901,8 @@ class NLSearchService:
                 unresolved_info,
                 user_location,
                 limit,
+                effective_taxonomy_filters,
+                subcategory_id,
             )
             post_openai_ms = int((time.perf_counter() - post_openai_start) * 1000)
             if timer:
@@ -920,6 +1015,10 @@ class NLSearchService:
                 limit,
                 metrics,
                 filter_result=post_data.filter_result,
+                inferred_filters=post_data.inferred_filters,
+                effective_subcategory_id=post_data.effective_subcategory_id,
+                effective_subcategory_name=post_data.effective_subcategory_name,
+                available_content_filters=post_data.available_content_filters,
                 budget=budget,
             )
             response_build_ms = int((time.perf_counter() - response_build_start) * 1000)
@@ -956,7 +1055,14 @@ class NLSearchService:
             # preventing repeated expensive cache misses during provider instability.
             degraded_ttl = 30 if metrics.degraded else None
             cache_write_start = time.perf_counter()
-            await self._cache_response(query, user_location, response, limit, ttl=degraded_ttl)
+            await self._cache_response(
+                query,
+                user_location,
+                response,
+                limit,
+                ttl=degraded_ttl,
+                filters=cache_filters,
+            )
             cache_write_ms = int((time.perf_counter() - cache_write_start) * 1000)
 
             if include_diagnostics and timer:
@@ -1016,6 +1122,158 @@ class NLSearchService:
         finally:
             if inflight_incremented:
                 await _decrement_search_inflight()
+
+    @staticmethod
+    def _normalize_filter_values(values: Optional[List[str]]) -> List[str]:
+        """Normalize multi-select filter values for stable filtering/cache keys."""
+        if not values:
+            return []
+
+        normalized: List[str] = []
+        seen: set[str] = set()
+        for raw_value in values:
+            value = str(raw_value).strip().lower()
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            normalized.append(value)
+        return normalized
+
+    def _normalize_taxonomy_filter_selections(
+        self,
+        selections: Optional[Dict[str, List[str]]],
+    ) -> Dict[str, List[str]]:
+        """Normalize taxonomy filters to deterministic key/value payloads."""
+        normalized: Dict[str, List[str]] = {}
+        for raw_key, raw_values in (selections or {}).items():
+            key = str(raw_key).strip().lower()
+            if not key:
+                continue
+            values = self._normalize_filter_values(raw_values)
+            if values:
+                normalized[key] = values
+        return normalized
+
+    def _load_subcategory_filter_metadata(
+        self,
+        taxonomy_repository: Any,
+        subcategory_id: str,
+    ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        """Return cached taxonomy filter definitions + subcategory name for a subcategory."""
+        filters_cache_key = f"filters:{subcategory_id}"
+        name_cache_key = f"name:{subcategory_id}"
+
+        has_cached_filters, cached_filters = _get_cached_subcategory_filter_value(filters_cache_key)
+        has_cached_name, cached_name = _get_cached_subcategory_filter_value(name_cache_key)
+        if has_cached_filters and has_cached_name:
+            return cached_filters, cached_name
+
+        subcategory_filters = taxonomy_repository.get_filters_for_subcategory(subcategory_id)
+        subcategory_name = taxonomy_repository.get_subcategory_name(subcategory_id)
+        _set_cached_subcategory_filter_value(filters_cache_key, subcategory_filters)
+        _set_cached_subcategory_filter_value(name_cache_key, subcategory_name)
+
+        return subcategory_filters, subcategory_name
+
+    @staticmethod
+    def _build_available_content_filters(
+        filter_definitions: List[Dict[str, Any]],
+    ) -> List[NLSearchContentFilterDefinition]:
+        """Convert repository taxonomy filter definitions to API metadata schema."""
+        available_filters: List[NLSearchContentFilterDefinition] = []
+
+        for raw_filter in filter_definitions:
+            key = str(raw_filter.get("filter_key") or "").strip().lower()
+            if not key:
+                continue
+
+            label = str(raw_filter.get("filter_display_name") or key).strip() or key
+            filter_type = str(raw_filter.get("filter_type") or "multi_select").strip()
+
+            options: List[NLSearchContentFilterOption] = []
+            seen_values: set[str] = set()
+            for raw_option in raw_filter.get("options", []) or []:
+                raw_value = str(raw_option.get("value") or "").strip().lower()
+                if not raw_value or raw_value in seen_values:
+                    continue
+                seen_values.add(raw_value)
+
+                display_name = str(raw_option.get("display_name") or "").strip()
+                option_label = display_name or raw_value
+                options.append(
+                    NLSearchContentFilterOption(
+                        value=raw_value,
+                        label=option_label,
+                    )
+                )
+
+            if not options:
+                continue
+
+            available_filters.append(
+                NLSearchContentFilterDefinition(
+                    key=key,
+                    label=label,
+                    type=filter_type,
+                    options=options,
+                )
+            )
+
+        return available_filters
+
+    @staticmethod
+    def _build_cache_filters(
+        taxonomy_filters: Dict[str, List[str]],
+        *,
+        subcategory_id: Optional[str],
+    ) -> Optional[Dict[str, Any]]:
+        """Build cache-key filter payload to avoid filtered/unfiltered collisions."""
+        payload: Dict[str, Any] = {}
+        if subcategory_id:
+            payload["subcategory_id"] = str(subcategory_id).strip()
+
+        if taxonomy_filters:
+            payload["taxonomy"] = {
+                key: list(values)
+                for key, values in sorted(taxonomy_filters.items(), key=lambda item: item[0])
+            }
+
+        return payload or None
+
+    @staticmethod
+    def _resolve_effective_subcategory_id(
+        candidates: List[ServiceCandidate],
+        *,
+        explicit_subcategory_id: Optional[str],
+    ) -> Optional[str]:
+        """Resolve subcategory context with explicit-param priority then top-match consensus."""
+        if explicit_subcategory_id:
+            normalized = str(explicit_subcategory_id).strip()
+            if normalized:
+                return normalized
+
+        top_candidates = candidates[:TOP_MATCH_SUBCATEGORY_CANDIDATES]
+        candidate_subcategory_ids = [
+            str(candidate.subcategory_id).strip()
+            for candidate in top_candidates
+            if candidate.subcategory_id
+        ]
+        if not candidate_subcategory_ids:
+            return None
+
+        top_subcategory_id = candidate_subcategory_ids[0]
+        if len(candidate_subcategory_ids) == 1:
+            return top_subcategory_id
+
+        consensus_count = sum(
+            1
+            for subcategory_id in candidate_subcategory_ids
+            if subcategory_id == top_subcategory_id
+        )
+        if consensus_count >= TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS:
+            return top_subcategory_id
+
+        return None
 
     @staticmethod
     def _normalize_location_text(text_value: str) -> str:
@@ -1883,10 +2141,13 @@ class NLSearchService:
         unresolved_info: Optional[UnresolvedLocationInfo],
         user_location: Optional[Tuple[float, float]],
         limit: int,
+        taxonomy_filter_selections: Optional[Dict[str, List[str]]] = None,
+        subcategory_id: Optional[str] = None,
     ) -> PostOpenAIData:
         from app.repositories.filter_repository import FilterRepository
         from app.repositories.ranking_repository import RankingRepository
         from app.repositories.retriever_repository import RetrieverRepository
+        from app.repositories.taxonomy_filter_repository import TaxonomyFilterRepository
         from app.repositories.unresolved_location_query_repository import (
             UnresolvedLocationQueryRepository,
         )
@@ -1938,6 +2199,65 @@ class NLSearchService:
                 require_text_match=require_text_match,
             )
 
+            explicit_taxonomy_filters = self._normalize_taxonomy_filter_selections(
+                taxonomy_filter_selections
+            )
+            explicit_subcategory_id = str(subcategory_id).strip() if subcategory_id else None
+            effective_subcategory_id = self._resolve_effective_subcategory_id(
+                candidates,
+                explicit_subcategory_id=explicit_subcategory_id,
+            )
+
+            taxonomy_repository = TaxonomyFilterRepository(db)
+            inferred_filters: Dict[str, List[str]] = {}
+            effective_subcategory_name: Optional[str] = None
+            available_content_filters: List[NLSearchContentFilterDefinition] = []
+            if effective_subcategory_id:
+                try:
+                    (
+                        subcategory_filters,
+                        effective_subcategory_name,
+                    ) = self._load_subcategory_filter_metadata(
+                        taxonomy_repository,
+                        effective_subcategory_id,
+                    )
+                    available_content_filters = self._build_available_content_filters(
+                        subcategory_filters
+                    )
+                    inferred_filters = extract_inferred_filters(
+                        original_query=parsed_query.original_query,
+                        filter_definitions=subcategory_filters,
+                        existing_explicit_filters=explicit_taxonomy_filters,
+                        parser_skill_level=parsed_query.skill_level,
+                    )
+                except Exception:
+                    logger.warning(
+                        "taxonomy_filter_load_failed",
+                        extra={"subcategory_id": effective_subcategory_id},
+                        exc_info=True,
+                    )
+
+            # Inferred filters are returned in metadata only. Hard filtering is explicit-only.
+            hard_taxonomy_filters = explicit_taxonomy_filters
+            hard_subcategory_id = explicit_subcategory_id
+            if hard_taxonomy_filters or hard_subcategory_id:
+                candidate_service_ids = [candidate.service_id for candidate in candidates]
+                matching_service_ids = taxonomy_repository.find_matching_service_ids(
+                    service_ids=candidate_service_ids,
+                    subcategory_id=hard_subcategory_id,
+                    filter_selections=hard_taxonomy_filters,
+                    active_only=True,
+                )
+
+                if matching_service_ids:
+                    candidates = [
+                        candidate
+                        for candidate in candidates
+                        if candidate.service_id in matching_service_ids
+                    ]
+                else:
+                    candidates = []
+
             # Filtering (sync, DB-only)
             filter_start = time.perf_counter()
             filter_service = FilterService(
@@ -1975,6 +2295,13 @@ class NLSearchService:
                     soft_filtering_used=False,
                     location_resolution=location_resolution,
                 )
+            if hard_taxonomy_filters or hard_subcategory_id:
+                taxonomy_filters_applied = list(filter_result.filters_applied)
+                if hard_subcategory_id:
+                    taxonomy_filters_applied.append("subcategory")
+                for key in sorted(hard_taxonomy_filters.keys()):
+                    taxonomy_filters_applied.append(f"taxonomy:{key}")
+                filter_result.filters_applied = list(dict.fromkeys(taxonomy_filters_applied))
             filter_latency_ms = int((time.perf_counter() - filter_start) * 1000)
 
             # Ranking
@@ -2041,6 +2368,11 @@ class NLSearchService:
                 filter_failed=filter_failed,
                 ranking_failed=ranking_failed,
                 skip_vector=skip_vector,
+                inferred_filters=inferred_filters,
+                effective_taxonomy_filters=hard_taxonomy_filters,
+                effective_subcategory_id=effective_subcategory_id,
+                effective_subcategory_name=effective_subcategory_name,
+                available_content_filters=available_content_filters,
             )
 
     async def _hydrate_instructor_results(
@@ -2246,12 +2578,15 @@ class NLSearchService:
         query: str,
         user_location: Optional[Tuple[float, float]],
         limit: int,
+        *,
+        filters: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Check for cached response."""
         try:
             result: Optional[Dict[str, Any]] = await self.search_cache.get_cached_response(
                 query,
                 user_location,
+                filters=filters,
                 limit=limit,
                 region_code=self._region_code,
             )
@@ -2434,6 +2769,7 @@ class NLSearchService:
         limit: int,
         *,
         ttl: Optional[int] = None,
+        filters: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Cache the response."""
         try:
@@ -2441,6 +2777,7 @@ class NLSearchService:
                 query,
                 response.model_dump(),
                 user_location=user_location,
+                filters=filters,
                 limit=limit,
                 ttl=ttl,
                 region_code=self._region_code,
@@ -2545,6 +2882,10 @@ class NLSearchService:
         metrics: SearchMetrics,
         *,
         filter_result: Optional[FilterResult] = None,
+        inferred_filters: Optional[Dict[str, List[str]]] = None,
+        effective_subcategory_id: Optional[str] = None,
+        effective_subcategory_name: Optional[str] = None,
+        available_content_filters: Optional[List[NLSearchContentFilterDefinition]] = None,
         budget: Optional[RequestBudget] = None,
     ) -> NLSearchResponse:
         """
@@ -2605,6 +2946,10 @@ class NLSearchService:
             skipped_operations=list(budget.skipped_operations) if budget else [],
             parsing_mode=parsed_query.parsing_mode,
             filters_applied=filter_result.filters_applied if filter_result else [],
+            inferred_filters=inferred_filters or {},
+            effective_subcategory_id=effective_subcategory_id,
+            effective_subcategory_name=effective_subcategory_name,
+            available_content_filters=available_content_filters or [],
             soft_filtering_used=filter_result.soft_filtering_used if filter_result else False,
             filter_stats=filter_result.filter_stats if filter_result else None,
             soft_filter_message=soft_filter_message,

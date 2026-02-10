@@ -91,8 +91,10 @@ class _AddressServiceStub:
 class _InstructorServiceListStub:
     def __init__(self, payload):
         self._payload = payload
+        self.last_kwargs = None
 
-    def get_instructors_filtered(self, *_args, **_kwargs):
+    def get_instructors_filtered(self, *_args, **kwargs):
+        self.last_kwargs = kwargs
         return self._payload
 
 
@@ -287,6 +289,153 @@ async def test_list_instructors_returns_paginated():
 
 
 @pytest.mark.asyncio
+async def test_list_instructors_forwards_taxonomy_filters():
+    result = {
+        "instructors": [],
+        "metadata": {"total_found": 0},
+    }
+    service = _InstructorServiceListStub(result)
+
+    await instructors_routes.list_instructors(
+        service_catalog_id="catalog-1",
+        min_price=None,
+        max_price=None,
+        age_group=None,
+        skill_level="beginner,intermediate,beginner",
+        subcategory_id="01HABCDEFGHJKMNPQRSTVWXYZ0",
+        content_filters="goal:enrichment|format:one_time|style:jazz|grade_level:6th,7th",
+        page=1,
+        per_page=20,
+        instructor_service=service,
+    )
+
+    assert service.last_kwargs is not None
+    assert service.last_kwargs["taxonomy_filter_selections"] == {
+        "skill_level": ["beginner", "intermediate"],
+        "goal": ["enrichment"],
+        "format": ["one_time"],
+        "style": ["jazz"],
+        "grade_level": ["6th", "7th"],
+    }
+    assert service.last_kwargs["subcategory_id"] == "01HABCDEFGHJKMNPQRSTVWXYZ0"
+
+
+@pytest.mark.asyncio
+async def test_list_instructors_rejects_invalid_skill_level():
+    service = _InstructorServiceListStub({"instructors": [], "metadata": {"total_found": 0}})
+
+    with pytest.raises(HTTPException) as exc:
+        await instructors_routes.list_instructors(
+            service_catalog_id="catalog-1",
+            min_price=None,
+            max_price=None,
+            age_group=None,
+            skill_level="expert",
+            subcategory_id=None,
+            content_filters=None,
+            page=1,
+            per_page=20,
+            instructor_service=service,
+        )
+
+    assert exc.value.status_code == 400
+    assert "Invalid skill_level" in str(exc.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_list_instructors_rejects_malformed_content_filter_segments():
+    result = {"instructors": [], "metadata": {"total_found": 0}}
+    service = _InstructorServiceListStub(result)
+
+    with pytest.raises(HTTPException) as exc:
+        await instructors_routes.list_instructors(
+            service_catalog_id="catalog-1",
+            min_price=None,
+            max_price=None,
+            age_group=None,
+            skill_level=None,
+            subcategory_id=None,
+            content_filters="goal:enrichment|broken|:missing_key|format:",
+            page=1,
+            per_page=20,
+            instructor_service=service,
+        )
+
+    assert exc.value.status_code == 400
+    assert "Malformed content_filters segment" in str(exc.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_list_instructors_skill_level_param_overrides_content_filters_skill_level():
+    result = {"instructors": [], "metadata": {"total_found": 0}}
+    service = _InstructorServiceListStub(result)
+
+    await instructors_routes.list_instructors(
+        service_catalog_id="catalog-1",
+        min_price=None,
+        max_price=None,
+        age_group=None,
+        skill_level="advanced",
+        subcategory_id=None,
+        content_filters="skill_level:beginner,intermediate|goal:enrichment",
+        page=1,
+        per_page=20,
+        instructor_service=service,
+    )
+
+    assert service.last_kwargs is not None
+    assert service.last_kwargs["taxonomy_filter_selections"] == {
+        "skill_level": ["advanced"],
+        "goal": ["enrichment"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_list_instructors_rejects_content_filters_with_too_many_keys():
+    service = _InstructorServiceListStub({"instructors": [], "metadata": {"total_found": 0}})
+
+    with pytest.raises(HTTPException) as exc:
+        await instructors_routes.list_instructors(
+            service_catalog_id="catalog-1",
+            min_price=None,
+            max_price=None,
+            age_group=None,
+            skill_level=None,
+            subcategory_id=None,
+            content_filters="|".join(f"k{i}:v" for i in range(11)),
+            page=1,
+            per_page=20,
+            instructor_service=service,
+        )
+
+    assert exc.value.status_code == 400
+    assert "at most 10 keys" in str(exc.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_list_instructors_rejects_content_filters_with_too_many_values_for_key():
+    service = _InstructorServiceListStub({"instructors": [], "metadata": {"total_found": 0}})
+    too_many_values = ",".join(f"v{i}" for i in range(21))
+
+    with pytest.raises(HTTPException) as exc:
+        await instructors_routes.list_instructors(
+            service_catalog_id="catalog-1",
+            min_price=None,
+            max_price=None,
+            age_group=None,
+            skill_level=None,
+            subcategory_id=None,
+            content_filters=f"goal:{too_many_values}",
+            page=1,
+            per_page=20,
+            instructor_service=service,
+        )
+
+    assert exc.value.status_code == 400
+    assert "at most 20 values" in str(exc.value.detail)
+
+
+@pytest.mark.asyncio
 async def test_go_live_business_rule_exception(test_instructor):
     with pytest.raises(HTTPException) as exc:
         await instructors_routes.go_live(
@@ -309,9 +458,7 @@ async def test_go_live_requires_instructor(test_student):
 @pytest.mark.asyncio
 async def test_go_live_not_found_exception(test_instructor):
     service = _InstructorServiceStub()
-    service.go_live = lambda *_args, **_kwargs: (_ for _ in ()).throw(
-        NotFoundException("missing")
-    )
+    service.go_live = lambda *_args, **_kwargs: (_ for _ in ()).throw(NotFoundException("missing"))
 
     with pytest.raises(HTTPException) as exc:
         await instructors_routes.go_live(

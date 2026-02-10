@@ -3,9 +3,22 @@ import userEvent from '@testing-library/user-event';
 import React, { useState } from 'react';
 
 import { FilterBar } from '../FilterBar';
-import { DEFAULT_FILTERS, type FilterState } from '../filterTypes';
+import {
+  type ContentFilterSelections,
+  DEFAULT_FILTERS,
+  type FilterState,
+  type TaxonomyContentFilterDefinition,
+} from '../filterTypes';
 
-const Harness = ({ initialFilters = DEFAULT_FILTERS }: { initialFilters?: FilterState }) => {
+const Harness = ({
+  initialFilters = DEFAULT_FILTERS,
+  taxonomyContentFilters,
+  suggestedContentFilters,
+}: {
+  initialFilters?: FilterState;
+  taxonomyContentFilters?: TaxonomyContentFilterDefinition[];
+  suggestedContentFilters?: ContentFilterSelections;
+}) => {
   const [filters, setFilters] = useState<FilterState>(initialFilters);
 
   return (
@@ -13,9 +26,30 @@ const Harness = ({ initialFilters = DEFAULT_FILTERS }: { initialFilters?: Filter
       filters={filters}
       onFiltersChange={setFilters}
       rightSlot={<div>Sort</div>}
+      {...(taxonomyContentFilters ? { taxonomyContentFilters } : {})}
+      {...(suggestedContentFilters ? { suggestedContentFilters } : {})}
     />
   );
 };
+
+const TAXONOMY_CONTENT_FILTERS: TaxonomyContentFilterDefinition[] = [
+  {
+    key: 'goal',
+    label: 'Goal',
+    options: [
+      { value: 'enrichment', label: 'Enrichment' },
+      { value: 'competition', label: 'Competition' },
+    ],
+  },
+  {
+    key: 'format',
+    label: 'Format',
+    options: [
+      { value: 'one_on_one', label: 'One-on-One' },
+      { value: 'small_group', label: 'Small Group' },
+    ],
+  },
+];
 
 describe('FilterBar', () => {
   it('renders filter buttons and keeps only one dropdown open at a time', async () => {
@@ -81,13 +115,60 @@ describe('FilterBar', () => {
 
     await user.click(screen.getByText('30 min'));
     await user.click(screen.getByText('Beginner'));
-    await user.click(screen.getByText('Kids (under 18)'));
     await user.click(screen.getByText('4.5+ stars'));
 
     await user.click(screen.getByRole('button', { name: 'Apply' }));
 
-    const badge = within(screen.getByRole('button', { name: /more filters/i })).getByText('4');
+    const badge = within(screen.getByRole('button', { name: /more filters/i })).getByText('3');
     expect(badge).toBeInTheDocument();
+  });
+
+  it('renders taxonomy content filters when provided and counts them as active', async () => {
+    const user = userEvent.setup();
+    render(<Harness taxonomyContentFilters={TAXONOMY_CONTENT_FILTERS} />);
+
+    await user.click(screen.getByRole('button', { name: /more filters/i }));
+    expect(screen.getByText('Goal')).toBeInTheDocument();
+    expect(screen.getByText('Format')).toBeInTheDocument();
+
+    await user.click(screen.getByText('Enrichment'));
+    await user.click(screen.getByText('One-on-One'));
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    const badge = within(screen.getByRole('button', { name: /more filters/i })).getByText('2');
+    expect(badge).toBeInTheDocument();
+  });
+
+  it('does not render taxonomy content sections without subcategory context filters', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await user.click(screen.getByRole('button', { name: /more filters/i }));
+    expect(screen.queryByText('Goal')).not.toBeInTheDocument();
+    expect(screen.queryByText('Format')).not.toBeInTheDocument();
+  });
+
+  it('keeps inferred suggestions soft until user applies', async () => {
+    const user = userEvent.setup();
+    render(
+      <Harness
+        taxonomyContentFilters={TAXONOMY_CONTENT_FILTERS}
+        suggestedContentFilters={{ goal: ['competition'] }}
+      />
+    );
+
+    const moreButton = screen.getByRole('button', { name: /more filters/i });
+    expect(within(moreButton).queryByText('1')).not.toBeInTheDocument();
+
+    await user.click(moreButton);
+    const competitionLabel = screen.getByText('Competition').closest('label');
+    expect(competitionLabel).toBeTruthy();
+    const competitionInput = competitionLabel?.querySelector('input[type="checkbox"]');
+    expect(competitionInput).toBeTruthy();
+    expect((competitionInput as HTMLInputElement).checked).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    expect(within(screen.getByRole('button', { name: /more filters/i })).getByText('1')).toBeInTheDocument();
   });
 
   it('closes dropdowns on escape', async () => {
@@ -112,8 +193,8 @@ describe('FilterBar', () => {
           priceMin: 50,
           priceMax: 200,
           location: 'online',
-          level: ['beginner'],
-          audience: ['kids'],
+          skillLevel: ['beginner'],
+          contentFilters: { goal: ['enrichment'] },
           minRating: '4',
         }}
       />

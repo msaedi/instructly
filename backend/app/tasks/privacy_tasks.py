@@ -169,6 +169,7 @@ def cleanup_search_history(self: DatabaseTask) -> Dict[str, Any]:
 
 
 @typed_task(bind=True, base=DatabaseTask, name="privacy.generate_privacy_report")
+@monitor_if_configured("generate-privacy-report")
 def generate_privacy_report(self: DatabaseTask) -> Dict[str, Any]:
     """
     Generate privacy and data retention statistics report.

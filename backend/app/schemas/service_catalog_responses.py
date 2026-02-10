@@ -84,7 +84,7 @@ class TopCategoryServiceItem(StrictModel):
 
     id: str
     name: str
-    slug: str
+    slug: Optional[str] = None
     demand_score: float = 0.0
     active_instructors: int = 0
     is_trending: bool = False
@@ -96,7 +96,6 @@ class TopCategoryItem(StrictModel):
 
     id: str
     name: str
-    slug: str
     icon_name: Optional[str] = None
     services: List[TopCategoryServiceItem] = Field(default_factory=list)
 
@@ -121,11 +120,14 @@ class CategoryServiceDetail(StrictModel):
     """Detailed catalog service information with instructor analytics."""
 
     id: str
-    category_id: str
+    subcategory_id: str
     name: str
-    slug: str
+    slug: Optional[str] = None
     description: Optional[str] = None
     search_terms: List[str] = Field(default_factory=list)
+    eligible_age_groups: List[Literal["toddler", "kids", "teens", "adults"]] = Field(
+        default_factory=list
+    )
     display_order: Optional[int] = None
     online_capable: Optional[bool] = None
     requires_certification: Optional[bool] = None
@@ -143,7 +145,6 @@ class CategoryWithServices(StrictModel):
 
     id: str
     name: str
-    slug: str
     subtitle: Optional[str] = None
     description: Optional[str] = None
     icon_name: Optional[str] = None

@@ -22,6 +22,7 @@ from ..models.booking import Booking, BookingStatus, PaymentStatus
 from ..models.instructor import InstructorProfile
 from ..models.payment import PaymentIntent
 from ..models.service_catalog import InstructorService, ServiceCatalog
+from ..models.subcategory import ServiceSubcategory
 from ..models.user import User
 from .base_repository import BaseRepository
 
@@ -62,7 +63,8 @@ class AdminOpsRepository(BaseRepository[Booking]):
                 .options(
                     joinedload(Booking.instructor_service)
                     .joinedload(InstructorService.catalog_entry)
-                    .joinedload(ServiceCatalog.category)
+                    .joinedload(ServiceCatalog.subcategory)
+                    .joinedload(ServiceSubcategory.category)
                 )
                 .all(),
             )

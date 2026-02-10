@@ -58,6 +58,23 @@ function MapReadyHandler() {
   return null;
 }
 
+function MapLifecycleGuard() {
+  const map = useMap();
+
+  useEffect(() => {
+    return () => {
+      // Guard against Leaflet transition callbacks firing after unmount.
+      try {
+        map.stop();
+      } catch {
+        // no-op
+      }
+    };
+  }, [map]);
+
+  return null;
+}
+
 export default function InstructorCoverageMap({
   featureCollection,
   height = 420,
@@ -69,11 +86,7 @@ export default function InstructorCoverageMap({
   showSearchAreaButton = false,
   onSearchArea,
 }: InstructorCoverageMapProps) {
-  const [fc, setFc] = useState<FeatureCollection | null>(featureCollection || null);
-
-  useEffect(() => {
-    setFc(featureCollection || null);
-  }, [featureCollection]);
+  const fc = featureCollection ?? null;
 
   const mapCenter: LatLngExpression = useMemo(
     () => [40.7831, -73.9712],
@@ -81,11 +94,13 @@ export default function InstructorCoverageMap({
   ); // Manhattan default
 
   // Basemap style selection (Jawg sunny/dark when token present)
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    setIsDark(mq.matches);
     const handler = (e: MediaQueryListEvent) => setIsDark(e.matches);
     mq.addEventListener?.('change', handler);
     return () => mq.removeEventListener?.('change', handler);
@@ -98,18 +113,8 @@ export default function InstructorCoverageMap({
       : `https://{s}.tile.jawg.io/jawg-sunny/{z}/{x}/{y}{r}.png?access-token=${jawgToken}`
     : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
   const fallbackUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-  const [tileUrl, setTileUrl] = useState<string>(primaryUrl);
   const [jawgFailed, setJawgFailed] = useState<boolean>(false);
-
-  // Live theme switching: update tiles when theme changes, unless Jawg previously failed
-  useEffect(() => {
-    if (jawgToken && !jawgFailed) {
-      setTileUrl(primaryUrl);
-    } else if (!jawgToken) {
-      setTileUrl(fallbackUrl);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDark, jawgToken, jawgFailed]);
+  const tileUrl = jawgToken && !jawgFailed ? primaryUrl : fallbackUrl;
 
   const containerStyle = {
     height: typeof height === 'number' ? `${height}px` : (height as string),
@@ -124,18 +129,21 @@ export default function InstructorCoverageMap({
         style={{ height: '100%', width: '100%' }}
         attributionControl={false}
         zoomControl={false}
+        zoomAnimation={false}
+        markerZoomAnimation={false}
+        fadeAnimation={false}
         whenReady={() => {
           logger.debug('MapContainer whenReady');
         }}
       >
         <MapReadyHandler />
+        <MapLifecycleGuard />
 
         <TileLayer
           url={tileUrl}
           eventHandlers={{
             tileerror: () => {
               setJawgFailed(true);
-              if (tileUrl !== fallbackUrl) setTileUrl(fallbackUrl);
             },
           } as LeafletEventHandlerFnMap}
         />
@@ -268,7 +276,8 @@ function FitToCoverage({
         if (bounds && bounds.isValid()) {
           map.fitBounds(bounds, {
             paddingTopLeft: [20, 20],
-            paddingBottomRight: [20, 60]
+            paddingBottomRight: [20, 60],
+            animate: false,
           });
           if (hasCoverage) hasCoverageFitRef.current = true;
           if (hasPins) hasPinsFitRef.current = true;
@@ -322,7 +331,7 @@ function FitToCoverage({
           map.flyToBounds(bounds, {
             paddingTopLeft: [40, 40],
             paddingBottomRight: [40, 80],
-            duration: 0.8,
+            animate: false,
           });
         }
       } catch {}
@@ -528,7 +537,7 @@ function CustomControls() {
             map.on('moveend', end);
             map.on('zoomend', end);
             if (farMove) {
-              map.flyTo(latlng, targetZoom, { duration: 0.45, animate: true });
+              map.flyTo(latlng, targetZoom, { animate: false });
             } else {
               map.setView(latlng, targetZoom, { animate: false });
             }

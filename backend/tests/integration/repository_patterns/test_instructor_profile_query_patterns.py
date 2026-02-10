@@ -20,6 +20,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.region_boundary import RegionBoundary
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 
 try:  # pragma: no cover - allow execution from backend/ or repo root
@@ -54,9 +55,14 @@ def test_service(db: Session, test_instructor: User) -> Service:
     # Get or create catalog service
     category = db.query(ServiceCategory).first()
     if not category:
-        category_ulid = generate_ulid()
-        category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
+        category = ServiceCategory(name="Test Category")
         db.add(category)
+        db.flush()
+
+    subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+    if not subcategory:
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
         db.flush()
 
     service_ulid = generate_ulid()
@@ -65,7 +71,7 @@ def test_service(db: Session, test_instructor: User) -> Service:
     )
     if not catalog_service:
         catalog_service = ServiceCatalog(
-            name="Test Service", slug=f"test-service-{service_ulid.lower()}", category_id=category.id
+            name="Test Service", slug=f"test-service-{service_ulid.lower()}", subcategory_id=subcategory.id
         )
         db.add(catalog_service)
         db.flush()
@@ -158,9 +164,14 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
         # Get or create category for services
         category = db.query(ServiceCategory).first()
         if not category:
-            category_ulid = generate_ulid()
-            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
+            category = ServiceCategory(name="Test Category")
             db.add(category)
+            db.flush()
+
+        subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+        if not subcategory:
+            subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+            db.add(subcategory)
             db.flush()
 
         # Create services
@@ -169,7 +180,7 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
             skill_slug = skill.lower().replace(" ", "-")
             catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == skill_slug).first()
             if not catalog_service:
-                catalog_service = ServiceCatalog(name=skill, slug=skill_slug, category_id=category.id)
+                catalog_service = ServiceCatalog(name=skill, slug=skill_slug, subcategory_id=subcategory.id)
                 db.add(catalog_service)
                 db.flush()
 

@@ -21,6 +21,7 @@ from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from app.models.subcategory import ServiceSubcategory
 from app.models.user import User
 
 
@@ -45,9 +46,14 @@ def test_service(db: Session, test_instructor: User) -> Service:
     # Get or create catalog service
     category = db.query(ServiceCategory).first()
     if not category:
-        category_ulid = generate_ulid()
-        category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
+        category = ServiceCategory(name="Test Category")
         db.add(category)
+        db.flush()
+
+    subcategory = db.query(ServiceSubcategory).filter(ServiceSubcategory.category_id == category.id).first()
+    if not subcategory:
+        subcategory = ServiceSubcategory(name="General", category_id=category.id, display_order=1)
+        db.add(subcategory)
         db.flush()
 
     service_ulid = generate_ulid()
@@ -58,7 +64,7 @@ def test_service(db: Session, test_instructor: User) -> Service:
         catalog_service = ServiceCatalog(
             name="Test Service",
             slug=f"test-service-{service_ulid.lower()}",
-            category_id=category.id,
+            subcategory_id=subcategory.id,
             description="Test service description",
         )
         db.add(catalog_service)

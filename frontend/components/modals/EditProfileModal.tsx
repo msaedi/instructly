@@ -587,20 +587,9 @@ export default function EditProfileModal({
   useEffect(() => {
     if (!(isOpen && variant === 'services')) return;
     if (categoriesData) {
-      const filtered: ServiceCategory[] = categoriesData
-        .filter((c) => c.slug !== 'kids')
-        .map((c) => ({
-          id: c.id,
-          slug: c.slug,
-          name: c.name,
-          subtitle: c.subtitle ?? '',
-          description: c.description ?? '',
-          display_order: c.display_order,
-          icon_name: c.icon_name ?? '',
-        }));
-      setCategories(filtered);
+      setCategories(categoriesData);
       const initialCollapsed: Record<string, boolean> = {};
-      for (const c of filtered) initialCollapsed[c.slug] = true;
+      for (const c of categoriesData) initialCollapsed[c.id] = true;
       setCollapsed(initialCollapsed);
     }
   }, [isOpen, variant, categoriesData]);
@@ -611,8 +600,8 @@ export default function EditProfileModal({
     if (allServicesData) {
       const map: Record<string, CategoryServiceDetail[]> = {};
       const categories = allServicesData.categories ?? [];
-      for (const c of categories.filter((cat) => cat.slug !== 'kids')) {
-        map[c.slug] = c.services ?? [];
+      for (const c of categories) {
+        map[c.id] = c.services ?? [];
       }
       setServicesByCategory(map);
     }
@@ -1967,12 +1956,12 @@ export default function EditProfileModal({
                   </div>
                 )}
                   {categories.map((cat) => {
-                    const isCollapsed = collapsed[cat.slug] === true;
+                    const isCollapsed = collapsed[cat.id] === true;
                     return (
-                      <div key={cat.slug} className="rounded-lg overflow-hidden border border-gray-200 bg-white">
+                      <div key={cat.id} className="rounded-lg overflow-hidden border border-gray-200 bg-white">
                         <button
                           className="w-full px-4 py-3 flex items-center justify-between text-gray-700 hover:bg-gray-50 transition-colors"
-                          onClick={() => setCollapsed((prev) => ({ ...prev, [cat.slug]: !isCollapsed }))}
+                          onClick={() => setCollapsed((prev) => ({ ...prev, [cat.id]: !isCollapsed }))}
                           type="button"
                         >
                           <span className="font-bold">{cat.name}</span>
@@ -1982,7 +1971,7 @@ export default function EditProfileModal({
                         </button>
                         {!isCollapsed && (
                         <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                            {(servicesByCategory[cat.slug] || []).map((svc) => {
+                            {(servicesByCategory[cat.id] || []).map((svc) => {
                               const isSel = selectedServices.some((s) => s.catalog_service_id === svc.id);
                               return (
                                 <button

@@ -3,7 +3,7 @@
 Tests cover validators, edge cases, and serialization for all instructor-related schemas.
 Focus areas based on coverage gaps:
 - InstructorFilterParams validators (search, age_group, price_range)
-- ServiceBase validators (duration_options, age_groups, levels_taught, location_types)
+- ServiceBase validators (duration_options, age_groups, legacy field rejection)
 - InstructorProfileBase/Create/Update validators
 - PreferredTeachingLocationOut/PreferredPublicSpaceOut serializers
 - InstructorProfileResponse.from_orm complex logic
@@ -282,15 +282,15 @@ class TestServiceBase:
             service = ServiceCreate(**data)
             assert service.age_groups == ["kids", "adults"]
 
-        def test_both_keyword_expands(self) -> None:
-            """'both' keyword should expand to ['kids', 'adults'] (line 244-245)."""
+        def test_both_keyword_rejected(self) -> None:
+            """Legacy 'both' keyword is no longer accepted."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
                 "hourly_rate": Decimal("50.00"),
                 "age_groups": ["both"],
             }
-            service = ServiceCreate(**data)
-            assert set(service.age_groups or []) == {"kids", "adults"}
+            with pytest.raises(ValidationError, match="age_groups must be one or more of"):
+                ServiceCreate(**data)
 
         def test_case_insensitive(self) -> None:
             """Values should be normalized to lowercase."""
@@ -312,16 +312,15 @@ class TestServiceBase:
             service = ServiceCreate(**data)
             assert service.age_groups == ["kids", "adults"]
 
-        def test_both_with_explicit_deduplicates(self) -> None:
-            """'both' + explicit 'kids' should deduplicate (line 254)."""
+        def test_both_with_explicit_value_rejected(self) -> None:
+            """Mixed payloads that include legacy 'both' should fail validation."""
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
                 "hourly_rate": Decimal("50.00"),
                 "age_groups": ["both", "kids"],
             }
-            service = ServiceCreate(**data)
-            # 'both' expands to kids+adults, then 'kids' is duplicate
-            assert set(service.age_groups or []) == {"kids", "adults"}
+            with pytest.raises(ValidationError, match="age_groups must be one or more of"):
+                ServiceCreate(**data)
 
         def test_invalid_age_group_fails(self) -> None:
             """Invalid age group values should fail (lines 248-249)."""
@@ -343,130 +342,25 @@ class TestServiceBase:
             service = ServiceCreate(**data)
             assert service.age_groups == ["kids"]
 
-    class TestLevelsTaughtValidator:
-        """Tests for levels_taught validation (lines 259-277)."""
+    class TestLegacyFieldsRejected:
+        """Legacy request fields should be rejected in clean-break mode."""
 
-        def test_none_is_valid(self) -> None:
-            """None should pass through unchanged."""
+        def test_levels_taught_rejected(self) -> None:
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
                 "hourly_rate": Decimal("50.00"),
-                "levels_taught": None,
+                "levels_taught": ["beginner"],
             }
-            service = ServiceCreate(**data)
-            assert service.levels_taught is None
-
-        def test_all_valid_levels(self) -> None:
-            """All valid levels should be accepted (lines 267-277)."""
-            data = {
-                "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
-                "levels_taught": ["beginner", "intermediate", "advanced"],
-            }
-            service = ServiceCreate(**data)
-            assert service.levels_taught == ["beginner", "intermediate", "advanced"]
-
-        def test_case_insensitive(self) -> None:
-            """Values should be normalized to lowercase."""
-            data = {
-                "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
-                "levels_taught": ["BEGINNER", "INTERMEDIATE"],
-            }
-            service = ServiceCreate(**data)
-            assert service.levels_taught == ["beginner", "intermediate"]
-
-        def test_duplicates_removed(self) -> None:
-            """Duplicate levels should be deduplicated."""
-            data = {
-                "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
-                "levels_taught": ["beginner", "beginner", "advanced"],
-            }
-            service = ServiceCreate(**data)
-            assert service.levels_taught == ["beginner", "advanced"]
-
-        def test_invalid_level_fails(self) -> None:
-            """Invalid level values should fail (lines 271-274)."""
-            data = {
-                "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
-                "levels_taught": ["expert"],
-            }
-            with pytest.raises(ValidationError, match="levels_taught must be any of"):
+            with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
                 ServiceCreate(**data)
 
-        def test_whitespace_stripped(self) -> None:
-            """Whitespace should be stripped from values."""
+        def test_location_types_rejected(self) -> None:
             data = {
                 "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
                 "hourly_rate": Decimal("50.00"),
-                "levels_taught": ["  beginner  "],
+                "location_types": ["online"],
             }
-            service = ServiceCreate(**data)
-            assert service.levels_taught == ["beginner"]
-
-    class TestLocationTypesValidator:
-        """Tests for location_types validation (lines 279-297)."""
-
-        def test_none_is_valid(self) -> None:
-            """None should pass through unchanged."""
-            data = {
-                "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
-                "location_types": None,
-            }
-            service = ServiceCreate(**data)
-            assert service.location_types is None
-
-        def test_valid_location_types(self) -> None:
-            """Valid location types should be accepted."""
-            data = {
-                "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
-                "location_types": ["in_person", "online"],
-            }
-            service = ServiceCreate(**data)
-            assert service.location_types == ["in_person", "online"]
-
-        def test_in_hyphen_person_normalized(self) -> None:
-            """'in-person' should be normalized to 'in_person' (line 291-292)."""
-            data = {
-                "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
-                "location_types": ["in-person"],
-            }
-            service = ServiceCreate(**data)
-            assert service.location_types == ["in_person"]
-
-        def test_case_insensitive(self) -> None:
-            """Values should be normalized to lowercase."""
-            data = {
-                "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
-                "location_types": ["IN_PERSON", "ONLINE"],
-            }
-            service = ServiceCreate(**data)
-            assert service.location_types == ["in_person", "online"]
-
-        def test_duplicates_removed(self) -> None:
-            """Duplicate location types should be deduplicated (lines 295-296)."""
-            data = {
-                "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
-                "location_types": ["online", "online"],
-            }
-            service = ServiceCreate(**data)
-            assert service.location_types == ["online"]
-
-        def test_invalid_location_type_fails(self) -> None:
-            """Invalid location type values should fail (lines 293-294)."""
-            data = {
-                "service_catalog_id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
-                "hourly_rate": Decimal("50.00"),
-                "location_types": ["hybrid"],
-            }
-            with pytest.raises(ValidationError, match="location_types must be one or more of"):
+            with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
                 ServiceCreate(**data)
 
 
@@ -844,9 +738,11 @@ class TestInstructorProfileResponseFromOrm:
         service.description = "Test service"
         service.requirements = None
         service.age_groups = ["adults"]
-        service.levels_taught = ["beginner"]
+        service.filter_selections = {"skill_level": ["beginner"]}
         service.equipment_required = []
-        service.location_types = ["in_person"]
+        service.offers_travel = True
+        service.offers_at_location = False
+        service.offers_online = True
         service.duration_options = [60]
 
         catalog = MagicMock()
@@ -870,9 +766,11 @@ class TestInstructorProfileResponseFromOrm:
         service.description = None
         service.requirements = None
         service.age_groups = None
-        service.levels_taught = None
+        service.filter_selections = {}
         service.equipment_required = None
-        service.location_types = None
+        service.offers_travel = False
+        service.offers_at_location = False
+        service.offers_online = True
         service.duration_options = None
         service.catalog_entry = None  # No catalog entry
 

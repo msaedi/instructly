@@ -95,8 +95,8 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "leaflet": "^1.9.4",
-    "lucide-react": "^0.562.0",
-    "motion": "^12.30.0",
+    "lucide-react": "^0.563.0",
+    "motion": "^12.34.0",
     "next": "^16.1.6",
     "next-axiom": "^1.10.0",
     "react": "^19.1.1",
@@ -110,7 +110,7 @@
     "@axe-core/playwright": "4.11.0",
     "@jest/globals": "^30.1.2",
     "@lhci/cli": "^0.15.1",
-    "@playwright/test": "1.57.0",
+    "@playwright/test": "1.58.2",
     "@size-limit/file": "^12.0.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@testing-library/jest-dom": "^6.8.0",
@@ -145,7 +145,7 @@
     "tsd": "^0.33.0",
     "type-coverage": "^2.29.7",
     "typescript": "^5",
-    "zod": "^4.3.5"
+    "zod": "^4.3.6"
   },
   "size-limit": [
     {
