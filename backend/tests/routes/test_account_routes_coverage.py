@@ -40,6 +40,36 @@ class DummySMSService:
         return None, self._status
 
 
+class DummyRedis:
+    def __init__(self):
+        self.store: dict[str, object] = {}
+        self.expirations: dict[str, int] = {}
+
+    async def incr(self, key: str):
+        current = self.store.get(key, 0)
+        value = int(current) + 1
+        self.store[key] = value
+        return value
+
+    async def decr(self, key: str):
+        current = self.store.get(key, 0)
+        value = int(current) - 1
+        self.store[key] = value
+        return value
+
+    async def expire(self, key: str, ttl: int):
+        self.expirations[key] = ttl
+        return True
+
+    async def get(self, key: str):
+        return self.store.get(key)
+
+    async def delete(self, key: str):
+        self.store.pop(key, None)
+        self.expirations.pop(key, None)
+        return 1
+
+
 class DummyAccountService:
     def __init__(self, *, has_future: bool = False, exception: Exception | None = None):
         self._has_future = has_future
@@ -409,3 +439,189 @@ async def test_phone_verification_errors(db, test_student):
             cache_service=cache,
         )
     assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_suspend_validation_error(test_instructor_with_availability):
+    service = DummyAccountService(exception=ValidationException("bad suspend"))
+    with pytest.raises(HTTPException) as exc:
+        await account_routes.suspend_account(
+            request=_dummy_request(),
+            current_user=test_instructor_with_availability,
+            account_service=service,
+        )
+    assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_deactivate_business_rule_without_future_bookings_and_validation(
+    test_instructor_with_availability,
+):
+    service = DummyAccountService(has_future=False, exception=BusinessRuleException("blocked"))
+    with pytest.raises(HTTPException) as exc:
+        await account_routes.deactivate_account(
+            request=_dummy_request(),
+            current_user=test_instructor_with_availability,
+            account_service=service,
+        )
+    assert exc.value.status_code == 400
+
+    service = DummyAccountService(exception=ValidationException("bad deactivate"))
+    with pytest.raises(HTTPException) as exc:
+        await account_routes.deactivate_account(
+            request=_dummy_request(),
+            current_user=test_instructor_with_availability,
+            account_service=service,
+        )
+    assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_reactivate_for_student_forbidden(db, test_student):
+    service = AccountLifecycleService(db, cache_service=DummyCacheService())
+    with pytest.raises(HTTPException) as exc:
+        await account_routes.reactivate_account(
+            request=_dummy_request(),
+            current_user=test_student,
+            account_service=service,
+        )
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_phone_update_update_profile_failure_returns_500(db, test_student, monkeypatch):
+    cache = DummyCacheService()
+
+    class RepoStub:
+        def get_by_id(self, _user_id):
+            return SimpleNamespace(id=test_student.id, phone="+15551234567", phone_verified=True)
+
+        def update_profile(self, _user_id, **_kwargs):
+            return None
+
+    monkeypatch.setattr(
+        account_routes.RepositoryFactory,
+        "create_user_repository",
+        lambda _db: RepoStub(),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await account_routes.update_phone_number(
+            account_routes.PhoneUpdateRequest(phone_number="+15559876543"),
+            current_user=test_student,
+            db=db,
+            cache_service=cache,
+        )
+    assert exc.value.status_code == 500
+
+
+@pytest.mark.asyncio
+async def test_send_phone_verification_redis_rate_limit(db, test_student, monkeypatch):
+    cache = DummyCacheService()
+    redis = DummyRedis()
+    rate_key = f"phone_verify_rate:{test_student.id}"
+    redis.store[rate_key] = account_routes.PHONE_VERIFY_RATE_LIMIT
+    test_student.phone = "+15551234567"
+    db.commit()
+
+    async def _get_redis():
+        return redis
+
+    monkeypatch.setattr(cache, "get_redis_client", _get_redis)
+
+    with pytest.raises(HTTPException) as exc:
+        await account_routes.send_phone_verification(
+            current_user=test_student,
+            sms_service=DummySMSService(enabled=True),
+            cache_service=cache,
+        )
+    assert exc.value.status_code == 429
+    assert redis.store[rate_key] == account_routes.PHONE_VERIFY_RATE_LIMIT
+
+
+@pytest.mark.asyncio
+async def test_send_phone_verification_cache_attempt_parse_fallback(db, test_student):
+    cache = DummyCacheService()
+    test_student.phone = "+15551234567"
+    db.commit()
+    rate_key = f"phone_verify_rate:{test_student.id}"
+    cache.store[rate_key] = "not-a-number"
+
+    sent = await account_routes.send_phone_verification(
+        current_user=test_student,
+        sms_service=DummySMSService(enabled=True),
+        cache_service=cache,
+    )
+
+    assert sent.sent is True
+    assert cache.store[rate_key] == 1
+
+
+@pytest.mark.asyncio
+async def test_confirm_phone_verification_requires_phone(db, test_student):
+    cache = DummyCacheService()
+    test_student.phone = None
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await account_routes.confirm_phone_verification(
+            account_routes.PhoneVerifyConfirmRequest(code="123456"),
+            current_user=test_student,
+            db=db,
+            cache_service=cache,
+        )
+    assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_confirm_phone_verification_redis_attempt_parse_fallback(db, test_student, monkeypatch):
+    cache = DummyCacheService()
+    redis = DummyRedis()
+    attempts_key = f"phone_confirm_attempts:{test_student.id}"
+    code_key = f"phone_verify:{test_student.id}"
+    cache.store[code_key] = "123456"
+    test_student.phone = "+15551234567"
+    db.commit()
+
+    async def _redis_get(key: str):
+        if key == attempts_key:
+            return b"bad-int"
+        return redis.store.get(key)
+
+    monkeypatch.setattr(redis, "get", _redis_get)
+
+    async def _get_redis():
+        return redis
+
+    monkeypatch.setattr(cache, "get_redis_client", _get_redis)
+
+    with pytest.raises(HTTPException) as exc:
+        await account_routes.confirm_phone_verification(
+            account_routes.PhoneVerifyConfirmRequest(code="000000"),
+            current_user=test_student,
+            db=db,
+            cache_service=cache,
+        )
+    assert exc.value.status_code == 400
+    assert redis.store[attempts_key] == 1
+
+
+@pytest.mark.asyncio
+async def test_confirm_phone_verification_cache_attempt_parse_fallback(db, test_student):
+    cache = DummyCacheService()
+    attempts_key = f"phone_confirm_attempts:{test_student.id}"
+    code_key = f"phone_verify:{test_student.id}"
+    cache.store[attempts_key] = "bad-attempts"
+    cache.store[code_key] = "123456"
+    test_student.phone = "+15551234567"
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await account_routes.confirm_phone_verification(
+            account_routes.PhoneVerifyConfirmRequest(code="000000"),
+            current_user=test_student,
+            db=db,
+            cache_service=cache,
+        )
+    assert exc.value.status_code == 400
+    assert cache.store[attempts_key] == 1

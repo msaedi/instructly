@@ -995,85 +995,43 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
                         results["cancelled"] += 1
 
                 elif action == "warn_only":
-                    if action_data.get("needs_warning"):
-                        db_warn_retry: Session = SessionLocal()
-                        try:
-                            booking = (
-                                db_warn_retry.query(Booking)
-                                .filter(Booking.id == booking_id)
-                                .first()
+                    db_warn_retry: Session = SessionLocal()
+                    try:
+                        booking = (
+                            db_warn_retry.query(Booking).filter(Booking.id == booking_id).first()
+                        )
+                        if (
+                            booking
+                            and booking.status == BookingStatus.CONFIRMED
+                            and booking.payment_status
+                            == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+                            and booking.capture_failed_at is None
+                        ):
+                            if booking.auth_failure_t13_warning_sent_at is not None:
+                                db_warn_retry.commit()
+                                continue
+                            notification_service = NotificationService(db_warn_retry)
+                            notification_service.send_final_payment_warning(
+                                booking, hours_until_lesson
                             )
-                            if (
-                                booking
-                                and booking.status == BookingStatus.CONFIRMED
-                                and booking.payment_status
-                                == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-                                and booking.capture_failed_at is None
-                            ):
-                                if booking.auth_failure_t13_warning_sent_at is not None:
-                                    db_warn_retry.commit()
-                                    continue
-                                notification_service = NotificationService(db_warn_retry)
-                                notification_service.send_final_payment_warning(
-                                    booking, hours_until_lesson
-                                )
-                                booking.auth_failure_t13_warning_sent_at = now
+                            booking.auth_failure_t13_warning_sent_at = now
 
-                                payment_repo = RepositoryFactory.get_payment_repository(
-                                    db_warn_retry
-                                )
-                                payment_repo.create_payment_event(
-                                    booking_id=booking_id,
-                                    event_type="final_warning_sent",
-                                    event_data={
-                                        "hours_until_lesson": round(hours_until_lesson, 1),
-                                        "sent_at": now.isoformat(),
-                                    },
-                                )
-                                results["warnings_sent"] += 1
-                            db_warn_retry.commit()
-                        finally:
-                            db_warn_retry.close()
+                            payment_repo = RepositoryFactory.get_payment_repository(db_warn_retry)
+                            payment_repo.create_payment_event(
+                                booking_id=booking_id,
+                                event_type="final_warning_sent",
+                                event_data={
+                                    "hours_until_lesson": round(hours_until_lesson, 1),
+                                    "sent_at": now.isoformat(),
+                                },
+                            )
+                            results["warnings_sent"] += 1
+                        db_warn_retry.commit()
+                    finally:
+                        db_warn_retry.close()
 
                 elif action == "retry_with_warning":
-                    # Send warning if needed (in separate transaction)
-                    if action_data.get("needs_warning"):
-                        db_warn: Session = SessionLocal()
-                        try:
-                            booking = (
-                                db_warn.query(Booking).filter(Booking.id == booking_id).first()
-                            )
-                            if (
-                                booking
-                                and booking.status == BookingStatus.CONFIRMED
-                                and booking.payment_status
-                                == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-                                and booking.capture_failed_at is None
-                            ):
-                                if booking.auth_failure_t13_warning_sent_at is not None:
-                                    db_warn.commit()
-                                    continue
-                                notification_service = NotificationService(db_warn)
-                                notification_service.send_final_payment_warning(
-                                    booking, hours_until_lesson
-                                )
-                                booking.auth_failure_t13_warning_sent_at = now
-
-                                payment_repo = RepositoryFactory.get_payment_repository(db_warn)
-                                payment_repo.create_payment_event(
-                                    booking_id=booking_id,
-                                    event_type="final_warning_sent",
-                                    event_data={
-                                        "hours_until_lesson": round(hours_until_lesson, 1),
-                                        "sent_at": now.isoformat(),
-                                    },
-                                )
-                                results["warnings_sent"] += 1
-                            db_warn.commit()
-                        finally:
-                            db_warn.close()
-
-                    # Retry authorization
+                    # Retry authorization (warning is handled by a separate warn_only action)
                     retry_result = _process_retry_authorization(booking_id, hours_until_lesson)
                     if retry_result.get("skipped"):
                         continue
@@ -1763,38 +1721,6 @@ def _process_capture_for_booking(
                 f"Successfully captured payment for booking {booking_id} (reason: {capture_reason})"
             )
 
-        elif stripe_result.get("already_captured"):
-            from app.services.credit_service import CreditService
-
-            booking.payment_status = PaymentStatus.SETTLED.value
-            if stripe_result.get("transfer_id"):
-                booking.stripe_transfer_id = stripe_result.get("transfer_id")
-            try:
-                credit_service = CreditService(db3)
-                credit_service.forfeit_credits_for_booking(
-                    booking_id=booking_id, use_transaction=False
-                )
-                booking.credits_reserved_cents = 0
-            except Exception as exc:
-                logger.warning(
-                    "Failed to forfeit reserved credits for booking %s: %s",
-                    booking_id,
-                    exc,
-                )
-            if booking.status == BookingStatus.COMPLETED:
-                booking.settlement_outcome = "lesson_completed_full_payout"
-                booking.student_credit_amount = 0
-                booking.instructor_payout_amount = _resolve_payout_cents()
-                booking.refunded_to_card_amount = 0
-            payment_repo.create_payment_event(
-                booking_id=booking_id,
-                event_type="capture_already_done",
-                event_data={
-                    "payment_intent_id": payment_intent_id,
-                    "error": stripe_result.get("error", "Already captured"),
-                },
-            )
-
         elif stripe_result.get("expired"):
             booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
             booking.capture_failed_at = datetime.now(timezone.utc)
@@ -2215,14 +2141,6 @@ def attempt_payment_capture(
         }:
             logger.info(f"Payment already captured for booking {booking.id}")
             return {"success": True, "already_captured": True}
-
-        # Exclude cancelled bookings that were already captured
-        if (
-            booking.status == BookingStatus.CANCELLED
-            and booking.payment_status == PaymentStatus.SETTLED.value
-        ):
-            logger.info(f"Skipping cancelled booking {booking.id} - already captured")
-            return {"success": True, "skipped": True}
 
         idempotency_key = f"capture_{capture_reason}_{booking.id}_{booking.payment_intent_id}"
         capture_payload = stripe_service.capture_booking_payment_intent(

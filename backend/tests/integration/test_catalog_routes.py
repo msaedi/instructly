@@ -9,8 +9,10 @@ Uses the `taxonomy` fixture from tests/fixtures/taxonomy_fixtures.py.
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
-import pytest
+from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
+from app.models.subcategory import ServiceSubcategory
 from tests.fixtures.taxonomy_fixtures import TaxonomyData
 
 
@@ -138,11 +140,18 @@ class TestGetSubcategoryFilters:
             assert len(data) > 0
 
     def test_returns_empty_for_no_filters(
-        self, client: TestClient, taxonomy: TaxonomyData
+        self, client: TestClient, db: Session, taxonomy: TaxonomyData
     ) -> None:
-        sub = taxonomy.subcategory_without_filters
-        if sub is None:
-            pytest.skip("No subcategory without filters found in seed data")
+        suffix = generate_ulid().lower()
+        sub = ServiceSubcategory(
+            category_id=taxonomy.music_category.id,
+            name=f"No Filter {suffix}",
+            slug=f"no-filter-{suffix}",
+            display_order=9999,
+        )
+        db.add(sub)
+        db.commit()
+        db.refresh(sub)
         resp = client.get(f"/api/v1/catalog/subcategories/{sub.id}/filters")
         assert resp.status_code == 200
         data = resp.json()

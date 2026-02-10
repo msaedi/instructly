@@ -95,6 +95,36 @@ def test_warm_cache_no_cache(monkeypatch):
     routes.warm_prometheus_metrics_response_cache()
 
 
+def test_get_cached_metrics_payload_without_cache(monkeypatch):
+    monkeypatch.setattr(routes, "_cache_enabled", lambda: False)
+    monkeypatch.setattr(routes, "prometheus_metrics", SimpleNamespace(get_metrics=lambda: b"fresh-no-cache"))
+
+    routes._metrics_cache = None
+    payload = routes._get_cached_metrics_payload()
+    assert payload == b"fresh-no-cache"
+
+
+def test_warm_cache_when_disabled_and_metrics_succeeds(monkeypatch):
+    monkeypatch.setattr(routes, "_cache_enabled", lambda: False)
+    monkeypatch.setattr(routes, "prometheus_metrics", SimpleNamespace(get_metrics=lambda: b"ok"))
+
+    routes.warm_prometheus_metrics_response_cache()
+    assert routes._metrics_cache is None
+
+
+def test_warm_cache_enabled_handles_metrics_generation_error(monkeypatch):
+    monkeypatch.setattr(routes, "_cache_enabled", lambda: True)
+
+    def _boom():
+        raise RuntimeError("metrics-boom")
+
+    monkeypatch.setattr(routes, "prometheus_metrics", SimpleNamespace(get_metrics=_boom))
+    routes._metrics_cache = None
+
+    routes.warm_prometheus_metrics_response_cache()
+    assert routes._metrics_cache is None
+
+
 @pytest.mark.asyncio
 async def test_get_prometheus_metrics_refresh(monkeypatch):
     monkeypatch.setattr(routes, "_get_cached_metrics_payload", lambda force_refresh=False: b"instainstru_prometheus_scrapes_total 0\n")

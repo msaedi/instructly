@@ -120,6 +120,12 @@ def test_parse_event_filters_handles_mappings():
     assert "custom." in prefixes
 
 
+def test_parse_event_filters_skips_empty_tokens():
+    exact, prefixes = bgc_routes._parse_event_filters(["", "   ", "invitation.", "custom"])
+    assert exact == ["custom"]
+    assert prefixes == ["invitation."]
+
+
 def test_parse_status_filters_supports_ranges():
     codes = bgc_routes._parse_status_filters(["4xx", "error", "404", "bad"])
     assert 404 in codes
@@ -127,10 +133,16 @@ def test_parse_status_filters_supports_ranges():
     assert 500 in codes
 
 
+def test_parse_status_filters_skips_empty_tokens():
+    codes = bgc_routes._parse_status_filters(["", " ", "401"])
+    assert codes == [401]
+
+
 def test_extract_payload_object():
     payload = {"data": {"object": {"id": "obj"}}}
     assert bgc_routes._extract_payload_object(payload) == {"id": "obj"}
     assert bgc_routes._extract_payload_object({}) == {}
+    assert bgc_routes._extract_payload_object({"data": {"object": "not-dict"}}) == {}
 
 
 def test_build_checkr_report_url(monkeypatch):
@@ -201,12 +213,54 @@ def test_build_case_item_handles_repo_error():
     assert item.consent_recent is False
 
 
+def test_build_case_item_handles_missing_consented_at():
+    now = datetime.now(timezone.utc)
+
+    class Repo:
+        def latest_consent(self, instructor_id):
+            return SimpleNamespace()
+
+    profile = SimpleNamespace(
+        id="profile-1",
+        user=SimpleNamespace(first_name="Jane", last_name="Doe", email="jane@example.com"),
+        bgc_report_id=None,
+        bgc_valid_until=None,
+        bgc_status="pending",
+        bgc_includes_canceled=False,
+        bgc_completed_at=None,
+        created_at=now,
+        updated_at=now,
+        is_live=False,
+        bgc_in_dispute=False,
+        bgc_dispute_note=None,
+        bgc_dispute_opened_at=None,
+        bgc_dispute_resolved_at=None,
+        bgc_eta=None,
+    )
+
+    item = bgc_routes._build_case_item(profile, Repo(), now)
+    assert item.consent_recent is False
+    assert item.consent_recent_at is None
+
+
 def test_build_case_query_sets_distinct():
     query = _FakeQuery([])
     repo = _RepoStub(query)
     result = bgc_routes._build_case_query(repo=repo, status="review", search="alice")
     assert result is query
     assert query.distinct_called is True
+    assert query.join_called is True
+
+
+def test_build_case_query_handles_report_fragment_repo_error():
+    class Repo(_RepoStub):
+        def find_profile_ids_by_report_fragment(self, term: str):
+            raise RepositoryException("boom")
+
+    query = _FakeQuery([])
+    repo = Repo(query)
+    result = bgc_routes._build_case_query(repo=repo, status="all", search="abc")
+    assert result is query
     assert query.join_called is True
 
 
@@ -223,6 +277,37 @@ def test_get_bgc_cases_paginated_empty():
     assert total == 0
     assert current_page == 1
     assert total_pages == 1
+
+
+def test_get_bgc_cases_cursor_applies_cursor_filter():
+    now = datetime.now(timezone.utc)
+    profile = SimpleNamespace(
+        id="profile-2",
+        user=SimpleNamespace(first_name="Jane", last_name="Doe", email="jane@example.com"),
+        bgc_report_id=None,
+        bgc_valid_until=None,
+        bgc_status="review",
+        bgc_includes_canceled=False,
+        bgc_completed_at=None,
+        created_at=now,
+        updated_at=now,
+        is_live=True,
+        bgc_in_dispute=False,
+        bgc_dispute_note=None,
+        bgc_dispute_opened_at=None,
+        bgc_dispute_resolved_at=None,
+        bgc_eta=None,
+    )
+    repo = _RepoStub(_FakeQuery([profile]))
+    items, next_cursor = bgc_routes._get_bgc_cases_cursor(
+        repo=repo,
+        status="review",
+        limit=1,
+        cursor="profile-1",
+        search=None,
+    )
+    assert len(items) == 1
+    assert next_cursor is None
 
 
 def test_bgc_review_count_and_counts():
@@ -346,6 +431,100 @@ def test_bgc_webhook_logs_and_stats():
     assert response.items[0].instructor_id == "profile-1"
     stats = asyncio_run(bgc_routes.bgc_webhook_stats(log_repo=LogRepo(), _=None))
     assert stats.error_count_24h == 3
+
+
+def test_bgc_webhook_logs_handles_non_string_ids_and_fallback_resolution():
+    now = datetime.now(timezone.utc)
+    entry = SimpleNamespace(
+        id="log-2",
+        event_type="report.completed",
+        delivery_id="deliv2",
+        resource_id="res2",
+        http_status=200,
+        signature="sig2",
+        created_at=now,
+        payload_json={"data": {"object": {"object": "candidate", "report_id": 123, "candidate_id": 999}}},
+    )
+
+    class LogRepo:
+        def list_filtered(self, *args, **kwargs):
+            return [entry], None
+
+        def count_errors_since(self, *args, **kwargs):
+            return 0
+
+    repo = _RepoStub(_FakeQuery([]))
+    response = asyncio_run(
+        bgc_routes.bgc_webhook_logs(
+            limit=10,
+            cursor=None,
+            event=[],
+            status_param=[],
+            q=None,
+            log_repo=LogRepo(),
+            repo=repo,
+            _=None,
+        )
+    )
+    item = response.items[0]
+    assert item.candidate_id is None
+    assert item.invitation_id is None
+    assert item.report_id is None
+
+
+def test_bgc_webhook_logs_resolves_invitation_then_candidate():
+    now = datetime.now(timezone.utc)
+    entry = SimpleNamespace(
+        id="log-3",
+        event_type="report.completed",
+        delivery_id="deliv3",
+        resource_id="res3",
+        http_status=200,
+        signature="sig3",
+        created_at=now,
+        payload_json={
+            "data": {
+                "object": {
+                    "object": "candidate",
+                    "candidate_id": "cand_2",
+                    "invitation_id": "inv_2",
+                    "result": "clear",
+                }
+            }
+        },
+    )
+
+    class LogRepo:
+        def list_filtered(self, *args, **kwargs):
+            return [entry], None
+
+        def count_errors_since(self, *args, **kwargs):
+            return 0
+
+    class Repo(_RepoStub):
+        def get_by_report_id(self, report_id: str):
+            return None
+
+        def get_by_invitation_id(self, invitation_id: str):
+            return None
+
+        def get_by_candidate_id(self, candidate_id: str):
+            return SimpleNamespace(id="profile-candidate")
+
+    repo = Repo(_FakeQuery([]))
+    response = asyncio_run(
+        bgc_routes.bgc_webhook_logs(
+            limit=10,
+            cursor=None,
+            event=[],
+            status_param=[],
+            q=None,
+            log_repo=LogRepo(),
+            repo=repo,
+            _=None,
+        )
+    )
+    assert response.items[0].instructor_id == "profile-candidate"
 
 
 def test_bgc_review_override_paths(monkeypatch):

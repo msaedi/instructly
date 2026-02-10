@@ -134,3 +134,67 @@ def test_mark_failed_error(db, monkeypatch):
 
     with pytest.raises(RepositoryException):
         repo.mark_failed("job", "err")
+
+
+def test_mark_terminal_failure_paths(db, monkeypatch):
+    monkeypatch.setattr(settings, "jobs_max_attempts", 3, raising=False)
+    repo = BackgroundJobRepository(db)
+
+    # Missing job is a no-op.
+    repo.mark_terminal_failure("missing", "boom")
+
+    # Existing job is marked failed and attempts set to max.
+    job_id = repo.enqueue(type="job.terminal", payload={"x": 1})
+    db.commit()
+    repo.mark_terminal_failure(job_id, "fatal")
+    db.commit()
+
+    row = db.get(BackgroundJob, job_id)
+    assert row is not None
+    assert row.status == "failed"
+    assert row.attempts == 3
+    assert row.last_error == "fatal"
+
+
+def test_mark_terminal_failure_error_raises(db, monkeypatch):
+    repo = BackgroundJobRepository(db)
+
+    def _raise(*_args, **_kwargs):
+        raise SQLAlchemyError("boom")
+
+    monkeypatch.setattr(repo.db, "get", _raise)
+    with pytest.raises(RepositoryException):
+        repo.mark_terminal_failure("job", "fatal")
+
+
+def test_enqueue_and_pending_final_adverse_edge_cases(db, monkeypatch):
+    repo = BackgroundJobRepository(db)
+
+    # Non-dict payload rows should be ignored when matching.
+    repo.enqueue(
+        type="background_check.final_adverse_action",
+        payload="not-a-dict",
+    )
+    target_payload = {
+        "profile_id": "profile-x",
+        "pre_adverse_notice_id": "notice-y",
+    }
+    repo.enqueue(
+        type="background_check.final_adverse_action",
+        payload=target_payload,
+    )
+    db.commit()
+
+    job = repo.get_pending_final_adverse_job("profile-x", "notice-y")
+    assert job is not None
+    assert job.type == "background_check.final_adverse_action"
+    assert isinstance(job.payload, dict)
+    assert job.payload["profile_id"] == "profile-x"
+    assert job.payload["pre_adverse_notice_id"] == "notice-y"
+
+    def _raise_add(*_args, **_kwargs):
+        raise SQLAlchemyError("enqueue-boom")
+
+    monkeypatch.setattr(repo.db, "add", _raise_add)
+    with pytest.raises(RepositoryException):
+        repo.enqueue(type="job.fail", payload={})

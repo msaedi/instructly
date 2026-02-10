@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.core.exceptions import BusinessRuleException
-from app.models.booking import PaymentStatus
+from app.models.booking import BookingStatus, PaymentStatus
 from app.services.booking_service import BookingService
 
 
@@ -96,3 +96,117 @@ def test_get_booking_with_payment_summary_only_for_student():
     )
     assert other_booking is not None
     assert other_summary is None
+
+
+def test_determine_service_area_summary_prefers_metadata_and_compacts():
+    service = _service()
+    service.service_area_repository = MagicMock()
+
+    areas = [
+        SimpleNamespace(
+            neighborhood=SimpleNamespace(parent_region="Queens", region_metadata={"borough": "Bronx"})
+        ),
+        SimpleNamespace(neighborhood=SimpleNamespace(parent_region="Manhattan", region_metadata={})),
+        SimpleNamespace(neighborhood=SimpleNamespace(parent_region="Brooklyn", region_metadata={})),
+    ]
+    service.service_area_repository.list_for_instructor.return_value = areas
+
+    summary = service._determine_service_area_summary("instructor-1")
+
+    # Sorted set should compact to "<first> + N more" for 3+ boroughs.
+    assert summary == "Bronx + 2 more"
+
+
+def test_format_booking_time_and_service_name_fallbacks():
+    assert BookingService._format_booking_time(SimpleNamespace(start_time=None)) == ""
+    assert BookingService._format_booking_time(SimpleNamespace(start_time="9am")) == "9am"
+
+    assert (
+        BookingService._resolve_service_name(
+            SimpleNamespace(service_name="   ", instructor_service=SimpleNamespace(name="Guitar"))
+        )
+        == "Guitar"
+    )
+    assert (
+        BookingService._resolve_service_name(
+            SimpleNamespace(service_name=None, instructor_service=SimpleNamespace(name="   "))
+        )
+        == "Lesson"
+    )
+
+
+def test_send_cancellation_notifications_uses_detailed_booking_for_instructor_role():
+    service = _service()
+    service.notification_service = MagicMock()
+    service.repository = MagicMock()
+
+    booking = SimpleNamespace(
+        id="booking-1",
+        student=None,
+        instructor=None,
+        student_id="student-1",
+        instructor_id="instructor-1",
+    )
+    detailed = SimpleNamespace(
+        id="booking-1",
+        student_id="student-1",
+        instructor_id="instructor-1",
+        booking_date=None,
+        service_name="Piano",
+        instructor=SimpleNamespace(first_name="Alex", last_name="Stone"),
+        student=SimpleNamespace(first_name="Sam", last_name="Learner"),
+    )
+    service.repository.get_booking_with_details.return_value = detailed
+
+    service._send_cancellation_notifications(booking, "instructor")
+
+    service.repository.get_booking_with_details.assert_called_once_with("booking-1")
+    service.notification_service.notify_user_best_effort.assert_called_once()
+    kwargs = service.notification_service.notify_user_best_effort.call_args.kwargs
+    assert kwargs["user_id"] == "student-1"
+    assert kwargs["template"]
+
+
+def test_send_cancellation_notifications_noop_without_notification_service():
+    service = _service()
+    service.notification_service = None
+    service._send_cancellation_notifications(SimpleNamespace(id="booking-1"), "student")
+
+
+def test_handle_post_booking_tasks_event_publish_paths():
+    service = _service()
+    service.event_publisher = MagicMock()
+    service.system_message_service = MagicMock()
+    service._send_booking_notifications = MagicMock()
+    service._invalidate_booking_caches = MagicMock()
+
+    confirmed_booking = SimpleNamespace(
+        id="booking-1",
+        status=BookingStatus.CONFIRMED,
+        student_id="student-1",
+        instructor_id="instructor-1",
+        booking_date=None,
+        start_time=None,
+        created_at=None,
+        instructor_service=None,
+    )
+
+    service._handle_post_booking_tasks(confirmed_booking, is_reschedule=False)
+    service.event_publisher.publish.assert_called_once()
+    service.system_message_service.create_booking_created_message.assert_called_once()
+    service._send_booking_notifications.assert_called_once_with(confirmed_booking, False)
+    service._invalidate_booking_caches.assert_called_once_with(confirmed_booking)
+
+    service.event_publisher.publish.reset_mock()
+    cancelled_booking = SimpleNamespace(
+        id="booking-2",
+        status=BookingStatus.CANCELLED,
+        student_id="student-1",
+        instructor_id="instructor-1",
+        booking_date=None,
+        start_time=None,
+        created_at=None,
+        instructor_service=None,
+    )
+    service._handle_post_booking_tasks(cancelled_booking, is_reschedule=False)
+    service.event_publisher.publish.assert_not_called()

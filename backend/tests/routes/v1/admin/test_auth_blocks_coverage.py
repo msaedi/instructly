@@ -91,6 +91,7 @@ def test_has_active_blocks_filters():
     assert auth_blocks._has_active_blocks(account, "lockout") is True
     assert auth_blocks._has_active_blocks(account, "rate_limit") is False
     assert auth_blocks._has_active_blocks(account, "captcha") is True
+    assert auth_blocks._has_active_blocks(account, "unknown") is False
 
 
 @pytest.mark.asyncio
@@ -139,6 +140,28 @@ async def test_list_auth_issues_redis_unavailable(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_list_auth_issues_raises_500_on_redis_error(monkeypatch):
+    class BrokenRedis(FakeRedis):
+        async def scan_iter(self, pattern: str):
+            raise RuntimeError("scan-boom")
+            yield  # pragma: no cover
+
+    async def _get_redis():
+        return BrokenRedis(store={"login:lockout:err@example.com": "1"})
+
+    monkeypatch.setattr(auth_blocks, "get_async_cache_redis_client", _get_redis)
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_blocks.list_auth_issues(
+            type=None,
+            email=None,
+            current_user=SimpleNamespace(email="admin@example.com"),
+        )
+
+    assert exc.value.status_code == 500
+
+
+@pytest.mark.asyncio
 async def test_get_summary_stats_counts(monkeypatch):
     store = {
         "login:lockout:one@example.com": "1",
@@ -163,6 +186,37 @@ async def test_get_summary_stats_counts(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_get_summary_stats_redis_unavailable(monkeypatch):
+    async def _get_none():
+        return None
+
+    monkeypatch.setattr(auth_blocks, "get_async_cache_redis_client", _get_none)
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_blocks.get_summary_stats(current_user=SimpleNamespace(email="admin@example.com"))
+
+    assert exc.value.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_get_summary_stats_handles_redis_errors(monkeypatch):
+    class BrokenRedis(FakeRedis):
+        async def scan_iter(self, pattern: str):
+            raise RuntimeError("stats-boom")
+            yield  # pragma: no cover
+
+    async def _get_redis():
+        return BrokenRedis(store={"login:lockout:a@example.com": "1"})
+
+    monkeypatch.setattr(auth_blocks, "get_async_cache_redis_client", _get_redis)
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_blocks.get_summary_stats(current_user=SimpleNamespace(email="admin@example.com"))
+
+    assert exc.value.status_code == 500
+
+
+@pytest.mark.asyncio
 async def test_get_account_state_404_when_empty(monkeypatch):
     redis = FakeRedis(store={})
     async def _get_redis():
@@ -177,6 +231,42 @@ async def test_get_account_state_404_when_empty(monkeypatch):
         )
 
     assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_account_state_redis_unavailable(monkeypatch):
+    async def _get_none():
+        return None
+
+    monkeypatch.setattr(auth_blocks, "get_async_cache_redis_client", _get_none)
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_blocks.get_account_state(
+            "missing@example.com",
+            current_user=SimpleNamespace(email="admin@example.com"),
+        )
+
+    assert exc.value.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_get_account_state_handles_internal_error(monkeypatch):
+    class BrokenRedis(FakeRedis):
+        async def ttl(self, key: str) -> int:
+            raise RuntimeError("ttl-boom")
+
+    async def _get_redis():
+        return BrokenRedis(store={"login:lockout:user@example.com": "1"})
+
+    monkeypatch.setattr(auth_blocks, "get_async_cache_redis_client", _get_redis)
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_blocks.get_account_state(
+            "user@example.com",
+            current_user=SimpleNamespace(email="admin@example.com"),
+        )
+
+    assert exc.value.status_code == 500
 
 
 @pytest.mark.asyncio
@@ -202,3 +292,62 @@ async def test_clear_account_blocks_deletes_keys(monkeypatch):
     assert response.email == "user@example.com"
     assert set(response.cleared) == {"lockout", "rate_limit_minute", "rate_limit_hour", "failures"}
     assert response.reason == "support"
+
+
+@pytest.mark.asyncio
+async def test_clear_account_blocks_partial_types_and_no_matches(monkeypatch):
+    store = {
+        "login:lockout:user@example.com": "1",
+        "login:minute:user@example.com": "2",
+    }
+    redis = FakeRedis(store=store)
+
+    async def _get_redis():
+        return redis
+
+    monkeypatch.setattr(auth_blocks, "get_async_cache_redis_client", _get_redis)
+    response = await auth_blocks.clear_account_blocks(
+        "user@example.com",
+        request=auth_blocks.ClearBlocksRequest(types=["rate_limit", "failures"], reason="ops"),
+        current_user=SimpleNamespace(email="admin@example.com"),
+    )
+
+    assert response.email == "user@example.com"
+    assert response.cleared == ["rate_limit_minute"]
+    assert response.reason == "ops"
+
+
+@pytest.mark.asyncio
+async def test_clear_account_blocks_redis_unavailable(monkeypatch):
+    async def _get_none():
+        return None
+
+    monkeypatch.setattr(auth_blocks, "get_async_cache_redis_client", _get_none)
+    with pytest.raises(HTTPException) as exc:
+        await auth_blocks.clear_account_blocks(
+            "user@example.com",
+            request=None,
+            current_user=SimpleNamespace(email="admin@example.com"),
+        )
+    assert exc.value.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_clear_account_blocks_handles_delete_error(monkeypatch):
+    class BrokenRedis(FakeRedis):
+        async def delete(self, key: str) -> int:
+            raise RuntimeError("delete-boom")
+
+    async def _get_redis():
+        return BrokenRedis(store={"login:lockout:user@example.com": "1"})
+
+    monkeypatch.setattr(auth_blocks, "get_async_cache_redis_client", _get_redis)
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_blocks.clear_account_blocks(
+            "user@example.com",
+            request=auth_blocks.ClearBlocksRequest(types=["lockout"]),
+            current_user=SimpleNamespace(email="admin@example.com"),
+        )
+
+    assert exc.value.status_code == 500

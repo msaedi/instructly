@@ -184,3 +184,63 @@ def test_profile_picture_urls_batch_limit(client, db, auth_headers):
         resp = client.get(f"/api/v1/users/profile-picture-urls?ids={ids}", headers=auth_headers)
         assert resp.status_code == 400
         assert "maximum of 50" in resp.text.lower()
+
+
+def test_finalize_profile_picture_returns_400_on_service_error(client, db, auth_headers):
+    with _stub_personal_asset_service(db, client.app) as svc:
+        svc.finalize_profile_picture = lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ValueError("bad image")
+        )
+        resp = client.post(
+            "/api/v1/users/me/profile-picture",
+            json={"object_key": "uploads/test/key.png"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+        assert "bad image" in resp.text
+
+
+def test_get_profile_picture_url_value_error_returns_soft_failure(client, db, auth_headers):
+    with _stub_personal_asset_service(db, client.app) as svc:
+        svc.get_profile_picture_view = lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ValueError("variant invalid")
+        )
+        resp = client.get(
+            "/api/v1/users/some-user/profile-picture-url?variant=display",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is False
+        assert "variant invalid" in body["message"]
+
+
+def test_get_profile_picture_url_runtime_error_returns_404(client, db, auth_headers):
+    with _stub_personal_asset_service(db, client.app) as svc:
+        svc.get_profile_picture_view = lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("missing")
+        )
+        resp = client.get(
+            "/api/v1/users/some-user/profile-picture-url?variant=display",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 404
+
+
+def test_profile_picture_urls_batch_ignores_empty_segments(client, db, auth_headers):
+    with _stub_personal_asset_service(db, client.app):
+        resp = client.get(
+            "/api/v1/users/profile-picture-urls?ids=,user-a,,&ids=   ",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert list(resp.json()["urls"].keys()) == ["user-a"]
+
+
+def test_delete_profile_picture_returns_400_on_service_error(client, db, auth_headers):
+    with _stub_personal_asset_service(db, client.app) as svc:
+        svc.delete_profile_picture = lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("delete failed")
+        )
+        resp = client.delete("/api/v1/users/me/profile-picture", headers=auth_headers)
+        assert resp.status_code == 400

@@ -425,3 +425,86 @@ def test_search_click_endpoint(client, db, test_instructor, auth_headers_admin) 
 def test_search_click_endpoint_requires_fields(client) -> None:
     response = client.post("/api/v1/search/click")
     assert response.status_code == 422
+
+
+def test_search_click_endpoint_query_param_fallback_generates_id(client) -> None:
+    response = client.post(
+        "/api/v1/search/click",
+        params={
+            "search_query_id": generate_ulid(),
+            "instructor_id": generate_ulid(),
+            "position": 1,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["click_id"]
+
+
+def test_search_click_endpoint_invalid_service_id_returns_400(
+    client, db, auth_headers_admin, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        SearchAnalyticsRepository,
+        "nl_resolve_click_targets",
+        lambda *args, **kwargs: (None, None),
+    )
+    response = client.post(
+        "/api/v1/search/click",
+        json={
+            "search_query_id": generate_ulid(),
+            "service_id": generate_ulid(),
+            "instructor_id": generate_ulid(),
+            "position": 1,
+            "action": "view",
+        },
+        headers=auth_headers_admin,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid service_id"
+
+
+def test_search_click_endpoint_invalid_instructor_id_returns_400(
+    client, db, auth_headers_admin, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        SearchAnalyticsRepository,
+        "nl_resolve_click_targets",
+        lambda *args, **kwargs: (generate_ulid(), None),
+    )
+    response = client.post(
+        "/api/v1/search/click",
+        json={
+            "search_query_id": generate_ulid(),
+            "service_id": generate_ulid(),
+            "instructor_id": generate_ulid(),
+            "position": 1,
+            "action": "view",
+        },
+        headers=auth_headers_admin,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid instructor_id"
+
+
+def test_search_click_endpoint_location_learning_failure_is_non_blocking(
+    client, db, auth_headers_admin, monkeypatch
+) -> None:
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("learning-boom")
+
+    monkeypatch.setattr(
+        "app.services.search.location_learning_click_service.LocationLearningClickService.capture_location_learning_click",
+        _boom,
+    )
+    response = client.post(
+        "/api/v1/search/click",
+        json={
+            "search_query_id": generate_ulid(),
+            "instructor_id": generate_ulid(),
+            "position": 1,
+            "action": "view",
+        },
+        headers=auth_headers_admin,
+    )
+    assert response.status_code == 200
+    assert response.json()["click_id"]

@@ -762,3 +762,95 @@ async def test_require_beta_phase_access_beta_disabled(monkeypatch):
     result = await verify_phase(_make_request(), current_user=None, db=Mock())
 
     assert result is None
+
+
+def test_secret_value_and_bearer_token_helpers():
+    class _Secret:
+        def get_secret_value(self):
+            return "s3cr3t"
+
+    assert auth_module._secret_value(None) == ""
+    assert auth_module._secret_value(_Secret()) == "s3cr3t"
+    assert auth_module._secret_value(123) == "123"
+
+    assert auth_module._get_bearer_token(None) is None
+    assert auth_module._get_bearer_token("Basic abc") is None
+    assert auth_module._get_bearer_token("Bearer") is None
+    assert auth_module._get_bearer_token("Bearer    ") is None
+    assert auth_module._get_bearer_token("Bearer token-123") == "token-123"
+
+
+@pytest.mark.asyncio
+async def test_validate_mcp_service_rejects_bad_headers(monkeypatch):
+    monkeypatch.setattr(auth_module.settings, "mcp_service_token", "expected", raising=False)
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_module.validate_mcp_service(authorization="Basic abc", db=Mock())
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Invalid authorization header"
+
+
+@pytest.mark.asyncio
+async def test_validate_mcp_service_rejects_wrong_token(monkeypatch):
+    monkeypatch.setattr(auth_module.settings, "mcp_service_token", "expected", raising=False)
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_module.validate_mcp_service(authorization="Bearer wrong", db=Mock())
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Invalid service token"
+
+
+@pytest.mark.asyncio
+async def test_validate_mcp_service_missing_service_user_is_500(monkeypatch):
+    class DummyRepo:
+        def __init__(self, db):
+            self.db = db
+
+        def get_by_email(self, _email):
+            return None
+
+    monkeypatch.setattr(auth_module.settings, "mcp_service_token", "expected", raising=False)
+    monkeypatch.setattr(
+        auth_module.settings,
+        "mcp_service_account_email",
+        "svc@example.com",
+        raising=False,
+    )
+    monkeypatch.setattr("app.repositories.user_repository.UserRepository", DummyRepo)
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_module.validate_mcp_service(authorization="Bearer expected", db=Mock())
+
+    assert exc.value.status_code == 500
+    assert exc.value.detail == "Service configuration error"
+
+
+@pytest.mark.asyncio
+async def test_validate_mcp_service_success(monkeypatch):
+    service_user = _make_user(is_staff=False)
+
+    class DummyRepo:
+        def __init__(self, db):
+            self.db = db
+
+        def get_by_email(self, email):
+            assert email == "svc@example.com"
+            return service_user
+
+    monkeypatch.setattr(auth_module.settings, "mcp_service_token", "expected", raising=False)
+    monkeypatch.setattr(
+        auth_module.settings,
+        "mcp_service_account_email",
+        "svc@example.com",
+        raising=False,
+    )
+    monkeypatch.setattr("app.repositories.user_repository.UserRepository", DummyRepo)
+
+    result = await auth_module.validate_mcp_service(
+        authorization="Bearer expected",
+        db=Mock(),
+    )
+
+    assert result is service_user

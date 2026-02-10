@@ -39,3 +39,16 @@ def test_search_context_normalize_int() -> None:
     assert ctx._normalize_int("5") == 5
     assert ctx._normalize_int(3.2) == 3
     assert ctx._normalize_int("bad", default=7) == 7
+
+
+def test_search_context_repository_kwargs_and_edge_normalization() -> None:
+    ctx = SearchUserContext.from_guest("g1")
+    assert ctx.to_repository_kwargs() == {"user_id": None, "guest_session_id": "g1"}
+
+    assert ctx._normalize_int(float("nan"), default=4) == 4
+
+    class _BadInt:
+        def __int__(self):
+            raise TypeError("boom")
+
+    assert ctx._normalize_int(_BadInt(), default=9) == 9

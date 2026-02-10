@@ -238,3 +238,72 @@ async def test_track_interaction_value_error(monkeypatch):
         )
 
     assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_get_search_context_handles_cookie_access_error():
+    class _CookieRaiser:
+        def get(self, _key):
+            raise RuntimeError("cookie-boom")
+
+    request = _make_request()
+    request._cookies = _CookieRaiser()  # type: ignore[attr-defined]
+
+    with pytest.raises(HTTPException) as exc:
+        await routes.get_search_context(
+            request,
+            current_user=None,
+            x_guest_session_id=None,
+            x_session_id=None,
+            x_search_origin=None,
+        )
+
+    assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_record_search_entry_reraises_http_exception(monkeypatch):
+    class _Service:
+        async def record_search(self, **_kwargs):
+            raise HTTPException(status_code=418, detail="teapot")
+
+    monkeypatch.setattr(routes, "SearchHistoryService", lambda _db: _Service())
+
+    request = _make_request()
+    payload = SearchHistoryCreate(
+        search_query="test",
+        search_type="natural_language",
+        results_count=1,
+    )
+    context = SearchUserContext.from_guest("guest-1")
+
+    with pytest.raises(HTTPException) as exc:
+        await routes._record_search_entry(payload=payload, request=request, context=context, db=None)
+
+    assert exc.value.status_code == 418
+
+
+@pytest.mark.asyncio
+async def test_track_interaction_unexpected_error_in_production(monkeypatch):
+    stub = _SearchServiceStub(track_exc=RuntimeError("boom"))
+    monkeypatch.setattr(routes, "SearchHistoryService", lambda _db: stub)
+
+    async def _to_thread(func, **kwargs):
+        return func(**kwargs)
+
+    monkeypatch.setattr(routes.asyncio, "to_thread", _to_thread)
+    monkeypatch.setenv("ENV", "production")
+
+    request = _make_request()
+    context = SearchUserContext.from_guest("guest-1")
+
+    with pytest.raises(HTTPException) as exc:
+        await routes.track_interaction(
+            {"search_event_id": "evt", "interaction_type": "click"},
+            request=request,
+            context=context,
+            db=None,
+        )
+
+    assert exc.value.status_code == 500
+    assert exc.value.detail == "Failed to track interaction"

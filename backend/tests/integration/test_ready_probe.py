@@ -37,6 +37,15 @@ class DummyRedis:
             raise RuntimeError("cache down")
 
 
+class AsyncDummyRedis:
+    def __init__(self, fail: bool = False):
+        self._fail = fail
+
+    async def ping(self):
+        if self._fail:
+            raise RuntimeError("cache down")
+
+
 def _patch_dependencies(
     monkeypatch,
     *,
@@ -97,3 +106,46 @@ def test_ready_probe_messaging_degraded(client: TestClient, monkeypatch) -> None
     resp = client.get("/api/v1/ready")
     assert resp.status_code == 200  # Still returns 200, just degraded
     assert resp.json() == {"status": "degraded", "notifications_healthy": False}
+
+
+def test_ready_probe_async_redis_client_path(client: TestClient, monkeypatch) -> None:
+    async def _redis_factory():
+        return AsyncDummyRedis()
+
+    _patch_dependencies(
+        monkeypatch,
+        session_factory=lambda: DummySession(),
+        redis_factory=_redis_factory,
+        broadcast_initialized=True,
+    )
+    resp = client.get("/api/v1/ready")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok", "notifications_healthy": True}
+
+
+def test_ready_probe_redis_none_returns_cache_not_ready(client: TestClient, monkeypatch) -> None:
+    _patch_dependencies(
+        monkeypatch,
+        session_factory=lambda: DummySession(),
+        redis_factory=lambda: None,
+    )
+    resp = client.get("/api/v1/ready")
+    assert resp.status_code == 503
+    assert resp.json() == {"status": "cache_not_ready", "notifications_healthy": None}
+
+
+def test_ready_probe_broadcast_health_exception_does_not_fail(client: TestClient, monkeypatch) -> None:
+    _patch_dependencies(
+        monkeypatch,
+        session_factory=lambda: DummySession(),
+        redis_factory=lambda: DummyRedis(),
+    )
+
+    def _boom():
+        raise RuntimeError("broadcast-boom")
+
+    monkeypatch.setattr(broadcast_module, "is_broadcast_initialized", _boom)
+
+    resp = client.get("/api/v1/ready")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok", "notifications_healthy": None}

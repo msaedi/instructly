@@ -142,6 +142,90 @@ class TestProcessInstructorReferralPayout:
         assert mock_payout.stripe_transfer_status == "failed"
         assert mock_payout.failed_at is not None
 
+    @patch("app.tasks.referral_tasks.get_db_session")
+    @patch("app.tasks.referral_tasks.InstructorProfileRepository")
+    def test_referrer_profile_not_found_marks_failed(self, mock_instructor_repo, mock_db_session):
+        mock_db = MagicMock()
+        mock_db_session.return_value.__enter__.return_value = mock_db
+
+        mock_payout = Mock(spec=InstructorReferralPayout)
+        mock_payout.referrer_user_id = "referrer_404"
+        mock_payout.stripe_transfer_status = "pending"
+        (
+            mock_db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value
+        ) = mock_payout
+
+        mock_instructor_repo.return_value.get_by_user_id.return_value = None
+
+        result = process_instructor_referral_payout.run("payout_missing_profile")
+
+        assert result["status"] == "error"
+        assert result["reason"] == "referrer_profile_not_found"
+        assert mock_payout.stripe_transfer_status == "failed"
+        assert mock_payout.failure_reason == "referrer_profile_not_found"
+
+    @patch("app.tasks.referral_tasks.get_db_session")
+    @patch("app.tasks.referral_tasks.InstructorProfileRepository")
+    def test_referrer_not_onboarded_marks_failed(self, mock_instructor_repo, mock_db_session):
+        mock_db = MagicMock()
+        mock_db_session.return_value.__enter__.return_value = mock_db
+
+        mock_payout = Mock(spec=InstructorReferralPayout)
+        mock_payout.referrer_user_id = "referrer_456"
+        mock_payout.stripe_transfer_status = "pending"
+        (
+            mock_db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value
+        ) = mock_payout
+
+        mock_profile = Mock()
+        mock_profile.stripe_connected_account = Mock(
+            stripe_account_id="acct_123",
+            onboarding_completed=False,
+        )
+        mock_instructor_repo.return_value.get_by_user_id.return_value = mock_profile
+
+        result = process_instructor_referral_payout.run("payout_not_onboarded")
+
+        assert result["status"] == "error"
+        assert result["reason"] == "stripe_not_onboarded"
+        assert mock_payout.stripe_transfer_status == "failed"
+        assert mock_payout.failure_reason == "referrer_stripe_not_onboarded"
+
+    @patch("app.tasks.referral_tasks.get_db_session")
+    @patch("app.tasks.referral_tasks.StripeService")
+    @patch("app.tasks.referral_tasks.InstructorProfileRepository")
+    def test_transfer_without_id_marks_failed(
+        self, mock_instructor_repo, mock_stripe_service, mock_db_session
+    ):
+        mock_db = MagicMock()
+        mock_db_session.return_value.__enter__.return_value = mock_db
+
+        mock_payout = Mock(spec=InstructorReferralPayout)
+        mock_payout.id = "payout_no_id"
+        mock_payout.referrer_user_id = "referrer_456"
+        mock_payout.referred_instructor_id = "referred_789"
+        mock_payout.amount_cents = 5000
+        mock_payout.was_founding_bonus = False
+        mock_payout.stripe_transfer_status = "pending"
+        (
+            mock_db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value
+        ) = mock_payout
+
+        mock_profile = Mock()
+        mock_profile.stripe_connected_account = Mock(
+            stripe_account_id="acct_123",
+            onboarding_completed=True,
+        )
+        mock_instructor_repo.return_value.get_by_user_id.return_value = mock_profile
+        mock_stripe_service.return_value.create_referral_bonus_transfer.return_value = {}
+
+        result = process_instructor_referral_payout.run("payout_no_id")
+
+        assert result["status"] == "error"
+        assert result["reason"] == "no_transfer_id"
+        assert mock_payout.stripe_transfer_status == "failed"
+        assert mock_payout.failure_reason == "stripe_transfer_no_id"
+
 
 class TestRetryFailedPayouts:
     """Tests for the retry failed payouts periodic task."""

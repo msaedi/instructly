@@ -2159,16 +2159,165 @@ async def test_hydrate_instructor_results_dedupes_and_distances(nl_service):
     ]
     distance_meters = {"inst_1": 1000.0, "inst_2": 2000.0}
 
-    results = await nl_service._hydrate_instructor_results(
-        ranked,
-        limit=1,
-        location_resolution=location_resolution,
-        instructor_rows=instructor_rows,
-        distance_meters=distance_meters,
-    )
+    with patch(
+        "app.services.search.nl_search_service.asyncio.to_thread",
+        new=AsyncMock(
+            return_value={
+                "svc_1": {"id": "svc_1"},
+                "svc_2": {"id": "svc_2"},
+                "svc_3": {"id": "svc_3"},
+            }
+        ),
+    ):
+        results = await nl_service._hydrate_instructor_results(
+            ranked,
+            limit=1,
+            location_resolution=location_resolution,
+            instructor_rows=instructor_rows,
+            distance_meters=distance_meters,
+        )
 
     assert len(results) == 1
     assert results[0].distance_km == 1.0
+
+
+@pytest.mark.asyncio
+async def test_hydrate_instructor_results_raises_when_hydration_rows_missing(nl_service):
+    ranked = [
+        RankedResult(
+            service_id="svc_1",
+            service_catalog_id="cat_1",
+            instructor_id="inst_1",
+            name="Service 1",
+            description=None,
+            price_per_hour=50,
+            final_score=0.9,
+            rank=1,
+            relevance_score=0.9,
+            quality_score=0.9,
+            distance_score=0.9,
+            price_score=0.9,
+            freshness_score=0.9,
+            completeness_score=0.9,
+        )
+    ]
+
+    thread_results = iter(
+        [
+            {"svc_1": {"id": "svc_1"}},
+            (None, {}),
+        ]
+    )
+
+    async def _to_thread(_func, *_args, **_kwargs):
+        return next(thread_results)
+
+    with patch(
+        "app.services.search.nl_search_service.asyncio.to_thread",
+        new=AsyncMock(side_effect=_to_thread),
+    ):
+        with pytest.raises(RuntimeError, match="Instructor hydration returned no rows"):
+            await nl_service._hydrate_instructor_results(
+                ranked,
+                limit=1,
+                location_resolution=ResolvedLocation(region_id="region-1"),
+            )
+
+
+@pytest.mark.asyncio
+async def test_hydrate_instructor_results_clarification_candidates_and_optional_service_ids(nl_service):
+    ranked = [
+        RankedResult(
+            service_id="",
+            service_catalog_id="cat_1",
+            instructor_id="inst_1",
+            name="Service 1",
+            description=None,
+            price_per_hour=50,
+            final_score=0.9,
+            rank=1,
+            relevance_score=0.9,
+            quality_score=0.9,
+            distance_score=0.9,
+            price_score=0.9,
+            freshness_score=0.9,
+            completeness_score=0.9,
+        ),
+        RankedResult(
+            service_id="svc_2",
+            service_catalog_id="cat_2",
+            instructor_id="inst_2",
+            name="Service 2",
+            description=None,
+            price_per_hour=60,
+            final_score=0.8,
+            rank=2,
+            relevance_score=0.8,
+            quality_score=0.8,
+            distance_score=0.8,
+            price_score=0.8,
+            freshness_score=0.8,
+            completeness_score=0.8,
+        ),
+    ]
+    location_resolution = ResolvedLocation(
+        requires_clarification=True,
+        candidates=[
+            {"region_id": "r1"},
+            {"region_id": "r1"},
+            {"region_id": "r2"},
+            "invalid",
+        ],
+    )
+
+    async def _to_thread(func, *_args, **_kwargs):
+        if getattr(func, "__name__", "") == "_load_service_data":
+            return {"svc_2": {"id": "svc_2", "offers_online": True}}
+        return (
+            [
+                {
+                    "instructor_id": "inst_1",
+                    "first_name": "A",
+                    "last_initial": "B",
+                    "avg_rating": 4.9,
+                    "review_count": 10,
+                    "profile_picture_key": None,
+                    "bio_snippet": None,
+                    "verified": True,
+                    "is_founding_instructor": False,
+                    "years_experience": 2,
+                    "coverage_areas": [],
+                },
+                {
+                    "instructor_id": "inst_2",
+                    "first_name": "C",
+                    "last_initial": "D",
+                    "avg_rating": 4.5,
+                    "review_count": 5,
+                    "profile_picture_key": None,
+                    "bio_snippet": None,
+                    "verified": False,
+                    "is_founding_instructor": False,
+                    "years_experience": 1,
+                    "coverage_areas": [],
+                },
+            ],
+            {"inst_2": 1609.34},
+        )
+
+    with patch(
+        "app.services.search.nl_search_service.asyncio.to_thread",
+        new=AsyncMock(side_effect=_to_thread),
+    ):
+        results = await nl_service._hydrate_instructor_results(
+            ranked,
+            limit=2,
+            location_resolution=location_resolution,
+        )
+
+    assert len(results) == 2
+    assert results[0].best_match.service_id == ""
+    assert results[1].distance_mi == 1.0
 
 
 @pytest.mark.asyncio

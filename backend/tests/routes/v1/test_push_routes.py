@@ -100,3 +100,33 @@ def test_list_subscriptions(client, auth_headers_instructor, db, test_instructor
 
     assert response.status_code == 200
     assert len(response.json()) == 2
+
+
+def test_subscribe_service_error_returns_400(client, auth_headers_instructor):
+    with patch(
+        "app.routes.v1.push.PushNotificationService.subscribe",
+        side_effect=RuntimeError("bad-subscribe"),
+    ):
+        response = client.post(
+            "/api/v1/push/subscribe",
+            json={
+                "endpoint": "https://fcm.googleapis.com/fcm/send/abc123",
+                "p256dh": "key",
+                "auth": "auth",
+            },
+            headers=auth_headers_instructor,
+        )
+
+    assert response.status_code == 400
+
+
+def test_unsubscribe_not_found_returns_false(client, auth_headers_instructor):
+    response = client.request(
+        "DELETE",
+        "/api/v1/push/unsubscribe",
+        json={"endpoint": "https://fcm.googleapis.com/fcm/send/not-found"},
+        headers=auth_headers_instructor,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is False
