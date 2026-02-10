@@ -2,7 +2,7 @@
 fastapi==0.128.0
 starlette==0.50.0
 uvicorn==0.40.0
-gunicorn==25.0.1
+gunicorn==25.0.3
 python-multipart==0.0.22
 sse-starlette==3.2.0
 
@@ -16,7 +16,7 @@ pgvector==0.4.2
 pydantic==2.12.5
 pydantic-settings==2.12.0
 email_validator==2.3.0
-orjson==3.11.5
+orjson==3.11.7
 
 # Authentication & Security
 argon2-cffi>=25.1.0
@@ -44,7 +44,7 @@ twilio>=8.0.0
 # Search & NLP
 symspellpy==6.9.0
 dateparser>=1.2.0
-openai==2.16.0
+openai==2.18.0
 
 # Geospatial
 geopandas==1.1.2
@@ -54,7 +54,7 @@ stripe==14.3.0
 
 # Monitoring & Utilities
 prometheus-client==0.24.1
-sentry-sdk[fastapi]==2.51.0
+sentry-sdk[fastapi]==2.52.0
 # OpenTelemetry Core - PIN TO SAME MINOR VERSION
 opentelemetry-api==1.39.1
 opentelemetry-sdk==1.39.1
