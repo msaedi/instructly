@@ -118,11 +118,12 @@ class TestListServicesForSubcategory:
         assert "slug" in data[0]
 
 
-    def test_nonexistent_subcategory_returns_404(
+    def test_nonexistent_subcategory_returns_empty(
         self, client: TestClient, taxonomy: TaxonomyData
     ) -> None:
         resp = client.get("/api/v1/catalog/subcategories/00000000000000000000000000/services")
-        assert resp.status_code == 404
+        assert resp.status_code == 200
+        assert resp.json() == []
 
 
 class TestGetSubcategoryFilters:
@@ -149,11 +150,12 @@ class TestGetSubcategoryFilters:
         assert len(data) == 0
 
 
-    def test_nonexistent_subcategory_returns_404(
+    def test_nonexistent_subcategory_returns_empty(
         self, client: TestClient, taxonomy: TaxonomyData
     ) -> None:
         resp = client.get("/api/v1/catalog/subcategories/00000000000000000000000000/filters")
-        assert resp.status_code == 404
+        assert resp.status_code == 200
+        assert resp.json() == []
 
 
 class TestCacheHeaders:
