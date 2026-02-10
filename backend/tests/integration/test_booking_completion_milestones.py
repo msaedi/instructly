@@ -56,7 +56,7 @@ def milestone_setup(db):
 
     category = ServiceCategory(
         id=str(ulid.ULID()),
-        name="Music",
+        name=f"Milestone Music {str(ulid.ULID())[:8]}",
         description="Music lessons",
     )
     db.add(category)

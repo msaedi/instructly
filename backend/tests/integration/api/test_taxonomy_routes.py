@@ -28,6 +28,10 @@ def _uid() -> str:
     return str(_ulid.ULID()).lower()[:10]
 
 
+# Valid ULID format that is guaranteed not to collide with seeded IDs.
+NONEXISTENT_ULID = "7ZZZZZZZZZZZZZZZZZZZZZZZZZ"
+
+
 # ── Fixtures ───────────────────────────────────────────────────
 
 
@@ -168,7 +172,7 @@ class TestCategoryTree:
         assert len(sub1["services"]) >= 1
 
     def test_nonexistent_category_returns_404(self, client: TestClient):
-        resp = client.get("/api/v1/services/categories/01JNONEXISTENT000000000000/tree")
+        resp = client.get(f"/api/v1/services/categories/{NONEXISTENT_ULID}/tree")
         assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
@@ -185,7 +189,7 @@ class TestCategorySubcategories:
         assert route_taxonomy["sub2"].id in ids
 
     def test_nonexistent_category_returns_404(self, client: TestClient):
-        resp = client.get("/api/v1/services/categories/01JNONEXISTENT000000000000/subcategories")
+        resp = client.get(f"/api/v1/services/categories/{NONEXISTENT_ULID}/subcategories")
         assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
@@ -201,7 +205,7 @@ class TestSubcategoryWithServices:
         assert len(data["services"]) >= 1
 
     def test_nonexistent_subcategory_returns_404(self, client: TestClient):
-        resp = client.get("/api/v1/services/subcategories/01JNONEXISTENT000000000000")
+        resp = client.get(f"/api/v1/services/subcategories/{NONEXISTENT_ULID}")
         assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
@@ -257,7 +261,7 @@ class TestFilterContext:
         assert len(data["available_filters"]) >= 1
 
     def test_nonexistent_service_returns_404(self, client: TestClient):
-        resp = client.get("/api/v1/services/catalog/01JNONEXISTENT000000000000/filter-context")
+        resp = client.get(f"/api/v1/services/catalog/{NONEXISTENT_ULID}/filter-context")
         assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 

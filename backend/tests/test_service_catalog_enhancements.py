@@ -96,7 +96,9 @@ class TestServiceCatalogRepository:
         """Test searching services with multiple filters."""
         # Create test data
         category = ServiceCategory(
-            name="Music", description="Music lessons", display_order=1
+            name=f"Music Test {uuid.uuid4().hex[:8]}",
+            description="Music lessons",
+            display_order=1,
         )
         db.add(category)
         db.flush()
@@ -347,7 +349,9 @@ class TestInstructorServiceEnhancements:
         """Test semantic search functionality."""
         # Create test data
         category = ServiceCategory(
-            name="Music", description="Music lessons", display_order=1
+            name=f"Music Semantic {uuid.uuid4().hex[:8]}",
+            description="Music lessons",
+            display_order=1,
         )
         db.add(category)
         db.flush()

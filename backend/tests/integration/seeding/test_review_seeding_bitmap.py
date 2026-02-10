@@ -42,7 +42,7 @@ def test_backfill_and_review_booking_creation(db: Session):
     instructor = _create_user(db, "instr-1", "instructor@example.com", is_instructor=True)
     student = _create_user(db, "stud-1", "student@example.com", is_instructor=False)
 
-    category = ServiceCategory(name="Music")
+    category = ServiceCategory(name=f"Music Seed {uuid4().hex[:8]}")
     db.add(category)
     db.flush()
 

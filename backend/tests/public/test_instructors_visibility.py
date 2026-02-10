@@ -15,7 +15,7 @@ from app.models.user import User
 
 def _catalog_setup(db):
     category = ServiceCategory(
-        name="Music",
+        name=f"Public Music {str(ulid.ULID())[:8]}",
         description="Music lessons",
     )
     db.add(category)

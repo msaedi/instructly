@@ -29,6 +29,7 @@ except ModuleNotFoundError:
 import asyncio
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
+from functools import lru_cache
 import importlib
 import json
 import os
@@ -1018,16 +1019,7 @@ def _ensure_rbac_roles():
 
 def _ensure_catalog_data():
     """Ensure catalog data is seeded for tests (3-level taxonomy)."""
-    # Import via importlib since scripts/seed_data/ has no __init__.py
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(
-        "seed_taxonomy",
-        os.path.join(backend_dir, "scripts", "seed_data", "seed_taxonomy.py"),
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = _load_seed_taxonomy_module()
     seed_taxonomy = mod.seed_taxonomy
 
     # Create a separate session to check
@@ -1084,6 +1076,53 @@ def _ensure_catalog_data():
         session.close()
 
 
+@lru_cache(maxsize=1)
+def _load_seed_taxonomy_module():
+    """Load taxonomy seeder module once for deterministic ID helpers."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "seed_taxonomy",
+        os.path.join(backend_dir, "scripts", "seed_data", "seed_taxonomy.py"),
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@lru_cache(maxsize=1)
+def _seeded_taxonomy_ids() -> tuple[set[str], set[str], set[str]]:
+    """Return deterministic category/subcategory/service IDs from seed_taxonomy.py."""
+    mod = _load_seed_taxonomy_module()
+
+    category_ids: set[str] = set()
+    subcategory_ids: set[str] = set()
+    service_ids: set[str] = set()
+
+    category_slug_by_name: dict[str, str] = {}
+    for category in mod.CATEGORIES:
+        category_name = str(category["name"])
+        category_slug = str(category["slug"])
+        category_slug_by_name[category_name] = category_slug
+        category_ids.add(str(mod.deterministic_id("category", category_slug)))
+
+    for category_name, subcategories in mod.TAXONOMY.items():
+        cat_name = str(category_name)
+        category_slug = category_slug_by_name.get(cat_name, mod.slugify(cat_name))
+        for subcategory_name, _display_order, services in subcategories:
+            sub_slug = mod.slugify(str(subcategory_name))
+            sub_id = str(mod.deterministic_id("subcategory", f"{category_slug}:{sub_slug}"))
+            subcategory_ids.add(sub_id)
+            for service_name in services:
+                svc_slug = mod.slugify(str(service_name))
+                service_ids.add(
+                    str(mod.deterministic_id("service", f"{category_slug}:{sub_slug}:{svc_slug}"))
+                )
+
+    return category_ids, subcategory_ids, service_ids
+
+
 def create_test_session() -> Session:
     """Initialize and return a fresh SQLAlchemy session for tests."""
     if settings.is_production_database(TEST_DATABASE_URL):
@@ -1116,11 +1155,17 @@ def cleanup_test_database() -> None:
         cleanup_db.query(BetaAccess).delete()
         cleanup_db.query(BetaInvite).delete()
 
+        seeded_category_ids, seeded_subcategory_ids, seeded_service_ids = _seeded_taxonomy_ids()
+        # Keep deterministic baseline taxonomy; remove per-test taxonomy records.
         cleanup_db.query(ServiceCatalog).filter(
-            (ServiceCatalog.name.like("Test%"))
-            | (ServiceCatalog.name.like("%Test Service%"))
-            | (ServiceCatalog.slug.like("test-%"))
-        ).delete()
+            ~ServiceCatalog.id.in_(seeded_service_ids)
+        ).delete(synchronize_session=False)
+        cleanup_db.query(ServiceSubcategory).filter(
+            ~ServiceSubcategory.id.in_(seeded_subcategory_ids)
+        ).delete(synchronize_session=False)
+        cleanup_db.query(ServiceCategory).filter(
+            ~ServiceCategory.id.in_(seeded_category_ids)
+        ).delete(synchronize_session=False)
 
         existing_catalog_ids = select(ServiceCatalog.id)
         cleanup_db.query(ServiceAnalytics).filter(
