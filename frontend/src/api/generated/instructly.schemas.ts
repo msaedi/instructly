@@ -3978,6 +3978,17 @@ export interface InstantPayoutResponse {
 export type InstructorFilterContextCurrentSelections = { [key: string]: string[] };
 
 /**
+ * 'single_select' or 'multi_select'
+ */
+export type SubcategoryFilterResponseFilterType =
+  (typeof SubcategoryFilterResponseFilterType)[keyof typeof SubcategoryFilterResponseFilterType];
+
+export const SubcategoryFilterResponseFilterType = {
+  single_select: 'single_select',
+  multi_select: 'multi_select',
+} as const;
+
+/**
  * A filter as it applies to a specific subcategory (with only valid options).
 
 This is the primary schema used by the frontend to render filter UI.
@@ -3988,7 +3999,7 @@ export interface SubcategoryFilterResponse {
   /** Filter key (e.g., 'grade_level') */
   filter_key: string;
   /** 'single_select' or 'multi_select' */
-  filter_type: string;
+  filter_type: SubcategoryFilterResponseFilterType;
   /** Valid options for this subcategory */
   options?: FilterOptionResponse[];
 }
@@ -7958,7 +7969,7 @@ export interface ServiceCatalogDetail {
   price_floor_in_person_cents?: number | null;
   price_floor_online_cents?: number | null;
   slug?: string | null;
-  subcategory_id?: string;
+  subcategory_id?: string | null;
   subcategory_name?: string | null;
 }
 

@@ -3,11 +3,13 @@
 Named taxonomy_filter.py to avoid collision with the PostGIS filter_repository.py.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Literal
 
 from pydantic import ConfigDict, Field
 
 from ._strict_base import StrictModel
+
+FilterType = Literal["single_select", "multi_select"]
 
 
 class FilterOptionResponse(StrictModel):
@@ -27,7 +29,9 @@ class FilterDefinitionResponse(StrictModel):
     id: str
     key: str = Field(..., description="Machine-readable key (e.g., 'grade_level')")
     display_name: str = Field(..., description="Human-readable name (e.g., 'Grade Level')")
-    filter_type: str = Field(..., description="Type of filter: 'single_select' or 'multi_select'")
+    filter_type: FilterType = Field(
+        ..., description="Type of filter: 'single_select' or 'multi_select'"
+    )
 
     model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
 
@@ -46,7 +50,7 @@ class SubcategoryFilterResponse(StrictModel):
 
     filter_key: str = Field(..., description="Filter key (e.g., 'grade_level')")
     filter_display_name: str = Field(..., description="Human-readable name")
-    filter_type: str = Field(..., description="'single_select' or 'multi_select'")
+    filter_type: FilterType = Field(..., description="'single_select' or 'multi_select'")
     options: List[FilterOptionResponse] = Field(
         default_factory=list, description="Valid options for this subcategory"
     )
@@ -64,9 +68,9 @@ class FilterWithOptions(StrictModel):
     id: str
     key: str = Field(..., description="Machine-readable key (e.g., 'grade_level')")
     display_name: str = Field(..., description="Human-readable name (e.g., 'Grade Level')")
-    filter_type: str = Field(..., description="'single_select' or 'multi_select'")
+    filter_type: FilterType = Field(..., description="'single_select' or 'multi_select'")
     is_required: bool = Field(
-        False, description="Whether this filter is required for the subcategory"
+        False, description="Whether this filter is required for the subcategory (not yet enforced)"
     )
     options: List[FilterOptionResponse] = Field(default_factory=list)
 

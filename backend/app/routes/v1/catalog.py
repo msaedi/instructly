@@ -40,7 +40,10 @@ async def list_categories(
     service: CatalogBrowseService = Depends(get_catalog_browse_service),
 ) -> List[CategorySummary]:
     """All active categories with subcategory counts. Cached 1hr."""
-    data = await asyncio.to_thread(service.list_categories)
+    try:
+        data = await asyncio.to_thread(service.list_categories)
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
     response.headers["Cache-Control"] = "public, max-age=3600"
     return cast(List[CategorySummary], data)
 
@@ -114,7 +117,10 @@ async def list_services_for_subcategory(
     service: CatalogBrowseService = Depends(get_catalog_browse_service),
 ) -> List[ServiceCatalogSummary]:
     """Services in a subcategory. Cached 30min."""
-    data = await asyncio.to_thread(service.list_services_for_subcategory, subcategory_id)
+    try:
+        data = await asyncio.to_thread(service.list_services_for_subcategory, subcategory_id)
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
     response.headers["Cache-Control"] = "public, max-age=1800"
     return cast(List[ServiceCatalogSummary], data)
 
@@ -130,6 +136,9 @@ async def get_subcategory_filters(
     service: CatalogBrowseService = Depends(get_catalog_browse_service),
 ) -> List[SubcategoryFilterResponse]:
     """Filter definitions for a subcategory. Cached 1hr."""
-    data = await asyncio.to_thread(service.get_filters_for_subcategory, subcategory_id)
+    try:
+        data = await asyncio.to_thread(service.get_filters_for_subcategory, subcategory_id)
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
     response.headers["Cache-Control"] = "public, max-age=3600"
     return cast(List[SubcategoryFilterResponse], data)

@@ -327,9 +327,17 @@ class TaxonomyFilterRepository:
 
         normalized_filters = self._normalize_filter_selections(filter_selections)
 
-        # JSONB @> containment — each key/values pair must be present
+        # OR-within-key, AND-across-keys — consistent with find_matching_service_ids
         if normalized_filters:
-            query = query.filter(InstructorService.filter_selections.op("@>")(normalized_filters))
+            for filter_key, filter_values in normalized_filters.items():
+                if isinstance(filter_values, list) and len(filter_values) > 0:
+                    json_values_expr = func.coalesce(
+                        InstructorService.filter_selections.op("->")(filter_key),
+                        sa_cast("[]", JSONB),
+                    )
+                    query = query.filter(
+                        json_values_expr.op("?|")(sa_cast(filter_values, ARRAY(SAText())))
+                    )
 
         return cast(List[InstructorService], query.limit(limit).all())
 

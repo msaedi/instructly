@@ -97,7 +97,7 @@ def test_service_category_counts_and_dict() -> None:
     assert category.active_services_count == 1
     assert category.instructor_count == 1
 
-    payload = category.to_dict(include_subcategories=True)
+    payload = category.to_dict(include_subcategories=True, include_counts=True)
     assert len(payload["subcategories"]) == 1
     assert payload["active_services_count"] == 1
 

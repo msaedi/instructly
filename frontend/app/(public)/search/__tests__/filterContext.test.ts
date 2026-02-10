@@ -168,7 +168,7 @@ describe('filterContext helpers', () => {
       {
         filter_key: 'goal',
         filter_display_name: 'Goal',
-        filter_type: 'multi_select',
+        filter_type: 'multi_select' as const,
         options: [
           { id: '1', value: 'enrichment', display_name: 'Enrichment', display_order: 1 },
           { id: '2', value: 'competition', display_name: 'Competition', display_order: 2 },
@@ -177,7 +177,7 @@ describe('filterContext helpers', () => {
       {
         filter_key: 'format',
         filter_display_name: 'Format',
-        filter_type: 'multi_select',
+        filter_type: 'multi_select' as const,
         options: [{ id: '3', value: 'one_on_one', display_name: 'One-on-One', display_order: 1 }],
       },
     ];

@@ -9808,7 +9808,7 @@ export type components = {
  price_floor_in_person_cents?: number | null;
  price_floor_online_cents?: number | null;
  slug?: string | null;
- subcategory_id: string;
+ subcategory_id?: string | null;
  subcategory_name?: string | null;
  };
  ServiceCatalogSummary: {
@@ -9984,7 +9984,7 @@ export type components = {
  SubcategoryFilterResponse: {
  filter_display_name: string;
  filter_key: string;
- filter_type: string;
+ filter_type: "single_select" | "multi_select";
  options?: components["schemas"]["FilterOptionResponse"][];
  };
  SubcategorySummary: {

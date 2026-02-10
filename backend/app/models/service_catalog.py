@@ -105,17 +105,26 @@ class ServiceCategory(Base):
                         instructors.add(service.instructor_profile_id)
         return len(instructors)
 
-    def to_dict(self, include_subcategories: bool = False) -> Dict[str, Any]:
-        """Convert to dictionary for API responses."""
+    def to_dict(
+        self, include_subcategories: bool = False, include_counts: bool = False
+    ) -> Dict[str, Any]:
+        """Convert to dictionary for API responses.
+
+        Args:
+            include_subcategories: Include nested subcategory dicts.
+            include_counts: Include active_services_count and instructor_count
+                (requires eager-loaded subcategories→services→instructor_services).
+        """
         data: Dict[str, Any] = {
             "id": self.id,
             "name": self.name,
             "description": self.description,
             "display_order": self.display_order,
             "icon_name": self.icon_name,
-            "active_services_count": self.active_services_count,
-            "instructor_count": self.instructor_count,
         }
+        if include_counts:
+            data["active_services_count"] = self.active_services_count
+            data["instructor_count"] = self.instructor_count
 
         if include_subcategories:
             data["subcategories"] = [

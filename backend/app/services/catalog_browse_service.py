@@ -168,7 +168,7 @@ class CatalogBrowseService(BaseService):
             raise NotFoundException(f"Service '{service_id}' not found")
 
         sub_name = svc.subcategory.name if svc.subcategory else None
-        sub_id = svc.subcategory_id or ""
+        sub_id = svc.subcategory_id
 
         return {
             "id": svc.id,

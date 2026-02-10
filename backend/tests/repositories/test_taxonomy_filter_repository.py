@@ -203,8 +203,8 @@ class TestValidateFilterSelections:
 
 
 class TestFindInstructorsByFilters:
-    def test_jsonb_containment(self, db, taxonomy_data, test_instructor):
-        """JSONB @> operator correctly matches instructor filter_selections."""
+    def test_single_value_match(self, db, taxonomy_data, test_instructor):
+        """Instructor with matching filter value is returned."""
         profile = db.query(InstructorProfile).filter(
             InstructorProfile.user_id == test_instructor.id
         ).first()
@@ -231,15 +231,43 @@ class TestFindInstructorsByFilters:
         assert len(results) >= 1
         assert any(r.id == svc.id for r in results)
 
-    def test_no_match(self, db, taxonomy_data):
-        """Returns empty when no instructors match filter criteria."""
+    def test_or_within_key_semantics(self, db, taxonomy_data, test_instructor):
+        """Instructor tagged with only 'elementary' IS returned when querying
+        ['elementary', 'middle'] — OR-within-key, not AND."""
+        profile = db.query(InstructorProfile).filter(
+            InstructorProfile.user_id == test_instructor.id
+        ).first()
+        assert profile is not None
+
+        svc = InstructorService(
+            instructor_profile_id=profile.id,
+            service_catalog_id=taxonomy_data["service"].id,
+            hourly_rate=55.0,
+            duration_options=[60],
+            is_active=True,
+            filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
+        )
+        db.add(svc)
+        db.commit()
+
         repo = TaxonomyFilterRepository(db)
         results = repo.find_instructors_by_filters(
             subcategory_id=taxonomy_data["sub_with_filters"].id,
-            filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
+            filter_selections={taxonomy_data["filter_key"]: ["elementary", "middle"]},
         )
-        # May or may not find results depending on test state, but should not error
-        assert isinstance(results, list)
+
+        assert any(r.id == svc.id for r in results), (
+            "Instructor with ['elementary'] should match query ['elementary', 'middle'] (OR semantics)"
+        )
+
+    def test_no_match(self, db, taxonomy_data):
+        """Returns empty when filter value does not exist in any instructor's selections."""
+        repo = TaxonomyFilterRepository(db)
+        results = repo.find_instructors_by_filters(
+            subcategory_id=taxonomy_data["sub_with_filters"].id,
+            filter_selections={taxonomy_data["filter_key"]: ["nonexistent_value_xyz"]},
+        )
+        assert results == []
 
     def test_empty_filter_returns_all(self, db, taxonomy_data):
         """Empty filter_selections returns all services in subcategory."""

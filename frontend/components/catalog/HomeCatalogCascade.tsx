@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   BookOpen,
+  Disc3,
   Globe,
   Dumbbell,
   Music,
   Palette,
   Sparkles,
+  Trophy,
 } from 'lucide-react';
 
 import type { CategoryServiceDetail } from '@/features/shared/api/types';
@@ -42,6 +44,8 @@ type FilteredSubcategory = {
 const ICON_MAP: Record<string, IconComponent> = {
   palette: Palette,
   dumbbell: Dumbbell,
+  disc: Disc3,
+  trophy: Trophy,
   'book-open': BookOpen,
   globe: Globe,
   music: Music,

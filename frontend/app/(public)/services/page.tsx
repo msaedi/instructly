@@ -4,7 +4,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, Music, BookOpen, Dumbbell, Globe, Palette, Sparkles, type LucideProps } from 'lucide-react';
+import { Search, Music, BookOpen, Disc3, Dumbbell, Globe, Palette, Sparkles, Trophy, type LucideProps } from 'lucide-react';
 import type { CategoryServiceDetail, CategoryWithServices as ApiCategoryWithServices } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -20,10 +20,12 @@ const LOAD_MORE_COUNT = 10;
 const ICON_BY_NAME: Record<string, React.ForwardRefExoticComponent<Omit<LucideProps, "ref"> & React.RefAttributes<SVGSVGElement>>> = {
   'music': Music,
   'book-open': BookOpen,
+  'disc': Disc3,
   'dumbbell': Dumbbell,
   'globe': Globe,
   'palette': Palette,
   'sparkles': Sparkles,
+  'trophy': Trophy,
   'lightbulb': Sparkles,
 };
 

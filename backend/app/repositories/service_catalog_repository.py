@@ -16,6 +16,7 @@ import logging
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, TypedDict, TypeVar, cast
 
 from sqlalchemy import distinct, or_, select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Query, Session, joinedload, selectinload
 from sqlalchemy.sql import func
 
@@ -64,7 +65,7 @@ class PopularServiceMetrics(TypedDict):
 
 
 class MinimalServiceInfo(TypedDict):
-    id: int
+    id: str
     name: str
     slug: str
 
@@ -80,7 +81,8 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         try:
             res = self.db.execute(text("SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm'"))
             self._pg_trgm_available = bool(res.fetchone())
-        except Exception:
+        except Exception as e:
+            logger.warning("pg_trgm_detection_failed", extra={"error": str(e)})
             self._pg_trgm_available = False
 
     def find_similar_by_embedding(
@@ -136,8 +138,15 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             # Return services with scores in order
             return [(service_map[row.id], row.similarity) for row in rows if row.id in service_map]
 
+        except OperationalError:
+            logger.error("db_connection_error_in_vector_search", exc_info=True)
+            raise
         except Exception as e:
-            logger.error(f"Error in vector similarity search: {str(e)}")
+            logger.warning(
+                "vector_search_degraded",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
 
     def search_services(
@@ -664,8 +673,15 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             return [
                 cast(MinimalServiceInfo, {"id": r.id, "name": r.name, "slug": r.slug}) for r in rows
             ]
+        except OperationalError:
+            logger.error("db_connection_error_in_kids_services", exc_info=True)
+            raise
         except Exception as e:
-            logger.error(f"Error fetching kids-available services: {str(e)}")
+            logger.warning(
+                "kids_available_services_degraded",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             return []
 
     # ── Taxonomy-aware queries (3-level: category → subcategory → service) ──

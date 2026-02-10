@@ -19244,11 +19244,8 @@ export type components = {
             price_floor_online_cents?: number | null;
             /** Slug */
             slug?: string | null;
-            /**
-             * Subcategory Id
-             * @default
-             */
-            subcategory_id: string;
+            /** Subcategory Id */
+            subcategory_id?: string | null;
             /** Subcategory Name */
             subcategory_name?: string | null;
         };
@@ -19862,8 +19859,9 @@ export type components = {
             /**
              * Filter Type
              * @description 'single_select' or 'multi_select'
+             * @enum {string}
              */
-            filter_type: string;
+            filter_type: "single_select" | "multi_select";
             /**
              * Options
              * @description Valid options for this subcategory

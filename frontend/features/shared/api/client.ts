@@ -674,14 +674,14 @@ export const publicApi = {
    * Get category detail by slug with subcategory listing
    */
   async getCatalogCategory(slug: string) {
-    return cleanFetch<ApiCategoryDetail>(`/api/v1/catalog/categories/${slug}`);
+    return cleanFetch<ApiCategoryDetail>(`/api/v1/catalog/categories/${encodeURIComponent(slug)}`);
   },
 
   /**
    * Get subcategory detail by slug pair with services and filters
    */
   async getCatalogSubcategory(categorySlug: string, subcategorySlug: string) {
-    return cleanFetch<ApiSubcategoryDetail>(`/api/v1/catalog/categories/${categorySlug}/${subcategorySlug}`);
+    return cleanFetch<ApiSubcategoryDetail>(`/api/v1/catalog/categories/${encodeURIComponent(categorySlug)}/${encodeURIComponent(subcategorySlug)}`);
   },
 
   /**

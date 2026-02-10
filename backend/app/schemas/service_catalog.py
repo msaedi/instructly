@@ -72,7 +72,7 @@ class InstructorServiceCreate(StrictRequestModel):
         **StrictRequestModel.model_config,
         json_schema_extra={
             "example": {
-                "catalog_service_id": 1,
+                "catalog_service_id": "01JEXAMPLE00000000000000",
                 "hourly_rate": 75.0,
                 "custom_description": "Specializing in jazz piano for intermediate students",
                 "duration_options": [30, 45, 60],
@@ -164,7 +164,7 @@ class ServiceCatalogDetail(ServiceCatalogSummary):
     description: Optional[str] = None
     price_floor_in_person_cents: Optional[int] = None
     price_floor_online_cents: Optional[int] = None
-    subcategory_id: str = ""
+    subcategory_id: Optional[str] = None
     subcategory_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid", validate_assignment=True)
