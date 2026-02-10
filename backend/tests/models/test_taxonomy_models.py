@@ -362,7 +362,7 @@ class TestServiceCatalogModelUpdates:
         assert svc.eligible_age_groups == ["kids", "teens", "adults"]
 
     def test_eligible_age_groups_default(self, db):
-        """eligible_age_groups defaults to all age groups."""
+        """eligible_age_groups defaults to kids, teens, adults (matching seed)."""
         cat = _make_category(db)
         sub = _make_subcategory(db, cat.id)
         svc = ServiceCatalog(
@@ -375,8 +375,7 @@ class TestServiceCatalogModelUpdates:
         db.commit()
         db.refresh(svc)
 
-        assert "toddler" in svc.eligible_age_groups
-        assert "adults" in svc.eligible_age_groups
+        assert svc.eligible_age_groups == ["kids", "teens", "adults"]
 
     def test_service_subcategory_relationship(self, db):
         """service.subcategory navigates to parent subcategory."""
