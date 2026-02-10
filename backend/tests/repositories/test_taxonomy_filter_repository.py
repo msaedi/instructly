@@ -8,6 +8,8 @@ to avoid depending on seed state.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 import ulid as _ulid
 
@@ -536,3 +538,153 @@ class TestValidateFilterOptionInvariants:
         violations = repo.validate_filter_option_invariants(taxonomy_data["sub_with_filters"].id)
         assert len(violations) == 1
         assert "does not match" in violations[0]
+
+
+def test_find_matching_service_ids_python_fallback_and_inactive_toggle(
+    db,
+    taxonomy_data,
+    test_instructor,
+    monkeypatch,
+):
+    profile = (
+        db.query(InstructorProfile)
+        .filter(InstructorProfile.user_id == test_instructor.id)
+        .first()
+    )
+    assert profile is not None
+
+    active = InstructorService(
+        instructor_profile_id=profile.id,
+        service_catalog_id=taxonomy_data["service"].id,
+        hourly_rate=45.0,
+        duration_options=[60],
+        is_active=True,
+        filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
+    )
+    inactive = InstructorService(
+        instructor_profile_id=profile.id,
+        service_catalog_id=taxonomy_data["service"].id,
+        hourly_rate=55.0,
+        duration_options=[60],
+        is_active=False,
+        filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
+    )
+    db.add_all([active, inactive])
+    db.commit()
+
+    repo = TaxonomyFilterRepository(db)
+    bind = repo.db.get_bind()
+    monkeypatch.setattr(bind.dialect, "name", "sqlite", raising=False)
+
+    matching_default = repo.find_matching_service_ids(
+        service_ids=[active.id, inactive.id],
+        filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
+    )
+    matching_with_inactive = repo.find_matching_service_ids(
+        service_ids=[active.id, inactive.id],
+        filter_selections={taxonomy_data["filter_key"]: ["elementary"]},
+        active_only=False,
+    )
+
+    assert active.id in matching_default
+    assert inactive.id not in matching_default
+    assert {active.id, inactive.id}.issubset(matching_with_inactive)
+
+
+def test_find_instructors_by_filters_allows_inactive_when_requested(
+    db,
+    taxonomy_data,
+    test_instructor,
+):
+    profile = (
+        db.query(InstructorProfile)
+        .filter(InstructorProfile.user_id == test_instructor.id)
+        .first()
+    )
+    assert profile is not None
+
+    svc = InstructorService(
+        instructor_profile_id=profile.id,
+        service_catalog_id=taxonomy_data["service"].id,
+        hourly_rate=50.0,
+        duration_options=[60],
+        is_active=False,
+        filter_selections={taxonomy_data["filter_key"]: ["middle"]},
+    )
+    db.add(svc)
+    db.commit()
+
+    repo = TaxonomyFilterRepository(db)
+    results = repo.find_instructors_by_filters(
+        subcategory_id=taxonomy_data["sub_with_filters"].id,
+        filter_selections={taxonomy_data["filter_key"]: ["middle"]},
+        active_only=False,
+    )
+    assert any(row.id == svc.id for row in results)
+
+
+def test_find_instructors_by_filters_skips_empty_filter_values(monkeypatch):
+    query = SimpleNamespace(limit=lambda *_: SimpleNamespace(all=lambda: []))
+    query.join = lambda *_args, **_kwargs: query
+    query.filter = lambda *_args, **_kwargs: query
+    db = SimpleNamespace(query=lambda *_args, **_kwargs: query)
+    repo = TaxonomyFilterRepository(db)
+    monkeypatch.setattr(repo, "_normalize_filter_selections", lambda _filters: {"grade": []})
+    assert repo.find_instructors_by_filters("subcategory", {"grade": ["x"]}) == []
+
+
+def test_get_filters_and_validators_skip_missing_relations(monkeypatch):
+    sf_missing_definition = SimpleNamespace(filter_definition=None, filter_options=[])
+    sf_with_missing_option = SimpleNamespace(
+        filter_definition=SimpleNamespace(
+            id="fd-1",
+            key="grade_level",
+            display_name="Grade Level",
+            filter_type="multi_select",
+        ),
+        filter_options=[SimpleNamespace(filter_option=None, display_order=0)],
+    )
+    sf_invariant_missing = SimpleNamespace(filter_definition=None, filter_options=[])
+    sf_invariant_missing_option = SimpleNamespace(
+        filter_definition=SimpleNamespace(id="fd-2"),
+        filter_options=[SimpleNamespace(filter_option=None, id="sfo-1")],
+    )
+
+    class _Query:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def filter(self, *_args, **_kwargs):
+            return self
+
+        def options(self, *_args, **_kwargs):
+            return self
+
+        def order_by(self, *_args, **_kwargs):
+            return self
+
+        def all(self):
+            return self._rows
+
+    rows_per_call = [
+        [sf_missing_definition, sf_with_missing_option],
+        [sf_missing_definition],
+        [sf_invariant_missing, sf_invariant_missing_option],
+    ]
+
+    class _DB:
+        def query(self, *_args, **_kwargs):
+            return _Query(rows_per_call.pop(0))
+
+    repo = TaxonomyFilterRepository(_DB())
+
+    filters = repo.get_filters_for_subcategory("sub")
+    assert len(filters) == 1
+    assert filters[0]["options"] == []
+
+    valid, errors = repo.validate_filter_selections("sub", {"grade_level": ["x"]})
+    assert valid is False
+    assert errors
+
+    violations = repo.validate_filter_option_invariants("sub")
+    assert violations == []

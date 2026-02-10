@@ -297,3 +297,81 @@ class TestBetaRoutesAdditionalCoverage:
         )
         assert res_update.status_code == 200
         assert invalidations
+
+    def test_invite_cookie_and_secret_helper_branches(self, monkeypatch):
+        monkeypatch.setattr(
+            beta_routes,
+            "settings",
+            SimpleNamespace(site_mode="preview", secret_key="plain-secret"),
+        )
+        kwargs = beta_routes._invite_cookie_kwargs()
+        assert kwargs["secure"] is True
+
+        assert beta_routes._secret_bytes() == b"plain-secret"
+
+        marker = beta_routes._encode_invite_marker("CODE123")
+        tampered = marker[:-1] + ("A" if marker[-1] != "A" else "B")
+        assert beta_routes._decode_invite_marker(tampered) is None
+
+    def test_fetch_prometheus_summary_handles_bad_payload_and_request_failure(self, monkeypatch):
+        class _BadPayloadResponse:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"data": {"result": [{"value": [0, "not-a-number"]}]}}
+
+        monkeypatch.setattr(beta_routes.requests, "get", lambda *_args, **_kwargs: _BadPayloadResponse())
+        result = beta_routes._fetch_prometheus_summary("http://example.com", "token")
+        assert result is not None
+        assert result.invites_sent_24h == 0
+        assert result.invites_errors_24h == 0
+
+        monkeypatch.setattr(
+            beta_routes.requests,
+            "get",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("network down")),
+        )
+        assert beta_routes._fetch_prometheus_summary("http://example.com", "token") is None
+
+    def test_validate_invite_requires_code(self, client: TestClient):
+        response = client.get("/api/v1/beta/invites/validate")
+        assert response.status_code == 400
+        assert response.json()["detail"] == "invite_code_required"
+
+    def test_metrics_summary_fallback_handles_parse_errors(self, client: TestClient, auth_headers_admin, monkeypatch):
+        monkeypatch.setattr(settings, "prometheus_http_url", "")
+        malformed_metrics = (
+            "instainstru_service_operations_total{operation=\"beta_invite_sent\",status=\"success\"} bad\n"
+            "instainstru_service_operations_total{operation=\"beta_invite_sent\",status=\"error\"} bad\n"
+            "instainstru_beta_phase_header_total{phase=\"open_beta\"} bad\n"
+        )
+        monkeypatch.setattr(
+            beta_routes.prometheus_metrics,
+            "get_metrics",
+            lambda: malformed_metrics.encode("utf-8"),
+        )
+
+        response = client.get("/api/v1/beta/metrics/summary", headers=auth_headers_admin)
+        assert response.status_code == 200
+        assert response.json()["invites_sent_24h"] == 0
+        assert response.json()["invites_errors_24h"] == 0
+        assert response.json()["phase_counts_24h"] == {}
+
+    def test_metrics_summary_fallback_returns_zeros_on_registry_failure(
+        self, client: TestClient, auth_headers_admin, monkeypatch
+    ):
+        monkeypatch.setattr(settings, "prometheus_http_url", "")
+        monkeypatch.setattr(
+            beta_routes.prometheus_metrics,
+            "get_metrics",
+            lambda: (_ for _ in ()).throw(RuntimeError("registry unavailable")),
+        )
+
+        response = client.get("/api/v1/beta/metrics/summary", headers=auth_headers_admin)
+        assert response.status_code == 200
+        assert response.json() == {
+            "invites_sent_24h": 0,
+            "invites_errors_24h": 0,
+            "phase_counts_24h": {},
+        }

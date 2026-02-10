@@ -326,3 +326,115 @@ def test_find_booking_opportunities_date_range_validation() -> None:
             date_range_start=date(2024, 1, 1),
             date_range_end=date(2024, 4, 15),
         )
+
+
+def test_direct_validator_branches_for_duration_timezone_and_location_type() -> None:
+    with pytest.raises(ValueError, match="at least 15"):
+        BookingCreate.validate_duration(14)
+    with pytest.raises(ValueError, match="cannot exceed 12 hours"):
+        BookingCreate.validate_duration(721)
+    assert BookingCreate.validate_timezone("UTC") == "UTC"
+    with pytest.raises(ValueError, match="location_type must be one of"):
+        BookingCreate.validate_location_type("legacy")
+
+    with pytest.raises(ValueError, match="at least 15"):
+        BookingRescheduleRequest.validate_duration(14)
+    with pytest.raises(ValueError, match="cannot exceed 12 hours"):
+        BookingRescheduleRequest.validate_duration(721)
+    assert BookingRescheduleRequest.parse_time_string(time(9, 30)) == time(9, 30)
+
+
+def test_booking_response_validator_branches_and_safe_fallbacks() -> None:
+    assert BookingResponse._validate_rescheduled_from({"id": "x"}) == {"id": "x"}
+    assert BookingResponse._validate_rescheduled_from(MappingProxyType({"id": "x"})) == {"id": "x"}
+    weird = object()
+    assert BookingResponse._validate_rescheduled_from(weird) is weird
+
+    assert BookingResponse._validate_payment_summary({"total_paid": 12}) == {"total_paid": 12}
+    assert BookingResponse._validate_payment_summary(MappingProxyType({"total_paid": 12})) == {
+        "total_paid": 12
+    }
+    assert BookingResponse._validate_payment_summary(weird) is weird
+
+    payload = _base_booking_payload()
+    payload["location_type"] = 123
+    payload["location_lat"] = True
+    payload["location_lng"] = True
+    payload["student"] = SimpleNamespace(
+        id="student-1", first_name="Ava", last_name="Taylor", email="ava@example.com"
+    )
+    payload["instructor"] = SimpleNamespace(id="inst-1", first_name="Sam", last_name="Lee")
+    payload["instructor_service"] = SimpleNamespace(id="service-1", name="Guitar", description=None)
+
+    class _BrokenRescheduled:
+        @property
+        def id(self):
+            raise RuntimeError("broken relation")
+
+    booking = SimpleNamespace(**payload, rescheduled_from=_BrokenRescheduled())
+    response = BookingResponse.from_booking(booking)
+    assert response.location_type == "online"
+    assert response.location_lat is None
+    assert response.location_lng is None
+    assert response.rescheduled_from is None
+
+
+def test_booking_create_response_safe_float_and_upcoming_price_branches() -> None:
+    payload = _base_booking_payload()
+    payload["location_lat"] = True
+    payload["location_lng"] = True
+    payload["instructor"] = SimpleNamespace(id="inst-1", first_name="Sam", last_name="Lee")
+    payload["student"] = SimpleNamespace(
+        id="student-1", first_name="Ava", last_name="Taylor", email="ava@example.com"
+    )
+    payload["instructor_service"] = SimpleNamespace(id="service-1", description=None)
+    booking = SimpleNamespace(**payload)
+    response = BookingCreateResponse.from_booking(booking)
+    assert response.location_lat is None
+    assert response.location_lng is None
+
+    none_price = UpcomingBookingResponse(
+        id="booking-2",
+        instructor_id="inst",
+        booking_date=date(2024, 1, 1),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        service_name="Guitar",
+        student_first_name="Ava",
+        student_last_name="Taylor",
+        instructor_first_name="Sam",
+        instructor_last_name="L",
+        meeting_location=None,
+        total_price=None,
+    )
+    assert none_price.total_price == 0.0
+
+    class GoodAmount:
+        def __init__(self) -> None:
+            self.amount = "12.5"
+
+    amount_price = UpcomingBookingResponse(
+        id="booking-3",
+        instructor_id="inst",
+        booking_date=date(2024, 1, 1),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        service_name="Guitar",
+        student_first_name="Ava",
+        student_last_name="Taylor",
+        instructor_first_name="Sam",
+        instructor_last_name="L",
+        meeting_location=None,
+        total_price=GoodAmount(),
+    )
+    assert amount_price.total_price == 12.5
+
+
+def test_find_booking_opportunities_valid_range_branch() -> None:
+    request = FindBookingOpportunitiesRequest(
+        instructor_id="inst",
+        instructor_service_id="svc",
+        date_range_start=date(2024, 1, 1),
+        date_range_end=date(2024, 2, 1),
+    )
+    assert request.date_range_end == date(2024, 2, 1)

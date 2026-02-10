@@ -128,3 +128,41 @@ def test_user_repository_error_paths():
     assert repo.get_by_ids(["missing"]) == []
     assert repo.get_all_active() == []
     assert repo.list_students_paginated(limit=1) == []
+
+
+def test_list_by_emails_edge_cases_and_error_paths(db, test_student):
+    repo = UserRepository(db)
+
+    assert repo.list_by_emails([]) == []
+    assert repo.list_by_emails([""], case_insensitive=True) == []
+
+    exact = repo.list_by_emails([test_student.email], case_insensitive=False)
+    assert any(user.id == test_student.id for user in exact)
+
+    failing_db = Mock()
+    failing_db.execute.side_effect = RuntimeError("db down")
+    repo_with_error = UserRepository(failing_db)
+    assert repo_with_error.list_by_emails(["a@example.com"]) == []
+
+
+def test_update_operations_rollback_on_commit_error():
+    failing_db = Mock()
+    repo = UserRepository(failing_db)
+    user = Mock()
+    user.id = "user_1"
+
+    repo.get_by_id = Mock(return_value=user)
+    failing_db.commit.side_effect = RuntimeError("commit failed")
+
+    assert repo.update_profile("user_1", first_name="Updated") is None
+    failing_db.rollback.assert_called()
+
+    failing_db.rollback.reset_mock()
+    failing_db.commit.side_effect = RuntimeError("commit failed")
+    assert repo.clear_profile_picture("user_1") is False
+    failing_db.rollback.assert_called()
+
+    failing_db.rollback.reset_mock()
+    failing_db.commit.side_effect = RuntimeError("commit failed")
+    assert repo.update_password("user_1", "hashed_pw") is False
+    failing_db.rollback.assert_called()

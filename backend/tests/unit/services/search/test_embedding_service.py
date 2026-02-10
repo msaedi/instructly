@@ -8,13 +8,17 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from app.services.cache_service import CacheService
-from app.services.search.circuit_breaker import EMBEDDING_CIRCUIT, CircuitOpenError
+from app.services.cache_service import CacheService, CircuitState as CacheCircuitState
+from app.services.search.circuit_breaker import (
+    EMBEDDING_CIRCUIT,
+    CircuitOpenError,
+)
 from app.services.search.config import get_search_config
 from app.services.search.embedding_provider import (
     MockEmbeddingProvider,
@@ -500,6 +504,41 @@ class TestEmbeddingTextGeneration:
 
         assert "Skill levels: beginner, intermediate" in text
 
+    def test_includes_subcategory_category_and_age_groups(
+        self, embedding_service: EmbeddingService
+    ) -> None:
+        service = Mock()
+        service.name = "Math Tutoring"
+        service.description = "Focused support"
+        service.subcategory = Mock()
+        service.subcategory.name = "Algebra"
+        service.subcategory.category = Mock()
+        service.subcategory.category.name = "Math"
+        service.category = None
+        service.eligible_age_groups = ["teens", "adults"]
+        service.audience = None
+        service.skill_levels = None
+
+        text = embedding_service.generate_embedding_text(service)
+
+        assert "Subcategory: Algebra" in text
+        assert "Category: Math" in text
+        assert "Age groups: teens, adults" in text
+
+    def test_includes_category_name_fallback(self, embedding_service: EmbeddingService) -> None:
+        service = Mock()
+        service.name = "Chemistry Tutoring"
+        service.description = None
+        service.subcategory = None
+        service.category = None
+        service.category_name = "Science"
+        service.eligible_age_groups = None
+        service.audience = None
+        service.skill_levels = None
+
+        text = embedding_service.generate_embedding_text(service)
+        assert "Category: Science" in text
+
 
 class TestNeedsReembedding:
     """Tests for re-embedding detection."""
@@ -698,6 +737,124 @@ class TestBatchEmbedding:
         results = await embedding_service.embed_services_batch(services, batch_size=2)
 
         assert results == {svc.id: [0.3] * 1536 for svc in services}
+
+    @pytest.mark.asyncio
+    async def test_embed_services_batch_fallback_ignores_empty_embeddings(
+        self, embedding_service: EmbeddingService, monkeypatch
+    ) -> None:
+        services = []
+        for i in range(2):
+            svc = Mock()
+            svc.id = f"svc_empty_{i}"
+            svc.name = f"Service {i}"
+            svc.description = f"Description {i}"
+            svc.category = None
+            svc.subcategory = None
+            svc.eligible_age_groups = None
+            type(svc).audience = property(lambda self: None)
+            type(svc).skill_levels = property(lambda self: None)
+            services.append(svc)
+
+        monkeypatch.setattr(
+            EMBEDDING_CIRCUIT,
+            "call",
+            AsyncMock(side_effect=Exception("batch failed")),
+        )
+        monkeypatch.setattr(
+            embedding_service,
+            "embed_service",
+            AsyncMock(side_effect=[[], None]),
+        )
+
+        results = await embedding_service.embed_services_batch(services, batch_size=2)
+        assert results == {}
+
+
+class TestEmbeddingSingleflightBranches:
+    @pytest.mark.asyncio
+    async def test_embed_query_leader_handles_circuit_open_in_redis_path(self, monkeypatch) -> None:
+        redis_client = AsyncMock()
+        redis_client.set.return_value = True
+        redis_client.eval.return_value = 1
+
+        cache = CacheService(db=None, redis_client=redis_client)  # type: ignore[arg-type]
+        cache.get = AsyncMock(return_value=None)
+        cache.set = AsyncMock(return_value=True)
+        cache.get_redis_client = AsyncMock(return_value=redis_client)
+
+        monkeypatch.setattr(
+            EMBEDDING_CIRCUIT,
+            "call",
+            AsyncMock(side_effect=CircuitOpenError("open")),
+        )
+        service = EmbeddingService(cache_service=cache, provider=MockEmbeddingProvider(dimensions=1536))
+
+        result = await service.embed_query("leader branch query")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_embed_query_follower_recovers_after_leader_releases_lock(
+        self,
+        monkeypatch,
+    ) -> None:
+        redis_client = AsyncMock()
+        redis_client.set.return_value = None
+        redis_client.exists.return_value = 0
+        redis_client.eval.return_value = 0
+
+        cache = CacheService(db=None, redis_client=redis_client)  # type: ignore[arg-type]
+        cache.get = AsyncMock(side_effect=[None, None, [0.4] * 1536])
+        cache.set = AsyncMock(return_value=True)
+        cache.get_redis_client = AsyncMock(return_value=redis_client)
+
+        monkeypatch.setattr(
+            "app.services.search.embedding_service._SINGLEFLIGHT_POLL_TIMEOUT_S", 0.02
+        )
+        monkeypatch.setattr(
+            "app.services.search.embedding_service._SINGLEFLIGHT_POLL_INTERVAL_S", 0.01
+        )
+
+        service = EmbeddingService(cache_service=cache, provider=MockEmbeddingProvider(dimensions=1536))
+        result = await service.embed_query("follower branch query")
+        assert result == [0.4] * 1536
+
+    @pytest.mark.asyncio
+    async def test_embed_query_leader_handles_generic_failure_in_redis_path(
+        self, monkeypatch
+    ) -> None:
+        redis_client = AsyncMock()
+        redis_client.set.return_value = True
+        redis_client.eval.return_value = 1
+
+        cache = CacheService(db=None, redis_client=redis_client)  # type: ignore[arg-type]
+        cache.get = AsyncMock(return_value=None)
+        cache.set = AsyncMock(return_value=True)
+        cache.get_redis_client = AsyncMock(return_value=redis_client)
+
+        monkeypatch.setattr(
+            EMBEDDING_CIRCUIT,
+            "call",
+            AsyncMock(side_effect=RuntimeError("provider unavailable")),
+        )
+        service = EmbeddingService(cache_service=cache, provider=MockEmbeddingProvider(dimensions=1536))
+
+        result = await service.embed_query("leader generic failure")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_embed_query_skips_redis_when_cache_circuit_open(self) -> None:
+        redis_client = AsyncMock()
+
+        cache = CacheService(db=None, redis_client=redis_client)  # type: ignore[arg-type]
+        cache.circuit_breaker = SimpleNamespace(state=CacheCircuitState.OPEN)
+        cache.get = AsyncMock(return_value=None)
+        cache.set = AsyncMock(return_value=True)
+        cache.get_redis_client = AsyncMock(side_effect=AssertionError("redis should be skipped"))
+
+        service = EmbeddingService(cache_service=cache, provider=MockEmbeddingProvider(dimensions=1536))
+        result = await service.embed_query("skip redis on open circuit")
+
+        assert result is not None
 
 
 class TestEmbeddingRepositoryIntegration:

@@ -215,3 +215,42 @@ def test_get_instructor_distances(db, test_instructor):
     )
     assert test_instructor.id in distances
     assert distances[test_instructor.id] >= 0
+
+
+def test_global_average_rating_without_ttl_path(db, monkeypatch):
+    repo = RankingRepository(db)
+    monkeypatch.setattr("app.repositories.ranking_repository._GLOBAL_AVG_RATING_TTL_S", 0)
+    monkeypatch.setattr("app.repositories.ranking_repository._GLOBAL_AVG_RATING_CACHE", None)
+    monkeypatch.setattr("app.repositories.ranking_repository._GLOBAL_AVG_RATING_CACHED_AT", 0.0)
+
+    avg = repo.get_global_average_rating()
+    assert isinstance(avg, float)
+
+
+def test_service_audience_and_distance_empty_inputs(db):
+    repo = RankingRepository(db)
+    assert repo.get_service_audience([]) == {}
+    assert repo.get_instructor_distances([], user_lng=-73.98, user_lat=40.75) == {}
+    assert repo.get_instructor_tenure_date([]) == {}
+    assert repo._classify_audience([]) == "both"
+
+
+def test_service_skill_levels_handles_invalid_payload_shapes(db, test_instructor):
+    repo = RankingRepository(db)
+    services = (
+        db.query(InstructorService)
+        .filter(InstructorService.instructor_profile_id == test_instructor.instructor_profile.id)
+        .order_by(InstructorService.id)
+        .all()
+    )
+    assert services
+
+    services[0].filter_selections = "not-json"
+    if len(services) > 1:
+        services[1].filter_selections = {"skill_level": "beginner"}
+    db.commit()
+
+    levels = repo.get_service_skill_levels([service.id for service in services])
+    assert levels[services[0].id] == ["all"]
+    if len(services) > 1:
+        assert levels[services[1].id] == ["all"]

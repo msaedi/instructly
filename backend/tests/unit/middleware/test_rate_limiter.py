@@ -30,6 +30,7 @@ from app.middleware.rate_limiter import (
     RateLimitMiddleware,
     _get_identifier,
     rate_limit,
+    rate_limit_api_key,
     rate_limit_auth,
     rate_limit_password_reset,
 )
@@ -291,6 +292,35 @@ class TestRateLimitMiddleware:
         for _ in range(200):
             response = client.get("/health")
             assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_middleware_bypasses_api_v1_health_path(self):
+        """Middleware should bypass the exact /api/v1/health path check."""
+        middleware = RateLimitMiddleware(app=FastAPI())
+        middleware.rate_limiter = MagicMock()
+
+        request = Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/api/v1/health",
+                "headers": [],
+                "client": ("1.2.3.4", 1234),
+                "query_string": b"",
+                "scheme": "http",
+                "server": ("testserver", 80),
+                "root_path": "",
+                "http_version": "1.1",
+            }
+        )
+
+        async def call_next(_request: Request) -> Response:
+            return Response(status_code=204)
+
+        response = await middleware.dispatch(request, call_next)
+
+        assert response.status_code == 204
+        middleware.rate_limiter.check_rate_limit.assert_not_called()
 
     def test_middleware_rate_limit_headers(self, client):
         """Test rate limit headers are added."""
@@ -576,6 +606,46 @@ async def test_get_identifier_variants():
     identifier = await _get_identifier("not-a-request", RateLimitKeyType.IP, None, (), {})
     assert identifier is None
 
+    identifier = await _get_identifier(request, RateLimitKeyType.USER, None, (), {"current_user": object()})
+    assert identifier is None
+
+    identifier = await _get_identifier(
+        request,
+        RateLimitKeyType.EMAIL,
+        "email",
+        (),
+        {"payload": SimpleNamespace(email=""), "current_user": user},
+    )
+    assert identifier == "email_user@example.com"
+
+    request_no_client = Request(
+        {
+            "type": "http",
+            "headers": [],
+            "client": None,
+            "path": "/composite",
+        }
+    )
+    identifier = await _get_identifier(
+        request_no_client,
+        RateLimitKeyType.COMPOSITE,
+        None,
+        (),
+        {},
+    )
+    assert identifier == "/composite"
+
+    identifier = await _get_identifier(request, object(), None, (), {})  # type: ignore[arg-type]
+    assert identifier is None
+
+
+def test_rate_limit_api_key_decorator_wraps_callable():
+    @rate_limit_api_key("x_api_key")
+    async def endpoint(request: Request):
+        return Response(content="ok")
+
+    assert callable(endpoint)
+
 
 class TestRateLimitAdmin:
     """Test administrative functions."""
@@ -605,6 +675,30 @@ class TestRateLimitAdmin:
         assert count == 2
         mock_redis.scan_iter.assert_called_once_with(match="rate_limit:*:email_*")
         assert mock_redis.delete.await_count == 2
+
+    @pytest.mark.asyncio
+    @patch("app.core.cache_redis.get_async_cache_redis_client", new_callable=AsyncMock)
+    async def test_reset_all_limits_no_cache(self, mock_get_redis):
+        mock_get_redis.return_value = None
+        count = await RateLimitAdmin.reset_all_limits("email_*")
+        assert count == 0
+
+    @pytest.mark.asyncio
+    @patch("app.core.cache_redis.get_async_cache_redis_client", new_callable=AsyncMock)
+    async def test_reset_all_limits_returns_zero_on_error(self, mock_get_redis):
+        mock_redis = Mock()
+        mock_get_redis.return_value = mock_redis
+
+        async def _async_iter(items):
+            for item in items:
+                yield item
+
+        mock_redis.scan_iter = MagicMock(return_value=_async_iter(["rate_limit:test:key"]))
+        mock_redis.delete = AsyncMock(side_effect=RuntimeError("delete failed"))
+
+        count = await RateLimitAdmin.reset_all_limits("test*")
+
+        assert count == 0
 
     @pytest.mark.asyncio
     @patch("app.core.cache_redis.get_async_cache_redis_client", new_callable=AsyncMock)
@@ -639,6 +733,51 @@ class TestRateLimitAdmin:
         assert stats["by_type"]["register"] == 1
         assert len(stats["top_limited"]) == 3
         assert stats["top_limited"][0]["requests"] == 10  # Sorted by count
+
+    @pytest.mark.asyncio
+    @patch("app.core.cache_redis.get_async_cache_redis_client", new_callable=AsyncMock)
+    async def test_get_rate_limit_stats_no_cache(self, mock_get_redis):
+        mock_get_redis.return_value = None
+        stats = await RateLimitAdmin.get_rate_limit_stats()
+        assert stats == {"error": "Cache not available"}
+
+    @pytest.mark.asyncio
+    @patch("app.core.cache_redis.get_async_cache_redis_client", new_callable=AsyncMock)
+    async def test_get_rate_limit_stats_handles_zero_and_malformed_keys(self, mock_get_redis):
+        mock_redis = Mock()
+        mock_get_redis.return_value = mock_redis
+
+        keys = [
+            "rate_limit:login:user123",
+            "malformed-key",
+            "rate_limit:register:user456",
+        ]
+
+        async def _async_iter(items):
+            for item in items:
+                yield item
+
+        mock_redis.scan_iter = MagicMock(return_value=_async_iter(keys))
+        mock_redis.zcard = AsyncMock(side_effect=[0, 3, 1])
+        mock_redis.ttl = AsyncMock(return_value=120)
+
+        stats = await RateLimitAdmin.get_rate_limit_stats()
+
+        assert stats["total_keys"] == 3
+        assert stats["by_type"]["login"] == 1
+        assert stats["by_type"]["register"] == 1
+        assert len(stats["top_limited"]) == 2
+
+    @pytest.mark.asyncio
+    @patch("app.core.cache_redis.get_async_cache_redis_client", new_callable=AsyncMock)
+    async def test_get_rate_limit_stats_returns_error_on_exception(self, mock_get_redis):
+        mock_redis = Mock()
+        mock_get_redis.return_value = mock_redis
+        mock_redis.scan_iter = MagicMock(side_effect=RuntimeError("scan failed"))
+
+        stats = await RateLimitAdmin.get_rate_limit_stats()
+
+        assert stats == {"error": "scan failed"}
 
 
 @pytest.mark.usefixtures("enable_rate_limiting", "clear_rate_limits")

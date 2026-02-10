@@ -20,7 +20,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
-from fastapi import status
+from fastapi import HTTPException, status
 import pytest
 
 from app.api.dependencies.services import get_booking_service
@@ -1926,5 +1926,136 @@ class TestBookingIntegration:
             assert stats["completion_rate"] == 0.6  # 3/5
         if "cancellation_rate" in stats:
             assert stats["cancellation_rate"] == 0.2  # 1/5
+
+    def test_handle_domain_exception_fallback_500(self):
+        from app.routes.v1.bookings import handle_domain_exception
+
+        with pytest.raises(HTTPException) as exc:
+            handle_domain_exception(Exception("unexpected failure"))  # type: ignore[arg-type]
+
+        assert exc.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert "unexpected failure" in exc.value.detail
+
+    def test_safe_float_handles_invalid_types(self):
+        from app.routes.v1.bookings import _safe_float
+
+        assert _safe_float("12.5") == 12.5
+        assert _safe_float("not-a-number") is None
+        assert _safe_float(object()) is None
+
+    def test_get_upcoming_bookings_domain_exception_maps_to_http(
+        self, client, auth_headers_student
+    ):
+        mock_booking_service = MagicMock()
+        mock_booking_service.get_bookings_for_user.side_effect = ValidationException("invalid request")
+        app.dependency_overrides[get_booking_service] = lambda: mock_booking_service
+
+        try:
+            response = client.get("/api/v1/bookings/upcoming", headers=auth_headers_student)
+        finally:
+            app.dependency_overrides.pop(get_booking_service, None)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "invalid request" in response.json()["detail"].lower()
+
+    def test_get_bookings_domain_exception_maps_to_http(
+        self, client, auth_headers_student
+    ):
+        mock_booking_service = MagicMock()
+        mock_booking_service.get_bookings_for_user.side_effect = ValidationException("bad filters")
+        app.dependency_overrides[get_booking_service] = lambda: mock_booking_service
+
+        try:
+            response = client.get("/api/v1/bookings/", headers=auth_headers_student)
+        finally:
+            app.dependency_overrides.pop(get_booking_service, None)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "bad filters" in response.json()["detail"].lower()
+
+    def test_get_bookings_skips_unserializable_cache_item(
+        self, client, auth_headers_student
+    ):
+        mock_booking_service = MagicMock()
+        good_booking = {
+            "id": generate_ulid(),
+            "_from_cache": True,
+            "student_id": generate_ulid(),
+            "instructor_id": generate_ulid(),
+            "instructor_service_id": generate_ulid(),
+            "booking_date": date.today() + timedelta(days=1),
+            "start_time": time(9, 0),
+            "end_time": time(10, 0),
+            "service_name": "Piano",
+            "hourly_rate": 50.0,
+            "total_price": 50.0,
+            "duration_minutes": 60,
+            "status": BookingStatus.CONFIRMED.value,
+            "service_area": "Manhattan",
+            "meeting_location": "Studio",
+            "location_type": "neutral_location",
+            "student_note": None,
+            "instructor_note": None,
+            "created_at": datetime.now(),
+            "confirmed_at": datetime.now(),
+            "completed_at": None,
+            "cancelled_at": None,
+            "cancelled_by_id": None,
+            "cancellation_reason": None,
+            "student": {"id": generate_ulid(), "first_name": "Stu", "last_name": "Dent", "email": "s@example.com"},
+            "instructor": {"id": generate_ulid(), "first_name": "Ins", "last_name": "Tructor", "email": "i@example.com"},
+            "instructor_service": {"id": generate_ulid(), "name": "Piano", "description": "Piano lessons"},
+        }
+        broken_booking = {"_from_cache": True, "id": generate_ulid()}
+        mock_booking_service.get_bookings_for_user.return_value = [good_booking, broken_booking]
+        app.dependency_overrides[get_booking_service] = lambda: mock_booking_service
+
+        try:
+            response = client.get("/api/v1/bookings/", headers=auth_headers_student)
+        finally:
+            app.dependency_overrides.pop(get_booking_service, None)
+
+        assert response.status_code == status.HTTP_200_OK
+        payload = response.json()
+        assert payload["total"] == 2
+        assert len(payload["items"]) == 1
+        assert payload["items"][0]["id"] == good_booking["id"]
+
+    def test_send_reminder_emails_handles_internal_exception(
+        self, client, db
+    ):
+        from app.auth import create_access_token, get_password_hash
+        from app.core.enums import RoleName
+        from app.models.user import User
+        from app.services.permission_service import PermissionService
+
+        admin_user = User(
+            email="bookings.admin@example.com",
+            hashed_password=get_password_hash("Test1234"),
+            first_name="Booking",
+            last_name="Admin",
+            phone="+12125550001",
+            zip_code="10001",
+        )
+        db.add(admin_user)
+        db.flush()
+        PermissionService(db).assign_role(admin_user.id, RoleName.ADMIN)
+        db.commit()
+
+        token = create_access_token(data={"sub": admin_user.email})
+        admin_headers = {"Authorization": f"Bearer {token}"}
+        mock_booking_service = MagicMock()
+        mock_booking_service.send_booking_reminders.side_effect = RuntimeError("smtp timeout")
+        app.dependency_overrides[get_booking_service] = lambda: mock_booking_service
+
+        try:
+            response = client.post("/api/v1/bookings/send-reminders", headers=admin_headers)
+        finally:
+            app.dependency_overrides.pop(get_booking_service, None)
+
+        # Rate-limit middleware can intercept this endpoint in some test orders.
+        assert response.status_code in {status.HTTP_500_INTERNAL_SERVER_ERROR, status.HTTP_429_TOO_MANY_REQUESTS}
+        if response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR:
+            assert response.json()["detail"] == "Failed to send reminder emails"
 
     # Reschedule tests live in TestBookingRoutes with mocked service; none here

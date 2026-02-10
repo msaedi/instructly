@@ -170,6 +170,60 @@ def test_public_logout_handles_host_cookie(monkeypatch):
     assert response.status_code == 204
 
 
+def test_public_logout_logs_audit_when_session_token_present(monkeypatch):
+    monkeypatch.setattr(public_routes, "session_cookie_candidates", lambda *_args, **_kwargs: ["session"])
+    monkeypatch.setattr(
+        public_routes, "decode_access_token", lambda *_args, **_kwargs: {"sub": "user@example.com"}
+    )
+    audit_calls = []
+
+    class DummyAuditService:
+        def __init__(self, _db) -> None:
+            pass
+
+        def log(self, **kwargs):
+            audit_calls.append(kwargs)
+
+    monkeypatch.setattr(public_routes, "AuditService", DummyAuditService)
+
+    response = public_routes.public_logout(
+        Response(),
+        _make_request({"cookie": "session=token123"}),
+        db=SimpleNamespace(),
+    )
+
+    assert response.status_code == 204
+    assert len(audit_calls) == 1
+    assert audit_calls[0]["actor_email"] == "user@example.com"
+
+
+def test_public_logout_ignores_audit_errors(monkeypatch):
+    monkeypatch.setattr(public_routes, "session_cookie_candidates", lambda *_args, **_kwargs: ["session"])
+    monkeypatch.setattr(
+        public_routes, "decode_access_token", lambda *_args, **_kwargs: {"sub": "user@example.com"}
+    )
+
+    class FailingAuditService:
+        def __init__(self, _db) -> None:
+            pass
+
+        def log(self, **_kwargs):
+            raise RuntimeError("audit write failed")
+
+    monkeypatch.setattr(public_routes, "AuditService", FailingAuditService)
+    warning_messages: list[str] = []
+    monkeypatch.setattr(public_routes.logger, "warning", lambda message, *args, **kwargs: warning_messages.append(message))
+
+    response = public_routes.public_logout(
+        Response(),
+        _make_request({"cookie": "session=token123"}),
+        db=SimpleNamespace(),
+    )
+
+    assert response.status_code == 204
+    assert warning_messages == ["Audit log write failed for logout"]
+
+
 @pytest.mark.asyncio
 async def test_public_availability_summary_branch(monkeypatch):
     user = SimpleNamespace(
@@ -555,6 +609,77 @@ async def test_send_referral_invites_exactly_10_emails_allowed(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_send_referral_invites_rejects_all_invalid_email_formats():
+    payload = SimpleNamespace(
+        emails=["not-an-email"],
+        referral_link="https://instainstru.com/ref/ABC",
+        from_name="Tester",
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await public_routes.send_referral_invites(request=_make_request(), payload=payload, db=None)
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "No valid email addresses provided"
+
+
+@pytest.mark.asyncio
+async def test_send_referral_invites_counts_invalid_emails_as_failures(monkeypatch):
+    class StubEmailService:
+        def __init__(self, _db) -> None:
+            pass
+
+        def validate_email_config(self) -> None:
+            return None
+
+        def send_referral_invite(self, *, to_email: str, referral_link: str, inviter_name: str):
+            return None
+
+    monkeypatch.setattr(public_routes, "EmailService", StubEmailService)
+    payload = SimpleNamespace(
+        emails=["ok@example.com", "bad-email"],
+        referral_link="https://instainstru.com/ref/ABC",
+        from_name="Tester",
+    )
+    result = await public_routes.send_referral_invites(request=_make_request(), payload=payload, db=None)
+
+    assert result.sent == 1
+    assert result.failed == 1
+    assert result.errors[0].email == "invalid-email@example.com"
+    assert "bad-email" in result.errors[0].error
+
+
+@pytest.mark.asyncio
+async def test_send_referral_invites_tolerates_error_detail_serialization_failure(monkeypatch):
+    class FailingEmailService:
+        def __init__(self, _db) -> None:
+            pass
+
+        def validate_email_config(self) -> None:
+            return None
+
+        def send_referral_invite(self, *, to_email: str, referral_link: str, inviter_name: str):
+            raise RuntimeError("smtp down")
+
+    def _boom_referral_error(*_args, **_kwargs):
+        raise RuntimeError("serialization failure")
+
+    monkeypatch.setattr(public_routes, "EmailService", FailingEmailService)
+    monkeypatch.setattr(public_routes, "ReferralSendError", _boom_referral_error)
+
+    payload = ReferralSendRequest(
+        emails=["fail@example.com"],
+        referral_link="https://instainstru.com/ref/ABC",
+        from_name="Tester",
+    )
+    result = await public_routes.send_referral_invites(request=_make_request(), payload=payload, db=None)
+
+    assert result.sent == 0
+    assert result.failed == 1
+    assert result.errors == []
+
+
+@pytest.mark.asyncio
 async def test_next_available_slot_found_and_not_found(monkeypatch):
     user = SimpleNamespace(
         id="instructor-next",
@@ -608,6 +733,46 @@ async def test_next_available_slot_found_and_not_found(monkeypatch):
     )
     assert result.found is False
     assert response.headers.get("Cache-Control") == "public, max-age=60"
+
+
+@pytest.mark.asyncio
+async def test_next_available_slot_skips_blackout_day(monkeypatch):
+    user = SimpleNamespace(
+        id="instructor-blackout",
+        first_name="Test",
+        last_name="Teacher",
+        timezone="America/New_York",
+    )
+
+    class DummyInstructorService:
+        def get_instructor_user(self, _instructor_id: str):
+            return user
+
+    class DummyConflictChecker:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def check_blackout_date(self, _instructor_id: str, _date_value: date):
+            self.calls += 1
+            return self.calls == 1
+
+    class DummyAvailabilityService:
+        def compute_public_availability(self, _instructor_id: str, start: date, _end: date):
+            return {start.isoformat(): [(time(10, 0), time(11, 30))]}
+
+    response = Response()
+    result = await public_routes.get_next_available_slot(
+        instructor_id=user.id,
+        response_obj=response,
+        duration_minutes=60,
+        availability_service=DummyAvailabilityService(),
+        conflict_checker=DummyConflictChecker(),
+        instructor_service=DummyInstructorService(),
+        db=None,
+    )
+
+    assert result.found is True
+    assert response.headers.get("Cache-Control") == "public, max-age=120"
 
 
 @pytest.mark.asyncio

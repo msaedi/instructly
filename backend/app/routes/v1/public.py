@@ -794,7 +794,18 @@ async def send_referral_invites(
 
     # Add invalid emails to error details
     for invalid_email in invalid_emails:
-        error_details.append(ReferralSendError(email=invalid_email, error="Invalid email format"))
+        try:
+            error_details.append(
+                ReferralSendError(email=invalid_email, error="Invalid email format")
+            )
+        except Exception:
+            # Defensive fallback for non-email strings that slipped through direct invocations.
+            error_details.append(
+                ReferralSendError(
+                    email="invalid-email@example.com",
+                    error=f"Invalid email format: {invalid_email}",
+                )
+            )
 
     for to_email in valid_emails:
         try:

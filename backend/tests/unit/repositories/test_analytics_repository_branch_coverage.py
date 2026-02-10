@@ -202,3 +202,103 @@ def test_misc_result_mappers():
         instructor_ids=["inst-1"], start_date=date(2030, 1, 1), end_date=date(2030, 1, 2)
     )
     assert len(out) == 1
+
+
+def test_list_bookings_and_scalar_helpers_cover_date_field_and_defaults():
+    db = MagicMock()
+    q_start = _query(all_result=[SimpleNamespace(id="b1")])
+    q_created = _query(all_result=[SimpleNamespace(id="b2")])
+    q_count_start = _query(scalar_result=0)
+    q_count_created = _query(scalar_result=2)
+    q_sum_created = _query(scalar_result=None)
+    q_sum_start = _query(scalar_result=42.0)
+    q_payout_start = _query(scalar_result=None)
+    q_no_show = _query(scalar_result=1)
+    q_refunded = _query(scalar_result=3)
+    q_search_events = _query(scalar_result=4)
+    q_zero_results = _query(scalar_result=2)
+    q_interactions = _query(scalar_result=5)
+    q_payment_events = _query(scalar_result=6)
+    q_avg_rating = _query(scalar_result=None)
+    q_reviews = _query(scalar_result=7)
+    q_responses = _query(scalar_result=8)
+    db.query.side_effect = [
+        q_start,
+        q_created,
+        q_count_start,
+        q_count_created,
+        q_sum_created,
+        q_sum_start,
+        q_payout_start,
+        q_no_show,
+        q_refunded,
+        q_search_events,
+        q_zero_results,
+        q_interactions,
+        q_payment_events,
+        q_avg_rating,
+        q_reviews,
+        q_responses,
+    ]
+
+    repo = AnalyticsRepository(db)
+
+    assert len(repo.list_bookings_by_start(start=_dt(), end=_dt())) == 1
+    assert len(repo.list_bookings_by_created(start=_dt(), end=_dt())) == 1
+    assert repo.count_bookings(start=_dt(), end=_dt(), date_field="booking_start_utc") == 0
+    assert repo.count_bookings(start=_dt(), end=_dt(), date_field="created_at") == 2
+    assert repo.sum_total_price(start=_dt(), end=_dt(), date_field="created_at") == 0
+    assert repo.sum_total_price(start=_dt(), end=_dt(), date_field="booking_start_utc") == 42.0
+    assert repo.sum_instructor_payout_cents(start=_dt(), end=_dt(), date_field="booking_start_utc") == 0
+    assert repo.count_no_show_bookings(start=_dt(), end=_dt()) == 1
+    assert repo.count_refunded_bookings(start=_dt(), end=_dt()) == 3
+    assert repo.count_search_events(start=_dt(), end=_dt()) == 4
+    assert repo.count_search_events_zero_results(start=_dt(), end=_dt()) == 2
+    assert repo.count_search_interactions(start=_dt(), end=_dt(), interaction_type="click") == 5
+    assert repo.count_payment_events(start=_dt(), end=_dt(), event_types=["paid"]) == 6
+    assert repo.avg_review_rating(start=_dt(), end=_dt()) == 0.0
+    assert repo.count_reviews(start=_dt(), end=_dt()) == 7
+    assert repo.count_review_responses(start=_dt(), end=_dt()) == 8
+
+
+def test_role_and_user_listing_helpers():
+    db = MagicMock()
+    q_ids = _query(all_result=[("u1",), ("u2",)])
+    q_ids_range = _query(all_result=[("u3",)])
+    user_obj = SimpleNamespace(id="u4")
+    q_users_between = _query(all_result=[user_obj])
+    q_users_by_role = _query(all_result=[user_obj])
+    q_instructors_for_category = _query(scalar_result=9)
+    q_students_for_category = _query(scalar_result=10)
+    q_availability_no_category = _query(all_result=[("ins-1",)])
+    db.query.side_effect = [
+        q_ids,
+        q_ids_range,
+        q_users_between,
+        q_users_by_role,
+        q_instructors_for_category,
+        q_students_for_category,
+        q_availability_no_category,
+    ]
+
+    repo = AnalyticsRepository(db)
+
+    assert repo.list_user_ids_by_role("student") == ["u1", "u2"]
+    assert repo.list_user_ids_by_role_in_range(role_name="student", start=_dt(), end=_dt()) == ["u3"]
+    assert repo.list_users_created_between(role_name="student", start=_dt(), end=_dt()) == [user_obj]
+    assert repo.list_users_by_role("student") == [user_obj]
+    assert repo.count_instructors_for_category("cat-1") == 9
+    assert repo.count_students_for_category(start=_dt(), end=_dt(), category_id="cat-1") == 10
+    assert repo.list_availability_instructor_ids(None) == ["ins-1"]
+
+
+def test_get_search_event_segment_counts_stringifies_values():
+    db = MagicMock()
+    q_segment = _query(all_result=[(123, 2), ("desktop", 1)])
+    db.query.return_value = q_segment
+    repo = AnalyticsRepository(db)
+
+    assert repo.get_search_event_segment_counts(start=_dt(), end=_dt(), segment_by="device") == {
+        "123": 2,
+        "desktop": 1,
+    }

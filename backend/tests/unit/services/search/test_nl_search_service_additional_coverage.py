@@ -12,7 +12,7 @@ Focus on uncovered lines: 490-531, 585-671, 744-769
 
 import asyncio
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, time as dtime
 import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -2567,3 +2567,585 @@ async def test_search_location_resolution_tier_parse_error(nl_service):
         response = await nl_service.search("query", budget_ms=500, include_diagnostics=True)
 
     assert response.results == []
+
+
+def test_filter_normalization_and_content_filter_construction(nl_service):
+    assert nl_service._normalize_filter_values(["  Beginner ", "BEGINNER", "", "advanced"]) == [
+        "beginner",
+        "advanced",
+    ]
+
+    normalized = nl_service._normalize_taxonomy_filter_selections(
+        {" Level ": ["Beginner", "beginner"], "": ["x"], "instrument": []}
+    )
+    assert normalized == {"level": ["beginner"]}
+
+    available = nl_service._build_available_content_filters(
+        [
+            {
+                "filter_key": "level",
+                "filter_display_name": "Level",
+                "options": [
+                    {"value": "beginner", "display_name": "Beginner"},
+                    {"value": "beginner", "display_name": "Duplicate"},
+                ],
+            },
+            {"filter_key": "   ", "options": [{"value": "x"}]},
+            {"filter_key": "instrument", "options": []},
+        ]
+    )
+    assert len(available) == 1
+    assert available[0].key == "level"
+    assert [opt.value for opt in available[0].options] == ["beginner"]
+
+
+def test_load_subcategory_filter_metadata_caches_on_miss(monkeypatch, nl_service):
+    cache_state: dict[str, object] = {}
+
+    def _get_cached(key: str):
+        if key in cache_state:
+            return True, cache_state[key]
+        return False, None
+
+    def _set_cached(key: str, value):
+        cache_state[key] = value
+
+    monkeypatch.setattr(
+        "app.services.search.nl_search_service._get_cached_subcategory_filter_value",
+        _get_cached,
+    )
+    monkeypatch.setattr(
+        "app.services.search.nl_search_service._set_cached_subcategory_filter_value",
+        _set_cached,
+    )
+
+    taxonomy_repo = MagicMock()
+    taxonomy_repo.get_filters_for_subcategory.return_value = [{"filter_key": "level"}]
+    taxonomy_repo.get_subcategory_name.return_value = "Piano"
+
+    filters, name = nl_service._load_subcategory_filter_metadata(taxonomy_repo, "sub_1")
+    assert filters == [{"filter_key": "level"}]
+    assert name == "Piano"
+    taxonomy_repo.get_filters_for_subcategory.assert_called_once_with("sub_1")
+    taxonomy_repo.get_subcategory_name.assert_called_once_with("sub_1")
+
+    taxonomy_repo.get_filters_for_subcategory.reset_mock()
+    taxonomy_repo.get_subcategory_name.reset_mock()
+    filters_cached, name_cached = nl_service._load_subcategory_filter_metadata(taxonomy_repo, "sub_1")
+    assert filters_cached == filters
+    assert name_cached == name
+    taxonomy_repo.get_filters_for_subcategory.assert_not_called()
+    taxonomy_repo.get_subcategory_name.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_hydrate_results_skips_duplicate_and_missing_profile(nl_service):
+    ranked = [
+        RankedResult(
+            service_id="svc_1",
+            service_catalog_id="cat_1",
+            instructor_id="inst_1",
+            name="Service 1",
+            description=None,
+            price_per_hour=50,
+            final_score=0.9,
+            rank=1,
+            relevance_score=0.9,
+            quality_score=0.9,
+            distance_score=0.9,
+            price_score=0.9,
+            freshness_score=0.9,
+            completeness_score=0.9,
+        ),
+        RankedResult(
+            service_id="svc_2",
+            service_catalog_id="cat_2",
+            instructor_id="inst_1",
+            name="Service 2",
+            description=None,
+            price_per_hour=60,
+            final_score=0.8,
+            rank=2,
+            relevance_score=0.8,
+            quality_score=0.8,
+            distance_score=0.8,
+            price_score=0.8,
+            freshness_score=0.8,
+            completeness_score=0.8,
+        ),
+        RankedResult(
+            service_id="svc_3",
+            service_catalog_id="cat_3",
+            instructor_id="inst_2",
+            name="Service 3",
+            description=None,
+            price_per_hour=70,
+            final_score=0.7,
+            rank=3,
+            relevance_score=0.7,
+            quality_score=0.7,
+            distance_score=0.7,
+            price_score=0.7,
+            freshness_score=0.7,
+            completeness_score=0.7,
+        ),
+    ]
+
+    instructor_rows = [
+        {
+            "instructor_id": "inst_1",
+            "first_name": "Ada",
+            "last_initial": "L",
+            "avg_rating": 4.8,
+            "review_count": 10,
+            "profile_picture_key": None,
+            "bio_snippet": None,
+            "verified": True,
+            "is_founding_instructor": False,
+            "years_experience": 5,
+            "coverage_areas": [],
+        }
+    ]
+
+    with patch(
+        "app.services.search.nl_search_service.asyncio.to_thread",
+        new=AsyncMock(
+            return_value={
+                "svc_1": {"id": "svc_1"},
+                "svc_2": {"id": "svc_2"},
+                "svc_3": {"id": "svc_3"},
+            }
+        ),
+    ):
+        results = await nl_service._hydrate_instructor_results(
+            ranked,
+            limit=3,
+            instructor_rows=instructor_rows,
+            distance_meters=None,
+        )
+
+    assert len(results) == 1
+    assert results[0].instructor_id == "inst_1"
+
+
+@pytest.mark.asyncio
+async def test_hydrate_results_loads_distance_map_for_clarification_candidates(nl_service):
+    ranked = [
+        RankedResult(
+            service_id="svc_1",
+            service_catalog_id="cat_1",
+            instructor_id="inst_1",
+            name="Service 1",
+            description=None,
+            price_per_hour=50,
+            final_score=0.9,
+            rank=1,
+            relevance_score=0.9,
+            quality_score=0.9,
+            distance_score=0.9,
+            price_score=0.9,
+            freshness_score=0.9,
+            completeness_score=0.9,
+        )
+    ]
+
+    location_resolution = ResolvedLocation(
+        requires_clarification=True,
+        candidates=[{"region_id": "r1"}, {"region_id": "r1"}, {"region_id": "r2"}],
+    )
+
+    async def _to_thread(func, *_args, **_kwargs):
+        if getattr(func, "__name__", "") == "_load_service_data":
+            return {"svc_1": {"id": "svc_1"}}
+        return (
+            [
+                {
+                    "instructor_id": "inst_1",
+                    "first_name": "Ada",
+                    "last_initial": "L",
+                    "avg_rating": 5.0,
+                    "review_count": 12,
+                    "profile_picture_key": None,
+                    "bio_snippet": None,
+                    "verified": True,
+                    "is_founding_instructor": False,
+                    "years_experience": 5,
+                    "coverage_areas": [],
+                }
+            ],
+            {"inst_1": 500.0},
+        )
+
+    with patch(
+        "app.services.search.nl_search_service.asyncio.to_thread",
+        new=AsyncMock(side_effect=_to_thread),
+    ):
+        results = await nl_service._hydrate_instructor_results(
+            ranked,
+            limit=1,
+            location_resolution=location_resolution,
+        )
+
+    assert len(results) == 1
+    assert results[0].distance_km == 0.5
+
+
+def test_location_resolved_format_and_soft_filter_time_message(nl_service):
+    location_resolution = ResolvedLocation(
+        requires_clarification=True,
+        candidates=[
+            {"region_name": "Upper East Side"},
+            {"region_name": "Upper East Side"},
+            {"region_name": "Brooklyn Heights"},
+        ],
+    )
+    formatted = nl_service._format_location_resolved(location_resolution)
+    assert formatted == "Upper East Side, Brooklyn Heights"
+
+    parsed = ParsedQuery(
+        original_query="piano after 6pm",
+        service_query="piano",
+        parsing_mode="regex",
+        time_after=dtime(18, 0),
+    )
+    message = nl_service._generate_soft_filter_message(
+        parsed,
+        {"after_location": 1, "after_availability": 0, "after_price": 1},
+        None,
+        None,
+        relaxed_constraints=["availability"],
+        result_count=0,
+    )
+    assert "No availability matching your time constraints" in message
+
+
+def test_set_cached_subcategory_filter_value_evicts_expired_entries(monkeypatch):
+    import app.services.search.nl_search_service as nl_module
+
+    with nl_module._subcategory_filter_cache_lock:
+        nl_module._subcategory_filter_cache.clear()
+        nl_module._subcategory_filter_cache["stale"] = (0.0, {"value": "old"})
+
+    monkeypatch.setattr(nl_module, "SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES", 1)
+    monkeypatch.setattr(nl_module, "SUBCATEGORY_FILTER_CACHE_TTL_SECONDS", 1)
+    monkeypatch.setattr(nl_module.time, "monotonic", lambda: 10.0)
+
+    nl_module._set_cached_subcategory_filter_value("fresh", {"value": "new"})
+
+    with nl_module._subcategory_filter_cache_lock:
+        assert "stale" not in nl_module._subcategory_filter_cache
+        assert "fresh" in nl_module._subcategory_filter_cache
+
+
+@pytest.mark.asyncio
+async def test_resolve_location_openai_direct_llm_timeout_records_timeout(nl_service):
+    region_lookup = RegionLookup(region_names=["Queens"], by_name={}, by_id={}, embeddings=[])
+    diagnostics = PipelineTimer()
+    nl_service._resolve_location_llm = AsyncMock(side_effect=asyncio.TimeoutError())
+
+    result, llm_cache, unresolved = await nl_service._resolve_location_openai(
+        "queens",
+        region_lookup=region_lookup,
+        fuzzy_score=0.95,
+        original_query="queens lessons",
+        llm_candidates=["Queens"],
+        allow_tier4=False,
+        allow_tier5=True,
+        diagnostics=diagnostics,
+    )
+
+    assert llm_cache is None
+    assert unresolved is not None
+    assert result.resolved is False
+    assert any(
+        tier["tier"] == 5 and tier["status"] == StageStatus.TIMEOUT.value
+        for tier in diagnostics.location_tiers
+    )
+
+
+def test_run_post_openai_burst_handles_taxonomy_metadata_failure(monkeypatch):
+    service = NLSearchService()
+    parsed_query = ParsedQuery(
+        original_query="piano beginner",
+        service_query="piano",
+        parsing_mode="regex",
+    )
+    pre_data = _make_pre_data(parsed_query)
+    candidate = ServiceCandidate(
+        service_id="svc_1",
+        service_catalog_id="cat_1",
+        hybrid_score=0.9,
+        vector_score=None,
+        text_score=0.8,
+        name="Piano",
+        description="desc",
+        price_per_hour=100,
+        instructor_id="inst_1",
+        subcategory_id="sub_1",
+    )
+
+    class _FakeFilterService:
+        def __init__(self, **_kwargs):
+            pass
+
+        def filter_candidates_sync(self, candidates, *_args, **_kwargs):
+            return FilterResult(
+                candidates=[],
+                total_before_filter=len(candidates),
+                total_after_filter=0,
+                filters_applied=[],
+                soft_filtering_used=False,
+                location_resolution=None,
+            )
+
+    class _FakeRankingService:
+        def __init__(self, **_kwargs):
+            pass
+
+        def rank_candidates(self, *_args, **_kwargs):
+            return RankingResult(results=[], total_results=0)
+
+    taxonomy_repo = MagicMock()
+    taxonomy_repo.get_filters_for_subcategory.side_effect = RuntimeError("taxonomy unavailable")
+    taxonomy_repo.find_matching_service_ids.return_value = {"svc_1"}
+
+    retriever_repo = MagicMock()
+    retriever_repo.get_instructor_cards.return_value = []
+
+    monkeypatch.setattr("app.services.search.nl_search_service.get_db_session", _db_ctx)
+    monkeypatch.setattr(
+        "app.services.search.nl_search_service.SearchBatchRepository",
+        lambda *_args, **_kwargs: MagicMock(),
+    )
+    monkeypatch.setattr(
+        "app.repositories.retriever_repository.RetrieverRepository",
+        lambda *_args, **_kwargs: retriever_repo,
+    )
+    monkeypatch.setattr(
+        "app.repositories.filter_repository.FilterRepository",
+        lambda *_args, **_kwargs: MagicMock(),
+    )
+    monkeypatch.setattr(
+        "app.repositories.ranking_repository.RankingRepository",
+        lambda *_args, **_kwargs: MagicMock(),
+    )
+    monkeypatch.setattr(
+        "app.repositories.taxonomy_filter_repository.TaxonomyFilterRepository",
+        lambda *_args, **_kwargs: taxonomy_repo,
+    )
+    monkeypatch.setattr(
+        "app.services.search.location_resolver.LocationResolver",
+        lambda *_args, **_kwargs: MagicMock(repository=MagicMock()),
+    )
+    monkeypatch.setattr("app.services.search.nl_search_service.FilterService", _FakeFilterService)
+    monkeypatch.setattr("app.services.search.nl_search_service.RankingService", _FakeRankingService)
+    monkeypatch.setattr(service.retriever, "fuse_results", MagicMock(return_value=[candidate]))
+    monkeypatch.setattr(
+        service,
+        "_resolve_effective_subcategory_id",
+        lambda *_args, **_kwargs: "sub_1",
+    )
+
+    post_data = service._run_post_openai_burst(
+        pre_data,
+        parsed_query,
+        query_embedding=None,
+        location_resolution=None,
+        location_llm_cache=None,
+        unresolved_info=None,
+        user_location=None,
+        limit=10,
+        taxonomy_filter_selections={"level": ["beginner"]},
+        subcategory_id=None,
+    )
+
+    assert post_data.available_content_filters == []
+    assert post_data.effective_subcategory_id == "sub_1"
+
+
+def test_run_post_openai_burst_handles_empty_and_failing_taxonomy_matches(monkeypatch):
+    service = NLSearchService()
+    parsed_query = ParsedQuery(
+        original_query="voice lesson",
+        service_query="voice",
+        parsing_mode="regex",
+    )
+    pre_data = _make_pre_data(parsed_query)
+    candidate = ServiceCandidate(
+        service_id="svc_voice",
+        service_catalog_id="cat_voice",
+        hybrid_score=0.7,
+        vector_score=None,
+        text_score=0.7,
+        name="Voice",
+        description="desc",
+        price_per_hour=90,
+        instructor_id="inst_voice",
+        subcategory_id="sub_voice",
+    )
+
+    class _FakeFilterService:
+        def __init__(self, **_kwargs):
+            pass
+
+        def filter_candidates_sync(self, candidates, *_args, **_kwargs):
+            return FilterResult(
+                candidates=[],
+                total_before_filter=len(candidates),
+                total_after_filter=0,
+                filters_applied=[],
+                soft_filtering_used=False,
+                location_resolution=None,
+            )
+
+    class _FakeRankingService:
+        def __init__(self, **_kwargs):
+            pass
+
+        def rank_candidates(self, *_args, **_kwargs):
+            return RankingResult(results=[], total_results=0)
+
+    retriever_repo = MagicMock()
+    retriever_repo.get_instructor_cards.return_value = []
+    taxonomy_repo = MagicMock()
+    taxonomy_repo.get_filters_for_subcategory.return_value = []
+    taxonomy_repo.get_subcategory_name.return_value = "Voice"
+
+    monkeypatch.setattr("app.services.search.nl_search_service.get_db_session", _db_ctx)
+    monkeypatch.setattr(
+        "app.services.search.nl_search_service.SearchBatchRepository",
+        lambda *_args, **_kwargs: MagicMock(),
+    )
+    monkeypatch.setattr(
+        "app.repositories.retriever_repository.RetrieverRepository",
+        lambda *_args, **_kwargs: retriever_repo,
+    )
+    monkeypatch.setattr(
+        "app.repositories.filter_repository.FilterRepository",
+        lambda *_args, **_kwargs: MagicMock(),
+    )
+    monkeypatch.setattr(
+        "app.repositories.ranking_repository.RankingRepository",
+        lambda *_args, **_kwargs: MagicMock(),
+    )
+    monkeypatch.setattr(
+        "app.repositories.taxonomy_filter_repository.TaxonomyFilterRepository",
+        lambda *_args, **_kwargs: taxonomy_repo,
+    )
+    monkeypatch.setattr(
+        "app.services.search.location_resolver.LocationResolver",
+        lambda *_args, **_kwargs: MagicMock(repository=MagicMock()),
+    )
+    monkeypatch.setattr("app.services.search.nl_search_service.FilterService", _FakeFilterService)
+    monkeypatch.setattr("app.services.search.nl_search_service.RankingService", _FakeRankingService)
+    monkeypatch.setattr(service.retriever, "fuse_results", MagicMock(return_value=[candidate]))
+    monkeypatch.setattr(
+        service,
+        "_resolve_effective_subcategory_id",
+        lambda *_args, **_kwargs: "sub_voice",
+    )
+
+    taxonomy_repo.find_matching_service_ids.return_value = set()
+    empty_post_data = service._run_post_openai_burst(
+        pre_data,
+        parsed_query,
+        query_embedding=None,
+        location_resolution=None,
+        location_llm_cache=None,
+        unresolved_info=None,
+        user_location=None,
+        limit=10,
+        taxonomy_filter_selections={"level": ["advanced"]},
+        subcategory_id="sub_voice",
+    )
+    assert empty_post_data.retrieval_candidates == []
+
+    taxonomy_repo.find_matching_service_ids.side_effect = RuntimeError("taxonomy matching failed")
+    failed_post_data = service._run_post_openai_burst(
+        pre_data,
+        parsed_query,
+        query_embedding=None,
+        location_resolution=None,
+        location_llm_cache=None,
+        unresolved_info=None,
+        user_location=None,
+        limit=10,
+        taxonomy_filter_selections={"level": ["advanced"]},
+        subcategory_id="sub_voice",
+    )
+    assert len(failed_post_data.retrieval_candidates) == 1
+
+
+@pytest.mark.asyncio
+async def test_hydrate_results_loads_distance_map_via_filter_repository(monkeypatch, nl_service):
+    ranked = [
+        RankedResult(
+            service_id="svc_distance",
+            service_catalog_id="cat_distance",
+            instructor_id="inst_distance",
+            name="Distance Service",
+            description=None,
+            price_per_hour=80,
+            final_score=0.8,
+            rank=1,
+            relevance_score=0.8,
+            quality_score=0.8,
+            distance_score=0.8,
+            price_score=0.8,
+            freshness_score=0.8,
+            completeness_score=0.8,
+        )
+    ]
+
+    class _RetrieverRepo:
+        def __init__(self, _db):
+            pass
+
+        def get_services_by_ids(self, _ids):
+            return [{"id": "svc_distance"}]
+
+        def get_instructor_cards(self, _ids):
+            return [
+                {
+                    "instructor_id": "inst_distance",
+                    "first_name": "Sam",
+                    "last_initial": "D",
+                    "avg_rating": 4.7,
+                    "review_count": 9,
+                    "profile_picture_key": None,
+                    "bio_snippet": None,
+                    "verified": True,
+                    "is_founding_instructor": False,
+                    "years_experience": 4,
+                    "coverage_areas": [],
+                }
+            ]
+
+    class _FilterRepo:
+        def __init__(self, _db):
+            pass
+
+        def get_instructor_min_distance_to_regions(self, _instructor_ids, _region_ids):
+            return {"inst_distance": 250.0}
+
+    monkeypatch.setattr("app.services.search.nl_search_service.get_db_session", _db_ctx)
+    monkeypatch.setattr(
+        "app.repositories.retriever_repository.RetrieverRepository",
+        _RetrieverRepo,
+    )
+    monkeypatch.setattr("app.repositories.filter_repository.FilterRepository", _FilterRepo)
+
+    location_resolution = ResolvedLocation(
+        resolved=True,
+        region_id="region_1",
+        tier=ResolutionTier.EXACT,
+        confidence=1.0,
+    )
+    results = await nl_service._hydrate_instructor_results(
+        ranked,
+        limit=1,
+        location_resolution=location_resolution,
+    )
+
+    assert len(results) == 1
+    assert results[0].distance_km == 0.2

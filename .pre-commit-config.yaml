@@ -210,6 +210,15 @@ repos:
         pass_filenames: true
         description: Fail if inline eslint-disable suppressions are introduced
 
+      - id: frontend-no-ts-suppressions
+        name: Frontend block @ts-ignore suppressions
+        entry: frontend/scripts/precommit_no_ts_suppressions.sh
+        language: script
+        files: ^frontend/.*\.(ts|tsx|js|jsx|mjs|cjs)$
+        exclude: ^frontend/(node_modules|\.next|src/api/generated|types/generated)/
+        pass_filenames: true
+        description: Fail if @ts-ignore or @ts-nocheck are introduced (test files allow @ts-expect-error)
+
       - id: backend-no-focused-tests
         name: Backend block focused tests
         entry: backend/scripts/precommit_block_only_tests.sh

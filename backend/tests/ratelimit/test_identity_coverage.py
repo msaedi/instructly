@@ -37,3 +37,17 @@ def test_is_login_flow_flag():
     req = _make_request()
     req.state.login_flow = True
     assert rl_identity.is_login_flow(req) is True
+
+
+def test_resolve_identity_handles_state_access_exceptions():
+    class BrokenState:
+        def __getattr__(self, _name):
+            raise RuntimeError("state unavailable")
+
+    req = SimpleNamespace(
+        state=BrokenState(),
+        client=None,
+        headers={"x-forwarded-for": "9.8.7.6"},
+    )
+
+    assert rl_identity.resolve_identity(req) == "ip:9.8.7.6"

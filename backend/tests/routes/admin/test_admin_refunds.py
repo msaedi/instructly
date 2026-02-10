@@ -1,6 +1,7 @@
 from decimal import Decimal
 from unittest.mock import patch
 
+from app.core.exceptions import ServiceException
 from app.core.ulid_helper import generate_ulid
 from app.models.audit_log import AuditLog
 from app.models.booking import Booking
@@ -112,6 +113,129 @@ def test_refund_already_refunded_booking(client, db, test_booking, auth_headers_
 
     assert response.status_code == 400
     assert "already refunded" in response.json()["detail"].lower()
+
+
+def test_refund_rejects_booking_without_payment_intent(client, db, test_booking, auth_headers_admin):
+    booking = _prepare_booking_for_refund(db, test_booking)
+    booking.payment_intent_id = None
+    db.commit()
+
+    response = client.post(
+        f"/api/v1/admin/bookings/{booking.id}/refund",
+        json={"reason": "platform_error"},
+        headers=auth_headers_admin,
+    )
+
+    assert response.status_code == 400
+    assert "no payment" in response.json()["detail"].lower()
+
+
+@patch("app.services.admin_refund_service.AdminRefundService.resolve_full_refund_cents")
+def test_refund_rejects_when_resolved_amount_is_non_positive(
+    mock_resolve_full_refund_cents,
+    client,
+    db,
+    test_booking,
+    auth_headers_admin,
+):
+    booking = _prepare_booking_for_refund(db, test_booking)
+    mock_resolve_full_refund_cents.return_value = 0
+
+    response = client.post(
+        f"/api/v1/admin/bookings/{booking.id}/refund",
+        json={"reason": "platform_error"},
+        headers=auth_headers_admin,
+    )
+
+    assert response.status_code == 400
+    assert "refundable amount" in response.json()["detail"].lower()
+
+
+@patch("app.services.admin_refund_service.AdminRefundService.resolve_full_refund_cents")
+def test_refund_rejects_amount_above_full_charge(
+    mock_resolve_full_refund_cents,
+    client,
+    db,
+    test_booking,
+    auth_headers_admin,
+):
+    booking = _prepare_booking_for_refund(db, test_booking)
+    mock_resolve_full_refund_cents.return_value = 1000
+
+    response = client.post(
+        f"/api/v1/admin/bookings/{booking.id}/refund",
+        json={"reason": "other", "amount_cents": 1200},
+        headers=auth_headers_admin,
+    )
+
+    assert response.status_code == 400
+    assert "exceeds original charge" in response.json()["detail"].lower()
+
+
+@patch("app.services.stripe_service.StripeService.refund_payment")
+def test_refund_maps_service_exception_to_bad_gateway(
+    mock_refund_payment,
+    client,
+    db,
+    test_booking,
+    auth_headers_admin,
+):
+    booking = _prepare_booking_for_refund(db, test_booking)
+    mock_refund_payment.side_effect = ServiceException("Stripe unavailable")
+
+    response = client.post(
+        f"/api/v1/admin/bookings/{booking.id}/refund",
+        json={"reason": "dispute"},
+        headers=auth_headers_admin,
+    )
+
+    assert response.status_code == 502
+    assert "stripe unavailable" in response.json()["detail"].lower()
+
+
+@patch("app.services.stripe_service.StripeService.refund_payment")
+def test_refund_maps_unexpected_exception_to_internal_error(
+    mock_refund_payment,
+    client,
+    db,
+    test_booking,
+    auth_headers_admin,
+):
+    booking = _prepare_booking_for_refund(db, test_booking)
+    mock_refund_payment.side_effect = RuntimeError("socket closed")
+
+    response = client.post(
+        f"/api/v1/admin/bookings/{booking.id}/refund",
+        json={"reason": "dispute"},
+        headers=auth_headers_admin,
+    )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Stripe refund failed"
+
+
+@patch("app.services.admin_refund_service.AdminRefundService.apply_refund_updates")
+@patch("app.services.stripe_service.StripeService.refund_payment")
+def test_refund_returns_not_found_if_booking_disappears_after_stripe_refund(
+    mock_refund_payment,
+    mock_apply_refund_updates,
+    client,
+    db,
+    test_booking,
+    auth_headers_admin,
+):
+    booking = _prepare_booking_for_refund(db, test_booking)
+    mock_refund_payment.return_value = {"refund_id": "re_missing", "amount_refunded": 1000}
+    mock_apply_refund_updates.return_value = None
+
+    response = client.post(
+        f"/api/v1/admin/bookings/{booking.id}/refund",
+        json={"reason": "other"},
+        headers=auth_headers_admin,
+    )
+
+    assert response.status_code == 404
+    assert "after refund" in response.json()["detail"].lower()
 
 
 @patch("app.services.stripe_service.StripeService.refund_payment")

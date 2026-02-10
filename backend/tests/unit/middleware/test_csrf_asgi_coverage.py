@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from pydantic import SecretStr
 import pytest
@@ -349,4 +350,96 @@ async def test_csrf_blocks_on_bad_header_decode(monkeypatch):
     }
     middleware = CsrfOriginMiddlewareASGI(app)
     messages = await _run_app(middleware, scope)
+    assert messages[0]["status"] == 403
+
+
+def test_is_service_token_handles_settings_access_errors(monkeypatch):
+    class _BrokenSettings:
+        @property
+        def mcp_service_token(self):
+            raise RuntimeError("boom")
+
+    middleware = CsrfOriginMiddlewareASGI(lambda *_args: None)
+    monkeypatch.setattr("app.middleware.csrf_asgi.settings", _BrokenSettings())
+    assert middleware._is_service_token("token") is False
+
+
+def test_is_service_token_handles_none_and_empty_expected(monkeypatch):
+    middleware = CsrfOriginMiddlewareASGI(lambda *_args: None)
+    monkeypatch.setattr("app.middleware.csrf_asgi.settings", SimpleNamespace(mcp_service_token=None))
+    assert middleware._is_service_token("token") is False
+
+    monkeypatch.setattr(
+        "app.middleware.csrf_asgi.settings",
+        SimpleNamespace(mcp_service_token=SecretStr("")),
+    )
+    assert middleware._is_service_token("token") is False
+
+
+def test_is_service_token_falls_back_to_string_when_secret_getter_fails(monkeypatch):
+    class _RawToken:
+        def __str__(self):
+            return "raw-token"
+
+        def get_secret_value(self):
+            raise RuntimeError("bad secret accessor")
+
+    middleware = CsrfOriginMiddlewareASGI(lambda *_args: None)
+    monkeypatch.setattr(
+        "app.middleware.csrf_asgi.settings",
+        SimpleNamespace(mcp_service_token=_RawToken()),
+    )
+
+    assert middleware._is_service_token("raw-token") is True
+
+
+@pytest.mark.asyncio
+async def test_check_service_auth_allows_m2m_token_with_scope(monkeypatch):
+    middleware = CsrfOriginMiddlewareASGI(lambda *_args: None)
+    claims = SimpleNamespace(sub="svc-a", scope="mcp:write")
+
+    monkeypatch.setattr("app.middleware.csrf_asgi.verify_m2m_token", AsyncMock(return_value=claims))
+    monkeypatch.setattr("app.middleware.csrf_asgi.has_scope", lambda _claims, required: required == "mcp:write")
+
+    allowed = await middleware._check_service_auth("Bearer m2m-token", "POST", "/api/v1/mcp/ops")
+    assert allowed is True
+
+
+@pytest.mark.asyncio
+async def test_check_service_auth_rejects_insufficient_m2m_scope(monkeypatch):
+    middleware = CsrfOriginMiddlewareASGI(lambda *_args: None)
+    claims = SimpleNamespace(sub="svc-b", scope="mcp:read")
+
+    monkeypatch.setattr("app.middleware.csrf_asgi.verify_m2m_token", AsyncMock(return_value=claims))
+    monkeypatch.setattr("app.middleware.csrf_asgi.has_scope", lambda _claims, required: False)
+
+    allowed = await middleware._check_service_auth("Bearer m2m-token", "POST", "/api/v1/mcp/ops")
+    assert allowed is False
+
+
+@pytest.mark.asyncio
+async def test_csrf_blocks_when_origin_parsing_raises(monkeypatch):
+    async def app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    monkeypatch.setattr(
+        "app.middleware.csrf_asgi.settings",
+        SimpleNamespace(
+            is_testing=False,
+            preview_frontend_domain="preview.example.com",
+            prod_frontend_origins_csv="https://app.instainstru.com",
+        ),
+    )
+    monkeypatch.setenv("SITE_MODE", "prod")
+    monkeypatch.setattr(
+        "app.middleware.csrf_asgi.urlparse",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad url")),
+    )
+
+    middleware = CsrfOriginMiddlewareASGI(app)
+    messages = await _run_app(
+        middleware,
+        _scope(headers={"origin": "https://app.instainstru.com", "referer": "https://app.instainstru.com/page"}),
+    )
     assert messages[0]["status"] == 403

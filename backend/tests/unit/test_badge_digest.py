@@ -96,3 +96,92 @@ def test_send_weekly_digest_respects_policy(monkeypatch):
     )
     assert summary == {"scanned": 1, "sent": 1}
     assert len(notif.sent) == 1
+
+
+def test_build_weekly_digest_skips_invalid_progress_rows():
+    defs = [
+        FakeDefinition("badge_not_dict", "Bad Dict"),
+        FakeDefinition("badge_non_numeric", "Bad Number"),
+        FakeDefinition("badge_complete", "Already Complete"),
+    ]
+    repo = FakeRepo(
+        defs,
+        {"user": []},
+        {
+            "user": [
+                {"slug": "badge_not_dict", "current_progress": "invalid"},
+                {"slug": "badge_non_numeric", "current_progress": {"current": "3", "goal": 5}},
+                {"slug": "badge_complete", "current_progress": {"current": 5, "goal": 5}},
+            ]
+        },
+    )
+
+    digest = badge_digest.build_weekly_badge_progress_digest(
+        "user", datetime.now(timezone.utc), repo
+    )
+
+    assert digest["items"] == []
+
+
+def test_send_weekly_digest_handles_adapter_no_items_blocked_and_send_failure(monkeypatch):
+    class DummyAsyncCache:
+        pass
+
+    class DummyAdapter:
+        def __init__(self, _cache):
+            self.store = {}
+
+        def get(self, key):
+            return self.store.get(key)
+
+        def set(self, key, value, ttl=None):
+            self.store[key] = value
+            return True
+
+    users = [
+        FakeUser("no_items"),
+        FakeUser("blocked"),
+        FakeUser("send_false"),
+        FakeUser("send_true"),
+    ]
+
+    item_map = {
+        "no_items": [],
+        "blocked": [{"slug": "badge_a", "remaining": 1, "percent": 75}],
+        "send_false": [{"slug": "badge_b", "remaining": 1, "percent": 75}],
+        "send_true": [{"slug": "badge_c", "remaining": 1, "percent": 75}],
+    }
+
+    monkeypatch.setattr(badge_digest, "CacheService", DummyAsyncCache)
+    monkeypatch.setattr(badge_digest, "CacheServiceSyncAdapter", DummyAdapter)
+    monkeypatch.setattr(
+        badge_digest,
+        "build_weekly_badge_progress_digest",
+        lambda user_id, _now, _repo: {"user_id": user_id, "generated_at": None, "items": item_map[user_id]},
+    )
+    monkeypatch.setattr(
+        badge_digest,
+        "can_send_now",
+        lambda user, _now, _cache: (user.id != "blocked", "ok", f"digest:{user.id}"),
+    )
+    recorded_keys = []
+    monkeypatch.setattr(
+        badge_digest,
+        "record_send",
+        lambda key, _cache, ttl_hours=36: recorded_keys.append((key, ttl_hours)),
+    )
+
+    class NotificationServiceStub:
+        def send_badge_digest_email(self, user, _items):
+            return user.id == "send_true"
+
+    summary = badge_digest.send_weekly_digest(
+        datetime.now(timezone.utc),
+        users,
+        repository=FakeRepo([], {}, {}),
+        notification_service=NotificationServiceStub(),
+        cache_service=DummyAsyncCache(),
+    )
+
+    assert summary == {"scanned": 4, "sent": 1}
+    assert recorded_keys == [("digest:send_true", 36)]

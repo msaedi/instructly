@@ -102,3 +102,52 @@ def test_communication_repository_queries(db, test_student, test_instructor):
     )
     assert any(isinstance(record, NotificationDelivery) for record in records)
     assert repo.count_notification_deliveries("admin.communication.announcement") >= 1
+
+
+def test_communication_repository_empty_input_guards(db):
+    repo = CommunicationRepository(db)
+
+    assert repo.list_push_subscription_user_ids([]) == set()
+    assert repo.resolve_category_ids(["", None]) == []  # type: ignore[list-item]
+    assert repo.resolve_region_ids(["", None]) == []  # type: ignore[list-item]
+    assert repo.list_instructor_ids_by_categories([]) == []
+    assert repo.list_student_ids_by_categories([]) == []
+    assert repo.list_instructor_ids_by_regions([]) == []
+    assert repo.list_student_ids_by_zip([]) == []
+
+
+def test_communication_repository_list_users_by_ids_non_empty(db, test_student):
+    repo = CommunicationRepository(db)
+    users = repo.list_users_by_ids([test_student.id])
+    assert [user.id for user in users] == [test_student.id]
+
+
+def test_communication_repository_notification_delivery_filters(
+    db,
+    test_student,
+    test_instructor,
+):
+    repo = CommunicationRepository(db)
+    delivery_repo = NotificationDeliveryRepository(db)
+
+    delivery_repo.record_delivery(
+        event_type="admin.communication.weekly_digest",
+        idempotency_key="digest-1",
+        payload={"channels": ["email"]},
+    )
+    delivery_repo.record_delivery(
+        event_type="admin.communication.weekly_digest",
+        idempotency_key="digest-2",
+        payload={"channels": ["push"]},
+    )
+    db.commit()
+
+    now = datetime.now(timezone.utc)
+    deliveries = repo.list_notification_deliveries(
+        event_types=["admin.communication.weekly_digest"],
+        start=now - timedelta(days=1),
+        end=now + timedelta(days=1),
+        limit=0,
+    )
+
+    assert len(deliveries) >= 2

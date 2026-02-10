@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 import stripe
 
 from app.core.exceptions import ServiceException
@@ -382,3 +383,267 @@ def test_top_up_from_pi_metadata_invalid(metadata):
     pi = SimpleNamespace(amount=100, metadata=metadata)
 
     assert StripeService._top_up_from_pi_metadata(pi) is None
+
+
+def test_get_latest_identity_status_reraises_service_exception():
+    service = _make_service()
+    service._check_stripe_configured = MagicMock(side_effect=ServiceException("not configured"))
+
+    with pytest.raises(ServiceException, match="not configured"):
+        StripeService.get_latest_identity_status(service, "user_1")
+
+
+def test_create_customer_unconfigured_handles_auth_type_check_failure():
+    service = _make_service()
+    service.stripe_configured = False
+    service.payment_repository.get_customer_by_user_id.return_value = None
+    service.payment_repository.create_customer_record.return_value = SimpleNamespace(
+        stripe_customer_id="mock_cust_user_1"
+    )
+    cm = MagicMock()
+    cm.__enter__.return_value = None
+    cm.__exit__.return_value = None
+    service.transaction = MagicMock(return_value=cm)
+
+    with patch.object(stripe.Customer, "create", side_effect=Exception("No API key")):
+        with patch.object(stripe.error, "AuthenticationError", object()):
+            result = StripeService.create_customer(
+                service,
+                user_id="user_1",
+                email="user@example.com",
+                name="User One",
+            )
+
+    assert result.stripe_customer_id == "mock_cust_user_1"
+
+
+def test_create_connected_account_conflict_paths_raise_service_exception():
+    service = _make_service()
+    service.stripe_configured = True
+    service.payment_repository.get_connected_account_by_instructor_id.side_effect = [None, None]
+    service.payment_repository.create_connected_account_record.side_effect = IntegrityError(
+        "stmt", "params", Exception("conflict")
+    )
+    cm = MagicMock()
+    cm.__enter__.return_value = None
+    cm.__exit__.return_value = None
+    service.payment_repository.transaction.return_value = cm
+
+    with patch.object(
+        stripe.Account,
+        "create",
+        side_effect=IntegrityError("stmt", "params", Exception("conflict")),
+    ):
+        with pytest.raises(ServiceException, match="Failed to create connected account due to conflict"):
+            StripeService.create_connected_account(service, "profile_1", "p1@example.com")
+
+    service = _make_service()
+    service.stripe_configured = False
+    service.payment_repository.get_connected_account_by_instructor_id.return_value = None
+    service.payment_repository.create_connected_account_record.side_effect = IntegrityError(
+        "stmt", "params", Exception("conflict")
+    )
+    service.payment_repository.transaction.return_value = cm
+    with patch.object(stripe.Account, "create", side_effect=RuntimeError("stripe down")):
+        with pytest.raises(ServiceException, match="Failed to create connected account due to conflict"):
+            StripeService.create_connected_account(service, "profile_2", "p2@example.com")
+
+
+def test_capture_payment_intent_handles_nonfatal_charge_parse_failures():
+    service = _make_service()
+    service.payment_repository.update_payment_status = MagicMock()
+
+    class _PartialPI:
+        status = "requires_capture"
+        amount_received = None
+        amount = "1000"
+
+        def get(self, key, default=None):
+            if key == "charges":
+                raise RuntimeError("bad charges")
+            if key == "amount_received":
+                return None
+            if key == "amount":
+                return "1000"
+            return default
+
+    with patch.object(stripe.PaymentIntent, "capture", return_value=_PartialPI()):
+        result = StripeService.capture_payment_intent(service, "pi_123")
+
+    assert result["amount_received"] == 1000
+    assert result["transfer_amount"] is None
+
+
+def test_get_payment_intent_capture_details_handles_nonfatal_charge_parse_failures():
+    service = _make_service()
+
+    class _PartialPI:
+        amount_received = None
+        amount = "900"
+
+        def get(self, key, default=None):
+            if key == "charges":
+                raise RuntimeError("bad charges")
+            if key == "amount_received":
+                return None
+            if key == "amount":
+                return "900"
+            return default
+
+    with patch.object(stripe.PaymentIntent, "retrieve", return_value=_PartialPI()):
+        result = StripeService.get_payment_intent_capture_details(service, "pi_456")
+
+    assert result["amount_received"] == 900
+    assert result["transfer_amount"] is None
+
+
+def test_handle_charge_webhook_unhandled_and_exception_paths():
+    service = _make_service()
+
+    assert StripeService._handle_charge_webhook(service, {"type": "charge.unknown"}) is False
+    assert StripeService._handle_charge_webhook(service, None) is False
+
+
+def test_resolve_payment_intent_id_from_charge_requires_configured():
+    service = _make_service()
+    service.stripe_configured = False
+    assert StripeService._resolve_payment_intent_id_from_charge(service, "ch_123") is None
+
+
+def test_handle_dispute_closed_missing_booking_after_refetch_returns_false():
+    service = _make_service()
+    service.booking_repository = MagicMock()
+    service.payment_repository.get_payment_by_intent_id.return_value = SimpleNamespace(
+        booking_id="booking_1"
+    )
+    booking = SimpleNamespace(id="booking_1", student_id="student_1")
+    service.booking_repository.get_by_id.side_effect = [booking, None]
+
+    cm = MagicMock()
+    cm.__enter__.return_value = True
+    cm.__exit__.return_value = None
+    tx = MagicMock()
+    tx.__enter__.return_value = None
+    tx.__exit__.return_value = None
+    service.transaction = MagicMock(return_value=tx)
+
+    with patch("app.services.stripe_service.booking_lock_sync", return_value=cm):
+        result = StripeService._handle_dispute_closed(
+            service,
+            {"data": {"object": {"id": "dp_1", "payment_intent": "pi_1", "status": "won"}}},
+        )
+
+    assert result is False
+
+
+def test_handle_dispute_closed_handles_event_fetch_and_emit_failures():
+    service = _make_service()
+    service.booking_repository = MagicMock()
+    service.payment_repository.get_payment_by_intent_id.return_value = SimpleNamespace(
+        booking_id="booking_1"
+    )
+    booking = SimpleNamespace(id="booking_1", student_id="student_1")
+    service.booking_repository.get_by_id.side_effect = [booking, booking]
+    service.payment_repository.get_payment_events_for_booking.return_value = [
+        SimpleNamespace(
+            event_type="negative_balance_applied",
+            event_data={"dispute_id": "dp_2", "amount_cents": "not-int"},
+        )
+    ]
+    service.payment_repository.create_payment_event.side_effect = RuntimeError("event-write-failed")
+
+    tx = MagicMock()
+    tx.__enter__.return_value = None
+    tx.__exit__.return_value = None
+    service.transaction = MagicMock(return_value=tx)
+    lock_cm = MagicMock()
+    lock_cm.__enter__.return_value = True
+    lock_cm.__exit__.return_value = None
+
+    credit_service = MagicMock()
+    credit_service.get_spent_credits_for_booking.return_value = 600
+
+    with patch("app.services.stripe_service.booking_lock_sync", return_value=lock_cm):
+        with patch("app.services.credit_service.CreditService", return_value=credit_service):
+            result = StripeService._handle_dispute_closed(
+                service,
+                {"data": {"object": {"id": "dp_2", "payment_intent": "pi_2", "status": "won"}}},
+            )
+
+    assert result is True
+
+
+def test_get_instructor_earnings_summary_defaults_tier_when_config_has_no_tiers():
+    service = _make_service()
+    profile = SimpleNamespace(id="inst_no_tier", is_founding_instructor=False, current_tier_pct=None)
+    service.instructor_repository.get_by_user_id.return_value = profile
+    service.get_instructor_earnings = MagicMock(
+        return_value={
+            "total_earned": 10000,
+            "total_fees": 1000,
+            "booking_count": 1,
+            "average_earning": 10000.0,
+            "period_start": None,
+            "period_end": None,
+        }
+    )
+    service.config_service.get_pricing_config.return_value = ({"student_fee_pct": 0.05}, None)
+
+    booking = _make_booking(hourly_rate=120)
+    payment = SimpleNamespace(
+        booking=booking,
+        amount=12000,
+        application_fee=1000,
+        status="succeeded",
+        created_at=datetime(2030, 1, 4, tzinfo=timezone.utc),
+        base_price_cents=12000,
+        instructor_tier_pct=None,
+        instructor_payout_cents=None,
+    )
+    service.payment_repository.get_instructor_payment_history.return_value = [payment]
+
+    with patch.object(
+        stripe_service.RepositoryFactory,
+        "create_review_tip_repository",
+        return_value=MagicMock(),
+    ):
+        with patch.object(
+            stripe_service,
+            "build_student_payment_summary",
+            return_value=SimpleNamespace(tip_paid=None),
+        ):
+            result = service.get_instructor_earnings_summary(user=SimpleNamespace(id="user-tier"))
+
+    assert result.invoices
+    assert result.invoices[0].platform_fee_rate == float(
+        PRICING_DEFAULTS["instructor_tiers"][0]["pct"]
+    )
+
+
+def test_build_earnings_export_rows_defaults_tier_when_missing_config_tiers():
+    service = _make_service()
+    profile = SimpleNamespace(id="inst_export", is_founding_instructor=False, current_tier_pct=None)
+    service.instructor_repository.get_by_user_id.return_value = profile
+    service.config_service.get_pricing_config.return_value = ({}, None)
+    service.payment_repository.get_instructor_earnings_for_export.return_value = [
+        {
+            "lesson_date": date(2030, 5, 1),
+            "student_name": "Jo",
+            "service_name": "Piano",
+            "duration_minutes": 60,
+            "hourly_rate": 100,
+            "payment_amount_cents": 12000,
+            "application_fee_cents": 2000,
+            "status": "succeeded",
+            "payment_id": "pay_tier_default",
+        }
+    ]
+
+    rows = service._build_earnings_export_rows(
+        instructor_id="inst_export",
+        start_date=None,
+        end_date=None,
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["lesson_price_cents"] == 10000

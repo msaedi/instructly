@@ -19,6 +19,15 @@ def _safe_rollback(db, called=None):
     return _wrapped
 
 
+def _raise_rollback(called=None):
+    def _wrapped():
+        if called is not None:
+            called["called"] = True
+        raise RuntimeError("rollback failed")
+
+    return _wrapped
+
+
 def test_track_unresolved_creates_and_updates(db):
     repo = UnresolvedLocationQueryRepository(db)
     query = f"unknown-{generate_ulid().lower()}"
@@ -278,3 +287,185 @@ def test_record_click_rollback_failure(db, monkeypatch):
     monkeypatch.setattr(repo.db, "query", _raise)
     monkeypatch.setattr(repo.db, "rollback", _safe_rollback(repo.db))
     repo.record_click("oops", region_boundary_id="region")
+
+
+def test_track_unresolved_does_not_append_when_sample_limit_reached(db):
+    repo = UnresolvedLocationQueryRepository(db)
+    query = f"limit-{generate_ulid().lower()}"
+
+    repo.track_unresolved(query, original_query="First", max_samples=1)
+    repo.track_unresolved(query, original_query="Second", max_samples=1)
+    db.commit()
+
+    row = repo.get_by_normalized(query)
+    assert row is not None
+    assert row.search_count == 2
+    assert row.sample_original_queries == ["First"]
+
+
+def test_track_unresolved_updates_counts_without_original_query(db):
+    repo = UnresolvedLocationQueryRepository(db)
+    query = f"counts-{generate_ulid().lower()}"
+
+    repo.track_unresolved(query, original_query="Seed")
+    repo.track_unresolved(query, original_query=None)
+    db.commit()
+
+    row = repo.get_by_normalized(query)
+    assert row is not None
+    assert row.search_count == 2
+    assert row.unique_user_count == 2
+    assert row.sample_original_queries == ["Seed"]
+
+
+def test_record_click_without_original_query_preserves_samples(db):
+    repo = UnresolvedLocationQueryRepository(db)
+    query = f"click-nosample-{generate_ulid().lower()}"
+    region = _ensure_region_boundary(db, "Bronx")
+
+    repo.record_click(query, region_boundary_id=str(region.id), original_query="First")
+    repo.record_click(query, region_boundary_id=str(region.id), original_query=None)
+    db.commit()
+
+    row = repo.get_by_normalized(query)
+    assert row is not None
+    assert row.click_count == 2
+    assert row.sample_original_queries == ["First"]
+
+
+def test_mark_resolved_without_region_still_marks_reviewed(db):
+    repo = UnresolvedLocationQueryRepository(db)
+    query = f"resolved-noregion-{generate_ulid().lower()}"
+    repo.track_unresolved(query, original_query="X")
+    db.commit()
+
+    assert repo.mark_resolved(query, region_boundary_id=None) is True
+    row = repo.get_by_normalized(query)
+    assert row is not None
+    assert row.reviewed is True
+    assert row.resolved_region_boundary_id is None
+
+
+def test_track_unresolved_ignores_rollback_failure():
+    class _DB:
+        def query(self, *_args, **_kwargs):
+            raise RuntimeError("boom")
+
+        def rollback(self):
+            raise RuntimeError("rollback failed")
+
+    repo = UnresolvedLocationQueryRepository(_DB())  # type: ignore[arg-type]
+    repo.track_unresolved("oops", original_query="Oops")
+
+
+def test_record_click_ignores_rollback_failure():
+    class _DB:
+        def query(self, *_args, **_kwargs):
+            raise RuntimeError("boom")
+
+        def rollback(self):
+            raise RuntimeError("rollback failed")
+
+    repo = UnresolvedLocationQueryRepository(_DB())  # type: ignore[arg-type]
+    repo.record_click("oops", region_boundary_id="region")
+
+
+def test_list_pending_ignores_rollback_failure():
+    class _DB:
+        def query(self, *_args, **_kwargs):
+            raise RuntimeError("boom")
+
+        def rollback(self):
+            raise RuntimeError("rollback failed")
+
+    repo = UnresolvedLocationQueryRepository(_DB())  # type: ignore[arg-type]
+    assert repo.list_pending(limit=5) == []
+
+
+def test_get_by_normalized_ignores_rollback_failure():
+    class _DB:
+        def query(self, *_args, **_kwargs):
+            raise RuntimeError("boom")
+
+        def rollback(self):
+            raise RuntimeError("rollback failed")
+
+    repo = UnresolvedLocationQueryRepository(_DB())  # type: ignore[arg-type]
+    assert repo.get_by_normalized("oops") is None
+
+
+def test_list_pending_with_evidence_ignores_rollback_failure():
+    class _DB:
+        def query(self, *_args, **_kwargs):
+            raise RuntimeError("boom")
+
+        def rollback(self):
+            raise RuntimeError("rollback failed")
+
+    repo = UnresolvedLocationQueryRepository(_DB())  # type: ignore[arg-type]
+    assert repo.list_pending_with_evidence(min_clicks=1, min_searches=1, limit=5) == []
+
+
+def test_mark_manual_review_ignores_rollback_failure():
+    class _DB:
+        def flush(self):
+            raise RuntimeError("boom")
+
+        def rollback(self):
+            raise RuntimeError("rollback failed")
+
+    repo = UnresolvedLocationQueryRepository(_DB())  # type: ignore[arg-type]
+    row = UnresolvedLocationQuery(
+        id=generate_ulid(),
+        city_id=repo.city_id,
+        query_normalized=f"manual-fail-{generate_ulid()}",
+        sample_original_queries=["Manual"],
+        search_count=1,
+        unique_user_count=1,
+        status="pending",
+    )
+    repo.mark_manual_review(row)
+
+
+def test_set_status_ignores_rollback_failure(monkeypatch):
+    class _DB:
+        def flush(self):
+            raise RuntimeError("boom")
+
+        def rollback(self):
+            raise RuntimeError("rollback failed")
+
+    repo = UnresolvedLocationQueryRepository(_DB())  # type: ignore[arg-type]
+    row = UnresolvedLocationQuery(
+        id=generate_ulid(),
+        city_id=repo.city_id,
+        query_normalized="normalized",
+        sample_original_queries=[],
+        search_count=1,
+        unique_user_count=1,
+        status="pending",
+    )
+    monkeypatch.setattr(repo, "get_by_normalized", lambda _q: row)
+    assert repo.set_status("normalized", status="manual_review") is False
+
+
+def test_mark_resolved_ignores_rollback_failure(monkeypatch):
+    class _DB:
+        def flush(self):
+            raise RuntimeError("boom")
+
+        def rollback(self):
+            raise RuntimeError("rollback failed")
+
+    repo = UnresolvedLocationQueryRepository(_DB())  # type: ignore[arg-type]
+    row = UnresolvedLocationQuery(
+        id=generate_ulid(),
+        city_id=repo.city_id,
+        query_normalized="normalized",
+        sample_original_queries=[],
+        search_count=1,
+        unique_user_count=1,
+        status="pending",
+    )
+    monkeypatch.setattr(repo, "get_by_normalized", lambda _q: row)
+    assert repo.mark_resolved("normalized", region_boundary_id="region") is False

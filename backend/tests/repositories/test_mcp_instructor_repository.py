@@ -1,7 +1,10 @@
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from app.models.subcategory import ServiceSubcategory
-from app.repositories.mcp_instructor_repository import MCPInstructorRepository
+from app.repositories.mcp_instructor_repository import (
+    MCPInstructorRepository,
+    _build_status_filters,
+)
 
 
 def _get_service_by_slug(db, slug: str) -> ServiceCatalog:
@@ -142,3 +145,96 @@ def test_name_search_escapes_like_patterns(db, test_instructor):
 
     result = repo.get_instructor_by_identifier("test_pattern")
     assert result is None
+
+
+def test_list_instructors_filters_by_category_name(db, test_instructor):
+    repo = MCPInstructorRepository(db)
+
+    profile = (
+        db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
+    )
+    assert profile is not None
+    service = (
+        db.query(Service)
+        .filter(Service.instructor_profile_id == profile.id, Service.is_active.is_(True))
+        .order_by(Service.id)
+        .first()
+    )
+    assert service is not None
+    category_name = service.catalog_entry.subcategory.category.name
+
+    profiles, _ = repo.list_instructors(
+        status=None,
+        is_founding=None,
+        service_slug=None,
+        category_name=category_name,
+        limit=10,
+        cursor=None,
+    )
+
+    assert any(p.user_id == test_instructor.id for p in profiles)
+
+
+def test_status_filter_variants_cover_all_supported_statuses():
+    assert _build_status_filters("live")
+    assert _build_status_filters("paused")
+    assert _build_status_filters("onboarding")
+    assert _build_status_filters("registered")
+    assert _build_status_filters("unknown-status") == []
+
+
+def test_get_instructor_by_identifier_blank_and_profile_id(db, test_instructor):
+    repo = MCPInstructorRepository(db)
+    assert repo.get_instructor_by_identifier("   ") is None
+
+    profile = (
+        db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
+    )
+    assert profile is not None
+    # Exercises fallback lookup by InstructorProfile.id after User.id lookup misses.
+    result = repo.get_instructor_by_identifier(profile.id)
+    assert result is not None
+    assert result.id == profile.id
+
+
+def test_get_instructor_by_identifier_email_miss_falls_back(db):
+    repo = MCPInstructorRepository(db)
+    assert repo.get_instructor_by_identifier("missing@example.com") is None
+
+
+def test_get_service_coverage_without_status_filters(db):
+    repo = MCPInstructorRepository(db)
+    coverage = repo.get_service_coverage(status="", group_by="service", top=5)
+    assert "labels" in coverage
+    assert "values" in coverage
+
+
+def test_get_booking_and_review_stats_empty_row_paths(monkeypatch):
+    class _DummyQuery:
+        def filter(self, *_args, **_kwargs):
+            return self
+
+        def first(self):
+            return None
+
+        def all(self):
+            return [("inst-1", None, 0)]
+
+        def group_by(self, *_args, **_kwargs):
+            return self
+
+    class _DummyDB:
+        def query(self, *_args, **_kwargs):
+            return _DummyQuery()
+
+    repo = MCPInstructorRepository(_DummyDB())
+
+    stats = repo.get_booking_stats("inst-1")
+    assert stats == {"completed": 0, "cancelled": 0, "no_show": 0}
+
+    single = repo.get_review_stats_for_user("inst-1")
+    assert single == {"rating_avg": 0.0, "rating_count": 0}
+
+    many = repo.get_review_stats(["inst-1"])
+    assert many["inst-1"]["rating_avg"] == 0.0
+    assert many["inst-1"]["rating_count"] == 0

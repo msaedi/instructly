@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import logging
+import sys
+import types
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -160,6 +162,22 @@ def test_resolve_environment_fallbacks(monkeypatch):
     assert sentry_module._resolve_environment() == "qa"
 
 
+def test_resolve_environment_handles_settings_failure(monkeypatch):
+    monkeypatch.delenv("ENV", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.delenv("SENTRY_ENVIRONMENT", raising=False)
+
+    from app.core import config as cfg
+
+    class _BrokenSettings:
+        @property
+        def environment(self):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(cfg, "settings", _BrokenSettings(), raising=False)
+    assert sentry_module._resolve_environment() is None
+
+
 def test_resolve_git_sha_handles_failure():
     with patch("app.monitoring.sentry.subprocess.check_output", side_effect=OSError):
         assert sentry_module._resolve_git_sha() is None
@@ -178,6 +196,95 @@ def test_sampling_path_helpers_and_otel_extract(monkeypatch):
     try:
         sentry_module.sentry_sdk = None
         assert sentry_module.is_sentry_configured() is False
+    finally:
+        sentry_module.sentry_sdk = original_sdk
+
+
+def test_extract_sampling_path_handles_request_url_errors():
+    class _BrokenRequest:
+        @property
+        def url(self):
+            raise RuntimeError("bad url")
+
+    assert sentry_module._extract_sampling_path({"request": _BrokenRequest()}) is None
+
+
+def test_extract_sampling_path_returns_none_for_non_string_url_path():
+    request = SimpleNamespace(url=SimpleNamespace(path=123))
+    assert sentry_module._extract_sampling_path({"request": request}) is None
+
+
+def test_extract_otel_trace_id_handles_import_failure():
+    fake_module = types.ModuleType("app.monitoring.otel")
+    with patch.dict(sys.modules, {"app.monitoring.otel": fake_module}):
+        assert sentry_module._extract_otel_trace_id() is None
+
+
+def test_extract_otel_trace_id_returns_value_when_enabled():
+    with patch("app.monitoring.otel.is_otel_enabled", return_value=True):
+        with patch("app.monitoring.otel.get_current_trace_id", return_value="trace-live"):
+            assert sentry_module._extract_otel_trace_id() == "trace-live"
+
+
+def test_init_sentry_disabled_when_sdk_missing(monkeypatch):
+    monkeypatch.setenv("SENTRY_DSN", "https://example@o0.ingest.sentry.io/0")
+    original_sdk = sentry_module.sentry_sdk
+    try:
+        sentry_module.sentry_sdk = None
+        assert sentry_module.init_sentry() is False
+    finally:
+        sentry_module.sentry_sdk = original_sdk
+
+
+def test_init_sentry_without_optional_integrations(monkeypatch):
+    monkeypatch.setenv("SENTRY_DSN", "https://example@o0.ingest.sentry.io/0")
+    monkeypatch.setenv("ENV", "production")
+    monkeypatch.setenv("GIT_SHA", "gitsha")
+
+    original_logging = sentry_module.LoggingIntegration
+    original_fastapi = sentry_module.FastApiIntegration
+    original_celery = sentry_module.CeleryIntegration
+    try:
+        sentry_module.LoggingIntegration = None
+        sentry_module.FastApiIntegration = None
+        sentry_module.CeleryIntegration = None
+        with patch("app.monitoring.sentry.sentry_sdk.init") as mock_init:
+            assert sentry_module.init_sentry() is True
+        assert mock_init.call_args.kwargs["integrations"] is None
+    finally:
+        sentry_module.LoggingIntegration = original_logging
+        sentry_module.FastApiIntegration = original_fastapi
+        sentry_module.CeleryIntegration = original_celery
+
+
+def test_apply_scope_context_without_request_user_data():
+    request = _make_request(headers=[])
+    scope = DummyScope()
+    with patch.object(sentry_module, "_extract_otel_trace_id", return_value=None):
+        sentry_module._apply_scope_context(scope, request)
+    assert scope.tags == {}
+    assert scope.user is None
+
+
+def test_apply_event_context_preserves_existing_user_and_tags():
+    request = _make_request(headers=[(b"x-request-id", b"req-keep")])
+    request.state.user_id = "new-id"
+    request.state.user_email = "new@example.com"
+    event = {"tags": {"request_id": "existing"}, "user": {"id": "existing-user"}}
+    with patch.object(sentry_module, "_extract_otel_trace_id", return_value="trace-new"):
+        out = sentry_module._apply_event_context(event, request)
+    assert out["tags"]["request_id"] == "existing"
+    assert out["tags"]["otel_trace_id"] == "trace-new"
+    assert out["user"]["id"] == "existing-user"
+    assert out["user"]["email"] == "new@example.com"
+
+
+def test_is_sentry_configured_true_path():
+    dummy_hub = SimpleNamespace(current=SimpleNamespace(client=object()))
+    original_sdk = sentry_module.sentry_sdk
+    try:
+        sentry_module.sentry_sdk = SimpleNamespace(Hub=dummy_hub)
+        assert sentry_module.is_sentry_configured() is True
     finally:
         sentry_module.sentry_sdk = original_sdk
 
@@ -243,3 +350,26 @@ async def test_sentry_context_middleware_applies_context(monkeypatch):
 
     dummy_scope.processor({}, {})
     assert called["processor"] is True
+
+
+@pytest.mark.asyncio
+async def test_sentry_context_middleware_passthrough_for_non_http(monkeypatch):
+    called = {"app": False}
+
+    async def app(scope, receive, send):
+        called["app"] = True
+
+    @contextmanager
+    def configure_scope():
+        yield DummyScope()
+
+    middleware = sentry_module.SentryContextMiddleware(app)
+    monkeypatch.setattr(sentry_module, "is_sentry_configured", lambda: True)
+    monkeypatch.setattr(
+        sentry_module,
+        "sentry_sdk",
+        SimpleNamespace(configure_scope=configure_scope),
+    )
+
+    await middleware({"type": "lifespan"}, lambda: None, lambda: None)
+    assert called["app"] is True

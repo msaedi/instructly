@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.services.search import taxonomy_filter_extractor as extractor
 from app.services.search.taxonomy_filter_extractor import extract_inferred_filters
 
 
@@ -198,4 +199,60 @@ def test_ambiguous_phrase_across_multiple_keys_is_skipped() -> None:
         filter_definitions=definitions,
     )
 
+    assert inferred == {}
+
+
+def test_ignores_definitions_with_blank_keys_and_values() -> None:
+    inferred = extract_inferred_filters(
+        original_query="ap math",
+        filter_definitions=[
+            {"filter_key": " ", "options": [{"value": "ap", "display_name": "AP"}]},
+            {"filter_key": "goal", "options": [{"value": "", "display_name": " "}]},
+        ],
+    )
+    assert inferred == {}
+
+
+def test_long_phrase_skipped_when_query_shorter() -> None:
+    definitions = [
+        _definition(
+            key="goal",
+            options=[("college_prep_program", "College Prep Program")],
+        )
+    ]
+    inferred = extract_inferred_filters(
+        original_query="college prep",
+        filter_definitions=definitions,
+    )
+    assert inferred == {}
+
+
+def test_same_key_multiple_values_is_ambiguous() -> None:
+    definitions = [
+        _definition(
+            key="goal",
+            options=[("test_prep", "Test"), ("test_exam", "Test")],
+        )
+    ]
+    inferred = extract_inferred_filters(
+        original_query="test tutor",
+        filter_definitions=definitions,
+    )
+    assert inferred == {}
+
+
+def test_non_alnum_only_query_returns_empty_dict() -> None:
+    inferred = extract_inferred_filters(
+        original_query="***___---",
+        filter_definitions=[_definition(key="goal", options=[("x", "X")])],
+    )
+    assert inferred == {}
+
+
+def test_normalized_values_empty_after_cleanup_are_dropped(monkeypatch) -> None:
+    monkeypatch.setattr(extractor, "_normalize_filter_values", lambda _values: [])
+    inferred = extract_inferred_filters(
+        original_query="ap math",
+        filter_definitions=[_definition(key="course_level", options=[("ap", "AP")])],
+    )
     assert inferred == {}

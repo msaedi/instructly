@@ -400,21 +400,30 @@ async def get_bookings(
             try:
                 if isinstance(booking, dict) and booking.get("_from_cache", False):
                     # Cached data might need privacy adjustments
-                    is_instructor = current_user.id == booking.get("instructor_id")
+                    cached_booking = dict(booking)
+                    is_instructor = current_user.id == cached_booking.get("instructor_id")
 
-                    if "instructor" in booking and isinstance(booking["instructor"], dict):
-                        instructor_last_name = booking["instructor"].get("last_name", "")
-                        booking["instructor"]["last_initial"] = (
+                    instructor_payload = cached_booking.get("instructor")
+                    if isinstance(instructor_payload, dict):
+                        instructor = dict(instructor_payload)
+                        instructor_last_name = instructor.get("last_name", "")
+                        instructor["last_initial"] = (
                             instructor_last_name
                             if is_instructor
                             else instructor_last_name[0]
                             if instructor_last_name
                             else ""
                         )
-                        if "last_name" in booking["instructor"]:
-                            del booking["instructor"]["last_name"]
+                        instructor.pop("last_name", None)
+                        cached_booking["instructor"] = instructor
 
-                    booking_responses.append(booking)
+                    # Guard against malformed cache payloads causing 500s during response serialization.
+                    if hasattr(BookingResponse, "model_validate"):
+                        BookingResponse.model_validate(cached_booking)
+                    else:  # pragma: no cover - pydantic v1 compatibility
+                        BookingResponse.parse_obj(cached_booking)
+
+                    booking_responses.append(cached_booking)
                 else:
                     # Fresh SQLAlchemy object - use from_booking for privacy protection
                     booking_responses.append(BookingResponse.from_booking(booking))

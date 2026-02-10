@@ -56,6 +56,15 @@ def test_normalize_service_metrics() -> None:
     assert metrics["total_operations"] == 3
 
 
+def test_normalize_service_metrics_invalid_count_cast() -> None:
+    metrics = metrics_routes._normalize_service_metrics(
+        {"op": {"count": object()}, "not_mapping": "ignored"}
+    )
+    assert metrics["operations"]["op"] == 0
+    assert metrics["operations"]["not_mapping"] == 0
+    assert metrics["total_operations"] == 0
+
+
 def test_coerce_json_dict() -> None:
     assert metrics_routes._coerce_json_dict({"a": 1}, "err")["a"] == 1
     assert metrics_routes._coerce_json_dict(["bad"], "err")["error"] == "err"
@@ -111,6 +120,74 @@ async def test_get_performance_metrics(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_performance_metrics_without_cache_service(monkeypatch) -> None:
+    class _Service:
+        def get_metrics(self):
+            return {"op": {"count": 1}}
+
+    metrics_repository = SimpleNamespace(get_active_connections_count=lambda: 1)
+    pool_status = {
+        "size": 10,
+        "max_overflow": 5,
+        "max_capacity": 15,
+        "checked_in": 9,
+        "checked_out": 1,
+        "overflow_in_use": 0,
+        "utilization_pct": 10.0,
+    }
+    monkeypatch.setattr(metrics_routes.psutil, "cpu_percent", lambda interval=1: 1.0)
+    monkeypatch.setattr(metrics_routes.psutil, "virtual_memory", lambda: SimpleNamespace(percent=2.0))
+    monkeypatch.setattr(metrics_routes.psutil, "disk_usage", lambda _path: SimpleNamespace(percent=3.0))
+    monkeypatch.setattr(metrics_routes, "get_db_pool_status", lambda: pool_status)
+
+    response = await metrics_routes.get_performance_metrics(
+        availability_service=_Service(),
+        booking_service=_Service(),
+        conflict_checker=_Service(),
+        cache_service=None,
+        metrics_repository=metrics_repository,
+    )
+
+    assert response.cache.hits == 0
+    assert response.cache.misses == 0
+    assert response.database.active_connections == 1
+
+
+@pytest.mark.asyncio
+async def test_get_performance_metrics_handles_non_mapping_cache_stats(monkeypatch) -> None:
+    class _Service:
+        def get_metrics(self):
+            return {"op": {"count": 1}}
+
+    cache_service = SimpleNamespace(get_stats=AsyncMock(return_value=["unexpected"]))
+    metrics_repository = SimpleNamespace(get_active_connections_count=lambda: 2)
+    pool_status = {
+        "size": 10,
+        "max_overflow": 5,
+        "max_capacity": 15,
+        "checked_in": 8,
+        "checked_out": 2,
+        "overflow_in_use": 0,
+        "utilization_pct": 20.0,
+    }
+    monkeypatch.setattr(metrics_routes.psutil, "cpu_percent", lambda interval=1: 4.0)
+    monkeypatch.setattr(metrics_routes.psutil, "virtual_memory", lambda: SimpleNamespace(percent=5.0))
+    monkeypatch.setattr(metrics_routes.psutil, "disk_usage", lambda _path: SimpleNamespace(percent=6.0))
+    monkeypatch.setattr(metrics_routes, "get_db_pool_status", lambda: pool_status)
+
+    response = await metrics_routes.get_performance_metrics(
+        availability_service=_Service(),
+        booking_service=_Service(),
+        conflict_checker=_Service(),
+        cache_service=cache_service,
+        metrics_repository=metrics_repository,
+    )
+
+    assert response.cache.hits == 0
+    assert response.cache.hit_rate == "0.0%"
+
+
+@pytest.mark.asyncio
 async def test_get_cache_metrics_branches(monkeypatch) -> None:
     with pytest.raises(HTTPException):
         await metrics_routes.get_cache_metrics(cache_service=None)
@@ -140,6 +217,22 @@ async def test_get_cache_metrics_branches(monkeypatch) -> None:
     assert response.performance_insights
 
 
+@pytest.mark.asyncio
+async def test_get_cache_metrics_handles_redis_info_failure() -> None:
+    class _Redis:
+        async def info(self):
+            raise RuntimeError("redis unavailable")
+
+    cache_service = SimpleNamespace(
+        get_stats=AsyncMock(return_value={"hits": 10, "misses": 5, "errors": 0}),
+        get_redis_client=AsyncMock(return_value=_Redis()),
+    )
+
+    response = await metrics_routes.get_cache_metrics(cache_service=cache_service)
+    assert response.redis_info is None
+    assert response.hit_rate == "66.67%"
+
+
 def test_cache_performance_insights() -> None:
     stats = {
         "hits": 1,
@@ -152,6 +245,18 @@ def test_cache_performance_insights() -> None:
     insights = metrics_routes._get_cache_performance_insights(stats)
     assert any("Low cache hit rate" in entry for entry in insights)
     assert any("High availability cache invalidation rate" in entry for entry in insights)
+
+
+def test_cache_performance_insights_excellent_and_high_error_paths() -> None:
+    excellent = metrics_routes._get_cache_performance_insights(
+        {"hits": 95, "misses": 5, "errors": 0, "availability_hits": 9, "availability_misses": 1}
+    )
+    assert any("Excellent cache performance" in entry for entry in excellent)
+
+    high_error = metrics_routes._get_cache_performance_insights(
+        {"hits": 30, "misses": 10, "errors": 3, "availability_hits": 7, "availability_misses": 3}
+    )
+    assert any("High error rate" in entry for entry in high_error)
 
 
 @pytest.mark.asyncio
@@ -175,6 +280,59 @@ async def test_get_availability_cache_metrics(monkeypatch) -> None:
     response = await metrics_routes.get_availability_cache_metrics(cache_service=cache_service)
     assert response.availability_cache_metrics.total_requests == 4
     assert response.top_cached_keys_sample
+
+
+@pytest.mark.asyncio
+async def test_get_availability_cache_metrics_error_paths_and_recommendations() -> None:
+    class _Redis:
+        async def scan_iter(self, match: str, count: int):
+            raise RuntimeError("scan failed")
+            yield "unused"
+
+    cache_service = SimpleNamespace(
+        get_stats=AsyncMock(
+            return_value={
+                "availability_hits": 1,
+                "availability_misses": 5,
+                "availability_invalidations": 4,
+            }
+        ),
+        get_redis_client=AsyncMock(return_value=_Redis()),
+    )
+
+    response = await metrics_routes.get_availability_cache_metrics(cache_service=cache_service)
+    assert response.top_cached_keys_sample
+    assert any("increasing availability cache ttl" in rec.lower() for rec in response.recommendations)
+    assert any("more misses than hits" in rec.lower() for rec in response.recommendations)
+
+
+@pytest.mark.asyncio
+async def test_get_availability_cache_metrics_scan_break_and_optimal_recommendation() -> None:
+    class _Redis:
+        async def scan_iter(self, match: str, count: int):
+            for idx in range(8):
+                yield f"{match}:{idx}"
+
+    cache_service = SimpleNamespace(
+        get_stats=AsyncMock(
+            return_value={
+                "availability_hits": 9,
+                "availability_misses": 1,
+                "availability_invalidations": 0,
+            }
+        ),
+        get_redis_client=AsyncMock(return_value=_Redis()),
+    )
+
+    response = await metrics_routes.get_availability_cache_metrics(cache_service=cache_service)
+    assert len(response.top_cached_keys_sample) == 10
+    assert response.recommendations == ["Availability caching performance is optimal"]
+
+
+@pytest.mark.asyncio
+async def test_get_availability_cache_metrics_requires_cache_service() -> None:
+    with pytest.raises(HTTPException):
+        await metrics_routes.get_availability_cache_metrics(cache_service=None)
 
 
 @pytest.mark.asyncio

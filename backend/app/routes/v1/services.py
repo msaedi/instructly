@@ -26,7 +26,8 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional, cast
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Response, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
+from fastapi.params import Path
 
 from ...api.dependencies.auth import get_current_active_user
 from ...api.dependencies.services import get_instructor_service

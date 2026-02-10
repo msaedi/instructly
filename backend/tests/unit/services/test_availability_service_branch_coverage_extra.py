@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -258,3 +258,162 @@ def test_delete_blackout_date_logs_repository_exception():
 
     with pytest.raises(RepositoryException, match="delete-failed"):
         service.delete_blackout_date("instructor-1", "blackout-1")
+
+
+def test_save_week_bits_logs_audit_enqueue_and_cache_failures(monkeypatch):
+    service = _service()
+    monday = date(2030, 1, 6)
+    cm = MagicMock()
+    cm.__enter__.return_value = None
+    cm.__exit__.return_value = None
+
+    bitmap_repo = MagicMock()
+    bitmap_repo.upsert_week.return_value = 1
+    service._bitmap_repo = MagicMock(return_value=bitmap_repo)
+    service.transaction = MagicMock(return_value=cm)
+    service.get_week_bits = MagicMock(return_value={monday: b"\x00" * 6})
+    service.compute_week_version_bits = MagicMock(return_value="server-v1")
+    service._week_map_from_bits = MagicMock(return_value=({}, []))
+    service._persist_week_cache = MagicMock(side_effect=RuntimeError("cache write failed"))
+    service._write_availability_audit = MagicMock(side_effect=RuntimeError("audit write failed"))
+    service._enqueue_week_save_event = MagicMock(side_effect=RuntimeError("enqueue failed"))
+    service._invalidate_availability_caches = MagicMock()
+
+    monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "false")
+    monkeypatch.setenv("AVAILABILITY_PERF_DEBUG", "true")
+    monkeypatch.setattr("app.services.availability_service.get_user_today_by_id", lambda *_: monday)
+    monkeypatch.setattr(
+        "app.services.availability_service.get_user_now_by_id",
+        lambda *_: datetime(2030, 1, 6, 0, 0, tzinfo=timezone.utc),
+    )
+    monkeypatch.setattr("app.services.availability_service.invalidate_on_availability_change", lambda *_: None)
+
+    result = service.save_week_bits(
+        instructor_id="instructor-1",
+        week_start=monday,
+        windows_by_day={monday: [(time(9, 0), time(10, 0))]},
+        base_version=None,
+        override=False,
+        clear_existing=False,
+    )
+
+    assert result.rows_written == 1
+    service._write_availability_audit.assert_called_once()
+    service._enqueue_week_save_event.assert_called_once()
+    service._persist_week_cache.assert_called_once()
+
+
+def test_enqueue_week_save_event_instant_delivery_logs_mark_sent_errors(monkeypatch):
+    service = _service()
+    service.repository = MagicMock()
+    service.event_outbox_repository = MagicMock()
+    service.compute_week_version = MagicMock(return_value="v1")
+    service.event_outbox_repository.mark_sent_by_key.side_effect = RuntimeError("mark-sent-failed")
+
+    monkeypatch.setattr("app.services.availability_service.settings.instant_deliver_in_tests", True)
+    monkeypatch.setattr(
+        "app.services.availability_service.settings.suppress_past_availability_events", False
+    )
+
+    service._enqueue_week_save_event(
+        instructor_id="instructor-1",
+        week_start=date(2030, 1, 6),
+        week_dates=[date(2030, 1, 6) + timedelta(days=i) for i in range(7)],
+        prepared=SimpleNamespace(affected_dates={date(2030, 1, 8)}),
+        created_count=2,
+        deleted_count=0,
+        clear_existing=False,
+    )
+
+    service.event_outbox_repository.enqueue.assert_called_once()
+    service.event_outbox_repository.mark_sent_by_key.assert_called_once()
+
+
+def test_resolve_actor_payload_uses_default_when_roles_missing_name():
+    service = _service()
+    actor = SimpleNamespace(id="actor-1", roles=[SimpleNamespace(name=None)])
+
+    payload = service._resolve_actor_payload(actor, default_role="admin")
+
+    assert payload == {"id": "actor-1", "role": "admin"}
+
+
+def test_week_cache_key_and_ttl_require_cache_service():
+    service = _service()
+    service.cache_service = None
+
+    with pytest.raises(RuntimeError, match="Cache service required for week cache keys"):
+        service._week_cache_keys("instructor-1", date(2030, 1, 6))
+
+    with pytest.raises(RuntimeError, match="Cache service required for week cache TTL calculation"):
+        service._week_cache_ttl_seconds("instructor-1", date(2030, 1, 6))
+
+
+def test_extract_cached_week_result_skips_invalid_rows_and_times():
+    service = _service()
+    service._sanitize_week_map = MagicMock(
+        return_value={
+            "bad-date": [{"start_time": "09:00:00", "end_time": "10:00:00"}],
+            "2030-01-06": [
+                {"start_time": None, "end_time": "11:00:00"},
+                {"start_time": "invalid", "end_time": "11:00:00"},
+                {"start_time": "10:00:00", "end_time": "11:00:00"},
+            ],
+        }
+    )
+
+    result = service._extract_cached_week_result({"week_map": {}}, include_slots=True)
+
+    assert result is not None
+    assert result.week_map
+    assert len(result.windows) == 1
+
+
+def test_add_blackout_date_reraises_non_duplicate_repository_error():
+    service = _service()
+    service.repository = MagicMock()
+    service.repository.get_future_blackout_dates.return_value = []
+    service.repository.create_blackout_date.side_effect = RepositoryException("db-down")
+    cm = MagicMock()
+    cm.__enter__.return_value = None
+    cm.__exit__.return_value = None
+    service.transaction = MagicMock(return_value=cm)
+
+    with pytest.raises(RepositoryException, match="db-down"):
+        service.add_blackout_date(
+            "instructor-1",
+            SimpleNamespace(date=date(2030, 2, 2), reason="vacation"),
+        )
+
+
+def test_compute_public_availability_exercises_merge_trim_and_buffer_edge_paths(monkeypatch):
+    service = _service()
+    service._bitmap_repo = MagicMock()
+    service._bitmap_repo.return_value.get_day_bits.side_effect = [b"bits"]
+    service.instructor_repository = MagicMock()
+    service.conflict_repository = MagicMock()
+    service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(
+        min_advance_booking_hours=2, buffer_time_minutes=30
+    )
+    service.conflict_repository.get_bookings_for_date.return_value = [
+        SimpleNamespace(start_time=time(23, 0), end_time=time(22, 0))
+    ]
+
+    target_date = date(2030, 1, 6)
+    monkeypatch.setattr(
+        "app.services.availability_service.get_user_now_by_id",
+        lambda *_: datetime(2030, 1, 6, 10, 0, tzinfo=timezone.utc),
+    )
+    monkeypatch.setattr(
+        "app.services.availability_service.windows_from_bits",
+        lambda _bits: [("09:00:00", "10:00:00"), ("09:30:00", "10:30:00")],
+    )
+
+    out = service.compute_public_availability(
+        "instructor-1",
+        start_date=target_date,
+        end_date=target_date,
+        apply_min_advance=True,
+    )
+
+    assert out[target_date.isoformat()] == []

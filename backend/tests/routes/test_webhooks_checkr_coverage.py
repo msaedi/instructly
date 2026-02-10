@@ -5,6 +5,7 @@ import base64
 from datetime import timezone
 import json
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -167,6 +168,12 @@ def test_delivery_cache_expiration_and_eviction(monkeypatch):
     assert "first" not in checkr_routes._delivery_cache
 
 
+def test_mark_delivery_ignores_empty_key():
+    checkr_routes._delivery_cache.clear()
+    checkr_routes._mark_delivery(None)
+    assert checkr_routes._delivery_cache == {}
+
+
 def test_resolve_resource_id_variants():
     assert checkr_routes._resolve_resource_id("report.completed", {"report_id": "rep_1"}) == "rep_1"
     assert checkr_routes._resolve_resource_id("invitation.created", {"invitation_id": "inv_1"}) == "inv_1"
@@ -196,6 +203,21 @@ def test_bind_report_to_profile():
         _Repo(), report_id="rep_1", candidate_id="cand_1", invitation_id="inv_1", env="sandbox"
     )
     assert result == "profile-1"
+
+
+def test_bind_report_to_profile_requires_report_id():
+    repo = SimpleNamespace(
+        bind_report_to_candidate=AsyncMock(),
+        bind_report_to_invitation=AsyncMock(),
+    )
+    result = checkr_routes._bind_report_to_profile(
+        repo,
+        report_id=None,
+        candidate_id="cand_1",
+        invitation_id="inv_1",
+        env="sandbox",
+    )
+    assert result is None
 
 
 def test_update_report_status_skips_without_report_id():
@@ -619,5 +641,350 @@ def test_handle_webhook_empty_type_and_duplicate(monkeypatch):
     headers = _auth_headers(body, delivery_id="delivery-15")
     response = client.post("/api/v1/webhooks/checkr", content=body, headers=headers)
     assert response.status_code == 200
-    response = client.post("/api/v1/webhooks/checkr", content=body, headers=headers)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "event_type",
+    [
+        "report.updated",
+        "report.completed",
+        "report.canceled",
+        "report.suspended",
+        "report.created",
+    ],
+)
+async def test_process_payload_missing_report_id_early_return(event_type):
+    class _Repo:
+        def update_bgc_by_report_id(self, *_args, **_kwargs):
+            raise AssertionError("should not be called")
+
+    class _Workflow:
+        def __init__(self):
+            self.repo = _Repo()
+
+        def handle_report_eta_updated(self, *_args, **_kwargs):
+            raise AssertionError("should not be called")
+
+        def handle_report_completed(self, *_args, **_kwargs):
+            raise AssertionError("should not be called")
+
+        def handle_report_canceled(self, *_args, **_kwargs):
+            raise AssertionError("should not be called")
+
+        def handle_report_suspended(self, *_args, **_kwargs):
+            raise AssertionError("should not be called")
+
+    workflow = _Workflow()
+    job_repo = SimpleNamespace(enqueue=lambda **_kwargs: None)
+    log_repo = SimpleNamespace(record=lambda **_kwargs: None)
+    payload = {"type": event_type, "data": {"object": {}}}
+
+    error, outcome = await checkr_routes._process_checkr_payload(
+        event_type=event_type,
+        data_object={},
+        payload=payload,
+        headers={},
+        workflow_service=workflow,
+        job_repository=job_repo,
+        log_repository=log_repo,
+        resource_id=None,
+        skip_dedup=True,
+    )
+
+    assert error is None
+    assert outcome == "processed"
+
+
+@pytest.mark.asyncio
+async def test_process_payload_report_updated_no_eta_short_circuit():
+    class _Repo:
+        def bind_report_to_candidate(self, *_args, **_kwargs):
+            return None
+
+        def bind_report_to_invitation(self, *_args, **_kwargs):
+            return None
+
+    class _Workflow:
+        def __init__(self):
+            self.repo = _Repo()
+
+        def handle_report_eta_updated(self, *_args, **_kwargs):
+            raise AssertionError("should not be called")
+
+    workflow = _Workflow()
+    payload = {"type": "report.updated", "data": {"object": {"id": "rep_nop"}}}
+    error, outcome = await checkr_routes._process_checkr_payload(
+        event_type="report.updated",
+        data_object={"id": "rep_nop"},
+        payload=payload,
+        headers={},
+        workflow_service=workflow,
+        job_repository=SimpleNamespace(enqueue=lambda **_kwargs: None),
+        log_repository=SimpleNamespace(record=lambda **_kwargs: None),
+        resource_id="rep_nop",
+        skip_dedup=True,
+    )
+    assert error is None
+    assert outcome == "processed"
+
+
+@pytest.mark.asyncio
+async def test_process_payload_unsupported_event_branch():
+    class _Workflow:
+        def __init__(self):
+            self.repo = SimpleNamespace()
+
+    error, outcome = await checkr_routes._process_checkr_payload(
+        event_type="candidate.created",
+        data_object={"id": "cand_1"},
+        payload={"type": "candidate.created", "data": {"object": {"id": "cand_1"}}},
+        headers={},
+        workflow_service=_Workflow(),
+        job_repository=SimpleNamespace(enqueue=lambda **_kwargs: None),
+        log_repository=SimpleNamespace(record=lambda **_kwargs: None),
+        resource_id="cand_1",
+        skip_dedup=True,
+    )
+    assert error is None
+    assert outcome == "processed"
+
+
+def test_handle_webhook_non_dict_object_payload(monkeypatch):
+    class _Workflow:
+        def __init__(self):
+            self.repo = SimpleNamespace()
+
+    client, _job_repo = _client_with_overrides(monkeypatch, _Workflow())
+    payload = {"type": "report.created", "data": {"object": []}}
+    body = json.dumps(payload).encode()
+    response = client.post(
+        "/api/v1/webhooks/checkr",
+        content=body,
+        headers=_auth_headers(body, delivery_id="delivery-nondict"),
+    )
     assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+
+def test_handle_webhook_returns_early_for_processed_ledger_event(monkeypatch):
+    app = FastAPI()
+    app.include_router(checkr_routes.router, prefix="/api/v1/webhooks/checkr")
+
+    class _Workflow:
+        def __init__(self):
+            self.repo = SimpleNamespace(db=object())
+
+    class _JobRepo:
+        db = object()
+
+        def enqueue(self, **_kwargs):
+            return None
+
+    class _LogRepo:
+        db = object()
+
+        def record(self, **_kwargs):
+            return None
+
+    app.dependency_overrides[checkr_routes.get_background_check_workflow_service] = lambda: _Workflow()
+    app.dependency_overrides[checkr_routes.get_background_job_repo] = lambda: _JobRepo()
+    app.dependency_overrides[checkr_routes.get_bgc_webhook_log_repo] = lambda: _LogRepo()
+
+    monkeypatch.setattr(checkr_routes.settings, "checkr_webhook_user", _Secret("user"))
+    monkeypatch.setattr(checkr_routes.settings, "checkr_webhook_pass", _Secret("pass"))
+    monkeypatch.setattr(checkr_routes.settings, "checkr_api_key", _Secret("secret"))
+    monkeypatch.setattr(checkr_routes.settings, "checkr_env", "sandbox")
+
+    class _Ledger:
+        def __init__(self, _db):
+            pass
+
+        def log_received(self, **_kwargs):
+            return SimpleNamespace(id="evt_1", retry_count=1, status="processed")
+
+    monkeypatch.setattr(checkr_routes, "WebhookLedgerService", _Ledger)
+    monkeypatch.setattr(
+        checkr_routes,
+        "_process_checkr_payload",
+        AsyncMock(side_effect=AssertionError("should not process payload when already processed")),
+    )
+
+    client = TestClient(app)
+    payload = {"id": "evt_1", "type": "report.created", "data": {"object": {"id": "rep_early"}}}
+    body = json.dumps(payload).encode()
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_auth_headers(body, delivery_id="delivery-ledger"))
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+
+def test_handle_webhook_truthy_non_dict_object_payload(monkeypatch):
+    class _Workflow:
+        def __init__(self):
+            self.repo = SimpleNamespace()
+
+    client, _job_repo = _client_with_overrides(monkeypatch, _Workflow())
+    payload = {"type": "report.created", "data": {"object": "non-dict"}}
+    body = json.dumps(payload).encode()
+    response = client.post(
+        "/api/v1/webhooks/checkr",
+        content=body,
+        headers=_auth_headers(body, delivery_id="delivery-nondict-truthy"),
+    )
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_handle_webhook_marks_ledger_failed_on_processing_error(monkeypatch):
+    request = checkr_routes.Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/webhooks/checkr",
+            "headers": [
+                (b"authorization", f"Basic {base64.b64encode(b'user:pass').decode()}".encode()),
+                (b"x-checkr-signature", b"sig"),
+                (b"x-checkr-delivery-id", b"delivery-ledger-fail"),
+            ],
+        }
+    )
+    request._body = b'{"id":"evt-fail","type":"report.created","data":{"object":{"id":"rep_1"}}}'
+
+    class _Workflow:
+        def __init__(self):
+            self.repo = SimpleNamespace(db=object())
+
+    class _Repo:
+        db = object()
+
+    class _Ledger:
+        def __init__(self, _db):
+            self.mark_failed_calls = []
+
+        def log_received(self, **_kwargs):
+            return SimpleNamespace(id="evt-fail", retry_count=0, status="received")
+
+        def mark_failed(self, event, **kwargs):
+            self.mark_failed_calls.append((event, kwargs))
+
+        def mark_processed(self, *_args, **_kwargs):
+            raise AssertionError("should not mark processed")
+
+    ledger = _Ledger(object())
+
+    monkeypatch.setattr(checkr_routes.settings, "checkr_webhook_user", _Secret("user"))
+    monkeypatch.setattr(checkr_routes.settings, "checkr_webhook_pass", _Secret("pass"))
+    monkeypatch.setattr(checkr_routes.settings, "checkr_api_key", _Secret("secret"))
+    monkeypatch.setattr(
+        checkr_routes,
+        "_verify_checkr_signature",
+        lambda _request, _body: None,
+    )
+    monkeypatch.setattr(checkr_routes, "WebhookLedgerService", lambda _db: ledger)
+    monkeypatch.setattr(
+        checkr_routes,
+        "_process_checkr_payload",
+        AsyncMock(return_value=("db down", "failed")),
+    )
+
+    response = await checkr_routes.handle_checkr_webhook(
+        request,
+        workflow_service=_Workflow(),
+        job_repository=_Repo(),
+        log_repository=_Repo(),
+    )
+
+    assert response.ok is True
+    assert ledger.mark_failed_calls
+    assert ledger.mark_failed_calls[0][1]["error"] == "db down"
+
+
+@pytest.mark.asyncio
+async def test_process_payload_invitation_repo_exception_sets_failed():
+    class _Repo:
+        def update_bgc_by_invitation(self, *_args, **_kwargs):
+            raise RepositoryException("invite update failed")
+
+        def update_bgc_by_candidate(self, *_args, **_kwargs):
+            return None
+
+    class _Workflow:
+        def __init__(self):
+            self.repo = _Repo()
+
+    error, outcome = await checkr_routes._process_checkr_payload(
+        event_type="invitation.created",
+        data_object={"id": "inv_1"},
+        payload={"type": "invitation.created", "data": {"object": {"id": "inv_1"}}},
+        headers={},
+        workflow_service=_Workflow(),
+        job_repository=SimpleNamespace(enqueue=lambda **_kwargs: None),
+        log_repository=SimpleNamespace(record=lambda **_kwargs: None),
+        resource_id="inv_1",
+        skip_dedup=True,
+    )
+    assert outcome == "failed"
+    assert "invite update failed" in (error or "")
+
+
+@pytest.mark.asyncio
+async def test_process_payload_report_suspended_non_retryable_branch():
+    class _Repo:
+        def bind_report_to_candidate(self, *_args, **_kwargs):
+            return None
+
+        def bind_report_to_invitation(self, *_args, **_kwargs):
+            return None
+
+    class _Workflow:
+        def __init__(self):
+            self.repo = _Repo()
+
+        def handle_report_suspended(self, *_args, **_kwargs):
+            raise checkr_routes.NonRetryableError("profile not linked")
+
+    error, outcome = await checkr_routes._process_checkr_payload(
+        event_type="report.suspended",
+        data_object={"id": "rep_suspend"},
+        payload={"type": "report.suspended", "data": {"object": {"id": "rep_suspend"}}},
+        headers={},
+        workflow_service=_Workflow(),
+        job_repository=SimpleNamespace(enqueue=lambda **_kwargs: None),
+        log_repository=SimpleNamespace(record=lambda **_kwargs: None),
+        resource_id="rep_suspend",
+        skip_dedup=True,
+    )
+    assert outcome == "unmatched"
+    assert "profile not linked" in (error or "")
+
+
+@pytest.mark.asyncio
+async def test_process_payload_report_status_repo_exception_sets_failed():
+    class _Repo:
+        def bind_report_to_candidate(self, *_args, **_kwargs):
+            return None
+
+        def bind_report_to_invitation(self, *_args, **_kwargs):
+            return None
+
+        def update_bgc_by_report_id(self, *_args, **_kwargs):
+            raise RepositoryException("status write failed")
+
+    class _Workflow:
+        def __init__(self):
+            self.repo = _Repo()
+
+    error, outcome = await checkr_routes._process_checkr_payload(
+        event_type="report.created",
+        data_object={"id": "rep_status"},
+        payload={"type": "report.created", "data": {"object": {"id": "rep_status"}}},
+        headers={},
+        workflow_service=_Workflow(),
+        job_repository=SimpleNamespace(enqueue=lambda **_kwargs: None),
+        log_repository=SimpleNamespace(record=lambda **_kwargs: None),
+        resource_id="rep_status",
+        skip_dedup=True,
+    )
+    assert outcome == "failed"
+    assert "status write failed" in (error or "")

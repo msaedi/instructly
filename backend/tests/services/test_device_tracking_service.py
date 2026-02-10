@@ -6,7 +6,8 @@ Tests user agent parsing, device type detection, client hints extraction,
 and analytics formatting.
 """
 
-from unittest.mock import Mock
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -308,3 +309,53 @@ class TestDeviceTrackingService:
 
             connection_type = service.get_connection_type(mock_request)
             assert connection_type == expected_type
+
+    def test_parse_user_agent_returns_default_when_parser_errors(self, service):
+        with patch("app.services.device_tracking_service.parse", side_effect=RuntimeError("parse boom")):
+            result = service.parse_user_agent("broken-user-agent")
+
+        assert result["browser_name"] == "Unknown"
+        assert result["raw_user_agent"] == "broken-user-agent"
+
+    def test_determine_device_type_uses_pattern_fallbacks(self, service):
+        parsed = SimpleNamespace(is_tablet=False, is_mobile=False)
+
+        assert service._determine_device_type(parsed, "Mozilla/5.0 Android Tablet") == "tablet"
+        assert service._determine_device_type(parsed, "Mozilla/5.0 (iPhone)") == "mobile"
+
+    def test_get_connection_type_prefers_connection_type_header(self, service):
+        mock_request = self._create_mock_request({"Connection-Type": "Cellular"})
+
+        connection_type = service.get_connection_type(mock_request)
+
+        assert connection_type == "cellular"
+
+    def test_get_connection_type_ignores_invalid_downlink_values(self, service):
+        mock_request = self._create_mock_request({"Downlink": "not-a-number"})
+
+        connection_type = service.get_connection_type(mock_request)
+
+        assert connection_type is None
+
+    def test_get_device_context_without_optional_hints_or_connection(self, service, monkeypatch):
+        base_context = {
+            "browser_name": "Chrome",
+            "browser_version": "1",
+            "os_family": "Windows",
+            "os_version": "11",
+            "device_family": "Other",
+            "device_type": "desktop",
+            "is_mobile": False,
+            "is_tablet": False,
+            "is_bot": False,
+            "raw_user_agent": "ua",
+        }
+        monkeypatch.setattr(service, "parse_user_agent", lambda _ua: dict(base_context))
+        monkeypatch.setattr(service, "extract_client_hints", lambda _request: {})
+        monkeypatch.setattr(service, "get_connection_type", lambda _request: None)
+
+        mock_request = self._create_mock_request({"User-Agent": "ua"})
+        context = service.get_device_context_from_request(mock_request)
+
+        assert "client_hints" not in context
+        assert "connection_type" not in context

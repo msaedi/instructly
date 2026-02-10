@@ -164,3 +164,51 @@ def test_identity_webhook_paths_include_verified_and_terminal_statuses():
         },
     }
     assert service._handle_identity_webhook(terminal_evt) is True
+
+
+def test_identity_webhook_unknown_status_returns_true_without_updates():
+    service = _service()
+    service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(id="profile-1")
+
+    unknown_evt = {
+        "type": "identity.verification_session.updated",
+        "data": {
+            "object": {
+                "id": "vs_unknown",
+                "status": "requires_reverification",
+                "metadata": {"user_id": "user-1"},
+            }
+        },
+    }
+
+    assert service._handle_identity_webhook(unknown_evt) is True
+    service.instructor_repository.update.assert_not_called()
+
+
+def test_handle_dispute_closed_won_handles_event_fetch_failure():
+    service = _service()
+    service.payment_repository.get_payment_by_intent_id.return_value = SimpleNamespace(
+        booking_id="booking-1"
+    )
+    booking = SimpleNamespace(id="booking-1", student_id="student-1")
+    service.booking_repository.get_by_id.side_effect = [booking, booking]
+    service.payment_repository.get_payment_events_for_booking.side_effect = RuntimeError("events failed")
+
+    @contextmanager
+    def _lock_ctx():
+        yield True
+
+    with patch("app.services.stripe_service.booking_lock_sync", return_value=_lock_ctx()):
+        with patch("app.services.credit_service.CreditService") as credit_cls:
+            result = service._handle_dispute_closed(
+                {
+                    "data": {
+                        "object": {"id": "dp_1", "payment_intent": "pi_1", "status": "won"}
+                    }
+                }
+            )
+
+    assert result is True
+    credit_cls.return_value.unfreeze_credits_for_booking.assert_called_once_with(
+        booking_id="booking-1", use_transaction=False
+    )
