@@ -9610,7 +9610,7 @@ export type components = {
  users: components["schemas"]["UserBreakdown"];
  };
  SearchClickRequest: {
- action: string;
+ action: "view" | "book" | "message" | "favorite";
  instructor_id: string;
  position: number;
  search_query_id: string;

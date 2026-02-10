@@ -81,7 +81,7 @@ async def nl_search(
     ),
     subcategory_id: Optional[str] = Query(
         None,
-        pattern=r"^[0-9A-Z]{26}$",
+        pattern=r"^[0-9A-HJKMNP-TV-Z]{26}$",
         description="Optional subcategory ULID context",
     ),
     content_filters: Optional[str] = Query(

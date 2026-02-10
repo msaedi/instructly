@@ -3690,11 +3690,17 @@ class BookingService(BaseService):
             badge_service = BadgeAwardService(self.db)
             booked_at = booking.confirmed_at or booking.created_at or now
             category_name = None
-            instructor_service = booking.instructor_service
-            if instructor_service and instructor_service.catalog_entry:
-                category = instructor_service.catalog_entry.category
-                if category:
-                    category_name = category.name
+            try:
+                instructor_service = booking.instructor_service
+                if instructor_service and instructor_service.catalog_entry:
+                    category = instructor_service.catalog_entry.category
+                    if category:
+                        category_name = category.name
+            except AttributeError:
+                logger.warning(
+                    "booking_category_chain_failed",
+                    extra={"booking_id": booking.id},
+                )
 
             badge_service.check_and_award_on_lesson_completed(
                 student_id=booking.student_id,

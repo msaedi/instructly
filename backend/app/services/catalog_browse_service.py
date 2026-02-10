@@ -129,8 +129,8 @@ class CatalogBrowseService(BaseService):
         filters = self.filter_repo.get_filters_for_subcategory(sub.id)
 
         # Build category info
-        category_info = (
-            {
+        if sub.category:
+            category_info = {
                 "id": sub.category.id,
                 "name": sub.category.name,
                 "subtitle": sub.category.subtitle,
@@ -138,9 +138,12 @@ class CatalogBrowseService(BaseService):
                 "display_order": sub.category.display_order,
                 "icon_name": sub.category.icon_name,
             }
-            if sub.category
-            else {}
-        )
+        else:
+            logger.warning(
+                "subcategory_missing_category",
+                extra={"subcategory_id": sub.id, "subcategory_slug": subcategory_slug},
+            )
+            category_info = {}
 
         return {
             "id": sub.id,

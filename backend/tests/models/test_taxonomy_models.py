@@ -234,6 +234,20 @@ class TestFilterDefinitionModel:
         assert d["key"].startswith("tm_fd_")
         assert d["filter_type"] == "multi_select"
 
+    def test_filter_definition_to_dict_excludes_inactive_options(self, db):
+        """to_dict(include_options=True) excludes options where is_active=False."""
+        fd = _make_filter_def(db, display_name="Active Test")
+        active_opt = _make_filter_option(db, fd.id, value=f"active_{_uid()}", display_name="Active")
+        inactive_opt = _make_filter_option(db, fd.id, value=f"inactive_{_uid()}", display_name="Inactive")
+        inactive_opt.is_active = False
+        db.commit()
+
+        d = fd.to_dict(include_options=True)
+        option_ids = [o["id"] for o in d["options"]]
+        assert active_opt.id in option_ids
+        assert inactive_opt.id not in option_ids
+        assert len(d["options"]) == 1
+
 
 class TestFilterOptionModel:
     def test_create_filter_option(self, db):

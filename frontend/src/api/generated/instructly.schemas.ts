@@ -4267,6 +4267,7 @@ export interface InstructorServiceCreate {
   duration_options?: number[] | null;
   /**
    * Hourly rate for this service
+   * @maximum 10000
    * @exclusiveMinimum 0
    */
   hourly_rate: number;
@@ -7618,11 +7619,24 @@ export interface SearchAnalyticsSummaryResponse {
 }
 
 /**
+ * Action type: view, book, message, favorite
+ */
+export type SearchClickRequestAction =
+  (typeof SearchClickRequestAction)[keyof typeof SearchClickRequestAction];
+
+export const SearchClickRequestAction = {
+  view: 'view',
+  book: 'book',
+  message: 'message',
+  favorite: 'favorite',
+} as const;
+
+/**
  * Request payload for logging a search click.
  */
 export interface SearchClickRequest {
   /** Action type: view, book, message, favorite */
-  action?: string;
+  action?: SearchClickRequestAction;
   /** Instructor user ID that was clicked */
   instructor_id: string;
   /**
@@ -9720,10 +9734,14 @@ export type GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetPara
 export type CheckServiceAreaApiV1InstructorsInstructorIdCheckServiceAreaGetParams = {
   /**
    * Latitude
+   * @minimum -90
+   * @maximum 90
    */
   lat: number;
   /**
    * Longitude
+   * @minimum -180
+   * @maximum 180
    */
   lng: number;
 };

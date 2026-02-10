@@ -57,7 +57,7 @@ class _InstructorServiceStub:
         raise Exception("already exists")
 
     def get_instructor_profile(self, *_args, **_kwargs):
-        raise Exception("not found")
+        raise NotFoundException("not found")
 
     def update_instructor_profile(self, *_args, **_kwargs):
         raise DomainException("bad update")
@@ -66,13 +66,13 @@ class _InstructorServiceStub:
         raise BusinessRuleException("missing prereqs")
 
     def delete_instructor_profile(self, *_args, **_kwargs):
-        raise Exception("not found")
+        raise NotFoundException("not found")
 
     def get_public_instructor_profile(self, *_args, **_kwargs):
         return _profile_payload(user_id="user-1", profile_id="profile-1")
 
     def get_instructor_user(self, *_args, **_kwargs):
-        raise Exception("missing")
+        raise NotFoundException("missing")
 
 
 class _FavoritesServiceStub:
@@ -217,7 +217,7 @@ async def test_update_profile_domain_exception(test_instructor):
 async def test_update_profile_not_found(test_instructor):
     service = _InstructorServiceStub()
     service.update_instructor_profile = lambda *_args, **_kwargs: (_ for _ in ()).throw(
-        Exception("not found")
+        NotFoundException("not found")
     )
 
     with pytest.raises(HTTPException) as exc:
@@ -580,12 +580,11 @@ async def test_get_instructor_handles_not_found(test_student):
 
 
 @pytest.mark.asyncio
-async def test_get_instructor_handles_exception(monkeypatch, test_student):
+async def test_get_instructor_handles_exception(test_student):
     service = _InstructorServiceStub()
     service.get_public_instructor_profile = lambda *_args, **_kwargs: (_ for _ in ()).throw(
-        Exception("not found")
+        NotFoundException("not found")
     )
-    monkeypatch.setattr("app.routes.v1.instructors.raise_503_if_pool_exhaustion", lambda *_: None)
 
     with pytest.raises(HTTPException) as exc:
         await instructors_routes.get_instructor(

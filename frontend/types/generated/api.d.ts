@@ -18542,8 +18542,9 @@ export type components = {
              * Action
              * @description Action type: view, book, message, favorite
              * @default view
+             * @enum {string}
              */
-            action: string;
+            action: "view" | "book" | "message" | "favorite";
             /**
              * Instructor Id
              * @description Instructor user ID that was clicked

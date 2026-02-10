@@ -9,6 +9,7 @@
 import { getSessionId, refreshSession } from '@/lib/sessionTracking';
 import { withApiBase } from '@/lib/apiBase';
 import { NEXT_PUBLIC_APP_URL as APP_URL } from '@/lib/env';
+import { logger } from '@/lib/logger';
 import type {
   AgeGroup,
   ApiErrorResponse,
@@ -223,7 +224,12 @@ export async function cleanFetch<T>(
     let data: ApiErrorResponse | T | null = null;
     try {
       data = (await response.json()) as ApiErrorResponse | T;
-    } catch {
+    } catch (parseError) {
+      logger.error('Failed to parse API response as JSON', {
+        url: url.toString(),
+        status: response.status,
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+      });
       data = null;
     }
 

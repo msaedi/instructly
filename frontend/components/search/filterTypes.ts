@@ -15,6 +15,7 @@ export type TaxonomyContentFilterOption = {
 export type TaxonomyContentFilterDefinition = {
   key: string;
   label: string;
+  filter_type?: 'single_select' | 'multi_select';
   options: TaxonomyContentFilterOption[];
 };
 

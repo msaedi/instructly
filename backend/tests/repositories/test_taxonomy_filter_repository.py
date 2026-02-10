@@ -490,3 +490,49 @@ class TestFindMatchingServiceIds:
         )
 
         assert matching == set()
+
+
+class TestValidateFilterOptionInvariants:
+    """D1: Tests for validate_filter_option_invariants."""
+
+    def test_valid_options_pass(self, db, taxonomy_data):
+        """Well-formed taxonomy data produces no violations."""
+        repo = TaxonomyFilterRepository(db)
+        violations = repo.validate_filter_option_invariants(taxonomy_data["sub_with_filters"].id)
+        assert violations == []
+
+    def test_nonexistent_subcategory_returns_empty(self, db):
+        """Nonexistent subcategory produces no violations (no filters to check)."""
+        repo = TaxonomyFilterRepository(db)
+        violations = repo.validate_filter_option_invariants("01NONEXISTENT0000000000000")
+        assert violations == []
+
+    def test_cross_wired_option_detected(self, db, taxonomy_data):
+        """Option from wrong FilterDefinition triggers a violation."""
+        uid = _uid()
+
+        # Create a second, unrelated filter definition with its own option
+        fd_other = FilterDefinition(
+            key=f"tfr_other_{uid}", display_name="Other Filter", filter_type="multi_select"
+        )
+        db.add(fd_other)
+        db.flush()
+
+        fo_wrong = FilterOption(
+            filter_definition_id=fd_other.id, value=f"wrong_{uid}", display_name="Wrong", display_order=0
+        )
+        db.add(fo_wrong)
+        db.flush()
+
+        # Link the wrong option to the existing subcategory filter (grade_level)
+        sf = taxonomy_data["subcategory_filter"]
+        sfo_bad = SubcategoryFilterOption(
+            subcategory_filter_id=sf.id, filter_option_id=fo_wrong.id, display_order=99
+        )
+        db.add(sfo_bad)
+        db.commit()
+
+        repo = TaxonomyFilterRepository(db)
+        violations = repo.validate_filter_option_invariants(taxonomy_data["sub_with_filters"].id)
+        assert len(violations) == 1
+        assert "does not match" in violations[0]

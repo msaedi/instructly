@@ -26,7 +26,7 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional, cast
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Response, status
 
 from ...api.dependencies.auth import get_current_active_user
 from ...api.dependencies.services import get_instructor_service
@@ -67,6 +67,8 @@ from ...services.instructor_service import InstructorService
 from ...utils.strict import model_filter
 
 logger = logging.getLogger(__name__)
+
+ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
 
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["services-v1"])
@@ -378,8 +380,8 @@ async def get_categories_with_subcategories(
     dependencies=[Depends(rate_limit("read"))],
 )
 async def get_category_tree(
-    category_id: str,
-    response: Response,
+    category_id: str = Path(..., pattern=ULID_PATH_PATTERN),
+    response: Response = None,
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> CategoryTreeResponse:
     """Get full 3-level tree for a category. Cached 1hr."""
@@ -397,8 +399,8 @@ async def get_category_tree(
     dependencies=[Depends(rate_limit("read"))],
 )
 async def get_subcategories_for_category(
-    category_id: str,
-    response: Response,
+    category_id: str = Path(..., pattern=ULID_PATH_PATTERN),
+    response: Response = None,
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> List[SubcategoryBrief]:
     """Get subcategories for a category (brief list)."""
@@ -425,8 +427,8 @@ async def get_subcategories_for_category(
     dependencies=[Depends(rate_limit("read"))],
 )
 async def get_subcategory_with_services(
-    subcategory_id: str,
-    response: Response,
+    subcategory_id: str = Path(..., pattern=ULID_PATH_PATTERN),
+    response: Response = None,
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> SubcategoryWithServices:
     """Get a subcategory with its services."""
@@ -446,8 +448,8 @@ async def get_subcategory_with_services(
     dependencies=[Depends(rate_limit("read"))],
 )
 async def get_subcategory_filters(
-    subcategory_id: str,
-    response: Response,
+    subcategory_id: str = Path(..., pattern=ULID_PATH_PATTERN),
+    response: Response = None,
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> List[SubcategoryFilterResponse]:
     """Get filter definitions for a subcategory."""

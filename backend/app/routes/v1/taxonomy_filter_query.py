@@ -26,6 +26,10 @@ def _parse_csv_values(raw_value: Optional[str]) -> List[str]:
         normalized = token.strip().lower()
         if not normalized or normalized in seen:
             continue
+        if "|" in normalized:
+            raise ValueError(
+                f"Filter value '{normalized}' contains reserved delimiter character ('|')"
+            )
         seen.add(normalized)
         values.append(normalized)
     return values

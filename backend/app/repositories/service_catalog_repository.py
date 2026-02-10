@@ -164,7 +164,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             logger.error("db_connection_error_in_vector_search", exc_info=True)
             raise
         except Exception as e:
-            logger.warning(
+            logger.error(
                 "vector_search_degraded",
                 extra={"error": str(e)},
                 exc_info=True,
@@ -467,7 +467,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         if not include_inactive:
             query = _apply_active_catalog_predicate(query)
 
-        search_pattern = f"%{query_text}%"
+        search_pattern = f"%{_escape_like(query_text)}%"
         if self._pg_trgm_available:
             query = query.filter(
                 or_(
@@ -839,20 +839,21 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         base = self.db.query(ServiceCatalog).filter(ServiceCatalog.is_active.is_(True))
         base = _apply_active_catalog_predicate(base)
 
+        escaped_query = _escape_like(query)
         if self._pg_trgm_available:
             base = base.filter(
                 or_(
                     text(
                         "(service_catalog.name % :q) OR (similarity(service_catalog.name, :q) >= 0.3)"
                     ).params(q=query),
-                    ServiceCatalog.name.ilike(f"%{query}%"),
+                    ServiceCatalog.name.ilike(f"%{escaped_query}%"),
                 )
             ).order_by(
                 text("similarity(service_catalog.name, :q) DESC").params(q=query),
                 ServiceCatalog.display_order,
             )
         else:
-            base = base.filter(ServiceCatalog.name.ilike(f"%{query}%")).order_by(
+            base = base.filter(ServiceCatalog.name.ilike(f"%{escaped_query}%")).order_by(
                 ServiceCatalog.display_order, ServiceCatalog.name
             )
 

@@ -259,9 +259,13 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
         return;
       }
 
+      logger.warn('HomeCatalogCascade: orphaned subcategory not found in API data', {
+        subcategoryId,
+        serviceCount: subcategoryServices.length,
+      });
       next.push({
         id: subcategoryId,
-        name: `Subcategory ${next.length + 1}`,
+        name: 'Other',
         services: sortServices(subcategoryServices),
       });
     });
@@ -353,15 +357,17 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
             {categories.map((category) => {
               const IconComponent = category.icon;
               const isSelected = category.id === activeCategory;
+              const isFallback = category.id.startsWith('fallback-');
 
               return (
                 <button
                   type="button"
                   key={category.id}
-                  onClick={() => {
+                  disabled={isFallback}
+                  onClick={isFallback ? undefined : () => {
                     void handleCategoryClick(category.id, category.name);
                   }}
-                  className="group flex flex-col items-center cursor-pointer transition-colors duration-200 relative w-20 select-none"
+                  className={`group flex flex-col items-center transition-colors duration-200 relative w-20 select-none ${isFallback ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                 >
                   <IconComponent
                     size={32}

@@ -237,10 +237,10 @@ async def get_my_profile(
         if hasattr(profile_data, "id"):
             return InstructorProfileResponse.from_orm(profile_data)
         return InstructorProfileResponse(**profile_data)
-    except Exception as e:
-        if "not found" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-        raise
+    except NotFoundException:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    except DomainException as e:
+        raise e.to_http_exception()
 
 
 @router.put(
@@ -278,12 +278,10 @@ async def update_profile(
         if hasattr(profile_data, "id"):
             return InstructorProfileResponse.from_orm(profile_data)
         return InstructorProfileResponse(**profile_data)
+    except NotFoundException:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
     except DomainException as e:
         raise e.to_http_exception()
-    except Exception as e:
-        if "not found" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-        raise
 
 
 @router.post(
@@ -357,10 +355,10 @@ async def delete_profile(
 
         # Run sync service call off the event loop so cache invalidation (sync adapter) executes.
         await asyncio.to_thread(instructor_service.delete_instructor_profile, current_user.id)
-    except Exception as e:
-        if "not found" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-        raise
+    except NotFoundException:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    except DomainException as e:
+        raise e.to_http_exception()
 
     return None
 
@@ -421,12 +419,14 @@ async def get_instructor(
         return result
     except HTTPException:
         raise
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found"
+        )
+    except DomainException as e:
+        raise e.to_http_exception()
     except Exception as e:
         raise_503_if_pool_exhaustion(e)
-        if "not found" in str(e).lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found"
-            )
         raise
 
 
@@ -456,8 +456,19 @@ async def get_coverage(
         instructor_user = await asyncio.to_thread(
             instructor_service.get_instructor_user, instructor_id
         )
-    except Exception:
+    except NotFoundException:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
+    except DomainException as e:
+        raise e.to_http_exception()
+    except Exception as e:
+        logger.error(
+            "coverage_check_failed",
+            extra={"instructor_id": instructor_id, "error": str(e)},
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal error"
+        )
 
     geo = await asyncio.to_thread(
         address_service.get_coverage_geojson_for_instructors, [instructor_user.id]

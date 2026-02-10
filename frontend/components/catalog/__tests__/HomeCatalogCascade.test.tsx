@@ -339,7 +339,7 @@ describe('HomeCatalogCascade', () => {
     render(<HomeCatalogCascade isAuthenticated={false} />);
 
     const generatedSubcategoryPill = await screen.findByRole('button', {
-      name: /subcategory 3 \(2\)/i,
+      name: /other \(2\)/i,
     });
     fireEvent.click(generatedSubcategoryPill);
 

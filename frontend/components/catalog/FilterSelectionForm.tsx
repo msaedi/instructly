@@ -3,6 +3,7 @@
 import { useCallback } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSubcategoryFilters } from '@/hooks/queries/useTaxonomy';
+import { logger } from '@/lib/logger';
 import type { SubcategoryFilterResponse, FilterOptionResponse } from '@/features/shared/api/types';
 
 interface FilterSelectionFormProps {
@@ -19,6 +20,7 @@ export function FilterSelectionForm({
   const {
     data: filters,
     isLoading,
+    isError,
   } = useSubcategoryFilters(subcategoryId);
 
   const handleToggle = useCallback(
@@ -43,6 +45,15 @@ export function FilterSelectionForm({
 
   if (isLoading) {
     return <FilterFormSkeleton />;
+  }
+
+  if (isError) {
+    logger.error('Failed to load filter options', { subcategoryId });
+    return (
+      <p className="text-sm text-red-500 dark:text-red-400">
+        Could not load filter options. Please try again.
+      </p>
+    );
   }
 
   if (!filters || filters.length === 0) {

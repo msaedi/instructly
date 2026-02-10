@@ -2241,22 +2241,34 @@ class NLSearchService:
             hard_taxonomy_filters = explicit_taxonomy_filters
             hard_subcategory_id = explicit_subcategory_id
             if hard_taxonomy_filters or hard_subcategory_id:
-                candidate_service_ids = [candidate.service_id for candidate in candidates]
-                matching_service_ids = taxonomy_repository.find_matching_service_ids(
-                    service_ids=candidate_service_ids,
-                    subcategory_id=hard_subcategory_id,
-                    filter_selections=hard_taxonomy_filters,
-                    active_only=True,
-                )
+                try:
+                    candidate_service_ids = [candidate.service_id for candidate in candidates]
+                    matching_service_ids = taxonomy_repository.find_matching_service_ids(
+                        service_ids=candidate_service_ids,
+                        subcategory_id=hard_subcategory_id,
+                        filter_selections=hard_taxonomy_filters,
+                        active_only=True,
+                    )
 
-                if matching_service_ids:
-                    candidates = [
-                        candidate
-                        for candidate in candidates
-                        if candidate.service_id in matching_service_ids
-                    ]
-                else:
-                    candidates = []
+                    if matching_service_ids:
+                        candidates = [
+                            candidate
+                            for candidate in candidates
+                            if candidate.service_id in matching_service_ids
+                        ]
+                    else:
+                        candidates = []
+                except Exception:
+                    logger.warning(
+                        "taxonomy_filter_service_ids_failed",
+                        extra={
+                            "subcategory_id": hard_subcategory_id,
+                            "filter_count": len(hard_taxonomy_filters)
+                            if hard_taxonomy_filters
+                            else 0,
+                        },
+                        exc_info=True,
+                    )
 
             # Filtering (sync, DB-only)
             filter_start = time.perf_counter()
