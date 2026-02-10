@@ -250,7 +250,41 @@ class TestInstructorsFilteringAPI:
             .all()
         )
         if len(scoped_services) < 2:
-            pytest.skip("Need at least two active services for taxonomy filter assertions")
+            existing_profile_ids = {service.instructor_profile_id for service in scoped_services}
+            sample_user_ids = [user.id for user in sample_instructors]
+            candidate_profiles = (
+                db.query(InstructorProfile)
+                .filter(InstructorProfile.user_id.in_(sample_user_ids))
+                .order_by(InstructorProfile.id.asc())
+                .all()
+            )
+
+            for profile in candidate_profiles:
+                if profile.id in existing_profile_ids:
+                    continue
+                db.add(
+                    Service(
+                        instructor_profile_id=profile.id,
+                        service_catalog_id=service_catalog.id,
+                        hourly_rate=95.0,
+                        is_active=True,
+                        duration_options=[60],
+                    )
+                )
+                existing_profile_ids.add(profile.id)
+                if len(existing_profile_ids) >= 2:
+                    break
+
+            db.commit()
+            scoped_services = (
+                db.query(Service)
+                .filter(Service.service_catalog_id == service_catalog.id)
+                .filter(Service.is_active == True)
+                .order_by(Service.id.asc())
+                .all()
+            )
+
+        assert len(scoped_services) >= 2
 
         scoped_services[0].filter_selections = {
             "skill_level": ["beginner"],
