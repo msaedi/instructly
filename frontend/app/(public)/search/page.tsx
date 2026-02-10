@@ -889,7 +889,10 @@ function SearchPageInner() {
       if (!resolvedSubcategoryId) {
         return parsedContentFiltersFromUrl;
       }
-      if (!resolvedSubcategoryFilters) {
+      if (subcategoryFiltersError) {
+        return parsedContentFiltersFromUrl;
+      }
+      if (!resolvedSubcategoryFilters || resolvedSubcategoryFilters.length === 0) {
         return parsedContentFiltersFromUrl;
       }
       return sanitizeContentFiltersForSubcategory(
@@ -897,7 +900,12 @@ function SearchPageInner() {
         resolvedSubcategoryFilters
       );
     },
-    [parsedContentFiltersFromUrl, resolvedSubcategoryFilters, resolvedSubcategoryId]
+    [
+      parsedContentFiltersFromUrl,
+      resolvedSubcategoryFilters,
+      resolvedSubcategoryId,
+      subcategoryFiltersError,
+    ]
   );
 
   const filtersWithTaxonomy = useMemo<FilterState>(
@@ -1053,12 +1061,24 @@ function SearchPageInner() {
     [nlSearchMeta]
   );
 
+  const hasResolvedSubcategoryFilterDefinitions = useMemo(
+    () =>
+      Boolean(resolvedSubcategoryId) &&
+      !subcategoryFiltersError &&
+      taxonomyContentFiltersFromSubcategory.length > 0,
+    [resolvedSubcategoryId, subcategoryFiltersError, taxonomyContentFiltersFromSubcategory]
+  );
+
   const taxonomyContentFilters = useMemo(
     () =>
-      resolvedSubcategoryId
+      hasResolvedSubcategoryFilterDefinitions
         ? taxonomyContentFiltersFromSubcategory
         : taxonomyContentFiltersFromMeta,
-    [resolvedSubcategoryId, taxonomyContentFiltersFromMeta, taxonomyContentFiltersFromSubcategory]
+    [
+      hasResolvedSubcategoryFilterDefinitions,
+      taxonomyContentFiltersFromMeta,
+      taxonomyContentFiltersFromSubcategory,
+    ]
   );
 
   const inferredContentFiltersFromMeta = useMemo<ContentFilterSelections>(() => {

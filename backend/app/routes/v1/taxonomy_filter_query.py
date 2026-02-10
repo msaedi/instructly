@@ -63,7 +63,7 @@ def _parse_content_filters(content_filters: Optional[str]) -> Dict[str, List[str
             continue
         if ":" not in normalized_segment:
             logger.warning(
-                "Skipping malformed content_filters segment without ':'",
+                "Rejecting malformed content_filters segment without ':'",
                 extra={"segment": normalized_segment},
             )
             raise ValueError(
@@ -73,7 +73,7 @@ def _parse_content_filters(content_filters: Optional[str]) -> Dict[str, List[str
         key_raw, values_raw = normalized_segment.split(":", 1)
         key = key_raw.strip().lower()
         if not key:
-            logger.warning("Skipping malformed content_filters segment with empty key")
+            logger.warning("Rejecting malformed content_filters segment with empty key")
             raise ValueError(
                 f"Malformed content_filters segment '{normalized_segment}'. Key cannot be empty"
             )
@@ -81,7 +81,8 @@ def _parse_content_filters(content_filters: Optional[str]) -> Dict[str, List[str
         values = _parse_csv_values(values_raw)
         if not values:
             logger.warning(
-                "Skipping malformed content_filters segment with empty values", extra={"key": key}
+                "Rejecting malformed content_filters segment with empty values",
+                extra={"key": key},
             )
             raise ValueError(
                 f"Malformed content_filters segment '{normalized_segment}'. At least one value is required"

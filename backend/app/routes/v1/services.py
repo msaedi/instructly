@@ -32,6 +32,7 @@ from ...api.dependencies.auth import get_current_active_user
 from ...api.dependencies.services import get_instructor_service
 from ...core.exceptions import DomainException
 from ...models.user import User
+from ...ratelimit.dependency import rate_limit
 from ...schemas.service_catalog import (
     CatalogServiceMinimalResponse,
     CatalogServiceResponse,
@@ -341,7 +342,11 @@ async def get_all_services_with_instructors(
 # ── Taxonomy navigation endpoints ──────────────────────────────
 
 
-@router.get("/categories/browse", response_model=List[CategoryWithSubcategories])
+@router.get(
+    "/categories/browse",
+    response_model=List[CategoryWithSubcategories],
+    dependencies=[Depends(rate_limit("read"))],
+)
 async def get_categories_with_subcategories(
     response: Response,
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -352,7 +357,11 @@ async def get_categories_with_subcategories(
     return cast(List[CategoryWithSubcategories], data)
 
 
-@router.get("/categories/{category_id}/tree", response_model=CategoryTreeResponse)
+@router.get(
+    "/categories/{category_id}/tree",
+    response_model=CategoryTreeResponse,
+    dependencies=[Depends(rate_limit("read"))],
+)
 async def get_category_tree(
     category_id: str,
     response: Response,
@@ -367,7 +376,11 @@ async def get_category_tree(
     return CategoryTreeResponse(**model_filter(CategoryTreeResponse, data))
 
 
-@router.get("/categories/{category_id}/subcategories", response_model=List[SubcategoryBrief])
+@router.get(
+    "/categories/{category_id}/subcategories",
+    response_model=List[SubcategoryBrief],
+    dependencies=[Depends(rate_limit("read"))],
+)
 async def get_subcategories_for_category(
     category_id: str,
     response: Response,
@@ -391,7 +404,11 @@ async def get_subcategories_for_category(
     return briefs
 
 
-@router.get("/subcategories/{subcategory_id}", response_model=SubcategoryWithServices)
+@router.get(
+    "/subcategories/{subcategory_id}",
+    response_model=SubcategoryWithServices,
+    dependencies=[Depends(rate_limit("read"))],
+)
 async def get_subcategory_with_services(
     subcategory_id: str,
     response: Response,
@@ -411,6 +428,7 @@ async def get_subcategory_with_services(
 @router.get(
     "/subcategories/{subcategory_id}/filters",
     response_model=List[SubcategoryFilterResponse],
+    dependencies=[Depends(rate_limit("read"))],
 )
 async def get_subcategory_filters(
     subcategory_id: str,

@@ -962,11 +962,13 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
         if verbose:
             print("\n🗑  Clearing existing taxonomy data...")
 
+        # Delete in FK-safe order: dependents first, then parent taxonomy tables.
+        # instructor_services -> service_catalog uses RESTRICT, so it must be cleared first.
         session.execute(text("DELETE FROM subcategory_filter_options"))
         session.execute(text("DELETE FROM subcategory_filters"))
         session.execute(text("DELETE FROM filter_options"))
         session.execute(text("DELETE FROM filter_definitions"))
-        # Clear services before subcategories (FK)
+        session.execute(text("DELETE FROM instructor_services"))
         session.execute(text("DELETE FROM service_analytics"))
         session.execute(text("DELETE FROM service_catalog"))
         session.execute(text("DELETE FROM service_subcategories"))

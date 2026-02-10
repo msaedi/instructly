@@ -132,10 +132,53 @@ LOCATION_LLM_EMBEDDING_THRESHOLD = float(os.getenv("LOCATION_LLM_EMBEDDING_THRES
 # Top-match subcategory consensus for post-retrieval taxonomy inference.
 TOP_MATCH_SUBCATEGORY_CANDIDATES = 5
 TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS = 2
-SUBCATEGORY_FILTER_CACHE_TTL_SECONDS = int(
-    os.getenv("NL_SEARCH_SUBCATEGORY_FILTER_CACHE_TTL_SECONDS", "180")
+SUBCATEGORY_FILTER_CACHE_TTL_SECONDS = max(
+    60,
+    int(os.getenv("NL_SEARCH_SUBCATEGORY_FILTER_CACHE_TTL_SECONDS", "180")),
 )
 SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES = 512
+_subcategory_filter_cache: Dict[str, Tuple[float, Any]] = {}
+_subcategory_filter_cache_lock = threading.Lock()
+
+
+def _get_cached_subcategory_filter_value(cache_key: str) -> Tuple[bool, Any]:
+    """Return cached value for key if present and unexpired."""
+    now = time.monotonic()
+    with _subcategory_filter_cache_lock:
+        cached = _subcategory_filter_cache.get(cache_key)
+        if cached is None:
+            return False, None
+
+        cached_at, value = cached
+        if now - cached_at > SUBCATEGORY_FILTER_CACHE_TTL_SECONDS:
+            _subcategory_filter_cache.pop(cache_key, None)
+            return False, None
+        return True, value
+
+
+def _set_cached_subcategory_filter_value(cache_key: str, value: Any) -> None:
+    """Store cached value for key with bounded size and TTL-aware eviction."""
+    now = time.monotonic()
+    with _subcategory_filter_cache_lock:
+        if len(_subcategory_filter_cache) >= SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES:
+            expired_keys = [
+                key
+                for key, (cached_at, _cached_value) in _subcategory_filter_cache.items()
+                if now - cached_at > SUBCATEGORY_FILTER_CACHE_TTL_SECONDS
+            ]
+            for key in expired_keys:
+                _subcategory_filter_cache.pop(key, None)
+
+            if len(_subcategory_filter_cache) >= SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES:
+                oldest_entries = sorted(
+                    _subcategory_filter_cache.items(),
+                    key=lambda item: item[1][0],
+                )
+                trim_count = max(1, len(oldest_entries) // 2)
+                for key, _entry in oldest_entries[:trim_count]:
+                    _subcategory_filter_cache.pop(key, None)
+
+        _subcategory_filter_cache[cache_key] = (now, value)
 
 
 @dataclass
@@ -331,10 +374,6 @@ class NLSearchService:
         self.ranking_service = ranking_service or RankingService()
         self.location_embedding_service = LocationEmbeddingService(repository=None)
         self.location_llm_service = LocationLLMService()
-        self._subcategory_filter_cache: Dict[
-            str, Tuple[float, List[Dict[str, Any]], Optional[str]]
-        ] = {}
-        self._subcategory_filter_cache_lock = threading.Lock()
 
     async def search(
         self,
@@ -1121,32 +1160,18 @@ class NLSearchService:
         subcategory_id: str,
     ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
         """Return cached taxonomy filter definitions + subcategory name for a subcategory."""
-        now = time.time()
-        with self._subcategory_filter_cache_lock:
-            cached = self._subcategory_filter_cache.get(subcategory_id)
-            if cached and cached[0] > now:
-                return cached[1], cached[2]
+        filters_cache_key = f"filters:{subcategory_id}"
+        name_cache_key = f"name:{subcategory_id}"
+
+        has_cached_filters, cached_filters = _get_cached_subcategory_filter_value(filters_cache_key)
+        has_cached_name, cached_name = _get_cached_subcategory_filter_value(name_cache_key)
+        if has_cached_filters and has_cached_name:
+            return cached_filters, cached_name
 
         subcategory_filters = taxonomy_repository.get_filters_for_subcategory(subcategory_id)
         subcategory_name = taxonomy_repository.get_subcategory_name(subcategory_id)
-        expires_at = now + max(60, SUBCATEGORY_FILTER_CACHE_TTL_SECONDS)
-
-        with self._subcategory_filter_cache_lock:
-            self._subcategory_filter_cache[subcategory_id] = (
-                expires_at,
-                subcategory_filters,
-                subcategory_name,
-            )
-            if len(self._subcategory_filter_cache) > SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES:
-                expired_keys = [
-                    key
-                    for key, (expiry, _filters, _name) in self._subcategory_filter_cache.items()
-                    if expiry <= now
-                ]
-                for key in expired_keys:
-                    self._subcategory_filter_cache.pop(key, None)
-                while len(self._subcategory_filter_cache) > SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES:
-                    self._subcategory_filter_cache.pop(next(iter(self._subcategory_filter_cache)))
+        _set_cached_subcategory_filter_value(filters_cache_key, subcategory_filters)
+        _set_cached_subcategory_filter_value(name_cache_key, subcategory_name)
 
         return subcategory_filters, subcategory_name
 
