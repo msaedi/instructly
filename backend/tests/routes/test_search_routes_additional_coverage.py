@@ -124,7 +124,9 @@ def test_search_near_me_uses_default_address(
 
     fake_cache = FakeCacheService()
     with _override_cache_service(fake_cache):
-        response = client.get("/api/v1/search", params={"q": "near me"}, headers=auth_headers_student)
+        response = client.get(
+            "/api/v1/search", params={"q": "near me"}, headers=auth_headers_student
+        )
 
     assert response.status_code == 200
     data = response.json()
@@ -182,13 +184,13 @@ def test_search_accepts_taxonomy_filters_and_forwards(client, monkeypatch) -> No
             "q": "piano lessons",
             "skill_level": "beginner, intermediate, beginner",
             "content_filters": "goal:enrichment,,test_prep|format:one_time|style:jazz",
-            "subcategory_id": "01HXYZSUBCATEGORY0000000000",
+            "subcategory_id": "01HABCDEFGHJKMNPQRSTVWXYZ0",
         },
     )
 
     assert response.status_code == 200
     assert captured_kwargs["explicit_skill_levels"] == ["beginner", "intermediate"]
-    assert captured_kwargs["subcategory_id"] == "01HXYZSUBCATEGORY0000000000"
+    assert captured_kwargs["subcategory_id"] == "01HABCDEFGHJKMNPQRSTVWXYZ0"
     assert captured_kwargs["taxonomy_filter_selections"] == {
         "skill_level": ["beginner", "intermediate"],
         "goal": ["enrichment", "test_prep"],
@@ -197,7 +199,7 @@ def test_search_accepts_taxonomy_filters_and_forwards(client, monkeypatch) -> No
     }
 
 
-def test_search_ignores_malformed_content_filter_segments(client, monkeypatch) -> None:
+def test_search_rejects_malformed_content_filter_segments(client, monkeypatch) -> None:
     captured_kwargs: dict = {}
 
     async def fake_search(self, query: str, **kwargs) -> NLSearchResponse:
@@ -214,8 +216,9 @@ def test_search_ignores_malformed_content_filter_segments(client, monkeypatch) -
         },
     )
 
-    assert response.status_code == 200
-    assert captured_kwargs["taxonomy_filter_selections"] == {"goal": ["enrichment"]}
+    assert response.status_code == 400
+    assert "Malformed content_filters segment" in response.json()["detail"]
+    assert captured_kwargs == {}
 
 
 def test_search_accepts_arbitrary_content_filter_key(client, monkeypatch) -> None:
@@ -242,7 +245,9 @@ def test_search_accepts_arbitrary_content_filter_key(client, monkeypatch) -> Non
     }
 
 
-def test_search_skill_level_param_overrides_content_filters_skill_level(client, monkeypatch) -> None:
+def test_search_skill_level_param_overrides_content_filters_skill_level(
+    client, monkeypatch
+) -> None:
     captured_kwargs: dict = {}
 
     async def fake_search(self, query: str, **kwargs) -> NLSearchResponse:
@@ -392,9 +397,7 @@ def test_search_click_endpoint(client, db, test_instructor, auth_headers_admin) 
     )
 
     profile = (
-        db.query(InstructorProfile)
-        .filter(InstructorProfile.user_id == test_instructor.id)
-        .first()
+        db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
     )
     assert profile is not None
     service = (

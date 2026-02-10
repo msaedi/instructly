@@ -94,6 +94,7 @@ async def list_instructors(
     subcategory_id: Optional[str] = Query(None, description="Optional subcategory ULID context"),
     content_filters: Optional[str] = Query(
         None,
+        max_length=2000,
         description=(
             "Pipe-delimited taxonomy content filters in the format "
             "'key:val1,val2|key2:val3'. "

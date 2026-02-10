@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Dict, List, Optional, Tuple
 
 ALLOWED_SKILL_LEVELS = {"beginner", "intermediate", "advanced"}
 MAX_CONTENT_FILTER_KEYS = 10
 MAX_CONTENT_FILTER_VALUES_PER_KEY = 20
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_csv_values(raw_value: Optional[str]) -> List[str]:
@@ -56,17 +59,33 @@ def _parse_content_filters(content_filters: Optional[str]) -> Dict[str, List[str
 
     for segment in content_filters.split("|"):
         normalized_segment = segment.strip()
-        if not normalized_segment or ":" not in normalized_segment:
+        if not normalized_segment:
             continue
+        if ":" not in normalized_segment:
+            logger.warning(
+                "Skipping malformed content_filters segment without ':'",
+                extra={"segment": normalized_segment},
+            )
+            raise ValueError(
+                f"Malformed content_filters segment '{normalized_segment}'. Expected format 'key:value1,value2'"
+            )
 
         key_raw, values_raw = normalized_segment.split(":", 1)
         key = key_raw.strip().lower()
         if not key:
-            continue
+            logger.warning("Skipping malformed content_filters segment with empty key")
+            raise ValueError(
+                f"Malformed content_filters segment '{normalized_segment}'. Key cannot be empty"
+            )
 
         values = _parse_csv_values(values_raw)
         if not values:
-            continue
+            logger.warning(
+                "Skipping malformed content_filters segment with empty values", extra={"key": key}
+            )
+            raise ValueError(
+                f"Malformed content_filters segment '{normalized_segment}'. At least one value is required"
+            )
 
         existing_values = parsed_filters.setdefault(key, [])
         existing_seen = set(existing_values)

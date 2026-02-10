@@ -23,6 +23,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -193,6 +194,10 @@ class SubcategoryFilter(Base):
             "filter_definition_id",
             name="uq_subcategory_filter_definition",
         ),
+        Index(
+            "idx_subcategory_filters_filter_definition_id",
+            "filter_definition_id",
+        ),
     )
 
     def __repr__(self) -> str:
@@ -249,6 +254,5 @@ class SubcategoryFilterOption(Base):
 
     def __repr__(self) -> str:
         return (
-            f"<SubcategoryFilterOption sf={self.subcategory_filter_id} "
-            f"opt={self.filter_option_id}>"
+            f"<SubcategoryFilterOption sf={self.subcategory_filter_id} opt={self.filter_option_id}>"
         )

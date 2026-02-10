@@ -169,7 +169,9 @@ class ServiceCatalog(Base):
     description = Column(Text, nullable=True)
     search_terms: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     eligible_age_groups: Mapped[List[str]] = mapped_column(
-        StringArrayType, nullable=False, default=["toddler", "kids", "teens", "adults"]
+        StringArrayType,
+        nullable=False,
+        default=lambda: ["toddler", "kids", "teens", "adults"],
     )
     default_duration_minutes = Column(Integer, nullable=False, default=60)
     price_floor_in_person_cents = Column(Integer, nullable=True)
@@ -346,14 +348,16 @@ class InstructorService(Base):
     description = Column(Text, nullable=True)
     requirements = Column(Text, nullable=True)
     duration_options: Mapped[List[int]] = mapped_column(
-        IntegerArrayType, nullable=False, default=[60]
+        IntegerArrayType,
+        nullable=False,
+        default=lambda: [60],
     )
     equipment_required: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     age_groups: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     filter_selections = Column(
         JSONB(astext_type=Text()).with_variant(JSON(), "sqlite"),
         nullable=False,
-        default={},
+        default=dict,
         server_default="{}",
     )
     offers_travel = Column(Boolean, nullable=False, default=False)
@@ -402,12 +406,13 @@ class InstructorService(Base):
 
     @property
     def category_slug(self) -> str:
-        """Get category ID as a URL-safe identifier."""
+        """Get category slug for URL construction."""
         entry = self.catalog_entry
         if entry:
             cat = entry.category
-            if cat:
-                return cast(str, cat.id)
+            slug = getattr(cat, "slug", None)
+            if isinstance(slug, str) and slug.strip():
+                return slug
         return "unknown"
 
     def session_price(self, duration_minutes: int) -> float:

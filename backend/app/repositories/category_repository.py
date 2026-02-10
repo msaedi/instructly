@@ -52,7 +52,11 @@ class CategoryRepository(BaseRepository[ServiceCategory]):
         return cast(
             Optional[ServiceCategory],
             self.db.query(ServiceCategory)
-            .options(selectinload(ServiceCategory.subcategories))
+            .options(
+                selectinload(ServiceCategory.subcategories).selectinload(
+                    ServiceSubcategory.services
+                )
+            )
             .filter(ServiceCategory.slug == slug)
             .first(),
         )

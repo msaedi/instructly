@@ -89,7 +89,10 @@ class ServiceSubcategory(Base):
         order_by="SubcategoryFilter.display_order",
     )
 
-    __table_args__ = (UniqueConstraint("category_id", "name", name="uq_subcategory_category_name"),)
+    __table_args__ = (
+        UniqueConstraint("category_id", "name", name="uq_subcategory_category_name"),
+        UniqueConstraint("category_id", "slug", name="uq_subcategory_category_slug"),
+    )
 
     def __repr__(self) -> str:
         return f"<ServiceSubcategory {self.name} (category_id={self.category_id})>"

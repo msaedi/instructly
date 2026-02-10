@@ -11,12 +11,14 @@ Pipeline stages:
 6. Multi-signal ranking - quality, distance, freshness, etc.
 7. Response caching - store for future requests
 """
+
 from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
 import logging
 import os
+import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
@@ -130,6 +132,10 @@ LOCATION_LLM_EMBEDDING_THRESHOLD = float(os.getenv("LOCATION_LLM_EMBEDDING_THRES
 # Top-match subcategory consensus for post-retrieval taxonomy inference.
 TOP_MATCH_SUBCATEGORY_CANDIDATES = 5
 TOP_MATCH_SUBCATEGORY_MIN_CONSENSUS = 2
+SUBCATEGORY_FILTER_CACHE_TTL_SECONDS = int(
+    os.getenv("NL_SEARCH_SUBCATEGORY_FILTER_CACHE_TTL_SECONDS", "180")
+)
+SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES = 512
 
 
 @dataclass
@@ -325,6 +331,10 @@ class NLSearchService:
         self.ranking_service = ranking_service or RankingService()
         self.location_embedding_service = LocationEmbeddingService(repository=None)
         self.location_llm_service = LocationLLMService()
+        self._subcategory_filter_cache: Dict[
+            str, Tuple[float, List[Dict[str, Any]], Optional[str]]
+        ] = {}
+        self._subcategory_filter_cache_lock = threading.Lock()
 
     async def search(
         self,
@@ -1104,6 +1114,41 @@ class NLSearchService:
             if values:
                 normalized[key] = values
         return normalized
+
+    def _load_subcategory_filter_metadata(
+        self,
+        taxonomy_repository: Any,
+        subcategory_id: str,
+    ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        """Return cached taxonomy filter definitions + subcategory name for a subcategory."""
+        now = time.time()
+        with self._subcategory_filter_cache_lock:
+            cached = self._subcategory_filter_cache.get(subcategory_id)
+            if cached and cached[0] > now:
+                return cached[1], cached[2]
+
+        subcategory_filters = taxonomy_repository.get_filters_for_subcategory(subcategory_id)
+        subcategory_name = taxonomy_repository.get_subcategory_name(subcategory_id)
+        expires_at = now + max(60, SUBCATEGORY_FILTER_CACHE_TTL_SECONDS)
+
+        with self._subcategory_filter_cache_lock:
+            self._subcategory_filter_cache[subcategory_id] = (
+                expires_at,
+                subcategory_filters,
+                subcategory_name,
+            )
+            if len(self._subcategory_filter_cache) > SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES:
+                expired_keys = [
+                    key
+                    for key, (expiry, _filters, _name) in self._subcategory_filter_cache.items()
+                    if expiry <= now
+                ]
+                for key in expired_keys:
+                    self._subcategory_filter_cache.pop(key, None)
+                while len(self._subcategory_filter_cache) > SUBCATEGORY_FILTER_CACHE_MAX_ENTRIES:
+                    self._subcategory_filter_cache.pop(next(iter(self._subcategory_filter_cache)))
+
+        return subcategory_filters, subcategory_name
 
     @staticmethod
     def _build_available_content_filters(
@@ -2143,11 +2188,12 @@ class NLSearchService:
             effective_subcategory_name: Optional[str] = None
             available_content_filters: List[NLSearchContentFilterDefinition] = []
             if effective_subcategory_id:
-                subcategory_filters = taxonomy_repository.get_filters_for_subcategory(
-                    effective_subcategory_id
-                )
-                effective_subcategory_name = taxonomy_repository.get_subcategory_name(
-                    effective_subcategory_id
+                (
+                    subcategory_filters,
+                    effective_subcategory_name,
+                ) = self._load_subcategory_filter_metadata(
+                    taxonomy_repository,
+                    effective_subcategory_id,
                 )
                 available_content_filters = self._build_available_content_filters(
                     subcategory_filters

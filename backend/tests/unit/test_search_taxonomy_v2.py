@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import re
 
 import pytest
 
@@ -56,9 +57,7 @@ class TestCategoryKeywordCoverage:
     """Every category keyword value must be a real category name."""
 
     def test_all_values_are_valid_categories(self) -> None:
-        invalid = {
-            v for v in CATEGORY_KEYWORDS.values() if v not in SEED_CATEGORY_NAMES
-        }
+        invalid = {v for v in CATEGORY_KEYWORDS.values() if v not in SEED_CATEGORY_NAMES}
         assert invalid == set(), f"Phantom categories in CATEGORY_KEYWORDS: {invalid}"
 
     def test_every_category_has_at_least_one_keyword(self) -> None:
@@ -80,14 +79,8 @@ class TestSubcategoryKeywordCoverage:
     """Every subcategory keyword value must be a real subcategory name."""
 
     def test_all_values_are_valid_subcategories(self) -> None:
-        invalid = {
-            v
-            for v in SUBCATEGORY_KEYWORDS.values()
-            if v not in SEED_SUBCATEGORY_NAMES
-        }
-        assert (
-            invalid == set()
-        ), f"Phantom subcategories in SUBCATEGORY_KEYWORDS: {invalid}"
+        invalid = {v for v in SUBCATEGORY_KEYWORDS.values() if v not in SEED_SUBCATEGORY_NAMES}
+        assert invalid == set(), f"Phantom subcategories in SUBCATEGORY_KEYWORDS: {invalid}"
 
     def test_high_traffic_subcategories_have_keywords(self) -> None:
         """At least the most popular subcategories should have keyword coverage."""
@@ -127,9 +120,7 @@ class TestSubcategoryKeywordCoverage:
         }
         covered = set(SUBCATEGORY_KEYWORDS.values())
         missing = must_cover - covered
-        assert missing == set(), (
-            f"High-traffic subcategories missing keywords: {missing}"
-        )
+        assert missing == set(), f"High-traffic subcategories missing keywords: {missing}"
 
     def test_keyword_keys_are_lowercase(self) -> None:
         bad = [k for k in SUBCATEGORY_KEYWORDS if k != k.lower()]
@@ -145,9 +136,7 @@ class TestServiceKeywordCoverage:
     """Every service keyword value must be a real service name from seed."""
 
     def test_all_values_are_valid_services(self) -> None:
-        invalid = {
-            v for v in SERVICE_KEYWORDS.values() if v not in SEED_SERVICE_NAMES
-        }
+        invalid = {v for v in SERVICE_KEYWORDS.values() if v not in SEED_SERVICE_NAMES}
         assert invalid == set(), f"Phantom services in SERVICE_KEYWORDS: {invalid}"
 
     def test_high_traffic_services_have_keywords(self) -> None:
@@ -254,28 +243,26 @@ class TestTaxonomyDetection:
     def _detect(query: str) -> dict[str, str | None]:
         """Run keyword detection against a query string (mirrors _detect_taxonomy)."""
         q = query.lower()
+
+        def _contains_keyword(text: str, keyword: str) -> bool:
+            return re.search(r"\b" + re.escape(keyword) + r"\b", text, re.IGNORECASE) is not None
+
         result: dict[str, str | None] = {
             "category_hint": None,
             "subcategory_hint": None,
             "service_hint": None,
         }
         # Most-specific-first: SERVICE -> SUBCATEGORY -> CATEGORY
-        for kw, svc in sorted(
-            SERVICE_KEYWORDS.items(), key=lambda x: -len(x[0])
-        ):
-            if kw in q:
+        for kw, svc in sorted(SERVICE_KEYWORDS.items(), key=lambda x: -len(x[0])):
+            if _contains_keyword(q, kw):
                 result["service_hint"] = svc
                 break
-        for kw, sub in sorted(
-            SUBCATEGORY_KEYWORDS.items(), key=lambda x: -len(x[0])
-        ):
-            if kw in q:
+        for kw, sub in sorted(SUBCATEGORY_KEYWORDS.items(), key=lambda x: -len(x[0])):
+            if _contains_keyword(q, kw):
                 result["subcategory_hint"] = sub
                 break
-        for kw, cat in sorted(
-            CATEGORY_KEYWORDS.items(), key=lambda x: -len(x[0])
-        ):
-            if kw in q:
+        for kw, cat in sorted(CATEGORY_KEYWORDS.items(), key=lambda x: -len(x[0])):
+            if _contains_keyword(q, kw):
                 result["category_hint"] = cat
                 break
         return result
@@ -330,3 +317,19 @@ class TestTaxonomyDetection:
             f"Query '{query}': expected category '{expected_category}', "
             f"got '{result['category_hint']}'"
         )
+
+    @pytest.mark.parametrize(
+        "query,unexpected_hint_type,unexpected_value",
+        [
+            ("starting point for lessons", "category_hint", "Arts"),
+            ("satisfaction guaranteed tutoring", "service_hint", "SAT"),
+        ],
+    )
+    def test_detection_uses_word_boundaries(
+        self,
+        query: str,
+        unexpected_hint_type: str,
+        unexpected_value: str,
+    ) -> None:
+        result = self._detect(query)
+        assert result[unexpected_hint_type] != unexpected_value

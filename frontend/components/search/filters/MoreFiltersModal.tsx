@@ -37,6 +37,15 @@ interface MoreFiltersModalProps {
   suggestedContentFilters?: ContentFilterSelections;
 }
 
+interface MoreFiltersModalContentProps {
+  onClose: () => void;
+  filters: FilterState;
+  onFiltersChange: (filters: FilterState) => void;
+  skillLevelOptions: SkillLevelOption[];
+  taxonomyContentFilters: TaxonomyContentFilterDefinition[];
+  suggestedContentFilters: ContentFilterSelections;
+}
+
 function buildInitialDraft(
   filters: FilterState,
   taxonomyContentFilters: TaxonomyContentFilterDefinition[],
@@ -66,26 +75,25 @@ function buildInitialDraft(
   };
 }
 
-export function MoreFiltersModal({
-  isOpen,
+function MoreFiltersModalContent({
   onClose,
   filters,
   onFiltersChange,
-  skillLevelOptions = UNIVERSAL_SKILL_LEVEL_OPTIONS,
-  taxonomyContentFilters = EMPTY_TAXONOMY_CONTENT_FILTERS,
-  suggestedContentFilters = EMPTY_SUGGESTED_CONTENT_FILTERS,
-}: MoreFiltersModalProps) {
+  skillLevelOptions,
+  taxonomyContentFilters,
+  suggestedContentFilters,
+}: MoreFiltersModalContentProps) {
   const [draft, setDraft] = useState(() =>
     buildInitialDraft(filters, taxonomyContentFilters, suggestedContentFilters)
   );
 
   useEffect(() => {
-    if (!isOpen || process.env.NODE_ENV === 'production') return;
+    if (process.env.NODE_ENV === 'production') return;
     logger.debug('[search:taxonomy] MoreFiltersModal taxonomy props', {
       taxonomyContentFilterCount: taxonomyContentFilters.length,
       taxonomyContentFilterKeys: taxonomyContentFilters.map((filter) => filter.key),
     });
-  }, [isOpen, taxonomyContentFilters]);
+  }, [taxonomyContentFilters]);
 
   const toggleArrayValue = <T,>(list: T[], value: T): T[] =>
     list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
@@ -112,8 +120,6 @@ export function MoreFiltersModal({
     });
     onClose();
   };
-
-  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center">
@@ -298,5 +304,28 @@ export function MoreFiltersModal({
         </div>
       </div>
     </div>
+  );
+}
+
+export function MoreFiltersModal({
+  isOpen,
+  onClose,
+  filters,
+  onFiltersChange,
+  skillLevelOptions = UNIVERSAL_SKILL_LEVEL_OPTIONS,
+  taxonomyContentFilters = EMPTY_TAXONOMY_CONTENT_FILTERS,
+  suggestedContentFilters = EMPTY_SUGGESTED_CONTENT_FILTERS,
+}: MoreFiltersModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <MoreFiltersModalContent
+      onClose={onClose}
+      filters={filters}
+      onFiltersChange={onFiltersChange}
+      skillLevelOptions={skillLevelOptions}
+      taxonomyContentFilters={taxonomyContentFilters}
+      suggestedContentFilters={suggestedContentFilters}
+    />
   );
 }

@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 import logging
 import os
 from typing import Any, Dict, List, Optional, Sequence, Set, cast
-from unittest.mock import Mock
 
 import anyio
 from sqlalchemy.orm import Session
@@ -967,8 +966,7 @@ class InstructorService(BaseService):
                         service.catalog_entry.name if service.catalog_entry else "Unknown"
                     )
                     logger.info(
-                        f"Hard deleted service '{catalog_name}' (ID: {service.id}) "
-                        f"- no bookings"
+                        f"Hard deleted service '{catalog_name}' (ID: {service.id}) - no bookings"
                     )
 
         # Update skills_configured based on whether services exist after update
@@ -1151,13 +1149,10 @@ class InstructorService(BaseService):
         svcs_source = getattr(profile, "services", None)
         if svcs_source is None:
             svcs_source = getattr(profile, "instructor_services", []) or []
-        if isinstance(svcs_source, Mock):
-            services: list[Any] = []
-        else:
-            try:
-                services = list(svcs_source or [])
-            except TypeError:
-                services = []
+        try:
+            services = list(svcs_source or [])
+        except TypeError:
+            services = []
 
         if not include_inactive_services:
             services = [s for s in services if getattr(s, "is_active", True)]

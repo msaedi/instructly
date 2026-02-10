@@ -79,9 +79,14 @@ async def nl_search(
         None,
         description="Comma-separated skill levels (beginner,intermediate,advanced)",
     ),
-    subcategory_id: Optional[str] = Query(None, description="Optional subcategory ULID context"),
+    subcategory_id: Optional[str] = Query(
+        None,
+        pattern=r"^[0-9A-Z]{26}$",
+        description="Optional subcategory ULID context",
+    ),
     content_filters: Optional[str] = Query(
         None,
+        max_length=2000,
         description=(
             "Pipe-delimited taxonomy content filters in the format "
             "'key:val1,val2|key2:val3'. "

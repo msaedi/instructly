@@ -679,7 +679,11 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         return cast(
             List[ServiceCategory],
             self.db.query(ServiceCategory)
-            .options(selectinload(ServiceCategory.subcategories))
+            .options(
+                selectinload(ServiceCategory.subcategories).selectinload(
+                    ServiceSubcategory.services
+                )
+            )
             .order_by(ServiceCategory.display_order)
             .all(),
         )

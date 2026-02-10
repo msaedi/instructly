@@ -11201,22 +11201,14 @@ export type components = {
             online_capable?: boolean | null;
             /** Requires Certification */
             requires_certification?: boolean | null;
-            /**
-             * Search Terms
-             * @default []
-             */
-            search_terms: string[];
+            /** Search Terms */
+            search_terms?: string[];
             /** Slug */
             slug?: string | null;
             /** Subcategory Id */
             subcategory_id: string;
-            /**
-             * Typical Duration Options
-             * @default [
-             *       60
-             *     ]
-             */
-            typical_duration_options: number[];
+            /** Typical Duration Options */
+            typical_duration_options?: number[];
         };
         /**
          * CategoryDetail
@@ -13536,13 +13528,8 @@ export type components = {
             created_at?: string | null;
             /** Description */
             description?: string | null;
-            /**
-             * Duration Options
-             * @default [
-             *       60
-             *     ]
-             */
-            duration_options: number[];
+            /** Duration Options */
+            duration_options?: number[];
             /** Filter Selections */
             filter_selections?: {
                 [key: string]: string[];

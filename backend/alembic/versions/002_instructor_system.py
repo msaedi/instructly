@@ -5,6 +5,7 @@ Revision ID: 002_instructor_system
 Revises: 001_core_foundation
 Create Date: 2025-02-10 00:00:01.000000
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -38,9 +39,7 @@ def upgrade() -> None:
         sa.Column("min_advance_booking_hours", sa.Integer(), nullable=False, server_default="2"),
         sa.Column("buffer_time_minutes", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("current_tier_pct", sa.Numeric(5, 2), nullable=False, server_default="15.00"),
-        sa.Column(
-            "is_founding_instructor", sa.Boolean(), nullable=False, server_default="false"
-        ),
+        sa.Column("is_founding_instructor", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("founding_granted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_tier_eval_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("skills_configured", sa.Boolean(), nullable=False, server_default="false"),
@@ -58,7 +57,9 @@ def upgrade() -> None:
         sa.Column("bgc_valid_until", sa.DateTime(timezone=True), nullable=True),
         sa.Column("bgc_eta", sa.DateTime(timezone=True), nullable=True),
         sa.Column("bgc_invited_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("bgc_includes_canceled", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column(
+            "bgc_includes_canceled", sa.Boolean(), nullable=False, server_default=sa.text("false")
+        ),
         sa.Column("bgc_in_dispute", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("bgc_dispute_note", sa.Text(), nullable=True),
         sa.Column("bgc_dispute_opened_at", sa.DateTime(timezone=True), nullable=True),
@@ -188,9 +189,7 @@ def upgrade() -> None:
         comment="Append-only lifecycle events for instructor onboarding funnel",
     )
 
-    op.create_index(
-        "idx_lifecycle_events_user_id", "instructor_lifecycle_events", ["user_id"]
-    )
+    op.create_index("idx_lifecycle_events_user_id", "instructor_lifecycle_events", ["user_id"])
     op.create_index(
         "idx_lifecycle_events_type_occurred",
         "instructor_lifecycle_events",
@@ -270,6 +269,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("category_id", "name", name="uq_subcategory_category_name"),
+        sa.UniqueConstraint("category_id", "slug", name="uq_subcategory_category_slug"),
         comment="Subcategories within service categories (middle tier of 3-level taxonomy)",
     )
 
@@ -288,7 +288,7 @@ def upgrade() -> None:
         "idx_subcategory_slug",
         "service_subcategories",
         ["slug"],
-        unique=True,
+        unique=False,
     )
 
     # Create filter_definitions table
@@ -392,6 +392,11 @@ def upgrade() -> None:
         "idx_subcategory_filters_subcategory_id",
         "subcategory_filters",
         ["subcategory_id"],
+    )
+    op.create_index(
+        "idx_subcategory_filters_filter_definition_id",
+        "subcategory_filters",
+        ["filter_definition_id"],
     )
 
     # Create subcategory_filter_options table
@@ -557,8 +562,14 @@ def upgrade() -> None:
     )
 
     op.create_index("ix_instructor_services_id", "instructor_services", ["id"])
-    op.create_index("idx_instructor_services_instructor_profile_id", "instructor_services", ["instructor_profile_id"])
-    op.create_index("idx_instructor_services_service_catalog_id", "instructor_services", ["service_catalog_id"])
+    op.create_index(
+        "idx_instructor_services_instructor_profile_id",
+        "instructor_services",
+        ["instructor_profile_id"],
+    )
+    op.create_index(
+        "idx_instructor_services_service_catalog_id", "instructor_services", ["service_catalog_id"]
+    )
     op.create_index(
         "idx_instructor_services_active",
         "instructor_services",
@@ -579,9 +590,13 @@ def upgrade() -> None:
         postgresql_using="gin",
     )
 
-    op.create_check_constraint("check_hourly_rate_positive", "instructor_services", "hourly_rate > 0")
     op.create_check_constraint(
-        "check_duration_options_not_empty", "instructor_services", "array_length(duration_options, 1) > 0"
+        "check_hourly_rate_positive", "instructor_services", "hourly_rate > 0"
+    )
+    op.create_check_constraint(
+        "check_duration_options_not_empty",
+        "instructor_services",
+        "array_length(duration_options, 1) > 0",
     )
     op.create_check_constraint(
         "check_duration_options_range",
@@ -671,7 +686,9 @@ def upgrade() -> None:
         sa.Column("profile_id", sa.String(length=26), nullable=False),
         sa.Column("notice_id", sa.String(length=26), nullable=False),
         sa.Column("event_type", sa.String(length=40), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["profile_id"], ["instructor_profiles.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -691,7 +708,9 @@ def upgrade() -> None:
         "bgc_consent",
         sa.Column("id", sa.String(length=26), nullable=False),
         sa.Column("instructor_id", sa.String(length=26), nullable=False),
-        sa.Column("consented_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "consented_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
         sa.Column("consent_version", sa.Text(), nullable=False),
         sa.Column("ip_address", sa.String(length=45), nullable=True),
         sa.ForeignKeyConstraint(["instructor_id"], ["instructor_profiles.id"], ondelete="CASCADE"),
@@ -760,6 +779,7 @@ def downgrade() -> None:
     op.drop_index("idx_sfo_option", table_name="subcategory_filter_options")
     op.drop_index("idx_scfo_subcategory_filter_id", table_name="subcategory_filter_options")
     op.drop_table("subcategory_filter_options")
+    op.drop_index("idx_subcategory_filters_filter_definition_id", table_name="subcategory_filters")
     op.drop_index("idx_subcategory_filters_subcategory_id", table_name="subcategory_filters")
     op.drop_table("subcategory_filters")
     op.drop_index("idx_filter_options_definition_id", table_name="filter_options")

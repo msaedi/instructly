@@ -83,7 +83,7 @@ export type UpdateFilterSelectionsRequest = components['schemas']['UpdateFilterS
 export type ValidateFiltersRequest = components['schemas']['ValidateFiltersRequest'];
 
 // Age group type
-export type AgeGroup = 'toddler' | 'children' | 'teens' | 'adults' | 'seniors';
+export type AgeGroup = 'toddler' | 'kids' | 'teens' | 'adults';
 
 // Booking enums
 export type BookingStatus = components['schemas']['BookingStatus'];

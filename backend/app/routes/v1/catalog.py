@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, Response
 
 from ...api.dependencies.services import get_catalog_browse_service
 from ...core.exceptions import DomainException
+from ...ratelimit.dependency import rate_limit
 from ...schemas.service_catalog import ServiceCatalogDetail, ServiceCatalogSummary
 from ...schemas.subcategory import CategoryDetail, CategorySummary, SubcategoryDetail
 from ...schemas.taxonomy_filter import SubcategoryFilterResponse
@@ -29,7 +30,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["catalog-v1"])
 
 
-@router.get("/categories", response_model=List[CategorySummary])
+@router.get(
+    "/categories",
+    response_model=List[CategorySummary],
+    dependencies=[Depends(rate_limit("read"))],
+)
 async def list_categories(
     response: Response,
     service: CatalogBrowseService = Depends(get_catalog_browse_service),
@@ -40,7 +45,11 @@ async def list_categories(
     return cast(List[CategorySummary], data)
 
 
-@router.get("/categories/{category_slug}", response_model=CategoryDetail)
+@router.get(
+    "/categories/{category_slug}",
+    response_model=CategoryDetail,
+    dependencies=[Depends(rate_limit("read"))],
+)
 async def get_category(
     category_slug: str,
     response: Response,
@@ -58,6 +67,7 @@ async def get_category(
 @router.get(
     "/categories/{category_slug}/{subcategory_slug}",
     response_model=SubcategoryDetail,
+    dependencies=[Depends(rate_limit("read"))],
 )
 async def get_subcategory(
     category_slug: str,
@@ -74,7 +84,11 @@ async def get_subcategory(
     return SubcategoryDetail(**data)
 
 
-@router.get("/services/{service_id}", response_model=ServiceCatalogDetail)
+@router.get(
+    "/services/{service_id}",
+    response_model=ServiceCatalogDetail,
+    dependencies=[Depends(rate_limit("read"))],
+)
 async def get_service(
     service_id: str,
     response: Response,
@@ -92,6 +106,7 @@ async def get_service(
 @router.get(
     "/subcategories/{subcategory_id}/services",
     response_model=List[ServiceCatalogSummary],
+    dependencies=[Depends(rate_limit("read"))],
 )
 async def list_services_for_subcategory(
     subcategory_id: str,
@@ -107,6 +122,7 @@ async def list_services_for_subcategory(
 @router.get(
     "/subcategories/{subcategory_id}/filters",
     response_model=List[SubcategoryFilterResponse],
+    dependencies=[Depends(rate_limit("read"))],
 )
 async def get_subcategory_filters(
     subcategory_id: str,

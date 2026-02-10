@@ -183,7 +183,7 @@ def test_service_catalog_to_dict_includes_instructors() -> None:
 
 
 def test_instructor_service_helpers() -> None:
-    category = ServiceCategory(id="cat", name="Music")
+    category = ServiceCategory(id="cat", slug="music", name="Music")
     subcategory = _make_subcategory(category_id="cat")
     subcategory.category = category
 
@@ -208,8 +208,7 @@ def test_instructor_service_helpers() -> None:
 
     assert service.name == "Piano Lessons"
     assert service.category == "Music"
-    # category_slug now returns category id
-    assert service.category_slug == "cat"
+    assert service.category_slug == "music"
     assert service.session_price(90) == 180.0
 
     service.deactivate()

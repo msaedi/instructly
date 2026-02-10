@@ -33,11 +33,11 @@ class CatalogServiceResponse(StrictModel):
     name: str
     slug: Optional[str] = None
     description: Optional[str] = None
-    search_terms: List[str] = []
+    search_terms: List[str] = Field(default_factory=list)
     eligible_age_groups: List[str] = Field(
         default_factory=list, description="Age groups this service is available for"
     )
-    typical_duration_options: List[int] = [60]
+    typical_duration_options: List[int] = Field(default_factory=lambda: [60])
     min_recommended_price: Optional[float] = None
     max_recommended_price: Optional[float] = None
     display_order: int | None = None
@@ -95,7 +95,7 @@ class InstructorServiceResponse(StrictModel):
     hourly_rate: float
     description: Optional[str] = None
     filter_selections: Dict[str, List[str]] = Field(default_factory=dict)
-    duration_options: List[int] = [60]
+    duration_options: List[int] = Field(default_factory=lambda: [60])
     offers_travel: bool = False
     offers_at_location: bool = False
     offers_online: bool = True

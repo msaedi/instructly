@@ -6993,10 +6993,10 @@ export type components = {
  name: string;
  online_capable?: boolean | null;
  requires_certification?: boolean | null;
- search_terms: string[];
+ search_terms?: string[];
  slug?: string | null;
  subcategory_id: string;
- typical_duration_options: number[];
+ typical_duration_options?: number[];
  };
  CategoryDetail: {
  description?: string | null;
@@ -7753,7 +7753,7 @@ export type components = {
  category: string;
  created_at?: string | null;
  description?: string | null;
- duration_options: number[];
+ duration_options?: number[];
  filter_selections?: {
  [key: string]: string[];
  };

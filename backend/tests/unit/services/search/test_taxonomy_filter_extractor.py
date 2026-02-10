@@ -134,11 +134,68 @@ def test_skips_skill_level_when_parser_already_derived_it() -> None:
 
 def test_empty_query_returns_empty_dict() -> None:
     definitions = [_definition(key="level", options=[("a", "A")])]
-    assert extract_inferred_filters(
-        original_query="",
+    assert (
+        extract_inferred_filters(
+            original_query="",
+            filter_definitions=definitions,
+        )
+        == {}
+    )
+    assert (
+        extract_inferred_filters(
+            original_query="   ",
+            filter_definitions=definitions,
+        )
+        == {}
+    )
+
+
+def test_query_without_filter_bearing_tokens_returns_empty_dict() -> None:
+    definitions = [
+        _definition(
+            key="goal",
+            options=[("test_prep", "Test Prep"), ("enrichment", "Enrichment")],
+        )
+    ]
+
+    inferred = extract_inferred_filters(
+        original_query="Need a tutor near downtown after school",
         filter_definitions=definitions,
-    ) == {}
-    assert extract_inferred_filters(
-        original_query="   ",
+    )
+
+    assert inferred == {}
+
+
+def test_boundary_negatives_do_not_match_partial_tokens() -> None:
+    definitions = [
+        _definition(
+            key="style",
+            options=[("art", "Art"), ("ap", "AP")],
+        )
+    ]
+
+    inferred_starting = extract_inferred_filters(
+        original_query="starting drills for kids",
         filter_definitions=definitions,
-    ) == {}
+    )
+    inferred_application = extract_inferred_filters(
+        original_query="application walkthrough",
+        filter_definitions=definitions,
+    )
+
+    assert inferred_starting == {}
+    assert inferred_application == {}
+
+
+def test_ambiguous_phrase_across_multiple_keys_is_skipped() -> None:
+    definitions = [
+        _definition(key="goal", options=[("test_prep", "Test Prep")]),
+        _definition(key="focus", options=[("test_prep", "Test Prep")]),
+    ]
+
+    inferred = extract_inferred_filters(
+        original_query="test prep tutor",
+        filter_definitions=definitions,
+    )
+
+    assert inferred == {}

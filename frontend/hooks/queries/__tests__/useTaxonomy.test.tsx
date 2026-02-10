@@ -317,13 +317,13 @@ describe('useTaxonomy hooks', () => {
       });
 
       const { result } = renderHook(
-        () => useServicesByAgeGroup('children'),
+        () => useServicesByAgeGroup('kids'),
         { wrapper: createWrapper() }
       );
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
       expect(result.current.data).toHaveLength(2);
-      expect(getServicesByAgeGroupMock).toHaveBeenCalledWith('children');
+      expect(getServicesByAgeGroupMock).toHaveBeenCalledWith('kids');
     });
 
     it('passes different age groups correctly', async () => {

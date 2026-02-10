@@ -302,7 +302,7 @@ async def test_list_instructors_forwards_taxonomy_filters():
         max_price=None,
         age_group=None,
         skill_level="beginner,intermediate,beginner",
-        subcategory_id="01HSUBCATEGORY00000000000000",
+        subcategory_id="01HABCDEFGHJKMNPQRSTVWXYZ0",
         content_filters="goal:enrichment|format:one_time|style:jazz|grade_level:6th,7th",
         page=1,
         per_page=20,
@@ -317,7 +317,7 @@ async def test_list_instructors_forwards_taxonomy_filters():
         "style": ["jazz"],
         "grade_level": ["6th", "7th"],
     }
-    assert service.last_kwargs["subcategory_id"] == "01HSUBCATEGORY00000000000000"
+    assert service.last_kwargs["subcategory_id"] == "01HABCDEFGHJKMNPQRSTVWXYZ0"
 
 
 @pytest.mark.asyncio
@@ -343,25 +343,26 @@ async def test_list_instructors_rejects_invalid_skill_level():
 
 
 @pytest.mark.asyncio
-async def test_list_instructors_ignores_malformed_content_filter_segments():
+async def test_list_instructors_rejects_malformed_content_filter_segments():
     result = {"instructors": [], "metadata": {"total_found": 0}}
     service = _InstructorServiceListStub(result)
 
-    await instructors_routes.list_instructors(
-        service_catalog_id="catalog-1",
-        min_price=None,
-        max_price=None,
-        age_group=None,
-        skill_level=None,
-        subcategory_id=None,
-        content_filters="goal:enrichment|broken|:missing_key|format:",
-        page=1,
-        per_page=20,
-        instructor_service=service,
-    )
+    with pytest.raises(HTTPException) as exc:
+        await instructors_routes.list_instructors(
+            service_catalog_id="catalog-1",
+            min_price=None,
+            max_price=None,
+            age_group=None,
+            skill_level=None,
+            subcategory_id=None,
+            content_filters="goal:enrichment|broken|:missing_key|format:",
+            page=1,
+            per_page=20,
+            instructor_service=service,
+        )
 
-    assert service.last_kwargs is not None
-    assert service.last_kwargs["taxonomy_filter_selections"] == {"goal": ["enrichment"]}
+    assert exc.value.status_code == 400
+    assert "Malformed content_filters segment" in str(exc.value.detail)
 
 
 @pytest.mark.asyncio
@@ -457,9 +458,7 @@ async def test_go_live_requires_instructor(test_student):
 @pytest.mark.asyncio
 async def test_go_live_not_found_exception(test_instructor):
     service = _InstructorServiceStub()
-    service.go_live = lambda *_args, **_kwargs: (_ for _ in ()).throw(
-        NotFoundException("missing")
-    )
+    service.go_live = lambda *_args, **_kwargs: (_ for _ in ()).throw(NotFoundException("missing"))
 
     with pytest.raises(HTTPException) as exc:
         await instructors_routes.go_live(

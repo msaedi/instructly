@@ -2,8 +2,8 @@
 """
 Seed the 3-level taxonomy: Categories → Subcategories → Services + Filters.
 
-This script is IDEMPOTENT — running it twice produces no duplicates.
-It deletes and re-creates all taxonomy data (clean break from old seed).
+This script performs a deterministic reset seed.
+It deletes and re-creates taxonomy data with stable IDs.
 
 Usage:
     # Default (INT database):
@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # ════════════════════════════════════════════════════════════════════
 # SLUG HELPER
 # ════════════════════════════════════════════════════════════════════
+
 
 def slugify(name: str) -> str:
     """Convert a display name to a URL-friendly slug."""
@@ -127,13 +128,61 @@ CATEGORIES = [
 
 TAXONOMY: dict[str, list[tuple[str, int, list[str]]]] = {
     "Tutoring & Test Prep": [
-        ("Math", 1, ["Math", "Math Through Play", "Algebra", "Geometry", "Trigonometry", "Calculus", "Statistics"]),
+        (
+            "Math",
+            1,
+            [
+                "Math",
+                "Math Through Play",
+                "Algebra",
+                "Geometry",
+                "Trigonometry",
+                "Calculus",
+                "Statistics",
+            ],
+        ),
         ("Reading", 2, ["Reading", "Phonics", "Storytime", "Speed Reading"]),
-        ("Test Prep", 3, ["SAT", "ACT", "PSAT", "GRE", "GMAT", "LSAT", "MCAT", "TOEFL", "IELTS", "SHSAT", "SSAT", "ISEE", "Regents", "GED"]),
+        (
+            "Test Prep",
+            3,
+            [
+                "SAT",
+                "ACT",
+                "PSAT",
+                "GRE",
+                "GMAT",
+                "LSAT",
+                "MCAT",
+                "TOEFL",
+                "IELTS",
+                "SHSAT",
+                "SSAT",
+                "ISEE",
+                "Regents",
+                "GED",
+            ],
+        ),
         ("English", 4, ["English", "Grammar", "Writing", "College Essays"]),
         ("Science", 5, ["Biology", "Chemistry", "Physics", "Environmental Science"]),
-        ("Coding & STEM", 6, ["STEM for Littles", "Kids Coding (Scratch)", "Game Design", "Robotics", "Python", "JavaScript", "Web Development", "AI & Machine Learning"]),
-        ("Learning Support", 7, ["Executive Function", "Dyslexia", "Dyscalculia", "ADHD", "IEP Support"]),
+        (
+            "Coding & STEM",
+            6,
+            [
+                "STEM for Littles",
+                "Kids Coding (Scratch)",
+                "Game Design",
+                "Robotics",
+                "Python",
+                "JavaScript",
+                "Web Development",
+                "AI & Machine Learning",
+            ],
+        ),
+        (
+            "Learning Support",
+            7,
+            ["Executive Function", "Dyslexia", "Dyscalculia", "ADHD", "IEP Support"],
+        ),
         ("Homework Help", 8, ["Homework Help"]),
         ("History & Social Studies", 9, ["History & Social Studies"]),
         ("Economics", 10, ["Economics"]),
@@ -176,11 +225,30 @@ TAXONOMY: dict[str, list[tuple[str, int, list[str]]]] = {
         ("Hebrew", 10, ["Hebrew"]),
         ("German", 11, ["German"]),
         ("Sign Language", 12, ["Sign Language"]),
-        ("Other Languages", 13, ["Portuguese", "Bengali", "Haitian Creole", "Hindi/Urdu", "Polish", "Greek"]),
+        (
+            "Other Languages",
+            13,
+            ["Portuguese", "Bengali", "Haitian Creole", "Hindi/Urdu", "Polish", "Greek"],
+        ),
     ],
     "Sports & Fitness": [
         ("Swimming", 1, ["Swimming", "ISR (Infant Self-Rescue)"]),
-        ("Martial Arts", 2, ["Karate", "Taekwondo", "Jiu-Jitsu", "Judo", "Wrestling", "Boxing", "Muay Thai", "Krav Maga", "MMA", "Tai Chi"]),
+        (
+            "Martial Arts",
+            2,
+            [
+                "Karate",
+                "Taekwondo",
+                "Jiu-Jitsu",
+                "Judo",
+                "Wrestling",
+                "Boxing",
+                "Muay Thai",
+                "Krav Maga",
+                "MMA",
+                "Tai Chi",
+            ],
+        ),
         ("Tennis", 3, ["Tennis"]),
         ("Gymnastics", 4, ["Gymnastics"]),
         ("Personal Training", 5, ["Personal Training"]),
@@ -189,12 +257,48 @@ TAXONOMY: dict[str, list[tuple[str, int, list[str]]]] = {
         ("Soccer", 8, ["Soccer"]),
         ("Pickleball", 9, ["Pickleball"]),
         ("Chess", 10, ["Chess"]),
-        ("More Sports", 11, ["Golf", "Baseball", "Softball", "Football", "Volleyball", "Lacrosse", "Running", "Ice Skating", "Figure Skating", "Hockey", "Skateboarding", "Rock Climbing", "Squash", "Fencing", "Archery", "Bike Riding", "Cheerleading"]),
+        (
+            "More Sports",
+            11,
+            [
+                "Golf",
+                "Baseball",
+                "Softball",
+                "Football",
+                "Volleyball",
+                "Lacrosse",
+                "Running",
+                "Ice Skating",
+                "Figure Skating",
+                "Hockey",
+                "Skateboarding",
+                "Rock Climbing",
+                "Squash",
+                "Fencing",
+                "Archery",
+                "Bike Riding",
+                "Cheerleading",
+            ],
+        ),
     ],
     "Arts": [
         ("Drawing", 1, ["Drawing", "Illustration", "Cartooning"]),
         ("Painting", 2, ["Watercolor", "Oil", "Acrylic", "Paint & Sip"]),
-        ("Kids Art", 3, ["Sensory Art", "Messy Art", "Kids Scribble", "Grown Up & Me Art", "Make & Take", "Craft Homework", "Clay Play", "Beading", "Little Builders"]),
+        (
+            "Kids Art",
+            3,
+            [
+                "Sensory Art",
+                "Messy Art",
+                "Kids Scribble",
+                "Grown Up & Me Art",
+                "Make & Take",
+                "Craft Homework",
+                "Clay Play",
+                "Beading",
+                "Little Builders",
+            ],
+        ),
         ("Pottery", 4, ["Pottery"]),
         ("Photography", 5, ["Photography"]),
         ("Acting", 6, ["Acting"]),
@@ -203,16 +307,54 @@ TAXONOMY: dict[str, list[tuple[str, int, list[str]]]] = {
         ("Graphic Design", 9, ["Graphic Design"]),
         ("Calligraphy", 10, ["Calligraphy"]),
         ("Sewing & Knitting", 11, ["Knitting", "Crocheting", "Embroidery", "Sewing"]),
-        ("Crafts & Making", 12, ["Jewelry Making", "Woodworking", "Candle Making", "Floral Design"]),
+        (
+            "Crafts & Making",
+            12,
+            ["Jewelry Making", "Woodworking", "Candle Making", "Floral Design"],
+        ),
     ],
     "Hobbies & Life Skills": [
-        ("Food & Drink", 1, ["Pasta Making", "Sushi Making", "Knife Skills", "Cuisines", "Baking", "Cake Decorating", "Mixology", "Coffee Tasting", "Latte Art", "Wine Tasting", "Cooking for Littles"]),
+        (
+            "Food & Drink",
+            1,
+            [
+                "Pasta Making",
+                "Sushi Making",
+                "Knife Skills",
+                "Cuisines",
+                "Baking",
+                "Cake Decorating",
+                "Mixology",
+                "Coffee Tasting",
+                "Latte Art",
+                "Wine Tasting",
+                "Cooking for Littles",
+            ],
+        ),
         ("Dog Training", 2, ["Dog Training"]),
         ("Improv", 3, ["Improv"]),
-        ("Life & Career Coaching", 4, ["Life Coaching", "Career Coaching", "Interview Prep", "Public Speaking", "Parenting Coaching", "Spiritual Coaching", "Newborn Sleep Coaching", "Dating Coaching", "Accountability Partner"]),
+        (
+            "Life & Career Coaching",
+            4,
+            [
+                "Life Coaching",
+                "Career Coaching",
+                "Interview Prep",
+                "Public Speaking",
+                "Parenting Coaching",
+                "Spiritual Coaching",
+                "Newborn Sleep Coaching",
+                "Dating Coaching",
+                "Accountability Partner",
+            ],
+        ),
         ("Makeup & Styling", 5, ["Makeup", "Styling", "Nail Art"]),
         ("Etiquette", 6, ["Kids Table Manners", "Business Etiquette"]),
-        ("Mindfulness & Wellness", 7, ["Meditation", "Breathwork", "Infant Massage", "Couples Massage"]),
+        (
+            "Mindfulness & Wellness",
+            7,
+            ["Meditation", "Breathwork", "Infant Massage", "Couples Massage"],
+        ),
         ("Spiritual", 8, ["Tarot", "Astrology", "Reiki"]),
         ("Magic", 9, ["Magic"]),
         ("Driving", 10, ["Driving"]),
@@ -515,7 +657,14 @@ BASE_SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = {
     "Tutoring & Test Prep > Learning Support": {
         "grade_level": ["pre_k", "elementary", "middle_school", "high_school"],
         "goal": ["remedial", "learning_differences"],
-        "specialization": ["general", "dyslexia_reading", "adhd", "dyscalculia", "iep_support", "executive_function"],
+        "specialization": [
+            "general",
+            "dyslexia_reading",
+            "adhd",
+            "dyscalculia",
+            "iep_support",
+            "executive_function",
+        ],
     },
     "Tutoring & Test Prep > Homework Help": {
         "grade_level": ["elementary", "middle_school", "high_school"],
@@ -777,6 +926,7 @@ SUBCATEGORY_FILTER_MAP: dict[str, dict[str, Any]] = _build_subcategory_filter_ma
 # ════════════════════════════════════════════════════════════════════
 # SEED FUNCTION
 # ════════════════════════════════════════════════════════════════════
+
 
 def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, int]:
     """
@@ -1130,6 +1280,7 @@ def seed_taxonomy(db_url: str | None = None, verbose: bool = True) -> dict[str, 
 # ════════════════════════════════════════════════════════════════════
 # CLI ENTRY POINT
 # ════════════════════════════════════════════════════════════════════
+
 
 def main() -> int:
     import argparse

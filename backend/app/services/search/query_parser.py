@@ -5,6 +5,7 @@ Regex fast-path parser for NL search queries.
 Extracts structured constraints from natural language, leaving service query for semantic matching.
 Handles 60-70% of queries without needing an LLM, providing sub-10ms parsing latency.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -79,6 +80,11 @@ _CATEGORY_TO_PRICE_KEY: Dict[str, str] = {
     "Arts": "general",
     "Hobbies & Life Skills": "general",
 }
+
+
+def _contains_keyword(text: str, keyword: str) -> bool:
+    """Return True when keyword appears with token boundaries in text."""
+    return re.search(r"\b" + re.escape(keyword) + r"\b", text, re.IGNORECASE) is not None
 
 
 @dataclass
@@ -735,7 +741,7 @@ class QueryParser:
         query_lower = query.lower()
         # CATEGORY_KEYWORDS maps keyword→category_name; check longest keywords first
         for keyword in sorted(CATEGORY_KEYWORDS, key=len, reverse=True):
-            if keyword in query_lower:
+            if _contains_keyword(query_lower, keyword):
                 return CATEGORY_KEYWORDS[keyword]
         return "general"
 
@@ -748,7 +754,7 @@ class QueryParser:
 
         # 1. Try SERVICE_KEYWORDS (most specific)
         for keyword in sorted(SERVICE_KEYWORDS, key=len, reverse=True):
-            if keyword in text:
+            if _contains_keyword(text, keyword):
                 result.service_hint = SERVICE_KEYWORDS[keyword]
                 # Derive subcategory and category from service match
                 if keyword in SUBCATEGORY_KEYWORDS:
@@ -759,7 +765,7 @@ class QueryParser:
 
         # 2. Try SUBCATEGORY_KEYWORDS
         for keyword in sorted(SUBCATEGORY_KEYWORDS, key=len, reverse=True):
-            if keyword in text:
+            if _contains_keyword(text, keyword):
                 result.subcategory_hint = SUBCATEGORY_KEYWORDS[keyword]
                 if keyword in CATEGORY_KEYWORDS:
                     result.category_hint = CATEGORY_KEYWORDS[keyword]
@@ -767,7 +773,7 @@ class QueryParser:
 
         # 3. Try CATEGORY_KEYWORDS (broadest)
         for keyword in sorted(CATEGORY_KEYWORDS, key=len, reverse=True):
-            if keyword in text:
+            if _contains_keyword(text, keyword):
                 result.category_hint = CATEGORY_KEYWORDS[keyword]
                 return result
 

@@ -62,6 +62,7 @@ from .referral_repository import (
 )
 from .search_event_repository import SearchEventRepository
 from .subcategory_repository import SubcategoryRepository
+from .taxonomy_filter_repository import TaxonomyFilterRepository
 
 # SlotManagerRepository removed - bitmap-only storage now
 from .week_operation_repository import WeekOperationRepository
@@ -84,6 +85,7 @@ __all__ = [
     "ConversationRepository",
     "GovernanceAuditRepository",
     "SubcategoryRepository",
+    "TaxonomyFilterRepository",
     "WeekOperationRepository",
     "InstructorProfileRepository",
     "SearchEventRepository",

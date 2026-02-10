@@ -25,6 +25,10 @@ from ..models.service_catalog import InstructorService
 
 logger = logging.getLogger(__name__)
 
+MAX_FILTER_KEYS = 10
+MAX_FILTER_VALUES_PER_KEY = 20
+MAX_FILTER_VALUE_LENGTH = 200
+
 
 class TaxonomyFilterRepository:
     """Repository for taxonomy filter operations."""
@@ -207,22 +211,7 @@ class TaxonomyFilterRepository:
         if not candidate_ids:
             return set()
 
-        normalized_filters: Dict[str, List[str]] = {}
-        for raw_key, raw_values in (filter_selections or {}).items():
-            key = str(raw_key).strip().lower()
-            if not key:
-                continue
-
-            values: List[str] = []
-            seen_values: Set[str] = set()
-            for raw_value in raw_values or []:
-                value = str(raw_value).strip().lower()
-                if not value or value in seen_values:
-                    continue
-                seen_values.add(value)
-                values.append(value)
-            if values:
-                normalized_filters[key] = values
+        normalized_filters = self._normalize_filter_selections(filter_selections)
 
         base_query = (
             self.db.query(InstructorService.id, InstructorService.filter_selections)
@@ -238,10 +227,9 @@ class TaxonomyFilterRepository:
         if subcategory_id:
             base_query = base_query.filter(ServiceCatalog.subcategory_id == subcategory_id)
 
+        bind = self.db.get_bind()
         dialect_name = (
-            self.db.bind.dialect.name.lower()
-            if self.db.bind and self.db.bind.dialect and self.db.bind.dialect.name
-            else ""
+            bind.dialect.name.lower() if bind and bind.dialect and bind.dialect.name else ""
         )
         if dialect_name == "postgresql" and normalized_filters:
             pg_query = base_query
@@ -337,8 +325,56 @@ class TaxonomyFilterRepository:
         if active_only:
             query = query.filter(InstructorService.is_active.is_(True))
 
+        normalized_filters = self._normalize_filter_selections(filter_selections)
+
         # JSONB @> containment — each key/values pair must be present
-        if filter_selections:
-            query = query.filter(InstructorService.filter_selections.op("@>")(filter_selections))
+        if normalized_filters:
+            query = query.filter(InstructorService.filter_selections.op("@>")(normalized_filters))
 
         return cast(List[InstructorService], query.limit(limit).all())
+
+    @staticmethod
+    def _coerce_values(raw_values: Any) -> List[Any]:
+        """Normalize incoming values into a list for downstream filtering."""
+        if raw_values is None:
+            return []
+        if isinstance(raw_values, list):
+            return raw_values
+        if isinstance(raw_values, (tuple, set)):
+            return list(raw_values)
+        return [raw_values]
+
+    def _normalize_filter_selections(
+        self,
+        filter_selections: Optional[Dict[str, List[str]]],
+    ) -> Dict[str, List[str]]:
+        """Lowercase/strip filter payload and cap key/value cardinality."""
+        normalized_filters: Dict[str, List[str]] = {}
+
+        for raw_key, raw_values in (filter_selections or {}).items():
+            if len(normalized_filters) >= MAX_FILTER_KEYS:
+                break
+
+            key = str(raw_key).strip().lower()
+            if not key:
+                continue
+
+            values: List[str] = []
+            seen_values: Set[str] = set()
+            for raw_value in self._coerce_values(raw_values):
+                value = str(raw_value).strip().lower()
+                if not value or value in seen_values:
+                    continue
+                if len(value) > MAX_FILTER_VALUE_LENGTH:
+                    continue
+
+                seen_values.add(value)
+                values.append(value)
+
+                if len(values) >= MAX_FILTER_VALUES_PER_KEY:
+                    break
+
+            if values:
+                normalized_filters[key] = values
+
+        return normalized_filters
