@@ -66,7 +66,7 @@ jobs:
 
       - name: Run database migrations
         env:
-          SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: ci-test-secret-key-not-for-production
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           IS_TESTING: "true"
@@ -81,7 +81,7 @@ jobs:
 
       - name: Seed test data
         env:
-          SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: ci-test-secret-key-not-for-production
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           IS_TESTING: "true"
@@ -114,7 +114,7 @@ jobs:
             --no-header \
             2>&1 | tee schemathesis-results.txt
         env:
-          SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: ci-test-secret-key-not-for-production
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           IS_TESTING: "true"
@@ -193,7 +193,7 @@ jobs:
 
       - name: Run database migrations
         env:
-          SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: ci-test-secret-key-not-for-production
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           IS_TESTING: "true"
@@ -208,7 +208,7 @@ jobs:
 
       - name: Seed test data
         env:
-          SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: ci-test-secret-key-not-for-production
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           IS_TESTING: "true"
@@ -231,7 +231,7 @@ jobs:
             --no-header \
             2>&1 | tee sse-results.txt
         env:
-          SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: ci-test-secret-key-not-for-production
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
           IS_TESTING: "true"

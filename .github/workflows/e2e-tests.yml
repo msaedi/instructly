@@ -131,8 +131,8 @@ jobs:
       STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
       PROD_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
       REDIS_URL: redis://localhost:6379/0
-      JWT_SECRET: test-secret-key-for-ci-only
-      SECRET_KEY: test-secret-key-for-ci-only
+      JWT_SECRET: ci-test-secret-key-not-for-production
+      SECRET_KEY: ci-test-secret-key-not-for-production
 
       # Test user credentials (keep in sync with seed data)
       E2E_USER_EMAIL: john.smith@example.com
@@ -207,7 +207,7 @@ jobs:
         echo "::add-mask::${{ secrets.E2E_INSTRUCTOR_PASSWORD }}"
         echo "::add-mask::${{ secrets.E2E_ADMIN_PASSWORD }}"
         echo "::add-mask::postgresql://postgres:postgres@localhost:5432/instainstru_test"
-        echo "::add-mask::test-secret-key-for-ci-only"
+        echo "::add-mask::ci-test-secret-key-not-for-production"
         echo "::add-mask::Bearer "
         echo "::add-mask::sk_live_"
         echo "::add-mask::sk_test_"
@@ -710,7 +710,7 @@ jobs:
       STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
       PROD_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
       SITE_MODE: local
-      SECRET_KEY: dev-e2e-secret
+      SECRET_KEY: dev-e2e-secret-key-not-for-production
       ALLOWED_ORIGINS: http://localhost:3000,http://beta-local.instainstru.com:3000
       PLAYWRIGHT_BASE_URL: http://localhost:3000
       REDIS_URL: redis://localhost:6379/0
@@ -902,7 +902,7 @@ jobs:
       STG_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
       PROD_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
       SITE_MODE: local
-      SECRET_KEY: dev-e2e-secret
+      SECRET_KEY: dev-e2e-secret-key-not-for-production
       ALLOWED_ORIGINS: http://localhost:3000,http://beta-local.instainstru.com:3000
       PLAYWRIGHT_BASE_URL: http://localhost:3000
       REDIS_URL: redis://localhost:6379/0
