@@ -65,7 +65,7 @@ class FilterDefinition(Base):
     display_order = Column(Integer, nullable=False, default=0)
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     options = relationship(
@@ -86,7 +86,7 @@ class FilterDefinition(Base):
             "filter_type": self.filter_type,
         }
         if include_options:
-            data["options"] = [o.to_dict() for o in self.options]
+            data["options"] = [o.to_dict() for o in self.options if o.is_active]
         return data
 
 

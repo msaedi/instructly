@@ -16,6 +16,7 @@ import logging
 from typing import List, cast
 
 from fastapi import APIRouter, Depends, Response
+from fastapi.params import Path
 
 from ...api.dependencies.services import get_catalog_browse_service
 from ...core.exceptions import DomainException
@@ -26,6 +27,9 @@ from ...schemas.taxonomy_filter import SubcategoryFilterResponse
 from ...services.catalog_browse_service import CatalogBrowseService
 
 logger = logging.getLogger(__name__)
+
+ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
+SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 
 router = APIRouter(tags=["catalog-v1"])
 
@@ -54,8 +58,8 @@ async def list_categories(
     dependencies=[Depends(rate_limit("read"))],
 )
 async def get_category(
-    category_slug: str,
     response: Response,
+    category_slug: str = Path(..., pattern=SLUG_PATTERN, max_length=100),
     service: CatalogBrowseService = Depends(get_catalog_browse_service),
 ) -> CategoryDetail:
     """Category detail with subcategory listing. Cached 1hr."""
@@ -73,9 +77,9 @@ async def get_category(
     dependencies=[Depends(rate_limit("read"))],
 )
 async def get_subcategory(
-    category_slug: str,
-    subcategory_slug: str,
     response: Response,
+    category_slug: str = Path(..., pattern=SLUG_PATTERN, max_length=100),
+    subcategory_slug: str = Path(..., pattern=SLUG_PATTERN, max_length=100),
     service: CatalogBrowseService = Depends(get_catalog_browse_service),
 ) -> SubcategoryDetail:
     """Subcategory detail with services and filters. Cached 30min."""
@@ -93,8 +97,8 @@ async def get_subcategory(
     dependencies=[Depends(rate_limit("read"))],
 )
 async def get_service(
-    service_id: str,
     response: Response,
+    service_id: str = Path(..., pattern=ULID_PATH_PATTERN),
     service: CatalogBrowseService = Depends(get_catalog_browse_service),
 ) -> ServiceCatalogDetail:
     """Single service detail. Cached 30min."""
@@ -112,8 +116,8 @@ async def get_service(
     dependencies=[Depends(rate_limit("read"))],
 )
 async def list_services_for_subcategory(
-    subcategory_id: str,
     response: Response,
+    subcategory_id: str = Path(..., pattern=ULID_PATH_PATTERN),
     service: CatalogBrowseService = Depends(get_catalog_browse_service),
 ) -> List[ServiceCatalogSummary]:
     """Services in a subcategory. Cached 30min."""
@@ -131,8 +135,8 @@ async def list_services_for_subcategory(
     dependencies=[Depends(rate_limit("read"))],
 )
 async def get_subcategory_filters(
-    subcategory_id: str,
     response: Response,
+    subcategory_id: str = Path(..., pattern=ULID_PATH_PATTERN),
     service: CatalogBrowseService = Depends(get_catalog_browse_service),
 ) -> List[SubcategoryFilterResponse]:
     """Filter definitions for a subcategory. Cached 1hr."""

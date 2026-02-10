@@ -233,10 +233,10 @@ class TestServicesByAgeGroup:
         data = resp.json()
 
         assert isinstance(data, list)
-        # Cache may serve stale list; verify shape and that if our slug IS present it's correct
-        if data:
-            assert "slug" in data[0]
-            assert "name" in data[0]
+        assert len(data) >= 1
+        # Verify our specific fixture service with eligible_age_groups=["kids","teens"] is present
+        slugs = [s["slug"] for s in data]
+        assert route_taxonomy["svc1_slug"] in slugs
 
     def test_unknown_age_group_returns_empty_or_no_match(self, client: TestClient, route_taxonomy):
         resp = client.get("/api/v1/services/catalog/by-age-group/nonexistent")

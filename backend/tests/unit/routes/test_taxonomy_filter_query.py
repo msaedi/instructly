@@ -8,6 +8,8 @@ for input parsing, validation, and normalization.
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 from app.routes.v1.taxonomy_filter_query import (
     MAX_CONTENT_FILTER_KEYS,
     MAX_CONTENT_FILTER_VALUES_PER_KEY,

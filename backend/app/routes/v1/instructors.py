@@ -483,8 +483,8 @@ def check_service_area(
         pattern=ULID_PATH_PATTERN,
         examples=["01HF4G12ABCDEF3456789XYZAB"],
     ),
-    lat: float = Query(..., description="Latitude"),
-    lng: float = Query(..., description="Longitude"),
+    lat: float = Query(..., ge=-90, le=90, description="Latitude"),
+    lng: float = Query(..., ge=-180, le=180, description="Longitude"),
     db: Session = Depends(get_db),
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> InstructorServiceAreaCheckResponse:

@@ -8,6 +8,8 @@ matching, and coercion logic.
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 from app.repositories.taxonomy_filter_repository import (
     MAX_FILTER_KEYS,
     MAX_FILTER_VALUE_LENGTH,

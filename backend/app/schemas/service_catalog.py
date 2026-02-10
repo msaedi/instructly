@@ -63,7 +63,7 @@ class InstructorServiceCreate(StrictRequestModel):
     """Create instructor service from catalog."""
 
     catalog_service_id: str = Field(..., description="ID of the catalog service")
-    hourly_rate: float = Field(..., gt=0, description="Hourly rate for this service")
+    hourly_rate: float = Field(..., gt=0, le=10000, description="Hourly rate for this service")
     custom_description: Optional[str] = Field(None, description="Custom description (optional)")
     duration_options: Optional[List[int]] = Field(
         None,

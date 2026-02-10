@@ -205,7 +205,7 @@ def upgrade() -> None:
     op.create_table(
         "service_categories",
         sa.Column("id", sa.String(26), nullable=False),
-        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("name", sa.String(), nullable=False, unique=True),
         sa.Column("subtitle", sa.String(100), nullable=True),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("display_order", sa.Integer(), nullable=False, server_default="0"),
@@ -259,6 +259,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
             onupdate=sa.func.now(),
             nullable=True,
         ),
@@ -310,6 +311,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
             onupdate=sa.func.now(),
             nullable=True,
         ),

@@ -185,7 +185,7 @@ export function useServicesInfiniteSearch(filters: ServiceSearchFilters) {
       params.append('limit', '20');
 
       const response = await fetch(
-        withApiBase(`/services/search?${params}`)
+        withApiBase(`/api/v1/services/search?${params}`)
       );
 
       if (!response.ok) {

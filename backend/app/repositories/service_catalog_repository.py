@@ -13,6 +13,7 @@ This repository extends BaseRepository with search and analytics capabilities.
 
 from datetime import datetime, timedelta, timezone
 import logging
+import threading
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, TypedDict, TypeVar, cast
 
 from sqlalchemy import distinct, or_, select, text
@@ -34,6 +35,29 @@ from .base_repository import BaseRepository
 logger = logging.getLogger(__name__)
 
 TQuery = TypeVar("TQuery")
+
+# Module-level pg_trgm detection cache (avoids per-request DB query)
+_pg_trgm_available: Optional[bool] = None
+_pg_trgm_lock = threading.Lock()
+
+
+def _check_pg_trgm(db: Session) -> bool:
+    """Check pg_trgm availability, cached across all repository instances."""
+    global _pg_trgm_available
+    if _pg_trgm_available is not None:
+        return _pg_trgm_available
+    with _pg_trgm_lock:
+        if _pg_trgm_available is not None:
+            return _pg_trgm_available
+        try:
+            result = db.execute(
+                text("SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm'")
+            ).first()
+            _pg_trgm_available = result is not None
+        except Exception as e:
+            logger.warning("pg_trgm_detection_failed", extra={"error": str(e)})
+            _pg_trgm_available = False
+        return _pg_trgm_available
 
 
 def _apply_active_catalog_predicate(query: Query[TQuery]) -> Query[TQuery]:
@@ -58,6 +82,11 @@ def _apply_instructor_service_active_filter(query: Query[TQuery]) -> Query[TQuer
     return query
 
 
+def _escape_like(value: str) -> str:
+    """Escape SQL LIKE/ILIKE metacharacters (%, _, \\)."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 class PopularServiceMetrics(TypedDict):
     service: ServiceCatalog
     analytics: ServiceAnalytics
@@ -76,14 +105,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
     def __init__(self, db: Session):
         """Initialize with ServiceCatalog model."""
         super().__init__(db, ServiceCatalog)
-        # Detect pg_trgm availability once per repository instance
-        self._pg_trgm_available = False
-        try:
-            res = self.db.execute(text("SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm'"))
-            self._pg_trgm_available = bool(res.fetchone())
-        except Exception as e:
-            logger.warning("pg_trgm_detection_failed", extra={"error": str(e)})
-            self._pg_trgm_available = False
+        self._pg_trgm_available = _check_pg_trgm(db)
 
     def find_similar_by_embedding(
         self, embedding: List[float], limit: int = 10, threshold: float = 0.8
@@ -177,7 +199,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
 
         # Text search across multiple fields
         if query_text:
-            search_pattern = f"%{query_text}%"
+            search_pattern = f"%{_escape_like(query_text)}%"
             if self._pg_trgm_available:
                 # Use trigram similarity when available
                 query = query.filter(
@@ -625,7 +647,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             service.embedding_updated_at = datetime.now(timezone.utc)
             service.embedding_text_hash = text_hash
 
-            self.db.commit()
+            self.db.flush()
             return True
 
         except Exception as e:
@@ -942,7 +964,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         for key, value in kwargs.items():
             setattr(entity, key, value)
 
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(entity)
         return entity
 

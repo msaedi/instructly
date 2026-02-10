@@ -303,7 +303,7 @@ class InstructorProfile(Base):
                 categories.add(service.catalog_entry.category.name)
         return categories
 
-    def offers_service(self, service_catalog_id: int) -> bool:
+    def offers_service(self, service_catalog_id: str) -> bool:
         """
         Check if instructor offers a specific catalog service.
 
@@ -316,7 +316,7 @@ class InstructorProfile(Base):
         services = cast("list[InstructorService]", self.instructor_services)
         return any(s.service_catalog_id == service_catalog_id and s.is_active for s in services)
 
-    def get_service_by_catalog_id(self, service_catalog_id: int) -> Optional["InstructorService"]:
+    def get_service_by_catalog_id(self, service_catalog_id: str) -> Optional["InstructorService"]:
         """
         Get instructor's service by catalog ID.
 

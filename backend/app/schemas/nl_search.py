@@ -11,7 +11,7 @@ embedded data to eliminate N+1 queries from the frontend.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -513,7 +513,9 @@ class SearchClickRequest(BaseModel):
         None, description="Service ID that was clicked (instructor_service_id)"
     )
     position: int = Field(..., ge=1, description="Position in search results (1-indexed)")
-    action: str = Field("view", description="Action type: view, book, message, favorite")
+    action: Literal["view", "book", "message", "favorite"] = Field(
+        "view", description="Action type: view, book, message, favorite"
+    )
 
 
 class SearchClickResponse(BaseModel):

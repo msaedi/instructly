@@ -408,7 +408,7 @@ export const publicApi = {
     };
 
     return unifiedFetch<{
-      id: number;
+      id: string;
       search_query: string;
       search_type: string;
       results_count: number | null;
@@ -433,7 +433,7 @@ export const publicApi = {
     results_count?: number | null;
   }) {
     return cleanFetch<{
-      id: number;
+      id: string;
       search_query: string;
       search_type: string;
       results_count: number | null;
@@ -451,7 +451,7 @@ export const publicApi = {
   async getGuestRecentSearches(guestSessionId: string, limit: number = 3) {
     return cleanFetch<
       Array<{
-        id: number;
+        id: string;
         search_query: string;
         search_type: string;
         results_count: number | null;

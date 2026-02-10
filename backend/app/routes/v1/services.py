@@ -72,7 +72,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["services-v1"])
 
 
-@router.get("/categories", response_model=List[CategoryResponse])
+@router.get(
+    "/categories", response_model=List[CategoryResponse], dependencies=[Depends(rate_limit("read"))]
+)
 async def get_service_categories(
     response: Response,
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -84,7 +86,11 @@ async def get_service_categories(
     return cast(List[CategoryResponse], categories)
 
 
-@router.get("/catalog", response_model=List[CatalogServiceResponse])
+@router.get(
+    "/catalog",
+    response_model=List[CatalogServiceResponse],
+    dependencies=[Depends(rate_limit("read"))],
+)
 async def get_catalog_services(
     response: Response,
     category_id: Optional[str] = Query(None, description="Filter by category ID"),
@@ -99,18 +105,17 @@ async def get_catalog_services(
         services = await asyncio.to_thread(
             instructor_service.get_available_catalog_services, category_id=category_id
         )
-        response.headers["Cache-Control"] = "public, max-age=1800"
-        return cast(List[CatalogServiceResponse], services)
-    except Exception as e:
-        if "not found" in str(e).lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Category '{category_id}' not found",
-            )
-        raise
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
+    response.headers["Cache-Control"] = "public, max-age=1800"
+    return cast(List[CatalogServiceResponse], services)
 
 
-@router.post("/instructor/add", response_model=InstructorServiceResponse)
+@router.post(
+    "/instructor/add",
+    response_model=InstructorServiceResponse,
+    dependencies=[Depends(rate_limit("write"))],
+)
 async def add_service_to_profile(
     service_data: InstructorServiceCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
@@ -136,16 +141,16 @@ async def add_service_to_profile(
             custom_description=service_data.custom_description,
             duration_options=service_data.duration_options,
         )
-        return InstructorServiceResponse(**created)
-    except Exception as e:
-        if "not found" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-        elif "already offer" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-        raise
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
+    return InstructorServiceResponse(**created)
 
 
-@router.patch("/{service_id}/capabilities", response_model=InstructorServiceResponse)
+@router.patch(
+    "/{service_id}/capabilities",
+    response_model=InstructorServiceResponse,
+    dependencies=[Depends(rate_limit("write"))],
+)
 async def update_service_capabilities(
     service_id: str,
     capabilities: InstructorServiceCapabilitiesUpdate = Body(...),
@@ -172,7 +177,9 @@ async def update_service_capabilities(
     return InstructorServiceResponse(**updated)
 
 
-@router.get("/search", response_model=ServiceSearchResponse)
+@router.get(
+    "/search", response_model=ServiceSearchResponse, dependencies=[Depends(rate_limit("read"))]
+)
 async def search_services(
     q: str = Query(..., min_length=2, description="Search query"),
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -201,7 +208,11 @@ async def search_services(
     return ServiceSearchResponse(**model_filter(ServiceSearchResponse, response_payload))
 
 
-@router.get("/catalog/top-per-category", response_model=TopServicesPerCategoryResponse)
+@router.get(
+    "/catalog/top-per-category",
+    response_model=TopServicesPerCategoryResponse,
+    dependencies=[Depends(rate_limit("read"))],
+)
 async def get_top_services_per_category(
     limit: int = Query(7, ge=1, le=20, description="Number of top services per category"),
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -266,6 +277,7 @@ async def get_top_services_per_category(
 @router.get(
     "/catalog/all-with-instructors",
     response_model=AllServicesWithInstructorsResponse,
+    dependencies=[Depends(rate_limit("read"))],
 )
 async def get_all_services_with_instructors(
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -465,6 +477,7 @@ async def get_services_by_age_group(
 @router.get(
     "/catalog/{service_id}/filter-context",
     response_model=InstructorFilterContext,
+    dependencies=[Depends(rate_limit("read"))],
 )
 async def get_service_filter_context(
     service_id: str,
@@ -478,7 +491,11 @@ async def get_service_filter_context(
     return InstructorFilterContext(**model_filter(InstructorFilterContext, data))
 
 
-@router.get("/catalog/kids-available", response_model=List[CatalogServiceMinimalResponse])
+@router.get(
+    "/catalog/kids-available",
+    response_model=List[CatalogServiceMinimalResponse],
+    dependencies=[Depends(rate_limit("read"))],
+)
 async def get_kids_available_services(
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> List[CatalogServiceMinimalResponse]:
@@ -497,6 +514,7 @@ async def get_kids_available_services(
 @router.put(
     "/instructor/services/{instructor_service_id}/filters",
     response_model=InstructorServiceResponse,
+    dependencies=[Depends(rate_limit("write"))],
 )
 async def update_filter_selections(
     instructor_service_id: str,
@@ -527,6 +545,7 @@ async def update_filter_selections(
 @router.post(
     "/instructor/services/validate-filters",
     response_model=FilterValidationResponse,
+    dependencies=[Depends(rate_limit("write"))],
 )
 async def validate_filter_selections(
     body: ValidateFiltersRequest = Body(...),

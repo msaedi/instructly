@@ -97,9 +97,13 @@ class TestGetService:
         assert data["name"] == service.name
         assert "subcategory_id" in data
 
-    def test_invalid_id_returns_404(self, client: TestClient, taxonomy: TaxonomyData) -> None:
-        resp = client.get("/api/v1/catalog/services/INVALID_NONEXISTENT_ID")
+    def test_nonexistent_ulid_returns_404(self, client: TestClient, taxonomy: TaxonomyData) -> None:
+        resp = client.get("/api/v1/catalog/services/00000000000000000000000000")
         assert resp.status_code == 404
+
+    def test_invalid_id_format_returns_422(self, client: TestClient, taxonomy: TaxonomyData) -> None:
+        resp = client.get("/api/v1/catalog/services/INVALID_NONEXISTENT_ID")
+        assert resp.status_code == 422
 
 
 class TestListServicesForSubcategory:
@@ -112,6 +116,13 @@ class TestListServicesForSubcategory:
         assert len(data) > 0
         assert "name" in data[0]
         assert "slug" in data[0]
+
+
+    def test_nonexistent_subcategory_returns_404(
+        self, client: TestClient, taxonomy: TaxonomyData
+    ) -> None:
+        resp = client.get("/api/v1/catalog/subcategories/00000000000000000000000000/services")
+        assert resp.status_code == 404
 
 
 class TestGetSubcategoryFilters:
@@ -136,6 +147,30 @@ class TestGetSubcategoryFilters:
         data = resp.json()
         assert isinstance(data, list)
         assert len(data) == 0
+
+
+    def test_nonexistent_subcategory_returns_404(
+        self, client: TestClient, taxonomy: TaxonomyData
+    ) -> None:
+        resp = client.get("/api/v1/catalog/subcategories/00000000000000000000000000/filters")
+        assert resp.status_code == 404
+
+
+class TestCacheHeaders:
+    def test_subcategory_detail_cache_header(
+        self, client: TestClient, taxonomy: TaxonomyData
+    ) -> None:
+        resp = client.get("/api/v1/catalog/categories/music/piano")
+        assert resp.status_code == 200
+        assert "max-age=1800" in resp.headers.get("Cache-Control", "")
+
+    def test_service_detail_cache_header(
+        self, client: TestClient, taxonomy: TaxonomyData
+    ) -> None:
+        service = taxonomy.first_service
+        resp = client.get(f"/api/v1/catalog/services/{service.id}")
+        assert resp.status_code == 200
+        assert "max-age=1800" in resp.headers.get("Cache-Control", "")
 
 
 class TestResponseSchemaValidation:
