@@ -5,6 +5,34 @@
       "Bash(comm:*)"
     ]
   },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=\"$CLAUDE_FILE_PATH\"; if [[ \"$(basename \"$file\")\" == .env* ]] && [[ \"$(basename \"$file\")\" != *.example ]]; then echo 'BLOCKED: Cannot edit .env files. Use .env.example instead.' >&2; exit 1; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=\"$CLAUDE_FILE_PATH\"; if [[ \"$file\" == *.py ]] && [[ \"$file\" == */backend/* ]]; then cd /Users/mehdisaedi/instructly/backend && ./venv/bin/ruff check --fix --quiet \"$file\" 2>/dev/null && ./venv/bin/ruff format --quiet \"$file\" 2>/dev/null; fi"
+          },
+          {
+            "type": "command",
+            "command": "file=\"$CLAUDE_FILE_PATH\"; if [[ \"$file\" == *.ts || \"$file\" == *.tsx ]] && [[ \"$file\" == */frontend/* ]]; then cd /Users/mehdisaedi/instructly/frontend && npx prettier --write --log-level silent \"$file\" 2>/dev/null; fi"
+          }
+        ]
+      }
+    ]
+  },
   "enabledPlugins": {
     "commit-commands@claude-plugins-official": true,
     "feature-dev@claude-plugins-official": true,
@@ -20,6 +48,7 @@
     "superpowers@claude-plugins-official": true,
     "pr-review-toolkit@claude-plugins-official": true,
     "slack@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true
+    "claude-code-setup@claude-plugins-official": true,
+    "context7@claude-plugins-official": true
   }
 }
