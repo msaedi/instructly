@@ -148,6 +148,7 @@ def calculate_analytics(self: BaseTask, days_back: int = 90) -> Dict[str, Any]:
     bind=True,
     max_retries=2,
 )
+@monitor_if_configured("generate-daily-analytics-report")
 def generate_daily_report(self: BaseTask) -> Dict[str, Any]:
     """
     Generate daily analytics report.

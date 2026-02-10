@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import SessionLocal
 from app.models.booking import Booking, BookingStatus
 from app.monitoring.prometheus_metrics import PrometheusMetrics
+from app.monitoring.sentry_crons import monitor_if_configured
 from app.repositories.event_outbox_repository import EventOutboxRepository
 from app.services.notification_provider import (
     NotificationProvider,
@@ -279,6 +280,7 @@ def _send_reminder_notifications(
 
 
 @typed_task(name="app.tasks.notification_tasks.send_booking_reminders", queue="notifications")
+@monitor_if_configured("send-booking-reminders")
 def send_booking_reminders() -> dict[str, int]:
     """
     Send reminder notifications for upcoming bookings.

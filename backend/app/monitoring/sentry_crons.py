@@ -87,6 +87,57 @@ CRITICAL_BEAT_MONITOR_CONFIGS: dict[str, dict[str, Any]] = {
         "timezone": "US/Eastern",
         **_DEFAULT_MONITOR_LIMITS,
     },
+    # Remaining beat tasks — complete coverage to prevent sentry-sdk#2651 false timeouts
+    "send-booking-reminders": {
+        "schedule": {"type": "crontab", "value": "*/15 * * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
+    "generate-daily-analytics-report": {
+        "schedule": {"type": "crontab", "value": "30 2 * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
+    "process-scheduled-authorizations": {
+        "schedule": {"type": "crontab", "value": "*/5 * * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
+    "retry-failed-authorizations": {
+        "schedule": {"type": "crontab", "value": "*/15 * * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
+    "retry-failed-captures": {
+        "schedule": {"type": "crontab", "value": "0 */4 * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
+    "payment-health-check": {
+        "schedule": {"type": "crontab", "value": "*/15 * * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
+    "payout-schedule-audit": {
+        "schedule": {"type": "crontab", "value": "0 3 * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
+    "badges-finalize-pending": {
+        "schedule": {"type": "crontab", "value": "0 7 * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
+    "referrals-unlock-every-15m": {
+        "schedule": {"type": "crontab", "value": "*/15 * * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
+    "check-pending-instructor-referral-payouts": {
+        "schedule": {"type": "crontab", "value": "*/15 * * * *"},
+        "timezone": "US/Eastern",
+        **_DEFAULT_MONITOR_LIMITS,
+    },
 }
 
 CRITICAL_BEAT_MONITOR_SLUGS: tuple[str, ...] = tuple(CRITICAL_BEAT_MONITOR_CONFIGS.keys())

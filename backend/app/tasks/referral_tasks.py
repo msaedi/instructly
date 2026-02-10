@@ -198,6 +198,7 @@ def retry_failed_instructor_referral_payouts() -> Dict[str, Any]:
     name="app.tasks.referral_tasks.check_pending_instructor_referral_payouts",
     max_retries=0,
 )
+@monitor_if_configured("check-pending-instructor-referral-payouts")
 def check_pending_instructor_referral_payouts() -> Dict[str, Any]:
     """Queue pending payouts older than 5 minutes for processing."""
     logger.info("Checking for pending instructor referral payouts")

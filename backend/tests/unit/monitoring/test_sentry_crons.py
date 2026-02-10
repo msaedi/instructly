@@ -131,6 +131,33 @@ def test_critical_tasks_are_decorated() -> None:
             "generate_search_insights",
             "generate-search-insights",
         ),
+        # Complete coverage — remaining beat tasks
+        (
+            "app.tasks.notification_tasks",
+            "send_booking_reminders",
+            "send-booking-reminders",
+        ),
+        ("app.tasks.analytics", "generate_daily_report", "generate-daily-analytics-report"),
+        (
+            "app.tasks.payment_tasks",
+            "process_scheduled_authorizations",
+            "process-scheduled-authorizations",
+        ),
+        (
+            "app.tasks.payment_tasks",
+            "retry_failed_authorizations",
+            "retry-failed-authorizations",
+        ),
+        ("app.tasks.payment_tasks", "retry_failed_captures", "retry-failed-captures"),
+        ("app.tasks.payment_tasks", "check_authorization_health", "payment-health-check"),
+        ("app.tasks.payment_tasks", "audit_and_fix_payout_schedules", "payout-schedule-audit"),
+        ("app.tasks.badge_tasks", "finalize_pending_badges_task", "badges-finalize-pending"),
+        ("app.tasks.referrals", "run_unlocker", "referrals-unlock-every-15m"),
+        (
+            "app.tasks.referral_tasks",
+            "check_pending_instructor_referral_payouts",
+            "check-pending-instructor-referral-payouts",
+        ),
     ]
 
     for module_name, task_attr, slug in task_mappings:
@@ -165,6 +192,16 @@ def test_slugs_tuple_matches_config_keys() -> None:
         ("generate-privacy-report", True),
         ("calculate-service-analytics", True),
         ("generate-search-insights", True),
+        ("send-booking-reminders", True),
+        ("generate-daily-analytics-report", True),
+        ("process-scheduled-authorizations", True),
+        ("retry-failed-authorizations", True),
+        ("retry-failed-captures", True),
+        ("payment-health-check", True),
+        ("payout-schedule-audit", True),
+        ("badges-finalize-pending", True),
+        ("referrals-unlock-every-15m", True),
+        ("check-pending-instructor-referral-payouts", True),
         ("some-other-task", False),
         ("notifications-dispatch-pending", False),
     ],

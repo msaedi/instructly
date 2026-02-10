@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, TypeVar, cast
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
+from app.monitoring.sentry_crons import monitor_if_configured
 from app.services.badge_award_service import BadgeAwardService
 from app.tasks.celery_app import celery_app
 
@@ -26,6 +27,7 @@ def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskFunc], Task
 
 
 @typed_task(name="badges.finalize_pending")
+@monitor_if_configured("badges-finalize-pending")
 def finalize_pending_badges_task() -> Dict[str, int]:
     """
     Re-evaluate pending badge holds and finalize them.

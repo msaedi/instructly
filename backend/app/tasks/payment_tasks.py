@@ -489,6 +489,7 @@ def _process_authorization_for_booking(
 @typed_task(
     bind=True, max_retries=3, name="app.tasks.payment_tasks.process_scheduled_authorizations"
 )
+@monitor_if_configured("process-scheduled-authorizations")
 def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
     """
     Process scheduled payment authorizations.
@@ -879,6 +880,7 @@ def _process_retry_authorization(booking_id: str, hours_until_lesson: float) -> 
 
 
 @typed_task(bind=True, max_retries=5, name="app.tasks.payment_tasks.retry_failed_authorizations")
+@monitor_if_configured("retry-failed-authorizations")
 def retry_failed_authorizations(self: Any) -> RetryJobResults:
     """
     Retry failed payment authorizations based on time since last attempt.
@@ -1100,6 +1102,7 @@ def check_immediate_auth_timeout(booking_id: str) -> Dict[str, Any]:
 
 
 @typed_task(bind=True, max_retries=3, name="app.tasks.payment_tasks.retry_failed_captures")
+@monitor_if_configured("retry-failed-captures")
 def retry_failed_captures(self: Any) -> CaptureRetryResults:
     """
     Retry failed captures every 4 hours and escalate after 72 hours.
@@ -2603,6 +2606,7 @@ def resolve_undisputed_no_shows() -> NoShowResolutionResults:
 
 
 @typed_task(name="app.tasks.payment_tasks.check_authorization_health")
+@monitor_if_configured("payment-health-check")
 def check_authorization_health() -> Dict[str, Any]:
     """
     Health check for authorization system.
@@ -2697,6 +2701,7 @@ def check_authorization_health() -> Dict[str, Any]:
 
 
 @typed_task(bind=True, max_retries=3, name="app.tasks.payment_tasks.audit_and_fix_payout_schedules")
+@monitor_if_configured("payout-schedule-audit")
 def audit_and_fix_payout_schedules(self: Any) -> Dict[str, Any]:
     """
     Nightly audit to ensure all connected accounts use weekly Tuesday payouts.
