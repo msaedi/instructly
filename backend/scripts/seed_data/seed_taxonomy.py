@@ -63,20 +63,12 @@ def deterministic_id(namespace: str, key: str) -> str:
 
 CATEGORIES = [
     {
-        "name": "Tutoring & Test Prep",
-        "slug": "tutoring",
-        "subtitle": "Academic STEM Tech",
-        "description": "Find expert tutors and test prep instructors in NYC",
-        "icon_name": "book-open",
-        "display_order": 1,
-    },
-    {
         "name": "Music",
         "slug": "music",
         "subtitle": "Instrument Voice Theory",
         "description": "Private music lessons with verified NYC instructors",
         "icon_name": "music",
-        "display_order": 2,
+        "display_order": 1,
     },
     {
         "name": "Dance",
@@ -84,23 +76,7 @@ CATEGORIES = [
         "subtitle": "Ballet Latin Street",
         "description": "Dance classes and private lessons across NYC",
         "icon_name": "disc",
-        "display_order": 3,
-    },
-    {
-        "name": "Languages",
-        "slug": "languages",
-        "subtitle": "World Languages ESL",
-        "description": "Language lessons with native and fluent speakers in NYC",
-        "icon_name": "globe",
-        "display_order": 4,
-    },
-    {
-        "name": "Sports & Fitness",
-        "slug": "sports",
-        "subtitle": "Coaching Training Athletics",
-        "description": "Sports coaching and personal training in NYC",
-        "icon_name": "trophy",
-        "display_order": 5,
+        "display_order": 2,
     },
     {
         "name": "Arts",
@@ -108,6 +84,30 @@ CATEGORIES = [
         "subtitle": "Visual Performing Applied",
         "description": "Art classes, workshops, and creative instruction in NYC",
         "icon_name": "palette",
+        "display_order": 3,
+    },
+    {
+        "name": "Sports & Fitness",
+        "slug": "sports",
+        "subtitle": "Coaching Training Athletics",
+        "description": "Sports coaching and personal training in NYC",
+        "icon_name": "trophy",
+        "display_order": 4,
+    },
+    {
+        "name": "Tutoring & Test Prep",
+        "slug": "tutoring",
+        "subtitle": "Academic STEM Tech",
+        "description": "Find expert tutors and test prep instructors in NYC",
+        "icon_name": "book-open",
+        "display_order": 5,
+    },
+    {
+        "name": "Languages",
+        "slug": "languages",
+        "subtitle": "World Languages ESL",
+        "description": "Language lessons with native and fluent speakers in NYC",
+        "icon_name": "globe",
         "display_order": 6,
     },
     {

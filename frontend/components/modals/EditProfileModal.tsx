@@ -1539,9 +1539,9 @@ export default function EditProfileModal({
                 </div>
                 {/* Teaching Location */}
                 <div className="mt-6">
-                  <p className="text-gray-600 mt-1 mb-2">Where You Teach</p>
+                  <p className="text-gray-600 mt-1 mb-2">Where You Teach (Optional)</p>
                   <p className="text-xs text-gray-600 mb-2 md:max-w-[28rem]">
-                    Add a studio, gym, or home address where students can come to you.
+                    Have a studio, gym, or home address where you can host lessons? Add it here.
                   </p>
                 <div className="grid grid-cols-1 gap-3 items-start md:grid-cols-2">
                     <div className="flex items-center gap-2">
@@ -1592,11 +1592,9 @@ export default function EditProfileModal({
 
                 {/* Preferred Public Spaces */}
                 <div className="mt-6">
-                  <p className="text-gray-600 mt-1 mb-2">Preferred Public Spaces</p>
+                  <p className="text-gray-600 mt-1 mb-2">Preferred Public Spaces (Optional)</p>
                   <p className="text-xs text-gray-600 mb-2 md:max-w-[28rem]">
-                    Suggest public spaces where you’re comfortable teaching
-                    <br />
-                    (e.g., library, park, coffee shop).
+                    Know public spaces that work well for your lessons (library, coffee shop, court, park)? Add them here.
                   </p>
                 <div className="grid grid-cols-1 gap-3 items-start md:grid-cols-2">
                     <div className="flex items-center gap-2">

@@ -10035,11 +10035,17 @@ export type components = {
         Body_login_api_v1_auth_login_post: {
             /** Client Id */
             client_id?: string | null;
-            /** Client Secret */
+            /**
+             * Client Secret
+             * Format: password
+             */
             client_secret?: string | null;
             /** Grant Type */
             grant_type?: string | null;
-            /** Password */
+            /**
+             * Password
+             * Format: password
+             */
             password: string;
             /**
              * Scope
@@ -10467,7 +10473,7 @@ export type components = {
              * Format: date-time
              */
             scheduled_at: string;
-            service: components["schemas"]["app__schemas__admin_booking_detail__ServiceInfo"];
+            service: components["schemas"]["ServiceInfo"];
             /** Status */
             status: string;
             student: components["schemas"]["ParticipantInfo"];
@@ -10932,6 +10938,14 @@ export type components = {
             /** User Ids */
             user_ids?: string[] | null;
             user_type?: components["schemas"]["BulkUserType"] | null;
+        };
+        /**
+         * BulkUpdateRequest
+         * @description Bulk preference update request.
+         */
+        BulkUpdateRequest: {
+            /** Updates */
+            updates: components["schemas"]["PreferenceUpdate"][];
         };
         /** BulkUpdateResponse */
         BulkUpdateResponse: {
@@ -12265,6 +12279,29 @@ export type components = {
             message: string;
             /**
              * Success
+             * @default true
+             */
+            success: boolean;
+        };
+        /**
+         * DeleteResponse
+         * @description Standard response for delete operations.
+         */
+        DeleteResponse: {
+            /**
+             * Deleted At
+             * Format: date-time
+             * @description Deletion timestamp
+             */
+            deleted_at?: string;
+            /**
+             * Message
+             * @description Human-readable deletion message
+             */
+            message: string;
+            /**
+             * Success
+             * @description Deletion success status
              * @default true
              */
             success: boolean;
@@ -19329,6 +19366,15 @@ export type components = {
              */
             service_catalog_id: string;
         };
+        /** ServiceInfo */
+        ServiceInfo: {
+            /** Category */
+            category: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
         /**
          * ServiceMatch
          * @description A service that matched the search query.
@@ -21052,15 +21098,6 @@ export type components = {
             /** Success */
             success: boolean;
         };
-        /** ServiceInfo */
-        app__schemas__admin_booking_detail__ServiceInfo: {
-            /** Category */
-            category: string;
-            /** Name */
-            name: string;
-            /** Slug */
-            slug: string;
-        };
         /**
          * BulkUpdateRequest
          * @description Request schema for bulk availability update.
@@ -21076,29 +21113,6 @@ export type components = {
             validate_only: boolean;
         };
         /**
-         * DeleteResponse
-         * @description Standard response for delete operations.
-         */
-        app__schemas__base_responses__DeleteResponse: {
-            /**
-             * Deleted At
-             * Format: date-time
-             * @description Deletion timestamp
-             */
-            deleted_at?: string;
-            /**
-             * Message
-             * @description Human-readable deletion message
-             */
-            message: string;
-            /**
-             * Success
-             * @description Deletion success status
-             * @default true
-             */
-            success: boolean;
-        };
-        /**
          * ServiceInfo
          * @description Basic service information for booking display.
          */
@@ -21109,14 +21123,6 @@ export type components = {
             id: string;
             /** Name */
             name: string;
-        };
-        /**
-         * BulkUpdateRequest
-         * @description Bulk preference update request.
-         */
-        app__schemas__notification_preferences__BulkUpdateRequest: {
-            /** Updates */
-            updates: components["schemas"]["PreferenceUpdate"][];
         };
         /** DeleteResponse */
         app__schemas__payment_schemas__DeleteResponse: {
@@ -29876,7 +29882,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["app__schemas__notification_preferences__BulkUpdateRequest"];
+                "application/json": components["schemas"]["BulkUpdateRequest"];
             };
         };
         responses: {
@@ -33044,7 +33050,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__schemas__base_responses__DeleteResponse"];
+                    "application/json": components["schemas"]["DeleteResponse"];
                 };
             };
         };

@@ -6698,7 +6698,7 @@ export type components = {
  instructor: components["schemas"]["ParticipantInfo"];
  location_type: string;
  scheduled_at: string;
- service: components["schemas"]["app__schemas__admin_booking_detail__ServiceInfo"];
+ service: components["schemas"]["ServiceInfo"];
  status: string;
  student: components["schemas"]["ParticipantInfo"];
  updated_at: string;
@@ -6893,6 +6893,9 @@ export type components = {
  locations?: string[] | null;
  user_ids?: string[] | null;
  user_type?: components["schemas"]["BulkUserType"] | null;
+ };
+ BulkUpdateRequest: {
+ updates: components["schemas"]["PreferenceUpdate"][];
  };
  BulkUpdateResponse: {
  failed: number;
@@ -7368,6 +7371,11 @@ export type components = {
  message: string;
  };
  DeleteMessageResponse: {
+ message: string;
+ success: boolean;
+ };
+ DeleteResponse: {
+ deleted_at?: string;
  message: string;
  success: boolean;
  };
@@ -9833,6 +9841,11 @@ export type components = {
  requirements?: string | null;
  service_catalog_id: string;
  };
+ ServiceInfo: {
+ category: string;
+ name: string;
+ slug: string;
+ };
  ServiceMatch: {
  description?: string | null;
  name: string;
@@ -10419,27 +10432,14 @@ export type components = {
  message: string;
  success: boolean;
  };
- app__schemas__admin_booking_detail__ServiceInfo: {
- category: string;
- name: string;
- slug: string;
- };
  app__schemas__availability_window__BulkUpdateRequest: {
  operations: components["schemas"]["SlotOperation"][];
  validate_only: boolean;
- };
- app__schemas__base_responses__DeleteResponse: {
- deleted_at?: string;
- message: string;
- success: boolean;
  };
  app__schemas__booking__ServiceInfo: {
  description: string | null;
  id: string;
  name: string;
- };
- app__schemas__notification_preferences__BulkUpdateRequest: {
- updates: components["schemas"]["PreferenceUpdate"][];
  };
  app__schemas__payment_schemas__DeleteResponse: {
  success: boolean;
@@ -18517,7 +18517,7 @@ export interface operations {
  };
  requestBody: {
  content: {
- "application/json": components["schemas"]["app__schemas__notification_preferences__BulkUpdateRequest"];
+ "application/json": components["schemas"]["BulkUpdateRequest"];
  };
  };
  responses: {
@@ -21463,7 +21463,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["app__schemas__base_responses__DeleteResponse"];
+ "application/json": components["schemas"]["DeleteResponse"];
  };
  };
  };

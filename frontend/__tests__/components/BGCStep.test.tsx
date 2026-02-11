@@ -69,7 +69,7 @@ describe('BGCStep', () => {
     jest.useRealTimers();
   });
 
-  it('shows pending status chip and disables CTA', async () => {
+  it('shows pending status chip, hides CTA, and shows inline pending banner', async () => {
     mockedBGCStatus.mockResolvedValueOnce(makeStatus({ status: 'pending' }));
 
     render(<BGCStep instructorId="instructor-123" />);
@@ -77,8 +77,14 @@ describe('BGCStep', () => {
     expect(await screen.findByText(/Verification pending/)).toBeInTheDocument();
     expect(await screen.findByText('Valid until: —')).toBeInTheDocument();
 
-    const button = screen.getByRole('button', { name: /start background check/i });
-    expect(button).toBeDisabled();
+    // Button is hidden for pending status (Issue #19)
+    expect(screen.queryByRole('button', { name: /start background check/i })).not.toBeInTheDocument();
+
+    // Timing message still shown
+    expect(screen.getByText(/full results typically 1–3 business days/)).toBeInTheDocument();
+
+    // Amber inline banner shown
+    expect(screen.getByText(/Please continue via the email we sent you/)).toBeInTheDocument();
   });
 
   it('displays ETA when provided for pending status', async () => {
@@ -96,13 +102,13 @@ describe('BGCStep', () => {
     expect(etaLine).toHaveTextContent(expectedEta);
   });
 
-  it('invites background check with debounce and success toast', async () => {
+  it('invites background check with debounce and confirmation modal', async () => {
     const timeoutSpy = jest.spyOn(global, 'setTimeout');
     mockedBGCStatus
       .mockResolvedValueOnce(makeStatus({ status: 'failed' }))
-      .mockResolvedValueOnce(makeStatus({ status: 'failed', report_id: 'RPT-1' }));
+      .mockResolvedValueOnce(makeStatus({ status: 'pending', report_id: 'RPT-1' }));
 
-    mockedBGCInvite.mockResolvedValue(makeInvite({ status: 'failed', report_id: 'RPT-1' }));
+    mockedBGCInvite.mockResolvedValue(makeInvite({ status: 'pending', report_id: 'RPT-1' }));
 
     render(<BGCStep instructorId="instructor-456" />);
 
@@ -115,8 +121,7 @@ describe('BGCStep', () => {
     await waitFor(() => {
       expect(mockedBGCInvite).toHaveBeenCalledWith('instructor-456');
     });
-    expect(toast.success).toHaveBeenCalledWith('Background check started');
-    expect(button).toBeDisabled();
+    expect(screen.getAllByText('Check your email to continue').length).toBeGreaterThan(0);
     const debounceCall = timeoutSpy.mock.calls.find(([, delay]) => delay === 1000);
     expect(debounceCall).toBeTruthy();
     timeoutSpy.mockRestore();

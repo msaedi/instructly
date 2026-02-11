@@ -166,6 +166,69 @@ def test_identity_webhook_paths_include_verified_and_terminal_statuses():
     assert service._handle_identity_webhook(terminal_evt) is True
 
 
+def test_identity_webhook_canceled_clears_session_id():
+    """canceled is a terminal failure — session_id should be set to None so user can retry."""
+    service = _service()
+    service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(id="profile-1")
+
+    canceled_evt = {
+        "type": "identity.verification_session.canceled",
+        "data": {
+            "object": {
+                "id": "vs_cancel",
+                "status": "canceled",
+                "metadata": {"user_id": "user-1"},
+            }
+        },
+    }
+    assert service._handle_identity_webhook(canceled_evt) is True
+    service.instructor_repository.update.assert_called_with(
+        "profile-1", identity_verification_session_id=None
+    )
+
+
+def test_identity_webhook_requires_input_clears_session_id():
+    """requires_input is a terminal failure — session_id should be set to None."""
+    service = _service()
+    service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(id="profile-1")
+
+    requires_input_evt = {
+        "type": "identity.verification_session.requires_input",
+        "data": {
+            "object": {
+                "id": "vs_ri",
+                "status": "requires_input",
+                "metadata": {"user_id": "user-1"},
+            }
+        },
+    }
+    assert service._handle_identity_webhook(requires_input_evt) is True
+    service.instructor_repository.update.assert_called_with(
+        "profile-1", identity_verification_session_id=None
+    )
+
+
+def test_identity_webhook_processing_keeps_session_id():
+    """processing means Stripe is reviewing — session_id should be preserved."""
+    service = _service()
+    service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(id="profile-1")
+
+    processing_evt = {
+        "type": "identity.verification_session.processing",
+        "data": {
+            "object": {
+                "id": "vs_proc",
+                "status": "processing",
+                "metadata": {"user_id": "user-1"},
+            }
+        },
+    }
+    assert service._handle_identity_webhook(processing_evt) is True
+    service.instructor_repository.update.assert_called_with(
+        "profile-1", identity_verification_session_id="vs_proc"
+    )
+
+
 def test_identity_webhook_unknown_status_returns_true_without_updates():
     service = _service()
     service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(id="profile-1")

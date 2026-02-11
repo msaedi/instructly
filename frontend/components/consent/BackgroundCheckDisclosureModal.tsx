@@ -149,7 +149,7 @@ export function BackgroundCheckDisclosureModal({
         </div>
       }
     >
-      <div className="space-y-6" aria-live="polite">
+      <div className="flex flex-col h-full gap-6" aria-live="polite">
         <div className="sm:hidden">
           <p className="text-sm text-gray-700 mb-2">
             You must review this disclosure before we can start your background check.
@@ -169,7 +169,7 @@ export function BackgroundCheckDisclosureModal({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="max-h-[55vh] overflow-y-auto pr-2 space-y-6"
+          className="flex-1 min-h-0 overflow-y-auto pr-2 space-y-6"
           role="document"
           tabIndex={0}
           aria-label="Background check disclosure content"

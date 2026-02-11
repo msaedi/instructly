@@ -90,7 +90,9 @@ export default function OnboardingStatusPage() {
   const pendingRequired = goLiveCheck.missing;
 
   const needsStripe = !(connectStatus && connectStatus.onboarding_completed);
-  const needsIdentity = !(profile && (profile['identity_verified_at'] || profile['identity_verification_session_id']));
+  const identityVerified = Boolean(profile?.['identity_verified_at']);
+  const identityPending = !identityVerified && Boolean(profile?.['identity_verification_session_id']);
+  const needsIdentity = !identityVerified && !identityPending;
   const needsSkills = !(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)));
   const needsBGC = bgcSnapshot.status !== 'passed';
   const needsServiceAreas = !rawData.serviceAreas || rawData.serviceAreas.length === 0;
@@ -250,18 +252,18 @@ export default function OnboardingStatusPage() {
           {/* 2) Skills & pricing */}
           <Row label="Skills & pricing" ok={Boolean(profile && ((profile['skills_configured']) || (Array.isArray(profile['services']) && profile['services'].length > 0)))} action={<Link href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus" className="text-[#7E22CE] hover:underline">Edit</Link>} />
           {/* 3) ID verification */}
-          <Row label="ID verification" ok={Boolean(profile?.['identity_verified_at'])} action={profile?.['identity_verified_at'] ? <span className="text-gray-400">Completed</span> : <button onClick={startIdentity} className="text-[#7E22CE] hover:underline">Start</button>} />
+          <Row label="ID verification" ok={identityVerified} action={identityVerified ? <span className="text-[#7E22CE] opacity-60">Completed</span> : identityPending ? <span className="text-amber-600">Pending</span> : <button onClick={startIdentity} className="text-[#7E22CE] hover:underline">Start</button>} />
           {/* 4) Background check */}
           <Row
             label="Background check"
             ok={bgcSnapshot.status === 'passed'}
             action={
               bgcSnapshot.status === 'passed'
-                ? <span className="text-gray-400 text-sm">Completed</span>
+                ? <span className="text-[#7E22CE] opacity-60">Completed</span>
                 : (
                   <button
                     onClick={() => router.push('/instructor/onboarding/verification?from=status#bgc-step-card')}
-                    className="text-[#7E22CE] hover:underline text-sm"
+                    className="text-[#7E22CE] hover:underline"
                   >
                     Start
                   </button>
@@ -269,7 +271,7 @@ export default function OnboardingStatusPage() {
             }
           />
           {/* 4) Stripe Connect */}
-          <Row label="Stripe Connect" ok={!!connectStatus?.onboarding_completed} action={<button onClick={enrollStripeConnect} className="text-[#7E22CE] hover:underline disabled:text-gray-400" disabled={!!connectStatus?.onboarding_completed || connectLoading}>{connectStatus?.onboarding_completed ? 'Completed' : (connectLoading ? 'Opening…' : 'Enroll')}</button>} />
+          <Row label="Stripe Connect" ok={!!connectStatus?.onboarding_completed} action={connectStatus?.onboarding_completed ? <span className="text-[#7E22CE] opacity-60">Completed</span> : <button onClick={enrollStripeConnect} className="text-[#7E22CE] hover:underline" disabled={connectLoading}>{connectLoading ? 'Opening…' : 'Enroll'}</button>} />
         </div>
 
         <div className="mt-8 flex flex-col items-center justify-center gap-4">
@@ -293,10 +295,12 @@ export default function OnboardingStatusPage() {
 
 function Row({ label, ok, action }: { label: string; ok: boolean; action?: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between border border-gray-100 rounded-md px-4 py-3 bg-white shadow-sm">
-      <div className="text-gray-800">{label}</div>
-      {ok ? <div className="text-green-600">✓</div> : null}
-      <div>{action}</div>
+    <div className="flex items-center justify-between border border-gray-100 dark:border-gray-700 rounded-md px-4 py-3 min-h-[48px] bg-white dark:bg-gray-800 shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className="text-gray-800 dark:text-gray-200">{label}</span>
+        {ok ? <span className="text-green-600">✓</span> : null}
+      </div>
+      <div className="text-sm">{action}</div>
     </div>
   );
 }

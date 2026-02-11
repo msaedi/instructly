@@ -82,7 +82,7 @@ function WelcomeInner() {
               We’re thrilled to have you on iNSTAiNSTRU
             </p>
             <p className="text-base">
-              Over 500 students searched for instructors in your area this week.
+              Over 500 students searched for instructors in NYC this week.
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Next up, create your profile so you’re launch-ready; we’ll alert you the moment booking goes live!

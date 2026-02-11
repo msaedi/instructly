@@ -181,8 +181,8 @@ export function canInstructorGoLive(rawData: {
     missing.push('Skills & pricing');
   }
 
-  // Check identity verification
-  if (!profile?.identity_verified_at && !profile?.identity_verification_session_id) {
+  // Check identity verification — only verified_at counts; a pending session is not enough to go live
+  if (!profile?.identity_verified_at) {
     missing.push('ID verification');
   }
 

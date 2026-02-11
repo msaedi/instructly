@@ -1879,7 +1879,7 @@ export interface InstructorInfo {
 /**
  * Basic service information for booking display.
  */
-export interface AppSchemasBookingServiceInfo {
+export interface ServiceInfo {
   description: string | null;
   id: string;
   name: string;
@@ -1963,7 +1963,7 @@ export interface BookingCreateResponse {
   instructor_id: string;
   instructor_note: string | null;
   instructor_payout_amount?: number | null;
-  instructor_service: AppSchemasBookingServiceInfo;
+  instructor_service: ServiceInfo;
   instructor_service_id: string;
   instructor_timezone?: string | null;
   lesson_timezone?: string | null;
@@ -2270,7 +2270,7 @@ export interface BookingResponse {
   instructor_id: string;
   instructor_note: string | null;
   instructor_payout_amount?: number | null;
-  instructor_service: AppSchemasBookingServiceInfo;
+  instructor_service: ServiceInfo;
   instructor_service_id: string;
   instructor_timezone?: string | null;
   lesson_timezone?: string | null;
@@ -2454,6 +2454,22 @@ export interface BulkNotificationPreviewResponse {
   rendered_content: RenderedContent;
   sample_recipients?: RecipientSample[];
   warnings?: string[];
+}
+
+/**
+ * Single preference update for bulk requests.
+ */
+export interface PreferenceUpdate {
+  category: string;
+  channel: string;
+  enabled: boolean;
+}
+
+/**
+ * Bulk preference update request.
+ */
+export interface BulkUpdateRequest {
+  updates: PreferenceUpdate[];
 }
 
 export type OperationResultStatus =
@@ -3385,6 +3401,18 @@ export interface DeleteBlackoutResponse {
 export interface DeleteMessageResponse {
   /** Success message */
   message?: string;
+  success?: boolean;
+}
+
+/**
+ * Standard response for delete operations.
+ */
+export interface DeleteResponse {
+  /** Deletion timestamp */
+  deleted_at?: string;
+  /** Human-readable deletion message */
+  message: string;
+  /** Deletion success status */
   success?: boolean;
 }
 
@@ -6412,15 +6440,6 @@ export interface PreferenceResponse {
   locked: boolean;
 }
 
-/**
- * Single preference update for bulk requests.
- */
-export interface PreferenceUpdate {
-  category: string;
-  channel: string;
-  enabled: boolean;
-}
-
 export type PreferencesByCategoryLearningTips = { [key: string]: boolean };
 
 export type PreferencesByCategoryLessonUpdates = { [key: string]: boolean };
@@ -8748,25 +8767,6 @@ export interface AppSchemasAvailabilityWindowBulkUpdateRequest {
   operations: SlotOperation[];
   /** If true, only validate without making changes */
   validate_only?: boolean;
-}
-
-/**
- * Standard response for delete operations.
- */
-export interface AppSchemasBaseResponsesDeleteResponse {
-  /** Deletion timestamp */
-  deleted_at?: string;
-  /** Human-readable deletion message */
-  message: string;
-  /** Deletion success status */
-  success?: boolean;
-}
-
-/**
- * Bulk preference update request.
- */
-export interface AppSchemasNotificationPreferencesBulkUpdateRequest {
-  updates: PreferenceUpdate[];
 }
 
 export interface AppSchemasPaymentSchemasDeleteResponse {

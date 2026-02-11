@@ -1,52 +1,53 @@
 # Service Categories for InstaInstru Platform
 # These organize services into logical groups for easier discovery
+# NOTE: The canonical source of truth is seed_taxonomy.py — this YAML is legacy.
 
 categories:
+  - name: "Music"
+    slug: "music"
+    subtitle: "Instrument Voice Theory"
+    description: "Private music lessons with verified NYC instructors"
+    display_order: 1
+    icon_name: "music"
+
+  - name: "Dance"
+    slug: "dance"
+    subtitle: "Ballet Latin Street"
+    description: "Dance classes and private lessons across NYC"
+    display_order: 2
+    icon_name: "disc"
+
   - name: "Arts"
     slug: "arts"
-    subtitle: "Performing Visual Applied"
-    description: "Performing arts, visual arts, and applied creative skills"
-    display_order: 1
+    subtitle: "Visual Performing Applied"
+    description: "Art classes, workshops, and creative instruction in NYC"
+    display_order: 3
     icon_name: "palette"
 
   - name: "Sports & Fitness"
-    slug: "sports-fitness"
-    subtitle: ""
-    description: "Athletic training, sports coaching, and fitness instruction"
-    display_order: 2
-    icon_name: "dumbbell"
+    slug: "sports"
+    subtitle: "Coaching Training Athletics"
+    description: "Sports coaching and personal training in NYC"
+    display_order: 4
+    icon_name: "trophy"
 
-  - name: "Tutoring"
+  - name: "Tutoring & Test Prep"
     slug: "tutoring"
     subtitle: "Academic STEM Tech"
-    description: "Academic subjects, STEM education, and technology skills"
-    display_order: 3
+    description: "Find expert tutors and test prep instructors in NYC"
+    display_order: 5
     icon_name: "book-open"
 
   - name: "Languages"
     slug: "languages"
-    subtitle: ""
-    description: "Foreign languages, ESL, and conversation practice"
-    display_order: 4
+    subtitle: "World Languages ESL"
+    description: "Language lessons with native and fluent speakers in NYC"
+    display_order: 6
     icon_name: "globe"
 
-  - name: "Music"
-    slug: "music"
-    subtitle: "Instrument Voice Theory"
-    description: "Musical instruments, voice training, and music theory education"
-    display_order: 5
-    icon_name: "music"
-
-  - name: "Kids"
-    slug: "kids"
-    subtitle: ""
-    description: "Age-appropriate activities and education for children"
-    display_order: 6
-    icon_name: "baby"
-
-  - name: "Hidden Gems"
-    slug: "hidden-gems"
-    subtitle: ""
-    description: "Unique and specialized skills not found in other categories"
+  - name: "Hobbies & Life Skills"
+    slug: "hobbies"
+    subtitle: "Cooking Coaching Wellness"
+    description: "Life skills coaching, culinary classes, and more in NYC"
     display_order: 7
     icon_name: "sparkles"

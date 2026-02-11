@@ -42,7 +42,7 @@ export default function WelcomeStep() {
           </p>
           <div className="space-y-3 text-center text-gray-600 text-base">
             <p>
-              Over <span className="font-semibold text-gray-900">500 students</span> searched for instructors in your area this week.
+              Over <span className="font-semibold text-gray-900">500 students</span> searched for instructors in NYC this week.
             </p>
             <p>Next up, create your profile so you&apos;re launch-ready.</p>
             <p>We&apos;ll alert you the moment booking goes live!</p>

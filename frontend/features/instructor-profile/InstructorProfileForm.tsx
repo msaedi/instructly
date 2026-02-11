@@ -132,7 +132,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
     bio: '',
     service_area_summary: null,
     service_area_boroughs: [],
-    years_experience: 0
+    years_experience: 1
   });
   const [instructorMeta, setInstructorMeta] = useState<InstructorProfileResponse | null>(null);
   const handleProfileChange = useCallback((updates: Partial<ProfileFormState>) => {

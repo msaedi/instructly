@@ -365,8 +365,8 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
   return (
     <>
       <section className="py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex justify-center items-start space-x-10 ml-15">
+        <div className="max-w-3xl mx-auto px-4">
+          <div className="flex justify-center items-start gap-4">
             {categories.map((category) => {
               const IconComponent = category.icon;
               const categoryId = toId(category.id);
@@ -393,7 +393,7 @@ export function HomeCatalogCascade({ isAuthenticated }: { isAuthenticated: boole
                     }`}
                   />
                   <p
-                    className={`text-sm font-medium mb-1 transition-colors whitespace-nowrap ${
+                    className={`text-xs font-medium mb-1 transition-colors text-center leading-tight ${
                       isSelected
                         ? 'text-gray-900 dark:text-gray-100'
                         : 'text-gray-500 group-hover:text-gray-900 dark:group-hover:text-gray-100'

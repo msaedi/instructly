@@ -252,7 +252,7 @@ describe('BGCStep', () => {
       });
 
       await waitFor(() => {
-        expect(toastMock.success).toHaveBeenCalledWith('Background check started');
+        expect(screen.getAllByText('Check your email to continue').length).toBeGreaterThan(0);
       });
     });
 
@@ -1112,7 +1112,13 @@ describe('BGCStep', () => {
         fireEvent.click(screen.getByRole('button', { name: /start background check/i }));
       });
 
-      // Button should be disabled during cooldown
+      // Dismiss the post-invite confirmation modal so aria-hidden clears
+      const gotItButton = await screen.findByRole('button', { name: /got it/i });
+      await act(async () => {
+        fireEvent.click(gotItButton);
+      });
+
+      // Button should be disabled (status is 'pending')
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /start background check/i })).toBeDisabled();
       });
@@ -1319,7 +1325,7 @@ describe('BGCStep', () => {
       await waitFor(() => {
         expect(ensureConsent).toHaveBeenCalledTimes(1);
         expect(bgcInviteMock).toHaveBeenCalledWith(mockInstructorId);
-        expect(toastMock.success).toHaveBeenCalledWith('Background check started');
+        expect(screen.getAllByText('Check your email to continue').length).toBeGreaterThan(0);
       });
     });
 

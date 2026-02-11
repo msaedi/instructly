@@ -97,8 +97,8 @@ export function PreferredLocationsCard({
       {expanded && (
         <div className="space-y-6" data-testid="preferred-places-card">
           <div>
-            <p className="text-gray-600 mt-1 mb-2">Where You Teach</p>
-            <p className="text-xs text-gray-600 mb-2">Add a studio, gym, or home address where students can come to you.</p>
+            <p className="text-gray-600 mt-1 mb-2">Where You Teach (Optional)</p>
+            <p className="text-xs text-gray-600 mb-2">Have a studio, gym, or home address where you can host lessons? Add it here.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start mt-3 sm:mt-0">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -159,8 +159,8 @@ export function PreferredLocationsCard({
           </div>
 
           <div>
-            <p className="text-gray-600 mt-1 mb-2">Preferred Public Spaces</p>
-            <p className="text-xs text-gray-600 mb-2">Suggest public spaces where you’re comfortable teaching (e.g., library, park, coffee shop).</p>
+            <p className="text-gray-600 mt-1 mb-2">Preferred Public Spaces (Optional)</p>
+            <p className="text-xs text-gray-600 mb-2">Know public spaces that work well for your lessons (library, coffee shop, court, park)? Add them here.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">

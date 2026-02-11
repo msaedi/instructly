@@ -1354,7 +1354,7 @@ describe('EditProfileModal', () => {
       // Should have teaching locations section
       await waitFor(() => {
         expect(
-          screen.getByText((_, element) => element?.textContent === 'Where You Teach')
+          screen.getByText((_, element) => element?.textContent === 'Where You Teach (Optional)')
         ).toBeInTheDocument();
       });
     });
@@ -2170,7 +2170,7 @@ describe('EditProfileModal', () => {
       // Should have teaching locations section
       await waitFor(() => {
         expect(
-          screen.getByText((_, element) => element?.textContent === 'Where You Teach')
+          screen.getByText((_, element) => element?.textContent === 'Where You Teach (Optional)')
         ).toBeInTheDocument();
       });
     });
@@ -2552,7 +2552,7 @@ describe('EditProfileModal', () => {
       // Should have add address functionality
       await waitFor(() => {
         expect(
-          screen.getByText((_, element) => element?.textContent === 'Where You Teach')
+          screen.getByText((_, element) => element?.textContent === 'Where You Teach (Optional)')
         ).toBeInTheDocument();
       });
     });

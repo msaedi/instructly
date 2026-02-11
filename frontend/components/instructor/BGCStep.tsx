@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import { IS_NON_PROD } from '@/lib/env';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { logger } from '@/lib/logger';
+import Modal from '@/components/Modal';
+import { Mail } from 'lucide-react';
 
 const POLL_BACKOFF_MS = [15000, 60000, 300000] as const;
 
@@ -124,6 +126,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
   const [statusError, setStatusError] = React.useState(false);
   const [isForbidden, setIsForbidden] = React.useState(false);
   const [cooldownActive, setCooldownActive] = React.useState(false);
+  const [showPostInviteModal, setShowPostInviteModal] = React.useState(false);
   const cooldownRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollTimerRef = React.useRef<number | null>(null);
   const backoffIdxRef = React.useRef(0);
@@ -312,6 +315,8 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       attemptedInvite = true;
       if (res.already_in_progress) {
         toast.success('Background check already in progress');
+      } else if (res.status === 'pending' || res.status === 'review') {
+        setShowPostInviteModal(true);
       } else {
         toast.success('Background check started');
       }
@@ -589,25 +594,64 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           Status unavailable. You can still start a background check.
         </p>
       ) : null}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
-        <Button
-          onClick={() => void handleStart()}
-          disabled={disabled}
-          aria-disabled={disabled}
-          className="w-full sm:w-auto rounded-lg sm:rounded-md text-base sm:text-sm h-auto sm:h-10 px-4 py-2 bg-[#7E22CE] hover:bg-[#7E22CE] text-white shadow-sm"
-        >
-          {inviteLoading ? 'Starting…' : 'Start background check'}
-        </Button>
+      {status !== 'passed' && !pendingOrReview ? (
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+          <Button
+            onClick={() => void handleStart()}
+            disabled={disabled}
+            aria-disabled={disabled}
+            className="w-full sm:w-auto rounded-lg sm:rounded-md text-base sm:text-sm h-auto sm:h-10 px-4 py-2 bg-[#7E22CE] hover:bg-[#7E22CE] text-white shadow-sm"
+          >
+            {inviteLoading ? 'Starting…' : 'Start background check'}
+          </Button>
+          <p className="text-sm text-muted-foreground max-w-xl">
+            Most approvals are same-day; <span className="font-medium">full results typically 1–3 business days</span>.
+            {' '}Your info is collected securely by our screening partner.
+          </p>
+        </div>
+      ) : pendingOrReview ? (
         <p className="text-sm text-muted-foreground max-w-xl">
           Most approvals are same-day; <span className="font-medium">full results typically 1–3 business days</span>.
-          {' '}Your info is collected securely by our screening partner.
         </p>
-      </div>
+      ) : null}
+      {pendingOrReview && !loading ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status">
+          Background check authorization submitted. Please continue via the email we sent you.
+        </div>
+      ) : null}
       {isForbidden ? (
         <p className="text-sm text-muted-foreground" role="alert">
           Only the owner can start a background check.
         </p>
       ) : null}
+      <Modal
+        isOpen={showPostInviteModal}
+        onClose={() => setShowPostInviteModal(false)}
+        title="Check your email to continue"
+        size="sm"
+        autoHeight
+        footer={
+          <div className="flex justify-end">
+            <Button onClick={() => setShowPostInviteModal(false)}>Got it</Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col items-center text-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+            <Mail className="w-6 h-6 text-[#7E22CE]" />
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-700">Thanks for authorizing your background check.</p>
+            <p className="text-sm text-gray-700">
+              We&apos;ve sent you an email with the next steps to securely complete the process.
+              Please open the email and follow the link to continue.
+            </p>
+            <p className="text-sm text-gray-500">
+              Once you&apos;ve submitted the information, we&apos;ll automatically update your status here.
+            </p>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -457,7 +457,7 @@ describe('canInstructorGoLive', () => {
     expect(result.missing).not.toContain('Profile picture');
   });
 
-  it('accepts identity_verification_session_id when identity_verified_at is missing', () => {
+  it('requires identity_verified_at for go-live — session_id alone is not enough', () => {
     const result = canInstructorGoLive({
       profile: {
         bio: 'x'.repeat(400),
@@ -474,7 +474,9 @@ describe('canInstructorGoLive', () => {
       bgcStatus: 'passed',
     });
 
-    expect(result.missing).not.toContain('ID verification');
+    // A pending session is NOT enough to go live — must be fully verified
+    expect(result.missing).toContain('ID verification');
+    expect(result.canGoLive).toBe(false);
   });
 
   it('handles null profile gracefully', () => {

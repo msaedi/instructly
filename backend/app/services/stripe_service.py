@@ -4224,12 +4224,23 @@ class StripeService(BaseService):
                     return False
                 return True
 
-            # For other terminal statuses, we can store the session id for audit
-            if verification_status in {"requires_input", "canceled", "processing"}:
+            # Processing: Stripe is still reviewing — keep session_id as "in progress"
+            if verification_status == "processing":
                 try:
                     self.instructor_repository.update(
                         profile.id,
                         identity_verification_session_id=obj.get("id"),
+                    )
+                except Exception:
+                    logger.debug("Non-fatal error ignored", exc_info=True)
+                return True
+
+            # Terminal failures: clear session_id so user can retry (not stuck in "pending")
+            if verification_status in {"requires_input", "canceled"}:
+                try:
+                    self.instructor_repository.update(
+                        profile.id,
+                        identity_verification_session_id=None,
                     )
                 except Exception:
                     logger.debug("Non-fatal error ignored", exc_info=True)
