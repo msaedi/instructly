@@ -13,6 +13,7 @@ import type {
   SubcategoryFilterResponse,
 } from '@/features/shared/api/types';
 import { logger } from '@/lib/logger';
+import { submitSkillRequest } from '@/lib/api/skillRequest';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { FloorViolation, evaluatePriceFloorViolations, formatCents } from '@/lib/pricing/priceFloors';
 import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } from '@/lib/pricing/platformFees';
@@ -1118,8 +1119,16 @@ function Step3SkillsPricingInner() {
     try {
       setRequestSubmitting(true);
       setRequestSuccess(null);
-      logger.info('Service request submitted', { requestText });
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      await submitSkillRequest({
+        skill_name: requestText.trim(),
+        instructor_id: rawData.profile?.id ?? null,
+        email: user?.email ?? null,
+        first_name: user?.first_name ?? null,
+        last_name: user?.last_name ?? null,
+        is_founding_instructor: isFoundingInstructor,
+        is_live: isInstructorLive,
+        source: 'onboarding_skill_selection',
+      });
       setRequestSuccess("Thanks! We'll review and consider adding this skill.");
       setRequestText('');
     } catch {

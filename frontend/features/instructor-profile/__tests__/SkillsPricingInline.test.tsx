@@ -10,6 +10,13 @@ import { usePlatformFees } from '@/hooks/usePlatformConfig';
 import { evaluatePriceFloorViolations } from '@/lib/pricing/priceFloors';
 import { toast } from 'sonner';
 
+jest.mock('@/features/shared/hooks/useAuth', () => ({
+  useAuth: jest.fn(() => ({
+    user: { id: 'user-123', email: 'jane@example.com', first_name: 'Jane', last_name: 'Doe' },
+    isAuthenticated: true,
+  })),
+}));
+
 jest.mock('@/lib/api', () => {
   const actual = jest.requireActual('@/lib/api');
   return { ...actual, fetchWithAuth: jest.fn() };

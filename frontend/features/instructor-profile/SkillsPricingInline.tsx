@@ -5,6 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { DollarSign, ChevronDown, Lightbulb } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
+import { submitSkillRequest } from '@/lib/api/skillRequest';
+import { useAuth } from '@/features/shared/hooks/useAuth';
 import { hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } from '@/lib/pricing/platformFees';
@@ -65,6 +67,7 @@ interface Props {
 }
 
 export default function SkillsPricingInline({ className, instructorProfile }: Props) {
+  const { user } = useAuth();
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [servicesByCategory, setServicesByCategory] = useState<Record<string, CategoryServiceDetail[]>>({});
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -501,8 +504,16 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     try {
       setRequestSubmitting(true);
       setRequestSuccess(null);
-      logger.info('Instructor profile skill request submitted', { requestedSkill });
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      await submitSkillRequest({
+        skill_name: requestedSkill.trim(),
+        instructor_id: profileData?.id ?? null,
+        email: user?.email ?? null,
+        first_name: user?.first_name ?? null,
+        last_name: user?.last_name ?? null,
+        is_founding_instructor: Boolean(profileData?.is_founding_instructor),
+        is_live: Boolean(profileData?.is_live),
+        source: 'profile_skills_inline',
+      });
       setRequestSuccess("Thanks! We'll review and consider adding this skill.");
       setRequestedSkill('');
     } catch {
@@ -510,7 +521,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     } finally {
       setRequestSubmitting(false);
     }
-  }, [requestedSkill]);
+  }, [requestedSkill, profileData, user]);
 
   const handleSave = useCallback(async (source: 'auto' | 'manual' = 'auto') => {
     try {
