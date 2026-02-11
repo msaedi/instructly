@@ -25,5 +25,9 @@ class EmailSubject:
         return f"Your {BRAND_NAME} Password Has Been Reset"
 
     @staticmethod
+    def welcome() -> str:
+        return f"Welcome to {BRAND_NAME}!"
+
+    @staticmethod
     def beta_invite() -> str:
         return f"You're invited to {BRAND_NAME} (Founding Instructor)"

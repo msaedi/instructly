@@ -26,6 +26,7 @@ from jinja2.exceptions import TemplateNotFound
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
+from ..core.constants import BRAND_NAME
 from ..core.exceptions import ServiceException
 from ..models.booking import Booking
 from ..models.notification import Notification
@@ -35,6 +36,7 @@ from ..repositories.user_repository import UserRepository
 from ..services.base import BaseService
 from ..services.cache_service import CacheService, CacheServiceSyncAdapter
 from ..services.email import EmailService
+from ..services.email_subjects import EmailSubject
 from ..services.messaging import publish_to_user
 from ..services.notification_preference_service import NotificationPreferenceService
 from ..services.push_notification_service import PushNotificationService
@@ -1434,7 +1436,7 @@ class NotificationService(BaseService):
             )
             self.email_service.send_email(
                 to_email=user.email,
-                subject="Your InstaInstru payout is on the way!",
+                subject=f"Your {BRAND_NAME} payout is on the way!",
                 html_content=html_content,
                 template=TemplateRegistry.PAYOUT_SENT,
             )
@@ -1446,6 +1448,45 @@ class NotificationService(BaseService):
             return True
         except Exception as exc:
             self.logger.error("Failed to send payout notification to %s: %s", user.email, exc)
+            return False
+
+    @BaseService.measure_operation("send_welcome_email")
+    def send_welcome_email(self, user_id: str, role: str = "student") -> bool:
+        """
+        Send welcome email after account creation.
+        """
+        user = self.user_repository.get_by_id(user_id)
+        if not user or not getattr(user, "email", None):
+            self.logger.warning("Welcome email skipped: user not found (%s)", user_id)
+            return False
+
+        context = {
+            "user": type(
+                "_UserCtx",
+                (),
+                {
+                    "first_name": user.first_name or user.email,
+                    "role": role,
+                },
+            )(),
+            "frontend_url": self.frontend_url,
+        }
+
+        try:
+            html_content = self.template_service.render_template(
+                TemplateRegistry.AUTH_WELCOME,
+                context,
+            )
+            self.email_service.send_email(
+                to_email=user.email,
+                subject=EmailSubject.welcome(),
+                html_content=html_content,
+                template=TemplateRegistry.AUTH_WELCOME,
+            )
+            self.logger.info("Welcome email sent to %s", user.email)
+            return True
+        except Exception as exc:
+            self.logger.error("Failed to send welcome email to %s: %s", user.email, exc)
             return False
 
     @BaseService.measure_operation("send_new_device_login_notification")
@@ -1478,7 +1519,7 @@ class NotificationService(BaseService):
             )
             self.email_service.send_email(
                 to_email=user.email,
-                subject="New login to your InstaInstru account",
+                subject=f"New login to your {BRAND_NAME} account",
                 html_content=html_content,
                 template=TemplateRegistry.SECURITY_NEW_DEVICE_LOGIN,
             )
@@ -1540,7 +1581,7 @@ class NotificationService(BaseService):
             )
             self.email_service.send_email(
                 to_email=user.email,
-                subject="Your InstaInstru password was changed",
+                subject=f"Your {BRAND_NAME} password was changed",
                 html_content=html_content,
                 template=TemplateRegistry.SECURITY_PW_CHANGED,
             )

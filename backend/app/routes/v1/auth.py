@@ -127,6 +127,18 @@ async def _maybe_send_new_device_login_notification(
     if not user_id:
         return
 
+    # Skip for newly registered users — they already received a welcome email
+    recently_registered = await cache_service.get(f"recently_registered:{user_id}")
+    if recently_registered:
+        # Still register the device as known so future logins from it are silent
+        ip_address = request.client.host if request.client else "unknown"
+        user_agent = request.headers.get("user-agent", "") or "unknown"
+        fingerprint = _device_fingerprint(ip_address, user_agent)
+        cache_key = f"known_devices:{user_id}"
+        await cache_service.set(cache_key, [fingerprint], ttl=KNOWN_DEVICE_TTL_SECONDS)
+        await cache_service.delete(f"recently_registered:{user_id}")
+        return
+
     ip_address = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("user-agent", "") or "unknown"
     fingerprint = _device_fingerprint(ip_address, user_agent)
@@ -215,6 +227,7 @@ async def register(
     payload: UserCreate = Body(...),
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
+    cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> AuthUserResponse:
     """
     Register a new user.
@@ -340,6 +353,27 @@ async def register(
             )
         except Exception:
             logger.warning("Audit log write failed for user registration", exc_info=True)
+
+        # Send welcome email and suppress new-device-login for initial login
+        try:
+            user_role = (payload.role or RoleName.STUDENT.value).lower()
+
+            def _send_welcome_sync() -> None:
+                from app.services.notification_service import NotificationService
+
+                service = NotificationService(db)
+                service.send_welcome_email(db_user.id, role=user_role)
+
+            await asyncio.to_thread(_send_welcome_sync)
+        except Exception:
+            logger.warning("Welcome email failed for user %s", db_user.id, exc_info=True)
+
+        # Flag this user as just-registered so the first login skips the
+        # new-device notification (they'll already have the welcome email).
+        try:
+            await cache_service.set(f"recently_registered:{db_user.id}", True, ttl=300)
+        except Exception:
+            logger.debug("Failed to set recently_registered cache flag", exc_info=True)
 
         # Clear invite verification cookie after successful registration
         response.delete_cookie(

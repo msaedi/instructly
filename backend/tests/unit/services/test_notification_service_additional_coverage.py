@@ -245,3 +245,131 @@ async def test_create_notification_push_url_and_send_error(notification_service)
         )
 
     assert created.id == "n1"
+
+
+# ── EmailSubject.welcome() ─────────────────────────────────────
+
+
+def test_email_subject_welcome_contains_brand_name():
+    from app.core.constants import BRAND_NAME
+    from app.services.email_subjects import EmailSubject
+
+    result = EmailSubject.welcome()
+    assert result == f"Welcome to {BRAND_NAME}!"
+    assert "iNSTAiNSTRU" in result
+
+
+# ── send_welcome_email ──────────────────────────────────────────
+
+
+def test_send_welcome_email_happy_path(notification_service) -> None:
+    user = SimpleNamespace(first_name="Ada", email="ada@example.com")
+    notification_service.user_repository.get_by_id.return_value = user
+    notification_service.template_service.render_template.return_value = "<html />"
+
+    assert notification_service.send_welcome_email("u1", role="instructor") is True
+    notification_service.email_service.send_email.assert_called_once()
+    call_kwargs = notification_service.email_service.send_email.call_args
+    assert "ada@example.com" in str(call_kwargs)
+    assert "Welcome" in str(call_kwargs)
+
+
+def test_send_welcome_email_user_not_found(notification_service) -> None:
+    notification_service.user_repository.get_by_id.return_value = None
+
+    assert notification_service.send_welcome_email("missing") is False
+    notification_service.email_service.send_email.assert_not_called()
+
+
+def test_send_welcome_email_user_no_email(notification_service) -> None:
+    user = SimpleNamespace(first_name="Ada", email=None)
+    notification_service.user_repository.get_by_id.return_value = user
+
+    assert notification_service.send_welcome_email("u1") is False
+    notification_service.email_service.send_email.assert_not_called()
+
+
+def test_send_welcome_email_template_error(notification_service) -> None:
+    user = SimpleNamespace(first_name="Ada", email="ada@example.com")
+    notification_service.user_repository.get_by_id.return_value = user
+    notification_service.template_service.render_template.side_effect = RuntimeError("render fail")
+
+    assert notification_service.send_welcome_email("u1") is False
+
+
+def test_send_welcome_email_send_error(notification_service) -> None:
+    user = SimpleNamespace(first_name="Ada", email="ada@example.com")
+    notification_service.user_repository.get_by_id.return_value = user
+    notification_service.template_service.render_template.return_value = "<html />"
+    notification_service.email_service.send_email.side_effect = RuntimeError("smtp fail")
+
+    assert notification_service.send_welcome_email("u1") is False
+
+
+def test_send_welcome_email_uses_email_as_fallback_name(notification_service) -> None:
+    user = SimpleNamespace(first_name=None, email="ada@example.com")
+    notification_service.user_repository.get_by_id.return_value = user
+    notification_service.template_service.render_template.return_value = "<html />"
+
+    assert notification_service.send_welcome_email("u1") is True
+    # The context should use user.email when first_name is None
+    render_call = notification_service.template_service.render_template.call_args
+    ctx = render_call[0][1] if len(render_call[0]) > 1 else render_call[1].get("context", {})
+    assert ctx["user"].first_name == "ada@example.com"
+
+
+# ── BRAND_NAME in notification subjects ─────────────────────────
+
+
+def test_payout_notification_subject_uses_brand_name(notification_service) -> None:
+    from app.core.constants import BRAND_NAME
+
+    user = SimpleNamespace(first_name="Ada", email="ada@example.com")
+    notification_service.user_repository.get_by_id.return_value = user
+    notification_service.template_service.render_template.return_value = "<html />"
+
+    notification_service.send_payout_notification(
+        instructor_id="u1",
+        amount_cents=10000,
+        payout_date=datetime(2025, 1, 15, tzinfo=timezone.utc),
+    )
+
+    call_kwargs = notification_service.email_service.send_email.call_args
+    subject = call_kwargs[1].get("subject", "") if call_kwargs[1] else call_kwargs[0][1]
+    assert BRAND_NAME in subject
+
+
+def test_new_device_login_subject_uses_brand_name(notification_service) -> None:
+    from app.core.constants import BRAND_NAME
+
+    user = SimpleNamespace(first_name="Ada", email="ada@example.com", phone_verified=False)
+    notification_service.user_repository.get_by_id.return_value = user
+    notification_service.template_service.render_template.return_value = "<html />"
+
+    notification_service.send_new_device_login_notification(
+        user_id="u1",
+        ip_address="127.0.0.1",
+        user_agent="test-agent",
+        login_time=datetime.now(timezone.utc),
+    )
+
+    call_kwargs = notification_service.email_service.send_email.call_args
+    subject = call_kwargs[1].get("subject", "") if call_kwargs[1] else call_kwargs[0][1]
+    assert BRAND_NAME in subject
+
+
+def test_password_changed_subject_uses_brand_name(notification_service) -> None:
+    from app.core.constants import BRAND_NAME
+
+    user = SimpleNamespace(first_name="Ada", email="ada@example.com")
+    notification_service.user_repository.get_by_id.return_value = user
+    notification_service.template_service.render_template.return_value = "<html />"
+
+    notification_service.send_password_changed_notification(
+        user_id="u1",
+        changed_at=datetime.now(timezone.utc),
+    )
+
+    call_kwargs = notification_service.email_service.send_email.call_args
+    subject = call_kwargs[1].get("subject", "") if call_kwargs[1] else call_kwargs[0][1]
+    assert BRAND_NAME in subject

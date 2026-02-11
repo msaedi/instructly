@@ -40,6 +40,9 @@ class _StubCache:
         self._store[key] = value
         self.last_ttl = ttl
 
+    async def delete(self, key):
+        return self._store.pop(key, None) is not None
+
 
 class _StubAuthService:
     def __init__(self, user_data=None, user_obj=None):
@@ -578,7 +581,9 @@ async def test_register_guest_conversion_error_and_invite_warning(monkeypatch, d
         metadata={"invite_code": "INVITE"},
     )
     response = Response()
-    result = await auth_routes.register(_DummyRequest(), response, payload, auth_service, db)
+    result = await auth_routes.register(
+        _DummyRequest(), response, payload, auth_service, db, cache_service=_StubCache()
+    )
 
     assert result.email == "user@example.com"
 
@@ -616,7 +621,9 @@ async def test_register_invite_exception_is_logged(monkeypatch, db):
     )
     response = Response()
 
-    result = await auth_routes.register(_DummyRequest(), response, payload, auth_service, db)
+    result = await auth_routes.register(
+        _DummyRequest(), response, payload, auth_service, db, cache_service=_StubCache()
+    )
     assert result.email == "user@example.com"
 
 
@@ -634,12 +641,16 @@ async def test_register_conflict_and_unexpected_errors(db):
 
     conflict_service = _StubRegisterService(exc=ConflictException("dup"))
     with pytest.raises(HTTPException) as exc:
-        await auth_routes.register(_DummyRequest(), response, payload, conflict_service, db)
+        await auth_routes.register(
+            _DummyRequest(), response, payload, conflict_service, db, cache_service=_StubCache()
+        )
     assert exc.value.status_code == 409
 
     error_service = _StubRegisterService(exc=RuntimeError("boom"))
     with pytest.raises(HTTPException) as exc:
-        await auth_routes.register(_DummyRequest(), response, payload, error_service, db)
+        await auth_routes.register(
+            _DummyRequest(), response, payload, error_service, db, cache_service=_StubCache()
+        )
     assert exc.value.status_code == 500
 
 
@@ -1151,3 +1162,141 @@ async def test_update_current_user_unexpected_error(monkeypatch, test_student, d
             _DummyRequest(), payload, user.email, auth_service, db
         )
     assert exc.value.status_code == 500
+
+
+# ── register: welcome email + cache flag ────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_register_sends_welcome_email_and_sets_cache_flag(monkeypatch, db):
+    """Registration should fire welcome email and set recently_registered cache flag."""
+    user = SimpleNamespace(
+        id="u1",
+        email="new@example.com",
+        first_name="New",
+        last_name="User",
+        phone=None,
+        zip_code="10001",
+        is_active=True,
+        timezone="UTC",
+        roles=[],
+        profile_picture_version=0,
+        has_profile_picture=False,
+    )
+    auth_service = _StubRegisterService(user=user)
+    cache = _StubCache()
+
+    welcome_calls = []
+
+    def _stub_welcome(self_ns, user_id, role="student"):
+        welcome_calls.append({"user_id": user_id, "role": role})
+
+    monkeypatch.setattr(
+        "app.services.notification_service.NotificationService.send_welcome_email",
+        _stub_welcome,
+    )
+
+    payload = auth_routes.UserCreate(
+        email="new@example.com",
+        password="Strong123",
+        first_name="New",
+        last_name="User",
+        zip_code="10001",
+        role="instructor",
+    )
+    response = Response()
+    result = await auth_routes.register(
+        _DummyRequest(), response, payload, auth_service, db, cache_service=cache
+    )
+
+    assert result.email == "new@example.com"
+    assert len(welcome_calls) == 1
+    assert welcome_calls[0]["role"] == "instructor"
+    assert cache._store.get(f"recently_registered:{user.id}") is True
+    assert cache.last_ttl == 300
+
+
+@pytest.mark.asyncio
+async def test_register_welcome_email_failure_does_not_block(monkeypatch, db):
+    """If welcome email raises, registration still succeeds."""
+    user = SimpleNamespace(
+        id="u2",
+        email="fail@example.com",
+        first_name="Fail",
+        last_name="User",
+        phone=None,
+        zip_code="10001",
+        is_active=True,
+        timezone="UTC",
+        roles=[],
+        profile_picture_version=0,
+        has_profile_picture=False,
+    )
+    auth_service = _StubRegisterService(user=user)
+    cache = _StubCache()
+
+    def _boom_welcome(self_ns, user_id, role="student"):
+        raise RuntimeError("email down")
+
+    monkeypatch.setattr(
+        "app.services.notification_service.NotificationService.send_welcome_email",
+        _boom_welcome,
+    )
+
+    payload = auth_routes.UserCreate(
+        email="fail@example.com",
+        password="Strong123",
+        first_name="Fail",
+        last_name="User",
+        zip_code="10001",
+        role="student",
+    )
+    response = Response()
+    result = await auth_routes.register(
+        _DummyRequest(), response, payload, auth_service, db, cache_service=cache
+    )
+
+    # Registration still succeeds even though welcome email failed
+    assert result.email == "fail@example.com"
+    # Cache flag should still be set (separate try-block)
+    assert cache._store.get(f"recently_registered:{user.id}") is True
+
+
+# ── _maybe_send_new_device_login: recently_registered path ──────
+
+
+@pytest.mark.asyncio
+async def test_maybe_send_suppressed_for_recently_registered():
+    """When recently_registered flag exists, new-device-login is skipped and device is registered."""
+    req = _DummyRequest(headers={"user-agent": "test-agent"})
+    cache = _StubCache()
+    # Seed the recently_registered flag
+    await cache.set("recently_registered:u1", True)
+
+    await auth_routes._maybe_send_new_device_login_notification(
+        user_id="u1", request=req, cache_service=cache
+    )
+
+    # The recently_registered flag should be deleted
+    assert cache._store.get("recently_registered:u1") is None
+    # The device should be registered as known
+    fingerprint = auth_routes._device_fingerprint("127.0.0.1", "test-agent")
+    assert cache._store.get("known_devices:u1") == [fingerprint]
+
+
+@pytest.mark.asyncio
+async def test_maybe_send_recently_registered_registers_device_correctly():
+    """recently_registered path should register device with correct TTL."""
+    req = _DummyRequest(headers={"user-agent": "my-browser"}, client_host="10.0.0.1")
+    cache = _StubCache()
+    await cache.set("recently_registered:u2", True)
+
+    await auth_routes._maybe_send_new_device_login_notification(
+        user_id="u2", request=req, cache_service=cache
+    )
+
+    fingerprint = auth_routes._device_fingerprint("10.0.0.1", "my-browser")
+    assert cache._store["known_devices:u2"] == [fingerprint]
+    assert cache.last_ttl == auth_routes.KNOWN_DEVICE_TTL_SECONDS
+    # Flag cleaned up
+    assert "recently_registered:u2" not in cache._store
