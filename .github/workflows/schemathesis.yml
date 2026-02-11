@@ -28,7 +28,7 @@ jobs:
       - name: Install Schemathesis (pinned)
         run: |
           python -m pip install --upgrade pip
-          pip install schemathesis==4.1.4
+          pip install schemathesis==4.10.1
 
       - name: Run Schemathesis (preview, GET/HEAD only)
         env:
@@ -90,7 +90,7 @@ jobs:
       - name: Install Schemathesis (pinned)
         run: |
           python -m pip install --upgrade pip
-          pip install schemathesis==4.1.4
+          pip install schemathesis==4.10.1
 
       - name: Run Schemathesis (beta, GET/HEAD only)
         env:
