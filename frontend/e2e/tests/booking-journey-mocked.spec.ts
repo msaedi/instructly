@@ -289,7 +289,7 @@ test.describe('Student Booking Journey (Mocked)', () => {
 
   test('should display correct booking details', async ({ page }) => {
     // Navigate directly to instructor profile
-    await page.goto(`/instructors/${TEST_ULIDS.instructor8}`);
+    await page.goto(`/instructors/${TEST_ULIDS.instructor8}`, { waitUntil: 'domcontentloaded' });
 
     const instructorProfile = new InstructorProfilePage(page);
     await instructorProfile.waitForAvailability();

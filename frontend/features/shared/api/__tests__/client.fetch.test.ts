@@ -392,7 +392,7 @@ describe('cleanFetch edge cases', () => {
     const response = await cleanFetch('https://example.com/api/text');
 
     expect(response.status).toBe(200);
-    expect(response.data).toBeNull();
+    expect(response.data).toBeUndefined();
   });
 
   it('handles 429 without Retry-After header', async () => {
