@@ -18,8 +18,8 @@ def _vector(size, value=0.01):
 
 def test_find_similar_by_embedding_success(db, sample_catalog_services):
     service = sample_catalog_services[0]
-    embedding = _vector(384, 0.02)
-    service.embedding = embedding
+    embedding = _vector(1536, 0.02)
+    service.embedding_v2 = embedding
     db.commit()
 
     repo = ServiceCatalogRepository(db)
@@ -47,7 +47,7 @@ def test_find_similar_by_embedding_no_results(db, monkeypatch):
 
     repo = ServiceCatalogRepository(db)
     monkeypatch.setattr(repo.db, "execute", lambda *_a, **_k: _EmptyResult())
-    assert repo.find_similar_by_embedding(_vector(384)) == []
+    assert repo.find_similar_by_embedding(_vector(1536)) == []
 
 
 def test_find_similar_by_embedding_error_returns_empty(db, monkeypatch):
@@ -57,7 +57,7 @@ def test_find_similar_by_embedding_error_returns_empty(db, monkeypatch):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(repo.db, "execute", _boom)
-    assert repo.find_similar_by_embedding(_vector(384)) == []
+    assert repo.find_similar_by_embedding(_vector(1536)) == []
 
 
 def test_search_services_trgm_and_fallback(db, sample_catalog_services):

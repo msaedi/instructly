@@ -114,7 +114,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         Find services similar to the given embedding using cosine similarity.
 
         Args:
-            embedding: Query embedding vector (384 dimensions)
+            embedding: Query embedding vector (1536 dimensions)
             limit: Maximum number of results
             threshold: Minimum similarity threshold (0-1)
 
@@ -128,11 +128,11 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             # Use raw SQL for vector similarity search
             sql = text(
                 """
-                SELECT id, 1 - (embedding <=> CAST(:embedding AS vector)) as similarity
+                SELECT id, 1 - (embedding_v2 <=> CAST(:embedding AS vector)) as similarity
                 FROM service_catalog
                 WHERE is_active = true
-                  AND embedding IS NOT NULL
-                  AND 1 - (embedding <=> CAST(:embedding AS vector)) >= :threshold
+                  AND embedding_v2 IS NOT NULL
+                  AND 1 - (embedding_v2 <=> CAST(:embedding AS vector)) >= :threshold
                 ORDER BY similarity DESC
                 LIMIT :limit
             """

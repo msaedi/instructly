@@ -156,7 +156,7 @@ class ServiceCatalog(Base):
         search_terms: Array of search keywords
         eligible_age_groups: Age groups this service is available for
         display_order: Order for UI display
-        embedding: Vector embedding for semantic search
+        embedding_v2: Vector embedding for semantic search
         online_capable: Whether this service can be offered online
         requires_certification: Whether instructors need certification
         is_active: Whether this service is available
@@ -190,7 +190,6 @@ class ServiceCatalog(Base):
     price_floor_in_person_cents = Column(Integer, nullable=True)
     price_floor_online_cents = Column(Integer, nullable=True)
     display_order = Column(Integer, nullable=False, default=999, index=True)
-    embedding = Column(Vector(384), nullable=True)  # MiniLM (legacy)
     # OpenAI text-embedding-3-small embeddings (1536 dimensions)
     embedding_v2 = Column(Vector(1536), nullable=True)
     embedding_model = Column(Text, nullable=True)  # e.g., "text-embedding-3-small"

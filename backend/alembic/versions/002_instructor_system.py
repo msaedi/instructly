@@ -9,7 +9,6 @@ Create Date: 2025-02-10 00:00:01.000000
 from typing import Sequence, Union
 
 from alembic import op
-from pgvector.sqlalchemy import Vector
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -470,7 +469,6 @@ def upgrade() -> None:
         sa.Column("price_floor_in_person_cents", sa.Integer(), nullable=True),
         sa.Column("price_floor_online_cents", sa.Integer(), nullable=True),
         sa.Column("display_order", sa.Integer(), nullable=False, server_default="999"),
-        sa.Column("embedding", Vector(384), nullable=True),
         sa.Column("online_capable", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column("requires_certification", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
@@ -517,13 +515,6 @@ def upgrade() -> None:
     )
     op.create_index("idx_service_catalog_display_order", "service_catalog", ["display_order"])
     op.create_index("idx_service_catalog_online_capable", "service_catalog", ["online_capable"])
-    op.create_index(
-        "idx_service_catalog_embedding",
-        "service_catalog",
-        ["embedding"],
-        postgresql_using="ivfflat",
-        postgresql_ops={"embedding": "vector_cosine_ops"},
-    )
 
     # Create instructor services table
     op.create_table(
@@ -787,7 +778,6 @@ def downgrade() -> None:
     op.drop_index("ix_instructor_services_id", table_name="instructor_services")
     op.drop_table("instructor_services")
 
-    op.drop_index("idx_service_catalog_embedding", table_name="service_catalog")
     op.drop_index("idx_service_catalog_online_capable", table_name="service_catalog")
     op.drop_index("idx_service_catalog_display_order", table_name="service_catalog")
     op.drop_index("idx_service_catalog_search_terms", table_name="service_catalog")
