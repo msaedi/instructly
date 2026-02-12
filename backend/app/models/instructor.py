@@ -17,7 +17,6 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
-    Float,
     ForeignKey,
     Index,
     Integer,
@@ -514,10 +513,10 @@ class InstructorPreferredPlace(Base):
     label = Column(String(64), nullable=True)
     position = Column(SmallInteger, nullable=False, default=0)
     place_id = Column(String(255), nullable=True)
-    lat = Column(Float, nullable=True)
-    lng = Column(Float, nullable=True)
-    approx_lat = Column(Float, nullable=True)
-    approx_lng = Column(Float, nullable=True)
+    lat = Column(Numeric(precision=10, scale=7, asdecimal=False), nullable=True)
+    lng = Column(Numeric(precision=10, scale=7, asdecimal=False), nullable=True)
+    approx_lat = Column(Numeric(precision=10, scale=7, asdecimal=False), nullable=True)
+    approx_lng = Column(Numeric(precision=10, scale=7, asdecimal=False), nullable=True)
     neighborhood = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(

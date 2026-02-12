@@ -17,13 +17,13 @@ from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Tuple
 
 import dateparser
 
+from app.services.search.keyword_generator import get_keyword_dicts
 from app.services.search.patterns import (
     ADULT_KEYWORDS,
     AGE_EXPLICIT,
     AGE_FOR_MY,
     AGE_YEAR_OLD,
     BUDGET_KEYWORDS,
-    CATEGORY_KEYWORDS,
     KID_CONTEXT,
     KIDS_KEYWORDS,
     LESSON_TYPE_IN_PERSON,
@@ -38,11 +38,9 @@ from app.services.search.patterns import (
     PRICE_PER_HOUR,
     PRICE_UNDER_DOLLAR,
     PRICE_UNDER_IMPLICIT,
-    SERVICE_KEYWORDS,
     SKILL_ADVANCED,
     SKILL_BEGINNER,
     SKILL_INTERMEDIATE,
-    SUBCATEGORY_KEYWORDS,
     TEEN_KEYWORDS,
     TIME_AFTER,
     TIME_AFTERNOON,
@@ -165,6 +163,10 @@ class QueryParser:
 
         self._price_threshold_repository = PriceThresholdRepository(db)
         self._location_resolver = LocationResolver(db, region_code=region_code)
+        keyword_dicts = get_keyword_dicts(db)
+        self._category_keywords = keyword_dicts["category_keywords"]
+        self._subcategory_keywords = keyword_dicts["subcategory_keywords"]
+        self._service_keywords = keyword_dicts["service_keywords"]
 
     def _get_user_today(self) -> DateType:
         """
@@ -739,10 +741,10 @@ class QueryParser:
     def _detect_category(self, query: str) -> str:
         """Detect service category from query text (for price intent resolution)."""
         query_lower = query.lower()
-        # CATEGORY_KEYWORDS maps keyword→category_name; check longest keywords first
-        for keyword in sorted(CATEGORY_KEYWORDS, key=len, reverse=True):
+        # category keyword map: keyword -> category_name
+        for keyword in sorted(self._category_keywords, key=len, reverse=True):
             if _contains_keyword(query_lower, keyword):
-                return CATEGORY_KEYWORDS[keyword]
+                return self._category_keywords[keyword]
         return "general"
 
     def _detect_taxonomy(self, result: ParsedQuery) -> ParsedQuery:
@@ -752,29 +754,29 @@ class QueryParser:
         """
         text = (result.service_query or result.original_query).lower()
 
-        # 1. Try SERVICE_KEYWORDS (most specific)
-        for keyword in sorted(SERVICE_KEYWORDS, key=len, reverse=True):
+        # 1. Try service keywords (most specific)
+        for keyword in sorted(self._service_keywords, key=len, reverse=True):
             if _contains_keyword(text, keyword):
-                result.service_hint = SERVICE_KEYWORDS[keyword]
+                result.service_hint = self._service_keywords[keyword]
                 # Derive subcategory and category from service match
-                if keyword in SUBCATEGORY_KEYWORDS:
-                    result.subcategory_hint = SUBCATEGORY_KEYWORDS[keyword]
-                if keyword in CATEGORY_KEYWORDS:
-                    result.category_hint = CATEGORY_KEYWORDS[keyword]
+                if keyword in self._subcategory_keywords:
+                    result.subcategory_hint = self._subcategory_keywords[keyword]
+                if keyword in self._category_keywords:
+                    result.category_hint = self._category_keywords[keyword]
                 return result
 
-        # 2. Try SUBCATEGORY_KEYWORDS
-        for keyword in sorted(SUBCATEGORY_KEYWORDS, key=len, reverse=True):
+        # 2. Try subcategory keywords
+        for keyword in sorted(self._subcategory_keywords, key=len, reverse=True):
             if _contains_keyword(text, keyword):
-                result.subcategory_hint = SUBCATEGORY_KEYWORDS[keyword]
-                if keyword in CATEGORY_KEYWORDS:
-                    result.category_hint = CATEGORY_KEYWORDS[keyword]
+                result.subcategory_hint = self._subcategory_keywords[keyword]
+                if keyword in self._category_keywords:
+                    result.category_hint = self._category_keywords[keyword]
                 return result
 
-        # 3. Try CATEGORY_KEYWORDS (broadest)
-        for keyword in sorted(CATEGORY_KEYWORDS, key=len, reverse=True):
+        # 3. Try category keywords (broadest)
+        for keyword in sorted(self._category_keywords, key=len, reverse=True):
             if _contains_keyword(text, keyword):
-                result.category_hint = CATEGORY_KEYWORDS[keyword]
+                result.category_hint = self._category_keywords[keyword]
                 return result
 
         return result

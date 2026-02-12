@@ -8,6 +8,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from ._strict_base import StrictModel
+
 
 class RevenuePeriod(str, Enum):
     TODAY = "today"
@@ -170,7 +172,7 @@ class SupplyGap(BaseModel):
     priority: str
 
 
-class UnfulfilledSearch(BaseModel):
+class UnfulfilledSearch(StrictModel):
     query: str
     count: int
     closest_match: str | None = None

@@ -8,12 +8,12 @@ Defines request/response models for search history endpoints.
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+from pydantic import ConfigDict, Field, field_serializer, field_validator
 
-from ._strict_base import StrictRequestModel
+from ._strict_base import StrictModel, StrictRequestModel
 
 
-class SearchContext(BaseModel):
+class SearchContext(StrictModel):
     """Context about where the search originated."""
 
     page_origin: Optional[str] = None
@@ -23,7 +23,7 @@ class SearchContext(BaseModel):
     session_search_count: Optional[int] = None
 
 
-class DeviceContext(BaseModel):
+class DeviceContext(StrictModel):
     """Device information for analytics."""
 
     screen_width: Optional[int] = None
@@ -39,7 +39,7 @@ class DeviceContext(BaseModel):
     timezone: Optional[str] = None
 
 
-class ObservabilityCandidate(BaseModel):
+class ObservabilityCandidate(StrictModel):
     """Search candidate for observability tracking."""
 
     position: Optional[int] = None
@@ -51,7 +51,7 @@ class ObservabilityCandidate(BaseModel):
     source: Optional[str] = None
 
 
-class SearchHistoryBase(BaseModel):
+class SearchHistoryBase(StrictModel):
     """Base schema for search history."""
 
     search_query: str = Field(..., description="The search query string", min_length=1)

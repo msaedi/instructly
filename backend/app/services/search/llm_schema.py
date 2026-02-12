@@ -5,10 +5,12 @@ Used with OpenAI's beta.chat.completions.parse() method.
 """
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from app.schemas._strict_base import StrictModel
 
 
-class LLMParsedQuery(BaseModel):
+class LLMParsedQuery(StrictModel):
     """
     Schema for LLM structured output.
 
