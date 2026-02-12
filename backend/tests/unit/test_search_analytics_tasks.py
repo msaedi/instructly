@@ -202,8 +202,8 @@ class TestGenerateSearchInsights:
         assert result["period"]["days"] == 7
         assert "trending_searches" in result
         assert result["abandonment"]["rate"] == 40.0
-        assert len(result["peak_hours"]) == 3
-        assert result["peak_hours"][0]["hour"] == 14
+        assert len(result["peak_search_hours"]) == 3
+        assert result["peak_search_hours"][0]["hour"] == 14
 
         mock_db.close.assert_called_once()
 

@@ -212,7 +212,7 @@ def analyze_database_schema() -> None:
                 "idx_bookings_upcoming: (booking_date, status)",
                 "idx_bookings_status: (status)",
                 # "idx_bookings_availability_slot_id: (availability_slot_id)",  # REMOVED in WS9
-                "idx_bookings_instructor_date_status: (instructor_id, booking_date, status)",
+                "ix_bookings_instructor_date_status: (instructor_id, booking_date, status)",
                 "idx_bookings_date: (booking_date)",
                 "idx_bookings_instructor_id: (instructor_id)",
                 "idx_bookings_student_date: (student_id, booking_date)",

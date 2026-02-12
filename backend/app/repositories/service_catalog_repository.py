@@ -34,6 +34,14 @@ from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
 
+
+def _money_to_cents(value: Any) -> int:
+    """Convert a dollar amount to cents, returning 0 for None."""
+    if value is None:
+        return 0
+    return int(round(float(value) * 100))
+
+
 TQuery = TypeVar("TQuery")
 
 # Module-level pg_trgm detection cache (avoids per-request DB query)
@@ -1029,11 +1037,6 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         """
         analytics = self.get_or_create(service_catalog_id)
 
-        def _money_to_cents(value: Any) -> int:
-            if value is None:
-                return 0
-            return int(round(float(value) * 100))
-
         updates: Dict[str, Any] = {
             "booking_count_7d": booking_stats.get("count_7d", 0),
             "booking_count_30d": booking_stats.get("count_30d", 0),
@@ -1151,12 +1154,6 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         """
         if not updates:
             return 0
-
-        # Build mapping payload for bulk_update_mappings.
-        def _money_to_cents(value: Any) -> int:
-            if value is None:
-                return 0
-            return int(round(float(value) * 100))
 
         mappings: List[Dict[str, Any]] = []
         for u in updates:

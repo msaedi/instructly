@@ -5,59 +5,52 @@ Monitor the test database before and after running tests.
 
 from datetime import datetime
 
-import psycopg2
 from rich.console import Console
 from rich.table import Table
+from sqlalchemy import create_engine, text
 
 console = Console()
 
 # Test database connection
-TEST_DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "database": "instainstru_test",
-    "user": "postgres",
-    "password": "postgres",
-}
+TEST_DB_URL = "postgresql://postgres:postgres@localhost:5432/instainstru_test"
+engine = create_engine(TEST_DB_URL)
 
 
 def check_service_catalog_state():
     """Check the current state of service_catalog table."""
     try:
-        conn = psycopg2.connect(**TEST_DB_CONFIG)
-        cur = conn.cursor()
+        with engine.connect() as conn:
+            # Get counts
+            row = conn.execute(text("SELECT COUNT(*), MAX(id) FROM service_catalog")).fetchone()
+            total_count, max_id = row
 
-        # Get counts
-        cur.execute("SELECT COUNT(*), MAX(id) FROM service_catalog")
-        total_count, max_id = cur.fetchone()
-
-        # Get count by patterns
-        cur.execute(
+            # Get count by patterns
+            row = conn.execute(
+                text(
+                    """
+                SELECT
+                    COUNT(*) FILTER (WHERE id <= '250') as seed_data,
+                    COUNT(*) FILTER (WHERE id > '250') as test_data,
+                    COUNT(*) FILTER (WHERE name LIKE 'Service %') as service_n_pattern,
+                    COUNT(*) FILTER (WHERE name LIKE '%Test%') as test_pattern
+                FROM service_catalog
             """
-            SELECT
-                COUNT(*) FILTER (WHERE id <= 250) as seed_data,
-                COUNT(*) FILTER (WHERE id > 250) as test_data,
-                COUNT(*) FILTER (WHERE name LIKE 'Service %') as service_n_pattern,
-                COUNT(*) FILTER (WHERE name LIKE '%Test%') as test_pattern
-            FROM service_catalog
-        """
-        )
-        seed_count, test_count, service_n_count, test_pattern_count = cur.fetchone()
+                )
+            ).fetchone()
+            seed_count, test_count, service_n_count, test_pattern_count = row
 
-        # Get recent services
-        cur.execute(
+            # Get recent services
+            recent_services = conn.execute(
+                text(
+                    """
+                SELECT id, name, created_at
+                FROM service_catalog
+                WHERE created_at > CURRENT_TIMESTAMP - INTERVAL '5 minutes'
+                ORDER BY id DESC
+                LIMIT 5
             """
-            SELECT id, name, created_at
-            FROM service_catalog
-            WHERE created_at > CURRENT_TIMESTAMP - INTERVAL '5 minutes'
-            ORDER BY id DESC
-            LIMIT 5
-        """
-        )
-        recent_services = cur.fetchall()
-
-        cur.close()
-        conn.close()
+                )
+            ).fetchall()
 
         return {
             "timestamp": datetime.now(),

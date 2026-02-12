@@ -537,7 +537,7 @@ class ServiceAnalytics(Base):
         return float((self.avg_price_booked_cents or 0) / 100.0)
 
     @avg_price_booked.setter
-    def avg_price_booked(self, value: float | int | None) -> None:
+    def avg_price_booked(self, value: float | None) -> None:
         self.avg_price_booked_cents = int(round(float(value or 0) * 100))
 
     @property
@@ -545,7 +545,7 @@ class ServiceAnalytics(Base):
         return float((self.price_percentile_25_cents or 0) / 100.0)
 
     @price_percentile_25.setter
-    def price_percentile_25(self, value: float | int | None) -> None:
+    def price_percentile_25(self, value: float | None) -> None:
         self.price_percentile_25_cents = int(round(float(value or 0) * 100))
 
     @property
@@ -553,7 +553,7 @@ class ServiceAnalytics(Base):
         return float((self.price_percentile_50_cents or 0) / 100.0)
 
     @price_percentile_50.setter
-    def price_percentile_50(self, value: float | int | None) -> None:
+    def price_percentile_50(self, value: float | None) -> None:
         self.price_percentile_50_cents = int(round(float(value or 0) * 100))
 
     @property
@@ -561,7 +561,7 @@ class ServiceAnalytics(Base):
         return float((self.price_percentile_75_cents or 0) / 100.0)
 
     @price_percentile_75.setter
-    def price_percentile_75(self, value: float | int | None) -> None:
+    def price_percentile_75(self, value: float | None) -> None:
         self.price_percentile_75_cents = int(round(float(value or 0) * 100))
 
     @property

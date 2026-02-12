@@ -38,9 +38,9 @@ def patch_repo_and_db(monkeypatch):
     yield
 
 
-def test_generate_search_insights_includes_peak_hours():
+def test_generate_search_insights_includes_peak_search_hours():
     result = generate_search_insights.run(7)
-    assert "peak_hours" in result
-    assert isinstance(result["peak_hours"], list)
-    assert len(result["peak_hours"]) == 2
-    assert result["peak_hours"][0]["count"] == 10
+    assert "peak_search_hours" in result
+    assert isinstance(result["peak_search_hours"], list)
+    assert len(result["peak_search_hours"]) == 2
+    assert result["peak_search_hours"][0]["count"] == 10

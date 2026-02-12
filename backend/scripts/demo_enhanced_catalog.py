@@ -162,13 +162,12 @@ def main():
                 """
             SELECT
                 sc.name,
-                sa.price_percentile_25,
-                sa.price_percentile_50,
-                sa.price_percentile_75,
-                sa.avg_price_booked
+                sa.price_percentile_25_cents / 100.0 AS price_p25,
+                sa.price_percentile_50_cents / 100.0 AS price_p50,
+                sa.price_percentile_75_cents / 100.0 AS price_p75
             FROM service_analytics sa
             JOIN service_catalog sc ON sa.service_catalog_id = sc.id
-            WHERE sa.avg_price_booked IS NOT NULL
+            WHERE sa.avg_price_booked_cents IS NOT NULL
             ORDER BY sa.booking_count_30d DESC
             LIMIT 5
         """
@@ -180,7 +179,7 @@ def main():
             print("-" * 55)
             for svc in price_insights:
                 print(
-                    f"{svc.name:<25} ${svc.price_percentile_25:<9.0f} ${svc.price_percentile_50:<9.0f} ${svc.price_percentile_75:<9.0f}"
+                    f"{svc.name:<25} ${svc.price_p25:<9.0f} ${svc.price_p50:<9.0f} ${svc.price_p75:<9.0f}"
                 )
 
         print("\n" + "=" * 60)
