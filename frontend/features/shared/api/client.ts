@@ -222,15 +222,23 @@ export async function cleanFetch<T>(
     const retryAfterSeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : undefined;
 
     let data: ApiErrorResponse | T | null = null;
-    try {
-      data = (await response.json()) as ApiErrorResponse | T;
-    } catch (parseError) {
-      logger.error('Failed to parse API response as JSON', {
-        url: url.toString(),
-        status: response.status,
-        error: parseError instanceof Error ? parseError.message : String(parseError),
-      });
-      data = null;
+    if (response.status !== 204 && response.status !== 205) {
+      try {
+        data = (await response.json()) as ApiErrorResponse | T;
+      } catch (parseError) {
+        logger.error('Failed to parse API response as JSON', {
+          url: url.toString(),
+          status: response.status,
+          error: parseError instanceof Error ? parseError.message : String(parseError),
+        });
+        if (response.ok) {
+          return {
+            error: 'Invalid response format',
+            status: response.status,
+          };
+        }
+        data = null;
+      }
     }
 
     if (!response.ok) {

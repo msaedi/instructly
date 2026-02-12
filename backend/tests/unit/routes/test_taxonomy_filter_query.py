@@ -51,6 +51,14 @@ class TestParseCsvValues:
     def test_single_value(self):
         assert _parse_csv_values("advanced") == ["advanced"]
 
+    def test_value_with_reserved_pipe_raises(self):
+        with pytest.raises(ValueError, match="reserved delimiter character"):
+            _parse_csv_values("has|pipe")
+
+    def test_value_with_reserved_colon_raises(self):
+        with pytest.raises(ValueError, match="reserved delimiter character"):
+            _parse_csv_values("has:colon")
+
 
 # ── _validate_skill_levels ───────────────────────────────────
 
@@ -130,10 +138,9 @@ class TestParseContentFilters:
         result = _parse_content_filters("goal:fitness|goal:fitness,strength")
         assert result == {"goal": ["fitness", "strength"]}
 
-    def test_value_with_colon(self):
-        """Colon in value part is preserved (split on first colon only)."""
-        result = _parse_content_filters("note:has:colons")
-        assert result == {"note": ["has:colons"]}
+    def test_value_with_colon_raises(self):
+        with pytest.raises(ValueError, match="reserved delimiter character"):
+            _parse_content_filters("note:has:colons")
 
     def test_whitespace_in_segments(self):
         result = _parse_content_filters(" goal : fitness , flexibility ")

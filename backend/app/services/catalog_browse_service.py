@@ -143,7 +143,7 @@ class CatalogBrowseService(BaseService):
                 "subcategory_missing_category",
                 extra={"subcategory_id": sub.id, "subcategory_slug": subcategory_slug},
             )
-            category_info = {}
+            category_info = None
 
         return {
             "id": sub.id,

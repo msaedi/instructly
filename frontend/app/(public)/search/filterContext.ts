@@ -347,6 +347,11 @@ type DynamicFilterSource = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+const normalizeFilterType = (
+  value: unknown
+): 'single_select' | 'multi_select' =>
+  value === 'single_select' ? 'single_select' : 'multi_select';
+
 const buildDynamicContentFilters = (filters: DynamicFilterSource[]): TaxonomyContentFilterDefinition[] => {
   if (!filters || filters.length === 0) {
     return [];
@@ -364,6 +369,7 @@ const buildDynamicContentFilters = (filters: DynamicFilterSource[]): TaxonomyCon
         ? filter.filter_display_name
         : (filter.label as string | null | undefined)
     ) ?? formatFilterLabel(key);
+    const filterType = normalizeFilterType(filter.filter_type ?? filter.type);
 
     const options: TaxonomyContentFilterDefinition['options'] = [];
     const seen = new Set<string>();
@@ -394,6 +400,7 @@ const buildDynamicContentFilters = (filters: DynamicFilterSource[]): TaxonomyCon
     definitions.push({
       key,
       label,
+      filter_type: filterType,
       options,
     });
   }

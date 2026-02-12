@@ -2258,7 +2258,7 @@ class NLSearchService:
                         ]
                     else:
                         candidates = []
-                except Exception:
+                except Exception as exc:
                     logger.warning(
                         "taxonomy_filter_service_ids_failed",
                         extra={
@@ -2266,6 +2266,7 @@ class NLSearchService:
                             "filter_count": len(hard_taxonomy_filters)
                             if hard_taxonomy_filters
                             else 0,
+                            "error": str(exc),
                         },
                         exc_info=True,
                     )

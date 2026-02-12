@@ -6,6 +6,8 @@ These are pure functions with no DB dependency — test normalization,
 matching, and coercion logic.
 """
 
+from types import SimpleNamespace
+
 import pytest
 
 pytestmark = pytest.mark.unit
@@ -152,3 +154,84 @@ class TestMatchesFilterSelections:
             selections={"skill_level": "beginner"},  # type: ignore[arg-type]
             requested={"skill_level": ["beginner"]},
         )
+
+
+class _FakeQuery:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def filter(self, *_args, **_kwargs):
+        return self
+
+    def options(self, *_args, **_kwargs):
+        return self
+
+    def all(self):
+        return self._rows
+
+
+class TestValidateFilterOptionInvariants:
+    @pytest.fixture
+    def repo(self):
+        repo = TaxonomyFilterRepository.__new__(TaxonomyFilterRepository)
+        repo.db = SimpleNamespace(query=lambda *_args, **_kwargs: _FakeQuery([]))
+        return repo
+
+    def test_valid_options_pass_validation(self, repo):
+        filter_definition = SimpleNamespace(id="fd_1")
+        filter_option = SimpleNamespace(id="fo_1", filter_definition_id="fd_1")
+        subcategory_filter_option = SimpleNamespace(id="sfo_1", filter_option=filter_option)
+        subcategory_filter = SimpleNamespace(
+            id="sf_1",
+            filter_definition=filter_definition,
+            filter_options=[subcategory_filter_option],
+        )
+        repo.db = SimpleNamespace(query=lambda *_args, **_kwargs: _FakeQuery([subcategory_filter]))
+
+        violations = repo.validate_filter_option_invariants("sub_1")
+
+        assert violations == []
+
+    def test_wrong_definition_option_is_reported(self, repo):
+        filter_definition = SimpleNamespace(id="fd_expected")
+        wrong_filter_option = SimpleNamespace(id="fo_wrong", filter_definition_id="fd_actual")
+        broken_link = SimpleNamespace(id="sfo_broken", filter_option=wrong_filter_option)
+        subcategory_filter = SimpleNamespace(
+            id="sf_1",
+            filter_definition=filter_definition,
+            filter_options=[broken_link],
+        )
+        repo.db = SimpleNamespace(query=lambda *_args, **_kwargs: _FakeQuery([subcategory_filter]))
+
+        violations = repo.validate_filter_option_invariants("sub_1")
+
+        assert len(violations) == 1
+        assert "does not match" in violations[0]
+
+    def test_missing_filter_option_is_reported(self, repo):
+        filter_definition = SimpleNamespace(id="fd_1")
+        missing_option = SimpleNamespace(id="sfo_missing", filter_option=None)
+        subcategory_filter = SimpleNamespace(
+            id="sf_1",
+            filter_definition=filter_definition,
+            filter_options=[missing_option],
+        )
+        repo.db = SimpleNamespace(query=lambda *_args, **_kwargs: _FakeQuery([subcategory_filter]))
+
+        violations = repo.validate_filter_option_invariants("sub_1")
+
+        assert len(violations) == 1
+        assert "missing FilterOption" in violations[0]
+
+    def test_empty_option_links_pass(self, repo):
+        filter_definition = SimpleNamespace(id="fd_1")
+        subcategory_filter = SimpleNamespace(
+            id="sf_1",
+            filter_definition=filter_definition,
+            filter_options=[],
+        )
+        repo.db = SimpleNamespace(query=lambda *_args, **_kwargs: _FakeQuery([subcategory_filter]))
+
+        violations = repo.validate_filter_option_invariants("sub_1")
+
+        assert violations == []

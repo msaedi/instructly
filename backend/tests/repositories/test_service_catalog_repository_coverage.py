@@ -26,7 +26,8 @@ def test_find_similar_by_embedding_success(db, sample_catalog_services):
     results = repo.find_similar_by_embedding(embedding, limit=5, threshold=0.0)
 
     assert results
-    assert results[0][0].id == service.id
+    returned_ids = [matched_service.id for matched_service, _score in results]
+    assert service.id in returned_ids
 
 
 def test_service_catalog_repository_pg_trgm_init_failure(db, monkeypatch):

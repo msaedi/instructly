@@ -230,10 +230,12 @@ function MoreFiltersModalContent({
                         checked={isSelected}
                         onChange={() =>
                           setDraft((current) => {
-                            const nextValues = toggleArrayValue(
-                              current.contentFilters[filterDefinition.key] ?? [],
-                              option.value
-                            );
+                            const currentValues = current.contentFilters[filterDefinition.key] ?? [];
+                            const nextValues = filterDefinition.filter_type === 'single_select'
+                              ? currentValues.includes(option.value)
+                                ? []
+                                : [option.value]
+                              : toggleArrayValue(currentValues, option.value);
                             const nextContentFilters = { ...current.contentFilters };
                             if (nextValues.length > 0) {
                               nextContentFilters[filterDefinition.key] = nextValues;

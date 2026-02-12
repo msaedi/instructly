@@ -3,6 +3,7 @@
 Unit tests for the regex query parser.
 """
 from datetime import date, datetime, timedelta
+import statistics
 from typing import Any, Dict, Tuple
 from unittest.mock import Mock, patch
 
@@ -487,15 +488,20 @@ class TestParsingPerformance:
 
     def test_parsing_latency_under_10ms(self, parser: QueryParser) -> None:
         """Regex parsing should be sub-10ms."""
-        # Run multiple times to warm up
-        for _ in range(5):
-            parser.parse("cheap piano lessons tomorrow after 5pm in brooklyn")
+        query = "cheap piano lessons tomorrow after 5pm in brooklyn"
 
-        # Measure
-        result = parser.parse("cheap piano lessons tomorrow after 5pm in brooklyn")
-        assert result.parsing_latency_ms < 10, (
-            f"Parsing took {result.parsing_latency_ms}ms, expected < 10ms"
-        )
+        # Warm up caches/regex engine before collecting measurements.
+        for _ in range(10):
+            parser.parse(query)
+
+        # Use a small distribution instead of a single timing sample to reduce
+        # flakes from scheduler/CI jitter while still catching real regressions.
+        latencies = [parser.parse(query).parsing_latency_ms for _ in range(40)]
+        p50 = statistics.median(latencies)
+        p95 = sorted(latencies)[int(len(latencies) * 0.95)]
+
+        assert p50 < 10, f"P50 parsing latency was {p50}ms, expected < 10ms"
+        assert p95 < 25, f"P95 parsing latency was {p95}ms, expected < 25ms"
 
     def test_parsing_mode_is_regex(self, parser: QueryParser) -> None:
         result = parser.parse("piano lessons")

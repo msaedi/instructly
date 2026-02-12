@@ -687,4 +687,5 @@ def test_get_filters_and_validators_skip_missing_relations(monkeypatch):
     assert errors
 
     violations = repo.validate_filter_option_invariants("sub")
-    assert violations == []
+    assert len(violations) == 1
+    assert "missing FilterOption" in violations[0]

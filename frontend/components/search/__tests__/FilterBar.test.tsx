@@ -36,6 +36,7 @@ const TAXONOMY_CONTENT_FILTERS: TaxonomyContentFilterDefinition[] = [
   {
     key: 'goal',
     label: 'Goal',
+    filter_type: 'multi_select',
     options: [
       { value: 'enrichment', label: 'Enrichment' },
       { value: 'competition', label: 'Competition' },
@@ -44,6 +45,7 @@ const TAXONOMY_CONTENT_FILTERS: TaxonomyContentFilterDefinition[] = [
   {
     key: 'format',
     label: 'Format',
+    filter_type: 'multi_select',
     options: [
       { value: 'one_on_one', label: 'One-on-One' },
       { value: 'small_group', label: 'Small Group' },

@@ -3694,12 +3694,11 @@ class BookingService(BaseService):
                 instructor_service = booking.instructor_service
                 if instructor_service and instructor_service.catalog_entry:
                     category = instructor_service.catalog_entry.category
-                    if category:
-                        category_name = category.name
-            except AttributeError:
+                    category_name = category.name if category else None
+            except Exception as exc:
                 logger.warning(
                     "booking_category_chain_failed",
-                    extra={"booking_id": booking.id},
+                    extra={"booking_id": booking.id, "error": str(exc)},
                 )
 
             badge_service.check_and_award_on_lesson_completed(

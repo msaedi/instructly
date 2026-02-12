@@ -97,7 +97,7 @@ class SubcategoryDetail(StrictModel):
     description: Optional[str] = None
     meta_title: Optional[str] = None
     meta_description: Optional[str] = None
-    category: CategoryResponse
+    category: Optional[CategoryResponse] = None
     services: List[CatalogServiceResponse] = Field(default_factory=list)
     filters: List[SubcategoryFilterResponse] = Field(default_factory=list)
 

@@ -411,9 +411,10 @@ describe('SSR code paths', () => {
 
     const response = await cleanFetch('/api/v1/test');
 
-    // Should return status 200 with null data (JSON parse failed)
+    // Should surface a typed error instead of silently returning null data.
     expect(response.status).toBe(200);
-    expect(response.data).toBeNull();
+    expect(response.error).toBe('Invalid response format');
+    expect(response.data).toBeUndefined();
   });
 
   it('returns 429 without retryAfterSeconds when header is missing', async () => {
