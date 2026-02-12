@@ -534,10 +534,7 @@ class Booking(Base):
     if not IS_SQLITE:
         _table_constraints.append(
             CheckConstraint(
-                "CASE "
-                "WHEN end_time = '00:00:00' AND start_time <> '00:00:00' THEN TRUE "
-                "ELSE start_time < end_time "
-                "END",
+                "CASE " "WHEN end_time < start_time THEN TRUE " "ELSE start_time < end_time " "END",
                 name="check_time_order",
             )
         )

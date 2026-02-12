@@ -361,7 +361,7 @@ def upgrade() -> None:
         "check_time_order",
         "bookings",
         "CASE "
-        "WHEN end_time = TIME '00:00:00' AND start_time <> TIME '00:00:00' THEN TRUE "
+        "WHEN end_time < start_time THEN TRUE "
         "ELSE start_time < end_time "
         "END",
     )
@@ -376,8 +376,8 @@ def upgrade() -> None:
                 tsrange(
                   (booking_date::timestamp + start_time),
                   CASE
-                    WHEN end_time = time '00:00:00' AND start_time <> time '00:00:00'
-                      THEN (booking_date::timestamp + interval '1 day')
+                    WHEN end_time < start_time
+                      THEN (booking_date::timestamp + interval '1 day' + end_time)
                     ELSE (booking_date::timestamp + end_time)
                   END,
                   '[)'
