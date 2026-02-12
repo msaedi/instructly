@@ -33,6 +33,14 @@ def _make_service(*, stripe_configured: bool = True) -> StripeService:
     service.payment_repository = MagicMock()
     service.payment_repository.transaction = _noop_txn
     service.booking_repository = MagicMock()
+    service.booking_repository.get_transfer_by_booking_id.return_value = None
+    service.booking_repository.ensure_dispute.return_value = SimpleNamespace()
+    service.booking_repository.ensure_transfer.return_value = SimpleNamespace(
+        transfer_reversal_retry_count=0,
+        payout_transfer_retry_count=0,
+        transfer_retry_count=0,
+        refund_retry_count=0,
+    )
     service.user_repository = MagicMock()
     service.instructor_repository = MagicMock()
     service.config_service = MagicMock()
@@ -425,9 +433,8 @@ class TestDisputeHandlers:
         service.payment_repository.get_payment_by_intent_id.return_value = SimpleNamespace(
             booking_id="booking_1"
         )
-        service.booking_repository.get_by_id.return_value = SimpleNamespace(
-            id="booking_1", stripe_transfer_id=None, transfer_reversed=False
-        )
+        service.booking_repository.get_by_id.return_value = SimpleNamespace(id="booking_1")
+        service.booking_repository.get_transfer_by_booking_id.return_value = None
 
         with patch.object(stripe_service, "booking_lock_sync", _lock_ctx(False)):
             assert StripeService._handle_dispute_created(service, {"data": {"object": {}}}) is False
@@ -439,12 +446,17 @@ class TestDisputeHandlers:
         booking = SimpleNamespace(
             id="booking_1",
             student_id="student_1",
+        )
+        transfer = SimpleNamespace(
             stripe_transfer_id="tr_1",
             transfer_reversed=False,
             transfer_reversal_retry_count=0,
         )
         service.payment_repository.get_payment_by_intent_id.return_value = payment_record
         service.booking_repository.get_by_id.side_effect = [booking, booking]
+        service.booking_repository.get_transfer_by_booking_id.return_value = transfer
+        service.booking_repository.ensure_transfer.return_value = transfer
+        service.booking_repository.ensure_dispute.return_value = SimpleNamespace()
         service.payment_repository.get_payment_events_for_booking.side_effect = Exception("boom")
         service.payment_repository.create_payment_event.side_effect = [
             Exception("neg"),
@@ -461,8 +473,8 @@ class TestDisputeHandlers:
         ):
             assert StripeService._handle_dispute_created(service, {"data": {"object": {}}}) is True
 
-        assert booking.transfer_reversal_failed is True
-        assert booking.transfer_reversal_retry_count == 1
+        assert transfer.transfer_reversal_failed is True
+        assert transfer.transfer_reversal_retry_count == 1
 
     def test_dispute_created_missing_booking_in_transaction(self):
         service = _make_service()
@@ -473,9 +485,8 @@ class TestDisputeHandlers:
         booking = SimpleNamespace(
             id="booking_1",
             student_id="student_1",
-            stripe_transfer_id=None,
-            transfer_reversed=False,
         )
+        service.booking_repository.get_transfer_by_booking_id.return_value = None
         service.booking_repository.get_by_id.side_effect = [booking, None]
 
         credit_service = MagicMock()

@@ -199,30 +199,6 @@ def upgrade() -> None:
         sa.Column("student_credit_amount", sa.Integer(), nullable=True, comment="Student credit issued in cents (v2.1.1)"),
         sa.Column("instructor_payout_amount", sa.Integer(), nullable=True, comment="Instructor payout in cents (v2.1.1)"),
         sa.Column("refunded_to_card_amount", sa.Integer(), nullable=True, comment="Refunded to card in cents (v2.1.1)"),
-        sa.Column("dispute_id", sa.String(100), nullable=True, comment="Stripe dispute id (v2.1.1)"),
-        sa.Column("dispute_status", sa.String(30), nullable=True, comment="Stripe dispute status (v2.1.1)"),
-        sa.Column("dispute_amount", sa.Integer(), nullable=True, comment="Dispute amount in cents (v2.1.1)"),
-        sa.Column("dispute_created_at", sa.DateTime(timezone=True), nullable=True, comment="Dispute opened at (v2.1.1)"),
-        sa.Column("dispute_resolved_at", sa.DateTime(timezone=True), nullable=True, comment="Dispute resolved at (v2.1.1)"),
-        sa.Column("stripe_transfer_id", sa.String(100), nullable=True, comment="Stripe transfer id (v2.1.1)"),
-        sa.Column("refund_id", sa.String(100), nullable=True, comment="Stripe refund id (v2.1.1)"),
-        sa.Column("payout_transfer_id", sa.String(100), nullable=True, comment="Manual payout transfer id (v2.1.1)"),
-        sa.Column("advanced_payout_transfer_id", sa.String(100), nullable=True, comment="Manual payout transfer id for capture failure escalation (v2.1.1)"),
-        sa.Column("transfer_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Transfer failure timestamp (v2.1.1)"),
-        sa.Column("transfer_error", sa.String(500), nullable=True, comment="Transfer error (v2.1.1)"),
-        sa.Column("transfer_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Transfer retry count (v2.1.1)"),
-        sa.Column("transfer_reversed", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="Transfer reversed (v2.1.1)"),
-        sa.Column("transfer_reversal_id", sa.String(100), nullable=True, comment="Stripe transfer reversal id (v2.1.1)"),
-        sa.Column("transfer_reversal_failed", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="Transfer reversal failed (v2.1.1)"),
-        sa.Column("transfer_reversal_error", sa.String(500), nullable=True, comment="Transfer reversal error (v2.1.1)"),
-        sa.Column("transfer_reversal_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Transfer reversal failure timestamp (v2.1.1)"),
-        sa.Column("transfer_reversal_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Transfer reversal retry count (v2.1.1)"),
-        sa.Column("refund_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Refund failure timestamp (v2.1.1)"),
-        sa.Column("refund_error", sa.String(500), nullable=True, comment="Refund error (v2.1.1)"),
-        sa.Column("refund_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Refund retry count (v2.1.1)"),
-        sa.Column("payout_transfer_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Manual payout transfer failure timestamp (v2.1.1)"),
-        sa.Column("payout_transfer_error", sa.String(500), nullable=True, comment="Manual payout transfer error (v2.1.1)"),
-        sa.Column("payout_transfer_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Manual payout transfer retry count (v2.1.1)"),
         sa.Column("capture_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Capture failure timestamp (v2.1.1)"),
         sa.Column("capture_escalated_at", sa.DateTime(timezone=True), nullable=True, comment="Capture escalation timestamp (v2.1.1)"),
         sa.Column("capture_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Capture retry count (v2.1.1)"),
@@ -245,6 +221,50 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         comment="Self-contained booking records - no dependency on availability slots",
     )
+
+    op.create_table(
+        "booking_disputes",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("booking_id", sa.String(26), nullable=False),
+        sa.Column("dispute_id", sa.String(100), nullable=True),
+        sa.Column("dispute_status", sa.String(30), nullable=True),
+        sa.Column("dispute_amount", sa.Integer(), nullable=True),
+        sa.Column("dispute_created_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("dispute_resolved_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("booking_id"),
+    )
+    op.create_index("ix_booking_disputes_booking_id", "booking_disputes", ["booking_id"], unique=True)
+
+    op.create_table(
+        "booking_transfers",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("booking_id", sa.String(26), nullable=False),
+        sa.Column("stripe_transfer_id", sa.String(100), nullable=True),
+        sa.Column("transfer_failed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("transfer_error", sa.String(500), nullable=True),
+        sa.Column("transfer_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
+        sa.Column("transfer_reversed", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column("transfer_reversal_id", sa.String(100), nullable=True),
+        sa.Column("transfer_reversal_failed", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column("transfer_reversal_error", sa.String(500), nullable=True),
+        sa.Column("transfer_reversal_failed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("transfer_reversal_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
+        sa.Column("refund_id", sa.String(100), nullable=True),
+        sa.Column("refund_failed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("refund_error", sa.String(500), nullable=True),
+        sa.Column("refund_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
+        sa.Column("payout_transfer_id", sa.String(100), nullable=True),
+        sa.Column("advanced_payout_transfer_id", sa.String(100), nullable=True),
+        sa.Column("payout_transfer_failed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("payout_transfer_error", sa.String(500), nullable=True),
+        sa.Column("payout_transfer_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("booking_id"),
+    )
+    op.create_index("ix_booking_transfers_booking_id", "booking_transfers", ["booking_id"], unique=True)
 
     op.create_index("idx_bookings_student_id", "bookings", ["student_id"])
     op.create_index("idx_bookings_instructor_id", "bookings", ["instructor_id"])
@@ -808,6 +828,9 @@ def downgrade() -> None:
     op.drop_index("idx_stripe_customers_stripe_customer_id", table_name="stripe_customers")
     op.drop_index("idx_stripe_customers_user_id", table_name="stripe_customers")
     op.drop_table("stripe_customers")
+
+    op.drop_table("booking_transfers")
+    op.drop_table("booking_disputes")
 
     if is_postgres:
         op.execute("DROP INDEX IF EXISTS idx_bookings_time_conflicts")

@@ -3808,11 +3808,12 @@ class StripeService(BaseService):
                 )
                 return False
 
-            transfer_id = booking.stripe_transfer_id
+            transfer = self.booking_repository.get_transfer_by_booking_id(booking.id)
+            transfer_id = transfer.stripe_transfer_id if transfer else None
             reversal_id: Optional[str] = None
             reversal_error: Optional[str] = None
 
-            if transfer_id and not booking.transfer_reversed:
+            if transfer_id and not (transfer.transfer_reversed if transfer else False):
                 try:
                     reversal = self.reverse_transfer(
                         transfer_id=transfer_id,
@@ -3834,20 +3835,23 @@ class StripeService(BaseService):
                     return False
 
                 booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
-                booking.dispute_id = dispute_id
-                booking.dispute_status = dispute.get("status")
-                booking.dispute_amount = dispute.get("amount")
-                booking.dispute_created_at = datetime.now(timezone.utc)
+                dispute_record = self.booking_repository.ensure_dispute(booking.id)
+                dispute_record.dispute_id = dispute_id
+                dispute_record.dispute_status = dispute.get("status")
+                dispute_record.dispute_amount = dispute.get("amount")
+                dispute_record.dispute_created_at = datetime.now(timezone.utc)
 
                 if reversal_id:
-                    booking.transfer_reversed = True
-                    booking.transfer_reversal_id = reversal_id
+                    transfer_record = self.booking_repository.ensure_transfer(booking.id)
+                    transfer_record.transfer_reversed = True
+                    transfer_record.transfer_reversal_id = reversal_id
                 elif reversal_error:
-                    booking.transfer_reversal_failed = True
-                    booking.transfer_reversal_error = reversal_error
-                    booking.transfer_reversal_failed_at = datetime.now(timezone.utc)
-                    booking.transfer_reversal_retry_count = (
-                        int(getattr(booking, "transfer_reversal_retry_count", 0) or 0) + 1
+                    transfer_record = self.booking_repository.ensure_transfer(booking.id)
+                    transfer_record.transfer_reversal_failed = True
+                    transfer_record.transfer_reversal_error = reversal_error
+                    transfer_record.transfer_reversal_failed_at = datetime.now(timezone.utc)
+                    transfer_record.transfer_reversal_retry_count = (
+                        int(getattr(transfer_record, "transfer_reversal_retry_count", 0) or 0) + 1
                     )
 
                 from .credit_service import CreditService
@@ -3944,8 +3948,9 @@ class StripeService(BaseService):
                 if not booking:
                     return False
 
-                booking.dispute_status = status
-                booking.dispute_resolved_at = datetime.now(timezone.utc)
+                dispute_record = self.booking_repository.ensure_dispute(booking.id)
+                dispute_record.dispute_status = status
+                dispute_record.dispute_resolved_at = datetime.now(timezone.utc)
 
                 from .credit_service import CreditService
 

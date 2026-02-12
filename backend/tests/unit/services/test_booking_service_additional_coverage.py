@@ -127,6 +127,23 @@ def mock_repository() -> MagicMock:
     repo.get_bookings_by_time_range.return_value = []
     repo.check_time_conflict.return_value = False
     repo.check_student_time_conflict.return_value = []
+    repo.ensure_transfer.return_value = SimpleNamespace(
+        stripe_transfer_id=None,
+        transfer_reversal_failed=False,
+        transfer_reversal_retry_count=0,
+        transfer_reversal_error=None,
+        payout_transfer_failed_at=None,
+        payout_transfer_error=None,
+        payout_transfer_retry_count=0,
+        transfer_failed_at=None,
+        transfer_error=None,
+        transfer_retry_count=0,
+        refund_id=None,
+        refund_failed_at=None,
+        refund_error=None,
+        refund_retry_count=0,
+    )
+    repo.get_transfer_by_booking_id.return_value = repo.ensure_transfer.return_value
     return repo
 
 
@@ -1093,7 +1110,8 @@ def test_finalize_cancellation_over_24h_gaming_reverse_failed(
         credit_service.return_value.forfeit_credits_for_booking = Mock()
         booking_service._finalize_cancellation(booking, ctx, stripe_results, payment_repo)
 
-    assert booking.transfer_reversal_failed is True
+    transfer_record = booking_service.repository.ensure_transfer.return_value
+    assert transfer_record.transfer_reversal_failed is True
     assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
 
 
@@ -1198,7 +1216,8 @@ def test_finalize_cancellation_under_12h_payout_failed(
         booking_service._finalize_cancellation(booking, ctx, stripe_results, payment_repo)
 
     assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
-    assert booking.payout_transfer_failed_at is not None
+    transfer_record = booking_service.repository.ensure_transfer.return_value
+    assert transfer_record.payout_transfer_failed_at is not None
 
 
 def test_finalize_cancellation_under_12h_credit_already_issued(
@@ -1283,7 +1302,8 @@ def test_finalize_cancellation_instructor_refund_success(
         booking_service._finalize_cancellation(booking, ctx, stripe_results, payment_repo)
 
     assert booking.payment_status == PaymentStatus.SETTLED.value
-    assert booking.refund_id == "rf_1"
+    transfer_record = booking_service.repository.ensure_transfer.return_value
+    assert transfer_record.refund_id == "rf_1"
     assert booking.settlement_outcome == "instructor_cancel_full_refund"
 
 

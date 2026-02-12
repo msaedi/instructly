@@ -61,6 +61,13 @@ def mock_db() -> MagicMock:
 def mock_repository() -> MagicMock:
     repo = MagicMock()
     repo.get_booking_with_details.return_value = None
+    repo.ensure_transfer.return_value = SimpleNamespace(
+        refund_id=None,
+        refund_failed_at=None,
+        refund_error=None,
+        refund_retry_count=0,
+    )
+    repo.get_transfer_by_booking_id.return_value = repo.ensure_transfer.return_value
     return repo
 
 
@@ -195,7 +202,8 @@ def test_finalize_instructor_no_show_refund_success_parses_amount(
     )
 
     assert booking.payment_status == PaymentStatus.SETTLED.value
-    assert booking.refund_id == "rf_1"
+    transfer_record = booking_service.repository.ensure_transfer.return_value
+    assert transfer_record.refund_id == "rf_1"
     assert booking.refunded_to_card_amount == 1200
 
 
@@ -212,7 +220,8 @@ def test_finalize_instructor_no_show_refund_failed(booking_service: BookingServi
     )
 
     assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
-    assert booking.refund_failed_at is not None
+    transfer_record = booking_service.repository.ensure_transfer.return_value
+    assert transfer_record.refund_failed_at is not None
 
 
 def test_finalize_student_no_show_locked_manual_review(booking_service: BookingService) -> None:

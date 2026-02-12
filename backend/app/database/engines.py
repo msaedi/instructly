@@ -56,11 +56,9 @@ def _build_connect_args(
 
 
 def _add_pool_events(engine: Engine, pool_name: str) -> None:
-    @event.listens_for(engine, "connect")  # type: ignore[untyped-decorator]
     def _on_connect(_dbapi_connection: Any, _connection_record: Any) -> None:
         logger.info("[%s] Database connection established", pool_name)
 
-    @event.listens_for(engine, "checkout")  # type: ignore[untyped-decorator]
     def _on_checkout(
         dbapi_connection: Any, _connection_record: Any, _connection_proxy: Any
     ) -> None:
@@ -72,11 +70,9 @@ def _add_pool_events(engine: Engine, pool_name: str) -> None:
         except Exception as exc:
             raise DisconnectionError("Connection ping failed") from exc
 
-    @event.listens_for(engine, "checkin")  # type: ignore[untyped-decorator]
     def _on_checkin(_dbapi_connection: Any, _connection_record: Any) -> None:
         logger.debug("[%s] Connection returned to pool", pool_name)
 
-    @event.listens_for(engine, "invalidate")  # type: ignore[untyped-decorator]
     def _on_invalidate(_dbapi_connection: Any, _connection_record: Any, exception: Any) -> None:
         logger.warning(
             "[%s] Connection invalidated",
@@ -89,11 +85,16 @@ def _add_pool_events(engine: Engine, pool_name: str) -> None:
             },
         )
 
-    @event.listens_for(engine, "soft_invalidate")  # type: ignore[untyped-decorator]
     def _on_soft_invalidate(
         _dbapi_connection: Any, _connection_record: Any, _exception: Any
     ) -> None:
         logger.debug("[%s] Connection soft invalidated (recycled)", pool_name)
+
+    event.listen(engine, "connect", _on_connect)
+    event.listen(engine, "checkout", _on_checkout)
+    event.listen(engine, "checkin", _on_checkin)
+    event.listen(engine, "invalidate", _on_invalidate)
+    event.listen(engine, "soft_invalidate", _on_soft_invalidate)
 
 
 def _create_engine(

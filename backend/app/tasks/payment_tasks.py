@@ -35,6 +35,7 @@ from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.payment import PaymentEvent
 from app.models.user import User
 from app.monitoring.sentry_crons import monitor_if_configured
+from app.repositories.booking_repository import BookingRepository
 from app.repositories.factory import RepositoryFactory
 from app.services.booking_service import BookingService
 from app.services.config_service import ConfigService
@@ -1260,6 +1261,7 @@ def _escalate_capture_failure(booking_id: str, now: datetime) -> None:
         booking = db_write.query(Booking).filter(Booking.id == booking_id).first()
         if not booking:
             return
+        booking_repo = BookingRepository(db_write)
 
         booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
         booking.settlement_outcome = (
@@ -1269,19 +1271,22 @@ def _escalate_capture_failure(booking_id: str, now: datetime) -> None:
         booking.instructor_payout_amount = int(payout_cents or 0) if transfer_id else 0
         booking.student_credit_amount = 0
         booking.refunded_to_card_amount = 0
+        transfer_record = booking_repo.ensure_transfer(booking.id)
         if transfer_id:
-            booking.advanced_payout_transfer_id = transfer_id
-            booking.payout_transfer_id = transfer_id
-            booking.stripe_transfer_id = transfer_id
+            transfer_record.advanced_payout_transfer_id = transfer_id
+            transfer_record.payout_transfer_id = transfer_id
+            transfer_record.stripe_transfer_id = transfer_id
         else:
-            booking.payout_transfer_failed_at = now
-            booking.payout_transfer_error = transfer_error
-            booking.payout_transfer_retry_count = (
-                int(getattr(booking, "payout_transfer_retry_count", 0) or 0) + 1
+            transfer_record.payout_transfer_failed_at = now
+            transfer_record.payout_transfer_error = transfer_error
+            transfer_record.payout_transfer_retry_count = (
+                int(getattr(transfer_record, "payout_transfer_retry_count", 0) or 0) + 1
             )
-            booking.transfer_failed_at = booking.payout_transfer_failed_at
-            booking.transfer_error = booking.payout_transfer_error
-            booking.transfer_retry_count = int(getattr(booking, "transfer_retry_count", 0) or 0) + 1
+            transfer_record.transfer_failed_at = transfer_record.payout_transfer_failed_at
+            transfer_record.transfer_error = transfer_record.payout_transfer_error
+            transfer_record.transfer_retry_count = (
+                int(getattr(transfer_record, "transfer_retry_count", 0) or 0) + 1
+            )
 
         student = db_write.query(User).filter(User.id == booking.student_id).first()
         if student:
@@ -1655,6 +1660,7 @@ def _process_capture_for_booking(
         booking = db3.query(Booking).filter(Booking.id == booking_id).first()
         if not booking:
             return {"success": False, "error": "Booking not found in Phase 3"}
+        booking_repo = BookingRepository(db3)
 
         payment_repo = RepositoryFactory.get_payment_repository(db3)
         previous_capture_retry_count = int(getattr(booking, "capture_retry_count", 0) or 0)
@@ -1692,7 +1698,8 @@ def _process_capture_for_booking(
 
             booking.payment_status = PaymentStatus.SETTLED.value
             if stripe_result.get("transfer_id"):
-                booking.stripe_transfer_id = stripe_result.get("transfer_id")
+                transfer_record = booking_repo.ensure_transfer(booking.id)
+                transfer_record.stripe_transfer_id = stripe_result.get("transfer_id")
             try:
                 credit_service = CreditService(db3)
                 credit_service.forfeit_credits_for_booking(

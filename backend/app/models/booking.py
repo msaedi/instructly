@@ -249,124 +249,6 @@ class Booking(Base):
         comment="Refunded to card in cents (v2.1.1)",
     )
 
-    # Dispute tracking (v2.1.1 failure handling)
-    dispute_id = Column(String(100), nullable=True, comment="Stripe dispute id (v2.1.1)")
-    dispute_status = Column(String(30), nullable=True, comment="Stripe dispute status (v2.1.1)")
-    dispute_amount = Column(Integer, nullable=True, comment="Dispute amount in cents (v2.1.1)")
-    dispute_created_at = Column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="Dispute opened at (v2.1.1)",
-    )
-    dispute_resolved_at = Column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="Dispute resolved at (v2.1.1)",
-    )
-
-    # Transfer reversal tracking (v2.1.1 failure handling)
-    stripe_transfer_id = Column(
-        String(100),
-        nullable=True,
-        comment="Stripe transfer id (v2.1.1)",
-    )
-    refund_id = Column(
-        String(100),
-        nullable=True,
-        comment="Stripe refund id (v2.1.1)",
-    )
-    payout_transfer_id = Column(
-        String(100),
-        nullable=True,
-        comment="Manual payout transfer id (v2.1.1)",
-    )
-    advanced_payout_transfer_id = Column(
-        String(100),
-        nullable=True,
-        comment="Manual payout transfer id for capture failure escalation (v2.1.1)",
-    )
-    transfer_failed_at = Column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="Transfer failure timestamp (v2.1.1)",
-    )
-    transfer_error = Column(
-        String(500),
-        nullable=True,
-        comment="Transfer error (v2.1.1)",
-    )
-    transfer_retry_count = Column(
-        Integer,
-        nullable=False,
-        default=0,
-        comment="Transfer retry count (v2.1.1)",
-    )
-    transfer_reversed = Column(
-        Boolean,
-        nullable=False,
-        default=False,
-        comment="Transfer reversed (v2.1.1)",
-    )
-    transfer_reversal_id = Column(
-        String(100),
-        nullable=True,
-        comment="Stripe transfer reversal id (v2.1.1)",
-    )
-    transfer_reversal_failed = Column(
-        Boolean,
-        nullable=False,
-        default=False,
-        comment="Transfer reversal failed (v2.1.1)",
-    )
-    transfer_reversal_error = Column(
-        String(500),
-        nullable=True,
-        comment="Transfer reversal error (v2.1.1)",
-    )
-    transfer_reversal_failed_at = Column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="Transfer reversal failure timestamp (v2.1.1)",
-    )
-    transfer_reversal_retry_count = Column(
-        Integer,
-        nullable=False,
-        default=0,
-        comment="Transfer reversal retry count (v2.1.1)",
-    )
-    refund_failed_at = Column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="Refund failure timestamp (v2.1.1)",
-    )
-    refund_error = Column(
-        String(500),
-        nullable=True,
-        comment="Refund error (v2.1.1)",
-    )
-    refund_retry_count = Column(
-        Integer,
-        nullable=False,
-        default=0,
-        comment="Refund retry count (v2.1.1)",
-    )
-    payout_transfer_failed_at = Column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="Manual payout transfer failure timestamp (v2.1.1)",
-    )
-    payout_transfer_error = Column(
-        String(500),
-        nullable=True,
-        comment="Manual payout transfer error (v2.1.1)",
-    )
-    payout_transfer_retry_count = Column(
-        Integer,
-        nullable=False,
-        default=0,
-        comment="Manual payout transfer retry count (v2.1.1)",
-    )
-
     # Capture failure tracking (v2.1.1 failure handling)
     capture_failed_at = Column(
         DateTime(timezone=True),
@@ -438,6 +320,20 @@ class Booking(Base):
     )
     payment_events = relationship(
         "PaymentEvent", back_populates="booking", cascade="all, delete-orphan"
+    )
+    dispute = relationship(
+        "BookingDispute",
+        back_populates="booking",
+        uselist=False,
+        cascade="all, delete-orphan",
+        lazy="noload",
+    )
+    transfer = relationship(
+        "BookingTransfer",
+        back_populates="booking",
+        uselist=False,
+        cascade="all, delete-orphan",
+        lazy="noload",
     )
     generated_credits = relationship(
         "PlatformCredit",

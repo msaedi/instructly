@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 import ulid
 
 from app.models.booking import BookingStatus, PaymentStatus
+from app.models.booking_transfer import BookingTransfer
 from app.models.payment import PaymentIntent, StripeConnectedAccount
 from app.models.user import User
 from app.tasks.payment_tasks import _escalate_capture_failure
@@ -82,12 +83,16 @@ def test_escalate_capture_failure_locks_account_and_pays_instructor(
     db.refresh(test_student)
     db.refresh(booking)
     student = db.query(User).filter(User.id == test_student.id).first()
+    transfer = (
+        db.query(BookingTransfer).filter(BookingTransfer.booking_id == booking.id).one_or_none()
+    )
     assert student is not None
+    assert transfer is not None
 
     assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
     assert booking.settlement_outcome == "capture_failure_instructor_paid"
     assert booking.instructor_payout_amount == 8800
-    assert booking.stripe_transfer_id == "tr_capture_fail"
+    assert transfer.stripe_transfer_id == "tr_capture_fail"
 
     assert student.account_locked is True
     assert student.account_locked_reason is not None

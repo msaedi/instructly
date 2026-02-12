@@ -803,7 +803,7 @@ class AdminOpsService(BaseService):
         status_timeline: list[dict[str, Any]],
         failure: Optional[dict[str, Any]],
     ) -> str:
-        raw_status = booking.payment_status.lower() if booking.payment_status else ""
+        raw_status = str(booking.payment_status).lower() if booking.payment_status else ""
         last_state: str | None = None
         if status_timeline:
             state_value = status_timeline[-1].get("state")

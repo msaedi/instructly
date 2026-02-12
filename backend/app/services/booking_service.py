@@ -77,6 +77,7 @@ from .timezone_service import TimezoneService
 
 if TYPE_CHECKING:
     # AvailabilitySlot removed - bitmap-only storage now
+    from ..models.booking_transfer import BookingTransfer
     from ..repositories.audit_repository import AuditRepository
     from ..repositories.availability_repository import AvailabilityRepository
     from ..repositories.booking_repository import BookingRepository
@@ -181,6 +182,14 @@ class BookingService(BaseService):
         self.filter_repository = FilterRepository(db)
         self.event_outbox_repository = RepositoryFactory.create_event_outbox_repository(db)
         self.audit_repository = RepositoryFactory.create_audit_repository(db)
+
+    def _get_transfer_record(self, booking_id: str) -> BookingTransfer | None:
+        """Return booking transfer satellite row when present."""
+        return self.repository.get_transfer_by_booking_id(booking_id)
+
+    def _ensure_transfer_record(self, booking_id: str) -> BookingTransfer:
+        """Get or create booking transfer satellite row."""
+        return self.repository.ensure_transfer(booking_id)
 
     def _booking_event_identity(self, booking: Booking, event_type: str) -> tuple[str, str]:
         """Return idempotency key and version for a booking domain event."""
@@ -2006,12 +2015,13 @@ class BookingService(BaseService):
             credit_service = CreditService(self.db)
             if reverse_failed:
                 booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
-                booking.stripe_transfer_id = transfer_id
-                booking.transfer_reversal_failed = True
-                booking.transfer_reversal_error = reversal_error
-                booking.transfer_reversal_failed_at = datetime.now(timezone.utc)
-                booking.transfer_reversal_retry_count = (
-                    int(getattr(booking, "transfer_reversal_retry_count", 0) or 0) + 1
+                transfer_record = self._ensure_transfer_record(booking.id)
+                transfer_record.stripe_transfer_id = transfer_id
+                transfer_record.transfer_reversal_failed = True
+                transfer_record.transfer_reversal_error = reversal_error
+                transfer_record.transfer_reversal_failed_at = datetime.now(timezone.utc)
+                transfer_record.transfer_reversal_retry_count = (
+                    int(getattr(transfer_record, "transfer_reversal_retry_count", 0) or 0) + 1
                 )
                 payment_repo.create_payment_event(
                     booking_id=booking.id,
@@ -2037,9 +2047,10 @@ class BookingService(BaseService):
                 booking.payment_status = PaymentStatus.LOCKED.value
                 booking.locked_at = datetime.now(timezone.utc)
                 booking.locked_amount_cents = locked_amount
-                booking.stripe_transfer_id = transfer_id
-                booking.transfer_reversed = True if transfer_id else False
-                booking.transfer_reversal_id = reversal_id
+                transfer_record = self._ensure_transfer_record(booking.id)
+                transfer_record.stripe_transfer_id = transfer_id
+                transfer_record.transfer_reversed = True if transfer_id else False
+                transfer_record.transfer_reversal_id = reversal_id
                 booking.late_reschedule_used = True
                 payment_repo.create_payment_event(
                     booking_id=booking.id,
@@ -2208,6 +2219,9 @@ class BookingService(BaseService):
                     for credit in credits
                 )
 
+            def _locked_transfer() -> BookingTransfer:
+                return self._ensure_transfer_record(locked_booking.id)
+
             if resolution == "new_lesson_completed":
                 locked_booking.settlement_outcome = "lesson_completed_full_payout"
                 locked_booking.student_credit_amount = 0
@@ -2216,18 +2230,20 @@ class BookingService(BaseService):
                 locked_booking.credits_reserved_cents = 0
                 if stripe_result.get("payout_success"):
                     locked_booking.payment_status = PaymentStatus.SETTLED.value
-                    locked_booking.payout_transfer_id = stripe_result.get("payout_transfer_id")
+                    transfer_record = _locked_transfer()
+                    transfer_record.payout_transfer_id = stripe_result.get("payout_transfer_id")
                 else:
                     locked_booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
-                    locked_booking.payout_transfer_failed_at = datetime.now(timezone.utc)
-                    locked_booking.payout_transfer_error = stripe_result.get("error")
-                    locked_booking.payout_transfer_retry_count = (
-                        int(getattr(locked_booking, "payout_transfer_retry_count", 0) or 0) + 1
+                    transfer_record = _locked_transfer()
+                    transfer_record.payout_transfer_failed_at = datetime.now(timezone.utc)
+                    transfer_record.payout_transfer_error = stripe_result.get("error")
+                    transfer_record.payout_transfer_retry_count = (
+                        int(getattr(transfer_record, "payout_transfer_retry_count", 0) or 0) + 1
                     )
-                    locked_booking.transfer_failed_at = locked_booking.payout_transfer_failed_at
-                    locked_booking.transfer_error = locked_booking.payout_transfer_error
-                    locked_booking.transfer_retry_count = (
-                        int(getattr(locked_booking, "transfer_retry_count", 0) or 0) + 1
+                    transfer_record.transfer_failed_at = transfer_record.payout_transfer_failed_at
+                    transfer_record.transfer_error = transfer_record.payout_transfer_error
+                    transfer_record.transfer_retry_count = (
+                        int(getattr(transfer_record, "transfer_retry_count", 0) or 0) + 1
                     )
 
             elif resolution == "new_lesson_cancelled_ge12":
@@ -2266,18 +2282,20 @@ class BookingService(BaseService):
                 locked_booking.credits_reserved_cents = 0
                 if stripe_result.get("payout_success"):
                     locked_booking.payment_status = PaymentStatus.SETTLED.value
-                    locked_booking.payout_transfer_id = stripe_result.get("payout_transfer_id")
+                    transfer_record = _locked_transfer()
+                    transfer_record.payout_transfer_id = stripe_result.get("payout_transfer_id")
                 else:
                     locked_booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
-                    locked_booking.payout_transfer_failed_at = datetime.now(timezone.utc)
-                    locked_booking.payout_transfer_error = stripe_result.get("error")
-                    locked_booking.payout_transfer_retry_count = (
-                        int(getattr(locked_booking, "payout_transfer_retry_count", 0) or 0) + 1
+                    transfer_record = _locked_transfer()
+                    transfer_record.payout_transfer_failed_at = datetime.now(timezone.utc)
+                    transfer_record.payout_transfer_error = stripe_result.get("error")
+                    transfer_record.payout_transfer_retry_count = (
+                        int(getattr(transfer_record, "payout_transfer_retry_count", 0) or 0) + 1
                     )
-                    locked_booking.transfer_failed_at = locked_booking.payout_transfer_failed_at
-                    locked_booking.transfer_error = locked_booking.payout_transfer_error
-                    locked_booking.transfer_retry_count = (
-                        int(getattr(locked_booking, "transfer_retry_count", 0) or 0) + 1
+                    transfer_record.transfer_failed_at = transfer_record.payout_transfer_failed_at
+                    transfer_record.transfer_error = transfer_record.payout_transfer_error
+                    transfer_record.transfer_retry_count = (
+                        int(getattr(transfer_record, "transfer_retry_count", 0) or 0) + 1
                     )
 
             elif resolution == "instructor_cancelled":
@@ -2295,7 +2313,8 @@ class BookingService(BaseService):
                     refund_amount if refund_amount is not None else locked_amount_cents or 0
                 )
                 if stripe_result.get("refund_success"):
-                    locked_booking.refund_id = refund_data.get("refund_id")
+                    transfer_record = _locked_transfer()
+                    transfer_record.refund_id = refund_data.get("refund_id")
                 locked_booking.credits_reserved_cents = 0
                 locked_booking.payment_status = (
                     PaymentStatus.SETTLED.value
@@ -2303,10 +2322,11 @@ class BookingService(BaseService):
                     else PaymentStatus.MANUAL_REVIEW.value
                 )
                 if not stripe_result.get("refund_success"):
-                    locked_booking.refund_failed_at = datetime.now(timezone.utc)
-                    locked_booking.refund_error = stripe_result.get("error")
-                    locked_booking.refund_retry_count = (
-                        int(getattr(locked_booking, "refund_retry_count", 0) or 0) + 1
+                    transfer_record = _locked_transfer()
+                    transfer_record.refund_failed_at = datetime.now(timezone.utc)
+                    transfer_record.refund_error = stripe_result.get("error")
+                    transfer_record.refund_retry_count = (
+                        int(getattr(transfer_record, "refund_retry_count", 0) or 0) + 1
                     )
 
             locked_booking.lock_resolution = resolution
@@ -2772,10 +2792,14 @@ class BookingService(BaseService):
             if reason:
                 booking.auth_last_error = reason
 
+        def _transfer_record() -> BookingTransfer:
+            return self._ensure_transfer_record(booking_id)
+
         if scenario == "over_24h_gaming":
             if stripe_results["capture_success"]:
                 capture_data = stripe_results.get("capture_data") or {}
-                booking.stripe_transfer_id = capture_data.get("transfer_id")
+                transfer_record = _transfer_record()
+                transfer_record.stripe_transfer_id = capture_data.get("transfer_id")
                 if stripe_results.get("reverse_failed"):
                     payment_repo.create_payment_event(
                         booking_id=booking_id,
@@ -2785,12 +2809,12 @@ class BookingService(BaseService):
                             "scenario": scenario,
                         },
                     )
-                    booking.transfer_reversal_failed = True
-                    booking.transfer_reversal_failed_at = datetime.now(timezone.utc)
-                    booking.transfer_reversal_retry_count = (
-                        int(getattr(booking, "transfer_reversal_retry_count", 0) or 0) + 1
+                    transfer_record.transfer_reversal_failed = True
+                    transfer_record.transfer_reversal_failed_at = datetime.now(timezone.utc)
+                    transfer_record.transfer_reversal_retry_count = (
+                        int(getattr(transfer_record, "transfer_reversal_retry_count", 0) or 0) + 1
                     )
-                    booking.transfer_reversal_error = stripe_results.get("error")
+                    transfer_record.transfer_reversal_error = stripe_results.get("error")
                     _mark_manual_review("transfer_reversal_failed")
                     logger.error(
                         "Transfer reversal failed for booking %s; manual review required",
@@ -2798,7 +2822,7 @@ class BookingService(BaseService):
                     )
                     return
                 if stripe_results.get("reverse_reversal_id"):
-                    booking.transfer_reversal_id = stripe_results.get("reverse_reversal_id")
+                    transfer_record.transfer_reversal_id = stripe_results.get("reverse_reversal_id")
                 credit_amount_cents = ctx["lesson_price_cents"]
                 try:
                     credit_service.forfeit_credits_for_booking(
@@ -2893,7 +2917,8 @@ class BookingService(BaseService):
 
         elif scenario == "between_12_24h":
             capture_data = stripe_results.get("capture_data") or {}
-            booking.stripe_transfer_id = capture_data.get("transfer_id")
+            transfer_record = _transfer_record()
+            transfer_record.stripe_transfer_id = capture_data.get("transfer_id")
 
             if stripe_results["reverse_success"]:
                 payment_repo.create_payment_event(
@@ -2906,7 +2931,7 @@ class BookingService(BaseService):
                     },
                 )
                 if stripe_results.get("reverse_reversal_id"):
-                    booking.transfer_reversal_id = stripe_results.get("reverse_reversal_id")
+                    transfer_record.transfer_reversal_id = stripe_results.get("reverse_reversal_id")
 
             if stripe_results["capture_success"]:
                 if stripe_results.get("reverse_failed"):
@@ -2918,12 +2943,12 @@ class BookingService(BaseService):
                             "scenario": scenario,
                         },
                     )
-                    booking.transfer_reversal_failed = True
-                    booking.transfer_reversal_failed_at = datetime.now(timezone.utc)
-                    booking.transfer_reversal_retry_count = (
-                        int(getattr(booking, "transfer_reversal_retry_count", 0) or 0) + 1
+                    transfer_record.transfer_reversal_failed = True
+                    transfer_record.transfer_reversal_failed_at = datetime.now(timezone.utc)
+                    transfer_record.transfer_reversal_retry_count = (
+                        int(getattr(transfer_record, "transfer_reversal_retry_count", 0) or 0) + 1
                     )
-                    booking.transfer_reversal_error = stripe_results.get("error")
+                    transfer_record.transfer_reversal_error = stripe_results.get("error")
                     _mark_manual_review("transfer_reversal_failed")
                     logger.error(
                         "Transfer reversal failed for booking %s; manual review required",
@@ -2987,7 +3012,8 @@ class BookingService(BaseService):
         elif scenario == "under_12h":
             if stripe_results["capture_success"]:
                 capture_data = stripe_results.get("capture_data") or {}
-                booking.stripe_transfer_id = capture_data.get("transfer_id")
+                transfer_record = _transfer_record()
+                transfer_record.stripe_transfer_id = capture_data.get("transfer_id")
                 payment_repo.create_payment_event(
                     booking_id=booking_id,
                     event_type="captured_last_minute_cancel",
@@ -3006,7 +3032,7 @@ class BookingService(BaseService):
                             "scenario": scenario,
                         },
                     )
-                    booking.transfer_reversal_failed = True
+                    transfer_record.transfer_reversal_failed = True
                     _mark_manual_review("transfer_reversal_failed")
                     logger.error(
                         "Transfer reversal failed for booking %s; manual review required",
@@ -3025,7 +3051,9 @@ class BookingService(BaseService):
                         },
                     )
                     if stripe_results.get("reverse_reversal_id"):
-                        booking.transfer_reversal_id = stripe_results.get("reverse_reversal_id")
+                        transfer_record.transfer_reversal_id = stripe_results.get(
+                            "reverse_reversal_id"
+                        )
 
                 if stripe_results.get("payout_failed"):
                     payment_repo.create_payment_event(
@@ -3037,15 +3065,15 @@ class BookingService(BaseService):
                             "error": stripe_results.get("error"),
                         },
                     )
-                    booking.payout_transfer_failed_at = datetime.now(timezone.utc)
-                    booking.payout_transfer_error = stripe_results.get("error")
-                    booking.payout_transfer_retry_count = (
-                        int(getattr(booking, "payout_transfer_retry_count", 0) or 0) + 1
+                    transfer_record.payout_transfer_failed_at = datetime.now(timezone.utc)
+                    transfer_record.payout_transfer_error = stripe_results.get("error")
+                    transfer_record.payout_transfer_retry_count = (
+                        int(getattr(transfer_record, "payout_transfer_retry_count", 0) or 0) + 1
                     )
-                    booking.transfer_failed_at = booking.payout_transfer_failed_at
-                    booking.transfer_error = booking.payout_transfer_error
-                    booking.transfer_retry_count = (
-                        int(getattr(booking, "transfer_retry_count", 0) or 0) + 1
+                    transfer_record.transfer_failed_at = transfer_record.payout_transfer_failed_at
+                    transfer_record.transfer_error = transfer_record.payout_transfer_error
+                    transfer_record.transfer_retry_count = (
+                        int(getattr(transfer_record, "transfer_retry_count", 0) or 0) + 1
                     )
                     _mark_manual_review(stripe_results.get("error"))
 
@@ -3058,7 +3086,7 @@ class BookingService(BaseService):
                             "payout_amount_cents": stripe_results.get("payout_amount_cents"),
                         },
                     )
-                    booking.payout_transfer_id = stripe_results.get("payout_transfer_id")
+                    transfer_record.payout_transfer_id = stripe_results.get("payout_transfer_id")
 
                 credit_return_cents = int(round(ctx["lesson_price_cents"] * 0.5))
                 try:
@@ -3188,7 +3216,8 @@ class BookingService(BaseService):
                     },
                 )
                 booking.payment_status = PaymentStatus.SETTLED.value
-                booking.refund_id = refund_data.get("refund_id")
+                transfer_record = _transfer_record()
+                transfer_record.refund_id = refund_data.get("refund_id")
                 refund_amount = refund_data.get("amount_refunded")
                 if refund_amount is not None:
                     try:
@@ -3202,9 +3231,12 @@ class BookingService(BaseService):
                     refunded_cents=refund_amount or 0,
                 )
             elif stripe_results.get("refund_failed"):
-                booking.refund_failed_at = datetime.now(timezone.utc)
-                booking.refund_error = stripe_results.get("error")
-                booking.refund_retry_count = int(getattr(booking, "refund_retry_count", 0) or 0) + 1
+                transfer_record = _transfer_record()
+                transfer_record.refund_failed_at = datetime.now(timezone.utc)
+                transfer_record.refund_error = stripe_results.get("error")
+                transfer_record.refund_retry_count = (
+                    int(getattr(transfer_record, "refund_retry_count", 0) or 0) + 1
+                )
                 _mark_manual_review(stripe_results.get("error"))
             elif stripe_results.get("cancel_pi_success"):
                 payment_repo.create_payment_event(
@@ -4351,12 +4383,16 @@ class BookingService(BaseService):
 
         if stripe_result.get("refund_success") or stripe_result.get("cancel_success"):
             if stripe_result.get("refund_success"):
-                booking.refund_id = refund_data.get("refund_id")
+                transfer_record = self._ensure_transfer_record(booking.id)
+                transfer_record.refund_id = refund_data.get("refund_id")
             booking.payment_status = PaymentStatus.SETTLED.value
         else:
-            booking.refund_failed_at = datetime.now(timezone.utc)
-            booking.refund_error = stripe_result.get("error")
-            booking.refund_retry_count = int(getattr(booking, "refund_retry_count", 0) or 0) + 1
+            transfer_record = self._ensure_transfer_record(booking.id)
+            transfer_record.refund_failed_at = datetime.now(timezone.utc)
+            transfer_record.refund_error = stripe_result.get("error")
+            transfer_record.refund_retry_count = (
+                int(getattr(transfer_record, "refund_retry_count", 0) or 0) + 1
+            )
             booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
 
     def _finalize_student_no_show(
@@ -4387,7 +4423,8 @@ class BookingService(BaseService):
         if stripe_result.get("capture_success") or stripe_result.get("already_captured"):
             capture_data = stripe_result.get("capture_data") or {}
             if capture_data.get("transfer_id"):
-                booking.stripe_transfer_id = capture_data.get("transfer_id")
+                transfer_record = self._ensure_transfer_record(booking.id)
+                transfer_record.stripe_transfer_id = capture_data.get("transfer_id")
             booking.payment_status = PaymentStatus.SETTLED.value
         else:
             booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 import ulid
 
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_transfer import BookingTransfer
 from app.models.instructor import InstructorProfile
 from app.models.payment import PaymentIntent, StripeConnectedAccount
 from app.models.service_catalog import InstructorService
@@ -66,6 +67,12 @@ def _ensure_connected_account(db: Session, instructor_profile_id: str) -> Stripe
     return account
 
 
+def _get_transfer(db: Session, booking_id: str) -> BookingTransfer | None:
+    return (
+        db.query(BookingTransfer).filter(BookingTransfer.booking_id == booking_id).one_or_none()
+    )
+
+
 def _create_completed_booking(
     db: Session, *, student: User, instructor: User
 ) -> Booking:
@@ -120,7 +127,9 @@ def test_transfer_id_stored_on_capture(
         _process_capture_for_booking(booking.id, "auto_completed")
 
     db.refresh(booking)
-    assert booking.stripe_transfer_id == "tr_capture"
+    transfer = _get_transfer(db, booking.id)
+    assert transfer is not None
+    assert transfer.stripe_transfer_id == "tr_capture"
 
 
 def test_transfer_reversal_id_stored_on_12_24h_cancel(
@@ -168,7 +177,9 @@ def test_transfer_reversal_id_stored_on_12_24h_cancel(
         booking_service.cancel_booking(booking.id, test_student, "test cancel")
 
     db.refresh(booking)
-    assert booking.transfer_reversal_id == "trr_cancel"
+    transfer = _get_transfer(db, booking.id)
+    assert transfer is not None
+    assert transfer.transfer_reversal_id == "trr_cancel"
 
 
 def test_refund_id_stored_on_instructor_cancel(
@@ -213,7 +224,9 @@ def test_refund_id_stored_on_instructor_cancel(
         booking_service.cancel_booking(booking.id, test_instructor, "instructor cancel")
 
     db.refresh(booking)
-    assert booking.refund_id == "re_refund"
+    transfer = _get_transfer(db, booking.id)
+    assert transfer is not None
+    assert transfer.refund_id == "re_refund"
 
 
 def test_payout_transfer_id_stored_on_manual_payout(
@@ -265,7 +278,9 @@ def test_payout_transfer_id_stored_on_manual_payout(
         booking_service.cancel_booking(booking.id, test_student, "late cancel")
 
     db.refresh(booking)
-    assert booking.payout_transfer_id == "tr_manual"
+    transfer = _get_transfer(db, booking.id)
+    assert transfer is not None
+    assert transfer.payout_transfer_id == "tr_manual"
 
 
 def test_advanced_payout_transfer_id_stored_on_capture_escalation(
@@ -318,4 +333,6 @@ def test_advanced_payout_transfer_id_stored_on_capture_escalation(
         _escalate_capture_failure(booking.id, datetime.now(timezone.utc))
 
     db.refresh(booking)
-    assert booking.advanced_payout_transfer_id == "tr_advanced"
+    transfer = _get_transfer(db, booking.id)
+    assert transfer is not None
+    assert transfer.advanced_payout_transfer_id == "tr_advanced"

@@ -22,7 +22,9 @@ from .availability_day import AvailabilityDay  # noqa: F401
 from .badge import BadgeDefinition, BadgeProgress, StudentBadge
 from .beta import BetaAccess, BetaInvite, BetaSettings
 from .booking import Booking, BookingStatus
+from .booking_dispute import BookingDispute
 from .booking_note import BookingNote
+from .booking_transfer import BookingTransfer
 from .conversation import Conversation
 from .conversation_user_state import ConversationUserState
 from .event_outbox import EventOutbox, EventOutboxStatus, NotificationDelivery
@@ -129,7 +131,9 @@ __all__ = [
     # Booking models
     "Booking",
     "BookingStatus",
+    "BookingDispute",
     "BookingNote",
+    "BookingTransfer",
     "AuditLog",
     "AuditLogEntry",
     "PlatformConfig",

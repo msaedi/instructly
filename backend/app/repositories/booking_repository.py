@@ -31,6 +31,8 @@ from ..core.enums import RoleName
 from ..core.exceptions import NotFoundException, RepositoryException
 from ..core.timezone_utils import get_user_now_by_id, get_user_today_by_id
 from ..models.booking import Booking, BookingStatus, PaymentStatus
+from ..models.booking_dispute import BookingDispute
+from ..models.booking_transfer import BookingTransfer
 from ..models.user import User
 from .base_repository import BaseRepository
 from .cached_repository_mixin import CachedRepositoryMixin, cached_method
@@ -60,6 +62,62 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             if isinstance(exc.__cause__, IntegrityError):
                 raise exc.__cause__
             raise
+
+    def get_dispute_by_booking_id(self, booking_id: str) -> Optional[BookingDispute]:
+        """Return dispute satellite row for a booking, if present."""
+        try:
+            dispute = cast(
+                Optional[BookingDispute],
+                self.db.query(BookingDispute)
+                .filter(BookingDispute.booking_id == booking_id)
+                .one_or_none(),
+            )
+            return dispute
+        except Exception as e:
+            self.logger.error(f"Error getting dispute for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to get booking dispute: {str(e)}")
+
+    def get_transfer_by_booking_id(self, booking_id: str) -> Optional[BookingTransfer]:
+        """Return transfer satellite row for a booking, if present."""
+        try:
+            transfer = cast(
+                Optional[BookingTransfer],
+                self.db.query(BookingTransfer)
+                .filter(BookingTransfer.booking_id == booking_id)
+                .one_or_none(),
+            )
+            return transfer
+        except Exception as e:
+            self.logger.error(f"Error getting transfer for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to get booking transfer: {str(e)}")
+
+    def ensure_dispute(self, booking_id: str) -> BookingDispute:
+        """Get or create dispute satellite row for a booking."""
+        try:
+            dispute = self.get_dispute_by_booking_id(booking_id)
+            if dispute is not None:
+                return dispute
+            dispute = BookingDispute(booking_id=booking_id)
+            self.db.add(dispute)
+            self.db.flush()
+            return dispute
+        except Exception as e:
+            self.logger.error(f"Error ensuring dispute for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to ensure booking dispute: {str(e)}")
+
+    def ensure_transfer(self, booking_id: str) -> BookingTransfer:
+        """Get or create transfer satellite row for a booking."""
+        try:
+            transfer = self.get_transfer_by_booking_id(booking_id)
+            if transfer is not None:
+                return transfer
+            transfer = BookingTransfer(booking_id=booking_id)
+            self.db.add(transfer)
+            self.db.flush()
+            return transfer
+        except Exception as e:
+            self.logger.error(f"Error ensuring transfer for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to ensure booking transfer: {str(e)}")
 
     # Time-based Booking Queries (NEW)
 
