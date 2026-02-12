@@ -23,10 +23,10 @@ import type {
 
 import type {
   AddressCreate,
+  AddressDeleteResponse,
   AddressListResponse,
   AddressResponse,
   AddressUpdate,
-  AppSchemasAddressResponsesDeleteResponse,
   AutocompleteResponse,
   CoverageFeatureCollectionResponse,
   GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams,
@@ -455,8 +455,8 @@ export const getDeleteMyAddressApiV1AddressesMeAddressIdDeleteUrl = (addressId: 
 export const deleteMyAddressApiV1AddressesMeAddressIdDelete = async (
   addressId: string,
   options?: RequestInit
-): Promise<AppSchemasAddressResponsesDeleteResponse> => {
-  return customFetch<AppSchemasAddressResponsesDeleteResponse>(
+): Promise<AddressDeleteResponse> => {
+  return customFetch<AddressDeleteResponse>(
     getDeleteMyAddressApiV1AddressesMeAddressIdDeleteUrl(addressId),
     {
       ...options,

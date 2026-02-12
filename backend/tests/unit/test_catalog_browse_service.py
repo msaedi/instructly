@@ -206,7 +206,7 @@ class TestGetSubcategory:
         assert result["slug"] == "orphan"
         assert len(result["services"]) == 1
         assert result["services"][0]["category_name"] is None
-        assert result["category"] == {}
+        assert result["category"] is None
 
     def test_excludes_inactive_services(self) -> None:
         svc = _build_service()

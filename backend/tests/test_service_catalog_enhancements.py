@@ -55,8 +55,8 @@ class TestServiceCatalogRepository:
         db.add(subcategory)
         db.flush()
 
-        # Create service with embedding (384 dimensions)
-        test_embedding = [0.1] * 384  # Simplified embedding
+        # Create service with embedding_v2 (1536 dimensions)
+        test_embedding = [0.1] * 1536  # Simplified embedding
         service = ServiceCatalog(
             subcategory_id=subcategory.id,
             name="Test Service",
@@ -64,7 +64,7 @@ class TestServiceCatalogRepository:
             description="Test service for vector search",
             search_terms=["test", "search"],
             display_order=1,
-            embedding=test_embedding,
+            embedding_v2=test_embedding,
             online_capable=True,
             requires_certification=False,
             is_active=True,
@@ -76,7 +76,7 @@ class TestServiceCatalogRepository:
         repo = RepositoryFactory.create_service_catalog_repository(db)
 
         # Search with similar embedding
-        query_embedding = [0.09] * 384  # Slightly different
+        query_embedding = [0.09] * 1536  # Slightly different
         results = repo.find_similar_by_embedding(
             embedding=query_embedding, limit=100, threshold=0.3
         )  # Lower threshold and higher limit
@@ -367,13 +367,13 @@ class TestInstructorServiceEnhancements:
             {
                 "name": piano_name,
                 "slug": unique_slug("piano-lessons"),
-                "embedding": [0.1] * 384,  # Simplified embedding
+                "embedding_v2": [0.1] * 1536,  # Simplified embedding
                 "online_capable": True,
             },
             {
                 "name": guitar_name,
                 "slug": unique_slug("guitar-lessons"),
-                "embedding": [0.2] * 384,  # Different embedding
+                "embedding_v2": [0.2] * 1536,  # Different embedding
                 "online_capable": False,
             },
         ]
@@ -394,7 +394,7 @@ class TestInstructorServiceEnhancements:
         created_ids = [s.id for s in created_services]
 
         # Search with query embedding similar to piano
-        query_embedding = [0.11] * 384
+        query_embedding = [0.11] * 1536
         results = instructor_service.search_services_semantic(
             query_embedding=query_embedding, online_capable=True, limit=100
         )
@@ -596,8 +596,7 @@ class TestEnhancedModels:
             description="Service with all new fields",
             search_terms=["enhanced", "test"],
             display_order=1,
-            embedding=[0.1] * 384,
-            related_services=[],
+            embedding_v2=[0.1] * 1536,
             online_capable=True,
             requires_certification=False,
             is_active=True,
@@ -609,8 +608,8 @@ class TestEnhancedModels:
         assert saved.display_order == 1
         assert saved.online_capable is True
         assert saved.requires_certification is False
-        assert saved.embedding is not None
-        assert len(saved.embedding) == 384
+        assert saved.embedding_v2 is not None
+        assert len(saved.embedding_v2) == 1536
 
     def test_instructor_service_new_fields(self, db: Session, mock_instructor_profile):
         """Test InstructorService enhanced fields."""

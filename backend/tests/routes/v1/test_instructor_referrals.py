@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import uuid
 
 from fastapi import HTTPException, status
 import pytest
@@ -128,7 +127,6 @@ def test_get_referred_instructors_paginates_and_formats_last_initial(
     _create_instructor_profile(db, referred.id)
 
     code = ReferralCode(
-        id=uuid.uuid4(),
         code="REF-CODE-1",
         referrer_user_id=referrer.id,
         status=ReferralCodeStatus.ACTIVE,
@@ -137,7 +135,6 @@ def test_get_referred_instructors_paginates_and_formats_last_initial(
     db.flush()
 
     attribution = ReferralAttribution(
-        id=uuid.uuid4(),
         code_id=code.id,
         referred_user_id=referred.id,
         source="test",

@@ -9,6 +9,7 @@ maintaining a complete history of all searches without deduplication.
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     Float,
@@ -88,6 +89,16 @@ class SearchEvent(Base):
 
     # Audit
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "search_type IN ("
+            "'natural_language', 'category', 'service_pill', 'filter', 'search_history',"
+            "'location', 'browse'"
+            ")",
+            name="ck_search_events_search_type",
+        ),
+    )
 
     # Relationships
     user = relationship("User", foreign_keys=[user_id])

@@ -5583,6 +5583,10 @@ export type components = {
  street_line2?: string | null;
  verification_status: string | null;
  };
+ AddressDeleteResponse: {
+ message: string;
+ success: boolean;
+ };
  AddressListResponse: {
  items: components["schemas"]["AddressResponse"][];
  total: number;
@@ -5704,6 +5708,11 @@ export type components = {
  student_timezone?: string | null;
  timeline: components["schemas"]["AdminBookingTimelineEvent"][];
  updated_at?: string | null;
+ };
+ AdminBookingDetailServiceInfo: {
+ category: string;
+ name: string;
+ slug: string;
  };
  AdminBookingListItem: {
  booking_date: string;
@@ -6316,6 +6325,10 @@ export type components = {
  availability_invalidations: number;
  availability_total_requests: number;
  };
+ AvailabilityWindowBulkUpdateRequest: {
+ operations: components["schemas"]["SlotOperation"][];
+ validate_only: boolean;
+ };
  AvailabilityWindowResponse: {
  end_time: string;
  id: string;
@@ -6495,6 +6508,11 @@ export type components = {
  supply_demand_ratio: string;
  supply_utilization: string;
  };
+ BaseDeleteResponse: {
+ deleted_at?: string;
+ message: string;
+ success: boolean;
+ };
  BasicCacheStats: {
  errors: number;
  hit_rate: string;
@@ -6623,7 +6641,7 @@ export type components = {
  instructor_id: string;
  instructor_note: string | null;
  instructor_payout_amount?: number | null;
- instructor_service: components["schemas"]["app__schemas__booking__ServiceInfo"];
+ instructor_service: components["schemas"]["BookingServiceInfo"];
  instructor_service_id: string;
  instructor_timezone?: string | null;
  lesson_timezone?: string | null;
@@ -6698,7 +6716,7 @@ export type components = {
  instructor: components["schemas"]["ParticipantInfo"];
  location_type: string;
  scheduled_at: string;
- service: components["schemas"]["ServiceInfo"];
+ service: components["schemas"]["AdminBookingDetailServiceInfo"];
  status: string;
  student: components["schemas"]["ParticipantInfo"];
  updated_at: string;
@@ -6775,7 +6793,7 @@ export type components = {
  instructor_id: string;
  instructor_note: string | null;
  instructor_payout_amount?: number | null;
- instructor_service: components["schemas"]["app__schemas__booking__ServiceInfo"];
+ instructor_service: components["schemas"]["BookingServiceInfo"];
  instructor_service_id: string;
  instructor_timezone?: string | null;
  lesson_timezone?: string | null;
@@ -6813,6 +6831,11 @@ export type components = {
  student_note: string | null;
  student_timezone?: string | null;
  total_price: number;
+ };
+ BookingServiceInfo: {
+ description: string | null;
+ id: string;
+ name: string;
  };
  BookingStatsResponse: {
  average_rating?: number | null;
@@ -6893,9 +6916,6 @@ export type components = {
  locations?: string[] | null;
  user_ids?: string[] | null;
  user_type?: components["schemas"]["BulkUserType"] | null;
- };
- BulkUpdateRequest: {
- updates: components["schemas"]["PreferenceUpdate"][];
  };
  BulkUpdateResponse: {
  failed: number;
@@ -7371,11 +7391,6 @@ export type components = {
  message: string;
  };
  DeleteMessageResponse: {
- message: string;
- success: boolean;
- };
- DeleteResponse: {
- deleted_at?: string;
  message: string;
  success: boolean;
  };
@@ -8638,6 +8653,9 @@ export type components = {
  total: number;
  unread_count: number;
  };
+ NotificationPreferencesBulkUpdateRequest: {
+ updates: components["schemas"]["PreferenceUpdate"][];
+ };
  NotificationResponse: {
  body: string | null;
  category: string;
@@ -8775,6 +8793,9 @@ export type components = {
  net_to_instructor: number;
  platform_fee: number;
  tip: number;
+ };
+ PaymentDeleteResponse: {
+ success: boolean;
  };
  PaymentFailure: {
  category: string;
@@ -9841,11 +9862,6 @@ export type components = {
  requirements?: string | null;
  service_catalog_id: string;
  };
- ServiceInfo: {
- category: string;
- name: string;
- slug: string;
- };
  ServiceMatch: {
  description?: string | null;
  name: string;
@@ -9984,7 +10000,7 @@ export type components = {
  service_count: number;
  };
  SubcategoryDetail: {
- category: components["schemas"]["CategoryResponse"];
+ category?: components["schemas"]["CategoryResponse"] | null;
  description?: string | null;
  filters?: components["schemas"]["SubcategoryFilterResponse"][];
  id: string;
@@ -10428,22 +10444,6 @@ export type components = {
  last_searched: string;
  query: string;
  };
- app__schemas__address_responses__DeleteResponse: {
- message: string;
- success: boolean;
- };
- app__schemas__availability_window__BulkUpdateRequest: {
- operations: components["schemas"]["SlotOperation"][];
- validate_only: boolean;
- };
- app__schemas__booking__ServiceInfo: {
- description: string | null;
- id: string;
- name: string;
- };
- app__schemas__payment_schemas__DeleteResponse: {
- success: boolean;
- };
  };
  responses: never;
  parameters: never;
@@ -10874,7 +10874,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["app__schemas__address_responses__DeleteResponse"];
+ "application/json": components["schemas"]["AddressDeleteResponse"];
  };
  };
  422: {
@@ -16747,7 +16747,7 @@ export interface operations {
  };
  requestBody: {
  content: {
- "application/json": components["schemas"]["app__schemas__availability_window__BulkUpdateRequest"];
+ "application/json": components["schemas"]["AvailabilityWindowBulkUpdateRequest"];
  };
  };
  responses: {
@@ -18517,7 +18517,7 @@ export interface operations {
  };
  requestBody: {
  content: {
- "application/json": components["schemas"]["BulkUpdateRequest"];
+ "application/json": components["schemas"]["NotificationPreferencesBulkUpdateRequest"];
  };
  };
  responses: {
@@ -19321,7 +19321,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["app__schemas__payment_schemas__DeleteResponse"];
+ "application/json": components["schemas"]["PaymentDeleteResponse"];
  };
  };
  422: {
@@ -21463,7 +21463,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["DeleteResponse"];
+ "application/json": components["schemas"]["BaseDeleteResponse"];
  };
  };
  };

@@ -11,7 +11,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB
 
 # revision identifiers, used by Alembic.
 revision: str = "006_platform_features"
@@ -287,7 +287,12 @@ def upgrade() -> None:
         )
     op.create_index("ix_user_addresses_postal_code", "user_addresses", ["postal_code"])
     op.create_check_constraint(
-        "ck_user_addresses_label_values",
+        "ck_user_addresses_verification_status",
+        "user_addresses",
+        "verification_status IN ('unverified', 'verified')",
+    )
+    op.create_check_constraint(
+        "ck_user_addresses_label",
         "user_addresses",
         "label IS NULL OR label IN ('home','work','other')",
     )
@@ -300,7 +305,7 @@ def upgrade() -> None:
     # Referral program
     op.create_table(
         "referral_codes",
-        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column("code", sa.String(16), nullable=False, unique=True),
         sa.Column("vanity_slug", sa.String(64), nullable=True, unique=True),
         sa.Column(
@@ -344,10 +349,10 @@ def upgrade() -> None:
 
     op.create_table(
         "referral_clicks",
-        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column(
             "code_id",
-            UUID(as_uuid=True),
+            sa.String(26),
             sa.ForeignKey("referral_codes.id", ondelete="CASCADE"),
             nullable=False,
         ),
@@ -374,10 +379,10 @@ def upgrade() -> None:
 
     op.create_table(
         "referral_attributions",
-        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column(
             "code_id",
-            UUID(as_uuid=True),
+            sa.String(26),
             sa.ForeignKey("referral_codes.id", ondelete="CASCADE"),
             nullable=False,
         ),
@@ -396,7 +401,7 @@ def upgrade() -> None:
 
     op.create_table(
         "referral_rewards",
-        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column(
             "referrer_user_id",
             sa.String(26),
@@ -461,7 +466,7 @@ def upgrade() -> None:
 
     op.create_table(
         "wallet_transactions",
-        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column(
             "user_id",
             sa.String(26),
@@ -482,7 +487,7 @@ def upgrade() -> None:
         sa.Column("amount_cents", sa.Integer(), nullable=False),
         sa.Column(
             "related_reward_id",
-            UUID(as_uuid=True),
+            sa.String(26),
             sa.ForeignKey("referral_rewards.id", ondelete="SET NULL"),
             nullable=True,
         ),
@@ -523,7 +528,7 @@ def upgrade() -> None:
 
     op.create_table(
         "referral_config",
-        sa.Column("id", sa.UUID(), primary_key=True, nullable=False),
+        sa.Column("id", sa.String(26), primary_key=True, nullable=False),
         sa.Column("version", sa.BigInteger(), nullable=False, unique=True),
         sa.Column(
             "effective_at",
@@ -542,21 +547,43 @@ def upgrade() -> None:
         sa.Column("student_global_cap", sa.Integer(), nullable=False),
         sa.Column("updated_by", sa.Text(), nullable=False),
         sa.Column("note", sa.Text(), nullable=True),
-        sa.CheckConstraint("student_amount_cents >= 0"),
-        sa.CheckConstraint("instructor_amount_cents >= 0"),
-        sa.CheckConstraint("instructor_founding_bonus_cents >= 0"),
-        sa.CheckConstraint("instructor_standard_bonus_cents >= 0"),
-        sa.CheckConstraint("min_basket_cents >= 6000"),
-        sa.CheckConstraint("hold_days BETWEEN 1 AND 14"),
-        sa.CheckConstraint("expiry_months BETWEEN 1 AND 24"),
-        sa.CheckConstraint("student_global_cap >= 0"),
+        sa.CheckConstraint(
+            "student_amount_cents >= 0",
+            name="ck_referral_config_student_amount_non_negative",
+        ),
+        sa.CheckConstraint(
+            "instructor_amount_cents >= 0",
+            name="ck_referral_config_instructor_amount_non_negative",
+        ),
+        sa.CheckConstraint(
+            "instructor_founding_bonus_cents >= 0",
+            name="ck_referral_config_founding_bonus_non_negative",
+        ),
+        sa.CheckConstraint(
+            "instructor_standard_bonus_cents >= 0",
+            name="ck_referral_config_standard_bonus_non_negative",
+        ),
+        sa.CheckConstraint("min_basket_cents >= 6000", name="ck_referral_config_min_basket"),
+        sa.CheckConstraint("hold_days BETWEEN 1 AND 14", name="ck_referral_config_hold_days"),
+        sa.CheckConstraint("expiry_months BETWEEN 1 AND 24", name="ck_referral_config_expiry_months"),
+        sa.CheckConstraint(
+            "student_global_cap >= 0",
+            name="ck_referral_config_student_global_cap_non_negative",
+        ),
     )
-    op.create_index(
-        "ix_referral_config_effective_at_desc",
-        "referral_config",
-        ["effective_at"],
-        unique=False,
-    )
+    if is_postgres:
+        op.execute(
+            "CREATE INDEX ix_referral_config_effective_at_desc "
+            "ON referral_config (effective_at DESC)"
+        )
+    else:
+        # SQLite fallback for tests: keep the same index name on the single column.
+        op.create_index(
+            "ix_referral_config_effective_at_desc",
+            "referral_config",
+            ["effective_at"],
+            unique=False,
+        )
 
     op.create_table(
         "instructor_referral_payouts",
@@ -649,6 +676,10 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.CheckConstraint("amount_cents >= 0", name="ck_platform_credits_amount_positive"),
         sa.CheckConstraint("reserved_amount_cents >= 0", name="ck_platform_credits_reserved_positive"),
+        sa.CheckConstraint(
+            "status IN ('pending', 'available', 'reserved', 'applied', 'forfeited', 'expired', 'frozen', 'revoked')",
+            name="ck_platform_credits_status",
+        ),
         comment="Credits issued from cancellations, usable on future bookings",
     )
     op.create_index("idx_platform_credits_user_id", "platform_credits", ["user_id"])
@@ -660,6 +691,7 @@ def upgrade() -> None:
         ["reserved_for_booking_id"],
     )
     op.create_index("idx_platform_credits_status", "platform_credits", ["status"])
+    op.create_index("ix_platform_credits_user_status", "platform_credits", ["user_id", "status"])
     op.create_index("idx_platform_credits_expires_at", "platform_credits", ["expires_at"])
     op.create_index(
         "idx_platform_credits_unused",
@@ -683,6 +715,10 @@ def upgrade() -> None:
         sa.Column("metadata", sa.JSON(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("code", name="uq_beta_invites_code"),
+        sa.CheckConstraint(
+            "role IN ('instructor_beta', 'student_beta')",
+            name="ck_beta_invites_role",
+        ),
     )
     op.create_index("ix_beta_invites_code", "beta_invites", ["code"])
     op.create_index("ix_beta_invites_email", "beta_invites", ["email"])
@@ -727,8 +763,12 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("notified_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint(
+            "severity IN ('critical', 'warning', 'info')",
+            name="ck_alert_history_severity",
+        ),
     )
-    op.create_index("ix_alert_history_created_at", "alert_history", ["created_at"])
+    op.create_index("ix_alert_history_created", "alert_history", ["created_at"])
     op.create_index("ix_alert_history_alert_type", "alert_history", ["alert_type"])
     op.create_index("ix_alert_history_severity", "alert_history", ["severity"])
 
@@ -972,6 +1012,10 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint(
+            "status IN ('queued', 'processing', 'running', 'failed', 'completed', 'succeeded')",
+            name="ck_background_jobs_status",
+        ),
     )
     op.create_index(
         "ix_background_jobs_status_available",
@@ -1184,6 +1228,22 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["created_by_id"], ["users.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint(
+            "visibility IN ('internal', 'shared', 'shared_with_instructor', 'shared_with_student')",
+            name="ck_booking_notes_visibility",
+        ),
+        sa.CheckConstraint(
+            "category IN ("
+            "'general',"
+            "'cancellation',"
+            "'dispute',"
+            "'payment',"
+            "'support_interaction',"
+            "'fraud_flag',"
+            "'quality_issue'"
+            ")",
+            name="ck_booking_notes_category",
+        ),
         comment="Admin notes attached to bookings",
     )
     op.create_index("idx_booking_notes_booking_id", "booking_notes", ["booking_id"])
@@ -1328,6 +1388,8 @@ def downgrade() -> None:
     op.drop_index("idx_booking_notes_created_at", table_name="booking_notes")
     op.drop_index("idx_booking_notes_created_by_id", table_name="booking_notes")
     op.drop_index("idx_booking_notes_booking_id", table_name="booking_notes")
+    op.drop_constraint("ck_booking_notes_category", "booking_notes", type_="check")
+    op.drop_constraint("ck_booking_notes_visibility", "booking_notes", type_="check")
     op.drop_table("booking_notes")
 
     op.drop_column("bookings", "reminder_1h_sent")
@@ -1379,6 +1441,7 @@ def downgrade() -> None:
     op.drop_index("ix_background_jobs_status_available", table_name="background_jobs")
     with op.get_context().autocommit_block():
         op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_background_jobs_pending")
+    op.drop_constraint("ck_background_jobs_status", "background_jobs", type_="check")
     op.drop_table("background_jobs")
 
     op.drop_index("ix_push_subscriptions_user_id", table_name="push_subscriptions")
@@ -1403,7 +1466,8 @@ def downgrade() -> None:
 
     op.drop_index("ix_alert_history_severity", table_name="alert_history")
     op.drop_index("ix_alert_history_alert_type", table_name="alert_history")
-    op.drop_index("ix_alert_history_created_at", table_name="alert_history")
+    op.execute("DROP INDEX IF EXISTS ix_alert_history_created")
+    op.drop_constraint("ck_alert_history_severity", "alert_history", type_="check")
     op.drop_table("alert_history")
 
     op.drop_index("ix_webhook_events_related_entity", table_name="webhook_events")
@@ -1420,16 +1484,19 @@ def downgrade() -> None:
     op.drop_table("beta_access")
     op.drop_index("ix_beta_invites_email", table_name="beta_invites")
     op.drop_index("ix_beta_invites_code", table_name="beta_invites")
+    op.drop_constraint("ck_beta_invites_role", "beta_invites", type_="check")
     op.drop_constraint("uq_beta_invites_code", "beta_invites", type_="unique")
     op.drop_table("beta_invites")
 
     op.drop_index("idx_platform_credits_expires_at", table_name="platform_credits")
     op.drop_index("idx_platform_credits_unused", table_name="platform_credits")
+    op.execute("DROP INDEX IF EXISTS ix_platform_credits_user_status")
     op.drop_index("idx_platform_credits_status", table_name="platform_credits")
     op.drop_index("idx_platform_credits_reserved_booking_id", table_name="platform_credits")
     op.drop_index("idx_platform_credits_used_booking_id", table_name="platform_credits")
     op.drop_index("idx_platform_credits_source_booking_id", table_name="platform_credits")
     op.drop_index("idx_platform_credits_user_id", table_name="platform_credits")
+    op.drop_constraint("ck_platform_credits_status", "platform_credits", type_="check")
     op.drop_table("platform_credits")
 
     op.drop_index(
@@ -1478,7 +1545,8 @@ def downgrade() -> None:
     op.drop_table("badge_definitions")
 
     op.drop_constraint("ck_user_addresses_other_label_has_custom", "user_addresses", type_="check")
-    op.drop_constraint("ck_user_addresses_label_values", "user_addresses", type_="check")
+    op.drop_constraint("ck_user_addresses_label", "user_addresses", type_="check")
+    op.drop_constraint("ck_user_addresses_verification_status", "user_addresses", type_="check")
     op.drop_index("ix_user_addresses_postal_code", table_name="user_addresses")
     if is_postgres:
         op.drop_index("uq_user_default_address", table_name="user_addresses")

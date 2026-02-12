@@ -19,6 +19,8 @@ from .address import InstructorServiceArea, NYCNeighborhood, UserAddress
 from .audit_log import AuditLog, AuditLogEntry
 from .availability import BlackoutDate
 from .availability_day import AvailabilityDay  # noqa: F401
+from .badge import BadgeDefinition, BadgeProgress, StudentBadge
+from .beta import BetaAccess, BetaInvite, BetaSettings
 from .booking import Booking, BookingStatus
 from .booking_note import BookingNote
 from .conversation import Conversation
@@ -65,11 +67,13 @@ from .referrals import (
     ReferralAttribution,
     ReferralClick,
     ReferralCode,
+    ReferralConfig,
     ReferralLimit,
     ReferralReward,
     WalletTransaction,
 )
 from .region_boundary import RegionBoundary
+from .review import Review, ReviewResponse, ReviewTip
 from .search_event import SearchEvent, SearchEventCandidate
 from .search_history import SearchHistory
 from .search_interaction import SearchInteraction
@@ -94,6 +98,14 @@ __all__ = [
     "InstructorLifecycleEvent",
     "BGCConsent",
     "InstructorPreferredPlace",
+    # Badge models
+    "BadgeDefinition",
+    "StudentBadge",
+    "BadgeProgress",
+    # Beta models
+    "BetaInvite",
+    "BetaAccess",
+    "BetaSettings",
     # Service catalog models
     "ServiceCategory",
     "ServiceSubcategory",
@@ -110,6 +122,10 @@ __all__ = [
     "AvailabilityDay",
     # Authentication models
     "PasswordResetToken",
+    # Review models
+    "Review",
+    "ReviewResponse",
+    "ReviewTip",
     # Booking models
     "Booking",
     "BookingStatus",
@@ -136,6 +152,7 @@ __all__ = [
     "ReferralAttribution",
     "ReferralReward",
     "WalletTransaction",
+    "ReferralConfig",
     "ReferralLimit",
     "InstructorReferralPayout",
     # Messaging models

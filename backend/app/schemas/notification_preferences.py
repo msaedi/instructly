@@ -47,7 +47,11 @@ class PreferenceUpdate(StrictRequestModel):
     enabled: bool
 
 
-class BulkUpdateRequest(StrictRequestModel):
+class NotificationPreferencesBulkUpdateRequest(StrictRequestModel):
     """Bulk preference update request."""
 
     updates: List[PreferenceUpdate]
+
+
+# Backward-compatible alias for existing imports.
+BulkUpdateRequest = NotificationPreferencesBulkUpdateRequest

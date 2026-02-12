@@ -13,14 +13,16 @@ from __future__ import annotations
 from enum import Enum
 from typing import Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from ._strict_base import StrictModel
 
 # =============================================================================
 # Instructor-Level Result Schemas (New Architecture)
 # =============================================================================
 
 
-class InstructorTeachingLocationSummary(BaseModel):
+class InstructorTeachingLocationSummary(StrictModel):
     """Approximate teaching location data for public maps."""
 
     approx_lat: float = Field(..., description="Approximate latitude")
@@ -28,7 +30,7 @@ class InstructorTeachingLocationSummary(BaseModel):
     neighborhood: Optional[str] = Field(None, description="Neighborhood or city label")
 
 
-class InstructorSummary(BaseModel):
+class InstructorSummary(StrictModel):
     """Embedded instructor info for search results."""
 
     id: str = Field(..., description="Instructor user ID")
@@ -44,7 +46,7 @@ class InstructorSummary(BaseModel):
     )
 
 
-class RatingSummary(BaseModel):
+class RatingSummary(StrictModel):
     """Aggregated rating info for an instructor."""
 
     average: Optional[float] = Field(
@@ -53,7 +55,7 @@ class RatingSummary(BaseModel):
     count: int = Field(0, ge=0, description="Number of reviews")
 
 
-class ServiceMatch(BaseModel):
+class ServiceMatch(StrictModel):
     """A service that matched the search query."""
 
     service_id: str = Field(..., description="Instructor service ID (for booking)")
@@ -73,7 +75,7 @@ class ServiceMatch(BaseModel):
     )
 
 
-class NLSearchResultItem(BaseModel):
+class NLSearchResultItem(StrictModel):
     """Single instructor result with all embedded data (eliminates N+1)."""
 
     instructor_id: str = Field(..., description="Instructor user ID")
@@ -107,7 +109,7 @@ class NLSearchResultItem(BaseModel):
 # =============================================================================
 
 
-class NLSearchScores(BaseModel):
+class NLSearchScores(StrictModel):
     """Component scores for transparency and debugging."""
 
     relevance: float = Field(..., ge=0, le=1, description="Semantic/text match score")
@@ -118,14 +120,14 @@ class NLSearchScores(BaseModel):
     completeness: float = Field(..., ge=0, le=1, description="Profile completeness score")
 
 
-class NLSearchAvailability(BaseModel):
+class NLSearchAvailability(StrictModel):
     """Availability info for a search result."""
 
     dates: List[str] = Field(default_factory=list, description="Available dates (ISO format)")
     earliest: Optional[str] = Field(None, description="Earliest available date")
 
 
-class NLSearchMatchInfo(BaseModel):
+class NLSearchMatchInfo(StrictModel):
     """Match details for a search result."""
 
     audience_boost: float = Field(0.0, description="Audience match boost applied")
@@ -136,7 +138,7 @@ class NLSearchMatchInfo(BaseModel):
     )
 
 
-class NLSearchResult(BaseModel):
+class NLSearchResult(StrictModel):
     """A single NL search result (LEGACY: service-level, kept for compatibility)."""
 
     service_id: str = Field(..., description="Instructor service ID")
@@ -151,7 +153,7 @@ class NLSearchResult(BaseModel):
     match_info: NLSearchMatchInfo = Field(..., description="Match boost details")
 
 
-class ParsedQueryInfo(BaseModel):
+class ParsedQueryInfo(StrictModel):
     """Parsed query details for response transparency."""
 
     service_query: str = Field(..., description="Extracted service query")
@@ -183,7 +185,7 @@ class StageStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class LocationTierResult(BaseModel):
+class LocationTierResult(StrictModel):
     """Result of a location resolution tier attempt."""
 
     tier: int = Field(..., ge=0, le=5, description="Location tier (0-5)")
@@ -202,13 +204,13 @@ class LocationTierResult(BaseModel):
 # The service code constructs details as plain dicts; Pydantic validates on serialization.
 
 
-class CacheCheckStageDetails(BaseModel):
+class CacheCheckStageDetails(StrictModel):
     """Details for cache_check pipeline stage."""
 
     latency_ms: int = Field(description="Cache check latency in milliseconds")
 
 
-class Burst1StageDetails(BaseModel):
+class Burst1StageDetails(StrictModel):
     """Details for burst1 pipeline stage (pre-OpenAI batch)."""
 
     text_candidates: int = Field(description="Number of text search candidates")
@@ -216,27 +218,27 @@ class Burst1StageDetails(BaseModel):
     location_tier: Optional[int] = Field(default=None, description="Location resolution tier used")
 
 
-class ParseStageDetails(BaseModel):
+class ParseStageDetails(StrictModel):
     """Details for parse pipeline stage."""
 
     mode: str = Field(description="Parsing mode used (regex/llm)")
 
 
-class EmbeddingStageDetails(BaseModel):
+class EmbeddingStageDetails(StrictModel):
     """Details for embedding pipeline stage."""
 
     reason: Optional[str] = Field(default=None, description="Skip/error reason if any")
     used: bool = Field(description="Whether embedding was actually used")
 
 
-class LocationResolutionStageDetails(BaseModel):
+class LocationResolutionStageDetails(StrictModel):
     """Details for location_resolution pipeline stage."""
 
     resolved: bool = Field(description="Whether location was successfully resolved")
     tier: Optional[int] = Field(default=None, description="Resolution tier that succeeded")
 
 
-class Burst2StageDetails(BaseModel):
+class Burst2StageDetails(StrictModel):
     """Details for burst2 pipeline stage (post-OpenAI batch)."""
 
     vector_search_used: bool = Field(description="Whether vector search was used")
@@ -245,19 +247,19 @@ class Burst2StageDetails(BaseModel):
     ranking_failed: bool = Field(description="Whether ranking failed")
 
 
-class HydrateStageDetails(BaseModel):
+class HydrateStageDetails(StrictModel):
     """Details for hydrate pipeline stage."""
 
     result_count: int = Field(description="Number of results after hydration")
 
 
-class BuildResponseStageDetails(BaseModel):
+class BuildResponseStageDetails(StrictModel):
     """Details for build_response pipeline stage."""
 
     result_count: int = Field(description="Number of results in final response")
 
 
-class SkippedStageDetails(BaseModel):
+class SkippedStageDetails(StrictModel):
     """Details for skipped pipeline stages."""
 
     reason: str = Field(description="Reason the stage was skipped")
@@ -278,7 +280,7 @@ PipelineStageDetailsUnion = Union[
 ]
 
 
-class PipelineStage(BaseModel):
+class PipelineStage(StrictModel):
     """Timing and status for a pipeline stage."""
 
     name: str = Field(..., description="Stage name")
@@ -289,7 +291,7 @@ class PipelineStage(BaseModel):
     )
 
 
-class BudgetInfo(BaseModel):
+class BudgetInfo(StrictModel):
     """Request budget tracking."""
 
     initial_ms: int = Field(..., ge=0, description="Initial request budget in ms")
@@ -301,7 +303,7 @@ class BudgetInfo(BaseModel):
     degradation_level: str = Field(..., description="Degradation level label")
 
 
-class LocationResolutionInfo(BaseModel):
+class LocationResolutionInfo(StrictModel):
     """Detailed location resolution breakdown."""
 
     query: str = Field(..., description="Original location query")
@@ -315,7 +317,7 @@ class LocationResolutionInfo(BaseModel):
     tiers: List[LocationTierResult] = Field(default_factory=list, description="Per-tier results")
 
 
-class SearchDiagnostics(BaseModel):
+class SearchDiagnostics(StrictModel):
     """Full diagnostics for admin tooling."""
 
     total_latency_ms: int = Field(..., ge=0, description="Total latency in ms")
@@ -341,14 +343,14 @@ class SearchDiagnostics(BaseModel):
     vector_search_used: bool = Field(..., description="Whether vector search was used")
 
 
-class NLSearchContentFilterOption(BaseModel):
+class NLSearchContentFilterOption(StrictModel):
     """Taxonomy content filter option surfaced in NL search metadata."""
 
     value: str = Field(..., description="Machine-readable option value")
     label: str = Field(..., description="Human-readable option label")
 
 
-class NLSearchContentFilterDefinition(BaseModel):
+class NLSearchContentFilterDefinition(StrictModel):
     """Taxonomy content filter definition surfaced in NL search metadata."""
 
     key: str = Field(..., description="Machine-readable filter key")
@@ -360,7 +362,7 @@ class NLSearchContentFilterDefinition(BaseModel):
     )
 
 
-class NLSearchMeta(BaseModel):
+class NLSearchMeta(StrictModel):
     """Search response metadata."""
 
     query: str = Field(..., description="Original search query")
@@ -431,14 +433,14 @@ class NLSearchMeta(BaseModel):
     )
 
 
-class NLSearchResponse(BaseModel):
+class NLSearchResponse(StrictModel):
     """Complete NL search response with instructor-level results."""
 
     results: List[NLSearchResultItem] = Field(..., description="Instructor-level search results")
     meta: NLSearchMeta = Field(..., description="Search metadata")
 
 
-class SearchHealthCache(BaseModel):
+class SearchHealthCache(StrictModel):
     """Cache health status."""
 
     available: bool = Field(..., description="Whether cache is available")
@@ -447,7 +449,7 @@ class SearchHealthCache(BaseModel):
     error: Optional[str] = Field(None, description="Error message if unavailable")
 
 
-class SearchHealthComponents(BaseModel):
+class SearchHealthComponents(StrictModel):
     """Health status of search components."""
 
     cache: SearchHealthCache = Field(..., description="Cache health status")
@@ -455,14 +457,14 @@ class SearchHealthComponents(BaseModel):
     embedding_circuit: str = Field(..., description="Embedding circuit breaker state")
 
 
-class SearchHealthResponse(BaseModel):
+class SearchHealthResponse(StrictModel):
     """Health check response for search service."""
 
     status: str = Field(..., description="Overall health status")
     components: SearchHealthComponents = Field(..., description="Component health details")
 
 
-class SearchMetricsResponse(BaseModel):
+class SearchMetricsResponse(StrictModel):
     """Aggregate search metrics response."""
 
     total_searches: int = Field(..., ge=0, description="Total number of searches")
@@ -475,7 +477,7 @@ class SearchMetricsResponse(BaseModel):
     degradation_rate: float = Field(..., ge=0, le=1, description="Search degradation rate")
 
 
-class PopularQueryItem(BaseModel):
+class PopularQueryItem(StrictModel):
     """A popular search query."""
 
     query: str = Field(..., description="Search query text")
@@ -484,13 +486,13 @@ class PopularQueryItem(BaseModel):
     avg_latency_ms: Optional[float] = Field(None, ge=0, description="Average latency in ms")
 
 
-class PopularQueriesResponse(BaseModel):
+class PopularQueriesResponse(StrictModel):
     """List of popular search queries."""
 
     queries: List[PopularQueryItem] = Field(..., description="Popular queries")
 
 
-class ZeroResultQueryItem(BaseModel):
+class ZeroResultQueryItem(StrictModel):
     """A search query that returned zero results."""
 
     query: str = Field(..., description="Search query text")
@@ -498,13 +500,13 @@ class ZeroResultQueryItem(BaseModel):
     last_searched: str = Field(..., description="Last search timestamp")
 
 
-class ZeroResultQueriesResponse(BaseModel):
+class ZeroResultQueriesResponse(StrictModel):
     """List of zero-result queries."""
 
     queries: List[ZeroResultQueryItem] = Field(..., description="Zero-result queries")
 
 
-class SearchClickRequest(BaseModel):
+class SearchClickRequest(StrictModel):
     """Request payload for logging a search click."""
 
     search_query_id: str = Field(..., description="Search query ID from NL search")
@@ -518,7 +520,7 @@ class SearchClickRequest(BaseModel):
     )
 
 
-class SearchClickResponse(BaseModel):
+class SearchClickResponse(StrictModel):
     """Response for logging a search click."""
 
     click_id: str = Field(..., description="ID of the logged click")
@@ -529,7 +531,7 @@ class SearchClickResponse(BaseModel):
 # =============================================================================
 
 
-class ModelOption(BaseModel):
+class ModelOption(StrictModel):
     """A selectable model option."""
 
     id: str = Field(..., description="Model identifier")
@@ -537,7 +539,7 @@ class ModelOption(BaseModel):
     description: str = Field(..., description="Model description")
 
 
-class SearchConfigResponse(BaseModel):
+class SearchConfigResponse(StrictModel):
     """Current search configuration."""
 
     parsing_model: str = Field(..., description="Current parsing model")
@@ -550,7 +552,7 @@ class SearchConfigResponse(BaseModel):
     )
 
 
-class SearchConfigUpdate(BaseModel):
+class SearchConfigUpdate(StrictModel):
     """Request to update search configuration."""
 
     parsing_model: Optional[str] = Field(None, description="New parsing model")
@@ -563,14 +565,14 @@ class SearchConfigUpdate(BaseModel):
     )
 
 
-class SearchConfigResetResponse(BaseModel):
+class SearchConfigResetResponse(StrictModel):
     """Response after resetting configuration."""
 
     status: str = Field(..., description="Reset status")
     config: SearchConfigResponse = Field(..., description="Current config after reset")
 
 
-class AdminSearchConfigResponse(BaseModel):
+class AdminSearchConfigResponse(StrictModel):
     """Admin search configuration with runtime controls."""
 
     parsing_model: str = Field(..., description="Current parsing model")
@@ -599,7 +601,7 @@ class AdminSearchConfigResponse(BaseModel):
     )
 
 
-class AdminSearchConfigUpdate(BaseModel):
+class AdminSearchConfigUpdate(StrictModel):
     """Admin update payload for search runtime settings."""
 
     parsing_model: Optional[str] = Field(None, description="New parsing model")

@@ -16,8 +16,6 @@ def test_rbac_repository_happy_paths(db, test_student):
     permission = Permission(
         name=perm_name,
         description="Test permission",
-        resource="tests",
-        action="view",
     )
     role = Role(name=role_name, description="Test role")
     role.permissions.append(permission)

@@ -99,7 +99,11 @@ class User(Base):
     profile_picture_uploaded_at = Column(DateTime(timezone=True), nullable=True)
     profile_picture_version = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        onupdate=func.now(),
+        server_default=func.now(),
+    )
 
     # 2FA fields
     totp_secret = Column(String(255), nullable=True)  # Encrypted at rest via service layer

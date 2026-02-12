@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-import uuid
 
 import pytest
 
@@ -42,7 +41,6 @@ def _create_reward(
     rule_version: str | None = None,
 ) -> ReferralReward:
     reward = ReferralReward(
-        id=uuid.uuid4(),
         referrer_user_id=referrer_id,
         referred_user_id=referred_id,
         side=RewardSide.STUDENT,

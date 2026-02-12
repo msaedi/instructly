@@ -9,7 +9,6 @@ Create Date: 2025-02-10 00:00:01.000000
 from typing import Sequence, Union
 
 from alembic import op
-from pgvector.sqlalchemy import Vector
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -87,6 +86,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
             onupdate=sa.func.now(),
             nullable=True,
         ),
@@ -103,6 +103,11 @@ def upgrade() -> None:
     op.create_index("ix_instructor_profiles_id", "instructor_profiles", ["id"])
     op.create_index("idx_instructor_profiles_user_id", "instructor_profiles", ["user_id"])
     op.create_index("idx_instructor_profiles_is_live", "instructor_profiles", ["is_live"])
+    op.create_index(
+        "ix_instructor_profiles_live_bgc",
+        "instructor_profiles",
+        ["is_live", "bgc_status"],
+    )
     op.create_index(
         "idx_instructor_profiles_identity_verified_at",
         "instructor_profiles",
@@ -222,6 +227,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
             onupdate=sa.func.now(),
             nullable=True,
         ),
@@ -463,8 +469,6 @@ def upgrade() -> None:
         sa.Column("price_floor_in_person_cents", sa.Integer(), nullable=True),
         sa.Column("price_floor_online_cents", sa.Integer(), nullable=True),
         sa.Column("display_order", sa.Integer(), nullable=False, server_default="999"),
-        sa.Column("embedding", Vector(384), nullable=True),
-        sa.Column("related_services", sa.ARRAY(sa.String(26)), nullable=True),
         sa.Column("online_capable", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column("requires_certification", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
@@ -477,6 +481,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
             onupdate=sa.func.now(),
             nullable=True,
         ),
@@ -510,13 +515,6 @@ def upgrade() -> None:
     )
     op.create_index("idx_service_catalog_display_order", "service_catalog", ["display_order"])
     op.create_index("idx_service_catalog_online_capable", "service_catalog", ["online_capable"])
-    op.create_index(
-        "idx_service_catalog_embedding",
-        "service_catalog",
-        ["embedding"],
-        postgresql_using="ivfflat",
-        postgresql_ops={"embedding": "vector_cosine_ops"},
-    )
 
     # Create instructor services table
     op.create_table(
@@ -546,6 +544,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
             onupdate=sa.func.now(),
             nullable=True,
         ),
@@ -573,10 +572,9 @@ def upgrade() -> None:
         "idx_instructor_services_service_catalog_id", "instructor_services", ["service_catalog_id"]
     )
     op.create_index(
-        "idx_instructor_services_active",
+        "ix_instructor_services_profile_active",
         "instructor_services",
         ["instructor_profile_id", "is_active"],
-        postgresql_where=sa.text("is_active = true"),
     )
     op.create_index(
         "unique_instructor_catalog_service_active",
@@ -668,6 +666,11 @@ def upgrade() -> None:
         "background_checks",
         ["report_id_enc"],
     )
+    op.create_index(
+        "ix_background_checks_instructor",
+        "background_checks",
+        ["instructor_id"],
+    )
 
     if is_postgres:
         op.execute(
@@ -744,6 +747,7 @@ def downgrade() -> None:
     )
     op.drop_table("bgc_adverse_action_events")
 
+    op.drop_index("ix_background_checks_instructor", table_name="background_checks")
     op.drop_index("ix_background_checks_report_id_enc", table_name="background_checks")
     if op.get_bind().dialect.name == "postgresql":
         op.execute("DROP INDEX IF EXISTS ix_background_checks_instructor_created_at_desc")
@@ -761,13 +765,12 @@ def downgrade() -> None:
     op.drop_constraint("check_hourly_rate_positive", "instructor_services", type_="check")
     op.drop_index("idx_instructor_services_filter_selections", table_name="instructor_services")
     op.drop_index("unique_instructor_catalog_service_active", table_name="instructor_services")
-    op.drop_index("idx_instructor_services_active", table_name="instructor_services")
+    op.drop_index("ix_instructor_services_profile_active", table_name="instructor_services")
     op.drop_index("idx_instructor_services_service_catalog_id", table_name="instructor_services")
     op.drop_index("idx_instructor_services_instructor_profile_id", table_name="instructor_services")
     op.drop_index("ix_instructor_services_id", table_name="instructor_services")
     op.drop_table("instructor_services")
 
-    op.drop_index("idx_service_catalog_embedding", table_name="service_catalog")
     op.drop_index("idx_service_catalog_online_capable", table_name="service_catalog")
     op.drop_index("idx_service_catalog_display_order", table_name="service_catalog")
     op.drop_index("idx_service_catalog_search_terms", table_name="service_catalog")
@@ -808,6 +811,7 @@ def downgrade() -> None:
     op.drop_index("ix_instructor_profiles_checkr_invitation_id", table_name="instructor_profiles")
     op.drop_index("ix_instructor_profiles_checkr_candidate_id", table_name="instructor_profiles")
     op.drop_index("idx_instructor_profiles_identity_verified_at", table_name="instructor_profiles")
+    op.drop_index("ix_instructor_profiles_live_bgc", table_name="instructor_profiles")
     op.drop_index("idx_instructor_profiles_is_live", table_name="instructor_profiles")
     op.drop_index("idx_instructor_profiles_user_id", table_name="instructor_profiles")
     op.drop_index("ix_instructor_profiles_id", table_name="instructor_profiles")

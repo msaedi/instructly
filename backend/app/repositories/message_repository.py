@@ -12,6 +12,7 @@ import logging
 from typing import Any, List, Optional, Sequence, Tuple, cast
 
 from sqlalchemy import and_, func, or_, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.exceptions import NotFoundException, RepositoryException
@@ -422,6 +423,11 @@ class MessageRepository(BaseRepository[Message]):
                 return True
             reaction = MessageReaction(message_id=message_id, user_id=user_id, emoji=emoji)
             self.db.add(reaction)
+            try:
+                self.db.flush()
+            except IntegrityError:
+                # Parallel inserts for the same reaction are safe to treat as idempotent success.
+                return True
             self.logger.info(f"Added reaction {emoji} by {user_id} on message {message_id}")
             return True
         except Exception as e:

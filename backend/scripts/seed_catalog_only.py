@@ -22,7 +22,7 @@ from pathlib import Path
 import sys
 from typing import Dict, Optional, Tuple
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 import ulid
 import yaml
@@ -99,10 +99,6 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
     }
 
     with Session(engine) as session:
-        # Use psycopg2's execute_values for true batch operations
-        from psycopg2.extras import execute_values
-        connection = session.connection().connection
-
         # Pre-load ALL existing categories by slug in ONE query
         existing_categories = {
             c.slug: c for c in session.query(ServiceCategory).all() if c.slug
@@ -113,15 +109,15 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
         category_values = []
         for cat_data in categories:
             cat_id = existing_cat_ids.get(cat_data["slug"]) or str(ulid.ULID())
-            category_values.append((
-                cat_id,
-                cat_data["name"],
-                cat_data["slug"],
-                cat_data.get("subtitle", ""),
-                cat_data["description"],
-                cat_data["display_order"],
-                cat_data.get("icon_name"),
-            ))
+            category_values.append({
+                "id": cat_id,
+                "name": cat_data["name"],
+                "slug": cat_data["slug"],
+                "subtitle": cat_data.get("subtitle", ""),
+                "description": cat_data["description"],
+                "display_order": cat_data["display_order"],
+                "icon_name": cat_data.get("icon_name"),
+            })
             if cat_data["slug"] in existing_cat_ids:
                 stats["categories_updated"] += 1
             else:
@@ -131,9 +127,9 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
                 print(f"  {action} category: {cat_data['name']}")
 
         # Bulk upsert categories (1 round trip)
-        category_upsert_sql = """
+        category_upsert_sql = text("""
             INSERT INTO service_categories (id, name, slug, subtitle, description, display_order, icon_name, created_at, updated_at)
-            VALUES %s
+            VALUES (:id, :name, :slug, :subtitle, :description, :display_order, :icon_name, NOW(), NOW())
             ON CONFLICT (slug) DO UPDATE SET
                 name = EXCLUDED.name,
                 subtitle = EXCLUDED.subtitle,
@@ -141,11 +137,8 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
                 display_order = EXCLUDED.display_order,
                 icon_name = EXCLUDED.icon_name,
                 updated_at = NOW()
-        """
-        with connection.cursor() as cursor:
-            execute_values(cursor, category_upsert_sql, category_values,
-                           template="(%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())",
-                           page_size=1000)
+        """)
+        session.execute(category_upsert_sql, category_values)
 
         stats["total_categories"] = len(categories)
 
@@ -179,9 +172,6 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
                 cat_slug_to_sub_id[cat_data["slug"]] = sub.id
         session.commit()
 
-        # Re-acquire connection after ORM commit
-        connection = session.connection().connection
-
         # Pre-load ALL existing services by slug in ONE query
         existing_services = {
             s.slug: s for s in session.query(ServiceCatalog).all() if s.slug
@@ -201,18 +191,18 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
             svc_id = existing_svc_ids.get(svc_data["slug"]) or str(ulid.ULID())
             slug_to_svc_id[svc_data["slug"]] = svc_id
 
-            service_values.append((
-                svc_id,
-                sub_id,
-                svc_data["name"],
-                svc_data["slug"],
-                svc_data["description"],
-                svc_data["search_terms"],
-                svc_data.get("display_order", 999),
-                svc_data.get("online_capable", True),
-                svc_data.get("requires_certification", False),
-                True,  # is_active
-            ))
+            service_values.append({
+                "id": svc_id,
+                "subcategory_id": sub_id,
+                "name": svc_data["name"],
+                "slug": svc_data["slug"],
+                "description": svc_data["description"],
+                "search_terms": svc_data["search_terms"],
+                "display_order": svc_data.get("display_order", 999),
+                "online_capable": svc_data.get("online_capable", True),
+                "requires_certification": svc_data.get("requires_certification", False),
+                "is_active": True,
+            })
             if svc_data["slug"] in existing_svc_ids:
                 stats["services_updated"] += 1
             else:
@@ -222,9 +212,9 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
                 print(f"  {action} service: {svc_data['name']}")
 
         # Bulk upsert services (1 round trip) — uses subcategory_id for 3-level taxonomy
-        service_upsert_sql = """
+        service_upsert_sql = text("""
             INSERT INTO service_catalog (id, subcategory_id, name, slug, description, search_terms, display_order, online_capable, requires_certification, is_active, created_at, updated_at)
-            VALUES %s
+            VALUES (:id, :subcategory_id, :name, :slug, :description, :search_terms, :display_order, :online_capable, :requires_certification, :is_active, NOW(), NOW())
             ON CONFLICT (slug) DO UPDATE SET
                 subcategory_id = EXCLUDED.subcategory_id,
                 name = EXCLUDED.name,
@@ -234,51 +224,16 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
                 online_capable = EXCLUDED.online_capable,
                 requires_certification = EXCLUDED.requires_certification,
                 updated_at = NOW()
-        """
-        with connection.cursor() as cursor:
-            execute_values(cursor, service_upsert_sql, service_values,
-                           template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())",
-                           page_size=1000)
+        """)
+        session.execute(service_upsert_sql, service_values)
 
         stats["total_services"] = len(services)
         session.commit()
 
-        # Second pass: Update related_services (bulk UPDATE)
-        # IMPORTANT: Update ALL services to ensure stale relations are cleared
+        # Legacy related_services column was removed from service_catalog.
+        # Keep parsing YAML unchanged, but skip the old bulk update step.
         if verbose:
-            print("\n🔗 Updating related services...")
-
-        # Build related_services update data for ALL services
-        related_updates = []
-        for svc_data in services:
-            svc_id = slug_to_svc_id.get(svc_data["slug"])
-            if svc_id:
-                # Resolve related service slugs to IDs (may be empty list)
-                related_ids = [
-                    slug_to_svc_id[rs] for rs in svc_data.get("related_services", [])
-                    if rs in slug_to_svc_id
-                ]
-                # Always include - even empty lists to clear stale relations
-                related_updates.append((svc_id, related_ids))
-                if verbose and related_ids:
-                    print(f"  ✓ Updated related services for {svc_data['name']}: {len(related_ids)} connections")
-
-        # Bulk update related_services (1 round trip)
-        if related_updates:
-            # Re-acquire connection after commit
-            connection = session.connection().connection
-            related_sql = """
-                UPDATE service_catalog
-                SET related_services = data.related_services,
-                    updated_at = NOW()
-                FROM (VALUES %s) AS data(id, related_services)
-                WHERE service_catalog.id = data.id
-            """
-            with connection.cursor() as cursor:
-                execute_values(cursor, related_sql, related_updates,
-                               template="(%s, %s::text[])",
-                               page_size=1000)
-            session.commit()
+            print("\n🔗 Skipping related services update (column removed)")
 
     if verbose:
         print("\n📊 Catalog Seeding Summary:")

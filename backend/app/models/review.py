@@ -167,6 +167,22 @@ class ReviewTip(Base):
 
     __table_args__ = (
         CheckConstraint("amount_cents > 0", name="ck_review_tips_positive"),
+        CheckConstraint(
+            "status IN ("
+            "'pending',"
+            "'processing',"
+            "'succeeded',"
+            "'failed',"
+            "'completed',"
+            "'requires_action',"
+            "'requires_confirmation',"
+            "'requires_payment_method',"
+            "'requires_capture',"
+            "'canceled',"
+            "'cancelled'"
+            ")",
+            name="ck_review_tips_status",
+        ),
         Index("idx_review_tips_review", "review_id"),
         Index("idx_review_tips_status", "status"),
     )

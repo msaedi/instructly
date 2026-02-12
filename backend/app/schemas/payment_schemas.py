@@ -269,11 +269,19 @@ class PaymentErrorResponse(StrictModel):
 # ========== Generic Response Models ==========
 
 
-class DeleteResponse(StrictModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+class PaymentDeleteResponse(StrictModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
+        title="PaymentDeleteResponse",
+    )
     """Response for delete operations."""
 
     success: bool = Field(..., description="Whether deletion was successful")
+
+
+# Backward-compatible alias for existing imports.
+DeleteResponse = PaymentDeleteResponse
 
 
 class InstructorInvoiceSummary(StrictModel):

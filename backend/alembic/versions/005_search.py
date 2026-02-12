@@ -128,7 +128,6 @@ def upgrade() -> None:
         sa.Column("instructor_id", sa.String(26), nullable=True),
         sa.Column("result_position", sa.Integer(), nullable=True),
         sa.Column("time_to_interaction", sa.Float(), nullable=True),
-        sa.Column("interaction_duration", sa.Float(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -207,9 +206,17 @@ def upgrade() -> None:
     op.create_index("idx_search_events_query", "search_events", ["search_query"], unique=False)
     op.create_index("idx_search_events_session_id", "search_events", ["session_id"], unique=False)
     op.create_check_constraint(
-        "ck_search_events_type",
+        "ck_search_events_search_type",
         "search_events",
-        "search_type IN ('natural_language', 'category', 'service_pill', 'filter', 'search_history')",
+        "search_type IN ("
+        "'natural_language', 'category', 'service_pill', 'filter', 'search_history',"
+        "'location', 'browse'"
+        ")",
+    )
+    op.create_check_constraint(
+        "ck_search_interactions_type",
+        "search_interactions",
+        "interaction_type IN ('view', 'click', 'hover', 'bookmark', 'view_profile', 'contact', 'book')",
     )
 
     op.create_index("idx_search_interactions_event_id", "search_interactions", ["search_event_id"])
@@ -238,15 +245,11 @@ def upgrade() -> None:
         sa.Column("booking_count_30d", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("search_to_view_rate", sa.Float(), nullable=True),
         sa.Column("view_to_booking_rate", sa.Float(), nullable=True),
-        sa.Column("avg_price_booked", sa.Float(), nullable=True),
-        sa.Column("price_percentile_25", sa.Float(), nullable=True),
-        sa.Column("price_percentile_50", sa.Float(), nullable=True),
-        sa.Column("price_percentile_75", sa.Float(), nullable=True),
+        sa.Column("avg_price_booked_cents", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("price_percentile_25_cents", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("price_percentile_50_cents", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("price_percentile_75_cents", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("most_booked_duration", sa.Integer(), nullable=True),
-        sa.Column("duration_distribution", sa.JSON(), nullable=True),
-        sa.Column("peak_hours", sa.JSON(), nullable=True),
-        sa.Column("peak_days", sa.JSON(), nullable=True),
-        sa.Column("seasonality_index", sa.JSON(), nullable=True),
         sa.Column("avg_rating", sa.Float(), nullable=True),
         sa.Column("completion_rate", sa.Float(), nullable=True),
         sa.Column("active_instructors", sa.Integer(), nullable=False, server_default="0"),
@@ -387,10 +390,10 @@ def upgrade() -> None:
         sa.Column("label", sa.String(64), nullable=True),
         sa.Column("position", sa.SmallInteger(), server_default="0", nullable=False),
         sa.Column("place_id", sa.String(255), nullable=True),
-        sa.Column("lat", sa.Float(), nullable=True),
-        sa.Column("lng", sa.Float(), nullable=True),
-        sa.Column("approx_lat", sa.Float(), nullable=True),
-        sa.Column("approx_lng", sa.Float(), nullable=True),
+        sa.Column("lat", sa.Numeric(precision=10, scale=7), nullable=True),
+        sa.Column("lng", sa.Numeric(precision=10, scale=7), nullable=True),
+        sa.Column("approx_lat", sa.Numeric(precision=10, scale=7), nullable=True),
+        sa.Column("approx_lng", sa.Numeric(precision=10, scale=7), nullable=True),
         sa.Column("neighborhood", sa.String(255), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
@@ -501,14 +504,17 @@ def upgrade() -> None:
         sa.Column("parsing_mode", sa.Text(), nullable=False),
         sa.Column("parsing_latency_ms", sa.Integer(), nullable=False),
         sa.Column("result_count", sa.Integer(), nullable=False),
-        sa.Column("top_result_ids", sa.ARRAY(sa.Text()) if is_postgres else sa.JSON(), nullable=True),
         sa.Column("user_id", sa.String(26), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("session_id", sa.Text(), nullable=True),
         sa.Column("total_latency_ms", sa.Integer(), nullable=False),
         sa.Column("cache_hit", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("degraded", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_check_constraint(
+        "ck_search_queries_parsing_mode",
+        "search_queries",
+        "parsing_mode IN ('regex', 'llm', 'hybrid')",
     )
     op.create_index("idx_search_queries_created", "search_queries", ["created_at"])
     if is_postgres:
@@ -531,6 +537,11 @@ def upgrade() -> None:
         sa.Column("action", sa.Text(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_check_constraint(
+        "ck_search_clicks_action",
+        "search_clicks",
+        "action IN ('view', 'book', 'message', 'favorite')",
     )
     op.create_index("idx_search_clicks_query", "search_clicks", ["search_query_id"])
     op.create_index("idx_search_clicks_service", "search_clicks", ["service_id"])
@@ -593,6 +604,16 @@ def upgrade() -> None:
             ["city_id", "alias_normalized"],
         )
     op.create_index("idx_location_aliases_status", "location_aliases", ["status"])
+    op.create_check_constraint(
+        "ck_location_aliases_status",
+        "location_aliases",
+        "status IN ('active', 'pending_review', 'deprecated')",
+    )
+    op.create_check_constraint(
+        "ck_location_aliases_source",
+        "location_aliases",
+        "source IN ('manual', 'fuzzy', 'embedding', 'llm', 'user_learning')",
+    )
 
     op.create_check_constraint(
         "location_aliases_valid_resolution",
@@ -782,6 +803,8 @@ def downgrade() -> None:
     op.drop_table("unresolved_location_queries")
 
     op.drop_constraint("location_aliases_valid_resolution", "location_aliases", type_="check")
+    op.drop_constraint("ck_location_aliases_source", "location_aliases", type_="check")
+    op.drop_constraint("ck_location_aliases_status", "location_aliases", type_="check")
     op.drop_index("idx_location_aliases_status", table_name="location_aliases")
     if is_postgres:
         op.execute("DROP INDEX IF EXISTS idx_location_aliases_lookup")
@@ -790,10 +813,12 @@ def downgrade() -> None:
     op.drop_constraint("uq_location_aliases_city_alias", "location_aliases", type_="unique")
     op.drop_table("location_aliases")
 
+    op.drop_constraint("ck_search_clicks_action", "search_clicks", type_="check")
     op.drop_index("idx_search_clicks_service", table_name="search_clicks")
     op.drop_index("idx_search_clicks_query", table_name="search_clicks")
     op.drop_table("search_clicks")
 
+    op.drop_constraint("ck_search_queries_parsing_mode", "search_queries", type_="check")
     op.drop_index("idx_search_queries_user", table_name="search_queries")
     if is_postgres:
         op.execute("DROP INDEX IF EXISTS idx_search_queries_created_desc")
@@ -858,9 +883,10 @@ def downgrade() -> None:
     op.drop_index("idx_search_interactions_instructor", table_name="search_interactions")
     op.drop_index("idx_search_interactions_type", table_name="search_interactions")
     op.drop_index("idx_search_interactions_event_id", table_name="search_interactions")
+    op.drop_constraint("ck_search_interactions_type", "search_interactions", type_="check")
     op.drop_table("search_interactions")
 
-    op.drop_constraint("ck_search_events_type", "search_events", type_="check")
+    op.drop_constraint("ck_search_events_search_type", "search_events", type_="check")
     op.drop_index("idx_search_events_session_id", table_name="search_events")
     op.drop_index("idx_search_events_query", table_name="search_events")
     op.drop_index("idx_search_events_searched_at", table_name="search_events")

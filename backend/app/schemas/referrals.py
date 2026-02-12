@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from typing import Dict, List, Literal, Optional
-from uuid import UUID
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, EmailStr, Field
 
@@ -58,7 +57,7 @@ class ReferralCodeOut(BaseModel):
 class RewardOut(BaseModel):
     """Serialized reward payload."""
 
-    id: UUID
+    id: str
     side: RewardSide
     status: RewardStatus
     amount_cents: int
@@ -70,11 +69,11 @@ class RewardOut(BaseModel):
 class WalletTxnOut(BaseModel):
     """Serialized wallet transaction payload."""
 
-    id: UUID
+    id: str
     type: WalletTransactionType
     amount_cents: int
     created_at: datetime
-    related_reward_id: Optional[UUID] = None
+    related_reward_id: Optional[str] = None
 
 
 class ReferralClaimRequest(StrictRequestModel):
@@ -125,7 +124,7 @@ class ReferralResolveResponse(StrictModel):
 class TopReferrerOut(BaseModel):
     """Top referrer metadata for admin dashboards."""
 
-    user_id: UUID
+    user_id: str
     count: int
     code: Optional[str] = None
 

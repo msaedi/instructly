@@ -8,6 +8,7 @@ Modes: prod | preview | stg | int
 
 import argparse
 import asyncio
+from collections import deque
 from contextlib import contextmanager
 from datetime import date, timedelta
 import json
@@ -374,7 +375,7 @@ def seed_system_data(db_url: str, dry_run: bool, mode: str, seed_db_url: Optiona
     engine = create_engine(target)
     try:
         with Session(engine) as session:
-            populate_region_embeddings(session, dry_run=dry_run, mode=mode)
+            populate_region_embeddings(session, dry_run=dry_run)
     finally:
         engine.dispose()
 
@@ -1045,17 +1046,68 @@ def generate_embeddings(db_url: str, dry_run: bool, mode: str) -> None:
         warn("Set OPENAI_API_KEY and run: python scripts/generate_openai_embeddings.py")
         return
 
-    info("ops", "Generating OpenAI service embeddings…")
-    env = {**os.environ, **_mode_env(mode), "DATABASE_URL": db_url}
+    max_attempts_raw = os.getenv("OPENAI_EMBEDDING_PROCESS_MAX_ATTEMPTS", "2")
+    retry_base_raw = os.getenv("OPENAI_EMBEDDING_PROCESS_RETRY_BASE_S", "2")
+    service_batch_size_raw = os.getenv("OPENAI_SERVICE_EMBEDDINGS_BATCH_SIZE", "100")
+    service_batch_delay_raw = os.getenv("OPENAI_SERVICE_EMBEDDINGS_BATCH_DELAY_S", "0.1")
+    try:
+        max_attempts = max(1, int(max_attempts_raw))
+    except ValueError:
+        max_attempts = 2
+    try:
+        retry_base_s = max(0.0, float(retry_base_raw))
+    except ValueError:
+        retry_base_s = 2.0
+    try:
+        service_batch_size = max(1, int(service_batch_size_raw))
+    except ValueError:
+        service_batch_size = 100
+    try:
+        service_batch_delay_s = max(0.0, float(service_batch_delay_raw))
+    except ValueError:
+        service_batch_delay_s = 0.1
+
+    info(
+        "ops",
+        "Generating OpenAI service embeddings… "
+        f"(attempts={max_attempts} batch={service_batch_size} delay={service_batch_delay_s}s)",
+    )
+    env = {
+        **os.environ,
+        **_mode_env(mode),
+        "DATABASE_URL": db_url,
+        "OPENAI_SERVICE_EMBEDDINGS_BATCH_DELAY_S": str(service_batch_delay_s),
+    }
     with perf_timer("Generate Embeddings"):
-        subprocess.check_call(
-            [sys.executable, "scripts/generate_openai_embeddings.py"],
-            cwd=str(BACKEND_DIR),
-            env=env,
-        )
+        for attempt in range(1, max_attempts + 1):
+            try:
+                subprocess.check_call(
+                    [
+                        sys.executable,
+                        "scripts/generate_openai_embeddings.py",
+                        "--batch-size",
+                        str(service_batch_size),
+                    ],
+                    cwd=str(BACKEND_DIR),
+                    env=env,
+                )
+                return
+            except subprocess.CalledProcessError as exc:
+                if attempt < max_attempts:
+                    sleep_s = retry_base_s * (2 ** (attempt - 1))
+                    warn(
+                        "Service embedding generation failed "
+                        f"(attempt {attempt}/{max_attempts}, exit={exc.returncode}); "
+                        f"retrying in {sleep_s:.1f}s"
+                    )
+                    if sleep_s > 0:
+                        time.sleep(sleep_s)
+                    continue
+
+                raise
 
 
-def populate_region_embeddings(db: Session, *, dry_run: bool, mode: str) -> None:
+def populate_region_embeddings(db: Session, *, dry_run: bool) -> None:
     """Populate region_boundaries.name_embedding for semantic location resolution."""
     if dry_run:
         info("dry", "(dry-run) Would populate region embeddings")
@@ -1073,8 +1125,21 @@ def populate_region_embeddings(db: Session, *, dry_run: bool, mode: str) -> None
         return
 
     model = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
+    timeout_raw = os.getenv("OPENAI_EMBEDDING_TIMEOUT_S", "90")
+    retries_raw = os.getenv("OPENAI_EMBEDDING_MAX_RETRIES", "1")
+    try:
+        timeout_s = float(timeout_raw)
+    except ValueError:
+        timeout_s = 90.0
+    try:
+        max_retries = int(retries_raw)
+    except ValueError:
+        max_retries = 1
+    client = OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        timeout=timeout_s,
+        max_retries=max_retries,
+    )
     missing = 0
     try:
         missing_raw = db.execute(
@@ -1101,7 +1166,17 @@ def populate_region_embeddings(db: Session, *, dry_run: bool, mode: str) -> None
 
     info("ops", f"Populating embeddings for {missing} region(s)…")
     batch_size = int(os.getenv("REGION_EMBEDDINGS_BATCH_SIZE", "50") or 50)
-    delay_s = float(os.getenv("REGION_EMBEDDINGS_BATCH_DELAY_S", "0.25") or 0.25)
+    delay_s = float(os.getenv("REGION_EMBEDDINGS_BATCH_DELAY_S", "0.1") or 0.1)
+    max_attempts_raw = os.getenv("OPENAI_EMBEDDING_BATCH_MAX_ATTEMPTS", "4")
+    retry_base_raw = os.getenv("OPENAI_EMBEDDING_RETRY_BASE_S", "1.5")
+    try:
+        max_attempts = max(1, int(max_attempts_raw))
+    except ValueError:
+        max_attempts = 4
+    try:
+        retry_base_s = max(0.0, float(retry_base_raw))
+    except ValueError:
+        retry_base_s = 1.5
 
     def _embedding_text(region_name: str, parent_region: Optional[str]) -> str:
         base = region_name.strip()
@@ -1110,6 +1185,28 @@ def populate_region_embeddings(db: Session, *, dry_run: bool, mode: str) -> None
             parts.append(str(parent_region).strip())
         parts.append("NYC location")
         return ", ".join([p for p in parts if p])
+
+    def _is_retryable_error(exc: Exception) -> bool:
+        try:
+            from openai import (  # type: ignore
+                APIConnectionError,
+                APIStatusError,
+                APITimeoutError,
+                InternalServerError,
+                RateLimitError,
+            )
+
+            if isinstance(
+                exc,
+                (APIConnectionError, APITimeoutError, RateLimitError, InternalServerError),
+            ):
+                return True
+            if isinstance(exc, APIStatusError):
+                status_code = int(getattr(exc, "status_code", 0) or 0)
+                return status_code in {408, 409, 425, 429} or status_code >= 500
+        except Exception:
+            return False
+        return False
 
     try:
         rows = db.execute(
@@ -1134,17 +1231,92 @@ def populate_region_embeddings(db: Session, *, dry_run: bool, mode: str) -> None
         return
 
     total = len(rows)
-    info("ops", f"Embedding model: {model}")
+    info(
+        "ops",
+        "Embedding model: "
+        f"{model} (timeout={timeout_s}s, retries={max_retries}, attempts={max_attempts})",
+    )
+
+    work_queue = deque([rows[i : i + batch_size] for i in range(0, total, batch_size)])
+    done = 0
+    failed = 0
 
     with perf_timer("Populate Region Embeddings", lambda: f"regions={total} batch={batch_size}"):
         try:
-            for offset in range(0, total, batch_size):
-                batch = rows[offset : offset + batch_size]
+            while work_queue:
+                batch = work_queue.popleft()
                 inputs = [
                     _embedding_text(str(r.region_name), str(r.parent_region) if r.parent_region else None)
                     for r in batch
                 ]
-                response = client.embeddings.create(model=model, input=inputs)
+                total_batches_hint = len(work_queue) + 1
+                info(
+                    "ops",
+                    "  Requesting batch "
+                    f"(size={len(batch)}, remaining={total_batches_hint}, done={done}, failed={failed})",
+                )
+
+                response = None
+                api_ms = 0
+                last_exc: Exception | None = None
+                for attempt in range(1, max_attempts + 1):
+                    try:
+                        api_start = time.perf_counter()
+                        response = client.embeddings.create(model=model, input=inputs)
+                        api_ms = int((time.perf_counter() - api_start) * 1000)
+                        break
+                    except Exception as exc:
+                        last_exc = exc
+                        retryable = _is_retryable_error(exc)
+                        if retryable and attempt < max_attempts:
+                            sleep_s = retry_base_s * (2 ** (attempt - 1))
+                            warn(
+                                "Region embedding request failed "
+                                f"(attempt {attempt}/{max_attempts}, retryable={int(retryable)}): {exc}"
+                            )
+                            if sleep_s > 0:
+                                time.sleep(sleep_s)
+                            continue
+                        break
+
+                if response is None:
+                    if len(batch) > 1:
+                        midpoint = len(batch) // 2
+                        left = batch[:midpoint]
+                        right = batch[midpoint:]
+                        warn(
+                            "Batch failed after retries; splitting "
+                            f"{len(batch)} -> {len(left)} + {len(right)}"
+                        )
+                        work_queue.appendleft(right)
+                        work_queue.appendleft(left)
+                        continue
+
+                    single = batch[0]
+                    failed += 1
+                    warn(
+                        "Skipping region after retries: "
+                        f"id={single.id} name={single.region_name} error={last_exc}"
+                    )
+                    continue
+
+                if len(response.data) != len(batch):
+                    warn(
+                        "Embedding response length mismatch "
+                        f"(expected={len(batch)} got={len(response.data)}); splitting batch"
+                    )
+                    if len(batch) > 1:
+                        midpoint = len(batch) // 2
+                        work_queue.appendleft(batch[midpoint:])
+                        work_queue.appendleft(batch[:midpoint])
+                        continue
+                    failed += 1
+                    single = batch[0]
+                    warn(
+                        "Skipping region due to response mismatch: "
+                        f"id={single.id} name={single.region_name}"
+                    )
+                    continue
 
                 for idx, item in enumerate(response.data):
                     region_id = str(batch[idx].id)
@@ -1161,14 +1333,20 @@ def populate_region_embeddings(db: Session, *, dry_run: bool, mode: str) -> None
                         {"id": region_id, "embedding": embedding},
                     )
                 db.commit()
+                done += len(batch)
+                info("ops", f"  Embedded {done}/{total} (failed={failed}, api={api_ms}ms)")
 
-                done = min(offset + len(batch), total)
-                info("ops", f"  Embedded {done}/{total}")
-
-                if done < total and delay_s > 0:
+                if work_queue and delay_s > 0:
                     time.sleep(delay_s)
         finally:
             db.rollback()
+
+    if failed:
+        message = (
+            f"Region embedding population completed with {failed} failed region(s). "
+            "Re-run scripts/populate_region_embeddings.py to backfill."
+        )
+        raise RuntimeError(message)
 
 
 def calculate_analytics(db_url: str, dry_run: bool, mode: str) -> None:

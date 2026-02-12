@@ -17,7 +17,7 @@ Message types:
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.types import JSON as SAJSON
 import ulid
@@ -78,6 +78,11 @@ class Message(Base):
     # Array of { user_id, read_at }
     read_by = Column(SAJSON, nullable=False, default=list)
 
+    __table_args__ = (
+        Index("ix_messages_conversation_id", "conversation_id"),
+        Index("ix_messages_conversation_created", "conversation_id", created_at.desc()),
+    )
+
     # Relationships
     booking = relationship("Booking", back_populates="messages")
     sender = relationship("User", foreign_keys=[sender_id])
@@ -102,6 +107,14 @@ class MessageReaction(Base):
     """
 
     __tablename__ = "message_reactions"
+    __table_args__ = (
+        UniqueConstraint(
+            "message_id",
+            "user_id",
+            "emoji",
+            name="uq_message_reactions_message_user_emoji",
+        ),
+    )
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     message_id = Column(String(26), ForeignKey("messages.id", ondelete="CASCADE"), nullable=False)
@@ -136,6 +149,10 @@ class MessageNotification(Base):
     """
 
     __tablename__ = "message_notifications"
+    __table_args__ = (
+        Index("ix_message_notifications_user_read", "user_id", "is_read"),
+        Index("ix_message_notifications_message", "message_id"),
+    )
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     message_id = Column(String(26), ForeignKey("messages.id", ondelete="CASCADE"), nullable=False)

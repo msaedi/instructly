@@ -272,6 +272,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
             onupdate=sa.func.now(),
             nullable=True,
         ),
@@ -332,8 +333,6 @@ def upgrade() -> None:
         sa.Column("id", sa.String(26), nullable=False),
         sa.Column("name", sa.String(100), nullable=False, unique=True),
         sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("resource", sa.String(50), nullable=True),
-        sa.Column("action", sa.String(50), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -348,12 +347,6 @@ def upgrade() -> None:
         "user_roles",
         sa.Column("user_id", sa.String(26), nullable=False),
         sa.Column("role_id", sa.String(26), nullable=False),
-        sa.Column(
-            "assigned_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.func.timezone("UTC", sa.func.now()),
-            nullable=False,
-        ),
         sa.ForeignKeyConstraint(
             ["user_id"],
             ["users.id"],
@@ -405,7 +398,6 @@ def upgrade() -> None:
         comment="Individual permission overrides",
     )
 
-    op.create_index("idx_permissions_resource_action", "permissions", ["resource", "action"])
     op.create_index("idx_user_roles_user_id", "user_roles", ["user_id"])
     op.create_index("idx_user_roles_role_id", "user_roles", ["role_id"])
 
@@ -445,7 +437,10 @@ def upgrade() -> None:
 
     if is_postgres:
         op.execute(
-            "CREATE INDEX ix_audit_log_entity ON audit_log (entity_type, entity_id, occurred_at DESC);"
+            "CREATE INDEX ix_audit_log_entity ON audit_log (entity_type, entity_id);"
+        )
+        op.execute(
+            "CREATE INDEX ix_audit_log_occurred ON audit_log (occurred_at);"
         )
         op.execute(
             "CREATE INDEX ix_audit_log_actor ON audit_log (actor_id, occurred_at DESC);"
@@ -457,7 +452,12 @@ def upgrade() -> None:
         op.create_index(
             "ix_audit_log_entity",
             "audit_log",
-            ["entity_type", "entity_id", "occurred_at"],
+            ["entity_type", "entity_id"],
+        )
+        op.create_index(
+            "ix_audit_log_occurred",
+            "audit_log",
+            ["occurred_at"],
         )
         op.create_index(
             "ix_audit_log_actor",
@@ -553,12 +553,14 @@ def downgrade() -> None:
 
     if is_postgres:
         op.execute("DROP INDEX IF EXISTS ix_audit_log_entity;")
+        op.execute("DROP INDEX IF EXISTS ix_audit_log_occurred;")
         op.execute("DROP INDEX IF EXISTS ix_audit_log_actor;")
         op.execute("DROP INDEX IF EXISTS ix_audit_log_action;")
         op.execute("DROP TABLE IF EXISTS audit_log;")
     else:
         op.drop_index("ix_audit_log_action", table_name="audit_log")
         op.drop_index("ix_audit_log_actor", table_name="audit_log")
+        op.drop_index("ix_audit_log_occurred", table_name="audit_log")
         op.drop_index("ix_audit_log_entity", table_name="audit_log")
         op.drop_table("audit_log")
 
@@ -574,7 +576,6 @@ def downgrade() -> None:
 
     op.drop_index("idx_user_roles_role_id", table_name="user_roles")
     op.drop_index("idx_user_roles_user_id", table_name="user_roles")
-    op.drop_index("idx_permissions_resource_action", table_name="permissions")
 
     op.drop_table("user_permissions")
     op.drop_table("role_permissions")

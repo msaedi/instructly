@@ -2153,10 +2153,9 @@ class DatabaseSeeder:
         """Create 3 published reviews per active instructor to enable ratings display.
 
         Uses bulk loading optimization: pre-fetches all bitmap data and bookings
-        in 2 queries, then does in-memory conflict detection. Uses native PostgreSQL
+        in 2 queries, then does in-memory conflict detection. Uses SQLAlchemy
         bulk INSERT for bookings and reviews (2 round trips instead of ~200).
         """
-        from psycopg2.extras import execute_values
 
         with self._session_scope() as session:
             try:
@@ -2391,29 +2390,29 @@ class DatabaseSeeder:
                         )
 
                         # Collect booking data for bulk INSERT
-                        pending_bookings.append((
-                            booking_id,
-                            student.id,
-                            instructor.id,
-                            service.id,
-                            booking_date_val,
-                            start_time_val,
-                            end_time_val,
-                            tz_fields["booking_start_utc"],
-                            tz_fields["booking_end_utc"],
-                            tz_fields["lesson_timezone"],
-                            tz_fields["instructor_tz_at_booking"],
-                            tz_fields["student_tz_at_booking"],
-                            service_name,
-                            float(service.hourly_rate),
-                            total_price,
-                            duration,
-                            BookingStatus.COMPLETED.value,
-                            "neutral_location",
-                            "In-person",
-                            "Seeded completed booking for reviews",
-                            helper_completed_at,
-                        ))
+                        pending_bookings.append({
+                            "id": booking_id,
+                            "student_id": student.id,
+                            "instructor_id": instructor.id,
+                            "instructor_service_id": service.id,
+                            "booking_date": booking_date_val,
+                            "start_time": start_time_val,
+                            "end_time": end_time_val,
+                            "booking_start_utc": tz_fields["booking_start_utc"],
+                            "booking_end_utc": tz_fields["booking_end_utc"],
+                            "lesson_timezone": tz_fields["lesson_timezone"],
+                            "instructor_tz_at_booking": tz_fields["instructor_tz_at_booking"],
+                            "student_tz_at_booking": tz_fields["student_tz_at_booking"],
+                            "service_name": service_name,
+                            "hourly_rate": float(service.hourly_rate),
+                            "total_price": total_price,
+                            "duration_minutes": duration,
+                            "status": BookingStatus.COMPLETED.value,
+                            "location_type": "neutral_location",
+                            "meeting_location": "In-person",
+                            "student_note": "Seeded completed booking for reviews",
+                            "completed_at": helper_completed_at,
+                        })
 
                         # Track for review creation
                         booking_id_map[booking_id] = {
@@ -2454,18 +2453,18 @@ class DatabaseSeeder:
                         elif completed_at.tzinfo is None:
                             completed_at = completed_at.replace(tzinfo=timezone.utc)
 
-                        pending_reviews.append((
-                            str(ulid.ULID()),
-                            booking.id,
-                            booking.student_id,
-                            booking.instructor_id,
-                            booking.instructor_service_id,
-                            rating_value,
-                            review_text,
-                            ReviewStatus.PUBLISHED.value,
-                            True,
-                            completed_at,
-                        ))
+                        pending_reviews.append({
+                            "id": str(ulid.ULID()),
+                            "booking_id": booking.id,
+                            "student_id": booking.student_id,
+                            "instructor_id": booking.instructor_id,
+                            "instructor_service_id": booking.instructor_service_id,
+                            "rating": rating_value,
+                            "review_text": review_text,
+                            "status": ReviewStatus.PUBLISHED.value,
+                            "is_verified": True,
+                            "booking_completed_at": completed_at,
+                        })
                         existing_review_booking_ids.add(booking.id)
 
                     # Then, handle new bookings (up to remaining slots)
@@ -2485,29 +2484,28 @@ class DatabaseSeeder:
                         ]
                         review_text = random.choice(sample_texts)
 
-                        pending_reviews.append((
-                            str(ulid.ULID()),
-                            booking_id,
-                            bdata["student_id"],
-                            bdata["instructor_id"],
-                            bdata["instructor_service_id"],
-                            rating_value,
-                            review_text,
-                            ReviewStatus.PUBLISHED.value,
-                            True,
-                            bdata["completed_at"],
-                        ))
+                        pending_reviews.append({
+                            "id": str(ulid.ULID()),
+                            "booking_id": booking_id,
+                            "student_id": bdata["student_id"],
+                            "instructor_id": bdata["instructor_id"],
+                            "instructor_service_id": bdata["instructor_service_id"],
+                            "rating": rating_value,
+                            "review_text": review_text,
+                            "status": ReviewStatus.PUBLISHED.value,
+                            "is_verified": True,
+                            "booking_completed_at": bdata["completed_at"],
+                        })
                         existing_review_booking_ids.add(booking_id)
 
                 # =========================================================
                 # EXECUTE BULK INSERTS (2 round trips total)
                 # =========================================================
-                connection = session.connection().connection
 
                 # Bulk INSERT bookings
                 if pending_bookings:
                     print(f"  ⏳ Bulk inserting {len(pending_bookings)} bookings...")
-                    booking_sql = """
+                    booking_sql = text("""
                         INSERT INTO bookings (
                             id, student_id, instructor_id, instructor_service_id,
                             booking_date, start_time, end_time,
@@ -2516,39 +2514,33 @@ class DatabaseSeeder:
                             service_name, hourly_rate, total_price, duration_minutes,
                             status, location_type, meeting_location, student_note, completed_at,
                             created_at, confirmed_at
-                        ) VALUES %s
-                    """
-                    booking_template = """(
-                        %s, %s, %s, %s,
-                        %s, %s, %s,
-                        %s::timestamptz, %s::timestamptz, %s,
-                        %s, %s,
-                        %s, %s::numeric, %s::numeric, %s::integer,
-                        %s, %s, %s, %s, %s::timestamptz,
-                        NOW(), NOW()
-                    )"""
-                    with connection.cursor() as cursor:
-                        execute_values(cursor, booking_sql, pending_bookings,
-                                       template=booking_template, page_size=1000)
+                        ) VALUES (
+                            :id, :student_id, :instructor_id, :instructor_service_id,
+                            :booking_date, :start_time, :end_time,
+                            :booking_start_utc, :booking_end_utc, :lesson_timezone,
+                            :instructor_tz_at_booking, :student_tz_at_booking,
+                            :service_name, :hourly_rate, :total_price, :duration_minutes,
+                            :status, :location_type, :meeting_location, :student_note, :completed_at,
+                            NOW(), NOW()
+                        )
+                    """)
+                    session.execute(booking_sql, pending_bookings)
 
                 # Bulk INSERT reviews
                 if pending_reviews:
                     print(f"  ⏳ Bulk inserting {len(pending_reviews)} reviews...")
-                    review_sql = """
+                    review_sql = text("""
                         INSERT INTO reviews (
                             id, booking_id, student_id, instructor_id, instructor_service_id,
                             rating, review_text, status, is_verified, booking_completed_at,
                             created_at, updated_at
-                        ) VALUES %s
-                    """
-                    review_template = """(
-                        %s, %s, %s, %s, %s,
-                        %s::integer, %s, %s, %s::boolean, %s::timestamptz,
-                        NOW(), NOW()
-                    )"""
-                    with connection.cursor() as cursor:
-                        execute_values(cursor, review_sql, pending_reviews,
-                                       template=review_template, page_size=1000)
+                        ) VALUES (
+                            :id, :booking_id, :student_id, :instructor_id, :instructor_service_id,
+                            :rating, :review_text, :status, :is_verified, :booking_completed_at,
+                            NOW(), NOW()
+                        )
+                    """)
+                    session.execute(review_sql, pending_reviews)
 
                 session.commit()
                 print(f"✅ Seeded {len(pending_reviews)} published reviews for active instructors")

@@ -1,5 +1,3 @@
-from ._strict_base import StrictModel
-
 """
 Response schemas for analytics endpoints.
 
@@ -9,10 +7,12 @@ and reporting endpoints.
 
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel
+from pydantic import ConfigDict, Field, RootModel
+
+from ._strict_base import StrictModel
 
 
-class DailySearchTrend(BaseModel):
+class DailySearchTrend(StrictModel):
     """Daily search trend data."""
 
     date: str = Field(description="Date in ISO format")
@@ -49,7 +49,7 @@ class SearchTrendsResponse(RootModel[List[DailySearchTrend]]):
     )
 
 
-class PopularSearch(BaseModel):
+class PopularSearch(StrictModel):
     """Popular search query data."""
 
     query: str = Field(description="Search query text")
@@ -86,7 +86,7 @@ class PopularSearchesResponse(RootModel[List[PopularSearch]]):
     )
 
 
-class SearchReferrer(BaseModel):
+class SearchReferrer(StrictModel):
     """Search referrer page data."""
 
     page: str = Field(description="Referrer page URL or path")
@@ -123,7 +123,7 @@ class SearchReferrersResponse(RootModel[List[SearchReferrer]]):
     )
 
 
-class DateRange(BaseModel):
+class DateRange(StrictModel):
     """Date range for analytics."""
 
     start: str = Field(description="Start date in ISO format")
@@ -135,7 +135,7 @@ class DateRange(BaseModel):
     )
 
 
-class SearchTotals(BaseModel):
+class SearchTotals(StrictModel):
     """Search totals and deletion metrics."""
 
     total_searches: int = Field(description="Total number of searches")
@@ -159,7 +159,7 @@ class SearchTotals(BaseModel):
     )
 
 
-class UserBreakdown(BaseModel):
+class UserBreakdown(StrictModel):
     """User type breakdown."""
 
     authenticated: int = Field(description="Number of authenticated users")
@@ -181,7 +181,7 @@ class UserBreakdown(BaseModel):
     )
 
 
-class SearchTypeMetrics(BaseModel):
+class SearchTypeMetrics(StrictModel):
     """Metrics for a search type."""
 
     count: int = Field(description="Number of searches of this type")
@@ -190,7 +190,7 @@ class SearchTypeMetrics(BaseModel):
     model_config = ConfigDict(json_schema_extra={"example": {"count": 2500, "percentage": 25.0}})
 
 
-class GuestConversionMetrics(BaseModel):
+class GuestConversionMetrics(StrictModel):
     """Guest session conversion metrics."""
 
     total: int = Field(description="Total guest sessions")
@@ -202,7 +202,7 @@ class GuestConversionMetrics(BaseModel):
     )
 
 
-class ConversionBehavior(BaseModel):
+class ConversionBehavior(StrictModel):
     """Conversion behavior metrics."""
 
     avg_searches_before_conversion: float = Field(description="Average searches before conversion")
@@ -220,7 +220,7 @@ class ConversionBehavior(BaseModel):
     )
 
 
-class PerformanceMetrics(BaseModel):
+class PerformanceMetrics(StrictModel):
     """Search performance metrics."""
 
     avg_results_per_search: float = Field(description="Average results per search")
@@ -238,7 +238,7 @@ class PerformanceMetrics(BaseModel):
     )
 
 
-class ConversionMetrics(BaseModel):
+class ConversionMetrics(StrictModel):
     """Combined conversion metrics."""
 
     guest_sessions: GuestConversionMetrics = Field(description="Guest session metrics")
@@ -310,7 +310,7 @@ class SearchAnalyticsSummaryResponse(StrictModel):
     )
 
 
-class GuestEngagement(BaseModel):
+class GuestEngagement(StrictModel):
     """Guest engagement metrics."""
 
     avg_searches_per_session: float = Field(description="Average searches per guest session")
@@ -356,7 +356,7 @@ class ConversionMetricsResponse(StrictModel):
     )
 
 
-class ResultDistribution(BaseModel):
+class ResultDistribution(StrictModel):
     """Search result distribution."""
 
     zero_results: int = Field(description="Searches with zero results")
@@ -379,7 +379,7 @@ class ResultDistribution(BaseModel):
     )
 
 
-class SearchEffectiveness(BaseModel):
+class SearchEffectiveness(StrictModel):
     """Search effectiveness metrics."""
 
     avg_results_per_search: float = Field(description="Average results per search")
@@ -399,7 +399,7 @@ class SearchEffectiveness(BaseModel):
     )
 
 
-class ProblematicQuery(BaseModel):
+class ProblematicQuery(StrictModel):
     """Problematic search query with low results."""
 
     query: str = Field(description="Search query text")
@@ -485,7 +485,7 @@ class CandidateSummaryResponse(StrictModel):
     source_breakdown: Dict[str, int]
 
 
-class CandidateCategoryTrend(BaseModel):
+class CandidateCategoryTrend(StrictModel):
     date: str
     category: str
     count: int
@@ -495,7 +495,7 @@ class CandidateCategoryTrendsResponse(RootModel[List[CandidateCategoryTrend]]):
     pass
 
 
-class CandidateTopService(BaseModel):
+class CandidateTopService(StrictModel):
     service_catalog_id: str
     service_name: str
     category_name: str
@@ -510,7 +510,7 @@ class CandidateTopServicesResponse(RootModel[List[CandidateTopService]]):
     pass
 
 
-class CandidateServiceQuery(BaseModel):
+class CandidateServiceQuery(StrictModel):
     searched_at: str
     search_query: str
     results_count: Optional[int]

@@ -6,10 +6,8 @@ import calendar
 from datetime import datetime, timedelta, timezone
 import logging
 from typing import Dict, Iterable, List, Optional, cast
-from uuid import UUID
 
 from sqlalchemy.orm import Session
-import ulid
 
 from app.constants.pricing_defaults import PRICING_DEFAULTS
 from app.core.config import resolve_referrals_step
@@ -48,7 +46,7 @@ from app.tasks.enqueue import enqueue_task
 
 logger = logging.getLogger(__name__)
 
-UserID = str | UUID
+UserID = str
 
 
 class ReferralService(BaseService):
@@ -82,16 +80,6 @@ class ReferralService(BaseService):
     @staticmethod
     def _ensure_timezone(dt: datetime) -> datetime:
         return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-
-    @staticmethod
-    def _coerce_user_uuid(user_id: str) -> UUID:
-        """Best-effort conversion of ULID/UUID strings to UUID objects."""
-
-        try:
-            ulid_uuid = ulid.ULID.from_str(user_id).to_uuid()
-            return cast(UUID, ulid_uuid)
-        except ValueError:
-            return UUID(user_id)
 
     @BaseService.measure_operation("referrals.issue_code")
     def issue_code(
@@ -510,12 +498,7 @@ class ReferralService(BaseService):
         top_referrer_rows = self.referral_reward_repo.top_referrers(limit=20)
         top_referrers: List[TopReferrerOut] = []
         for referrer_id, count, code in top_referrer_rows:
-            try:
-                user_uuid = self._coerce_user_uuid(referrer_id)
-            except ValueError:
-                logger.warning("Unable to coerce referrer id %s to UUID", referrer_id)
-                continue
-            top_referrers.append(TopReferrerOut(user_id=user_uuid, count=count, code=code))
+            top_referrers.append(TopReferrerOut(user_id=referrer_id, count=count, code=code))
 
         window_start = datetime.now(timezone.utc) - timedelta(hours=24)
         clicks_24h = self.referral_click_repo.clicks_since(window_start)

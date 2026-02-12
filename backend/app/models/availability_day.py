@@ -1,16 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 import sqlalchemy as sa
 from sqlalchemy import Column, Date, DateTime, Index, LargeBinary, String
 from sqlalchemy.dialects.postgresql import BYTEA
 
 from app.database import Base
-
-
-def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 class AvailabilityDay(Base):
@@ -23,8 +17,7 @@ class AvailabilityDay(Base):
     updated_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        default=_now_utc,
-        onupdate=_now_utc,
+        onupdate=sa.func.now(),
         server_default=sa.func.now(),
     )
 

@@ -8,6 +8,7 @@ import uuid
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+import ulid
 
 from app.core.exceptions import RepositoryException
 from app.models.instructor import InstructorProfile
@@ -53,7 +54,7 @@ def _create_instructor_profile(db, user_id: str, *, is_live: bool = False) -> In
 
 def _create_referral_code(db, referrer_user_id: str, code_value: str | None = None) -> ReferralCode:
     code = ReferralCode(
-        id=uuid.uuid4(),
+        id=str(ulid.ULID()),
         code=code_value or f"CODE{uuid.uuid4().hex[:8].upper()}",
         referrer_user_id=referrer_user_id,
         status=ReferralCodeStatus.ACTIVE,
@@ -75,7 +76,7 @@ def _create_reward(
     amount_cents: int = 2000,
 ) -> ReferralReward:
     reward = ReferralReward(
-        id=uuid.uuid4(),
+        id=str(ulid.ULID()),
         referrer_user_id=referrer_user_id,
         referred_user_id=referred_user_id,
         side=side,
@@ -90,9 +91,9 @@ def _create_reward(
     return reward
 
 
-def _create_attribution(db, *, code_id: uuid.UUID, referred_user_id: str) -> ReferralAttribution:
+def _create_attribution(db, *, code_id: str, referred_user_id: str) -> ReferralAttribution:
     attribution = ReferralAttribution(
-        id=uuid.uuid4(),
+        id=str(ulid.ULID()),
         code_id=code_id,
         referred_user_id=referred_user_id,
         source="test",
@@ -145,7 +146,7 @@ def test_referral_code_get_or_create_insert_error_raises(db, monkeypatch):
 def test_referral_code_get_or_create_reload_missing_raises(db, monkeypatch):
     user = _create_user(db, "reload_missing@example.com")
     repo = ReferralCodeRepository(db)
-    inserted_id = uuid.uuid4()
+    inserted_id = str(ulid.ULID())
     original_execute = db.execute
 
     class _Result:
@@ -379,7 +380,7 @@ def test_get_referred_instructors_with_payout_status(db, test_booking):
 def test_mark_unlocked_missing_raises(db):
     repo = ReferralRewardRepository(db)
     with pytest.raises(RepositoryException):
-        repo.mark_unlocked(uuid.uuid4())
+        repo.mark_unlocked(str(ulid.ULID()))
 
 
 def test_mark_void_updates_status(db):
@@ -402,7 +403,7 @@ def test_void_rewards_empty_noop(db):
 def test_mark_redeemed_missing_raises(db):
     repo = ReferralRewardRepository(db)
     with pytest.raises(RepositoryException):
-        repo.mark_redeemed(uuid.uuid4())
+        repo.mark_redeemed(str(ulid.ULID()))
 
 
 def test_void_expired_marks_and_returns_ids(db):

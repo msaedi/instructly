@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
-from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -19,7 +18,7 @@ from app.services.base import BaseService
 
 logger = logging.getLogger(__name__)
 
-UserID = str | UUID
+UserID = str
 
 
 class WalletService(BaseService):

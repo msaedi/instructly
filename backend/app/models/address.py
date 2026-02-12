@@ -11,7 +11,17 @@ from datetime import datetime, timezone
 import logging
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import ulid
 
@@ -79,6 +89,21 @@ class UserAddress(Base):
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     last_used_at = Column(DateTime(timezone=True), nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "verification_status IN ('unverified', 'verified')",
+            name="ck_user_addresses_verification_status",
+        ),
+        CheckConstraint(
+            "label IS NULL OR label IN ('home','work','other')",
+            name="ck_user_addresses_label",
+        ),
+        CheckConstraint(
+            "label != 'other' OR custom_label IS NOT NULL",
+            name="ck_user_addresses_other_label_has_custom",
+        ),
+    )
 
     user = relationship("User", backref="addresses")
 

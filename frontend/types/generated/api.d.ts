@@ -7699,6 +7699,16 @@ export type components = {
              */
             verification_status: string | null;
         };
+        /**
+         * AddressDeleteResponse
+         * @description Standard delete acknowledgement for address resources.
+         */
+        AddressDeleteResponse: {
+            /** Message */
+            message: string;
+            /** Success */
+            success: boolean;
+        };
         /** AddressListResponse */
         AddressListResponse: {
             /** Items */
@@ -7944,6 +7954,15 @@ export type components = {
             timeline: components["schemas"]["AdminBookingTimelineEvent"][];
             /** Updated At */
             updated_at?: string | null;
+        };
+        /** AdminBookingDetailServiceInfo */
+        AdminBookingDetailServiceInfo: {
+            /** Category */
+            category: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
         };
         /** AdminBookingListItem */
         AdminBookingListItem: {
@@ -9484,6 +9503,20 @@ export type components = {
             availability_total_requests: number;
         };
         /**
+         * AvailabilityWindowBulkUpdateRequest
+         * @description Request schema for bulk availability update.
+         */
+        AvailabilityWindowBulkUpdateRequest: {
+            /** Operations */
+            operations: components["schemas"]["SlotOperation"][];
+            /**
+             * Validate Only
+             * @description If true, only validate without making changes
+             * @default false
+             */
+            validate_only: boolean;
+        };
+        /**
          * AvailabilityWindowResponse
          * @description Response schema for availability windows.
          *     Clean Architecture: Only meaningful fields for single-table design.
@@ -9903,6 +9936,29 @@ export type components = {
             supply_utilization: string;
         };
         /**
+         * BaseDeleteResponse
+         * @description Standard response for delete operations.
+         */
+        BaseDeleteResponse: {
+            /**
+             * Deleted At
+             * Format: date-time
+             * @description Deletion timestamp
+             */
+            deleted_at?: string;
+            /**
+             * Message
+             * @description Human-readable deletion message
+             */
+            message: string;
+            /**
+             * Success
+             * @description Deletion success status
+             * @default true
+             */
+            success: boolean;
+        };
+        /**
          * BasicCacheStats
          * @description Basic cache statistics.
          */
@@ -10319,7 +10375,7 @@ export type components = {
             instructor_note: string | null;
             /** Instructor Payout Amount */
             instructor_payout_amount?: number | null;
-            instructor_service: components["schemas"]["app__schemas__booking__ServiceInfo"];
+            instructor_service: components["schemas"]["BookingServiceInfo"];
             /** Instructor Service Id */
             instructor_service_id: string;
             /** Instructor Timezone */
@@ -10473,7 +10529,7 @@ export type components = {
              * Format: date-time
              */
             scheduled_at: string;
-            service: components["schemas"]["ServiceInfo"];
+            service: components["schemas"]["AdminBookingDetailServiceInfo"];
             /** Status */
             status: string;
             student: components["schemas"]["ParticipantInfo"];
@@ -10680,7 +10736,7 @@ export type components = {
             instructor_note: string | null;
             /** Instructor Payout Amount */
             instructor_payout_amount?: number | null;
-            instructor_service: components["schemas"]["app__schemas__booking__ServiceInfo"];
+            instructor_service: components["schemas"]["BookingServiceInfo"];
             /** Instructor Service Id */
             instructor_service_id: string;
             /** Instructor Timezone */
@@ -10754,6 +10810,18 @@ export type components = {
             student_timezone?: string | null;
             /** Total Price */
             total_price: number;
+        };
+        /**
+         * BookingServiceInfo
+         * @description Basic service information for booking display.
+         */
+        BookingServiceInfo: {
+            /** Description */
+            description: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
         };
         /**
          * BookingStatsResponse
@@ -10938,14 +11006,6 @@ export type components = {
             /** User Ids */
             user_ids?: string[] | null;
             user_type?: components["schemas"]["BulkUserType"] | null;
-        };
-        /**
-         * BulkUpdateRequest
-         * @description Bulk preference update request.
-         */
-        BulkUpdateRequest: {
-            /** Updates */
-            updates: components["schemas"]["PreferenceUpdate"][];
         };
         /** BulkUpdateResponse */
         BulkUpdateResponse: {
@@ -12279,29 +12339,6 @@ export type components = {
             message: string;
             /**
              * Success
-             * @default true
-             */
-            success: boolean;
-        };
-        /**
-         * DeleteResponse
-         * @description Standard response for delete operations.
-         */
-        DeleteResponse: {
-            /**
-             * Deleted At
-             * Format: date-time
-             * @description Deletion timestamp
-             */
-            deleted_at?: string;
-            /**
-             * Message
-             * @description Human-readable deletion message
-             */
-            message: string;
-            /**
-             * Success
-             * @description Deletion success status
              * @default true
              */
             success: boolean;
@@ -15740,6 +15777,14 @@ export type components = {
             unread_count: number;
         };
         /**
+         * NotificationPreferencesBulkUpdateRequest
+         * @description Bulk preference update request.
+         */
+        NotificationPreferencesBulkUpdateRequest: {
+            /** Updates */
+            updates: components["schemas"]["PreferenceUpdate"][];
+        };
+        /**
          * NotificationResponse
          * @description Notification inbox entry.
          */
@@ -16163,6 +16208,14 @@ export type components = {
             platform_fee: number;
             /** Tip */
             tip: number;
+        };
+        /** PaymentDeleteResponse */
+        PaymentDeleteResponse: {
+            /**
+             * Success
+             * @description Whether deletion was successful
+             */
+            success: boolean;
         };
         /** PaymentFailure */
         PaymentFailure: {
@@ -18487,10 +18540,7 @@ export type components = {
             created_at: string;
             /** Expire Ts */
             expire_ts?: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
+            /** Id */
             id: string;
             side: components["schemas"]["RewardSide"];
             status: components["schemas"]["RewardStatus"];
@@ -19366,15 +19416,6 @@ export type components = {
              */
             service_catalog_id: string;
         };
-        /** ServiceInfo */
-        ServiceInfo: {
-            /** Category */
-            category: string;
-            /** Name */
-            name: string;
-            /** Slug */
-            slug: string;
-        };
         /**
          * ServiceMatch
          * @description A service that matched the search query.
@@ -19868,7 +19909,7 @@ export type components = {
          *     Includes nested services and applicable filters.
          */
         SubcategoryDetail: {
-            category: components["schemas"]["CategoryResponse"];
+            category?: components["schemas"]["CategoryResponse"] | null;
             /** Description */
             description?: string | null;
             /** Filters */
@@ -20277,10 +20318,7 @@ export type components = {
             code?: string | null;
             /** Count */
             count: number;
-            /**
-             * User Id
-             * Format: uuid
-             */
+            /** User Id */
             user_id: string;
         };
         /**
@@ -21088,50 +21126,6 @@ export type components = {
              */
             query: string;
         };
-        /**
-         * DeleteResponse
-         * @description Standard delete acknowledgement for address resources.
-         */
-        app__schemas__address_responses__DeleteResponse: {
-            /** Message */
-            message: string;
-            /** Success */
-            success: boolean;
-        };
-        /**
-         * BulkUpdateRequest
-         * @description Request schema for bulk availability update.
-         */
-        app__schemas__availability_window__BulkUpdateRequest: {
-            /** Operations */
-            operations: components["schemas"]["SlotOperation"][];
-            /**
-             * Validate Only
-             * @description If true, only validate without making changes
-             * @default false
-             */
-            validate_only: boolean;
-        };
-        /**
-         * ServiceInfo
-         * @description Basic service information for booking display.
-         */
-        app__schemas__booking__ServiceInfo: {
-            /** Description */
-            description: string | null;
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-        };
-        /** DeleteResponse */
-        app__schemas__payment_schemas__DeleteResponse: {
-            /**
-             * Success
-             * @description Whether deletion was successful
-             */
-            success: boolean;
-        };
     };
     responses: never;
     parameters: never;
@@ -21587,7 +21581,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__schemas__address_responses__DeleteResponse"];
+                    "application/json": components["schemas"]["AddressDeleteResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27923,7 +27917,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["app__schemas__availability_window__BulkUpdateRequest"];
+                "application/json": components["schemas"]["AvailabilityWindowBulkUpdateRequest"];
             };
         };
         responses: {
@@ -29882,7 +29876,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BulkUpdateRequest"];
+                "application/json": components["schemas"]["NotificationPreferencesBulkUpdateRequest"];
             };
         };
         responses: {
@@ -30737,7 +30731,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__schemas__payment_schemas__DeleteResponse"];
+                    "application/json": components["schemas"]["PaymentDeleteResponse"];
                 };
             };
             /** @description Validation Error */
@@ -33050,7 +33044,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DeleteResponse"];
+                    "application/json": components["schemas"]["BaseDeleteResponse"];
                 };
             };
         };

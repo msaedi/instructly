@@ -6,10 +6,8 @@ import contextlib
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import Mock
-from uuid import UUID
 
 import pytest
-import ulid
 
 from app.core.exceptions import RepositoryException, ServiceException
 from app.models.referrals import RewardSide, RewardStatus
@@ -36,17 +34,8 @@ def referral_service(db):
     return service
 
 
-def test_coerce_user_uuid_falls_back_to_uuid():
-    raw = "123e4567-e89b-12d3-a456-426614174000"
-    result = ReferralService._coerce_user_uuid(raw)
-    assert isinstance(result, UUID)
-    assert str(result) == raw
-
-
-def test_coerce_user_uuid_ulid_success():
-    ulid_str = str(ulid.ULID())
-    result = ReferralService._coerce_user_uuid(ulid_str)
-    assert isinstance(result, UUID)
+def test_normalize_user_id_returns_string():
+    assert ReferralService._normalize_user_id("user_1") == "user_1"
 
 
 def test_ensure_code_for_user_repository_error(referral_service, monkeypatch):
@@ -542,7 +531,7 @@ def test_get_admin_summary_cap_utilization_and_top_referrers(referral_service):
     assert summary.top_referrers
 
 
-def test_get_admin_summary_skips_invalid_referrer_ids(referral_service):
+def test_get_admin_summary_keeps_string_referrer_ids(referral_service):
     referral_service.referral_reward_repo.counts_by_status.return_value = {}
     referral_service._get_config = Mock(return_value={"student_global_cap": 0})
     referral_service.referral_reward_repo.total_student_rewards.return_value = 0
@@ -554,7 +543,8 @@ def test_get_admin_summary_skips_invalid_referrer_ids(referral_service):
 
     summary = referral_service.get_admin_summary()
 
-    assert summary.top_referrers == []
+    assert len(summary.top_referrers) == 1
+    assert summary.top_referrers[0].user_id == "not-a-uuid"
 
 
 def test_get_admin_health_warns_on_stale_runs(referral_service, monkeypatch):

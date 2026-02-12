@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import time
 from unittest.mock import Mock
-import uuid
 
 import pytest
 from sqlalchemy import text
+import ulid
 
 from app.services import referrals_config_service as config_service
 from app.services.referrals_config_service import get_effective_config, invalidate_cache
@@ -73,7 +73,7 @@ def _insert_config(
             """
         ),
         {
-            "id": str(uuid.uuid4()),
+            "id": str(ulid.ULID()),
             "version": version,
             "enabled": enabled,
             "student_amount_cents": student_amount_cents,

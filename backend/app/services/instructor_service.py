@@ -1640,7 +1640,7 @@ class InstructorService(BaseService):
         Search services using semantic similarity.
 
         Args:
-            query_embedding: 384-dimension embedding vector
+            query_embedding: 1536-dimension embedding vector
             category_id: Optional category filter
             online_capable: Optional online capability filter
             limit: Maximum results to return

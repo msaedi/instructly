@@ -5,7 +5,7 @@ Monitoring and alert history models.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import JSON, DateTime, String, func
+from sqlalchemy import JSON, CheckConstraint, DateTime, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 import ulid
 
@@ -16,6 +16,13 @@ class AlertHistory(Base):
     """Track monitoring alerts that have been sent."""
 
     __tablename__ = "alert_history"
+    __table_args__ = (
+        CheckConstraint(
+            "severity IN ('critical', 'warning', 'info')",
+            name="ck_alert_history_severity",
+        ),
+        Index("ix_alert_history_created", "created_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     alert_type: Mapped[str] = mapped_column(String(50), nullable=False)

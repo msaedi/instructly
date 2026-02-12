@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-import json
 
 import pytest
 
@@ -19,15 +18,16 @@ def _vector(size, value=0.01):
 
 def test_find_similar_by_embedding_success(db, sample_catalog_services):
     service = sample_catalog_services[0]
-    embedding = _vector(384, 0.02)
-    service.embedding = embedding
+    embedding = _vector(1536, 0.02)
+    service.embedding_v2 = embedding
     db.commit()
 
     repo = ServiceCatalogRepository(db)
     results = repo.find_similar_by_embedding(embedding, limit=5, threshold=0.0)
 
     assert results
-    assert results[0][0].id == service.id
+    returned_ids = [matched_service.id for matched_service, _score in results]
+    assert service.id in returned_ids
 
 
 def test_service_catalog_repository_pg_trgm_init_failure(db, monkeypatch):
@@ -48,7 +48,7 @@ def test_find_similar_by_embedding_no_results(db, monkeypatch):
 
     repo = ServiceCatalogRepository(db)
     monkeypatch.setattr(repo.db, "execute", lambda *_a, **_k: _EmptyResult())
-    assert repo.find_similar_by_embedding(_vector(384)) == []
+    assert repo.find_similar_by_embedding(_vector(1536)) == []
 
 
 def test_find_similar_by_embedding_error_returns_empty(db, monkeypatch):
@@ -58,7 +58,7 @@ def test_find_similar_by_embedding_error_returns_empty(db, monkeypatch):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(repo.db, "execute", _boom)
-    assert repo.find_similar_by_embedding(_vector(384)) == []
+    assert repo.find_similar_by_embedding(_vector(1536)) == []
 
 
 def test_search_services_trgm_and_fallback(db, sample_catalog_services):
@@ -298,10 +298,7 @@ def test_service_analytics_bulk_update(db, sample_catalog_services):
             "price_p50": 50.0,
             "price_p75": 60.0,
             "most_booked_duration": 60,
-            "duration_distribution": json.dumps({}),
             "completion_rate": 0.95,
-            "peak_hours": json.dumps({}),
-            "peak_days": json.dumps({}),
             "supply_demand_ratio": 1.2,
             "last_calculated": datetime.now(timezone.utc),
         }

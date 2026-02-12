@@ -17,13 +17,13 @@ from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Tuple
 
 import dateparser
 
+from app.services.search.keyword_generator import get_keyword_dicts
 from app.services.search.patterns import (
     ADULT_KEYWORDS,
     AGE_EXPLICIT,
     AGE_FOR_MY,
     AGE_YEAR_OLD,
     BUDGET_KEYWORDS,
-    CATEGORY_KEYWORDS,
     KID_CONTEXT,
     KIDS_KEYWORDS,
     LESSON_TYPE_IN_PERSON,
@@ -38,11 +38,9 @@ from app.services.search.patterns import (
     PRICE_PER_HOUR,
     PRICE_UNDER_DOLLAR,
     PRICE_UNDER_IMPLICIT,
-    SERVICE_KEYWORDS,
     SKILL_ADVANCED,
     SKILL_BEGINNER,
     SKILL_INTERMEDIATE,
-    SUBCATEGORY_KEYWORDS,
     TEEN_KEYWORDS,
     TIME_AFTER,
     TIME_AFTERNOON,
@@ -85,6 +83,22 @@ _CATEGORY_TO_PRICE_KEY: Dict[str, str] = {
 def _contains_keyword(text: str, keyword: str) -> bool:
     """Return True when keyword appears with token boundaries in text."""
     return re.search(r"\b" + re.escape(keyword) + r"\b", text, re.IGNORECASE) is not None
+
+
+def _build_keyword_patterns(keyword_map: Dict[str, str]) -> List[Tuple[str, re.Pattern[str], str]]:
+    """Precompile boundary-safe keyword regex patterns sorted by specificity."""
+    patterns: List[Tuple[str, re.Pattern[str], str]] = []
+    for keyword, mapped_value in sorted(
+        keyword_map.items(), key=lambda item: len(item[0]), reverse=True
+    ):
+        patterns.append(
+            (
+                keyword,
+                re.compile(r"\b" + re.escape(keyword) + r"\b", re.IGNORECASE),
+                mapped_value,
+            )
+        )
+    return patterns
 
 
 @dataclass
@@ -165,6 +179,13 @@ class QueryParser:
 
         self._price_threshold_repository = PriceThresholdRepository(db)
         self._location_resolver = LocationResolver(db, region_code=region_code)
+        keyword_dicts = get_keyword_dicts(db)
+        self._category_keywords = keyword_dicts["category_keywords"]
+        self._subcategory_keywords = keyword_dicts["subcategory_keywords"]
+        self._service_keywords = keyword_dicts["service_keywords"]
+        self._category_keyword_patterns = _build_keyword_patterns(self._category_keywords)
+        self._subcategory_keyword_patterns = _build_keyword_patterns(self._subcategory_keywords)
+        self._service_keyword_patterns = _build_keyword_patterns(self._service_keywords)
 
     def _get_user_today(self) -> DateType:
         """
@@ -487,12 +508,35 @@ class QueryParser:
                     query = re.sub(r"\s+", " ", query)
                     return query, result
 
-        # Try dateparser for other date expressions
+        # Fast-path common relative date phrases without dateparser.
+        today = self._get_user_today()
+
+        relative_patterns: List[Tuple[re.Pattern[str], int]] = [
+            (re.compile(r"\btoday\b", re.IGNORECASE), 0),
+            (re.compile(r"\btomorrow\b", re.IGNORECASE), 1),
+            (re.compile(r"\bnext\s+week\b", re.IGNORECASE), 7),
+        ]
+
+        for pattern, day_offset in relative_patterns:
+            match = pattern.search(query)
+            if not match:
+                continue
+            result.date = today + timedelta(days=day_offset)
+            result.date_type = "single"
+            query = pattern.sub("", query)
+            query = re.sub(r"\s+", " ", query).strip()
+            return query, result
+
+        in_days = re.search(r"\bin\s+(\d+)\s+days?\b", query, re.IGNORECASE)
+        if in_days:
+            result.date = today + timedelta(days=int(in_days.group(1)))
+            result.date_type = "single"
+            query = re.sub(r"\bin\s+\d+\s+days?\b", "", query, flags=re.IGNORECASE)
+            query = re.sub(r"\s+", " ", query).strip()
+            return query, result
+
+        # Fall back to dateparser for explicit calendar date expressions.
         date_patterns = [
-            r"\b(today)\b",
-            r"\b(tomorrow)\b",
-            r"\b(next\s+week)\b",
-            r"\b(in\s+\d+\s+days?)\b",
             r"\b(\d{1,2}/\d{1,2}(?:/\d{2,4})?)\b",  # MM/DD or MM/DD/YYYY
             r"\b((?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2})\b",
         ]
@@ -739,10 +783,9 @@ class QueryParser:
     def _detect_category(self, query: str) -> str:
         """Detect service category from query text (for price intent resolution)."""
         query_lower = query.lower()
-        # CATEGORY_KEYWORDS maps keyword→category_name; check longest keywords first
-        for keyword in sorted(CATEGORY_KEYWORDS, key=len, reverse=True):
-            if _contains_keyword(query_lower, keyword):
-                return CATEGORY_KEYWORDS[keyword]
+        for _keyword, pattern, category_name in self._category_keyword_patterns:
+            if pattern.search(query_lower):
+                return category_name
         return "general"
 
     def _detect_taxonomy(self, result: ParsedQuery) -> ParsedQuery:
@@ -752,29 +795,29 @@ class QueryParser:
         """
         text = (result.service_query or result.original_query).lower()
 
-        # 1. Try SERVICE_KEYWORDS (most specific)
-        for keyword in sorted(SERVICE_KEYWORDS, key=len, reverse=True):
-            if _contains_keyword(text, keyword):
-                result.service_hint = SERVICE_KEYWORDS[keyword]
+        # 1. Try service keywords (most specific)
+        for keyword, pattern, service_name in self._service_keyword_patterns:
+            if pattern.search(text):
+                result.service_hint = service_name
                 # Derive subcategory and category from service match
-                if keyword in SUBCATEGORY_KEYWORDS:
-                    result.subcategory_hint = SUBCATEGORY_KEYWORDS[keyword]
-                if keyword in CATEGORY_KEYWORDS:
-                    result.category_hint = CATEGORY_KEYWORDS[keyword]
+                if keyword in self._subcategory_keywords:
+                    result.subcategory_hint = self._subcategory_keywords[keyword]
+                if keyword in self._category_keywords:
+                    result.category_hint = self._category_keywords[keyword]
                 return result
 
-        # 2. Try SUBCATEGORY_KEYWORDS
-        for keyword in sorted(SUBCATEGORY_KEYWORDS, key=len, reverse=True):
-            if _contains_keyword(text, keyword):
-                result.subcategory_hint = SUBCATEGORY_KEYWORDS[keyword]
-                if keyword in CATEGORY_KEYWORDS:
-                    result.category_hint = CATEGORY_KEYWORDS[keyword]
+        # 2. Try subcategory keywords
+        for keyword, pattern, subcategory_name in self._subcategory_keyword_patterns:
+            if pattern.search(text):
+                result.subcategory_hint = subcategory_name
+                if keyword in self._category_keywords:
+                    result.category_hint = self._category_keywords[keyword]
                 return result
 
-        # 3. Try CATEGORY_KEYWORDS (broadest)
-        for keyword in sorted(CATEGORY_KEYWORDS, key=len, reverse=True):
-            if _contains_keyword(text, keyword):
-                result.category_hint = CATEGORY_KEYWORDS[keyword]
+        # 3. Try category keywords (broadest)
+        for _keyword, pattern, category_name in self._category_keyword_patterns:
+            if pattern.search(text):
+                result.category_hint = category_name
                 return result
 
         return result

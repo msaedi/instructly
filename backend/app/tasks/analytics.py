@@ -252,7 +252,7 @@ def update_service_metrics(self: BaseTask, service_id: str) -> Dict[str, Any]:
         update_data = {
             "booking_count_7d": booking_stats.get("count_7d", 0),
             "booking_count_30d": booking_stats.get("count_30d", 0),
-            "avg_price_booked": booking_stats.get("avg_price"),
+            "avg_price_booked_cents": int(round(float(booking_stats.get("avg_price") or 0) * 100)),
             "active_instructors": instructor_stats["active_instructors"],
             "total_weekly_hours": instructor_stats["total_weekly_hours"],
             "last_calculated": datetime.now(timezone.utc),

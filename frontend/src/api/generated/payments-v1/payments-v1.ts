@@ -22,7 +22,6 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  AppSchemasPaymentSchemasDeleteResponse,
   CheckoutResponse,
   CreateCheckoutRequest,
   CreditBalanceResponse,
@@ -37,6 +36,7 @@ import type {
   InstantPayoutResponse,
   OnboardingResponse,
   OnboardingStatusResponse,
+  PaymentDeleteResponse,
   PaymentMethodResponse,
   PayoutHistoryResponse,
   PayoutScheduleResponse,
@@ -1628,8 +1628,8 @@ export const getDeletePaymentMethodApiV1PaymentsMethodsMethodIdDeleteUrl = (meth
 export const deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete = async (
   methodId: string,
   options?: RequestInit
-): Promise<AppSchemasPaymentSchemasDeleteResponse> => {
-  return customFetch<AppSchemasPaymentSchemasDeleteResponse>(
+): Promise<PaymentDeleteResponse> => {
+  return customFetch<PaymentDeleteResponse>(
     getDeletePaymentMethodApiV1PaymentsMethodsMethodIdDeleteUrl(methodId),
     {
       ...options,

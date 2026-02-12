@@ -185,14 +185,14 @@ def generate_search_insights(self: "Task[Any, Any]", days_back: int = 7) -> Dict
                 (total_searches - searches_with_interactions) / total_searches * 100, 2
             )
 
-        # Get peak hours using repository
+        # Get peak search hours using repository
         try:
-            peak_hours = search_repo.get_hourly_search_counts(cutoff_time, limit=5)
+            peak_search_hours = search_repo.get_hourly_search_counts(cutoff_time, limit=5)
         except AttributeError:
             logger.exception(
-                "SearchEventRepository missing get_hourly_search_counts; returning empty peak_hours"
+                "SearchEventRepository missing get_hourly_search_counts; returning empty peak_search_hours"
             )
-            peak_hours = []
+            peak_search_hours = []
 
         # Trending searches can be approximated using popular searches
         # In a real implementation, you'd compare time periods
@@ -209,7 +209,7 @@ def generate_search_insights(self: "Task[Any, Any]", days_back: int = 7) -> Dict
                 "rate": abandonment_rate,
                 "description": "Percentage of searches with no follow-up interaction",
             },
-            "peak_hours": peak_hours,
+            "peak_search_hours": peak_search_hours,
             "common_search_paths": [],  # Placeholder - would need session analysis
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }

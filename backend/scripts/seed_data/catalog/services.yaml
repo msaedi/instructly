@@ -30,7 +30,6 @@ services:
   display_order: 1
   online_capable: true
   requires_certification: false
-  related_services: [keyboard, music-theory, songwriting, guitar, voice]
 
 - category_slug: music
   name: Keyboard
@@ -57,7 +56,6 @@ services:
   display_order: 2
   online_capable: true
   requires_certification: false
-  related_services: [piano, music-theory, music-production, daw, synth]
 
 - category_slug: music
   name: Guitar
@@ -89,7 +87,6 @@ services:
   display_order: 3
   online_capable: true
   requires_certification: false
-  related_services: [bass-guitar, ukulele, piano, songwriting, music-theory]
 
 - category_slug: music
   name: Voice
@@ -119,7 +116,6 @@ services:
   display_order: 4
   online_capable: true
   requires_certification: false
-  related_services: [singing, vocal-coaching, musical-theater-voice, choir-singing, piano]
 
 - category_slug: music
   name: Singing
@@ -147,7 +143,6 @@ services:
   display_order: 5
   online_capable: true
   requires_certification: false
-  related_services: [voice, vocal-coaching]
 
 - category_slug: music
   name: Violin
@@ -174,7 +169,6 @@ services:
   display_order: 6
   online_capable: true
   requires_certification: false
-  related_services: [viola, cello, music-theory, double-bass]
 
 - category_slug: music
   name: Drums
@@ -192,7 +186,6 @@ services:
   display_order: 7
   online_capable: true
   requires_certification: false
-  related_services: [percussion]
 
 - category_slug: music
   name: Ukulele
@@ -207,7 +200,6 @@ services:
   display_order: 8
   online_capable: true
   requires_certification: false
-  related_services: [guitar]
 
 - category_slug: music
   name: Music Theory
@@ -223,7 +215,6 @@ services:
   display_order: 9
   online_capable: true
   requires_certification: false
-  related_services: [composition]
 
 - category_slug: music
   name: Vocal Coaching
@@ -238,7 +229,6 @@ services:
   display_order: 10
   online_capable: true
   requires_certification: false
-  related_services: [voice, singing]
 
 - category_slug: music
   name: Bass Guitar
@@ -254,7 +244,6 @@ services:
   display_order: 11
   online_capable: true
   requires_certification: false
-  related_services: [guitar]
 
 - category_slug: music
   name: Saxophone
@@ -270,7 +259,6 @@ services:
   display_order: 12
   online_capable: true
   requires_certification: false
-  related_services: [clarinet]
 
 - category_slug: music
   name: Musical Theater Voice
@@ -285,7 +273,6 @@ services:
   display_order: 13
   online_capable: true
   requires_certification: false
-  related_services: [voice, singing, theater-performance]
 
 - category_slug: music
   name: Songwriting
@@ -300,7 +287,6 @@ services:
   display_order: 14
   online_capable: true
   requires_certification: false
-  related_services: [composition, music-theory]
 
 - category_slug: music
   name: Flute
@@ -315,7 +301,6 @@ services:
   display_order: 15
   online_capable: true
   requires_certification: false
-  related_services: [clarinet]
 
 - category_slug: music
   name: Cello
@@ -330,7 +315,6 @@ services:
   display_order: 16
   online_capable: true
   requires_certification: false
-  related_services: [violin, viola, double-bass]
 
 - category_slug: music
   name: Music Production
@@ -349,7 +333,6 @@ services:
   display_order: 17
   online_capable: true
   requires_certification: false
-  related_services: [sound-engineering, dj-skills]
 
 - category_slug: music
   name: DAW
@@ -366,7 +349,6 @@ services:
   display_order: 18
   online_capable: true
   requires_certification: false
-  related_services: [music-production]
 
 - category_slug: music
   name: Trumpet
@@ -381,7 +363,6 @@ services:
   display_order: 19
   online_capable: true
   requires_certification: false
-  related_services: [trombone, french-horn]
 
 - category_slug: music
   name: Clarinet
@@ -396,7 +377,6 @@ services:
   display_order: 20
   online_capable: true
   requires_certification: false
-  related_services: [saxophone, flute]
 
 - category_slug: music
   name: DJ Skills
@@ -412,7 +392,6 @@ services:
   display_order: 21
   online_capable: true
   requires_certification: false
-  related_services: [music-production]
 
 - category_slug: music
   name: Pop Vocals
@@ -427,7 +406,6 @@ services:
   display_order: 22
   online_capable: true
   requires_certification: false
-  related_services: [rock-vocals, voice, singing]
 
 - category_slug: music
   name: Rock Vocals
@@ -442,7 +420,6 @@ services:
   display_order: 23
   online_capable: true
   requires_certification: false
-  related_services: [pop-vocals, voice, singing]
 
 - category_slug: music
   name: Composition
@@ -457,7 +434,6 @@ services:
   display_order: 24
   online_capable: true
   requires_certification: false
-  related_services: [music-theory, songwriting, music-arrangement]
 
 - category_slug: music
   name: Jazz Vocals
@@ -472,7 +448,6 @@ services:
   display_order: 25
   online_capable: true
   requires_certification: false
-  related_services: [voice, singing]
 
 - category_slug: music
   name: Viola
@@ -487,7 +462,6 @@ services:
   display_order: 26
   online_capable: true
   requires_certification: false
-  related_services: [violin, cello]
 
 - category_slug: music
   name: Percussion
@@ -503,7 +477,6 @@ services:
   display_order: 27
   online_capable: true
   requires_certification: false
-  related_services: [drums]
 
 - category_slug: music
   name: Trombone
@@ -518,7 +491,6 @@ services:
   display_order: 28
   online_capable: true
   requires_certification: false
-  related_services: [trumpet, french-horn]
 
 - category_slug: music
   name: Harmonica
@@ -533,7 +505,6 @@ services:
   display_order: 29
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: music
   name: Opera Singing
@@ -548,7 +519,6 @@ services:
   display_order: 30
   online_capable: true
   requires_certification: false
-  related_services: [voice, singing]
 
 - category_slug: music
   name: Choir Singing
@@ -563,7 +533,6 @@ services:
   display_order: 31
   online_capable: true
   requires_certification: false
-  related_services: [choral-singing, voice]
 
 - category_slug: music
   name: Choral Singing
@@ -578,7 +547,6 @@ services:
   display_order: 32
   online_capable: true
   requires_certification: false
-  related_services: [choir-singing, voice]
 
 - category_slug: music
   name: French Horn
@@ -593,7 +561,6 @@ services:
   display_order: 33
   online_capable: true
   requires_certification: false
-  related_services: [trumpet, trombone]
 
 - category_slug: music
   name: Beatboxing
@@ -608,7 +575,6 @@ services:
   display_order: 34
   online_capable: true
   requires_certification: false
-  related_services: [drums, percussion]
 
 - category_slug: music
   name: Sound Engineering
@@ -624,7 +590,6 @@ services:
   display_order: 35
   online_capable: true
   requires_certification: false
-  related_services: [music-production]
 
 - category_slug: music
   name: Banjo
@@ -639,7 +604,6 @@ services:
   display_order: 36
   online_capable: true
   requires_certification: false
-  related_services: [guitar, mandolin]
 
 - category_slug: music
   name: Double Bass
@@ -655,7 +619,6 @@ services:
   display_order: 37
   online_capable: true
   requires_certification: false
-  related_services: [bass-guitar, cello]
 
 - category_slug: music
   name: Mandolin
@@ -670,7 +633,6 @@ services:
   display_order: 38
   online_capable: true
   requires_certification: false
-  related_services: [guitar, banjo]
 
 - category_slug: music
   name: Accordion
@@ -685,7 +647,6 @@ services:
   display_order: 39
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: music
   name: Harp
@@ -700,7 +661,6 @@ services:
   display_order: 40
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: music
   name: Music Arrangement
@@ -715,7 +675,6 @@ services:
   display_order: 41
   online_capable: true
   requires_certification: false
-  related_services: [composition, music-theory]
 
 # Tutoring Category
 - category_slug: tutoring
@@ -743,7 +702,6 @@ services:
   display_order: 1
   online_capable: true
   requires_certification: false
-  related_services: [homework-help-k-5]
 
 - category_slug: tutoring
   name: SAT Prep
@@ -770,7 +728,6 @@ services:
   display_order: 2
   online_capable: true
   requires_certification: false
-  related_services: [act-prep]
 
 - category_slug: tutoring
   name: Algebra I
@@ -796,7 +753,6 @@ services:
   display_order: 3
   online_capable: true
   requires_certification: false
-  related_services: [algebra-ii, pre-algebra, geometry, sat-prep]
 
 - category_slug: tutoring
   name: Algebra II
@@ -822,7 +778,6 @@ services:
   display_order: 4
   online_capable: true
   requires_certification: false
-  related_services: [algebra-i, pre-calculus]
 
 - category_slug: tutoring
   name: Reading Tutoring Elementary
@@ -838,7 +793,6 @@ services:
   display_order: 5
   online_capable: true
   requires_certification: false
-  related_services: [homework-help-k-5, writing-skills, math-tutoring-elementary]
 
 - category_slug: tutoring
   name: Essay Writing
@@ -854,7 +808,6 @@ services:
   display_order: 6
   online_capable: true
   requires_certification: false
-  related_services: [writing-skills, sat-prep, act-prep, english]
 
 - category_slug: tutoring
   name: Calculus AP
@@ -870,7 +823,6 @@ services:
   display_order: 7
   online_capable: true
   requires_certification: false
-  related_services: [pre-calculus, statistics-ap, physics]
 
 - category_slug: tutoring
   name: ACT Prep
@@ -887,7 +839,6 @@ services:
   display_order: 8
   online_capable: true
   requires_certification: false
-  related_services: [sat-prep]
 
 - category_slug: tutoring
   name: Chemistry
@@ -903,7 +854,6 @@ services:
   display_order: 9
   online_capable: true
   requires_certification: false
-  related_services: [physics, biology, ap-sciences]
 
 - category_slug: tutoring
   name: Physics
@@ -918,7 +868,6 @@ services:
   display_order: 10
   online_capable: true
   requires_certification: false
-  related_services: [chemistry, ap-sciences]
 
 - category_slug: tutoring
   name: Coding
@@ -934,7 +883,6 @@ services:
   display_order: 11
   online_capable: true
   requires_certification: false
-  related_services: [programming, python, javascript]
 
 - category_slug: tutoring
   name: Programming
@@ -949,7 +897,6 @@ services:
   display_order: 12
   online_capable: true
   requires_certification: false
-  related_services: [coding, python, javascript]
 
 - category_slug: tutoring
   name: Biology
@@ -964,7 +911,6 @@ services:
   display_order: 13
   online_capable: true
   requires_certification: false
-  related_services: [chemistry, ap-sciences]
 
 - category_slug: tutoring
   name: Homework Help K-5
@@ -979,7 +925,6 @@ services:
   display_order: 14
   online_capable: true
   requires_certification: false
-  related_services: [math-tutoring-elementary, reading-tutoring-elementary]
 
 - category_slug: tutoring
   name: Python
@@ -994,7 +939,6 @@ services:
   display_order: 15
   online_capable: true
   requires_certification: false
-  related_services: [coding, programming, data-science]
 
 - category_slug: tutoring
   name: Geometry
@@ -1009,7 +953,6 @@ services:
   display_order: 16
   online_capable: true
   requires_certification: false
-  related_services: [algebra-i, algebra-ii]
 
 - category_slug: tutoring
   name: English
@@ -1024,7 +967,6 @@ services:
   display_order: 17
   online_capable: true
   requires_certification: false
-  related_services: [literature, writing-skills]
 
 - category_slug: tutoring
   name: Literature
@@ -1039,7 +981,6 @@ services:
   display_order: 18
   online_capable: true
   requires_certification: false
-  related_services: [english]
 
 - category_slug: tutoring
   name: Writing Skills
@@ -1054,7 +995,6 @@ services:
   display_order: 19
   online_capable: true
   requires_certification: false
-  related_services: [essay-writing]
 
 - category_slug: tutoring
   name: Pre-Calculus
@@ -1069,7 +1009,6 @@ services:
   display_order: 20
   online_capable: true
   requires_certification: false
-  related_services: [algebra-ii, calculus-ap]
 
 - category_slug: tutoring
   name: Computer Science
@@ -1084,7 +1023,6 @@ services:
   display_order: 21
   online_capable: true
   requires_certification: false
-  related_services: [coding, programming]
 
 - category_slug: tutoring
   name: Statistics AP
@@ -1099,7 +1037,6 @@ services:
   display_order: 22
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: tutoring
   name: Middle School Math
@@ -1113,7 +1050,6 @@ services:
   display_order: 23
   online_capable: true
   requires_certification: false
-  related_services: [pre-algebra]
 
 - category_slug: tutoring
   name: US History
@@ -1128,7 +1064,6 @@ services:
   display_order: 24
   online_capable: true
   requires_certification: false
-  related_services: [world-history]
 
 - category_slug: tutoring
   name: Web Development
@@ -1144,7 +1079,6 @@ services:
   display_order: 25
   online_capable: true
   requires_certification: false
-  related_services: [javascript, coding]
 
 - category_slug: tutoring
   name: AP Sciences
@@ -1160,7 +1094,6 @@ services:
   display_order: 26
   online_capable: true
   requires_certification: false
-  related_services: [chemistry, physics, biology]
 
 - category_slug: tutoring
   name: Pre-Algebra
@@ -1175,7 +1108,6 @@ services:
   display_order: 27
   online_capable: true
   requires_certification: false
-  related_services: [algebra-i, middle-school-math]
 
 - category_slug: tutoring
   name: JavaScript
@@ -1190,7 +1122,6 @@ services:
   display_order: 28
   online_capable: true
   requires_certification: false
-  related_services: [web-development, coding, programming]
 
 - category_slug: tutoring
   name: World History
@@ -1205,7 +1136,6 @@ services:
   display_order: 29
   online_capable: true
   requires_certification: false
-  related_services: [us-history]
 
 - category_slug: tutoring
   name: Trigonometry
@@ -1220,7 +1150,6 @@ services:
   display_order: 30
   online_capable: true
   requires_certification: false
-  related_services: [pre-calculus, geometry]
 
 - category_slug: tutoring
   name: Study Skills
@@ -1235,7 +1164,6 @@ services:
   display_order: 31
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: tutoring
   name: SHSAT Prep
@@ -1250,7 +1178,6 @@ services:
   display_order: 32
   online_capable: true
   requires_certification: false
-  related_services: [isee, ssat]
 
 - category_slug: tutoring
   name: Microsoft Office
@@ -1266,7 +1193,6 @@ services:
   display_order: 33
   online_capable: true
   requires_certification: false
-  related_services: [google-workspace, basic-computer-skills]
 
 - category_slug: tutoring
   name: Java
@@ -1281,7 +1207,6 @@ services:
   display_order: 34
   online_capable: true
   requires_certification: false
-  related_services: [coding, programming, computer-science]
 
 - category_slug: tutoring
   name: GRE Prep
@@ -1296,7 +1221,6 @@ services:
   display_order: 35
   online_capable: true
   requires_certification: false
-  related_services: [gmat-prep]
 
 - category_slug: tutoring
   name: Data Science
@@ -1311,7 +1235,6 @@ services:
   display_order: 36
   online_capable: true
   requires_certification: false
-  related_services: [python, machine-learning]
 
 - category_slug: tutoring
   name: Regents Prep
@@ -1326,7 +1249,6 @@ services:
   display_order: 37
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: tutoring
   name: Digital Marketing Basics
@@ -1341,7 +1263,6 @@ services:
   display_order: 38
   online_capable: true
   requires_certification: false
-  related_services: [social-media-for-business]
 
 - category_slug: tutoring
   name: GMAT Prep
@@ -1356,7 +1277,6 @@ services:
   display_order: 39
   online_capable: true
   requires_certification: false
-  related_services: [gre-prep]
 
 - category_slug: tutoring
   name: Government
@@ -1371,7 +1291,6 @@ services:
   display_order: 40
   online_capable: true
   requires_certification: false
-  related_services: [politics]
 
 - category_slug: tutoring
   name: Politics
@@ -1386,7 +1305,6 @@ services:
   display_order: 41
   online_capable: true
   requires_certification: false
-  related_services: [government]
 
 - category_slug: tutoring
   name: Basic Computer Skills
@@ -1401,7 +1319,6 @@ services:
   display_order: 42
   online_capable: true
   requires_certification: false
-  related_services: [microsoft-office, google-workspace]
 
 - category_slug: tutoring
   name: LSAT Prep
@@ -1416,7 +1333,6 @@ services:
   display_order: 43
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: tutoring
   name: MCAT Prep
@@ -1431,7 +1347,6 @@ services:
   display_order: 44
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: tutoring
   name: Middle School English
@@ -1445,7 +1360,6 @@ services:
   display_order: 45
   online_capable: true
   requires_certification: false
-  related_services: [english, writing-skills]
 
 - category_slug: tutoring
   name: Middle School Science
@@ -1459,7 +1373,6 @@ services:
   display_order: 46
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: tutoring
   name: Google Workspace
@@ -1475,7 +1388,6 @@ services:
   display_order: 47
   online_capable: true
   requires_certification: false
-  related_services: [microsoft-office, basic-computer-skills]
 
 - category_slug: tutoring
   name: Graphic Design Software
@@ -1490,7 +1402,6 @@ services:
   display_order: 48
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: tutoring
   name: ISEE
@@ -1504,7 +1415,6 @@ services:
   display_order: 49
   online_capable: true
   requires_certification: false
-  related_services: [ssat, shsat-prep]
 
 - category_slug: tutoring
   name: SSAT
@@ -1518,7 +1428,6 @@ services:
   display_order: 50
   online_capable: true
   requires_certification: false
-  related_services: [isee, shsat-prep]
 
 - category_slug: tutoring
   name: Video Editing
@@ -1533,7 +1442,6 @@ services:
   display_order: 51
   online_capable: true
   requires_certification: false
-  related_services: [video-production]
 
 - category_slug: tutoring
   name: Machine Learning
@@ -1548,7 +1456,6 @@ services:
   display_order: 52
   online_capable: true
   requires_certification: false
-  related_services: [data-science, python]
 
 - category_slug: tutoring
   name: Robotics
@@ -1563,7 +1470,6 @@ services:
   display_order: 53
   online_capable: true
   requires_certification: false
-  related_services: [coding, engineering-concepts]
 
 - category_slug: tutoring
   name: Engineering Concepts
@@ -1578,7 +1484,6 @@ services:
   display_order: 54
   online_capable: true
   requires_certification: false
-  related_services: [robotics]
 
 - category_slug: tutoring
   name: Social Media for Business
@@ -1593,7 +1498,6 @@ services:
   display_order: 55
   online_capable: true
   requires_certification: false
-  related_services: [digital-marketing-basics]
 
 # Sports & Fitness Category
 - category_slug: sports-fitness
@@ -1627,7 +1531,6 @@ services:
   display_order: 1
   online_capable: true
   requires_certification: true
-  related_services: [strength-training, yoga, nutrition-coaching, cardio-fitness]
 
 - category_slug: sports-fitness
   name: Yoga
@@ -1663,7 +1566,6 @@ services:
   display_order: 2
   online_capable: true
   requires_certification: true
-  related_services: [pilates, meditation, mindfulness, personal-training, stretching]
 
 - category_slug: sports-fitness
   name: Swimming
@@ -1691,7 +1593,6 @@ services:
   display_order: 3
   online_capable: false
   requires_certification: true
-  related_services: []
 
 - category_slug: sports-fitness
   name: Tennis
@@ -1722,7 +1623,6 @@ services:
   display_order: 4
   online_capable: false
   requires_certification: false
-  related_services: []
 
 - category_slug: sports-fitness
   name: Basketball Skills
@@ -1750,7 +1650,6 @@ services:
   display_order: 5
   online_capable: false
   requires_certification: false
-  related_services: []
 
 - category_slug: sports-fitness
   name: Soccer Skills
@@ -1766,7 +1665,6 @@ services:
   display_order: 6
   online_capable: false
   requires_certification: false
-  related_services: []
 
 - category_slug: sports-fitness
   name: Martial Arts
@@ -1781,7 +1679,6 @@ services:
   display_order: 7
   online_capable: true
   requires_certification: true
-  related_services: [karate, taekwondo, jiu-jitsu, muay-thai]
 
 - category_slug: sports-fitness
   name: Running
@@ -1797,7 +1694,6 @@ services:
   display_order: 8
   online_capable: true
   requires_certification: false
-  related_services: [track]
 
 - category_slug: sports-fitness
   name: Track
@@ -1812,7 +1708,6 @@ services:
   display_order: 9
   online_capable: false
   requires_certification: false
-  related_services: [running]
 
 - category_slug: sports-fitness
   name: Pilates
@@ -1827,7 +1722,6 @@ services:
   display_order: 10
   online_capable: true
   requires_certification: true
-  related_services: [yoga, barre]
 
 - category_slug: sports-fitness
   name: Golf
@@ -1842,7 +1736,6 @@ services:
   display_order: 11
   online_capable: false
   requires_certification: false
-  related_services: []
 
 - category_slug: sports-fitness
   name: Strength Training
@@ -1857,7 +1750,6 @@ services:
   display_order: 12
   online_capable: true
   requires_certification: true
-  related_services: [personal-training, crossfit]
 
 - category_slug: sports-fitness
   name: Boxing
@@ -1872,7 +1764,6 @@ services:
   display_order: 13
   online_capable: false
   requires_certification: true
-  related_services: [muay-thai]
 
 - category_slug: sports-fitness
   name: Dance Fitness
@@ -1887,7 +1778,6 @@ services:
   display_order: 14
   online_capable: true
   requires_certification: false
-  related_services: [zumba, cardio-fitness]
 
 - category_slug: sports-fitness
   name: Zumba
@@ -1902,7 +1792,6 @@ services:
   display_order: 15
   online_capable: true
   requires_certification: true
-  related_services: [dance-fitness]
 
 - category_slug: sports-fitness
   name: Baseball
@@ -1917,7 +1806,6 @@ services:
   display_order: 16
   online_capable: false
   requires_certification: false
-  related_services: [softball]
 
 - category_slug: sports-fitness
   name: Softball
@@ -1932,7 +1820,6 @@ services:
   display_order: 17
   online_capable: false
   requires_certification: false
-  related_services: [baseball]
 
 - category_slug: sports-fitness
   name: Volleyball
@@ -1947,7 +1834,6 @@ services:
   display_order: 18
   online_capable: false
   requires_certification: false
-  related_services: []
 
 - category_slug: sports-fitness
   name: Karate
@@ -1962,7 +1848,6 @@ services:
   display_order: 19
   online_capable: false
   requires_certification: true
-  related_services: [martial-arts, taekwondo]
 
 - category_slug: sports-fitness
   name: Stretching
@@ -1977,7 +1862,6 @@ services:
   display_order: 20
   online_capable: true
   requires_certification: false
-  related_services: [flexibility, yoga]
 
 - category_slug: sports-fitness
   name: Flexibility
@@ -1992,7 +1876,6 @@ services:
   display_order: 21
   online_capable: true
   requires_certification: false
-  related_services: [stretching, yoga]
 
 - category_slug: sports-fitness
   name: HIIT Training
@@ -2007,7 +1890,6 @@ services:
   display_order: 22
   online_capable: true
   requires_certification: true
-  related_services: [cardio-fitness, crossfit]
 
 - category_slug: sports-fitness
   name: Cardio Fitness
@@ -2022,7 +1904,6 @@ services:
   display_order: 23
   online_capable: true
   requires_certification: false
-  related_services: [hiit-training, dance-fitness]
 
 - category_slug: sports-fitness
   name: Barre
@@ -2037,7 +1918,6 @@ services:
   display_order: 24
   online_capable: true
   requires_certification: true
-  related_services: [pilates, ballet]
 
 - category_slug: sports-fitness
   name: Nutrition Coaching
@@ -2052,7 +1932,6 @@ services:
   display_order: 25
   online_capable: true
   requires_certification: true
-  related_services: []
 
 - category_slug: sports-fitness
   name: Taekwondo
@@ -2067,7 +1946,6 @@ services:
   display_order: 26
   online_capable: false
   requires_certification: true
-  related_services: [martial-arts, karate]
 
 - category_slug: sports-fitness
   name: CrossFit
@@ -2082,7 +1960,6 @@ services:
   display_order: 27
   online_capable: true
   requires_certification: true
-  related_services: [strength-training, hiit-training]
 
 - category_slug: sports-fitness
   name: Football Skills
@@ -2097,7 +1974,6 @@ services:
   display_order: 28
   online_capable: false
   requires_certification: false
-  related_services: []
 
 - category_slug: sports-fitness
   name: Meditation
@@ -2112,7 +1988,6 @@ services:
   display_order: 29
   online_capable: true
   requires_certification: false
-  related_services: [mindfulness, yoga]
 
 - category_slug: sports-fitness
   name: Mindfulness
@@ -2127,7 +2002,6 @@ services:
   display_order: 30
   online_capable: true
   requires_certification: false
-  related_services: [meditation, yoga]
 
 - category_slug: sports-fitness
   name: Ice Skating
@@ -2142,7 +2016,6 @@ services:
   display_order: 31
   online_capable: false
   requires_certification: true
-  related_services: []
 
 - category_slug: sports-fitness
   name: Jiu-Jitsu
@@ -2157,7 +2030,6 @@ services:
   display_order: 32
   online_capable: false
   requires_certification: true
-  related_services: [martial-arts]
 
 - category_slug: sports-fitness
   name: Rock Climbing
@@ -2172,7 +2044,6 @@ services:
   display_order: 33
   online_capable: false
   requires_certification: true
-  related_services: []
 
 - category_slug: sports-fitness
   name: Fencing
@@ -2188,7 +2059,6 @@ services:
   display_order: 34
   online_capable: false
   requires_certification: true
-  related_services: []
 
 - category_slug: sports-fitness
   name: Muay Thai
@@ -2203,7 +2073,6 @@ services:
   display_order: 35
   online_capable: false
   requires_certification: true
-  related_services: [boxing, martial-arts]
 
 - category_slug: sports-fitness
   name: Lacrosse
@@ -2218,7 +2087,6 @@ services:
   display_order: 36
   online_capable: false
   requires_certification: false
-  related_services: []
 
 - category_slug: sports-fitness
   name: Skateboarding
@@ -2233,7 +2101,6 @@ services:
   display_order: 37
   online_capable: false
   requires_certification: false
-  related_services: []
 
 - category_slug: sports-fitness
   name: Tai Chi
@@ -2248,7 +2115,6 @@ services:
   display_order: 38
   online_capable: true
   requires_certification: false
-  related_services: [meditation, yoga]
 
 - category_slug: sports-fitness
   name: Archery
@@ -2263,7 +2129,6 @@ services:
   display_order: 39
   online_capable: false
   requires_certification: true
-  related_services: []
 
 - category_slug: sports-fitness
   name: Rollerblading
@@ -2278,7 +2143,6 @@ services:
   display_order: 40
   online_capable: false
   requires_certification: false
-  related_services: []
 
 # Language Category
 - category_slug: languages
@@ -2307,7 +2171,6 @@ services:
   display_order: 1
   online_capable: true
   requires_certification: false
-  related_services: [conversational-english, medical-spanish, legal-spanish]
 
 - category_slug: languages
   name: ESL
@@ -2333,7 +2196,6 @@ services:
   display_order: 2
   online_capable: true
   requires_certification: true
-  related_services: [conversational-english, english-grammar]
 
 - category_slug: languages
   name: French
@@ -2360,7 +2222,6 @@ services:
   display_order: 3
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: languages
   name: Mandarin Chinese
@@ -2376,7 +2237,6 @@ services:
   display_order: 4
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: languages
   name: Italian
@@ -2392,7 +2252,6 @@ services:
   display_order: 5
   online_capable: true
   requires_certification: false
-  related_services: [soccer-skills, baseball, tennis]
 
 - category_slug: languages
   name: Conversational English
@@ -2407,7 +2266,6 @@ services:
   display_order: 6
   online_capable: true
   requires_certification: false
-  related_services: [esl, english-grammar]
 
 - category_slug: languages
   name: German
@@ -2423,7 +2281,6 @@ services:
   display_order: 7
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: languages
   name: Japanese
@@ -2439,7 +2296,6 @@ services:
   display_order: 8
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: languages
   name: Sign Language ASL
@@ -2454,7 +2310,6 @@ services:
   display_order: 9
   online_capable: true
   requires_certification: true
-  related_services: []
 
 - category_slug: languages
   name: Korean
@@ -2470,7 +2325,6 @@ services:
   display_order: 10
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: languages
   name: Portuguese
@@ -2485,7 +2339,6 @@ services:
   display_order: 11
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: languages
   name: Russian
@@ -2501,7 +2354,6 @@ services:
   display_order: 12
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: languages
   name: Business English
@@ -2516,7 +2368,6 @@ services:
   display_order: 13
   online_capable: true
   requires_certification: false
-  related_services: [esl, conversational-english]
 
 - category_slug: languages
   name: Arabic
@@ -2531,7 +2382,6 @@ services:
   display_order: 14
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: languages
   name: Hebrew
@@ -2546,7 +2396,6 @@ services:
   display_order: 15
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: languages
   name: Accent Reduction
@@ -2561,7 +2410,6 @@ services:
   display_order: 16
   online_capable: true
   requires_certification: true
-  related_services: [esl, conversational-english]
 
 - category_slug: languages
   name: TOEFL Prep
@@ -2576,7 +2424,6 @@ services:
   display_order: 17
   online_capable: true
   requires_certification: false
-  related_services: [esl]
 
 - category_slug: languages
   name: Hindi
@@ -2591,7 +2438,6 @@ services:
   display_order: 18
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: languages
   name: English Grammar
@@ -2606,7 +2452,6 @@ services:
   display_order: 19
   online_capable: true
   requires_certification: false
-  related_services: [esl, conversational-english]
 
 - category_slug: languages
   name: Public Speaking
@@ -2621,7 +2466,6 @@ services:
   display_order: 20
   online_capable: true
   requires_certification: false
-  related_services: [presentation-skills]
 
 - category_slug: languages
   name: Medical Spanish
@@ -2635,7 +2479,6 @@ services:
   display_order: 21
   online_capable: true
   requires_certification: false
-  related_services: [spanish]
 
 - category_slug: languages
   name: Legal Spanish
@@ -2649,7 +2492,6 @@ services:
   display_order: 22
   online_capable: true
   requires_certification: false
-  related_services: [spanish]
 
 - category_slug: languages
   name: Travel Language Basics
@@ -2664,7 +2506,6 @@ services:
   display_order: 23
   online_capable: true
   requires_certification: false
-  related_services: []
 
 # Arts Category
 - category_slug: arts
@@ -2693,7 +2534,6 @@ services:
   display_order: 1
   online_capable: true
   requires_certification: false
-  related_services: [portrait-drawing]
 
 - category_slug: arts
   name: Drawing
@@ -2721,7 +2561,6 @@ services:
   display_order: 2
   online_capable: true
   requires_certification: false
-  related_services: [sketching, portrait-drawing, illustration]
 
 - category_slug: arts
   name: Acting
@@ -2749,7 +2588,6 @@ services:
   display_order: 3
   online_capable: true
   requires_certification: false
-  related_services: [theater-performance, improv-comedy]
 
 - category_slug: arts
   name: Ballet
@@ -2776,7 +2614,6 @@ services:
   display_order: 4
   online_capable: true
   requires_certification: true
-  related_services: [contemporary-dance, jazz-dance]
 
 - category_slug: arts
   name: Painting Watercolor
@@ -2791,7 +2628,6 @@ services:
   display_order: 5
   online_capable: true
   requires_certification: false
-  related_services: [painting-acrylic, painting-oil]
 
 - category_slug: arts
   name: Hip Hop Dance
@@ -2808,7 +2644,6 @@ services:
   display_order: 6
   online_capable: true
   requires_certification: false
-  related_services: [contemporary-dance, jazz-dance]
 
 - category_slug: arts
   name: Contemporary Dance
@@ -2824,7 +2659,6 @@ services:
   display_order: 7
   online_capable: true
   requires_certification: true
-  related_services: [ballet, jazz-dance]
 
 - category_slug: arts
   name: Jazz Dance
@@ -2840,7 +2674,6 @@ services:
   display_order: 8
   online_capable: true
   requires_certification: true
-  related_services: [ballet, contemporary-dance, tap-dance]
 
 - category_slug: arts
   name: Painting Acrylic
@@ -2855,7 +2688,6 @@ services:
   display_order: 9
   online_capable: true
   requires_certification: false
-  related_services: [painting-watercolor, painting-oil]
 
 - category_slug: arts
   name: Pottery
@@ -2871,7 +2703,6 @@ services:
   display_order: 10
   online_capable: false
   requires_certification: false
-  related_services: [ceramics]
 
 - category_slug: arts
   name: Ceramics
@@ -2886,7 +2717,6 @@ services:
   display_order: 11
   online_capable: false
   requires_certification: false
-  related_services: [pottery]
 
 - category_slug: arts
   name: Digital Art
@@ -2902,7 +2732,6 @@ services:
   display_order: 12
   online_capable: true
   requires_certification: false
-  related_services: [illustration, graphic-design-software]
 
 - category_slug: arts
   name: Sewing
@@ -2917,7 +2746,6 @@ services:
   display_order: 13
   online_capable: true
   requires_certification: false
-  related_services: [fashion-design, embroidery]
 
 - category_slug: arts
   name: Jewelry Making
@@ -2932,7 +2760,6 @@ services:
   display_order: 14
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: arts
   name: Ballroom Dancing
@@ -2948,7 +2775,6 @@ services:
   display_order: 15
   online_capable: true
   requires_certification: true
-  related_services: [latin-dancing]
 
 - category_slug: arts
   name: Theater Performance
@@ -2963,7 +2789,6 @@ services:
   display_order: 16
   online_capable: true
   requires_certification: false
-  related_services: [acting, musical-theater-voice]
 
 - category_slug: arts
   name: Illustration
@@ -2978,7 +2803,6 @@ services:
   display_order: 17
   online_capable: true
   requires_certification: false
-  related_services: [drawing, digital-art]
 
 - category_slug: arts
   name: Fashion Design
@@ -2993,7 +2817,6 @@ services:
   display_order: 18
   online_capable: true
   requires_certification: false
-  related_services: [sewing]
 
 - category_slug: arts
   name: Painting Oil
@@ -3008,7 +2831,6 @@ services:
   display_order: 19
   online_capable: true
   requires_certification: false
-  related_services: [painting-acrylic, painting-watercolor]
 
 - category_slug: arts
   name: Knitting
@@ -3023,7 +2845,6 @@ services:
   display_order: 20
   online_capable: true
   requires_certification: false
-  related_services: [crocheting]
 
 - category_slug: arts
   name: Latin Dancing
@@ -3038,7 +2859,6 @@ services:
   display_order: 21
   online_capable: true
   requires_certification: false
-  related_services: [ballroom-dancing]
 
 - category_slug: arts
   name: Interior Design Basics
@@ -3053,7 +2873,6 @@ services:
   display_order: 22
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: arts
   name: Tap Dance
@@ -3068,7 +2887,6 @@ services:
   display_order: 23
   online_capable: true
   requires_certification: false
-  related_services: [jazz-dance]
 
 - category_slug: arts
   name: Portrait Drawing
@@ -3083,7 +2901,6 @@ services:
   display_order: 24
   online_capable: true
   requires_certification: false
-  related_services: [drawing, sketching]
 
 - category_slug: arts
   name: Calligraphy
@@ -3098,7 +2915,6 @@ services:
   display_order: 25
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: arts
   name: Floral Arrangement
@@ -3113,7 +2929,6 @@ services:
   display_order: 26
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: arts
   name: Improv Comedy
@@ -3128,7 +2943,6 @@ services:
   display_order: 27
   online_capable: true
   requires_certification: false
-  related_services: [acting, stand-up-comedy]
 
 - category_slug: arts
   name: Sketching
@@ -3143,7 +2957,6 @@ services:
   display_order: 28
   online_capable: true
   requires_certification: false
-  related_services: [drawing, portrait-drawing]
 
 - category_slug: arts
   name: Crocheting
@@ -3158,7 +2971,6 @@ services:
   display_order: 29
   online_capable: true
   requires_certification: false
-  related_services: [knitting]
 
 - category_slug: arts
   name: Woodworking
@@ -3173,7 +2985,6 @@ services:
   display_order: 30
   online_capable: false
   requires_certification: false
-  related_services: []
 
 - category_slug: arts
   name: Stand-up Comedy
@@ -3188,7 +2999,6 @@ services:
   display_order: 31
   online_capable: true
   requires_certification: false
-  related_services: [improv-comedy]
 
 - category_slug: arts
   name: Embroidery
@@ -3203,7 +3013,6 @@ services:
   display_order: 32
   online_capable: true
   requires_certification: false
-  related_services: [sewing]
 
 - category_slug: arts
   name: Graffiti Art
@@ -3218,7 +3027,6 @@ services:
   display_order: 33
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: arts
   name: Scrapbooking
@@ -3233,7 +3041,6 @@ services:
   display_order: 34
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: arts
   name: Leathercraft
@@ -3248,7 +3055,6 @@ services:
   display_order: 35
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: arts
   name: Magic
@@ -3263,7 +3069,6 @@ services:
   display_order: 36
   online_capable: true
   requires_certification: false
-  related_services: [illusion]
 
 - category_slug: arts
   name: Illusion
@@ -3278,7 +3083,6 @@ services:
   display_order: 37
   online_capable: true
   requires_certification: false
-  related_services: [magic]
 
 - category_slug: arts
   name: Candle Making
@@ -3293,7 +3097,6 @@ services:
   display_order: 38
   online_capable: true
   requires_certification: false
-  related_services: [soap-making]
 
 - category_slug: arts
   name: Soap Making
@@ -3308,7 +3111,6 @@ services:
   display_order: 39
   online_capable: true
   requires_certification: false
-  related_services: [candle-making]
 
 # Hidden Gems Category
 - category_slug: hidden-gems
@@ -3335,7 +3137,6 @@ services:
   display_order: 1
   online_capable: true
   requires_certification: true
-  related_services: [career-coaching]
 
 - category_slug: hidden-gems
   name: Cooking Various Cuisines
@@ -3361,7 +3162,6 @@ services:
   display_order: 2
   online_capable: true
   requires_certification: false
-  related_services: [baking-pastry]
 
 - category_slug: hidden-gems
   name: Wine Tasting
@@ -3387,7 +3187,6 @@ services:
   display_order: 3
   online_capable: true
   requires_certification: true
-  related_services: [wine-appreciation]
 
 - category_slug: hidden-gems
   name: Wine Appreciation
@@ -3402,7 +3201,6 @@ services:
   display_order: 4
   online_capable: true
   requires_certification: false
-  related_services: [wine-tasting]
 
 - category_slug: hidden-gems
   name: Public Speaking
@@ -3417,7 +3215,6 @@ services:
   display_order: 5
   online_capable: true
   requires_certification: false
-  related_services: [presentation-skills]
 
 - category_slug: hidden-gems
   name: Makeup Application
@@ -3432,7 +3229,6 @@ services:
   display_order: 6
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Chess
@@ -3447,7 +3243,6 @@ services:
   display_order: 7
   online_capable: true
   requires_certification: false
-  related_services: [board-game-strategy]
 
 - category_slug: hidden-gems
   name: Personal Styling
@@ -3462,7 +3257,6 @@ services:
   display_order: 8
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Career Coaching
@@ -3477,7 +3271,6 @@ services:
   display_order: 9
   online_capable: true
   requires_certification: true
-  related_services: [life-coaching, linkedin-optimization]
 
 - category_slug: hidden-gems
   name: Self-Defense
@@ -3492,7 +3285,6 @@ services:
   display_order: 10
   online_capable: true
   requires_certification: true
-  related_services: [martial-arts]
 
 - category_slug: hidden-gems
   name: Dog Training
@@ -3507,7 +3299,6 @@ services:
   display_order: 11
   online_capable: true
   requires_certification: true
-  related_services: []
 
 - category_slug: hidden-gems
   name: CPR
@@ -3522,7 +3313,6 @@ services:
   display_order: 12
   online_capable: false
   requires_certification: true
-  related_services: [first-aid]
 
 - category_slug: hidden-gems
   name: First Aid
@@ -3537,7 +3327,6 @@ services:
   display_order: 13
   online_capable: false
   requires_certification: true
-  related_services: [cpr]
 
 - category_slug: hidden-gems
   name: Baking & Pastry
@@ -3552,7 +3341,6 @@ services:
   display_order: 14
   online_capable: true
   requires_certification: false
-  related_services: [cake-decorating, cooking-various-cuisines]
 
 - category_slug: hidden-gems
   name: Creative Writing
@@ -3567,7 +3355,6 @@ services:
   display_order: 15
   online_capable: true
   requires_certification: false
-  related_services: [poetry, screenwriting]
 
 - category_slug: hidden-gems
   name: Home Organization
@@ -3582,7 +3369,6 @@ services:
   display_order: 18
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Etiquette
@@ -3597,7 +3383,6 @@ services:
   display_order: 19
   online_capable: true
   requires_certification: false
-  related_services: [manners]
 
 - category_slug: hidden-gems
   name: Manners
@@ -3612,7 +3397,6 @@ services:
   display_order: 20
   online_capable: true
   requires_certification: false
-  related_services: [etiquette]
 
 - category_slug: hidden-gems
   name: Personal Branding
@@ -3627,7 +3411,6 @@ services:
   display_order: 21
   online_capable: true
   requires_certification: false
-  related_services: [linkedin-optimization]
 
 - category_slug: hidden-gems
   name: Gardening
@@ -3642,7 +3425,6 @@ services:
   display_order: 22
   online_capable: true
   requires_certification: false
-  related_services: [urban-farming]
 
 - category_slug: hidden-gems
   name: Time Management
@@ -3657,7 +3439,6 @@ services:
   display_order: 23
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Cake Decorating
@@ -3672,7 +3453,6 @@ services:
   display_order: 24
   online_capable: true
   requires_certification: false
-  related_services: [baking-pastry]
 
 - category_slug: hidden-gems
   name: Negotiation Skills
@@ -3687,7 +3467,6 @@ services:
   display_order: 25
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Coffee Barista Skills
@@ -3702,7 +3481,6 @@ services:
   display_order: 26
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Cocktail Making
@@ -3717,7 +3495,6 @@ services:
   display_order: 27
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: LinkedIn Optimization
@@ -3732,7 +3509,6 @@ services:
   display_order: 28
   online_capable: true
   requires_certification: false
-  related_services: [career-coaching, personal-branding]
 
 - category_slug: hidden-gems
   name: Presentation Skills
@@ -3747,7 +3523,6 @@ services:
   display_order: 29
   online_capable: true
   requires_certification: false
-  related_services: [public-speaking-hidden]
 
 - category_slug: hidden-gems
   name: Tarot Reading
@@ -3762,7 +3537,6 @@ services:
   display_order: 30
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Massage Techniques
@@ -3777,7 +3551,6 @@ services:
   display_order: 31
   online_capable: false
   requires_certification: true
-  related_services: []
 
 - category_slug: hidden-gems
   name: Reiki
@@ -3792,7 +3565,6 @@ services:
   display_order: 32
   online_capable: true
   requires_certification: true
-  related_services: []
 
 - category_slug: hidden-gems
   name: Video Production
@@ -3807,7 +3579,6 @@ services:
   display_order: 33
   online_capable: true
   requires_certification: false
-  related_services: [video-editing]
 
 - category_slug: hidden-gems
   name: Poetry
@@ -3822,7 +3593,6 @@ services:
   display_order: 34
   online_capable: true
   requires_certification: false
-  related_services: [creative-writing]
 
 - category_slug: hidden-gems
   name: Podcasting
@@ -3837,7 +3607,6 @@ services:
   display_order: 35
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Aromatherapy
@@ -3852,7 +3621,6 @@ services:
   display_order: 36
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: NYC History Tours
@@ -3867,7 +3635,6 @@ services:
   display_order: 37
   online_capable: false
   requires_certification: false
-  related_services: [street-art-tours, food-tour-guiding]
 
 - category_slug: hidden-gems
   name: Screenwriting
@@ -3882,7 +3649,6 @@ services:
   display_order: 38
   online_capable: true
   requires_certification: false
-  related_services: [creative-writing]
 
 - category_slug: hidden-gems
   name: Astrology Reading
@@ -3897,7 +3663,6 @@ services:
   display_order: 39
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Urban Farming
@@ -3912,7 +3677,6 @@ services:
   display_order: 40
   online_capable: true
   requires_certification: false
-  related_services: [gardening]
 
 - category_slug: hidden-gems
   name: Herbalism Basics
@@ -3927,7 +3691,6 @@ services:
   display_order: 41
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Genealogy Research
@@ -3942,7 +3705,6 @@ services:
   display_order: 42
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Game Design
@@ -3957,7 +3719,6 @@ services:
   display_order: 43
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Origami
@@ -3972,7 +3733,6 @@ services:
   display_order: 44
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Model Building
@@ -3987,7 +3747,6 @@ services:
   display_order: 45
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Bird Watching
@@ -4002,7 +3761,6 @@ services:
   display_order: 46
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Beekeeping Basics
@@ -4017,7 +3775,6 @@ services:
   display_order: 47
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Board Game Strategy
@@ -4032,7 +3789,6 @@ services:
   display_order: 48
   online_capable: true
   requires_certification: false
-  related_services: [chess]
 
 - category_slug: hidden-gems
   name: Street Art Tours
@@ -4047,7 +3803,6 @@ services:
   display_order: 49
   online_capable: false
   requires_certification: false
-  related_services: [nyc-history-tours]
 
 - category_slug: hidden-gems
   name: Subway Navigation
@@ -4062,7 +3817,6 @@ services:
   display_order: 50
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Food Tour Guiding
@@ -4077,7 +3831,6 @@ services:
   display_order: 51
   online_capable: false
   requires_certification: false
-  related_services: [nyc-history-tours]
 
 - category_slug: hidden-gems
   name: NYC Real Estate Basics
@@ -4092,7 +3845,6 @@ services:
   display_order: 52
   online_capable: true
   requires_certification: false
-  related_services: []
 
 - category_slug: hidden-gems
   name: Collecting Coins
@@ -4107,7 +3859,6 @@ services:
   display_order: 53
   online_capable: true
   requires_certification: false
-  related_services: [collecting-stamps]
 
 - category_slug: hidden-gems
   name: Collecting Stamps
@@ -4122,4 +3873,3 @@ services:
   display_order: 54
   online_capable: true
   requires_certification: false
-  related_services: [collecting-coins]

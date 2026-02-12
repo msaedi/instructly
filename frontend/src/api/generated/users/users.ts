@@ -22,7 +22,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  DeleteResponse,
+  BaseDeleteResponse,
   FinalizeProfilePicturePayload,
   GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams,
   GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams,
@@ -45,11 +45,14 @@ export const getDeleteProfilePictureApiV1UsersMeProfilePictureDeleteUrl = () => 
 
 export const deleteProfilePictureApiV1UsersMeProfilePictureDelete = async (
   options?: RequestInit
-): Promise<DeleteResponse> => {
-  return customFetch<DeleteResponse>(getDeleteProfilePictureApiV1UsersMeProfilePictureDeleteUrl(), {
-    ...options,
-    method: 'DELETE',
-  });
+): Promise<BaseDeleteResponse> => {
+  return customFetch<BaseDeleteResponse>(
+    getDeleteProfilePictureApiV1UsersMeProfilePictureDeleteUrl(),
+    {
+      ...options,
+      method: 'DELETE',
+    }
+  );
 };
 
 export const getDeleteProfilePictureApiV1UsersMeProfilePictureDeleteMutationOptions = <

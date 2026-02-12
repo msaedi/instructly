@@ -25,6 +25,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -77,7 +78,7 @@ class ServiceCategory(Base):
     meta_title = Column(String(200), nullable=True)
     meta_description = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     subcategories = relationship(
@@ -155,8 +156,7 @@ class ServiceCatalog(Base):
         search_terms: Array of search keywords
         eligible_age_groups: Age groups this service is available for
         display_order: Order for UI display
-        embedding: Vector embedding for semantic search
-        related_services: Array of related service IDs
+        embedding_v2: Vector embedding for semantic search
         online_capable: Whether this service can be offered online
         requires_certification: Whether instructors need certification
         is_active: Whether this service is available
@@ -190,19 +190,17 @@ class ServiceCatalog(Base):
     price_floor_in_person_cents = Column(Integer, nullable=True)
     price_floor_online_cents = Column(Integer, nullable=True)
     display_order = Column(Integer, nullable=False, default=999, index=True)
-    embedding = Column(Vector(384), nullable=True)  # MiniLM (legacy)
     # OpenAI text-embedding-3-small embeddings (1536 dimensions)
     embedding_v2 = Column(Vector(1536), nullable=True)
     embedding_model = Column(Text, nullable=True)  # e.g., "text-embedding-3-small"
     embedding_model_version = Column(Text, nullable=True)  # e.g., "2024-01"
     embedding_updated_at = Column(DateTime(timezone=True), nullable=True)
     embedding_text_hash = Column(Text, nullable=True)  # Hash of text used for embedding
-    related_services: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     online_capable = Column(Boolean, nullable=False, default=True, index=True)
     requires_certification = Column(Boolean, nullable=False, default=False)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     subcategory = relationship("ServiceSubcategory", back_populates="services")
@@ -291,7 +289,6 @@ class ServiceCatalog(Base):
             "actual_min_price": min_price,
             "actual_max_price": max_price,
             "display_order": self.display_order,
-            "related_services": self.related_services,
             "online_capable": self.online_capable,
             "requires_certification": self.requires_certification,
             "is_active": self.is_active,
@@ -378,7 +375,15 @@ class InstructorService(Base):
     offers_online = Column(Boolean, nullable=False, default=True)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index(
+            "ix_instructor_services_profile_active",
+            "instructor_profile_id",
+            "is_active",
+        ),
+    )
 
     # Relationships
     instructor_profile = relationship("InstructorProfile", back_populates="instructor_services")
@@ -506,15 +511,11 @@ class ServiceAnalytics(Base):
     booking_count_30d = Column(Integer, nullable=False, default=0, index=True)
     search_to_view_rate = Column(Float, nullable=True)
     view_to_booking_rate = Column(Float, nullable=True)
-    avg_price_booked = Column(Float, nullable=True)
-    price_percentile_25 = Column(Float, nullable=True)
-    price_percentile_50 = Column(Float, nullable=True)
-    price_percentile_75 = Column(Float, nullable=True)
+    avg_price_booked_cents = Column(Integer, nullable=False, default=0)
+    price_percentile_25_cents = Column(Integer, nullable=False, default=0)
+    price_percentile_50_cents = Column(Integer, nullable=False, default=0)
+    price_percentile_75_cents = Column(Integer, nullable=False, default=0)
     most_booked_duration = Column(Integer, nullable=True)
-    duration_distribution = Column(Text, nullable=True)  # JSON stored as text
-    peak_hours = Column(Text, nullable=True)  # JSON stored as text
-    peak_days = Column(Text, nullable=True)  # JSON stored as text
-    seasonality_index = Column(Text, nullable=True)  # JSON stored as text
     avg_rating = Column(Float, nullable=True)
     completion_rate = Column(Float, nullable=True)
     active_instructors = Column(Integer, nullable=False, default=0)
@@ -530,6 +531,38 @@ class ServiceAnalytics(Base):
     def __repr__(self) -> str:
         """String representation."""
         return f"<ServiceAnalytics service_id={self.service_catalog_id} searches_7d={self.search_count_7d}>"
+
+    @property
+    def avg_price_booked(self) -> float:
+        return float((self.avg_price_booked_cents or 0) / 100.0)
+
+    @avg_price_booked.setter
+    def avg_price_booked(self, value: float | None) -> None:
+        self.avg_price_booked_cents = int(round(float(value or 0) * 100))
+
+    @property
+    def price_percentile_25(self) -> float:
+        return float((self.price_percentile_25_cents or 0) / 100.0)
+
+    @price_percentile_25.setter
+    def price_percentile_25(self, value: float | None) -> None:
+        self.price_percentile_25_cents = int(round(float(value or 0) * 100))
+
+    @property
+    def price_percentile_50(self) -> float:
+        return float((self.price_percentile_50_cents or 0) / 100.0)
+
+    @price_percentile_50.setter
+    def price_percentile_50(self, value: float | None) -> None:
+        self.price_percentile_50_cents = int(round(float(value or 0) * 100))
+
+    @property
+    def price_percentile_75(self) -> float:
+        return float((self.price_percentile_75_cents or 0) / 100.0)
+
+    @price_percentile_75.setter
+    def price_percentile_75(self, value: float | None) -> None:
+        self.price_percentile_75_cents = int(round(float(value or 0) * 100))
 
     @property
     def demand_score(self) -> float:

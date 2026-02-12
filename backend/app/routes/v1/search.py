@@ -297,14 +297,11 @@ async def nl_search(
             "skill_level": parsed.skill_level,
             "urgency": parsed.urgency,
         }
-        top_result_ids = [r.best_match.service_catalog_id for r in result.results[:10]]
-
         # Capture values for closure
         _q = q
         _normalized_query = normalized_query
         _parsing_mode = result.meta.parsing_mode
         _result_count = result.meta.total_results
-        _top_result_ids = top_result_ids
         _latency_ms = result.meta.latency_ms
         _cache_hit = result.meta.cache_hit
         _degraded = result.meta.degraded
@@ -320,7 +317,6 @@ async def nl_search(
                     parsing_mode=_parsing_mode,
                     parsing_latency_ms=0,
                     result_count=_result_count,
-                    top_result_ids=_top_result_ids,
                     total_latency_ms=_latency_ms,
                     cache_hit=_cache_hit,
                     degraded=_degraded,

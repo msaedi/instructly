@@ -39,6 +39,11 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["student_id"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "student_id",
+            "instructor_id",
+            name="uq_conversations_student_instructor",
+        ),
         comment="One conversation per student-instructor pair",
     )
 
@@ -52,12 +57,6 @@ def upgrade() -> None:
             CREATE UNIQUE INDEX idx_conversations_pair_unique
             ON conversations (LEAST(student_id, instructor_id), GREATEST(student_id, instructor_id));
             """
-        )
-    else:
-        op.create_unique_constraint(
-            "conversations_pair_unique_sqlite",
-            "conversations",
-            ["student_id", "instructor_id"],
         )
 
     print("Creating messages table...")
@@ -98,7 +97,18 @@ def upgrade() -> None:
     op.create_index("ix_messages_created_at", "messages", ["created_at"])
     op.create_index("ix_messages_deleted_at", "messages", ["deleted_at"])
     op.create_index("ix_messages_booking_id_id", "messages", ["booking_id", "id"])
-    op.create_index("ix_messages_conversation", "messages", ["conversation_id", "created_at"])
+    op.create_index("ix_messages_conversation_id", "messages", ["conversation_id"])
+    if is_postgres:
+        op.execute(
+            "CREATE INDEX ix_messages_conversation_created "
+            "ON messages (conversation_id, created_at DESC);"
+        )
+    else:
+        op.create_index(
+            "ix_messages_conversation_created",
+            "messages",
+            ["conversation_id", "created_at"],
+        )
     if is_postgres:
         op.create_index(
             "idx_messages_unread_lookup",
@@ -139,8 +149,8 @@ def upgrade() -> None:
         sa.UniqueConstraint("message_id", "user_id", name="uq_message_user"),
     )
 
-    op.create_index("ix_message_notifications_user_unread", "message_notifications", ["user_id", "is_read"])
-    op.create_index("ix_message_notifications_message_id", "message_notifications", ["message_id"])
+    op.create_index("ix_message_notifications_user_read", "message_notifications", ["user_id", "is_read"])
+    op.create_index("ix_message_notifications_message", "message_notifications", ["message_id"])
 
     print("Creating conversation_user_state table...")
     op.create_table(
@@ -189,7 +199,12 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["message_id"], ["messages.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("message_id", "user_id", "emoji", name="uq_message_reaction"),
+        sa.UniqueConstraint(
+            "message_id",
+            "user_id",
+            "emoji",
+            name="uq_message_reactions_message_user_emoji",
+        ),
     )
 
     op.create_table(
@@ -347,8 +362,8 @@ def downgrade() -> None:
     )
     op.drop_table("conversation_user_state")
 
-    op.drop_index("ix_message_notifications_message_id", table_name="message_notifications")
-    op.drop_index("ix_message_notifications_user_unread", table_name="message_notifications")
+    op.drop_index("ix_message_notifications_message", table_name="message_notifications")
+    op.drop_index("ix_message_notifications_user_read", table_name="message_notifications")
     op.drop_table("message_notifications")
 
     op.drop_constraint("ck_messages_soft_delete_consistency", "messages", type_="check")
@@ -356,7 +371,10 @@ def downgrade() -> None:
     if is_postgres:
         op.execute("DROP INDEX IF EXISTS idx_messages_unread_lookup")
         op.execute("DROP INDEX IF EXISTS ix_messages_booking_nullable")
-    op.drop_index("ix_messages_conversation", table_name="messages")
+        op.execute("DROP INDEX IF EXISTS ix_messages_conversation_created")
+    else:
+        op.drop_index("ix_messages_conversation_created", table_name="messages")
+    op.drop_index("ix_messages_conversation_id", table_name="messages")
     op.drop_index("ix_messages_booking_id_id", table_name="messages")
     op.drop_index("ix_messages_deleted_at", table_name="messages")
     op.drop_index("ix_messages_created_at", table_name="messages")
@@ -364,9 +382,12 @@ def downgrade() -> None:
     op.drop_index("ix_messages_booking_created", table_name="messages")
     op.drop_table("messages")
 
-    if not is_postgres:
-        op.drop_constraint("conversations_pair_unique_sqlite", "conversations", type_="unique")
-    else:
+    op.drop_constraint(
+        "uq_conversations_student_instructor",
+        "conversations",
+        type_="unique",
+    )
+    if is_postgres:
         op.execute("DROP INDEX IF EXISTS idx_conversations_pair_unique")
     op.drop_index("idx_conversations_last_message", table_name="conversations")
     op.drop_index("idx_conversations_instructor", table_name="conversations")

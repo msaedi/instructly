@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, List, Optional, Tuple, cast
-import uuid
-from uuid import UUID
 
 import sqlalchemy as sa
 from sqlalchemy import func
@@ -16,6 +14,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import RepositoryException
+from app.core.ulid_helper import generate_ulid
 from app.models.referrals import (
     InstructorReferralPayout,
     ReferralAttribution,
@@ -50,7 +49,7 @@ class ReferralCodeRepository(BaseRepository[ReferralCode]):
         result = self.db.query(ReferralCode).filter(ReferralCode.vanity_slug == slug).first()
         return cast(Optional[ReferralCode], result)
 
-    def get_by_id(self, code_id: UUID, for_update: bool = False) -> Optional[ReferralCode]:
+    def get_by_id(self, code_id: str, for_update: bool = False) -> Optional[ReferralCode]:
         query = self.db.query(ReferralCode).filter(ReferralCode.id == code_id)
         if for_update:
             query = query.with_for_update()
@@ -93,7 +92,7 @@ class ReferralCodeRepository(BaseRepository[ReferralCode]):
             insert_stmt = (
                 pg_insert(ReferralCode)
                 .values(
-                    id=uuid.uuid4(),
+                    id=generate_ulid(),
                     referrer_user_id=user_id,
                     code=candidate,
                     status=ReferralCodeStatus.ACTIVE,
@@ -138,7 +137,7 @@ class ReferralClickRepository(BaseRepository[ReferralClick]):
     def create(  # type: ignore[override]
         self,
         *,
-        code_id: UUID,
+        code_id: str,
         device_fp_hash: Optional[str],
         ip_hash: Optional[str],
         ua_hash: Optional[str],
@@ -146,7 +145,7 @@ class ReferralClickRepository(BaseRepository[ReferralClick]):
         ts: datetime,
     ) -> ReferralClick:
         click = ReferralClick(
-            id=uuid.uuid4(),
+            id=generate_ulid(),
             code_id=code_id,
             device_fp_hash=device_fp_hash,
             ip_hash=ip_hash,
@@ -170,7 +169,7 @@ class ReferralClickRepository(BaseRepository[ReferralClick]):
         return self.count_since(since)
 
     def get_fingerprint_snapshot(
-        self, code_id: UUID, attribution_ts: datetime
+        self, code_id: str, attribution_ts: datetime
     ) -> Dict[str, Optional[str]]:
         """Return click and signup fingerprint hashes for analysis."""
 
@@ -227,7 +226,7 @@ class ReferralAttributionRepository(BaseRepository[ReferralAttribution]):
     def create_if_absent(
         self,
         *,
-        code_id: UUID,
+        code_id: str,
         referred_user_id: str,
         source: str,
         ts: datetime,
@@ -235,7 +234,7 @@ class ReferralAttributionRepository(BaseRepository[ReferralAttribution]):
         stmt = (
             pg_insert(ReferralAttribution)
             .values(
-                id=uuid.uuid4(),
+                id=generate_ulid(),
                 code_id=code_id,
                 referred_user_id=referred_user_id,
                 source=source,
@@ -343,7 +342,7 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
             return existing_reward
 
         reward = ReferralReward(
-            id=uuid.uuid4(),
+            id=generate_ulid(),
             referrer_user_id=owner_id,
             referred_user_id=counterpart_id,
             side=side,
@@ -647,7 +646,7 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
             query = query.with_for_update(skip_locked=True)
         return cast(List[ReferralReward], query.limit(limit).all())
 
-    def mark_unlocked(self, reward_id: UUID) -> None:
+    def mark_unlocked(self, reward_id: str) -> None:
         reward = (
             self.db.query(ReferralReward)
             .filter(ReferralReward.id == reward_id)
@@ -660,7 +659,7 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
         typed_reward.status = RewardStatus.UNLOCKED
         self.db.flush()
 
-    def mark_void(self, reward_id: UUID) -> None:
+    def mark_void(self, reward_id: str) -> None:
         reward = (
             self.db.query(ReferralReward)
             .filter(ReferralReward.id == reward_id)
@@ -672,7 +671,7 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
             typed_reward.status = RewardStatus.VOID
             self.db.flush()
 
-    def void_rewards(self, reward_ids: List[UUID]) -> None:
+    def void_rewards(self, reward_ids: List[str]) -> None:
         if not reward_ids:
             return
         (
@@ -714,7 +713,7 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
         )
         return cast(Optional[ReferralReward], reward)
 
-    def mark_redeemed(self, reward_id: UUID) -> None:
+    def mark_redeemed(self, reward_id: str) -> None:
         reward = (
             self.db.query(ReferralReward)
             .filter(ReferralReward.id == reward_id)
@@ -737,9 +736,9 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
             query = query.with_for_update(skip_locked=True)
         return cast(List[ReferralReward], query.all())
 
-    def void_expired(self, now: datetime) -> List[UUID]:
+    def void_expired(self, now: datetime) -> List[str]:
         rewards = self._expired_rewards(now, lock=True)
-        voided_ids: List[UUID] = []
+        voided_ids: List[str] = []
         for reward in rewards:
             reward.status = RewardStatus.VOID
             voided_ids.append(reward.id)
@@ -747,7 +746,7 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
             self.db.flush()
         return voided_ids
 
-    def get_expired_reward_ids(self, now: datetime) -> List[UUID]:
+    def get_expired_reward_ids(self, now: datetime) -> List[str]:
         return [reward.id for reward in self._expired_rewards(now, lock=False)]
 
     def list_by_user_and_status(
@@ -869,10 +868,10 @@ class WalletTransactionRepository(BaseRepository[WalletTransaction]):
         super().__init__(db, WalletTransaction)
 
     def create_referral_credit(
-        self, *, user_id: str, reward_id: UUID, amount_cents: int
+        self, *, user_id: str, reward_id: str, amount_cents: int
     ) -> WalletTransaction:
         transaction = WalletTransaction(
-            id=uuid.uuid4(),
+            id=generate_ulid(),
             user_id=user_id,
             type=WalletTransactionType.REFERRAL_CREDIT,
             amount_cents=amount_cents,
@@ -883,10 +882,10 @@ class WalletTransactionRepository(BaseRepository[WalletTransaction]):
         return transaction
 
     def create_fee_rebate(
-        self, *, user_id: str, reward_id: UUID, amount_cents: int
+        self, *, user_id: str, reward_id: str, amount_cents: int
     ) -> WalletTransaction:
         transaction = WalletTransaction(
-            id=uuid.uuid4(),
+            id=generate_ulid(),
             user_id=user_id,
             type=WalletTransactionType.FEE_REBATE,
             amount_cents=amount_cents,

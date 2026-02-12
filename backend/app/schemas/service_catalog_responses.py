@@ -2,12 +2,12 @@
 
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from ._strict_base import StrictModel
 
 
-class SearchFiltersApplied(BaseModel):
+class SearchFiltersApplied(StrictModel):
     """Filters applied to instructor search."""
 
     search: Optional[str] = None
@@ -18,7 +18,7 @@ class SearchFiltersApplied(BaseModel):
     age_group: Optional[str] = None
 
 
-class SearchPagination(BaseModel):
+class SearchPagination(StrictModel):
     """Pagination metadata for search results."""
 
     skip: int = 0
@@ -26,7 +26,7 @@ class SearchPagination(BaseModel):
     count: int = 0
 
 
-class InstructorSearchResultService(BaseModel):
+class InstructorSearchResultService(StrictModel):
     """Service offering in search results."""
 
     id: str
@@ -38,7 +38,7 @@ class InstructorSearchResultService(BaseModel):
     duration_options: List[int] = Field(default_factory=list)
 
 
-class InstructorSearchResult(BaseModel):
+class InstructorSearchResult(StrictModel):
     """Instructor in search results."""
 
     id: str

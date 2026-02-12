@@ -17,7 +17,6 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
-    Float,
     ForeignKey,
     Index,
     Integer,
@@ -174,7 +173,7 @@ class InstructorProfile(Base):
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # NL Search ranking signals
     last_active_at = Column(DateTime(timezone=True), nullable=True)  # Last login/activity
@@ -245,6 +244,7 @@ class InstructorProfile(Base):
         ),
         Index("ix_instructor_profiles_checkr_candidate_id", "checkr_candidate_id"),
         Index("ix_instructor_profiles_checkr_invitation_id", "checkr_invitation_id"),
+        Index("ix_instructor_profiles_live_bgc", "is_live", "bgc_status"),
     )
 
     def __init__(self, **kwargs: Any) -> None:
@@ -414,6 +414,8 @@ class BackgroundCheck(Base):
         "InstructorProfile", back_populates="bgc_history", passive_deletes=True
     )
 
+    __table_args__ = (Index("ix_background_checks_instructor", "instructor_id"),)
+
 
 class BGCAdverseActionEvent(Base):
     """Persisted events for adverse-action notifications."""
@@ -462,6 +464,10 @@ class BackgroundJob(Base):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "status IN ('queued', 'processing', 'running', 'failed', 'completed', 'succeeded')",
+            name="ck_background_jobs_status",
+        ),
         # Primary index for fetch_due() - most frequent query (Celery beat polling)
         Index("ix_background_jobs_status_available", "status", "available_at"),
         # Secondary index for type-based lookups (get_next_scheduled, get_pending_final_adverse_job)
@@ -507,10 +513,10 @@ class InstructorPreferredPlace(Base):
     label = Column(String(64), nullable=True)
     position = Column(SmallInteger, nullable=False, default=0)
     place_id = Column(String(255), nullable=True)
-    lat = Column(Float, nullable=True)
-    lng = Column(Float, nullable=True)
-    approx_lat = Column(Float, nullable=True)
-    approx_lng = Column(Float, nullable=True)
+    lat = Column(Numeric(precision=10, scale=7, asdecimal=False), nullable=True)
+    lng = Column(Numeric(precision=10, scale=7, asdecimal=False), nullable=True)
+    approx_lat = Column(Numeric(precision=10, scale=7, asdecimal=False), nullable=True)
+    approx_lng = Column(Numeric(precision=10, scale=7, asdecimal=False), nullable=True)
     neighborhood = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(

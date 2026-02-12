@@ -58,7 +58,17 @@ def populate_region_embeddings(
         raise SystemExit("OPENAI_API_KEY environment variable required")
 
     model = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
-    client = OpenAI(api_key=api_key)
+    timeout_raw = os.getenv("OPENAI_EMBEDDING_TIMEOUT_S", "90")
+    retries_raw = os.getenv("OPENAI_EMBEDDING_MAX_RETRIES", "1")
+    try:
+        timeout_s = float(timeout_raw)
+    except ValueError:
+        timeout_s = 90.0
+    try:
+        max_retries = int(retries_raw)
+    except ValueError:
+        max_retries = 1
+    client = OpenAI(api_key=api_key, timeout=timeout_s, max_retries=max_retries)
 
     db_url = settings.database_url
     engine = create_engine(db_url)
@@ -103,10 +113,12 @@ def populate_region_embeddings(
             return
 
         logger.info(
-            "Found %d region_boundaries rows to embed (region_type=%s, model=%s).",
+            "Found %d region_boundaries rows to embed (region_type=%s, model=%s, timeout=%ss, retries=%d).",
             len(regions),
             region_type,
             model,
+            timeout_s,
+            max_retries,
         )
 
         if dry_run:
@@ -122,6 +134,14 @@ def populate_region_embeddings(
             inputs = [
                 _embedding_text(r["region_name"], r["parent_region"], region_type) for r in batch
             ]
+            batch_num = (i // batch_size) + 1
+            total_batches = (len(regions) + batch_size - 1) // batch_size
+            logger.info(
+                "Requesting region embedding batch %d/%d (%d rows)",
+                batch_num,
+                total_batches,
+                len(batch),
+            )
 
             start = time.time()
             response = client.embeddings.create(model=model, input=inputs)

@@ -68,7 +68,7 @@ class SuccessResponse(StrictModel):
     )
 
 
-class DeleteResponse(StrictModel):
+class BaseDeleteResponse(StrictModel):
     """Standard response for delete operations."""
 
     success: bool = Field(default=True, description="Deletion success status")
@@ -78,14 +78,19 @@ class DeleteResponse(StrictModel):
     )
 
     model_config = ConfigDict(
+        title="BaseDeleteResponse",
         json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Resource deleted successfully",
                 "deleted_at": "2025-01-20T10:30:00Z",
             }
-        }
+        },
     )
+
+
+# Backward-compatible alias for existing imports.
+DeleteResponse = BaseDeleteResponse
 
 
 class ErrorDetail(BaseModel):

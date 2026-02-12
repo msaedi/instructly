@@ -12,10 +12,11 @@ to catch contract violations early and prevent regression.
 """
 
 import ast
+from collections import defaultdict
 import inspect
 from pathlib import Path
 import re
-from typing import Any, List, Optional, Set, get_args, get_origin, get_type_hints
+from typing import Any, DefaultDict, List, Optional, Set, get_args, get_origin, get_type_hints
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -472,7 +473,7 @@ class TestResponseModelCoverage:
         import importlib
         schemas_path = Path("app/schemas")
 
-        model_classes = {}
+        model_classes: DefaultDict[str, Set[type]] = defaultdict(set)
         for py_file in schemas_path.glob("*_responses.py"):
             module_name = f"app.schemas.{py_file.stem}"
             try:
@@ -480,7 +481,7 @@ class TestResponseModelCoverage:
                 for name in dir(module):
                     obj = getattr(module, name)
                     if isinstance(obj, type) and issubclass(obj, BaseModel) and obj != BaseModel:
-                        model_classes[name] = obj
+                        model_classes[name].add(obj)
             except ImportError:
                 continue
 
@@ -491,8 +492,9 @@ class TestResponseModelCoverage:
 
             # Then find and add all its nested models
             if model_name in model_classes:
-                nested = self._get_nested_models(model_classes[model_name])
-                all_used_models.update(m.__name__ for m in nested)
+                for model_class in model_classes[model_name]:
+                    nested = self._get_nested_models(model_class)
+                    all_used_models.update(m.__name__ for m in nested)
 
         return all_used_models
 

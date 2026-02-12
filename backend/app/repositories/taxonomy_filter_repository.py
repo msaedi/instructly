@@ -193,15 +193,21 @@ class TaxonomyFilterRepository:
             fd = sf.filter_definition
             if fd is None:
                 continue
+            sf_id = getattr(sf, "id", "<unknown>")
             for sfo in sf.filter_options:
                 fo = sfo.filter_option
+                sfo_id = getattr(sfo, "id", "<unknown>")
                 if fo is None:
+                    violations.append(
+                        f"SubcategoryFilterOption {sfo_id}: missing FilterOption for "
+                        f"SubcategoryFilter {sf_id}"
+                    )
                     continue
                 if fo.filter_definition_id != fd.id:
                     violations.append(
-                        f"SubcategoryFilterOption {sfo.id}: option {fo.id} "
+                        f"SubcategoryFilterOption {sfo_id}: option {fo.id} "
                         f"(definition={fo.filter_definition_id}) does not match "
-                        f"SubcategoryFilter {sf.id} (definition={fd.id})"
+                        f"SubcategoryFilter {sf_id} (definition={fd.id})"
                     )
         return violations
 

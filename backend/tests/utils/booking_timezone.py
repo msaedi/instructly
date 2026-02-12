@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, time, timedelta
 from typing import Any, Optional
 
 from app.services.timezone_service import TimezoneService
@@ -21,9 +21,12 @@ def booking_timezone_fields(
         end_time = end_time.replace(tzinfo=None)
     lesson_tz = instructor_timezone or DEFAULT_TIMEZONE
     student_tz = student_timezone or lesson_tz
+    # When end_time < start_time the booking crosses midnight;
+    # use the next day for the end UTC calculation.
+    end_date = booking_date + timedelta(days=1) if end_time < start_time else booking_date
     return {
         "booking_start_utc": TimezoneService.local_to_utc(booking_date, start_time, lesson_tz),
-        "booking_end_utc": TimezoneService.local_to_utc(booking_date, end_time, lesson_tz),
+        "booking_end_utc": TimezoneService.local_to_utc(end_date, end_time, lesson_tz),
         "lesson_timezone": lesson_tz,
         "instructor_tz_at_booking": lesson_tz,
         "student_tz_at_booking": student_tz,

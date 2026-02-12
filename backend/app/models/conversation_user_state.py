@@ -1,8 +1,17 @@
 """Conversation user state model for archive/trash functionality."""
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import ulid
 
 from ..database import Base
 
@@ -12,7 +21,7 @@ class ConversationUserState(Base):
 
     __tablename__ = "conversation_user_state"
 
-    id = Column(String(26), primary_key=True)
+    id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     user_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     conversation_id = Column(
         String(26), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
@@ -29,6 +38,10 @@ class ConversationUserState(Base):
     __table_args__ = (
         UniqueConstraint(
             "user_id", "conversation_id", name="uq_conversation_user_state_user_conversation"
+        ),
+        CheckConstraint(
+            "state IN ('active', 'archived', 'trashed')",
+            name="ck_conversation_user_state_state",
         ),
         Index("ix_conversation_user_state_user_state", "user_id", "state"),
     )

@@ -160,7 +160,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
             nullable=False,
         ),
-        sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.Column("confirmed_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
@@ -268,9 +268,14 @@ def upgrade() -> None:
         "idx_bookings_instructor_datetime", "bookings", ["instructor_id", "booking_date", "start_time", "end_time"]
     )
     op.create_index(
-        "idx_bookings_instructor_date_status",
+        "ix_bookings_instructor_date_status",
         "bookings",
         ["instructor_id", "booking_date", "status"],
+    )
+    op.create_index(
+        "ix_bookings_student_date_status",
+        "bookings",
+        ["student_id", "booking_date", "status"],
     )
     op.create_index("idx_bookings_instructor_service_id", "bookings", ["instructor_service_id"])
     op.create_index("idx_bookings_cancelled_by_id", "bookings", ["cancelled_by_id"])
@@ -319,6 +324,25 @@ def upgrade() -> None:
         ")",
     )
     op.create_check_constraint(
+        "ck_bookings_no_show_type",
+        "bookings",
+        "no_show_type IS NULL OR no_show_type IN ('instructor', 'student')",
+    )
+    op.create_check_constraint(
+        "ck_bookings_lock_resolution",
+        "bookings",
+        "lock_resolution IS NULL OR lock_resolution IN ("
+        "'new_lesson_completed',"
+        "'new_lesson_cancelled_ge12',"
+        "'new_lesson_cancelled_lt12',"
+        "'instructor_cancelled',"
+        "'completed',"
+        "'cancelled_by_student',"
+        "'cancelled_by_instructor',"
+        "'expired'"
+        ")",
+    )
+    op.create_check_constraint(
         "check_duration_positive",
         "bookings",
         "duration_minutes > 0",
@@ -337,7 +361,7 @@ def upgrade() -> None:
         "check_time_order",
         "bookings",
         "CASE "
-        "WHEN end_time = TIME '00:00:00' AND start_time <> TIME '00:00:00' THEN TRUE "
+        "WHEN end_time < start_time THEN TRUE "
         "ELSE start_time < end_time "
         "END",
     )
@@ -352,8 +376,8 @@ def upgrade() -> None:
                 tsrange(
                   (booking_date::timestamp + start_time),
                   CASE
-                    WHEN end_time = time '00:00:00' AND start_time <> time '00:00:00'
-                      THEN (booking_date::timestamp + interval '1 day')
+                    WHEN end_time < start_time
+                      THEN (booking_date::timestamp + interval '1 day' + end_time)
                     ELSE (booking_date::timestamp + end_time)
                   END,
                   '[)'
@@ -396,7 +420,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
             nullable=False,
         ),
-        sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id", name="unique_user_stripe_customer"),
@@ -418,7 +442,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
             nullable=False,
         ),
-        sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.ForeignKeyConstraint(["instructor_profile_id"], ["instructor_profiles.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("instructor_profile_id", name="unique_instructor_stripe_account"),
@@ -442,13 +466,13 @@ def upgrade() -> None:
         sa.Column("instructor_tier_pct", sa.Numeric(5, 4), nullable=True, comment="Instructor platform fee rate (e.g., 0.12 for 12%)"),
         sa.Column("instructor_payout_cents", sa.Integer(), nullable=True, comment="Amount transferred to instructor in cents"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("stripe_payment_intent_id", name="unique_stripe_payment_intent_id"),
         comment="Stripe payment intents for bookings",
     )
-    op.create_index("idx_payment_intents_booking_id", "payment_intents", ["booking_id"])
+    op.create_index("ix_payment_intents_booking", "payment_intents", ["booking_id"])
     op.create_index("idx_payment_intents_stripe_payment_intent_id", "payment_intents", ["stripe_payment_intent_id"])
     op.create_index("idx_payment_intents_status", "payment_intents", ["status"])
     op.create_check_constraint(
@@ -471,7 +495,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
             nullable=False,
         ),
-        sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         comment="User payment methods",
@@ -497,7 +521,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         comment="Event-based payment tracking",
     )
-    op.create_index("idx_payment_events_booking_id", "payment_events", ["booking_id"])
+    op.create_index("ix_payment_events_booking", "payment_events", ["booking_id"])
     op.create_index("idx_payment_events_event_type", "payment_events", ["event_type"])
     op.create_index("idx_payment_events_created_at", "payment_events", ["created_at"])
 
@@ -601,6 +625,23 @@ def upgrade() -> None:
         comment="Tips attached to reviews",
     )
     op.create_check_constraint("ck_review_tips_positive", "review_tips", "amount_cents > 0")
+    op.create_check_constraint(
+        "ck_review_tips_status",
+        "review_tips",
+        "status IN ("
+        "'pending',"
+        "'processing',"
+        "'succeeded',"
+        "'failed',"
+        "'completed',"
+        "'requires_action',"
+        "'requires_confirmation',"
+        "'requires_payment_method',"
+        "'requires_capture',"
+        "'canceled',"
+        "'cancelled'"
+        ")",
+    )
     op.create_index("idx_review_tips_review", "review_tips", ["review_id"])
     op.create_index("idx_review_tips_status", "review_tips", ["status"])
 
@@ -720,6 +761,7 @@ def downgrade() -> None:
 
     op.drop_index("idx_review_tips_status", table_name="review_tips")
     op.drop_index("idx_review_tips_review", table_name="review_tips")
+    op.drop_constraint("ck_review_tips_status", "review_tips", type_="check")
     op.drop_constraint("ck_review_tips_positive", "review_tips", type_="check")
     op.drop_constraint("uq_review_tips_review", "review_tips", type_="unique")
     op.drop_table("review_tips")
@@ -744,7 +786,7 @@ def downgrade() -> None:
 
     op.drop_index("idx_payment_events_created_at", table_name="payment_events")
     op.drop_index("idx_payment_events_event_type", table_name="payment_events")
-    op.drop_index("idx_payment_events_booking_id", table_name="payment_events")
+    op.drop_index("ix_payment_events_booking", table_name="payment_events")
     op.drop_table("payment_events")
 
     op.drop_index("idx_payment_methods_unique_default_per_user", table_name="payment_methods")
@@ -755,7 +797,7 @@ def downgrade() -> None:
     op.drop_constraint("ck_payment_intents_status", "payment_intents", type_="check")
     op.drop_index("idx_payment_intents_status", table_name="payment_intents")
     op.drop_index("idx_payment_intents_stripe_payment_intent_id", table_name="payment_intents")
-    op.drop_index("idx_payment_intents_booking_id", table_name="payment_intents")
+    op.drop_index("ix_payment_intents_booking", table_name="payment_intents")
     op.drop_table("payment_intents")
 
     op.drop_index("idx_stripe_connected_accounts_onboarding_completed", table_name="stripe_connected_accounts")
@@ -776,6 +818,8 @@ def downgrade() -> None:
     op.drop_constraint("check_rate_positive", "bookings", type_="check")
     op.drop_constraint("check_price_non_negative", "bookings", type_="check")
     op.drop_constraint("check_duration_positive", "bookings", type_="check")
+    op.drop_constraint("ck_bookings_lock_resolution", "bookings", type_="check")
+    op.drop_constraint("ck_bookings_no_show_type", "bookings", type_="check")
     op.drop_constraint("ck_bookings_payment_status", "bookings", type_="check")
     op.drop_constraint("ck_bookings_location_type", "bookings", type_="check")
     op.drop_constraint("ck_bookings_status", "bookings", type_="check")
@@ -789,7 +833,8 @@ def downgrade() -> None:
     op.drop_index("idx_bookings_rescheduled_from_id", table_name="bookings")
     op.drop_index("idx_bookings_cancelled_by_id", table_name="bookings")
     op.drop_index("idx_bookings_instructor_service_id", table_name="bookings")
-    op.drop_index("idx_bookings_instructor_date_status", table_name="bookings")
+    op.drop_index("ix_bookings_student_date_status", table_name="bookings")
+    op.drop_index("ix_bookings_instructor_date_status", table_name="bookings")
     op.drop_index("idx_bookings_instructor_datetime", table_name="bookings")
     op.drop_index("ix_booking_student_completed", table_name="bookings")
     op.drop_index("ix_booking_instructor_completed", table_name="bookings")

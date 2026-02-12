@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import TIMESTAMP, ForeignKey, String, Text, func
+from sqlalchemy import TIMESTAMP, CheckConstraint, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import ulid
 
@@ -39,6 +39,25 @@ class BookingNote(Base):
     category: Mapped[str] = mapped_column(String(32), nullable=False, default="general")
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "visibility IN ('internal', 'shared', 'shared_with_instructor', 'shared_with_student')",
+            name="ck_booking_notes_visibility",
+        ),
+        CheckConstraint(
+            "category IN ("
+            "'general',"
+            "'cancellation',"
+            "'dispute',"
+            "'payment',"
+            "'support_interaction',"
+            "'fraud_flag',"
+            "'quality_issue'"
+            ")",
+            name="ck_booking_notes_category",
+        ),
     )
 
     booking: Mapped["Booking"] = relationship("Booking", back_populates="admin_notes")

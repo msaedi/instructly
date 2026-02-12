@@ -225,6 +225,7 @@ describe('filterContext helpers', () => {
       {
         key: 'course_level',
         label: 'Course Level',
+        filter_type: 'multi_select',
         options: [
           { value: 'ap', label: 'AP' },
           { value: 'honors', label: 'Honors' },
@@ -241,6 +242,7 @@ describe('filterContext helpers', () => {
           {
             key: 'course_level',
             label: 'Course Level',
+            filter_type: 'multi_select',
             options: [
               { value: 'regular', label: 'Regular' },
               { value: 'ap', label: 'AP' },

@@ -25,7 +25,6 @@ import random
 import re
 import sys
 from typing import TYPE_CHECKING, Tuple
-import uuid
 
 # Ensure backend/ is importable when called directly
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -750,7 +749,7 @@ def seed_referral_config(engine, site_mode: str, actor: str = "seed") -> None:
                 """
             ),
             {
-                "id": str(uuid.uuid4()),
+                "id": generate_ulid(),
                 "cap": cap,
                 "actor": actor,
             },

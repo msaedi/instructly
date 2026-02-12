@@ -14,6 +14,7 @@ const TAXONOMY_CONTENT_FILTERS: TaxonomyContentFilterDefinition[] = [
   {
     key: 'goal',
     label: 'Goal',
+    filter_type: 'multi_select',
     options: [
       { value: 'enrichment', label: 'Enrichment' },
       { value: 'competition', label: 'Competition' },
@@ -22,6 +23,7 @@ const TAXONOMY_CONTENT_FILTERS: TaxonomyContentFilterDefinition[] = [
   {
     key: 'style',
     label: 'Style',
+    filter_type: 'multi_select',
     options: [
       { value: 'classical', label: 'Classical' },
       { value: 'jazz', label: 'Jazz' },
@@ -145,6 +147,38 @@ describe('MoreFiltersModal', () => {
     const appliedFilters = onFiltersChange.mock.calls[0][0] as FilterState;
     // The 'goal' key should be deleted from contentFilters
     expect(appliedFilters.contentFilters['goal']).toBeUndefined();
+  });
+
+  it('enforces single_select taxonomy filters', async () => {
+    const user = userEvent.setup();
+    const singleSelectFilters: TaxonomyContentFilterDefinition[] = [
+      {
+        key: 'format',
+        label: 'Format',
+        filter_type: 'single_select',
+        options: [
+          { value: 'one_on_one', label: 'One-on-One' },
+          { value: 'small_group', label: 'Small Group' },
+        ],
+      },
+    ];
+
+    render(
+      <MoreFiltersModal
+        isOpen={true}
+        onClose={onClose}
+        filters={DEFAULT_FILTERS}
+        onFiltersChange={onFiltersChange}
+        taxonomyContentFilters={singleSelectFilters}
+      />
+    );
+
+    await user.click(screen.getByText('One-on-One'));
+    await user.click(screen.getByText('Small Group'));
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    const appliedFilters = onFiltersChange.mock.calls[0][0] as FilterState;
+    expect(appliedFilters.contentFilters['format']).toEqual(['small_group']);
   });
 
   it('clears all filters when Clear All is clicked', async () => {
