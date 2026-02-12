@@ -437,7 +437,9 @@ async def test_search_pipeline_vector_integration(db, test_instructor):
     _set_catalog_embedding(db, slug="piano", vector=embedding)
     service.embedding_service.embed_query = AsyncMock(return_value=embedding)
 
-    response = await service.search("piano lessons", limit=5, include_diagnostics=True)
+    response = await service.search(
+        "piano lessons", limit=5, include_diagnostics=True, budget_ms=5000
+    )
 
     assert response.results
     assert response.meta.diagnostics is not None

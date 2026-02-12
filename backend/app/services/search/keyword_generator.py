@@ -323,7 +323,7 @@ def _build_keyword_dicts(
     # Ensure service and subcategory keys always carry consistent parent category.
     for keyword, subcategory_name in subcategory_keywords.items():
         parent_category_name = subcategory_to_category.get(subcategory_name)
-        if parent_category_name:
+        if parent_category_name and keyword not in category_keywords:
             category_keywords[keyword] = parent_category_name
 
     for keyword, service_name in service_keywords.items():
@@ -331,8 +331,10 @@ def _build_keyword_dicts(
         if parent is None:
             continue
         subcategory_name, category_name = parent
-        subcategory_keywords[keyword] = subcategory_name
-        category_keywords[keyword] = category_name
+        if keyword not in subcategory_keywords:
+            subcategory_keywords[keyword] = subcategory_name
+        if keyword not in category_keywords:
+            category_keywords[keyword] = category_name
 
     return {
         "category_keywords": dict(sorted(category_keywords.items())),
