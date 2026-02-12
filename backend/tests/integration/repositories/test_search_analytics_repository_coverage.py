@@ -171,7 +171,7 @@ def test_nl_search_query_logging(db, test_instructor, test_student):
     query_id = repo.nl_log_search_query(
         original_query="guitar",
         normalized_query={"service": "guitar"},
-        parsing_mode="rules",
+        parsing_mode="regex",
         parsing_latency_ms=12,
         result_count=3,
         top_result_ids=[service.id],

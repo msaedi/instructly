@@ -2,7 +2,16 @@
 
 from typing import Optional
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.sql import func
 import ulid
 
@@ -11,6 +20,12 @@ from ..database import Base
 
 class BetaInvite(Base):
     __tablename__ = "beta_invites"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('instructor_beta', 'student_beta')",
+            name="ck_beta_invites_role",
+        ),
+    )
 
     # ULID primary key
     id: str = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))

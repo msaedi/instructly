@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Optional
 
+from pydantic import ConfigDict
+
 from ._strict_base import StrictModel
 
 
@@ -18,11 +20,17 @@ class NYCZipCheckResponse(StrictModel):
     borough: Optional[str] = None
 
 
-class DeleteResponse(StrictModel):
+class AddressDeleteResponse(StrictModel):
     """Standard delete acknowledgement for address resources."""
+
+    model_config = ConfigDict(title="AddressDeleteResponse")
 
     success: bool
     message: str
+
+
+# Backward-compatible alias for existing imports.
+DeleteResponse = AddressDeleteResponse
 
 
 class NeighborhoodItem(StrictModel):

@@ -334,13 +334,17 @@ class SlotOperation(BaseModel):
         return v
 
 
-class BulkUpdateRequest(StrictRequestModel):
+class AvailabilityWindowBulkUpdateRequest(StrictRequestModel):
     """Request schema for bulk availability update."""
 
     model_config = StrictRequestModel.model_config
 
     operations: List[SlotOperation]
     validate_only: bool = Field(False, description="If true, only validate without making changes")
+
+
+# Backward-compatible alias for existing imports.
+BulkUpdateRequest = AvailabilityWindowBulkUpdateRequest
 
 
 class OperationResult(BaseModel):

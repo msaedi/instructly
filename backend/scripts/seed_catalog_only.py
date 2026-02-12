@@ -243,42 +243,10 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
         stats["total_services"] = len(services)
         session.commit()
 
-        # Second pass: Update related_services (bulk UPDATE)
-        # IMPORTANT: Update ALL services to ensure stale relations are cleared
+        # Legacy related_services column was removed from service_catalog.
+        # Keep parsing YAML unchanged, but skip the old bulk update step.
         if verbose:
-            print("\n🔗 Updating related services...")
-
-        # Build related_services update data for ALL services
-        related_updates = []
-        for svc_data in services:
-            svc_id = slug_to_svc_id.get(svc_data["slug"])
-            if svc_id:
-                # Resolve related service slugs to IDs (may be empty list)
-                related_ids = [
-                    slug_to_svc_id[rs] for rs in svc_data.get("related_services", [])
-                    if rs in slug_to_svc_id
-                ]
-                # Always include - even empty lists to clear stale relations
-                related_updates.append((svc_id, related_ids))
-                if verbose and related_ids:
-                    print(f"  ✓ Updated related services for {svc_data['name']}: {len(related_ids)} connections")
-
-        # Bulk update related_services (1 round trip)
-        if related_updates:
-            # Re-acquire connection after commit
-            connection = session.connection().connection
-            related_sql = """
-                UPDATE service_catalog
-                SET related_services = data.related_services,
-                    updated_at = NOW()
-                FROM (VALUES %s) AS data(id, related_services)
-                WHERE service_catalog.id = data.id
-            """
-            with connection.cursor() as cursor:
-                execute_values(cursor, related_sql, related_updates,
-                               template="(%s, %s::text[])",
-                               page_size=1000)
-            session.commit()
+            print("\n🔗 Skipping related services update (column removed)")
 
     if verbose:
         print("\n📊 Catalog Seeding Summary:")

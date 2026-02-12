@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from ._strict_base import StrictModel, StrictRequestModel
 
@@ -22,10 +22,16 @@ class BookingDetailMeta(StrictModel):
     booking_id: str
 
 
-class ServiceInfo(StrictModel):
+class AdminBookingDetailServiceInfo(StrictModel):
+    model_config = ConfigDict(title="AdminBookingDetailServiceInfo")
+
     slug: str
     name: str
     category: str
+
+
+# Backward-compatible alias for existing imports.
+ServiceInfo = AdminBookingDetailServiceInfo
 
 
 class ParticipantInfo(StrictModel):

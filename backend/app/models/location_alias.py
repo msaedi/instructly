@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     Float,
@@ -36,6 +37,14 @@ class LocationAlias(Base):
     __tablename__ = "location_aliases"
     __table_args__ = (
         UniqueConstraint("city_id", "alias_normalized", name="uq_location_aliases_city_alias"),
+        CheckConstraint(
+            "status IN ('active', 'pending_review', 'deprecated')",
+            name="ck_location_aliases_status",
+        ),
+        CheckConstraint(
+            "source IN ('manual', 'fuzzy', 'embedding', 'llm', 'user_learning')",
+            name="ck_location_aliases_source",
+        ),
     )
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))

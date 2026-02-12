@@ -43,33 +43,23 @@ def seed_roles_and_permissions():
             [
                 Permission(
                     name=PermissionName.MANAGE_OWN_PROFILE,
-                    description="Manage own profile information",
-                    resource="profile",
-                    action="manage",
+                    description="Manage own profile information"
                 ),
                 Permission(
                     name=PermissionName.VIEW_OWN_BOOKINGS,
-                    description="View own bookings",
-                    resource="bookings",
-                    action="view",
+                    description="View own bookings"
                 ),
                 Permission(
                     name=PermissionName.VIEW_OWN_SEARCH_HISTORY,
-                    description="View own search history",
-                    resource="search",
-                    action="view",
+                    description="View own search history"
                 ),
                 Permission(
                     name=PermissionName.CHANGE_OWN_PW,
-                    description="Change own password",
-                    resource="account",
-                    action="update",
+                    description="Change own password"
                 ),
                 Permission(
                     name=PermissionName.DELETE_OWN_ACCOUNT,
-                    description="Delete own account",
-                    resource="account",
-                    action="delete",
+                    description="Delete own account"
                 ),
             ]
         )
@@ -79,45 +69,31 @@ def seed_roles_and_permissions():
             [
                 Permission(
                     name=PermissionName.VIEW_INSTRUCTORS,
-                    description="View instructor profiles",
-                    resource="instructors",
-                    action="view",
+                    description="View instructor profiles"
                 ),
                 Permission(
                     name=PermissionName.VIEW_INSTRUCTOR_AVAILABILITY,
-                    description="View instructor availability",
-                    resource="availability",
-                    action="view",
+                    description="View instructor availability"
                 ),
                 Permission(
                     name=PermissionName.CREATE_BOOKINGS,
-                    description="Create new bookings",
-                    resource="bookings",
-                    action="create",
+                    description="Create new bookings"
                 ),
                 Permission(
                     name=PermissionName.CANCEL_OWN_BOOKINGS,
-                    description="Cancel own bookings",
-                    resource="bookings",
-                    action="cancel",
+                    description="Cancel own bookings"
                 ),
                 Permission(
                     name=PermissionName.VIEW_BOOKING_DETAILS,
-                    description="View booking details",
-                    resource="bookings",
-                    action="view",
+                    description="View booking details"
                 ),
                 Permission(
                     name=PermissionName.SEND_MESSAGES,
-                    description="Send messages in booking chats",
-                    resource="messages",
-                    action="send",
+                    description="Send messages in booking chats"
                 ),
                 Permission(
                     name=PermissionName.VIEW_MESSAGES,
-                    description="View messages in booking chats",
-                    resource="messages",
-                    action="view",
+                    description="View messages in booking chats"
                 ),
             ]
         )
@@ -127,51 +103,35 @@ def seed_roles_and_permissions():
             [
                 Permission(
                     name=PermissionName.MANAGE_INSTRUCTOR_PROFILE,
-                    description="Manage instructor profile",
-                    resource="instructor_profile",
-                    action="manage",
+                    description="Manage instructor profile"
                 ),
                 Permission(
                     name=PermissionName.MANAGE_SERVICES,
-                    description="Manage offered services",
-                    resource="services",
-                    action="manage",
+                    description="Manage offered services"
                 ),
                 Permission(
                     name=PermissionName.MANAGE_AVAILABILITY,
-                    description="Manage availability schedule",
-                    resource="availability",
-                    action="manage",
+                    description="Manage availability schedule"
                 ),
                 Permission(
                     name=PermissionName.VIEW_INCOMING_BOOKINGS,
-                    description="View incoming bookings",
-                    resource="bookings",
-                    action="view",
+                    description="View incoming bookings"
                 ),
                 Permission(
                     name=PermissionName.COMPLETE_BOOKINGS,
-                    description="Mark bookings as completed",
-                    resource="bookings",
-                    action="complete",
+                    description="Mark bookings as completed"
                 ),
                 Permission(
                     name=PermissionName.CANCEL_STUDENT_BOOKINGS,
-                    description="Cancel student bookings",
-                    resource="bookings",
-                    action="cancel",
+                    description="Cancel student bookings"
                 ),
                 Permission(
                     name=PermissionName.VIEW_OWN_INSTRUCTOR_ANALYTICS,
-                    description="View own instructor analytics",
-                    resource="analytics",
-                    action="view",
+                    description="View own instructor analytics"
                 ),
                 Permission(
                     name=PermissionName.SUSPEND_OWN_INSTRUCTOR_ACCOUNT,
-                    description="Suspend own instructor account",
-                    resource="account",
-                    action="suspend",
+                    description="Suspend own instructor account"
                 ),
             ]
         )
@@ -181,90 +141,64 @@ def seed_roles_and_permissions():
             [
                 Permission(
                     name=PermissionName.ADMIN_READ,
-                    description="Read admin configuration and dashboards",
-                    resource="admin",
-                    action="read",
+                    description="Read admin configuration and dashboards"
                 ),
                 Permission(
                     name=PermissionName.ADMIN_MANAGE,
-                    description="Manage admin configuration and settings",
-                    resource="admin",
-                    action="manage",
+                    description="Manage admin configuration and settings"
                 ),
                 Permission(
                     name=PermissionName.MCP_ACCESS,
-                    description="Access MCP admin operations",
-                    resource="mcp",
-                    action="access",
+                    description="Access MCP admin operations"
                 ),
                 Permission(
-                    name=PermissionName.VIEW_ALL_USERS, description="View all users", resource="users", action="view"
+                    name=PermissionName.VIEW_ALL_USERS, description="View all users"
                 ),
                 Permission(
-                    name=PermissionName.MANAGE_USERS, description="Manage all users", resource="users", action="manage"
+                    name=PermissionName.MANAGE_USERS, description="Manage all users"
                 ),
                 Permission(
                     name=PermissionName.VIEW_SYSTEM_ANALYTICS,
-                    description="View system-wide analytics",
-                    resource="analytics",
-                    action="view",
+                    description="View system-wide analytics"
                 ),
                 Permission(
                     name=PermissionName.EXPORT_ANALYTICS,
-                    description="Export analytics data",
-                    resource="analytics",
-                    action="export",
+                    description="Export analytics data"
                 ),
                 Permission(
                     name=PermissionName.VIEW_ALL_BOOKINGS,
-                    description="View all bookings",
-                    resource="bookings",
-                    action="view",
+                    description="View all bookings"
                 ),
                 Permission(
                     name=PermissionName.MANAGE_ALL_BOOKINGS,
-                    description="Manage all bookings",
-                    resource="bookings",
-                    action="manage",
+                    description="Manage all bookings"
                 ),
                 Permission(
                     name=PermissionName.ACCESS_MONITORING,
-                    description="Access monitoring endpoints",
-                    resource="monitoring",
-                    action="access",
+                    description="Access monitoring endpoints"
                 ),
                 Permission(
                     name=PermissionName.MODERATE_CONTENT,
-                    description="Moderate user content",
-                    resource="content",
-                    action="moderate",
+                    description="Moderate user content"
                 ),
                 Permission(
                     name=PermissionName.MODERATE_MESSAGES,
-                    description="Moderate chat messages",
-                    resource="messages",
-                    action="moderate",
+                    description="Moderate chat messages"
                 ),
                 Permission(
                     name=PermissionName.VIEW_FINANCIALS,
-                    description="View financial data",
-                    resource="financials",
-                    action="view",
+                    description="View financial data"
                 ),
                 Permission(
                     name=PermissionName.MANAGE_FINANCIALS,
-                    description="Manage financial data",
-                    resource="financials",
-                    action="manage",
+                    description="Manage financial data"
                 ),
                 Permission(
-                    name=PermissionName.MANAGE_ROLES, description="Manage user roles", resource="roles", action="manage"
+                    name=PermissionName.MANAGE_ROLES, description="Manage user roles"
                 ),
                 Permission(
                     name=PermissionName.MANAGE_PERMISSIONS,
-                    description="Manage permissions",
-                    resource="permissions",
-                    action="manage",
+                    description="Manage permissions"
                 ),
             ]
         )

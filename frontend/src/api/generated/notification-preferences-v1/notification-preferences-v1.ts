@@ -22,8 +22,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  AppSchemasNotificationPreferencesBulkUpdateRequest,
   HTTPValidationError,
+  NotificationPreferencesBulkUpdateRequest,
   PreferenceResponse,
   PreferencesByCategory,
   UpdatePreferenceRequest,
@@ -191,7 +191,7 @@ export const getUpdatePreferencesBulkApiV1NotificationPreferencesPutUrl = () => 
 };
 
 export const updatePreferencesBulkApiV1NotificationPreferencesPut = async (
-  appSchemasNotificationPreferencesBulkUpdateRequest: AppSchemasNotificationPreferencesBulkUpdateRequest,
+  notificationPreferencesBulkUpdateRequest: NotificationPreferencesBulkUpdateRequest,
   options?: RequestInit
 ): Promise<PreferenceResponse[]> => {
   return customFetch<PreferenceResponse[]>(
@@ -200,7 +200,7 @@ export const updatePreferencesBulkApiV1NotificationPreferencesPut = async (
       ...options,
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...options?.headers },
-      body: JSON.stringify(appSchemasNotificationPreferencesBulkUpdateRequest),
+      body: JSON.stringify(notificationPreferencesBulkUpdateRequest),
     }
   );
 };
@@ -212,14 +212,14 @@ export const getUpdatePreferencesBulkApiV1NotificationPreferencesPutMutationOpti
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updatePreferencesBulkApiV1NotificationPreferencesPut>>,
     TError,
-    { data: AppSchemasNotificationPreferencesBulkUpdateRequest },
+    { data: NotificationPreferencesBulkUpdateRequest },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof updatePreferencesBulkApiV1NotificationPreferencesPut>>,
   TError,
-  { data: AppSchemasNotificationPreferencesBulkUpdateRequest },
+  { data: NotificationPreferencesBulkUpdateRequest },
   TContext
 > => {
   const mutationKey = ['updatePreferencesBulkApiV1NotificationPreferencesPut'];
@@ -231,7 +231,7 @@ export const getUpdatePreferencesBulkApiV1NotificationPreferencesPutMutationOpti
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof updatePreferencesBulkApiV1NotificationPreferencesPut>>,
-    { data: AppSchemasNotificationPreferencesBulkUpdateRequest }
+    { data: NotificationPreferencesBulkUpdateRequest }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -245,7 +245,7 @@ export type UpdatePreferencesBulkApiV1NotificationPreferencesPutMutationResult =
   Awaited<ReturnType<typeof updatePreferencesBulkApiV1NotificationPreferencesPut>>
 >;
 export type UpdatePreferencesBulkApiV1NotificationPreferencesPutMutationBody =
-  AppSchemasNotificationPreferencesBulkUpdateRequest;
+  NotificationPreferencesBulkUpdateRequest;
 export type UpdatePreferencesBulkApiV1NotificationPreferencesPutMutationError =
   ErrorType<HTTPValidationError>;
 
@@ -260,7 +260,7 @@ export const useUpdatePreferencesBulkApiV1NotificationPreferencesPut = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof updatePreferencesBulkApiV1NotificationPreferencesPut>>,
       TError,
-      { data: AppSchemasNotificationPreferencesBulkUpdateRequest },
+      { data: NotificationPreferencesBulkUpdateRequest },
       TContext
     >;
     request?: SecondParameter<typeof customFetch>;
@@ -269,7 +269,7 @@ export const useUpdatePreferencesBulkApiV1NotificationPreferencesPut = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof updatePreferencesBulkApiV1NotificationPreferencesPut>>,
   TError,
-  { data: AppSchemasNotificationPreferencesBulkUpdateRequest },
+  { data: NotificationPreferencesBulkUpdateRequest },
   TContext
 > => {
   return useMutation(

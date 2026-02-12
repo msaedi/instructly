@@ -950,9 +950,7 @@ def _ensure_rbac_roles():
         # Create all permissions
         permissions = {}
         for perm_name in PermissionName:
-            perm = Permission(
-                name=perm_name.value, description=f"Permission for {perm_name.value.replace('_', ' ')}", resource="*"
-            )
+            perm = Permission(name=perm_name.value, description=f"Permission for {perm_name.value.replace('_', ' ')}")
             session.add(perm)
             permissions[perm_name.value] = perm
 

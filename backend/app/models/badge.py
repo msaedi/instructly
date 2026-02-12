@@ -12,6 +12,7 @@ from typing import Optional
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
@@ -74,6 +75,10 @@ class StudentBadge(Base):
             "student_id",
             "badge_id",
             name="uq_student_badges_student_badge",
+        ),
+        CheckConstraint(
+            "status IN ('pending','confirmed','revoked')",
+            name="ck_student_badges_status",
         ),
     )
 

@@ -26,7 +26,6 @@ import type {
   CreateCheckoutRequest,
   CreditBalanceResponse,
   DashboardLinkResponse,
-  DeleteResponse,
   EarningsExportRequest,
   EarningsResponse,
   GetInstructorPayoutsApiV1PaymentsPayoutsGetParams,
@@ -37,6 +36,7 @@ import type {
   InstantPayoutResponse,
   OnboardingResponse,
   OnboardingStatusResponse,
+  PaymentDeleteResponse,
   PaymentMethodResponse,
   PayoutHistoryResponse,
   PayoutScheduleResponse,
@@ -1628,8 +1628,8 @@ export const getDeletePaymentMethodApiV1PaymentsMethodsMethodIdDeleteUrl = (meth
 export const deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete = async (
   methodId: string,
   options?: RequestInit
-): Promise<DeleteResponse> => {
-  return customFetch<DeleteResponse>(
+): Promise<PaymentDeleteResponse> => {
+  return customFetch<PaymentDeleteResponse>(
     getDeletePaymentMethodApiV1PaymentsMethodsMethodIdDeleteUrl(methodId),
     {
       ...options,

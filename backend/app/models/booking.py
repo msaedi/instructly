@@ -146,7 +146,12 @@ class Booking(Base):
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=func.now(),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
     confirmed_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
@@ -507,6 +512,23 @@ class Booking(Base):
             "'scheduled','authorized','payment_method_required','manual_review','locked','settled'"
             ")",
             name="ck_bookings_payment_status",
+        ),
+        CheckConstraint(
+            "no_show_type IS NULL OR no_show_type IN ('instructor', 'student')",
+            name="ck_bookings_no_show_type",
+        ),
+        CheckConstraint(
+            "lock_resolution IS NULL OR lock_resolution IN ("
+            "'new_lesson_completed',"
+            "'new_lesson_cancelled_ge12',"
+            "'new_lesson_cancelled_lt12',"
+            "'instructor_cancelled',"
+            "'completed',"
+            "'cancelled_by_student',"
+            "'cancelled_by_instructor',"
+            "'expired'"
+            ")",
+            name="ck_bookings_lock_resolution",
         ),
     ]
 

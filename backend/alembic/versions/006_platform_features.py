@@ -287,7 +287,12 @@ def upgrade() -> None:
         )
     op.create_index("ix_user_addresses_postal_code", "user_addresses", ["postal_code"])
     op.create_check_constraint(
-        "ck_user_addresses_label_values",
+        "ck_user_addresses_verification_status",
+        "user_addresses",
+        "verification_status IN ('unverified', 'verified')",
+    )
+    op.create_check_constraint(
+        "ck_user_addresses_label",
         "user_addresses",
         "label IS NULL OR label IN ('home','work','other')",
     )
@@ -649,6 +654,10 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.CheckConstraint("amount_cents >= 0", name="ck_platform_credits_amount_positive"),
         sa.CheckConstraint("reserved_amount_cents >= 0", name="ck_platform_credits_reserved_positive"),
+        sa.CheckConstraint(
+            "status IN ('pending', 'available', 'reserved', 'applied', 'forfeited', 'expired', 'frozen', 'revoked')",
+            name="ck_platform_credits_status",
+        ),
         comment="Credits issued from cancellations, usable on future bookings",
     )
     op.create_index("idx_platform_credits_user_id", "platform_credits", ["user_id"])
@@ -684,6 +693,10 @@ def upgrade() -> None:
         sa.Column("metadata", sa.JSON(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("code", name="uq_beta_invites_code"),
+        sa.CheckConstraint(
+            "role IN ('instructor_beta', 'student_beta')",
+            name="ck_beta_invites_role",
+        ),
     )
     op.create_index("ix_beta_invites_code", "beta_invites", ["code"])
     op.create_index("ix_beta_invites_email", "beta_invites", ["email"])
@@ -728,6 +741,10 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("notified_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint(
+            "severity IN ('critical', 'warning', 'info')",
+            name="ck_alert_history_severity",
+        ),
     )
     op.create_index("ix_alert_history_created_at", "alert_history", ["created_at"])
     op.create_index("ix_alert_history_created", "alert_history", ["created_at"])
@@ -974,6 +991,10 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint(
+            "status IN ('queued', 'processing', 'running', 'failed', 'completed', 'succeeded')",
+            name="ck_background_jobs_status",
+        ),
     )
     op.create_index(
         "ix_background_jobs_status_available",
@@ -1186,6 +1207,22 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["created_by_id"], ["users.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint(
+            "visibility IN ('internal', 'shared', 'shared_with_instructor', 'shared_with_student')",
+            name="ck_booking_notes_visibility",
+        ),
+        sa.CheckConstraint(
+            "category IN ("
+            "'general',"
+            "'cancellation',"
+            "'dispute',"
+            "'payment',"
+            "'support_interaction',"
+            "'fraud_flag',"
+            "'quality_issue'"
+            ")",
+            name="ck_booking_notes_category",
+        ),
         comment="Admin notes attached to bookings",
     )
     op.create_index("idx_booking_notes_booking_id", "booking_notes", ["booking_id"])
@@ -1330,6 +1367,8 @@ def downgrade() -> None:
     op.drop_index("idx_booking_notes_created_at", table_name="booking_notes")
     op.drop_index("idx_booking_notes_created_by_id", table_name="booking_notes")
     op.drop_index("idx_booking_notes_booking_id", table_name="booking_notes")
+    op.drop_constraint("ck_booking_notes_category", "booking_notes", type_="check")
+    op.drop_constraint("ck_booking_notes_visibility", "booking_notes", type_="check")
     op.drop_table("booking_notes")
 
     op.drop_column("bookings", "reminder_1h_sent")
@@ -1381,6 +1420,7 @@ def downgrade() -> None:
     op.drop_index("ix_background_jobs_status_available", table_name="background_jobs")
     with op.get_context().autocommit_block():
         op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_background_jobs_pending")
+    op.drop_constraint("ck_background_jobs_status", "background_jobs", type_="check")
     op.drop_table("background_jobs")
 
     op.drop_index("ix_push_subscriptions_user_id", table_name="push_subscriptions")
@@ -1407,6 +1447,7 @@ def downgrade() -> None:
     op.drop_index("ix_alert_history_alert_type", table_name="alert_history")
     op.execute("DROP INDEX IF EXISTS ix_alert_history_created")
     op.drop_index("ix_alert_history_created_at", table_name="alert_history")
+    op.drop_constraint("ck_alert_history_severity", "alert_history", type_="check")
     op.drop_table("alert_history")
 
     op.drop_index("ix_webhook_events_related_entity", table_name="webhook_events")
@@ -1423,6 +1464,7 @@ def downgrade() -> None:
     op.drop_table("beta_access")
     op.drop_index("ix_beta_invites_email", table_name="beta_invites")
     op.drop_index("ix_beta_invites_code", table_name="beta_invites")
+    op.drop_constraint("ck_beta_invites_role", "beta_invites", type_="check")
     op.drop_constraint("uq_beta_invites_code", "beta_invites", type_="unique")
     op.drop_table("beta_invites")
 
@@ -1434,6 +1476,7 @@ def downgrade() -> None:
     op.drop_index("idx_platform_credits_used_booking_id", table_name="platform_credits")
     op.drop_index("idx_platform_credits_source_booking_id", table_name="platform_credits")
     op.drop_index("idx_platform_credits_user_id", table_name="platform_credits")
+    op.drop_constraint("ck_platform_credits_status", "platform_credits", type_="check")
     op.drop_table("platform_credits")
 
     op.drop_index(
@@ -1482,7 +1525,8 @@ def downgrade() -> None:
     op.drop_table("badge_definitions")
 
     op.drop_constraint("ck_user_addresses_other_label_has_custom", "user_addresses", type_="check")
-    op.drop_constraint("ck_user_addresses_label_values", "user_addresses", type_="check")
+    op.drop_constraint("ck_user_addresses_label", "user_addresses", type_="check")
+    op.drop_constraint("ck_user_addresses_verification_status", "user_addresses", type_="check")
     op.drop_index("ix_user_addresses_postal_code", table_name="user_addresses")
     if is_postgres:
         op.drop_index("uq_user_default_address", table_name="user_addresses")

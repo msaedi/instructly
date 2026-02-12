@@ -6,7 +6,7 @@ This model tracks how users interact with search results, including clicks,
 hovers, bookmarks, and other engagement metrics.
 """
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import CheckConstraint, Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import ulid
@@ -59,12 +59,15 @@ class SearchInteraction(Base):
 
     # Timing metrics
     time_to_interaction = Column(Float, nullable=True, comment="Seconds from search to interaction")
-    interaction_duration = Column(
-        Float, nullable=True, comment="Duration of interaction in seconds (e.g., hover time)"
-    )
-
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "interaction_type IN ('view', 'click', 'hover', 'bookmark', 'view_profile', 'contact', 'book')",
+            name="ck_search_interactions_type",
+        ),
+    )
 
     # Relationships
     search_event = relationship("SearchEvent", backref="interactions")

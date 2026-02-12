@@ -1174,8 +1174,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         # Build values list with all supported columns
         # Order: service_catalog_id, booking_count_7d, booking_count_30d, active_instructors,
         #        total_weekly_hours, avg_price_booked_cents, p25_cents, p50_cents, p75_cents,
-        #        most_booked_duration, duration_distribution, completion_rate,
-        #        peak_hours, peak_days, supply_demand_ratio, last_calculated
+        #        most_booked_duration, completion_rate, supply_demand_ratio, last_calculated
         def _money_to_cents(value: Any) -> int:
             if value is None:
                 return 0
@@ -1207,10 +1206,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
                         _money_to_cents(u.get("price_percentile_75")),
                     ),
                     u.get("most_booked_duration"),
-                    u.get("duration_distribution"),
                     u.get("completion_rate"),
-                    u.get("peak_hours"),
-                    u.get("peak_days"),
                     u.get("supply_demand_ratio"),
                     u.get("last_calculated"),
                 )
@@ -1228,18 +1224,14 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
                 price_percentile_50_cents = v.price_percentile_50_cents,
                 price_percentile_75_cents = v.price_percentile_75_cents,
                 most_booked_duration = v.most_booked_duration,
-                duration_distribution = v.duration_distribution,
                 completion_rate = v.completion_rate,
-                peak_hours = v.peak_hours,
-                peak_days = v.peak_days,
                 supply_demand_ratio = v.supply_demand_ratio,
                 last_calculated = v.last_calculated
             FROM (VALUES %s) AS v(
                 service_catalog_id, booking_count_7d, booking_count_30d,
                 active_instructors, total_weekly_hours, avg_price_booked_cents,
                 price_percentile_25_cents, price_percentile_50_cents, price_percentile_75_cents,
-                most_booked_duration, duration_distribution, completion_rate,
-                peak_hours, peak_days, supply_demand_ratio, last_calculated
+                most_booked_duration, completion_rate, supply_demand_ratio, last_calculated
             )
             WHERE t.service_catalog_id = v.service_catalog_id
         """
@@ -1247,7 +1239,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         template = """(
             %s, %s::integer, %s::integer, %s::integer, %s::float,
             %s::integer, %s::integer, %s::integer, %s::integer,
-            %s::integer, %s::json, %s::float, %s::json, %s::json, %s::float,
+            %s::integer, %s::float, %s::float,
             %s::timestamptz
         )"""
 

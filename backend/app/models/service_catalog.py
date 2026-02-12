@@ -78,7 +78,7 @@ class ServiceCategory(Base):
     meta_title = Column(String(200), nullable=True)
     meta_description = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     subcategories = relationship(
@@ -157,7 +157,6 @@ class ServiceCatalog(Base):
         eligible_age_groups: Age groups this service is available for
         display_order: Order for UI display
         embedding: Vector embedding for semantic search
-        related_services: Array of related service IDs
         online_capable: Whether this service can be offered online
         requires_certification: Whether instructors need certification
         is_active: Whether this service is available
@@ -198,12 +197,11 @@ class ServiceCatalog(Base):
     embedding_model_version = Column(Text, nullable=True)  # e.g., "2024-01"
     embedding_updated_at = Column(DateTime(timezone=True), nullable=True)
     embedding_text_hash = Column(Text, nullable=True)  # Hash of text used for embedding
-    related_services: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     online_capable = Column(Boolean, nullable=False, default=True, index=True)
     requires_certification = Column(Boolean, nullable=False, default=False)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     subcategory = relationship("ServiceSubcategory", back_populates="services")
@@ -292,7 +290,6 @@ class ServiceCatalog(Base):
             "actual_min_price": min_price,
             "actual_max_price": max_price,
             "display_order": self.display_order,
-            "related_services": self.related_services,
             "online_capable": self.online_capable,
             "requires_certification": self.requires_certification,
             "is_active": self.is_active,
@@ -379,7 +376,7 @@ class InstructorService(Base):
     offers_online = Column(Boolean, nullable=False, default=True)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index(
@@ -520,10 +517,6 @@ class ServiceAnalytics(Base):
     price_percentile_50_cents = Column(Integer, nullable=False, default=0)
     price_percentile_75_cents = Column(Integer, nullable=False, default=0)
     most_booked_duration = Column(Integer, nullable=True)
-    duration_distribution = Column(Text, nullable=True)  # JSON stored as text
-    peak_hours = Column(Text, nullable=True)  # JSON stored as text
-    peak_days = Column(Text, nullable=True)  # JSON stored as text
-    seasonality_index = Column(Text, nullable=True)  # JSON stored as text
     avg_rating = Column(Float, nullable=True)
     completion_rate = Column(Float, nullable=True)
     active_instructors = Column(Integer, nullable=False, default=0)

@@ -497,14 +497,18 @@ class InstructorInfo(StandardizedModel):
         )
 
 
-class ServiceInfo(StandardizedModel):
+class BookingServiceInfo(StandardizedModel):
     """Basic service information for booking display."""
+
+    model_config = ConfigDict(from_attributes=True, title="BookingServiceInfo")
 
     id: str
     name: str  # From catalog
     description: Optional[str]
 
-    model_config = ConfigDict(from_attributes=True)
+
+# Backward-compatible alias for existing imports.
+ServiceInfo = BookingServiceInfo
 
 
 class PaymentSummary(StandardizedModel):

@@ -54,6 +54,14 @@ export interface AddressCreate {
   verification_status?: string | null;
 }
 
+/**
+ * Standard delete acknowledgement for address resources.
+ */
+export interface AddressDeleteResponse {
+  message: string;
+  success: boolean;
+}
+
 export type AddressResponseLocationMetadata = { [key: string]: unknown } | null;
 
 export interface AddressResponse {
@@ -226,6 +234,12 @@ export interface AdminBookingDetailResponse {
   student_timezone?: string | null;
   timeline: AdminBookingTimelineEvent[];
   updated_at?: string | null;
+}
+
+export interface AdminBookingDetailServiceInfo {
+  category: string;
+  name: string;
+  slug: string;
 }
 
 export interface AdminBookingListItem {
@@ -1377,6 +1391,34 @@ export interface AvailabilityMetrics {
   availability_total_requests?: number;
 }
 
+export type SlotOperationAction = (typeof SlotOperationAction)[keyof typeof SlotOperationAction];
+
+export const SlotOperationAction = {
+  add: 'add',
+  remove: 'remove',
+  update: 'update',
+} as const;
+
+/**
+ * Schema for a single slot operation in bulk update.
+ */
+export interface SlotOperation {
+  action: SlotOperationAction;
+  date?: string | null;
+  end_time?: string | null;
+  slot_id?: string | null;
+  start_time?: string | null;
+}
+
+/**
+ * Request schema for bulk availability update.
+ */
+export interface AvailabilityWindowBulkUpdateRequest {
+  operations: SlotOperation[];
+  /** If true, only validate without making changes */
+  validate_only?: boolean;
+}
+
 /**
  * Response schema for availability windows.
 Clean Architecture: Only meaningful fields for single-table design.
@@ -1632,6 +1674,18 @@ export interface BalanceMetrics {
 }
 
 /**
+ * Standard response for delete operations.
+ */
+export interface BaseDeleteResponse {
+  /** Deletion timestamp */
+  deleted_at?: string;
+  /** Human-readable deletion message */
+  message: string;
+  /** Deletion success status */
+  success?: boolean;
+}
+
+/**
  * Basic cache statistics.
  */
 export interface BasicCacheStats {
@@ -1879,7 +1933,7 @@ export interface InstructorInfo {
 /**
  * Basic service information for booking display.
  */
-export interface ServiceInfo {
+export interface BookingServiceInfo {
   description: string | null;
   id: string;
   name: string;
@@ -1963,7 +2017,7 @@ export interface BookingCreateResponse {
   instructor_id: string;
   instructor_note: string | null;
   instructor_payout_amount?: number | null;
-  instructor_service: ServiceInfo;
+  instructor_service: BookingServiceInfo;
   instructor_service_id: string;
   instructor_timezone?: string | null;
   lesson_timezone?: string | null;
@@ -2018,12 +2072,6 @@ export interface ParticipantInfo {
   name: string;
 }
 
-export interface AppSchemasAdminBookingDetailServiceInfo {
-  category: string;
-  name: string;
-  slug: string;
-}
-
 export interface BookingInfo {
   created_at: string;
   duration_minutes: number;
@@ -2031,7 +2079,7 @@ export interface BookingInfo {
   instructor: ParticipantInfo;
   location_type: string;
   scheduled_at: string;
-  service: AppSchemasAdminBookingDetailServiceInfo;
+  service: AdminBookingDetailServiceInfo;
   status: string;
   student: ParticipantInfo;
   updated_at: string;
@@ -2270,7 +2318,7 @@ export interface BookingResponse {
   instructor_id: string;
   instructor_note: string | null;
   instructor_payout_amount?: number | null;
-  instructor_service: ServiceInfo;
+  instructor_service: BookingServiceInfo;
   instructor_service_id: string;
   instructor_timezone?: string | null;
   lesson_timezone?: string | null;
@@ -2454,34 +2502,6 @@ export interface BulkNotificationPreviewResponse {
   rendered_content: RenderedContent;
   sample_recipients?: RecipientSample[];
   warnings?: string[];
-}
-
-export type SlotOperationAction = (typeof SlotOperationAction)[keyof typeof SlotOperationAction];
-
-export const SlotOperationAction = {
-  add: 'add',
-  remove: 'remove',
-  update: 'update',
-} as const;
-
-/**
- * Schema for a single slot operation in bulk update.
- */
-export interface SlotOperation {
-  action: SlotOperationAction;
-  date?: string | null;
-  end_time?: string | null;
-  slot_id?: string | null;
-  start_time?: string | null;
-}
-
-/**
- * Request schema for bulk availability update.
- */
-export interface BulkUpdateRequest {
-  operations: SlotOperation[];
-  /** If true, only validate without making changes */
-  validate_only?: boolean;
 }
 
 export type OperationResultStatus =
@@ -3414,11 +3434,6 @@ export interface DeleteMessageResponse {
   /** Success message */
   message?: string;
   success?: boolean;
-}
-
-export interface DeleteResponse {
-  /** Whether deletion was successful */
-  success: boolean;
 }
 
 export interface DeleteWindowResponse {
@@ -5862,6 +5877,22 @@ export interface NotificationListResponse {
 }
 
 /**
+ * Single preference update for bulk requests.
+ */
+export interface PreferenceUpdate {
+  category: string;
+  channel: string;
+  enabled: boolean;
+}
+
+/**
+ * Bulk preference update request.
+ */
+export interface NotificationPreferencesBulkUpdateRequest {
+  updates: PreferenceUpdate[];
+}
+
+/**
  * Simple status response for notification actions.
  */
 export interface NotificationStatusResponse {
@@ -6067,6 +6098,11 @@ export interface PasswordResetResponse {
 
 export interface PasswordResetVerifyResponse {
   [key: string]: unknown;
+}
+
+export interface PaymentDeleteResponse {
+  /** Whether deletion was successful */
+  success: boolean;
 }
 
 /**
@@ -6443,15 +6479,6 @@ export interface PreferenceResponse {
   enabled: boolean;
   id: string;
   locked: boolean;
-}
-
-/**
- * Single preference update for bulk requests.
- */
-export interface PreferenceUpdate {
-  category: string;
-  channel: string;
-  enabled: boolean;
 }
 
 export type PreferencesByCategoryLearningTips = { [key: string]: boolean };
@@ -8745,33 +8772,6 @@ export interface ZeroResultQueryItem {
 export interface ZeroResultQueriesResponse {
   /** Zero-result queries */
   queries: ZeroResultQueryItem[];
-}
-
-/**
- * Standard delete acknowledgement for address resources.
- */
-export interface AppSchemasAddressResponsesDeleteResponse {
-  message: string;
-  success: boolean;
-}
-
-/**
- * Standard response for delete operations.
- */
-export interface AppSchemasBaseResponsesDeleteResponse {
-  /** Deletion timestamp */
-  deleted_at?: string;
-  /** Human-readable deletion message */
-  message: string;
-  /** Deletion success status */
-  success?: boolean;
-}
-
-/**
- * Bulk preference update request.
- */
-export interface AppSchemasNotificationPreferencesBulkUpdateRequest {
-  updates: PreferenceUpdate[];
 }
 
 export type GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams = {

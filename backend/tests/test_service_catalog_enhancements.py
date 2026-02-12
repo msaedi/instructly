@@ -597,7 +597,6 @@ class TestEnhancedModels:
             search_terms=["enhanced", "test"],
             display_order=1,
             embedding=[0.1] * 384,
-            related_services=[],
             online_capable=True,
             requires_certification=False,
             is_active=True,

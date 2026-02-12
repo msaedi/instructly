@@ -2,7 +2,15 @@
 
 from typing import Any
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import ulid
@@ -32,6 +40,10 @@ class ConversationUserState(Base):
     __table_args__ = (
         UniqueConstraint(
             "user_id", "conversation_id", name="uq_conversation_user_state_user_conversation"
+        ),
+        CheckConstraint(
+            "state IN ('active', 'archived', 'trashed')",
+            name="ck_conversation_user_state_state",
         ),
         Index("ix_conversation_user_state_user_state", "user_id", "state"),
     )

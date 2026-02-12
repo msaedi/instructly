@@ -78,8 +78,6 @@ class Permission(Base):
         id: Primary key
         name: Unique permission name (e.g., 'view_analytics')
         description: Human-readable description
-        resource: The resource this permission applies to (e.g., 'analytics')
-        action: The action allowed (e.g., 'view', 'create', 'update', 'delete')
         created_at: Permission creation timestamp
 
     Relationships:
@@ -91,8 +89,6 @@ class Permission(Base):
     id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
-    resource: Mapped[Optional[str]] = mapped_column(String(50))
-    action: Mapped[Optional[str]] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
@@ -113,7 +109,6 @@ class UserRole(Base):
     Attributes:
         user_id: Foreign key to users table
         role_id: Foreign key to roles table
-        assigned_at: Timestamp when the role was assigned
     """
 
     __tablename__ = "user_roles"
@@ -123,9 +118,6 @@ class UserRole(Base):
     )
     role_id: Mapped[str] = mapped_column(
         String(26), ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
-    )
-    assigned_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
     )
 
 

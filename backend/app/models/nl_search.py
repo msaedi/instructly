@@ -15,11 +15,12 @@ Tables:
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Column,
     Date,
     DateTime,
@@ -30,12 +31,11 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import ulid
 
 from ..database import Base
-from .types import StringArrayType
 
 # Cross-database compatible JSON type
 json_type = JSONB(astext_type=Text()).with_variant(JSON(), "sqlite")
@@ -55,9 +55,7 @@ class SearchQuery(Base):
         parsing_mode: How the query was parsed ('regex', 'llm', 'hybrid')
         parsing_latency_ms: Time to parse the query in milliseconds
         result_count: Number of results returned
-        top_result_ids: Array of top result service IDs
         user_id: Optional user who made the search
-        session_id: Session identifier for anonymous users
         total_latency_ms: Total search time in milliseconds
         cache_hit: Whether results came from cache
         degraded: Whether search ran in degraded mode
@@ -72,19 +70,24 @@ class SearchQuery(Base):
     parsing_mode = Column(Text, nullable=False)  # 'regex', 'llm', 'hybrid'
     parsing_latency_ms = Column(Integer, nullable=False)
     result_count = Column(Integer, nullable=False)
-    top_result_ids: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     user_id = Column(
         String(26),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    session_id = Column(Text, nullable=True)
     total_latency_ms = Column(Integer, nullable=False)
     cache_hit = Column(Boolean, nullable=False, default=False, server_default="false")
     degraded = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "parsing_mode IN ('regex', 'llm', 'hybrid')",
+            name="ck_search_queries_parsing_mode",
+        ),
     )
 
     # Relationships
@@ -137,6 +140,13 @@ class SearchClick(Base):
     position = Column(Integer, nullable=False)  # 1-indexed position in results
     action = Column(Text, nullable=False)  # 'view', 'book', 'message', 'favorite'
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "action IN ('view', 'book', 'message', 'favorite')",
+            name="ck_search_clicks_action",
+        ),
+    )
 
     # Relationships
     search_query = relationship("SearchQuery", back_populates="clicks")

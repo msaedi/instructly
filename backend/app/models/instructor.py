@@ -174,7 +174,7 @@ class InstructorProfile(Base):
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # NL Search ranking signals
     last_active_at = Column(DateTime(timezone=True), nullable=True)  # Last login/activity
@@ -465,6 +465,10 @@ class BackgroundJob(Base):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "status IN ('queued', 'processing', 'running', 'failed', 'completed', 'succeeded')",
+            name="ck_background_jobs_status",
+        ),
         # Primary index for fetch_due() - most frequent query (Celery beat polling)
         Index("ix_background_jobs_status_available", "status", "available_at"),
         # Secondary index for type-based lookups (get_next_scheduled, get_pending_final_adverse_job)

@@ -124,7 +124,7 @@ export type ApplyToDateRangeResponse = components['schemas']['ApplyToDateRangeRe
   end_date?: string;
 };
 export type BulkUpdateRequest =
-  components['schemas']['BulkUpdateRequest'];
+  components['schemas']['AvailabilityWindowBulkUpdateRequest'];
 export type BulkUpdateResponse = components['schemas']['BulkUpdateResponse'];
 export type WeekValidationResponse = components['schemas']['WeekValidationResponse'];
 export type ValidateWeekRequest = components['schemas']['ValidateWeekRequest'];

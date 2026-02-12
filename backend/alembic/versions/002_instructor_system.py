@@ -87,6 +87,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
             onupdate=sa.func.now(),
             nullable=True,
         ),
@@ -227,6 +228,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
             onupdate=sa.func.now(),
             nullable=True,
         ),
@@ -469,7 +471,6 @@ def upgrade() -> None:
         sa.Column("price_floor_online_cents", sa.Integer(), nullable=True),
         sa.Column("display_order", sa.Integer(), nullable=False, server_default="999"),
         sa.Column("embedding", Vector(384), nullable=True),
-        sa.Column("related_services", sa.ARRAY(sa.String(26)), nullable=True),
         sa.Column("online_capable", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column("requires_certification", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
@@ -482,6 +483,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
             onupdate=sa.func.now(),
             nullable=True,
         ),
@@ -551,6 +553,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
             onupdate=sa.func.now(),
             nullable=True,
         ),

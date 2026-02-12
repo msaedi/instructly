@@ -10,7 +10,17 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import ulid
@@ -39,7 +49,7 @@ class StripeCustomer(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), onupdate=func.now()
+        DateTime(timezone=True), default=func.now(), server_default=func.now(), onupdate=func.now()
     )
 
     # Relationships
@@ -69,7 +79,7 @@ class StripeConnectedAccount(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), onupdate=func.now()
+        DateTime(timezone=True), default=func.now(), server_default=func.now(), onupdate=func.now()
     )
 
     # Relationships
@@ -114,7 +124,7 @@ class PaymentIntent(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), onupdate=func.now()
+        DateTime(timezone=True), default=func.now(), server_default=func.now(), onupdate=func.now()
     )
 
     # Relationships
@@ -143,7 +153,7 @@ class PaymentMethod(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), onupdate=func.now()
+        DateTime(timezone=True), default=func.now(), server_default=func.now(), onupdate=func.now()
     )
 
     # Relationships
@@ -189,7 +199,13 @@ class PlatformCredit(Base):
     """Platform credits for 12-24 hour cancellations."""
 
     __tablename__ = "platform_credits"
-    __table_args__ = (Index("ix_platform_credits_user_status", "user_id", "status"),)
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'available', 'reserved', 'applied', 'forfeited', 'expired', 'frozen', 'revoked')",
+            name="ck_platform_credits_status",
+        ),
+        Index("ix_platform_credits_user_status", "user_id", "status"),
+    )
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     user_id: Mapped[str] = mapped_column(

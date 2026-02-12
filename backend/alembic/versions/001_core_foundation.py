@@ -272,6 +272,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
             onupdate=sa.func.now(),
             nullable=True,
         ),
@@ -332,8 +333,6 @@ def upgrade() -> None:
         sa.Column("id", sa.String(26), nullable=False),
         sa.Column("name", sa.String(100), nullable=False, unique=True),
         sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("resource", sa.String(50), nullable=True),
-        sa.Column("action", sa.String(50), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -348,12 +347,6 @@ def upgrade() -> None:
         "user_roles",
         sa.Column("user_id", sa.String(26), nullable=False),
         sa.Column("role_id", sa.String(26), nullable=False),
-        sa.Column(
-            "assigned_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.func.timezone("UTC", sa.func.now()),
-            nullable=False,
-        ),
         sa.ForeignKeyConstraint(
             ["user_id"],
             ["users.id"],
@@ -405,7 +398,6 @@ def upgrade() -> None:
         comment="Individual permission overrides",
     )
 
-    op.create_index("idx_permissions_resource_action", "permissions", ["resource", "action"])
     op.create_index("idx_user_roles_user_id", "user_roles", ["user_id"])
     op.create_index("idx_user_roles_role_id", "user_roles", ["role_id"])
 
@@ -584,7 +576,6 @@ def downgrade() -> None:
 
     op.drop_index("idx_user_roles_role_id", table_name="user_roles")
     op.drop_index("idx_user_roles_user_id", table_name="user_roles")
-    op.drop_index("idx_permissions_resource_action", table_name="permissions")
 
     op.drop_table("user_permissions")
     op.drop_table("role_permissions")

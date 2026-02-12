@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-import json
 
 import pytest
 
@@ -298,10 +297,7 @@ def test_service_analytics_bulk_update(db, sample_catalog_services):
             "price_p50": 50.0,
             "price_p75": 60.0,
             "most_booked_duration": 60,
-            "duration_distribution": json.dumps({}),
             "completion_rate": 0.95,
-            "peak_hours": json.dumps({}),
-            "peak_days": json.dumps({}),
             "supply_demand_ratio": 1.2,
             "last_calculated": datetime.now(timezone.utc),
         }
