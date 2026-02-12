@@ -2456,20 +2456,32 @@ export interface BulkNotificationPreviewResponse {
   warnings?: string[];
 }
 
+export type SlotOperationAction = (typeof SlotOperationAction)[keyof typeof SlotOperationAction];
+
+export const SlotOperationAction = {
+  add: 'add',
+  remove: 'remove',
+  update: 'update',
+} as const;
+
 /**
- * Single preference update for bulk requests.
+ * Schema for a single slot operation in bulk update.
  */
-export interface PreferenceUpdate {
-  category: string;
-  channel: string;
-  enabled: boolean;
+export interface SlotOperation {
+  action: SlotOperationAction;
+  date?: string | null;
+  end_time?: string | null;
+  slot_id?: string | null;
+  start_time?: string | null;
 }
 
 /**
- * Bulk preference update request.
+ * Request schema for bulk availability update.
  */
 export interface BulkUpdateRequest {
-  updates: PreferenceUpdate[];
+  operations: SlotOperation[];
+  /** If true, only validate without making changes */
+  validate_only?: boolean;
 }
 
 export type OperationResultStatus =
@@ -3404,16 +3416,9 @@ export interface DeleteMessageResponse {
   success?: boolean;
 }
 
-/**
- * Standard response for delete operations.
- */
 export interface DeleteResponse {
-  /** Deletion timestamp */
-  deleted_at?: string;
-  /** Human-readable deletion message */
-  message: string;
-  /** Deletion success status */
-  success?: boolean;
+  /** Whether deletion was successful */
+  success: boolean;
 }
 
 export interface DeleteWindowResponse {
@@ -6440,6 +6445,15 @@ export interface PreferenceResponse {
   locked: boolean;
 }
 
+/**
+ * Single preference update for bulk requests.
+ */
+export interface PreferenceUpdate {
+  category: string;
+  channel: string;
+  enabled: boolean;
+}
+
 export type PreferencesByCategoryLearningTips = { [key: string]: boolean };
 
 export type PreferencesByCategoryLessonUpdates = { [key: string]: boolean };
@@ -8090,25 +8104,6 @@ export interface SignedUploadResponse {
   upload_url: string;
 }
 
-export type SlotOperationAction = (typeof SlotOperationAction)[keyof typeof SlotOperationAction];
-
-export const SlotOperationAction = {
-  add: 'add',
-  remove: 'remove',
-  update: 'update',
-} as const;
-
-/**
- * Schema for a single slot operation in bulk update.
- */
-export interface SlotOperation {
-  action: SlotOperationAction;
-  date?: string | null;
-  end_time?: string | null;
-  slot_id?: string | null;
-  start_time?: string | null;
-}
-
 /**
  * Slow query information.
  */
@@ -8761,17 +8756,22 @@ export interface AppSchemasAddressResponsesDeleteResponse {
 }
 
 /**
- * Request schema for bulk availability update.
+ * Standard response for delete operations.
  */
-export interface AppSchemasAvailabilityWindowBulkUpdateRequest {
-  operations: SlotOperation[];
-  /** If true, only validate without making changes */
-  validate_only?: boolean;
+export interface AppSchemasBaseResponsesDeleteResponse {
+  /** Deletion timestamp */
+  deleted_at?: string;
+  /** Human-readable deletion message */
+  message: string;
+  /** Deletion success status */
+  success?: boolean;
 }
 
-export interface AppSchemasPaymentSchemasDeleteResponse {
-  /** Whether deletion was successful */
-  success: boolean;
+/**
+ * Bulk preference update request.
+ */
+export interface AppSchemasNotificationPreferencesBulkUpdateRequest {
+  updates: PreferenceUpdate[];
 }
 
 export type GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams = {

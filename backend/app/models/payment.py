@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, func
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import ulid
@@ -85,6 +85,7 @@ class PaymentIntent(Base):
     """Stripe payment intents for booking payments."""
 
     __tablename__ = "payment_intents"
+    __table_args__ = (Index("ix_payment_intents_booking", "booking_id"),)
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     booking_id: Mapped[str] = mapped_column(
@@ -156,6 +157,7 @@ class PaymentEvent(Base):
     """Track all payment state changes for bookings."""
 
     __tablename__ = "payment_events"
+    __table_args__ = (Index("ix_payment_events_booking", "booking_id"),)
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     booking_id: Mapped[str] = mapped_column(
@@ -187,6 +189,7 @@ class PlatformCredit(Base):
     """Platform credits for 12-24 hour cancellations."""
 
     __tablename__ = "platform_credits"
+    __table_args__ = (Index("ix_platform_credits_user_status", "user_id", "status"),)
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     user_id: Mapped[str] = mapped_column(

@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence, Tuple, TypedDict, cast
 
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..models.badge import BadgeDefinition, BadgeProgress, StudentBadge
@@ -256,7 +257,24 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
                 current_progress=progress_json,
                 last_updated=now,
             )
-            self.db.add(progress)
+            try:
+                with self.db.begin_nested():
+                    self.db.add(progress)
+                    self.db.flush()
+            except IntegrityError:
+                existing = (
+                    self.db.query(BadgeProgress)
+                    .filter(
+                        BadgeProgress.student_id == student_id,
+                        BadgeProgress.badge_id == badge_id,
+                    )
+                    .first()
+                )
+                if existing:
+                    existing.current_progress = progress_json
+                    existing.last_updated = now
+                else:
+                    raise
         self.db.flush()
 
     def insert_award_pending_or_confirmed(
@@ -305,8 +323,24 @@ class BadgeRepository(BaseRepository[BadgeDefinition]):
             confirmed_at=now_utc if hold_hours <= 0 else None,
             progress_snapshot=progress_snapshot,
         )
-        self.db.add(award)
-        self.db.flush()
+        try:
+            with self.db.begin_nested():
+                self.db.add(award)
+                self.db.flush()
+        except IntegrityError:
+            existing = cast(
+                Optional[StudentBadge],
+                self.db.query(StudentBadge)
+                .filter(
+                    StudentBadge.student_id == student_id,
+                    StudentBadge.badge_id == badge_id,
+                )
+                .with_for_update(of=StudentBadge)
+                .first(),
+            )
+            if existing:
+                return cast(str, existing.id)
+            raise
         return cast(str, award.id)
 
     def get_pending_awards_due(

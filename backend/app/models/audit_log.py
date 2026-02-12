@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Mapping, MutableMapping
 
-from sqlalchemy import Column, DateTime, String, Text
+from sqlalchemy import Column, DateTime, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.types import JSON
@@ -29,6 +29,10 @@ class AuditLog(Base):
     """Persistence model for audit trail entries."""
 
     __tablename__ = "audit_log"
+    __table_args__ = (
+        Index("ix_audit_log_entity", "entity_type", "entity_id"),
+        Index("ix_audit_log_occurred", "occurred_at"),
+    )
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     entity_type = Column(String(50), nullable=False)
@@ -97,6 +101,11 @@ class AuditLogEntry(Base):
     """Governance audit log entry with enriched actor/context fields."""
 
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_logs_timestamp", "timestamp"),
+        Index("ix_audit_logs_action", "action"),
+        Index("ix_audit_logs_resource", "resource_type", "resource_id"),
+    )
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     timestamp = Column(

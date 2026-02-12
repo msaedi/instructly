@@ -245,6 +245,7 @@ class InstructorProfile(Base):
         ),
         Index("ix_instructor_profiles_checkr_candidate_id", "checkr_candidate_id"),
         Index("ix_instructor_profiles_checkr_invitation_id", "checkr_invitation_id"),
+        Index("ix_instructor_profiles_live_bgc", "is_live", "bgc_status"),
     )
 
     def __init__(self, **kwargs: Any) -> None:
@@ -413,6 +414,8 @@ class BackgroundCheck(Base):
     instructor_profile = relationship(
         "InstructorProfile", back_populates="bgc_history", passive_deletes=True
     )
+
+    __table_args__ = (Index("ix_background_checks_instructor", "instructor_id"),)
 
 
 class BGCAdverseActionEvent(Base):

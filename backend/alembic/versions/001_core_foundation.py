@@ -445,7 +445,10 @@ def upgrade() -> None:
 
     if is_postgres:
         op.execute(
-            "CREATE INDEX ix_audit_log_entity ON audit_log (entity_type, entity_id, occurred_at DESC);"
+            "CREATE INDEX ix_audit_log_entity ON audit_log (entity_type, entity_id);"
+        )
+        op.execute(
+            "CREATE INDEX ix_audit_log_occurred ON audit_log (occurred_at);"
         )
         op.execute(
             "CREATE INDEX ix_audit_log_actor ON audit_log (actor_id, occurred_at DESC);"
@@ -457,7 +460,12 @@ def upgrade() -> None:
         op.create_index(
             "ix_audit_log_entity",
             "audit_log",
-            ["entity_type", "entity_id", "occurred_at"],
+            ["entity_type", "entity_id"],
+        )
+        op.create_index(
+            "ix_audit_log_occurred",
+            "audit_log",
+            ["occurred_at"],
         )
         op.create_index(
             "ix_audit_log_actor",
@@ -553,12 +561,14 @@ def downgrade() -> None:
 
     if is_postgres:
         op.execute("DROP INDEX IF EXISTS ix_audit_log_entity;")
+        op.execute("DROP INDEX IF EXISTS ix_audit_log_occurred;")
         op.execute("DROP INDEX IF EXISTS ix_audit_log_actor;")
         op.execute("DROP INDEX IF EXISTS ix_audit_log_action;")
         op.execute("DROP TABLE IF EXISTS audit_log;")
     else:
         op.drop_index("ix_audit_log_action", table_name="audit_log")
         op.drop_index("ix_audit_log_actor", table_name="audit_log")
+        op.drop_index("ix_audit_log_occurred", table_name="audit_log")
         op.drop_index("ix_audit_log_entity", table_name="audit_log")
         op.drop_table("audit_log")
 

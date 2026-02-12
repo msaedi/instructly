@@ -25,6 +25,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -380,6 +381,14 @@ class InstructorService(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+    __table_args__ = (
+        Index(
+            "ix_instructor_services_profile_active",
+            "instructor_profile_id",
+            "is_active",
+        ),
+    )
+
     # Relationships
     instructor_profile = relationship("InstructorProfile", back_populates="instructor_services")
     catalog_entry = relationship("ServiceCatalog", back_populates="instructor_services")
@@ -506,10 +515,10 @@ class ServiceAnalytics(Base):
     booking_count_30d = Column(Integer, nullable=False, default=0, index=True)
     search_to_view_rate = Column(Float, nullable=True)
     view_to_booking_rate = Column(Float, nullable=True)
-    avg_price_booked = Column(Float, nullable=True)
-    price_percentile_25 = Column(Float, nullable=True)
-    price_percentile_50 = Column(Float, nullable=True)
-    price_percentile_75 = Column(Float, nullable=True)
+    avg_price_booked_cents = Column(Integer, nullable=False, default=0)
+    price_percentile_25_cents = Column(Integer, nullable=False, default=0)
+    price_percentile_50_cents = Column(Integer, nullable=False, default=0)
+    price_percentile_75_cents = Column(Integer, nullable=False, default=0)
     most_booked_duration = Column(Integer, nullable=True)
     duration_distribution = Column(Text, nullable=True)  # JSON stored as text
     peak_hours = Column(Text, nullable=True)  # JSON stored as text
@@ -530,6 +539,38 @@ class ServiceAnalytics(Base):
     def __repr__(self) -> str:
         """String representation."""
         return f"<ServiceAnalytics service_id={self.service_catalog_id} searches_7d={self.search_count_7d}>"
+
+    @property
+    def avg_price_booked(self) -> float:
+        return float((self.avg_price_booked_cents or 0) / 100.0)
+
+    @avg_price_booked.setter
+    def avg_price_booked(self, value: float | int | None) -> None:
+        self.avg_price_booked_cents = int(round(float(value or 0) * 100))
+
+    @property
+    def price_percentile_25(self) -> float:
+        return float((self.price_percentile_25_cents or 0) / 100.0)
+
+    @price_percentile_25.setter
+    def price_percentile_25(self, value: float | int | None) -> None:
+        self.price_percentile_25_cents = int(round(float(value or 0) * 100))
+
+    @property
+    def price_percentile_50(self) -> float:
+        return float((self.price_percentile_50_cents or 0) / 100.0)
+
+    @price_percentile_50.setter
+    def price_percentile_50(self, value: float | int | None) -> None:
+        self.price_percentile_50_cents = int(round(float(value or 0) * 100))
+
+    @property
+    def price_percentile_75(self) -> float:
+        return float((self.price_percentile_75_cents or 0) / 100.0)
+
+    @price_percentile_75.setter
+    def price_percentile_75(self, value: float | int | None) -> None:
+        self.price_percentile_75_cents = int(round(float(value or 0) * 100))
 
     @property
     def demand_score(self) -> float:

@@ -1039,13 +1039,18 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         """
         analytics = self.get_or_create(service_catalog_id)
 
+        def _money_to_cents(value: Any) -> int:
+            if value is None:
+                return 0
+            return int(round(float(value) * 100))
+
         updates: Dict[str, Any] = {
             "booking_count_7d": booking_stats.get("count_7d", 0),
             "booking_count_30d": booking_stats.get("count_30d", 0),
-            "avg_price_booked": booking_stats.get("avg_price"),
-            "price_percentile_25": booking_stats.get("price_p25"),
-            "price_percentile_50": booking_stats.get("price_p50"),
-            "price_percentile_75": booking_stats.get("price_p75"),
+            "avg_price_booked_cents": _money_to_cents(booking_stats.get("avg_price")),
+            "price_percentile_25_cents": _money_to_cents(booking_stats.get("price_p25")),
+            "price_percentile_50_cents": _money_to_cents(booking_stats.get("price_p50")),
+            "price_percentile_75_cents": _money_to_cents(booking_stats.get("price_p75")),
             "most_booked_duration": booking_stats.get("most_popular_duration"),
             "completion_rate": booking_stats.get("completion_rate"),
             "avg_rating": booking_stats.get("avg_rating"),
@@ -1168,9 +1173,14 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
 
         # Build values list with all supported columns
         # Order: service_catalog_id, booking_count_7d, booking_count_30d, active_instructors,
-        #        total_weekly_hours, avg_price_booked, price_p25, price_p50, price_p75,
+        #        total_weekly_hours, avg_price_booked_cents, p25_cents, p50_cents, p75_cents,
         #        most_booked_duration, duration_distribution, completion_rate,
         #        peak_hours, peak_days, supply_demand_ratio, last_calculated
+        def _money_to_cents(value: Any) -> int:
+            if value is None:
+                return 0
+            return int(round(float(value) * 100))
+
         values = []
         for u in updates:
             values.append(
@@ -1180,10 +1190,22 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
                     u.get("booking_count_30d", 0),
                     u.get("active_instructors", 0),
                     u.get("total_weekly_hours"),
-                    u.get("avg_price_booked"),
-                    u.get("price_percentile_25"),
-                    u.get("price_percentile_50"),
-                    u.get("price_percentile_75"),
+                    u.get(
+                        "avg_price_booked_cents",
+                        _money_to_cents(u.get("avg_price_booked")),
+                    ),
+                    u.get(
+                        "price_percentile_25_cents",
+                        _money_to_cents(u.get("price_percentile_25")),
+                    ),
+                    u.get(
+                        "price_percentile_50_cents",
+                        _money_to_cents(u.get("price_percentile_50")),
+                    ),
+                    u.get(
+                        "price_percentile_75_cents",
+                        _money_to_cents(u.get("price_percentile_75")),
+                    ),
                     u.get("most_booked_duration"),
                     u.get("duration_distribution"),
                     u.get("completion_rate"),
@@ -1201,10 +1223,10 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
                 booking_count_30d = v.booking_count_30d,
                 active_instructors = v.active_instructors,
                 total_weekly_hours = v.total_weekly_hours,
-                avg_price_booked = v.avg_price_booked,
-                price_percentile_25 = v.price_percentile_25,
-                price_percentile_50 = v.price_percentile_50,
-                price_percentile_75 = v.price_percentile_75,
+                avg_price_booked_cents = v.avg_price_booked_cents,
+                price_percentile_25_cents = v.price_percentile_25_cents,
+                price_percentile_50_cents = v.price_percentile_50_cents,
+                price_percentile_75_cents = v.price_percentile_75_cents,
                 most_booked_duration = v.most_booked_duration,
                 duration_distribution = v.duration_distribution,
                 completion_rate = v.completion_rate,
@@ -1214,8 +1236,8 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
                 last_calculated = v.last_calculated
             FROM (VALUES %s) AS v(
                 service_catalog_id, booking_count_7d, booking_count_30d,
-                active_instructors, total_weekly_hours, avg_price_booked,
-                price_percentile_25, price_percentile_50, price_percentile_75,
+                active_instructors, total_weekly_hours, avg_price_booked_cents,
+                price_percentile_25_cents, price_percentile_50_cents, price_percentile_75_cents,
                 most_booked_duration, duration_distribution, completion_rate,
                 peak_hours, peak_days, supply_demand_ratio, last_calculated
             )
@@ -1224,7 +1246,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
 
         template = """(
             %s, %s::integer, %s::integer, %s::integer, %s::float,
-            %s::float, %s::float, %s::float, %s::float,
+            %s::integer, %s::integer, %s::integer, %s::integer,
             %s::integer, %s::json, %s::float, %s::json, %s::json, %s::float,
             %s::timestamptz
         )"""

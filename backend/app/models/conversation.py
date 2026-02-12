@@ -15,7 +15,7 @@ Design decisions:
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, String
+from sqlalchemy import Column, DateTime, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 import ulid
 
@@ -75,6 +75,11 @@ class Conversation(Base):
 
     # Table-level indexes (in addition to those created in migration)
     __table_args__ = (
+        UniqueConstraint(
+            "student_id",
+            "instructor_id",
+            name="uq_conversations_student_instructor",
+        ),
         Index("idx_conversations_student", "student_id"),
         Index("idx_conversations_instructor", "instructor_id"),
         Index("idx_conversations_last_message", "last_message_at"),

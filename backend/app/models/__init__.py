@@ -67,6 +67,7 @@ from .referrals import (
     ReferralAttribution,
     ReferralClick,
     ReferralCode,
+    ReferralConfig,
     ReferralLimit,
     ReferralReward,
     WalletTransaction,
@@ -151,6 +152,7 @@ __all__ = [
     "ReferralAttribution",
     "ReferralReward",
     "WalletTransaction",
+    "ReferralConfig",
     "ReferralLimit",
     "InstructorReferralPayout",
     # Messaging models

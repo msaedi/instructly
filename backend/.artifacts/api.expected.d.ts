@@ -6623,7 +6623,7 @@ export type components = {
  instructor_id: string;
  instructor_note: string | null;
  instructor_payout_amount?: number | null;
- instructor_service: components["schemas"]["app__schemas__booking__ServiceInfo"];
+ instructor_service: components["schemas"]["ServiceInfo"];
  instructor_service_id: string;
  instructor_timezone?: string | null;
  lesson_timezone?: string | null;
@@ -6698,7 +6698,7 @@ export type components = {
  instructor: components["schemas"]["ParticipantInfo"];
  location_type: string;
  scheduled_at: string;
- service: components["schemas"]["ServiceInfo"];
+ service: components["schemas"]["app__schemas__admin_booking_detail__ServiceInfo"];
  status: string;
  student: components["schemas"]["ParticipantInfo"];
  updated_at: string;
@@ -6775,7 +6775,7 @@ export type components = {
  instructor_id: string;
  instructor_note: string | null;
  instructor_payout_amount?: number | null;
- instructor_service: components["schemas"]["app__schemas__booking__ServiceInfo"];
+ instructor_service: components["schemas"]["ServiceInfo"];
  instructor_service_id: string;
  instructor_timezone?: string | null;
  lesson_timezone?: string | null;
@@ -6895,7 +6895,8 @@ export type components = {
  user_type?: components["schemas"]["BulkUserType"] | null;
  };
  BulkUpdateRequest: {
- updates: components["schemas"]["PreferenceUpdate"][];
+ operations: components["schemas"]["SlotOperation"][];
+ validate_only: boolean;
  };
  BulkUpdateResponse: {
  failed: number;
@@ -7375,7 +7376,6 @@ export type components = {
  success: boolean;
  };
  DeleteResponse: {
- deleted_at?: string;
  message: string;
  success: boolean;
  };
@@ -9842,9 +9842,9 @@ export type components = {
  service_catalog_id: string;
  };
  ServiceInfo: {
- category: string;
+ description: string | null;
+ id: string;
  name: string;
- slug: string;
  };
  ServiceMatch: {
  description?: string | null;
@@ -10428,18 +10428,18 @@ export type components = {
  last_searched: string;
  query: string;
  };
- app__schemas__address_responses__DeleteResponse: {
+ app__schemas__admin_booking_detail__ServiceInfo: {
+ category: string;
+ name: string;
+ slug: string;
+ };
+ app__schemas__base_responses__DeleteResponse: {
+ deleted_at?: string;
  message: string;
  success: boolean;
  };
- app__schemas__availability_window__BulkUpdateRequest: {
- operations: components["schemas"]["SlotOperation"][];
- validate_only: boolean;
- };
- app__schemas__booking__ServiceInfo: {
- description: string | null;
- id: string;
- name: string;
+ app__schemas__notification_preferences__BulkUpdateRequest: {
+ updates: components["schemas"]["PreferenceUpdate"][];
  };
  app__schemas__payment_schemas__DeleteResponse: {
  success: boolean;
@@ -10874,7 +10874,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["app__schemas__address_responses__DeleteResponse"];
+ "application/json": components["schemas"]["DeleteResponse"];
  };
  };
  422: {
@@ -16747,7 +16747,7 @@ export interface operations {
  };
  requestBody: {
  content: {
- "application/json": components["schemas"]["app__schemas__availability_window__BulkUpdateRequest"];
+ "application/json": components["schemas"]["BulkUpdateRequest"];
  };
  };
  responses: {
@@ -18517,7 +18517,7 @@ export interface operations {
  };
  requestBody: {
  content: {
- "application/json": components["schemas"]["BulkUpdateRequest"];
+ "application/json": components["schemas"]["app__schemas__notification_preferences__BulkUpdateRequest"];
  };
  };
  responses: {
@@ -21463,7 +21463,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["DeleteResponse"];
+ "application/json": components["schemas"]["app__schemas__base_responses__DeleteResponse"];
  };
  };
  };

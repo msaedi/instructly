@@ -104,6 +104,11 @@ def upgrade() -> None:
     op.create_index("idx_instructor_profiles_user_id", "instructor_profiles", ["user_id"])
     op.create_index("idx_instructor_profiles_is_live", "instructor_profiles", ["is_live"])
     op.create_index(
+        "ix_instructor_profiles_live_bgc",
+        "instructor_profiles",
+        ["is_live", "bgc_status"],
+    )
+    op.create_index(
         "idx_instructor_profiles_identity_verified_at",
         "instructor_profiles",
         ["identity_verified_at"],
@@ -579,6 +584,11 @@ def upgrade() -> None:
         postgresql_where=sa.text("is_active = true"),
     )
     op.create_index(
+        "ix_instructor_services_profile_active",
+        "instructor_services",
+        ["instructor_profile_id", "is_active"],
+    )
+    op.create_index(
         "unique_instructor_catalog_service_active",
         "instructor_services",
         ["instructor_profile_id", "service_catalog_id"],
@@ -668,6 +678,11 @@ def upgrade() -> None:
         "background_checks",
         ["report_id_enc"],
     )
+    op.create_index(
+        "ix_background_checks_instructor",
+        "background_checks",
+        ["instructor_id"],
+    )
 
     if is_postgres:
         op.execute(
@@ -744,6 +759,7 @@ def downgrade() -> None:
     )
     op.drop_table("bgc_adverse_action_events")
 
+    op.drop_index("ix_background_checks_instructor", table_name="background_checks")
     op.drop_index("ix_background_checks_report_id_enc", table_name="background_checks")
     if op.get_bind().dialect.name == "postgresql":
         op.execute("DROP INDEX IF EXISTS ix_background_checks_instructor_created_at_desc")
@@ -761,6 +777,7 @@ def downgrade() -> None:
     op.drop_constraint("check_hourly_rate_positive", "instructor_services", type_="check")
     op.drop_index("idx_instructor_services_filter_selections", table_name="instructor_services")
     op.drop_index("unique_instructor_catalog_service_active", table_name="instructor_services")
+    op.drop_index("ix_instructor_services_profile_active", table_name="instructor_services")
     op.drop_index("idx_instructor_services_active", table_name="instructor_services")
     op.drop_index("idx_instructor_services_service_catalog_id", table_name="instructor_services")
     op.drop_index("idx_instructor_services_instructor_profile_id", table_name="instructor_services")
@@ -808,6 +825,7 @@ def downgrade() -> None:
     op.drop_index("ix_instructor_profiles_checkr_invitation_id", table_name="instructor_profiles")
     op.drop_index("ix_instructor_profiles_checkr_candidate_id", table_name="instructor_profiles")
     op.drop_index("idx_instructor_profiles_identity_verified_at", table_name="instructor_profiles")
+    op.drop_index("ix_instructor_profiles_live_bgc", table_name="instructor_profiles")
     op.drop_index("idx_instructor_profiles_is_live", table_name="instructor_profiles")
     op.drop_index("idx_instructor_profiles_user_id", table_name="instructor_profiles")
     op.drop_index("ix_instructor_profiles_id", table_name="instructor_profiles")

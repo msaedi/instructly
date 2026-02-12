@@ -11,7 +11,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB
 
 # revision identifiers, used by Alembic.
 revision: str = "006_platform_features"
@@ -300,7 +300,7 @@ def upgrade() -> None:
     # Referral program
     op.create_table(
         "referral_codes",
-        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column("code", sa.String(16), nullable=False, unique=True),
         sa.Column("vanity_slug", sa.String(64), nullable=True, unique=True),
         sa.Column(
@@ -344,10 +344,10 @@ def upgrade() -> None:
 
     op.create_table(
         "referral_clicks",
-        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column(
             "code_id",
-            UUID(as_uuid=True),
+            sa.String(26),
             sa.ForeignKey("referral_codes.id", ondelete="CASCADE"),
             nullable=False,
         ),
@@ -374,10 +374,10 @@ def upgrade() -> None:
 
     op.create_table(
         "referral_attributions",
-        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column(
             "code_id",
-            UUID(as_uuid=True),
+            sa.String(26),
             sa.ForeignKey("referral_codes.id", ondelete="CASCADE"),
             nullable=False,
         ),
@@ -396,7 +396,7 @@ def upgrade() -> None:
 
     op.create_table(
         "referral_rewards",
-        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column(
             "referrer_user_id",
             sa.String(26),
@@ -461,7 +461,7 @@ def upgrade() -> None:
 
     op.create_table(
         "wallet_transactions",
-        sa.Column("id", UUID(as_uuid=True), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column(
             "user_id",
             sa.String(26),
@@ -482,7 +482,7 @@ def upgrade() -> None:
         sa.Column("amount_cents", sa.Integer(), nullable=False),
         sa.Column(
             "related_reward_id",
-            UUID(as_uuid=True),
+            sa.String(26),
             sa.ForeignKey("referral_rewards.id", ondelete="SET NULL"),
             nullable=True,
         ),
@@ -523,7 +523,7 @@ def upgrade() -> None:
 
     op.create_table(
         "referral_config",
-        sa.Column("id", sa.UUID(), primary_key=True, nullable=False),
+        sa.Column("id", sa.String(26), primary_key=True, nullable=False),
         sa.Column("version", sa.BigInteger(), nullable=False, unique=True),
         sa.Column(
             "effective_at",
@@ -660,6 +660,7 @@ def upgrade() -> None:
         ["reserved_for_booking_id"],
     )
     op.create_index("idx_platform_credits_status", "platform_credits", ["status"])
+    op.create_index("ix_platform_credits_user_status", "platform_credits", ["user_id", "status"])
     op.create_index("idx_platform_credits_expires_at", "platform_credits", ["expires_at"])
     op.create_index(
         "idx_platform_credits_unused",
@@ -729,6 +730,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_alert_history_created_at", "alert_history", ["created_at"])
+    op.create_index("ix_alert_history_created", "alert_history", ["created_at"])
     op.create_index("ix_alert_history_alert_type", "alert_history", ["alert_type"])
     op.create_index("ix_alert_history_severity", "alert_history", ["severity"])
 
@@ -1403,6 +1405,7 @@ def downgrade() -> None:
 
     op.drop_index("ix_alert_history_severity", table_name="alert_history")
     op.drop_index("ix_alert_history_alert_type", table_name="alert_history")
+    op.execute("DROP INDEX IF EXISTS ix_alert_history_created")
     op.drop_index("ix_alert_history_created_at", table_name="alert_history")
     op.drop_table("alert_history")
 
@@ -1425,6 +1428,7 @@ def downgrade() -> None:
 
     op.drop_index("idx_platform_credits_expires_at", table_name="platform_credits")
     op.drop_index("idx_platform_credits_unused", table_name="platform_credits")
+    op.execute("DROP INDEX IF EXISTS ix_platform_credits_user_status")
     op.drop_index("idx_platform_credits_status", table_name="platform_credits")
     op.drop_index("idx_platform_credits_reserved_booking_id", table_name="platform_credits")
     op.drop_index("idx_platform_credits_used_booking_id", table_name="platform_credits")

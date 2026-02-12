@@ -22,11 +22,11 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  AppSchemasPaymentSchemasDeleteResponse,
   CheckoutResponse,
   CreateCheckoutRequest,
   CreditBalanceResponse,
   DashboardLinkResponse,
+  DeleteResponse,
   EarningsExportRequest,
   EarningsResponse,
   GetInstructorPayoutsApiV1PaymentsPayoutsGetParams,
@@ -1628,8 +1628,8 @@ export const getDeletePaymentMethodApiV1PaymentsMethodsMethodIdDeleteUrl = (meth
 export const deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete = async (
   methodId: string,
   options?: RequestInit
-): Promise<AppSchemasPaymentSchemasDeleteResponse> => {
-  return customFetch<AppSchemasPaymentSchemasDeleteResponse>(
+): Promise<DeleteResponse> => {
+  return customFetch<DeleteResponse>(
     getDeletePaymentMethodApiV1PaymentsMethodsMethodIdDeleteUrl(methodId),
     {
       ...options,

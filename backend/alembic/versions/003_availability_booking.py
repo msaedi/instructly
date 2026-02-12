@@ -272,6 +272,16 @@ def upgrade() -> None:
         "bookings",
         ["instructor_id", "booking_date", "status"],
     )
+    op.create_index(
+        "ix_bookings_instructor_date_status",
+        "bookings",
+        ["instructor_id", "booking_date", "status"],
+    )
+    op.create_index(
+        "ix_bookings_student_date_status",
+        "bookings",
+        ["student_id", "booking_date", "status"],
+    )
     op.create_index("idx_bookings_instructor_service_id", "bookings", ["instructor_service_id"])
     op.create_index("idx_bookings_cancelled_by_id", "bookings", ["cancelled_by_id"])
     op.create_index("idx_bookings_rescheduled_from_id", "bookings", ["rescheduled_from_booking_id"])
@@ -449,6 +459,7 @@ def upgrade() -> None:
         comment="Stripe payment intents for bookings",
     )
     op.create_index("idx_payment_intents_booking_id", "payment_intents", ["booking_id"])
+    op.create_index("ix_payment_intents_booking", "payment_intents", ["booking_id"])
     op.create_index("idx_payment_intents_stripe_payment_intent_id", "payment_intents", ["stripe_payment_intent_id"])
     op.create_index("idx_payment_intents_status", "payment_intents", ["status"])
     op.create_check_constraint(
@@ -498,6 +509,7 @@ def upgrade() -> None:
         comment="Event-based payment tracking",
     )
     op.create_index("idx_payment_events_booking_id", "payment_events", ["booking_id"])
+    op.create_index("ix_payment_events_booking", "payment_events", ["booking_id"])
     op.create_index("idx_payment_events_event_type", "payment_events", ["event_type"])
     op.create_index("idx_payment_events_created_at", "payment_events", ["created_at"])
 
@@ -744,6 +756,7 @@ def downgrade() -> None:
 
     op.drop_index("idx_payment_events_created_at", table_name="payment_events")
     op.drop_index("idx_payment_events_event_type", table_name="payment_events")
+    op.drop_index("ix_payment_events_booking", table_name="payment_events")
     op.drop_index("idx_payment_events_booking_id", table_name="payment_events")
     op.drop_table("payment_events")
 
@@ -755,6 +768,7 @@ def downgrade() -> None:
     op.drop_constraint("ck_payment_intents_status", "payment_intents", type_="check")
     op.drop_index("idx_payment_intents_status", table_name="payment_intents")
     op.drop_index("idx_payment_intents_stripe_payment_intent_id", table_name="payment_intents")
+    op.drop_index("ix_payment_intents_booking", table_name="payment_intents")
     op.drop_index("idx_payment_intents_booking_id", table_name="payment_intents")
     op.drop_table("payment_intents")
 
@@ -789,6 +803,8 @@ def downgrade() -> None:
     op.drop_index("idx_bookings_rescheduled_from_id", table_name="bookings")
     op.drop_index("idx_bookings_cancelled_by_id", table_name="bookings")
     op.drop_index("idx_bookings_instructor_service_id", table_name="bookings")
+    op.drop_index("ix_bookings_student_date_status", table_name="bookings")
+    op.drop_index("ix_bookings_instructor_date_status", table_name="bookings")
     op.drop_index("idx_bookings_instructor_date_status", table_name="bookings")
     op.drop_index("idx_bookings_instructor_datetime", table_name="bookings")
     op.drop_index("ix_booking_student_completed", table_name="bookings")

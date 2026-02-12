@@ -18,6 +18,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.sql import func
@@ -68,6 +69,13 @@ class StudentBadge(Base):
     """Badge instance earned (or pending) for a specific student."""
 
     __tablename__ = "student_badges"
+    __table_args__ = (
+        UniqueConstraint(
+            "student_id",
+            "badge_id",
+            name="uq_student_badges_student_badge",
+        ),
+    )
 
     id: Mapped[str] = Column(
         String(26),
@@ -104,6 +112,13 @@ class BadgeProgress(Base):
     """Ongoing progress toward earning a badge for a student."""
 
     __tablename__ = "badge_progress"
+    __table_args__ = (
+        UniqueConstraint(
+            "student_id",
+            "badge_id",
+            name="uq_badge_progress_student_badge",
+        ),
+    )
 
     id: Mapped[str] = Column(
         String(26),

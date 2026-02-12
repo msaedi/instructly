@@ -669,3 +669,17 @@ Index(
     Booking.completed_at,
     postgresql_where=(Booking.status == BookingStatus.COMPLETED),
 )
+
+Index(
+    "ix_bookings_instructor_date_status",
+    Booking.instructor_id,
+    Booking.booking_date,
+    Booking.status,
+)
+
+Index(
+    "ix_bookings_student_date_status",
+    Booking.student_id,
+    Booking.booking_date,
+    Booking.status,
+)

@@ -216,10 +216,18 @@ class AnalyticsCalculator:
                 # Price stats
                 if prices:
                     prices.sort()
-                    update_data["avg_price_booked"] = sum(prices) / len(prices)
-                    update_data["price_percentile_25"] = prices[len(prices) // 4]
-                    update_data["price_percentile_50"] = prices[len(prices) // 2]
-                    update_data["price_percentile_75"] = prices[3 * len(prices) // 4]
+                    update_data["avg_price_booked_cents"] = int(
+                        round(float(sum(prices) / len(prices)) * 100)
+                    )
+                    update_data["price_percentile_25_cents"] = int(
+                        round(float(prices[len(prices) // 4]) * 100)
+                    )
+                    update_data["price_percentile_50_cents"] = int(
+                        round(float(prices[len(prices) // 2]) * 100)
+                    )
+                    update_data["price_percentile_75_cents"] = int(
+                        round(float(prices[3 * len(prices) // 4]) * 100)
+                    )
 
                 # Duration stats
                 duration_counts: Dict[int, int] = defaultdict(int)

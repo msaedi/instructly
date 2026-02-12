@@ -2,8 +2,7 @@
 
 This module defines the SQLAlchemy ORM models for the referral program,
 including codes, click tracking, attribution records, rewards, wallet
-transactions, and program limits. All identifiers use UUID primary keys
-generated in application code via ``uuid.uuid4``.
+transactions, and program limits. All identifiers use ULID string primary keys.
 """
 
 from __future__ import annotations
@@ -11,9 +10,9 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
-import uuid
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -23,11 +22,12 @@ from sqlalchemy import (
     Integer,
     SmallInteger,
     String,
+    Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
+import ulid
 
 from app.core.ulid_helper import generate_ulid
 from app.database import Base
@@ -72,7 +72,7 @@ class ReferralCode(Base):
 
     __tablename__ = "referral_codes"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     code: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
     vanity_slug: Mapped[Optional[str]] = mapped_column(String(64), unique=True)
     referrer_user_id: Mapped[str] = mapped_column(
@@ -120,9 +120,9 @@ class ReferralClick(Base):
 
     __tablename__ = "referral_clicks"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    code_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("referral_codes.id", ondelete="CASCADE"), nullable=False
+    id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
+    code_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("referral_codes.id", ondelete="CASCADE"), nullable=False
     )
     device_fp_hash: Mapped[Optional[str]] = mapped_column(String(64))
     ip_hash: Mapped[Optional[str]] = mapped_column(String(64))
@@ -155,9 +155,9 @@ class ReferralAttribution(Base):
 
     __tablename__ = "referral_attributions"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    code_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("referral_codes.id", ondelete="CASCADE"), nullable=False
+    id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
+    code_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("referral_codes.id", ondelete="CASCADE"), nullable=False
     )
     referred_user_id: Mapped[str] = mapped_column(
         String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -185,7 +185,7 @@ class ReferralReward(Base):
 
     __tablename__ = "referral_rewards"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     referrer_user_id: Mapped[str] = mapped_column(
         String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
@@ -264,7 +264,7 @@ class WalletTransaction(Base):
 
     __tablename__ = "wallet_transactions"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     user_id: Mapped[str] = mapped_column(
         String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
@@ -280,8 +280,8 @@ class WalletTransaction(Base):
         nullable=False,
     )
     amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
-    related_reward_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("referral_rewards.id", ondelete="SET NULL"), nullable=True
+    related_reward_id: Mapped[Optional[str]] = mapped_column(
+        String(26), ForeignKey("referral_rewards.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -333,6 +333,43 @@ class ReferralLimit(Base):
         return (
             "<ReferralLimit user={user} daily_ok={daily} weekly_ok={weekly} month_cap={cap}>"
         ).format(user=self.user_id, daily=self.daily_ok, weekly=self.weekly_ok, cap=self.month_cap)
+
+
+class ReferralConfig(Base):
+    """Versioned referral program configuration."""
+
+    __tablename__ = "referral_config"
+
+    id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, unique=True)
+    effective_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    student_amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    instructor_amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    instructor_founding_bonus_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    instructor_standard_bonus_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    min_basket_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    hold_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    expiry_months: Mapped[int] = mapped_column(Integer, nullable=False)
+    student_global_cap: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_by: Mapped[str] = mapped_column(Text, nullable=False)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("student_amount_cents >= 0"),
+        CheckConstraint("instructor_amount_cents >= 0"),
+        CheckConstraint("instructor_founding_bonus_cents >= 0"),
+        CheckConstraint("instructor_standard_bonus_cents >= 0"),
+        CheckConstraint("min_basket_cents >= 6000"),
+        CheckConstraint("hold_days BETWEEN 1 AND 14"),
+        CheckConstraint("expiry_months BETWEEN 1 AND 24"),
+        CheckConstraint("student_global_cap >= 0"),
+        Index("ix_referral_config_effective_at_desc", "effective_at"),
+    )
 
 
 class InstructorReferralPayout(Base):
