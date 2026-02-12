@@ -26,6 +26,9 @@ def _parse_csv_values(raw_value: Optional[str]) -> List[str]:
         normalized = token.strip().lower()
         if not normalized or normalized in seen:
             continue
+        # `content_filters` uses `|` and `:` as structural delimiters; seeded
+        # taxonomy filter option values are slug-like tokens and must not
+        # include either character.
         if "|" in normalized or ":" in normalized:
             delimiter = "|" if "|" in normalized else ":"
             raise ValueError(

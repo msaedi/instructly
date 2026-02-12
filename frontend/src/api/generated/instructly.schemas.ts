@@ -8212,7 +8212,7 @@ export interface StudentBadgeView {
 Includes nested services and applicable filters.
  */
 export interface SubcategoryDetail {
-  category: CategoryResponse;
+  category?: CategoryResponse | null;
   description?: string | null;
   filters?: SubcategoryFilterResponse[];
   id: string;

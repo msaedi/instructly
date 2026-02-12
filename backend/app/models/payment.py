@@ -49,7 +49,7 @@ class StripeCustomer(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), default=func.now(), server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     # Relationships
@@ -79,7 +79,7 @@ class StripeConnectedAccount(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), default=func.now(), server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     # Relationships
@@ -124,7 +124,7 @@ class PaymentIntent(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), default=func.now(), server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     # Relationships
@@ -153,7 +153,7 @@ class PaymentMethod(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), default=func.now(), server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     # Relationships

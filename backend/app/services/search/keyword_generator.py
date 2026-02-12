@@ -17,9 +17,57 @@ from app.repositories.service_catalog_repository import ServiceCatalogRepository
 from app.repositories.subcategory_repository import SubcategoryRepository
 
 logger = logging.getLogger(__name__)
-_cache_lock = threading.Lock()
-_cached_keyword_dicts: dict[str, dict[str, str]] | None = None
-_cached_source: str | None = None
+
+
+class KeywordDictCache:
+    """Thread-safe cache for generated keyword dictionaries."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._dicts: dict[str, dict[str, str]] | None = None
+        self._source: str | None = None
+
+    def invalidate(self) -> None:
+        """Clear cached dictionaries so the next read rebuilds from source."""
+        with self._lock:
+            self._dicts = None
+            self._source = None
+
+    def get(
+        self,
+        db: Session | None = None,
+        *,
+        force_refresh: bool = False,
+    ) -> dict[str, dict[str, str]]:
+        with self._lock:
+            should_use_cache = self._dicts is not None and not force_refresh
+            if should_use_cache and (db is None or self._source == "db"):
+                cached = self._dicts
+                if cached is None:
+                    raise RuntimeError("keyword cache unexpectedly missing")
+                # Returned dictionaries are treated as read-only by callers.
+                return cached
+
+            if db is None:
+                categories, subcategories, services = _load_taxonomy_from_seed()
+                generated = _build_keyword_dicts(categories, subcategories, services)
+                self._source = "seed"
+            else:
+                try:
+                    generated = generate_keyword_dicts(db)
+                    self._source = "db"
+                except Exception as exc:
+                    logger.warning(
+                        "search_keyword_generation_from_db_failed",
+                        extra={"error": str(exc)},
+                    )
+                    categories, subcategories, services = _load_taxonomy_from_seed()
+                    generated = _build_keyword_dicts(categories, subcategories, services)
+                    self._source = "seed"
+
+            self._dicts = generated
+            return generated
+
 
 _STOPWORDS = {
     "a",
@@ -299,42 +347,21 @@ def generate_keyword_dicts(db: Session) -> dict[str, dict[str, str]]:
     return _build_keyword_dicts(categories, subcategories, services)
 
 
+_keyword_dict_cache = KeywordDictCache()
+
+
 def get_keyword_dicts(
     db: Session | None = None,
     *,
     force_refresh: bool = False,
 ) -> dict[str, dict[str, str]]:
     """Return cached keyword dictionaries generated from taxonomy seed data."""
-    global _cached_keyword_dicts
-    global _cached_source
-
-    with _cache_lock:
-        should_use_cache = _cached_keyword_dicts is not None and not force_refresh
-        if should_use_cache and (db is None or _cached_source == "db"):
-            cached = _cached_keyword_dicts
-            if cached is None:
-                raise RuntimeError("keyword cache unexpectedly missing")
-            return {key: dict(value) for key, value in cached.items()}
-
-        if db is None:
-            categories, subcategories, services = _load_taxonomy_from_seed()
-            generated = _build_keyword_dicts(categories, subcategories, services)
-            _cached_source = "seed"
-        else:
-            try:
-                generated = generate_keyword_dicts(db)
-                _cached_source = "db"
-            except Exception as exc:
-                logger.warning(
-                    "search_keyword_generation_from_db_failed",
-                    extra={"error": str(exc)},
-                )
-                categories, subcategories, services = _load_taxonomy_from_seed()
-                generated = _build_keyword_dicts(categories, subcategories, services)
-                _cached_source = "seed"
-
-        _cached_keyword_dicts = generated
-        return {key: dict(value) for key, value in generated.items()}
+    return _keyword_dict_cache.get(db=db, force_refresh=force_refresh)
 
 
-__all__ = ["generate_keyword_dicts", "get_keyword_dicts"]
+def invalidate_keyword_dict_cache() -> None:
+    """Clear in-process keyword dictionaries."""
+    _keyword_dict_cache.invalidate()
+
+
+__all__ = ["generate_keyword_dicts", "get_keyword_dicts", "invalidate_keyword_dict_cache"]

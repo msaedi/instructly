@@ -19909,7 +19909,7 @@ export type components = {
          *     Includes nested services and applicable filters.
          */
         SubcategoryDetail: {
-            category: components["schemas"]["CategoryResponse"];
+            category?: components["schemas"]["CategoryResponse"] | null;
             /** Description */
             description?: string | null;
             /** Filters */

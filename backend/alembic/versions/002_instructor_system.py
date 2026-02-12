@@ -572,12 +572,6 @@ def upgrade() -> None:
         "idx_instructor_services_service_catalog_id", "instructor_services", ["service_catalog_id"]
     )
     op.create_index(
-        "idx_instructor_services_active",
-        "instructor_services",
-        ["instructor_profile_id", "is_active"],
-        postgresql_where=sa.text("is_active = true"),
-    )
-    op.create_index(
         "ix_instructor_services_profile_active",
         "instructor_services",
         ["instructor_profile_id", "is_active"],
@@ -772,7 +766,6 @@ def downgrade() -> None:
     op.drop_index("idx_instructor_services_filter_selections", table_name="instructor_services")
     op.drop_index("unique_instructor_catalog_service_active", table_name="instructor_services")
     op.drop_index("ix_instructor_services_profile_active", table_name="instructor_services")
-    op.drop_index("idx_instructor_services_active", table_name="instructor_services")
     op.drop_index("idx_instructor_services_service_catalog_id", table_name="instructor_services")
     op.drop_index("idx_instructor_services_instructor_profile_id", table_name="instructor_services")
     op.drop_index("ix_instructor_services_id", table_name="instructor_services")

@@ -960,8 +960,6 @@ class SearchAnalyticsRepository:
         cache_hit: bool = False,
         degraded: bool = False,
         user_id: Optional[str] = None,
-        top_result_ids: Optional[List[str]] = None,
-        session_id: Optional[str] = None,
         query_id: Optional[str] = None,
     ) -> str:
         """

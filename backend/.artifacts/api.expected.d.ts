@@ -10000,7 +10000,7 @@ export type components = {
  service_count: number;
  };
  SubcategoryDetail: {
- category: components["schemas"]["CategoryResponse"];
+ category?: components["schemas"]["CategoryResponse"] | null;
  description?: string | null;
  filters?: components["schemas"]["SubcategoryFilterResponse"][];
  id: string;

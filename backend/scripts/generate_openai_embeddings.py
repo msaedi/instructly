@@ -96,10 +96,28 @@ def generate_embeddings(
         logger.error("OPENAI_API_KEY environment variable required")
         sys.exit(1)
 
-    client = OpenAI(api_key=api_key)
     model = os.getenv("OPENAI_EMBEDDING_MODEL", DEFAULT_MODEL)
+    timeout_raw = os.getenv("OPENAI_EMBEDDING_TIMEOUT_S", "90")
+    retries_raw = os.getenv("OPENAI_EMBEDDING_MAX_RETRIES", "1")
+    batch_delay_raw = os.getenv("OPENAI_SERVICE_EMBEDDINGS_BATCH_DELAY_S", "0.1")
+    try:
+        timeout_s = float(timeout_raw)
+    except ValueError:
+        timeout_s = 90.0
+    try:
+        max_retries = int(retries_raw)
+    except ValueError:
+        max_retries = 1
+    try:
+        batch_delay_s = max(0.0, float(batch_delay_raw))
+    except ValueError:
+        batch_delay_s = 0.1
+    client = OpenAI(api_key=api_key, timeout=timeout_s, max_retries=max_retries)
 
-    logger.info(f"Using model: {model}")
+    logger.info(
+        "Using model: "
+        f"{model} (timeout={timeout_s}s, retries={max_retries}, batch={batch_size}, delay={batch_delay_s}s)"
+    )
 
     # Connect to database
     db_url = settings.database_url
@@ -175,10 +193,12 @@ def generate_embeddings(
 
             # Call OpenAI API
             try:
+                api_start = time.perf_counter()
                 response = client.embeddings.create(
                     model=model,
                     input=texts,
                 )
+                api_ms = int((time.perf_counter() - api_start) * 1000)
 
                 # Update database
                 for j, embedding_data in enumerate(response.data):
@@ -210,11 +230,13 @@ def generate_embeddings(
                 total_processed += len(batch)
                 total_tokens += response.usage.total_tokens
 
-                logger.info(f"  Updated {len(batch)} services ({response.usage.total_tokens} tokens)")
+                logger.info(
+                    f"  Updated {len(batch)} services ({response.usage.total_tokens} tokens, api={api_ms}ms)"
+                )
 
                 # Rate limiting - avoid hitting API limits
                 if i + batch_size < len(services):
-                    time.sleep(0.5)  # Small delay between batches
+                    time.sleep(batch_delay_s)
 
             except Exception as e:
                 logger.error(f"Error processing batch: {e}")

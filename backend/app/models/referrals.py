@@ -383,7 +383,7 @@ class ReferralConfig(Base):
             "student_global_cap >= 0",
             name="ck_referral_config_student_global_cap_non_negative",
         ),
-        Index("ix_referral_config_effective_at_desc", "effective_at"),
+        Index("ix_referral_config_effective_at_desc", effective_at.desc()),
     )
 
 

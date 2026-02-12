@@ -571,12 +571,19 @@ def upgrade() -> None:
             name="ck_referral_config_student_global_cap_non_negative",
         ),
     )
-    op.create_index(
-        "ix_referral_config_effective_at_desc",
-        "referral_config",
-        ["effective_at"],
-        unique=False,
-    )
+    if is_postgres:
+        op.execute(
+            "CREATE INDEX ix_referral_config_effective_at_desc "
+            "ON referral_config (effective_at DESC)"
+        )
+    else:
+        # SQLite fallback for tests: keep the same index name on the single column.
+        op.create_index(
+            "ix_referral_config_effective_at_desc",
+            "referral_config",
+            ["effective_at"],
+            unique=False,
+        )
 
     op.create_table(
         "instructor_referral_payouts",
