@@ -320,21 +320,53 @@ def _build_keyword_dicts(
         if curated_category_name in available_categories:
             category_keywords[keyword] = curated_category_name
 
-    # Ensure service and subcategory keys always carry consistent parent category.
+    # Ensure cross-dict consistency: when a keyword appears in multiple dicts,
+    # the category must be the actual parent of the subcategory/service.
+    # If a derived keyword conflicts with a direct category match (e.g. "arts"
+    # matches category "Arts" but also subcategory "Martial Arts" under
+    # "Sports & Fitness"), remove the ambiguous entry from the more-specific
+    # dict so the direct category match wins cleanly.
+
+    # Subcategory → category propagation.
+    conflicting_subcategory_keys: list[str] = []
     for keyword, subcategory_name in subcategory_keywords.items():
         parent_category_name = subcategory_to_category.get(subcategory_name)
-        if parent_category_name and keyword not in category_keywords:
+        if not parent_category_name:
+            continue
+        existing_category = category_keywords.get(keyword)
+        if existing_category is None:
+            # No conflict — propagate parent category.
             category_keywords[keyword] = parent_category_name
+        elif existing_category != parent_category_name:
+            # Direct category match conflicts with subcategory's parent.
+            # Remove the ambiguous subcategory entry to keep the direct match.
+            conflicting_subcategory_keys.append(keyword)
+    for keyword in conflicting_subcategory_keys:
+        del subcategory_keywords[keyword]
 
+    # Service → subcategory/category propagation.
+    conflicting_service_keys: list[str] = []
     for keyword, service_name in service_keywords.items():
         parent = service_to_parent.get(service_name)
         if parent is None:
             continue
         subcategory_name, category_name = parent
-        if keyword not in subcategory_keywords:
+        existing_category = category_keywords.get(keyword)
+        existing_subcategory = subcategory_keywords.get(keyword)
+
+        cat_conflict = existing_category is not None and existing_category != category_name
+        sub_conflict = existing_subcategory is not None and existing_subcategory != subcategory_name
+        if cat_conflict or sub_conflict:
+            # Ambiguous service keyword — remove it to preserve existing matches.
+            conflicting_service_keys.append(keyword)
+            continue
+
+        if existing_subcategory is None:
             subcategory_keywords[keyword] = subcategory_name
-        if keyword not in category_keywords:
+        if existing_category is None:
             category_keywords[keyword] = category_name
+    for keyword in conflicting_service_keys:
+        del service_keywords[keyword]
 
     return {
         "category_keywords": dict(sorted(category_keywords.items())),
