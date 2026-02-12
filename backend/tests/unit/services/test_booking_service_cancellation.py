@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
@@ -307,6 +307,15 @@ def test_resolve_no_show_cancelled_calculates_from_base_price(
     payment_repo.create_payment_event = Mock()
 
     mock_repository.get_booking_with_details.side_effect = [booking, booking]
+    mock_repository.get_no_show_by_booking_id.return_value = SimpleNamespace(
+        no_show_reported_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        no_show_resolved_at=None,
+        no_show_type="instructor",
+        no_show_disputed=False,
+        no_show_disputed_at=None,
+        no_show_dispute_reason=None,
+        no_show_resolution=None,
+    )
     booking_service._snapshot_booking = Mock(return_value={})
     booking_service._write_booking_audit = Mock()
     booking_service._invalidate_booking_caches = Mock()
@@ -334,6 +343,15 @@ def test_resolve_no_show_default_tier_and_student_fee_fallback(
     payment_repo.create_payment_event = Mock()
 
     mock_repository.get_booking_with_details.side_effect = [booking, booking]
+    mock_repository.get_no_show_by_booking_id.return_value = SimpleNamespace(
+        no_show_reported_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        no_show_resolved_at=None,
+        no_show_type="instructor",
+        no_show_disputed=False,
+        no_show_disputed_at=None,
+        no_show_dispute_reason=None,
+        no_show_resolution=None,
+    )
     booking_service._snapshot_booking = Mock(return_value={})
     booking_service._write_booking_audit = Mock()
     booking_service._invalidate_booking_caches = Mock()

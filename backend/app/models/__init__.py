@@ -23,6 +23,8 @@ from .badge import BadgeDefinition, BadgeProgress, StudentBadge
 from .beta import BetaAccess, BetaInvite, BetaSettings
 from .booking import Booking, BookingStatus
 from .booking_dispute import BookingDispute
+from .booking_lock import BookingLock
+from .booking_no_show import BookingNoShow
 from .booking_note import BookingNote
 from .booking_transfer import BookingTransfer
 from .conversation import Conversation
@@ -132,7 +134,9 @@ __all__ = [
     "Booking",
     "BookingStatus",
     "BookingDispute",
+    "BookingLock",
     "BookingNote",
+    "BookingNoShow",
     "BookingTransfer",
     "AuditLog",
     "AuditLogEntry",

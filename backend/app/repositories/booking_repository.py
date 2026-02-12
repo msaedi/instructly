@@ -25,13 +25,15 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Query, Session, aliased, joinedload
+from sqlalchemy.orm import Query, Session, aliased, joinedload, selectinload
 
 from ..core.enums import RoleName
 from ..core.exceptions import NotFoundException, RepositoryException
 from ..core.timezone_utils import get_user_now_by_id, get_user_today_by_id
 from ..models.booking import Booking, BookingStatus, PaymentStatus
 from ..models.booking_dispute import BookingDispute
+from ..models.booking_lock import BookingLock
+from ..models.booking_no_show import BookingNoShow
 from ..models.booking_transfer import BookingTransfer
 from ..models.user import User
 from .base_repository import BaseRepository
@@ -118,6 +120,62 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except Exception as e:
             self.logger.error(f"Error ensuring transfer for booking {booking_id}: {str(e)}")
             raise RepositoryException(f"Failed to ensure booking transfer: {str(e)}")
+
+    def get_no_show_by_booking_id(self, booking_id: str) -> Optional[BookingNoShow]:
+        """Return no-show satellite row for a booking, if present."""
+        try:
+            no_show = cast(
+                Optional[BookingNoShow],
+                self.db.query(BookingNoShow)
+                .filter(BookingNoShow.booking_id == booking_id)
+                .one_or_none(),
+            )
+            return no_show
+        except Exception as e:
+            self.logger.error(f"Error getting no-show for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to get booking no-show: {str(e)}")
+
+    def get_lock_by_booking_id(self, booking_id: str) -> Optional[BookingLock]:
+        """Return lock satellite row for a booking, if present."""
+        try:
+            lock = cast(
+                Optional[BookingLock],
+                self.db.query(BookingLock)
+                .filter(BookingLock.booking_id == booking_id)
+                .one_or_none(),
+            )
+            return lock
+        except Exception as e:
+            self.logger.error(f"Error getting lock for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to get booking lock: {str(e)}")
+
+    def ensure_no_show(self, booking_id: str) -> BookingNoShow:
+        """Get or create no-show satellite row for a booking."""
+        try:
+            no_show = self.get_no_show_by_booking_id(booking_id)
+            if no_show is not None:
+                return no_show
+            no_show = BookingNoShow(booking_id=booking_id)
+            self.db.add(no_show)
+            self.db.flush()
+            return no_show
+        except Exception as e:
+            self.logger.error(f"Error ensuring no-show for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to ensure booking no-show: {str(e)}")
+
+    def ensure_lock(self, booking_id: str) -> BookingLock:
+        """Get or create lock satellite row for a booking."""
+        try:
+            lock = self.get_lock_by_booking_id(booking_id)
+            if lock is not None:
+                return lock
+            lock = BookingLock(booking_id=booking_id)
+            self.db.add(lock)
+            self.db.flush()
+            return lock
+        except Exception as e:
+            self.logger.error(f"Error ensuring lock for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to ensure booking lock: {str(e)}")
 
     # Time-based Booking Queries (NEW)
 
@@ -558,6 +616,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     joinedload(Booking.student),
                     joinedload(Booking.instructor),
                     joinedload(Booking.instructor_service),
+                    selectinload(Booking.no_show_detail),
+                    selectinload(Booking.lock_detail),
                 )
                 .filter(Booking.student_id == student_id)
             )
@@ -719,6 +779,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     joinedload(Booking.student),
                     joinedload(Booking.instructor),
                     joinedload(Booking.instructor_service),
+                    selectinload(Booking.no_show_detail),
+                    selectinload(Booking.lock_detail),
                 )
                 .filter(Booking.instructor_id == instructor_id)
             )
@@ -979,6 +1041,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     joinedload(Booking.instructor_service),
                     joinedload(Booking.rescheduled_from),
                     joinedload(Booking.cancelled_by),
+                    selectinload(Booking.no_show_detail),
+                    selectinload(Booking.lock_detail),
                 )
                 .filter(Booking.id == booking_id)
                 .first()
@@ -1440,17 +1504,19 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         try:
             query = (
                 self.db.query(Booking)
+                .join(BookingNoShow, BookingNoShow.booking_id == Booking.id)
                 .filter(
-                    Booking.no_show_reported_at.is_not(None),
-                    Booking.no_show_reported_at <= reported_before,
+                    BookingNoShow.no_show_reported_at.is_not(None),
+                    BookingNoShow.no_show_reported_at <= reported_before,
                     or_(
-                        Booking.no_show_disputed.is_(False),
-                        Booking.no_show_disputed.is_(None),
+                        BookingNoShow.no_show_disputed.is_(False),
+                        BookingNoShow.no_show_disputed.is_(None),
                     ),
-                    Booking.no_show_resolved_at.is_(None),
+                    BookingNoShow.no_show_resolved_at.is_(None),
                     Booking.payment_status == PaymentStatus.MANUAL_REVIEW.value,
                 )
-                .order_by(Booking.no_show_reported_at.asc())
+                .options(joinedload(Booking.no_show_detail))
+                .order_by(BookingNoShow.no_show_reported_at.asc())
             )
             return cast(List[Booking], query.all())
         except Exception as exc:

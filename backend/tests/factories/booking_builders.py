@@ -8,6 +8,8 @@ from typing import Any, Dict, Iterable, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_lock import BookingLock
+from app.models.booking_no_show import BookingNoShow
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.booking_timezone import booking_timezone_fields
@@ -17,6 +19,24 @@ except ModuleNotFoundError:  # pragma: no cover
 ACTIVE_STATUSES: Dict[str, BookingStatus] = {
     status.name: status
     for status in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED, BookingStatus.NO_SHOW)
+}
+
+NO_SHOW_FIELDS = {
+    "no_show_reported_by",
+    "no_show_reported_at",
+    "no_show_type",
+    "no_show_disputed",
+    "no_show_disputed_at",
+    "no_show_dispute_reason",
+    "no_show_resolved_at",
+    "no_show_resolution",
+}
+
+LOCK_FIELDS = {
+    "locked_at",
+    "locked_amount_cents",
+    "lock_resolved_at",
+    "lock_resolution",
 }
 
 
@@ -242,7 +262,7 @@ def create_booking_pg_safe(
         "end_time": end_time,
         "status": status,
         **timezone_fields,
-        **extra_fields,
+        **{k: v for k, v in extra_fields.items() if k not in NO_SHOW_FIELDS and k not in LOCK_FIELDS},
     }
 
     if status == BookingStatus.CANCELLED and booking_kwargs.get("cancelled_at") is None:
@@ -250,6 +270,32 @@ def create_booking_pg_safe(
 
     booking = Booking(**booking_kwargs)
     session.add(booking)
+    session.flush()
+
+    if any(field in extra_fields for field in NO_SHOW_FIELDS):
+        no_show = BookingNoShow(
+            booking_id=booking.id,
+            no_show_reported_by=extra_fields.get("no_show_reported_by"),
+            no_show_reported_at=extra_fields.get("no_show_reported_at"),
+            no_show_type=extra_fields.get("no_show_type"),
+            no_show_disputed=bool(extra_fields.get("no_show_disputed", False)),
+            no_show_disputed_at=extra_fields.get("no_show_disputed_at"),
+            no_show_dispute_reason=extra_fields.get("no_show_dispute_reason"),
+            no_show_resolved_at=extra_fields.get("no_show_resolved_at"),
+            no_show_resolution=extra_fields.get("no_show_resolution"),
+        )
+        session.add(no_show)
+
+    if any(field in extra_fields for field in LOCK_FIELDS):
+        lock = BookingLock(
+            booking_id=booking.id,
+            locked_at=extra_fields.get("locked_at"),
+            locked_amount_cents=extra_fields.get("locked_amount_cents"),
+            lock_resolved_at=extra_fields.get("lock_resolved_at"),
+            lock_resolution=extra_fields.get("lock_resolution"),
+        )
+        session.add(lock)
+
     session.flush()
     return booking
 

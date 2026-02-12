@@ -97,6 +97,18 @@ def make_user(role: RoleName, **overrides: object) -> SimpleNamespace:
     return user
 
 
+def make_no_show_record(**overrides: object) -> SimpleNamespace:
+    return SimpleNamespace(
+        no_show_reported_at=overrides.get("no_show_reported_at", None),
+        no_show_resolved_at=overrides.get("no_show_resolved_at", None),
+        no_show_type=overrides.get("no_show_type", None),
+        no_show_disputed=overrides.get("no_show_disputed", False),
+        no_show_disputed_at=overrides.get("no_show_disputed_at", None),
+        no_show_dispute_reason=overrides.get("no_show_dispute_reason", None),
+        no_show_resolution=overrides.get("no_show_resolution", None),
+    )
+
+
 @pytest.fixture
 def mock_db() -> MagicMock:
     return MagicMock()
@@ -106,6 +118,15 @@ def mock_db() -> MagicMock:
 def mock_repository() -> MagicMock:
     repo = MagicMock()
     repo.transaction.return_value = _transaction_cm()
+    repo.get_lock_by_booking_id.return_value = None
+    repo.ensure_lock.return_value = SimpleNamespace(
+        locked_at=None,
+        locked_amount_cents=None,
+        lock_resolved_at=None,
+        lock_resolution=None,
+    )
+    repo.get_no_show_by_booking_id.return_value = None
+    repo.ensure_no_show.return_value = make_no_show_record()
     return repo
 
 
@@ -642,6 +663,9 @@ def test_report_no_show_already_reported(
     )
     reporter = make_user(RoleName.STUDENT, id=booking.student_id)
     mock_repository.get_booking_with_details.return_value = booking
+    mock_repository.get_no_show_by_booking_id.return_value = make_no_show_record(
+        no_show_reported_at=booking.no_show_reported_at
+    )
 
     booking_service._get_booking_start_utc = Mock(return_value=datetime.now(timezone.utc) - timedelta(hours=1))
     booking_service._get_booking_end_utc = Mock(return_value=datetime.now(timezone.utc) - timedelta(minutes=30))
@@ -667,6 +691,11 @@ def test_dispute_no_show_already_resolved(
     )
     disputer = make_user(RoleName.INSTRUCTOR, id=booking.instructor_id)
     mock_repository.get_booking_with_details.return_value = booking
+    mock_repository.get_no_show_by_booking_id.return_value = make_no_show_record(
+        no_show_reported_at=booking.no_show_reported_at,
+        no_show_resolved_at=booking.no_show_resolved_at,
+        no_show_type=booking.no_show_type,
+    )
 
     with pytest.raises(BusinessRuleException):
         booking_service.dispute_no_show(booking_id=booking.id, disputer=disputer, reason="x")
@@ -681,6 +710,10 @@ def test_dispute_no_show_invalid_type(
     )
     disputer = make_user(RoleName.INSTRUCTOR, id=booking.instructor_id)
     mock_repository.get_booking_with_details.return_value = booking
+    mock_repository.get_no_show_by_booking_id.return_value = make_no_show_record(
+        no_show_reported_at=booking.no_show_reported_at,
+        no_show_type=booking.no_show_type,
+    )
 
     with pytest.raises(BusinessRuleException):
         booking_service.dispute_no_show(booking_id=booking.id, disputer=disputer, reason="x")
@@ -695,6 +728,11 @@ def test_dispute_no_show_naive_reported_at_success(
     )
     disputer = make_user(RoleName.INSTRUCTOR, id=booking.instructor_id)
     mock_repository.get_booking_with_details.return_value = booking
+    mock_repository.get_no_show_by_booking_id.return_value = make_no_show_record(
+        no_show_reported_at=booking.no_show_reported_at,
+        no_show_type=booking.no_show_type,
+        no_show_disputed=False,
+    )
     booking_service._snapshot_booking = Mock(return_value={})
     booking_service._write_booking_audit = Mock()
     booking_service._invalidate_booking_caches = Mock()
@@ -728,6 +766,9 @@ def test_resolve_no_show_missing_report(
 ) -> None:
     booking = make_booking(no_show_reported_at=None)
     mock_repository.get_booking_with_details.return_value = booking
+    mock_repository.get_no_show_by_booking_id.return_value = make_no_show_record(
+        no_show_reported_at=None
+    )
 
     with pytest.raises(BusinessRuleException):
         booking_service.resolve_no_show(
@@ -745,6 +786,11 @@ def test_resolve_no_show_already_resolved(
         no_show_resolved_at=datetime.now(timezone.utc),
     )
     mock_repository.get_booking_with_details.return_value = booking
+    mock_repository.get_no_show_by_booking_id.return_value = make_no_show_record(
+        no_show_reported_at=booking.no_show_reported_at,
+        no_show_resolved_at=booking.no_show_resolved_at,
+        no_show_type=booking.no_show_type,
+    )
 
     with pytest.raises(BusinessRuleException):
         booking_service.resolve_no_show(
@@ -762,6 +808,10 @@ def test_resolve_no_show_invalid_type_in_resolution(
         no_show_type="other",
     )
     mock_repository.get_booking_with_details.return_value = booking
+    mock_repository.get_no_show_by_booking_id.return_value = make_no_show_record(
+        no_show_reported_at=booking.no_show_reported_at,
+        no_show_type=booking.no_show_type,
+    )
 
     with pytest.raises(BusinessRuleException):
         booking_service.resolve_no_show(
@@ -779,6 +829,10 @@ def test_resolve_no_show_invalid_resolution(
         no_show_type="instructor",
     )
     mock_repository.get_booking_with_details.return_value = booking
+    mock_repository.get_no_show_by_booking_id.return_value = make_no_show_record(
+        no_show_reported_at=booking.no_show_reported_at,
+        no_show_type=booking.no_show_type,
+    )
 
     with pytest.raises(ValidationException):
         booking_service.resolve_no_show(
@@ -809,6 +863,12 @@ def test_resolve_no_show_parse_errors_and_missing_after_resolution(
     )
 
     mock_repository.get_booking_with_details.side_effect = [booking, None]
+    mock_repository.get_no_show_by_booking_id.return_value = make_no_show_record(
+        no_show_reported_at=booking.no_show_reported_at,
+        no_show_type=booking.no_show_type,
+        no_show_disputed=False,
+        no_show_resolved_at=None,
+    )
     booking_service._snapshot_booking = Mock(return_value={})
     booking_service.resolve_lock_for_booking = Mock(return_value={"success": True})
 
@@ -835,6 +895,12 @@ def test_resolve_no_show_student_locked_path(
         rescheduled_from_booking_id="lock_2",
     )
     mock_repository.get_booking_with_details.side_effect = [booking, booking]
+    mock_repository.get_no_show_by_booking_id.return_value = make_no_show_record(
+        no_show_reported_at=booking.no_show_reported_at,
+        no_show_type=booking.no_show_type,
+        no_show_disputed=False,
+        no_show_resolved_at=None,
+    )
     booking_service._snapshot_booking = Mock(return_value={})
     booking_service.resolve_lock_for_booking = Mock(return_value={"success": True})
     booking_service._finalize_student_no_show = Mock()

@@ -636,6 +636,8 @@ class BookingResponse(BookingBase):
             return value if isinstance(value, bool) else None
 
         rescheduled_from_booking_id_value = getattr(booking, "rescheduled_from_booking_id", None)
+        no_show_detail = getattr(booking, "no_show_detail", None)
+        lock_detail = getattr(booking, "lock_detail", None)
 
         response_data = {
             # Base fields from BookingBase
@@ -684,14 +686,22 @@ class BookingResponse(BookingBase):
             "cancelled_by_id": booking.cancelled_by_id,
             "cancellation_reason": booking.cancellation_reason,
             # No-show tracking
-            "no_show_reported_by": _safe_str(getattr(booking, "no_show_reported_by", None)),
-            "no_show_reported_at": _safe_datetime(getattr(booking, "no_show_reported_at", None)),
-            "no_show_type": _safe_str(getattr(booking, "no_show_type", None)),
-            "no_show_disputed": _safe_bool(getattr(booking, "no_show_disputed", None)),
-            "no_show_disputed_at": _safe_datetime(getattr(booking, "no_show_disputed_at", None)),
-            "no_show_dispute_reason": _safe_str(getattr(booking, "no_show_dispute_reason", None)),
-            "no_show_resolved_at": _safe_datetime(getattr(booking, "no_show_resolved_at", None)),
-            "no_show_resolution": _safe_str(getattr(booking, "no_show_resolution", None)),
+            "no_show_reported_by": _safe_str(getattr(no_show_detail, "no_show_reported_by", None)),
+            "no_show_reported_at": _safe_datetime(
+                getattr(no_show_detail, "no_show_reported_at", None)
+            ),
+            "no_show_type": _safe_str(getattr(no_show_detail, "no_show_type", None)),
+            "no_show_disputed": _safe_bool(getattr(no_show_detail, "no_show_disputed", None)),
+            "no_show_disputed_at": _safe_datetime(
+                getattr(no_show_detail, "no_show_disputed_at", None)
+            ),
+            "no_show_dispute_reason": _safe_str(
+                getattr(no_show_detail, "no_show_dispute_reason", None)
+            ),
+            "no_show_resolved_at": _safe_datetime(
+                getattr(no_show_detail, "no_show_resolved_at", None)
+            ),
+            "no_show_resolution": _safe_str(getattr(no_show_detail, "no_show_resolution", None)),
             # Settlement tracking
             "settlement_outcome": _safe_str(getattr(booking, "settlement_outcome", None)),
             "student_credit_amount": _safe_int(getattr(booking, "student_credit_amount", None)),
@@ -704,10 +714,10 @@ class BookingResponse(BookingBase):
             "auth_attempted_at": _safe_datetime(getattr(booking, "auth_attempted_at", None)),
             "auth_failure_count": _safe_int(getattr(booking, "auth_failure_count", None)),
             "auth_last_error": _safe_str(getattr(booking, "auth_last_error", None)),
-            "locked_at": _safe_datetime(getattr(booking, "locked_at", None)),
-            "locked_amount_cents": _safe_int(getattr(booking, "locked_amount_cents", None)),
-            "lock_resolved_at": _safe_datetime(getattr(booking, "lock_resolved_at", None)),
-            "lock_resolution": _safe_str(getattr(booking, "lock_resolution", None)),
+            "locked_at": _safe_datetime(getattr(lock_detail, "locked_at", None)),
+            "locked_amount_cents": _safe_int(getattr(lock_detail, "locked_amount_cents", None)),
+            "lock_resolved_at": _safe_datetime(getattr(lock_detail, "lock_resolved_at", None)),
+            "lock_resolution": _safe_str(getattr(lock_detail, "lock_resolution", None)),
             # Privacy-protected nested objects
             "student": StudentInfo.model_validate(booking.student) if booking.student else None,
             "instructor": InstructorInfo.from_user(booking.instructor)

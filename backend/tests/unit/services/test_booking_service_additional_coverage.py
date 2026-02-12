@@ -127,6 +127,24 @@ def mock_repository() -> MagicMock:
     repo.get_bookings_by_time_range.return_value = []
     repo.check_time_conflict.return_value = False
     repo.check_student_time_conflict.return_value = []
+    repo.get_no_show_by_booking_id.return_value = None
+    repo.ensure_no_show.return_value = SimpleNamespace(
+        no_show_reported_at=None,
+        no_show_reported_by=None,
+        no_show_type=None,
+        no_show_disputed=False,
+        no_show_disputed_at=None,
+        no_show_dispute_reason=None,
+        no_show_resolved_at=None,
+        no_show_resolution=None,
+    )
+    repo.get_lock_by_booking_id.return_value = None
+    repo.ensure_lock.return_value = SimpleNamespace(
+        locked_at=None,
+        locked_amount_cents=None,
+        lock_resolved_at=None,
+        lock_resolution=None,
+    )
     repo.ensure_transfer.return_value = SimpleNamespace(
         stripe_transfer_id=None,
         transfer_reversal_failed=False,
@@ -1719,6 +1737,16 @@ def test_resolve_lock_for_booking_instructor_cancel_invalid_refund_amount_fallba
         duration_minutes=60,
     )
     mock_repository.get_by_id_for_update.return_value = locked_booking
+    mock_repository.get_lock_by_booking_id.return_value = SimpleNamespace(
+        locked_amount_cents=777,
+        lock_resolved_at=None,
+    )
+    mock_repository.ensure_lock.return_value = SimpleNamespace(
+        locked_amount_cents=777,
+        lock_resolved_at=None,
+        lock_resolution=None,
+        locked_at=None,
+    )
     booking_service.transaction = MagicMock(return_value=_transaction_cm())
     booking_service.conflict_checker_repository.get_instructor_profile.return_value = None
 
@@ -2349,6 +2377,12 @@ def test_dispute_no_show_student_branch_forbidden_user(
         no_show_resolved_at=None,
     )
     mock_repository.get_booking_with_details.return_value = booking
+    mock_repository.get_no_show_by_booking_id.return_value = SimpleNamespace(
+        no_show_reported_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        no_show_type="student",
+        no_show_disputed=False,
+        no_show_resolved_at=None,
+    )
     booking_service.transaction = MagicMock(return_value=_transaction_cm())
 
     with pytest.raises(ForbiddenException):
@@ -2375,6 +2409,23 @@ def test_resolve_no_show_locked_dispute_upheld_and_cancelled_paths(
         duration_minutes=60,
     )
     mock_repository.get_booking_with_details.side_effect = [locked_booking, locked_booking]
+    locked_no_show = SimpleNamespace(
+        no_show_reported_at=datetime.now(timezone.utc) - timedelta(hours=2),
+        no_show_resolved_at=None,
+        no_show_type="student",
+        no_show_disputed=False,
+        no_show_disputed_at=None,
+        no_show_dispute_reason=None,
+    )
+    cancelled_no_show = SimpleNamespace(
+        no_show_reported_at=datetime.now(timezone.utc) - timedelta(hours=2),
+        no_show_resolved_at=None,
+        no_show_type="student",
+        no_show_disputed=False,
+        no_show_disputed_at=None,
+        no_show_dispute_reason=None,
+    )
+    mock_repository.get_no_show_by_booking_id.side_effect = [locked_no_show, cancelled_no_show]
     booking_service.transaction = MagicMock(return_value=_transaction_cm())
     booking_service.resolve_lock_for_booking = Mock(return_value={"success": True})
     booking_service._finalize_student_no_show = Mock()

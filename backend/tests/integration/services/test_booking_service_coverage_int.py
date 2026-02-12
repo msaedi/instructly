@@ -28,6 +28,8 @@ from app.core.exceptions import (
 )
 from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_lock import BookingLock
+from app.models.booking_no_show import BookingNoShow
 from app.models.booking_transfer import BookingTransfer
 from app.models.payment import PaymentMethod
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog
@@ -134,6 +136,34 @@ def _get_transfer(db: Session, booking_id: str) -> BookingTransfer | None:
     return (
         db.query(BookingTransfer).filter(BookingTransfer.booking_id == booking_id).one_or_none()
     )
+
+
+def _get_no_show(db: Session, booking_id: str) -> BookingNoShow | None:
+    return db.query(BookingNoShow).filter(BookingNoShow.booking_id == booking_id).one_or_none()
+
+
+def _upsert_no_show(db: Session, booking_id: str, **fields) -> BookingNoShow:
+    no_show = _get_no_show(db, booking_id)
+    if no_show is None:
+        no_show = BookingNoShow(booking_id=booking_id)
+        db.add(no_show)
+    for key, value in fields.items():
+        setattr(no_show, key, value)
+    return no_show
+
+
+def _get_lock(db: Session, booking_id: str) -> BookingLock | None:
+    return db.query(BookingLock).filter(BookingLock.booking_id == booking_id).one_or_none()
+
+
+def _upsert_lock(db: Session, booking_id: str, **fields) -> BookingLock:
+    lock = _get_lock(db, booking_id)
+    if lock is None:
+        lock = BookingLock(booking_id=booking_id)
+        db.add(lock)
+    for key, value in fields.items():
+        setattr(lock, key, value)
+    return lock
 
 
 @pytest.fixture(autouse=True)
@@ -493,8 +523,10 @@ class TestReportNoShowIntegration:
         if isinstance(result, dict):
             assert result.get("status") == "success" or "booking_id" in result
         else:
-            assert result.no_show_reported_at is not None
-            assert result.no_show_type == "instructor"
+            no_show = _get_no_show(db, booking.id)
+            assert no_show is not None
+            assert no_show.no_show_reported_at is not None
+            assert no_show.no_show_type == "instructor"
 
     def test_report_no_show_booking_not_found(
         self,
@@ -533,8 +565,12 @@ class TestDisputeNoShowIntegration:
             past_date, time(10, 0), time(11, 0),
             offset_index=10,
         )
-        booking.no_show_reported_at = datetime.now(timezone.utc)
-        booking.no_show_type = "student"  # Valid values: "student" or "instructor"
+        _upsert_no_show(
+            db,
+            booking.id,
+            no_show_reported_at=datetime.now(timezone.utc),
+            no_show_type="student",  # Valid values: "student" or "instructor"
+        )
         db.commit()
 
         result = booking_service_integration.dispute_no_show(
@@ -547,8 +583,10 @@ class TestDisputeNoShowIntegration:
         if isinstance(result, dict):
             assert result.get("disputed") == True or result.get("no_show_disputed") == True
         else:
-            assert result.no_show_disputed == True
-            assert result.no_show_dispute_reason == "I was there on time"
+            no_show = _get_no_show(db, booking.id)
+            assert no_show is not None
+            assert no_show.no_show_disputed is True
+            assert no_show.no_show_dispute_reason == "I was there on time"
 
     def test_dispute_no_show_no_report_exists(
         self,
@@ -599,8 +637,12 @@ class TestResolveNoShowIntegration:
             payment_intent_id="pi_no_show_refund",
             offset_index=12,
         )
-        booking.no_show_reported_at = datetime.now(timezone.utc) - timedelta(hours=1)
-        booking.no_show_type = "instructor"
+        _upsert_no_show(
+            db,
+            booking.id,
+            no_show_reported_at=datetime.now(timezone.utc) - timedelta(hours=1),
+            no_show_type="instructor",
+        )
         db.commit()
 
         mock_stripe = MagicMock()
@@ -646,8 +688,12 @@ class TestResolveNoShowIntegration:
             payment_intent_id="pi_no_show_capture",
             offset_index=13,
         )
-        booking.no_show_reported_at = datetime.now(timezone.utc) - timedelta(hours=1)
-        booking.no_show_type = "student"
+        _upsert_no_show(
+            db,
+            booking.id,
+            no_show_reported_at=datetime.now(timezone.utc) - timedelta(hours=1),
+            no_show_type="student",
+        )
         db.commit()
 
         mock_stripe = MagicMock()
@@ -1516,9 +1562,11 @@ class TestActivateLockForRescheduleIntegration:
             result = booking_service_integration.activate_lock_for_reschedule(booking.id)
 
         db.refresh(booking)
+        lock = _get_lock(db, booking.id)
         assert result.get("locked") is True
         assert booking.payment_status == PaymentStatus.LOCKED.value
-        assert booking.locked_amount_cents == 10000
+        assert lock is not None
+        assert lock.locked_amount_cents == 10000
 
     def test_activate_lock_missing_payment_intent_raises(
         self,
@@ -2975,7 +3023,7 @@ class TestResolveLockResolutionsIntegration:
             payment_status=PaymentStatus.LOCKED.value,
             offset_index=24,
         )
-        booking.locked_amount_cents = 6000
+        _upsert_lock(db, booking.id, locked_amount_cents=6000)
         db.commit()
 
         mock_stripe = MagicMock()
@@ -3013,7 +3061,7 @@ class TestResolveLockResolutionsIntegration:
             payment_intent_id="pi_lock_paid",
             offset_index=71,
         )
-        booking.locked_amount_cents = 6000
+        _upsert_lock(db, booking.id, locked_amount_cents=6000)
         db.commit()
 
         _ensure_connected_account(db, test_instructor_with_availability)
@@ -3063,7 +3111,7 @@ class TestResolveLockResolutionsIntegration:
             payment_status=PaymentStatus.LOCKED.value,
             offset_index=25,
         )
-        booking.locked_amount_cents = 6000
+        _upsert_lock(db, booking.id, locked_amount_cents=6000)
         db.commit()
 
         mock_stripe = MagicMock()
@@ -3108,7 +3156,7 @@ class TestResolveLockResolutionsIntegration:
             payment_status=PaymentStatus.LOCKED.value,
             offset_index=26,
         )
-        booking.locked_amount_cents = 6000
+        _upsert_lock(db, booking.id, locked_amount_cents=6000)
         db.commit()
 
         mock_stripe = MagicMock()
@@ -3153,7 +3201,7 @@ class TestResolveLockResolutionsIntegration:
             payment_intent_id="pi_test_locked",
             offset_index=27,
         )
-        booking.locked_amount_cents = 6000
+        _upsert_lock(db, booking.id, locked_amount_cents=6000)
         db.commit()
 
         mock_stripe = MagicMock()
@@ -3184,7 +3232,7 @@ class TestResolveLockResolutionsIntegration:
             payment_intent_id=None,
             offset_index=72,
         )
-        booking.locked_amount_cents = 6000
+        _upsert_lock(db, booking.id, locked_amount_cents=6000)
         db.commit()
 
         result = booking_service_integration.resolve_lock_for_booking(

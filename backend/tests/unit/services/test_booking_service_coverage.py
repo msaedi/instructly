@@ -1428,8 +1428,8 @@ class TestDisputeNoShowCoverage:
     def test_dispute_no_show_no_report_exists(self, booking_service, mock_repository):
         """Test error when no no-show report exists."""
         booking = MagicMock(spec=Booking)
-        booking.no_show_reported_at = None
         mock_repository.get_booking_with_details.return_value = booking
+        mock_repository.get_no_show_by_booking_id.return_value = None
 
         disputer = MagicMock(spec=User)
         disputer.id = generate_ulid()
@@ -1444,9 +1444,12 @@ class TestDisputeNoShowCoverage:
     def test_dispute_no_show_already_disputed(self, booking_service, mock_repository):
         """Test error when no-show already disputed."""
         booking = MagicMock(spec=Booking)
-        booking.no_show_reported_at = datetime.now(timezone.utc)
-        booking.no_show_disputed = True
         mock_repository.get_booking_with_details.return_value = booking
+        no_show_record = MagicMock()
+        no_show_record.no_show_reported_at = datetime.now(timezone.utc)
+        no_show_record.no_show_disputed = True
+        no_show_record.no_show_resolved_at = None
+        mock_repository.get_no_show_by_booking_id.return_value = no_show_record
 
         disputer = MagicMock(spec=User)
         disputer.id = generate_ulid()

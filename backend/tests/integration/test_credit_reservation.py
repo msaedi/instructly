@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 import ulid
 
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_lock import BookingLock
 from app.models.instructor import InstructorProfile
 from app.models.payment import PlatformCredit, StripeConnectedAccount
 from app.models.service_catalog import InstructorService
@@ -630,7 +631,7 @@ class TestCreditWithLock:
             hours_from_now=30,
             payment_status="locked",
         )
-        booking.locked_amount_cents = 13440
+        db.add(BookingLock(booking_id=booking.id, locked_amount_cents=13440))
         db.flush()
 
         mock_transfer.return_value = {"transfer_id": "tr_lock_split"}

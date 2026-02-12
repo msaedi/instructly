@@ -610,8 +610,10 @@ class BookingDetailService(BaseService):
             if status == PaymentStatus.SETTLED.value:
                 add_event(booking.updated_at or booking.completed_at, "PAYMENT_SETTLED")
             if status == PaymentStatus.LOCKED.value:
+                lock_detail = getattr(booking, "lock_detail", None)
                 add_event(
-                    getattr(booking, "locked_at", None) or booking.updated_at, "PAYMENT_LOCKED"
+                    (getattr(lock_detail, "locked_at", None) or booking.updated_at),
+                    "PAYMENT_LOCKED",
                 )
 
         for webhook_event in webhook_events:

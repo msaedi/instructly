@@ -166,19 +166,6 @@ def upgrade() -> None:
         sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("cancelled_by_id", sa.String(26), nullable=True),
         sa.Column("cancellation_reason", sa.Text(), nullable=True),
-        sa.Column("no_show_reported_by", sa.String(26), nullable=True),
-        sa.Column("no_show_reported_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("no_show_type", sa.String(20), nullable=True),
-        sa.Column(
-            "no_show_disputed",
-            sa.Boolean(),
-            nullable=False,
-            server_default=sa.text("false"),
-        ),
-        sa.Column("no_show_disputed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("no_show_dispute_reason", sa.String(500), nullable=True),
-        sa.Column("no_show_resolved_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("no_show_resolution", sa.String(30), nullable=True),
         sa.Column("payment_method_id", sa.String(255), nullable=True, comment="Stripe payment method ID"),
         sa.Column("payment_intent_id", sa.String(255), nullable=True, comment="Current Stripe payment intent"),
         sa.Column("payment_status", sa.String(50), nullable=True, comment="Computed from latest events"),
@@ -203,10 +190,6 @@ def upgrade() -> None:
         sa.Column("capture_escalated_at", sa.DateTime(timezone=True), nullable=True, comment="Capture escalation timestamp (v2.1.1)"),
         sa.Column("capture_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Capture retry count (v2.1.1)"),
         sa.Column("capture_error", sa.String(500), nullable=True, comment="Capture error (v2.1.1)"),
-        sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True, comment="When LOCK was activated (v2.1.1)"),
-        sa.Column("locked_amount_cents", sa.Integer(), nullable=True, comment="Amount held under LOCK in cents (v2.1.1)"),
-        sa.Column("lock_resolved_at", sa.DateTime(timezone=True), nullable=True, comment="When LOCK was resolved (v2.1.1)"),
-        sa.Column("lock_resolution", sa.String(50), nullable=True, comment="LOCK resolution outcome (v2.1.1)"),
         sa.Column("late_reschedule_used", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="Late reschedule used in 12-24h window (v2.1.1)"),
         sa.Column("reschedule_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Total reschedule count (v2.1.1)"),
         sa.Column("rescheduled_to_booking_id", sa.String(26), nullable=True),
@@ -217,7 +200,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["rescheduled_from_booking_id"], ["bookings.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["rescheduled_to_booking_id"], ["bookings.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["cancelled_by_id"], ["users.id"]),
-        sa.ForeignKeyConstraint(["no_show_reported_by"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
         comment="Self-contained booking records - no dependency on availability slots",
     )
@@ -265,6 +247,44 @@ def upgrade() -> None:
         sa.UniqueConstraint("booking_id"),
     )
     op.create_index("ix_booking_transfers_booking_id", "booking_transfers", ["booking_id"], unique=True)
+
+    op.create_table(
+        "booking_no_shows",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("booking_id", sa.String(26), nullable=False),
+        sa.Column("no_show_reported_by", sa.String(26), nullable=True),
+        sa.Column("no_show_reported_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("no_show_type", sa.String(20), nullable=True),
+        sa.Column("no_show_disputed", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column("no_show_disputed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("no_show_dispute_reason", sa.String(500), nullable=True),
+        sa.Column("no_show_resolved_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("no_show_resolution", sa.String(30), nullable=True),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["no_show_reported_by"], ["users.id"]),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("booking_id"),
+    )
+    op.create_index("ix_booking_no_shows_booking_id", "booking_no_shows", ["booking_id"], unique=True)
+    op.create_index(
+        "ix_booking_no_shows_reported_at",
+        "booking_no_shows",
+        ["no_show_reported_at"],
+    )
+
+    op.create_table(
+        "booking_locks",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("booking_id", sa.String(26), nullable=False),
+        sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("locked_amount_cents", sa.Integer(), nullable=True),
+        sa.Column("lock_resolved_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("lock_resolution", sa.String(50), nullable=True),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("booking_id"),
+    )
+    op.create_index("ix_booking_locks_booking_id", "booking_locks", ["booking_id"], unique=True)
 
     op.create_index("idx_bookings_student_id", "bookings", ["student_id"])
     op.create_index("idx_bookings_instructor_id", "bookings", ["instructor_id"])
@@ -315,12 +335,6 @@ def upgrade() -> None:
         postgresql_where=sa.text("auth_scheduled_for IS NOT NULL"),
     )
     op.create_index(
-        "ix_bookings_locked_at",
-        "bookings",
-        ["locked_at"],
-        postgresql_where=sa.text("locked_at IS NOT NULL"),
-    )
-    op.create_index(
         "ix_bookings_payment_status_auth_scheduled",
         "bookings",
         ["payment_status", "auth_scheduled_for"],
@@ -344,13 +358,13 @@ def upgrade() -> None:
         ")",
     )
     op.create_check_constraint(
-        "ck_bookings_no_show_type",
-        "bookings",
+        "ck_booking_no_shows_no_show_type",
+        "booking_no_shows",
         "no_show_type IS NULL OR no_show_type IN ('instructor', 'student')",
     )
     op.create_check_constraint(
-        "ck_bookings_lock_resolution",
-        "bookings",
+        "ck_booking_locks_lock_resolution",
+        "booking_locks",
         "lock_resolution IS NULL OR lock_resolution IN ("
         "'new_lesson_completed',"
         "'new_lesson_cancelled_ge12',"
@@ -829,6 +843,8 @@ def downgrade() -> None:
     op.drop_index("idx_stripe_customers_user_id", table_name="stripe_customers")
     op.drop_table("stripe_customers")
 
+    op.drop_table("booking_locks")
+    op.drop_table("booking_no_shows")
     op.drop_table("booking_transfers")
     op.drop_table("booking_disputes")
 
@@ -841,14 +857,11 @@ def downgrade() -> None:
     op.drop_constraint("check_rate_positive", "bookings", type_="check")
     op.drop_constraint("check_price_non_negative", "bookings", type_="check")
     op.drop_constraint("check_duration_positive", "bookings", type_="check")
-    op.drop_constraint("ck_bookings_lock_resolution", "bookings", type_="check")
-    op.drop_constraint("ck_bookings_no_show_type", "bookings", type_="check")
     op.drop_constraint("ck_bookings_payment_status", "bookings", type_="check")
     op.drop_constraint("ck_bookings_location_type", "bookings", type_="check")
     op.drop_constraint("ck_bookings_status", "bookings", type_="check")
 
     op.drop_index("ix_bookings_payment_status_auth_scheduled", table_name="bookings")
-    op.drop_index("ix_bookings_locked_at", table_name="bookings")
     op.drop_index("ix_bookings_auth_scheduled_for", table_name="bookings")
     op.drop_index("ix_bookings_payment_status", table_name="bookings")
     op.drop_index("idx_bookings_location_place_id", table_name="bookings")

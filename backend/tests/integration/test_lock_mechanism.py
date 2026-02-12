@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 import ulid
 
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_lock import BookingLock
 from app.models.instructor import InstructorProfile
 from app.models.payment import StripeConnectedAccount
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
@@ -151,6 +152,20 @@ def _create_booking(
     return booking
 
 
+def _set_lock(db: Session, booking: Booking, *, locked_amount_cents: int) -> BookingLock:
+    lock = db.query(BookingLock).filter(BookingLock.booking_id == booking.id).one_or_none()
+    if lock is None:
+        lock = BookingLock(booking_id=booking.id)
+        db.add(lock)
+    lock.locked_amount_cents = locked_amount_cents
+    db.flush()
+    return lock
+
+
+def _get_lock(db: Session, booking_id: str) -> BookingLock | None:
+    return db.query(BookingLock).filter(BookingLock.booking_id == booking_id).one_or_none()
+
+
 @pytest.mark.parametrize(
     "hours_until,initiated_by,payment_status,expected",
     [
@@ -190,9 +205,11 @@ def test_lock_activation_captures_and_reverses(db: Session):
         service.activate_lock_for_reschedule(booking.id)
 
     db.refresh(booking)
+    lock = _get_lock(db, booking.id)
     assert booking.payment_status == "locked"
-    assert booking.locked_at is not None
-    assert booking.locked_amount_cents == 13440
+    assert lock is not None
+    assert lock.locked_at is not None
+    assert lock.locked_amount_cents == 13440
     mock_reverse.assert_called_once()
 
 
@@ -224,7 +241,7 @@ def test_resolve_lock_new_lesson_completed(db: Session):
         payment_status="locked",
         payment_intent_id="pi_locked",
     )
-    locked_booking.locked_amount_cents = 13440
+    _set_lock(db, locked_booking, locked_amount_cents=13440)
 
     service = BookingService(db)
 
@@ -240,7 +257,9 @@ def test_resolve_lock_new_lesson_completed(db: Session):
     assert locked_booking.settlement_outcome == "lesson_completed_full_payout"
     assert locked_booking.instructor_payout_amount == 10560
     assert locked_booking.payment_status == "settled"
-    assert locked_booking.lock_resolution == "new_lesson_completed"
+    lock = _get_lock(db, locked_booking.id)
+    assert lock is not None
+    assert lock.lock_resolution == "new_lesson_completed"
 
 
 def test_resolve_lock_new_lesson_cancelled_ge12(db: Session):
@@ -316,7 +335,7 @@ def test_resolve_lock_instructor_cancelled(db: Session):
         payment_status="locked",
         payment_intent_id="pi_locked",
     )
-    locked_booking.locked_amount_cents = 13440
+    _set_lock(db, locked_booking, locked_amount_cents=13440)
 
     service = BookingService(db)
 

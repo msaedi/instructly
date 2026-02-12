@@ -2045,8 +2045,9 @@ class BookingService(BaseService):
                     )
                 booking.credits_reserved_cents = 0
                 booking.payment_status = PaymentStatus.LOCKED.value
-                booking.locked_at = datetime.now(timezone.utc)
-                booking.locked_amount_cents = locked_amount
+                lock_record = self.repository.ensure_lock(booking.id)
+                lock_record.locked_at = datetime.now(timezone.utc)
+                lock_record.locked_amount_cents = locked_amount
                 transfer_record = self._ensure_transfer_record(booking.id)
                 transfer_record.stripe_transfer_id = transfer_id
                 transfer_record.transfer_reversed = True if transfer_id else False
@@ -2095,7 +2096,9 @@ class BookingService(BaseService):
             if not locked_booking:
                 raise NotFoundException("Locked booking not found")
 
-            if locked_booking.lock_resolved_at is not None:
+            lock_record = self.repository.get_lock_by_booking_id(locked_booking.id)
+
+            if lock_record is not None and lock_record.lock_resolved_at is not None:
                 return {"success": True, "skipped": True, "reason": "already_resolved"}
 
             if locked_booking.payment_status == PaymentStatus.SETTLED.value:
@@ -2105,7 +2108,7 @@ class BookingService(BaseService):
                 return {"success": False, "skipped": True, "reason": "not_locked"}
 
             payment_intent_id = locked_booking.payment_intent_id
-            locked_amount_cents = locked_booking.locked_amount_cents
+            locked_amount_cents = lock_record.locked_amount_cents if lock_record else None
             lesson_price_cents = int(
                 float(locked_booking.hourly_rate) * locked_booking.duration_minutes * 100 / 60
             )
@@ -2329,8 +2332,9 @@ class BookingService(BaseService):
                         int(getattr(transfer_record, "refund_retry_count", 0) or 0) + 1
                     )
 
-            locked_booking.lock_resolution = resolution
-            locked_booking.lock_resolved_at = datetime.now(timezone.utc)
+            lock_record = self.repository.ensure_lock(locked_booking.id)
+            lock_record.lock_resolution = resolution
+            lock_record.lock_resolved_at = datetime.now(timezone.utc)
 
             payment_repo.create_payment_event(
                 booking_id=locked_booking_id,
@@ -3873,21 +3877,23 @@ class BookingService(BaseService):
             if booking.status == BookingStatus.CANCELLED:
                 raise BusinessRuleException("Cannot report no-show for cancelled booking")
 
-            if booking.no_show_reported_at is not None:
+            no_show_record = self.repository.get_no_show_by_booking_id(booking.id)
+            if no_show_record is not None and no_show_record.no_show_reported_at is not None:
                 raise BusinessRuleException("No-show already reported for this booking")
 
             audit_before = self._snapshot_booking(booking)
             previous_payment_status = booking.payment_status
 
             booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
-            booking.no_show_reported_by = reporter.id
-            booking.no_show_reported_at = now
-            booking.no_show_type = no_show_type
-            booking.no_show_disputed = False
-            booking.no_show_disputed_at = None
-            booking.no_show_dispute_reason = None
-            booking.no_show_resolved_at = None
-            booking.no_show_resolution = None
+            no_show_record = self.repository.ensure_no_show(booking.id)
+            no_show_record.no_show_reported_by = reporter.id
+            no_show_record.no_show_reported_at = now
+            no_show_record.no_show_type = no_show_type
+            no_show_record.no_show_disputed = False
+            no_show_record.no_show_disputed_at = None
+            no_show_record.no_show_dispute_reason = None
+            no_show_record.no_show_resolved_at = None
+            no_show_record.no_show_resolution = None
 
             payment_repo = PaymentRepository(self.db)
             payment_repo.create_payment_event(
@@ -3944,25 +3950,26 @@ class BookingService(BaseService):
             if not booking:
                 raise NotFoundException("Booking not found")
 
-            if booking.no_show_reported_at is None:
+            no_show_record = self.repository.get_no_show_by_booking_id(booking.id)
+            if no_show_record is None or no_show_record.no_show_reported_at is None:
                 raise BusinessRuleException("No no-show report exists for this booking")
 
-            if booking.no_show_disputed:
+            if no_show_record.no_show_disputed:
                 raise BusinessRuleException("No-show already disputed")
 
-            if booking.no_show_resolved_at is not None:
+            if no_show_record.no_show_resolved_at is not None:
                 raise BusinessRuleException("No-show already resolved")
 
-            if booking.no_show_type == "instructor":
+            if no_show_record.no_show_type == "instructor":
                 if disputer.id != booking.instructor_id:
                     raise ForbiddenException("Only the accused instructor can dispute")
-            elif booking.no_show_type == "student":
+            elif no_show_record.no_show_type == "student":
                 if disputer.id != booking.student_id:
                     raise ForbiddenException("Only the accused student can dispute")
             else:
                 raise BusinessRuleException("Invalid no-show type")
 
-            reported_at = booking.no_show_reported_at
+            reported_at = no_show_record.no_show_reported_at
             if reported_at.tzinfo is None:
                 reported_at = reported_at.replace(tzinfo=timezone.utc)
             dispute_deadline = reported_at + timedelta(hours=24)
@@ -3972,16 +3979,16 @@ class BookingService(BaseService):
                 )
 
             audit_before = self._snapshot_booking(booking)
-            booking.no_show_disputed = True
-            booking.no_show_disputed_at = now
-            booking.no_show_dispute_reason = reason
+            no_show_record.no_show_disputed = True
+            no_show_record.no_show_disputed_at = now
+            no_show_record.no_show_dispute_reason = reason
 
             payment_repo = PaymentRepository(self.db)
             payment_repo.create_payment_event(
                 booking_id=booking.id,
                 event_type="no_show_disputed",
                 event_data={
-                    "type": booking.no_show_type,
+                    "type": no_show_record.no_show_type,
                     "disputed_by": disputer.id,
                     "reason": reason,
                 },
@@ -4033,13 +4040,14 @@ class BookingService(BaseService):
             if not booking:
                 raise NotFoundException("Booking not found")
 
-            if booking.no_show_reported_at is None:
+            no_show_record = self.repository.get_no_show_by_booking_id(booking.id)
+            if no_show_record is None or no_show_record.no_show_reported_at is None:
                 raise BusinessRuleException("No no-show report exists")
 
-            if booking.no_show_resolved_at is not None:
+            if no_show_record.no_show_resolved_at is not None:
                 raise BusinessRuleException("No-show already resolved")
 
-            no_show_type = booking.no_show_type
+            no_show_type = no_show_record.no_show_type
             payment_status = booking.payment_status or ""
             payment_intent_id = (
                 booking.payment_intent_id
@@ -4196,8 +4204,9 @@ class BookingService(BaseService):
             payment_repo = PaymentRepository(self.db)
             credit_service = CreditService(self.db)
 
-            booking.no_show_resolved_at = now
-            booking.no_show_resolution = resolution
+            no_show_record = self.repository.ensure_no_show(booking.id)
+            no_show_record.no_show_resolved_at = now
+            no_show_record.no_show_resolution = resolution
 
             if resolution in {"confirmed_no_dispute", "confirmed_after_review"}:
                 booking.status = BookingStatus.NO_SHOW

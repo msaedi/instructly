@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 import ulid
 
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_lock import BookingLock
 from app.models.instructor import InstructorProfile
 from app.models.payment import StripeConnectedAccount
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
@@ -130,7 +131,7 @@ def _create_locked_booking(
     )
     booking.payment_status = "locked"
     booking.payment_intent_id = "pi_locked"
-    booking.locked_amount_cents = 13440
+    db.add(BookingLock(booking_id=booking.id, locked_amount_cents=13440))
     db.flush()
     return booking
 
@@ -189,5 +190,7 @@ def test_concurrent_lock_resolution_only_one_payout(db: Session) -> None:
 
     db.expire_all()
     db.refresh(locked_booking)
+    lock = db.query(BookingLock).filter(BookingLock.booking_id == locked_booking.id).one_or_none()
     assert locked_booking.payment_status == "settled"
-    assert locked_booking.lock_resolved_at is not None
+    assert lock is not None
+    assert lock.lock_resolved_at is not None
