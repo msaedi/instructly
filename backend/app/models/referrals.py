@@ -360,14 +360,29 @@ class ReferralConfig(Base):
     note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
-        CheckConstraint("student_amount_cents >= 0"),
-        CheckConstraint("instructor_amount_cents >= 0"),
-        CheckConstraint("instructor_founding_bonus_cents >= 0"),
-        CheckConstraint("instructor_standard_bonus_cents >= 0"),
-        CheckConstraint("min_basket_cents >= 6000"),
-        CheckConstraint("hold_days BETWEEN 1 AND 14"),
-        CheckConstraint("expiry_months BETWEEN 1 AND 24"),
-        CheckConstraint("student_global_cap >= 0"),
+        CheckConstraint(
+            "student_amount_cents >= 0",
+            name="ck_referral_config_student_amount_non_negative",
+        ),
+        CheckConstraint(
+            "instructor_amount_cents >= 0",
+            name="ck_referral_config_instructor_amount_non_negative",
+        ),
+        CheckConstraint(
+            "instructor_founding_bonus_cents >= 0",
+            name="ck_referral_config_founding_bonus_non_negative",
+        ),
+        CheckConstraint(
+            "instructor_standard_bonus_cents >= 0",
+            name="ck_referral_config_standard_bonus_non_negative",
+        ),
+        CheckConstraint("min_basket_cents >= 6000", name="ck_referral_config_min_basket"),
+        CheckConstraint("hold_days BETWEEN 1 AND 14", name="ck_referral_config_hold_days"),
+        CheckConstraint("expiry_months BETWEEN 1 AND 24", name="ck_referral_config_expiry_months"),
+        CheckConstraint(
+            "student_global_cap >= 0",
+            name="ck_referral_config_student_global_cap_non_negative",
+        ),
         Index("ix_referral_config_effective_at_desc", "effective_at"),
     )
 

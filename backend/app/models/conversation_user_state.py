@@ -1,7 +1,5 @@
 """Conversation user state model for archive/trash functionality."""
 
-from typing import Any
-
 from sqlalchemy import (
     CheckConstraint,
     Column,
@@ -47,8 +45,3 @@ class ConversationUserState(Base):
         ),
         Index("ix_conversation_user_state_user_state", "user_id", "state"),
     )
-
-    def __init__(self, **kwargs: Any) -> None:
-        if "id" not in kwargs or kwargs["id"] is None:
-            kwargs["id"] = str(ulid.ULID())
-        super().__init__(**kwargs)

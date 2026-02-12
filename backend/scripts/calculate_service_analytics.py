@@ -12,7 +12,6 @@ Usage:
 import argparse
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-import json
 import logging
 import os
 from pathlib import Path
@@ -99,27 +98,10 @@ class AnalyticsCalculator:
         if duration_counts:
             most_popular = max(duration_counts.items(), key=lambda x: x[1])
             stats["most_popular_duration"] = most_popular[0]
-            stats["duration_distribution"] = dict(duration_counts)
 
         # Calculate completion rate
         if all_bookings:
             stats["completion_rate"] = len(completed_bookings) / len(all_bookings)
-
-        # Calculate peak hours
-        hour_counts = defaultdict(int)
-        for booking in all_bookings:
-            hour_counts[booking.start_time.hour] += 1
-
-        if hour_counts:
-            stats["peak_hours"] = dict(hour_counts)
-
-        # Calculate peak days
-        day_counts = defaultdict(int)
-        for booking in all_bookings:
-            day_counts[booking.booking_date.strftime("%A")] += 1
-
-        if day_counts:
-            stats["peak_days"] = dict(day_counts)
 
         return stats
 
@@ -236,25 +218,10 @@ class AnalyticsCalculator:
                 if duration_counts:
                     most_popular = max(duration_counts.items(), key=lambda x: x[1])
                     update_data["most_booked_duration"] = most_popular[0]
-                    update_data["duration_distribution"] = json.dumps(dict(duration_counts))
 
                 # Completion rate
                 if all_bookings:
                     update_data["completion_rate"] = len(completed_bookings) / len(all_bookings)
-
-                # Peak hours
-                hour_counts: Dict[int, int] = defaultdict(int)
-                for booking in all_bookings:
-                    hour_counts[booking.start_time.hour] += 1
-                if hour_counts:
-                    update_data["peak_hours"] = json.dumps(dict(hour_counts))
-
-                # Peak days
-                day_counts: Dict[str, int] = defaultdict(int)
-                for booking in all_bookings:
-                    day_counts[booking.booking_date.strftime("%A")] += 1
-                if day_counts:
-                    update_data["peak_days"] = json.dumps(dict(day_counts))
 
                 # Supply/demand ratio
                 if count_30d > 0 and total_weekly_hours > 0:

@@ -268,11 +268,6 @@ def upgrade() -> None:
         "idx_bookings_instructor_datetime", "bookings", ["instructor_id", "booking_date", "start_time", "end_time"]
     )
     op.create_index(
-        "idx_bookings_instructor_date_status",
-        "bookings",
-        ["instructor_id", "booking_date", "status"],
-    )
-    op.create_index(
         "ix_bookings_instructor_date_status",
         "bookings",
         ["instructor_id", "booking_date", "status"],
@@ -477,7 +472,6 @@ def upgrade() -> None:
         sa.UniqueConstraint("stripe_payment_intent_id", name="unique_stripe_payment_intent_id"),
         comment="Stripe payment intents for bookings",
     )
-    op.create_index("idx_payment_intents_booking_id", "payment_intents", ["booking_id"])
     op.create_index("ix_payment_intents_booking", "payment_intents", ["booking_id"])
     op.create_index("idx_payment_intents_stripe_payment_intent_id", "payment_intents", ["stripe_payment_intent_id"])
     op.create_index("idx_payment_intents_status", "payment_intents", ["status"])
@@ -527,7 +521,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         comment="Event-based payment tracking",
     )
-    op.create_index("idx_payment_events_booking_id", "payment_events", ["booking_id"])
     op.create_index("ix_payment_events_booking", "payment_events", ["booking_id"])
     op.create_index("idx_payment_events_event_type", "payment_events", ["event_type"])
     op.create_index("idx_payment_events_created_at", "payment_events", ["created_at"])
@@ -794,7 +787,6 @@ def downgrade() -> None:
     op.drop_index("idx_payment_events_created_at", table_name="payment_events")
     op.drop_index("idx_payment_events_event_type", table_name="payment_events")
     op.drop_index("ix_payment_events_booking", table_name="payment_events")
-    op.drop_index("idx_payment_events_booking_id", table_name="payment_events")
     op.drop_table("payment_events")
 
     op.drop_index("idx_payment_methods_unique_default_per_user", table_name="payment_methods")
@@ -806,7 +798,6 @@ def downgrade() -> None:
     op.drop_index("idx_payment_intents_status", table_name="payment_intents")
     op.drop_index("idx_payment_intents_stripe_payment_intent_id", table_name="payment_intents")
     op.drop_index("ix_payment_intents_booking", table_name="payment_intents")
-    op.drop_index("idx_payment_intents_booking_id", table_name="payment_intents")
     op.drop_table("payment_intents")
 
     op.drop_index("idx_stripe_connected_accounts_onboarding_completed", table_name="stripe_connected_accounts")
@@ -844,7 +835,6 @@ def downgrade() -> None:
     op.drop_index("idx_bookings_instructor_service_id", table_name="bookings")
     op.drop_index("ix_bookings_student_date_status", table_name="bookings")
     op.drop_index("ix_bookings_instructor_date_status", table_name="bookings")
-    op.drop_index("idx_bookings_instructor_date_status", table_name="bookings")
     op.drop_index("idx_bookings_instructor_datetime", table_name="bookings")
     op.drop_index("ix_booking_student_completed", table_name="bookings")
     op.drop_index("ix_booking_instructor_completed", table_name="bookings")

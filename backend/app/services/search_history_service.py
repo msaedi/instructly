@@ -505,7 +505,6 @@ class SearchHistoryService(BaseService):
         result_position: Optional[int] = None,
         time_to_interaction: Optional[float] = None,
         session_id: Optional[str] = None,
-        interaction_duration: Optional[float] = None,
     ) -> SearchInteraction:
         """
         Track user interaction with search results.
@@ -517,7 +516,6 @@ class SearchHistoryService(BaseService):
             result_position: Position in search results (1-based)
             time_to_interaction: Seconds from search to interaction
             session_id: Browser session ID for tracking
-            interaction_duration: Duration of interaction in seconds (e.g., hover time)
 
         Returns:
             Created SearchInteraction instance

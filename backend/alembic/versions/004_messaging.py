@@ -97,7 +97,6 @@ def upgrade() -> None:
     op.create_index("ix_messages_created_at", "messages", ["created_at"])
     op.create_index("ix_messages_deleted_at", "messages", ["deleted_at"])
     op.create_index("ix_messages_booking_id_id", "messages", ["booking_id", "id"])
-    op.create_index("ix_messages_conversation", "messages", ["conversation_id", "created_at"])
     op.create_index("ix_messages_conversation_id", "messages", ["conversation_id"])
     if is_postgres:
         op.execute(
@@ -150,8 +149,6 @@ def upgrade() -> None:
         sa.UniqueConstraint("message_id", "user_id", name="uq_message_user"),
     )
 
-    op.create_index("ix_message_notifications_user_unread", "message_notifications", ["user_id", "is_read"])
-    op.create_index("ix_message_notifications_message_id", "message_notifications", ["message_id"])
     op.create_index("ix_message_notifications_user_read", "message_notifications", ["user_id", "is_read"])
     op.create_index("ix_message_notifications_message", "message_notifications", ["message_id"])
 
@@ -367,8 +364,6 @@ def downgrade() -> None:
 
     op.drop_index("ix_message_notifications_message", table_name="message_notifications")
     op.drop_index("ix_message_notifications_user_read", table_name="message_notifications")
-    op.drop_index("ix_message_notifications_message_id", table_name="message_notifications")
-    op.drop_index("ix_message_notifications_user_unread", table_name="message_notifications")
     op.drop_table("message_notifications")
 
     op.drop_constraint("ck_messages_soft_delete_consistency", "messages", type_="check")
@@ -380,7 +375,6 @@ def downgrade() -> None:
     else:
         op.drop_index("ix_messages_conversation_created", table_name="messages")
     op.drop_index("ix_messages_conversation_id", table_name="messages")
-    op.drop_index("ix_messages_conversation", table_name="messages")
     op.drop_index("ix_messages_booking_id_id", table_name="messages")
     op.drop_index("ix_messages_deleted_at", table_name="messages")
     op.drop_index("ix_messages_created_at", table_name="messages")

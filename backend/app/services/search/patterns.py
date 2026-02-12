@@ -5,7 +5,7 @@ Regex patterns for NL search query parsing.
 Apply patterns in this order: price -> audience -> time -> location -> skill -> urgency
 """
 import re
-from typing import Dict, Pattern, Tuple
+from typing import Dict, Iterator, Mapping, Pattern, Tuple
 
 from app.services.search.keyword_generator import get_keyword_dicts
 
@@ -183,13 +183,43 @@ URGENCY_MEDIUM: Pattern[str] = re.compile(
 # seeded taxonomy (prefer DB rows; fall back to canonical seed taxonomy source).
 # =============================================================================
 
-_keyword_dicts = get_keyword_dicts()
+_keyword_dicts: dict[str, dict[str, str]] | None = None
+
+
+def _get_keyword_dicts() -> dict[str, dict[str, str]]:
+    global _keyword_dicts
+    if _keyword_dicts is None:
+        _keyword_dicts = get_keyword_dicts()
+    return _keyword_dicts
+
+
+class _LazyKeywordMap(Mapping[str, str]):
+    """Read-only mapping that defers keyword dictionary loading until first access."""
+
+    def __init__(self, dictionary_key: str) -> None:
+        self._dictionary_key = dictionary_key
+
+    def _mapping(self) -> dict[str, str]:
+        return _get_keyword_dicts()[self._dictionary_key]
+
+    def __getitem__(self, key: str) -> str:
+        return self._mapping()[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._mapping())
+
+    def __len__(self) -> int:
+        return len(self._mapping())
+
+    def __repr__(self) -> str:
+        return repr(self._mapping())
+
 
 # Maps keyword -> category name (service_categories.name)
-CATEGORY_KEYWORDS: Dict[str, str] = _keyword_dicts["category_keywords"]
+CATEGORY_KEYWORDS: Mapping[str, str] = _LazyKeywordMap("category_keywords")
 
 # Maps keyword -> subcategory name (service_subcategories.name)
-SUBCATEGORY_KEYWORDS: Dict[str, str] = _keyword_dicts["subcategory_keywords"]
+SUBCATEGORY_KEYWORDS: Mapping[str, str] = _LazyKeywordMap("subcategory_keywords")
 
 # Maps keyword -> exact service_catalog.name (most specific level)
-SERVICE_KEYWORDS: Dict[str, str] = _keyword_dicts["service_keywords"]
+SERVICE_KEYWORDS: Mapping[str, str] = _LazyKeywordMap("service_keywords")

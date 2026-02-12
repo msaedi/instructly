@@ -547,14 +547,29 @@ def upgrade() -> None:
         sa.Column("student_global_cap", sa.Integer(), nullable=False),
         sa.Column("updated_by", sa.Text(), nullable=False),
         sa.Column("note", sa.Text(), nullable=True),
-        sa.CheckConstraint("student_amount_cents >= 0"),
-        sa.CheckConstraint("instructor_amount_cents >= 0"),
-        sa.CheckConstraint("instructor_founding_bonus_cents >= 0"),
-        sa.CheckConstraint("instructor_standard_bonus_cents >= 0"),
-        sa.CheckConstraint("min_basket_cents >= 6000"),
-        sa.CheckConstraint("hold_days BETWEEN 1 AND 14"),
-        sa.CheckConstraint("expiry_months BETWEEN 1 AND 24"),
-        sa.CheckConstraint("student_global_cap >= 0"),
+        sa.CheckConstraint(
+            "student_amount_cents >= 0",
+            name="ck_referral_config_student_amount_non_negative",
+        ),
+        sa.CheckConstraint(
+            "instructor_amount_cents >= 0",
+            name="ck_referral_config_instructor_amount_non_negative",
+        ),
+        sa.CheckConstraint(
+            "instructor_founding_bonus_cents >= 0",
+            name="ck_referral_config_founding_bonus_non_negative",
+        ),
+        sa.CheckConstraint(
+            "instructor_standard_bonus_cents >= 0",
+            name="ck_referral_config_standard_bonus_non_negative",
+        ),
+        sa.CheckConstraint("min_basket_cents >= 6000", name="ck_referral_config_min_basket"),
+        sa.CheckConstraint("hold_days BETWEEN 1 AND 14", name="ck_referral_config_hold_days"),
+        sa.CheckConstraint("expiry_months BETWEEN 1 AND 24", name="ck_referral_config_expiry_months"),
+        sa.CheckConstraint(
+            "student_global_cap >= 0",
+            name="ck_referral_config_student_global_cap_non_negative",
+        ),
     )
     op.create_index(
         "ix_referral_config_effective_at_desc",
@@ -746,7 +761,6 @@ def upgrade() -> None:
             name="ck_alert_history_severity",
         ),
     )
-    op.create_index("ix_alert_history_created_at", "alert_history", ["created_at"])
     op.create_index("ix_alert_history_created", "alert_history", ["created_at"])
     op.create_index("ix_alert_history_alert_type", "alert_history", ["alert_type"])
     op.create_index("ix_alert_history_severity", "alert_history", ["severity"])
@@ -1446,7 +1460,6 @@ def downgrade() -> None:
     op.drop_index("ix_alert_history_severity", table_name="alert_history")
     op.drop_index("ix_alert_history_alert_type", table_name="alert_history")
     op.execute("DROP INDEX IF EXISTS ix_alert_history_created")
-    op.drop_index("ix_alert_history_created_at", table_name="alert_history")
     op.drop_constraint("ck_alert_history_severity", "alert_history", type_="check")
     op.drop_table("alert_history")
 
