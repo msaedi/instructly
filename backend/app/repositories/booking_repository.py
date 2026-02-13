@@ -2041,6 +2041,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(
                 List[Booking],
                 self.db.query(Booking)
+                .options(selectinload(Booking.payment_detail))
                 .filter(Booking.student_id == student_id)
                 .filter(
                     or_(
