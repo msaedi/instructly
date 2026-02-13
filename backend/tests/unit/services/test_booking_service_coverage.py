@@ -45,6 +45,17 @@ def mock_repository():
     repo.create.return_value = Mock(spec=Booking, id=generate_ulid())
     repo.get_booking_with_details.return_value = None
     repo.update.return_value = None
+    repo.ensure_payment.return_value = MagicMock(
+        payment_status=None,
+        payment_intent_id=None,
+        payment_method_id=None,
+        credits_reserved_cents=0,
+        settlement_outcome=None,
+        instructor_payout_amount=None,
+        auth_last_error=None,
+        capture_failed_at=None,
+        capture_retry_count=0,
+    )
     transaction_cm = MagicMock()
     transaction_cm.__enter__.return_value = None
     transaction_cm.__exit__.return_value = None
@@ -577,7 +588,7 @@ class TestShouldTriggerLock:
         """Test student reschedule outside 12-24h window doesn't trigger lock."""
         booking = MagicMock(spec=Booking)
         booking.booking_start_utc = datetime.now(timezone.utc) + timedelta(hours=30)
-        booking.payment_status = PaymentStatus.AUTHORIZED.value
+        booking.payment_detail.payment_status = PaymentStatus.AUTHORIZED.value
         booking.lesson_timezone = None
         booking.instructor_tz_at_booking = None
         booking.instructor = None
@@ -594,7 +605,7 @@ class TestShouldTriggerLock:
         # Set booking to start in 18 hours (within 12-24h window)
         future_time = datetime.now(timezone.utc) + timedelta(hours=18)
         booking.booking_start_utc = future_time
-        booking.payment_status = PaymentStatus.AUTHORIZED.value
+        booking.payment_detail.payment_status = PaymentStatus.AUTHORIZED.value
         booking.lesson_timezone = None
         booking.instructor_tz_at_booking = None
         booking.instructor = None
@@ -610,7 +621,7 @@ class TestShouldTriggerLock:
         booking = MagicMock(spec=Booking)
         future_time = datetime.now(timezone.utc) + timedelta(hours=18)
         booking.booking_start_utc = future_time
-        booking.payment_status = PaymentStatus.LOCKED.value
+        booking.payment_detail.payment_status = PaymentStatus.LOCKED.value
         booking.lesson_timezone = None
         booking.instructor_tz_at_booking = None
         booking.instructor = None
@@ -751,7 +762,7 @@ class TestCancelBookingWithoutStripe:
         booking.instructor_id = generate_ulid()
         booking.is_cancellable = True
         booking.status = BookingStatus.CONFIRMED
-        booking.payment_intent_id = "pi_test123"
+        booking.payment_detail.payment_intent_id = "pi_test123"
         booking.to_dict.return_value = {"status": "confirmed"}
         mock_repository.get_booking_with_details.return_value = booking
 
@@ -762,7 +773,7 @@ class TestCancelBookingWithoutStripe:
             booking.id, user, "Test reason", clear_payment_intent=True
         )
 
-        assert booking.payment_intent_id is None
+        assert mock_repository.ensure_payment.return_value.payment_intent_id is None
         booking.cancel.assert_called_once()
 
 
@@ -779,7 +790,7 @@ class TestActivateLockForReschedule:
     def test_already_locked(self, booking_service, mock_repository):
         """Test early return when booking already locked."""
         booking = MagicMock(spec=Booking)
-        booking.payment_status = PaymentStatus.LOCKED.value
+        booking.payment_detail.payment_status = PaymentStatus.LOCKED.value
         mock_repository.get_by_id_for_update.return_value = booking
 
         result = booking_service.activate_lock_for_reschedule(generate_ulid())
@@ -789,7 +800,7 @@ class TestActivateLockForReschedule:
     def test_invalid_payment_status(self, booking_service, mock_repository):
         """Test error when payment status cannot be locked."""
         booking = MagicMock(spec=Booking)
-        booking.payment_status = PaymentStatus.SETTLED.value  # SETTLED cannot be locked
+        booking.payment_detail.payment_status = PaymentStatus.SETTLED.value  # SETTLED cannot be locked
         mock_repository.get_by_id_for_update.return_value = booking
 
         with pytest.raises(BusinessRuleException, match="Cannot lock booking"):
@@ -811,7 +822,7 @@ class TestResolveLockForBooking:
     def test_booking_not_locked(self, booking_service, mock_repository):
         """Test skip when booking is not locked."""
         booking = MagicMock(spec=Booking)
-        booking.payment_status = PaymentStatus.AUTHORIZED.value
+        booking.payment_detail.payment_status = PaymentStatus.AUTHORIZED.value
         mock_repository.get_by_id_for_update.return_value = booking
 
         result = booking_service.resolve_lock_for_booking(
@@ -830,11 +841,11 @@ class TestBuildCancellationContext:
         booking = MagicMock(spec=Booking)
         booking.student_id = student_id
         booking.instructor_id = generate_ulid()
-        booking.payment_intent_id = "pi_test123"
-        booking.payment_status = PaymentStatus.AUTHORIZED.value
+        booking.payment_detail.payment_intent_id = "pi_test123"
+        booking.payment_detail.payment_status = PaymentStatus.AUTHORIZED.value
         booking.total_price = Decimal("100.00")
         booking.tip_amount = Decimal("10.00")
-        booking.credits_reserved_cents = 500
+        booking.payment_detail.credits_reserved_cents = 500
         booking.lesson_timezone = "America/New_York"
         booking.instructor_tz_at_booking = None
         booking.instructor = None
@@ -859,11 +870,11 @@ class TestBuildCancellationContext:
         booking = MagicMock(spec=Booking)
         booking.student_id = generate_ulid()
         booking.instructor_id = instructor_id
-        booking.payment_intent_id = "pi_test123"
-        booking.payment_status = PaymentStatus.AUTHORIZED.value
+        booking.payment_detail.payment_intent_id = "pi_test123"
+        booking.payment_detail.payment_status = PaymentStatus.AUTHORIZED.value
         booking.total_price = Decimal("100.00")
         booking.tip_amount = Decimal("10.00")
-        booking.credits_reserved_cents = 0
+        booking.payment_detail.credits_reserved_cents = 0
         booking.lesson_timezone = "America/New_York"
         booking.instructor_tz_at_booking = None
         booking.instructor = None
@@ -1208,7 +1219,7 @@ class TestShouldTriggerLockExtended:
         booking = MagicMock(spec=Booking)
         future_time = datetime.now(timezone.utc) + timedelta(hours=18)
         booking.booking_start_utc = future_time
-        booking.payment_status = PaymentStatus.SCHEDULED.value
+        booking.payment_detail.payment_status = PaymentStatus.SCHEDULED.value
         booking.lesson_timezone = None
         booking.instructor_tz_at_booking = None
         booking.instructor = None
@@ -1225,7 +1236,7 @@ class TestShouldTriggerLockExtended:
         # 10 hours away - inside <12h window
         future_time = datetime.now(timezone.utc) + timedelta(hours=10)
         booking.booking_start_utc = future_time
-        booking.payment_status = PaymentStatus.AUTHORIZED.value
+        booking.payment_detail.payment_status = PaymentStatus.AUTHORIZED.value
         booking.lesson_timezone = None
         booking.instructor_tz_at_booking = None
         booking.instructor = None
@@ -1269,7 +1280,7 @@ class TestRetryAuthorization:
         booking = MagicMock(spec=Booking)
         booking.student_id = user_id
         booking.status = BookingStatus.CONFIRMED
-        booking.payment_status = PaymentStatus.AUTHORIZED.value
+        booking.payment_detail.payment_status = PaymentStatus.AUTHORIZED.value
         mock_repository.get_booking_with_details.return_value = booking
 
         user = MagicMock(spec=User)

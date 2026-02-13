@@ -538,10 +538,12 @@ class StripeService(BaseService):
             if fresh_booking.confirmed_at is None:
                 fresh_booking.confirmed_at = datetime.now(timezone.utc)
             # Set payment_status to reflect authorization state
-            if payment_result["status"] == "requires_capture":
-                fresh_booking.payment_status = PaymentStatus.AUTHORIZED.value
-            elif payment_result["status"] == "scheduled":
-                fresh_booking.payment_status = PaymentStatus.SCHEDULED.value
+            if payment_result["status"] in ("requires_capture", "scheduled"):
+                bp = self.booking_repository.ensure_payment(fresh_booking.id)
+                if payment_result["status"] == "requires_capture":
+                    bp.payment_status = PaymentStatus.AUTHORIZED.value
+                else:
+                    bp.payment_status = PaymentStatus.SCHEDULED.value
 
             booking = fresh_booking
             booking_service.repository.flush()
@@ -1526,8 +1528,9 @@ class StripeService(BaseService):
                     instructor_tier_pct=context.instructor_tier_pct,
                     instructor_payout_cents=context.target_instructor_payout_cents,
                 )
-                booking.payment_intent_id = mock_id
-                booking.payment_status = PaymentStatus.AUTHORIZED.value
+                bp = self.booking_repository.ensure_payment(booking.id)
+                bp.payment_intent_id = mock_id
+                bp.payment_status = PaymentStatus.AUTHORIZED.value
                 return SimpleNamespace(id=mock_id, status="requires_payment_method")
             raise
 
@@ -1542,9 +1545,10 @@ class StripeService(BaseService):
             instructor_payout_cents=context.target_instructor_payout_cents,
         )
 
-        booking.payment_intent_id = stripe_intent.id
+        bp = self.booking_repository.ensure_payment(booking.id)
+        bp.payment_intent_id = stripe_intent.id
         if stripe_intent.status in {"requires_capture", "requires_confirmation", "succeeded"}:
-            booking.payment_status = PaymentStatus.AUTHORIZED.value
+            bp.payment_status = PaymentStatus.AUTHORIZED.value
 
         return stripe_intent
 
@@ -1746,14 +1750,16 @@ class StripeService(BaseService):
                             max_amount_cents=max_applicable_credits,
                             use_transaction=False,
                         )
-                        booking.credits_reserved_cents = applied_credit_cents
+                        bp = self.booking_repository.ensure_payment(booking.id)
+                        bp.credits_reserved_cents = applied_credit_cents
                 else:
                     applied_credit_cents = existing_applied
 
+                bp = self.booking_repository.ensure_payment(booking.id)
                 if existing_applied > 0 and (
-                    getattr(booking, "credits_reserved_cents", 0) != existing_applied
+                    getattr(bp, "credits_reserved_cents", 0) != existing_applied
                 ):
-                    booking.credits_reserved_cents = existing_applied
+                    bp.credits_reserved_cents = existing_applied
 
                 pricing = self.pricing_service.compute_booking_pricing(
                     booking_id=booking_id,
@@ -3087,10 +3093,11 @@ class StripeService(BaseService):
                             )
                         except Exception:
                             logger.debug("Non-fatal error ignored", exc_info=True)
-                        booking.payment_status = PaymentStatus.AUTHORIZED.value
-                        booking.auth_attempted_at = datetime.now(timezone.utc)
-                        booking.auth_failure_count = 0
-                        booking.auth_last_error = None
+                        bp = self.booking_repository.ensure_payment(booking.id)
+                        bp.payment_status = PaymentStatus.AUTHORIZED.value
+                        bp.auth_attempted_at = datetime.now(timezone.utc)
+                        bp.auth_failure_count = 0
+                        bp.auth_last_error = None
 
                 return {
                     "success": True,
@@ -3136,8 +3143,9 @@ class StripeService(BaseService):
                 # Re-fetch booking to avoid stale ORM object
                 booking = self.booking_repository.get_by_id(booking_id)
                 if booking:
-                    booking.payment_intent_id = payment_record.stripe_payment_intent_id
-                    booking.payment_method_id = payment_method_id
+                    bp = self.booking_repository.ensure_payment(booking.id)
+                    bp.payment_intent_id = payment_record.stripe_payment_intent_id
+                    bp.payment_method_id = payment_method_id
 
                     if immediate_auth:
                         now = datetime.now(timezone.utc)
@@ -3151,24 +3159,24 @@ class StripeService(BaseService):
                                 )
                             except Exception:
                                 logger.debug("Non-fatal error ignored", exc_info=True)
-                            booking.payment_status = PaymentStatus.AUTHORIZED.value
-                            booking.auth_attempted_at = now
-                            booking.auth_failure_count = 0
-                            booking.auth_last_error = None
-                            booking.auth_scheduled_for = None
+                            bp.payment_status = PaymentStatus.AUTHORIZED.value
+                            bp.auth_attempted_at = now
+                            bp.auth_failure_count = 0
+                            bp.auth_last_error = None
+                            bp.auth_scheduled_for = None
                         else:
-                            booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-                            booking.auth_attempted_at = now
-                            booking.auth_failure_count = (
-                                int(getattr(booking, "auth_failure_count", 0) or 0) + 1
+                            bp.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+                            bp.auth_attempted_at = now
+                            bp.auth_failure_count = (
+                                int(getattr(bp, "auth_failure_count", 0) or 0) + 1
                             )
-                            booking.auth_last_error = stripe_error or "authorization_failed"
-                            booking.auth_scheduled_for = None
+                            bp.auth_last_error = stripe_error or "authorization_failed"
+                            bp.auth_scheduled_for = None
                     else:
-                        booking.payment_status = PaymentStatus.SCHEDULED.value
-                        booking.auth_scheduled_for = auth_scheduled_for
-                        booking.auth_failure_count = 0
-                        booking.auth_last_error = None
+                        bp.payment_status = PaymentStatus.SCHEDULED.value
+                        bp.auth_scheduled_for = auth_scheduled_for
+                        bp.auth_failure_count = 0
+                        bp.auth_last_error = None
 
                         try:
                             self.payment_repository.create_payment_event(
@@ -3834,7 +3842,8 @@ class StripeService(BaseService):
                 if not booking:
                     return False
 
-                booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
+                bp = self.booking_repository.ensure_payment(booking.id)
+                bp.payment_status = PaymentStatus.MANUAL_REVIEW.value
                 dispute_record = self.booking_repository.ensure_dispute(booking.id)
                 dispute_record.dispute_id = dispute_id
                 dispute_record.dispute_status = dispute.get("status")
@@ -3948,6 +3957,7 @@ class StripeService(BaseService):
                 if not booking:
                     return False
 
+                bp = self.booking_repository.ensure_payment(booking.id)
                 dispute_record = self.booking_repository.ensure_dispute(booking.id)
                 dispute_record.dispute_status = status
                 dispute_record.dispute_resolved_at = datetime.now(timezone.utc)
@@ -4003,8 +4013,8 @@ class StripeService(BaseService):
                     credit_service.unfreeze_credits_for_booking(
                         booking_id=booking.id, use_transaction=False
                     )
-                    booking.payment_status = PaymentStatus.SETTLED.value
-                    booking.settlement_outcome = "dispute_won"
+                    bp.payment_status = PaymentStatus.SETTLED.value
+                    bp.settlement_outcome = "dispute_won"
                 elif status == "lost":
                     credit_service.revoke_credits_for_booking(
                         booking_id=booking.id,
@@ -4048,8 +4058,8 @@ class StripeService(BaseService):
                         user.account_restricted = True
                         user.account_restricted_at = datetime.now(timezone.utc)
                         user.account_restricted_reason = f"dispute_lost:{dispute_id}"
-                    booking.payment_status = PaymentStatus.SETTLED.value
-                    booking.settlement_outcome = "student_wins_dispute_full_refund"
+                    bp.payment_status = PaymentStatus.SETTLED.value
+                    bp.settlement_outcome = "student_wins_dispute_full_refund"
 
                 try:
                     self.payment_repository.create_payment_event(

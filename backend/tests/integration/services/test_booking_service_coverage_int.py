@@ -30,6 +30,7 @@ from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.booking_lock import BookingLock
 from app.models.booking_no_show import BookingNoShow
+from app.models.booking_payment import BookingPayment
 from app.models.booking_reschedule import BookingReschedule
 from app.models.booking_transfer import BookingTransfer
 from app.models.payment import PaymentMethod
@@ -136,6 +137,13 @@ def _ensure_connected_account(db: Session, instructor: User) -> str:
 def _get_transfer(db: Session, booking_id: str) -> BookingTransfer | None:
     return (
         db.query(BookingTransfer).filter(BookingTransfer.booking_id == booking_id).one_or_none()
+    )
+
+
+def _reload_payment_detail(db: Session, booking: Booking) -> None:
+    """Reload the payment_detail relationship after db.refresh (lazy='noload' won't auto-load)."""
+    booking.payment_detail = (
+        db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).one_or_none()
     )
 
 
@@ -677,11 +685,12 @@ class TestResolveNoShowIntegration:
             )
 
         db.refresh(booking)
+        _reload_payment_detail(db, booking)
         transfer = _get_transfer(db, booking.id)
         assert result.get("success") is True
         assert booking.status == BookingStatus.NO_SHOW
-        assert booking.payment_status == PaymentStatus.SETTLED.value
-        assert booking.settlement_outcome == "instructor_no_show_full_refund"
+        assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
+        assert booking.payment_detail.settlement_outcome == "instructor_no_show_full_refund"
         assert transfer is not None
         assert transfer.refund_id == "re_no_show_refund"
 
@@ -729,11 +738,12 @@ class TestResolveNoShowIntegration:
             )
 
         db.refresh(booking)
+        _reload_payment_detail(db, booking)
         transfer = _get_transfer(db, booking.id)
         assert result.get("success") is True
         assert booking.status == BookingStatus.NO_SHOW
-        assert booking.payment_status == PaymentStatus.SETTLED.value
-        assert booking.settlement_outcome == "student_no_show_full_payout"
+        assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
+        assert booking.payment_detail.settlement_outcome == "student_no_show_full_payout"
         assert transfer is not None
         assert transfer.stripe_transfer_id == "tr_no_show"
 
@@ -1025,9 +1035,10 @@ class TestRetryAuthorizationIntegration:
             )
 
         db.refresh(booking)
+        _reload_payment_detail(db, booking)
         assert result["success"] is True
-        assert booking.payment_status == PaymentStatus.AUTHORIZED.value
-        assert booking.payment_method_id == default_method_id
+        assert booking.payment_detail.payment_status == PaymentStatus.AUTHORIZED.value
+        assert booking.payment_detail.payment_method_id == default_method_id
 
     def test_retry_auth_credits_only(
         self,
@@ -1047,8 +1058,8 @@ class TestRetryAuthorizationIntegration:
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             offset_index=33,
         )
-        booking.auth_failure_count = 2
-        booking.auth_last_error = "prior_failure"
+        booking.payment_detail.auth_failure_count = 2
+        booking.payment_detail.auth_last_error = "prior_failure"
         db.commit()
 
         mock_stripe = Mock()
@@ -1064,10 +1075,11 @@ class TestRetryAuthorizationIntegration:
             )
 
         db.refresh(booking)
+        _reload_payment_detail(db, booking)
         assert result["success"] is True
-        assert booking.payment_status == PaymentStatus.AUTHORIZED.value
-        assert booking.auth_failure_count == 0
-        assert booking.auth_last_error is None
+        assert booking.payment_detail.payment_status == PaymentStatus.AUTHORIZED.value
+        assert booking.payment_detail.auth_failure_count == 0
+        assert booking.payment_detail.auth_last_error is None
 
     def test_retry_auth_stripe_error_increments_failure_count(
         self,
@@ -1087,7 +1099,7 @@ class TestRetryAuthorizationIntegration:
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             offset_index=34,
         )
-        booking.auth_failure_count = 1
+        booking.payment_detail.auth_failure_count = 1
         db.commit()
 
         mock_stripe = Mock()
@@ -1104,10 +1116,11 @@ class TestRetryAuthorizationIntegration:
             )
 
         db.refresh(booking)
+        _reload_payment_detail(db, booking)
         assert result["success"] is False
-        assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-        assert booking.auth_failure_count == 2
-        assert booking.auth_last_error == "Card declined"
+        assert booking.payment_detail.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+        assert booking.payment_detail.auth_failure_count == 2
+        assert booking.payment_detail.auth_last_error == "Card declined"
 
     def test_retry_auth_non_student_forbidden(
         self,
@@ -1219,9 +1232,10 @@ class TestRetryAuthorizationIntegration:
             )
 
         db.refresh(booking)
+        _reload_payment_detail(db, booking)
         assert result["success"] is True
-        assert booking.payment_status == PaymentStatus.AUTHORIZED.value
-        assert booking.payment_intent_id == "pi_new_auth"
+        assert booking.payment_detail.payment_status == PaymentStatus.AUTHORIZED.value
+        assert booking.payment_detail.payment_intent_id == "pi_new_auth"
 
 
 class TestGetBookingsForUserIntegration:
@@ -1412,8 +1426,9 @@ class TestCancelBookingWithoutStripeIntegration:
         )
 
         db.refresh(booking)
+        _reload_payment_detail(db, booking)
         assert booking.status == BookingStatus.CANCELLED
-        assert booking.payment_intent_id is None
+        assert booking.payment_detail.payment_intent_id is None
 
 
 class TestActivateLockForRescheduleIntegration:
@@ -1540,7 +1555,7 @@ class TestActivateLockForRescheduleIntegration:
 
         db.refresh(booking)
         transfer = _get_transfer(db, booking.id)
-        assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
+        assert booking.payment_detail.payment_status == PaymentStatus.MANUAL_REVIEW.value
         assert transfer is not None
         assert transfer.transfer_reversal_failed is True
         assert transfer.transfer_reversal_error == "reverse failed"
@@ -1581,7 +1596,7 @@ class TestActivateLockForRescheduleIntegration:
         db.refresh(booking)
         lock = _get_lock(db, booking.id)
         assert result.get("locked") is True
-        assert booking.payment_status == PaymentStatus.LOCKED.value
+        assert booking.payment_detail.payment_status == PaymentStatus.LOCKED.value
         assert lock is not None
         assert lock.locked_amount_cents == 10000
 
@@ -1757,7 +1772,8 @@ class TestCreateBookingWithPaymentSetupIntegration:
 
         assert result is not None
         assert result.status == BookingStatus.PENDING
-        assert result.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+        _reload_payment_detail(db, result)
+        assert result.payment_detail.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
 
 
 class TestCreateBookingWithRescheduleIntegration:
@@ -1864,10 +1880,11 @@ class TestConfirmBookingPaymentIntegration:
         )
 
         db.refresh(booking)
+        _reload_payment_detail(db, booking)
         assert result.status == BookingStatus.CONFIRMED
-        assert booking.payment_status == PaymentStatus.SCHEDULED.value
-        assert booking.auth_scheduled_for is not None
-        assert booking.payment_method_id == "pm_scheduled_auth"
+        assert booking.payment_detail.payment_status == PaymentStatus.SCHEDULED.value
+        assert booking.payment_detail.auth_scheduled_for is not None
+        assert booking.payment_detail.payment_method_id == "pm_scheduled_auth"
 
     def test_confirm_booking_payment_gaming_reschedule_immediate_auth(
         self,
@@ -1942,9 +1959,10 @@ class TestConfirmBookingPaymentIntegration:
             )
 
         db.refresh(booking)
+        _reload_payment_detail(db, booking)
         assert result.status == BookingStatus.CONFIRMED
-        assert booking.payment_status == PaymentStatus.AUTHORIZED.value
-        assert booking.payment_intent_id == "pi_auth_immediate"
+        assert booking.payment_detail.payment_status == PaymentStatus.AUTHORIZED.value
+        assert booking.payment_detail.payment_intent_id == "pi_auth_immediate"
 
 
 class TestRescheduledBookingWithExistingPaymentIntegration:
@@ -1979,7 +1997,7 @@ class TestRescheduledBookingWithExistingPaymentIntegration:
             payment_intent_id="pi_reschedule_existing",
             offset_index=40,
         )
-        original_booking.payment_method_id = "pm_reschedule_existing"
+        original_booking.payment_detail.payment_method_id = "pm_reschedule_existing"
         _upsert_reschedule(db, original_booking.id, late_reschedule_used=True)
         db.commit()
 
@@ -2028,6 +2046,8 @@ class TestRescheduledBookingWithExistingPaymentIntegration:
         )
 
         db.refresh(original_booking)
+        _reload_payment_detail(db, result)
+        _reload_payment_detail(db, original_booking)
         payment_record = payment_repo.get_payment_by_intent_id("pi_reschedule_existing")
         result_reschedule = _get_reschedule(db, result.id)
         original_reschedule = _get_reschedule(db, original_booking.id)
@@ -2035,14 +2055,14 @@ class TestRescheduledBookingWithExistingPaymentIntegration:
         assert result.rescheduled_from_booking_id == original_booking.id
         assert result_reschedule is not None
         assert result_reschedule.late_reschedule_used is True
-        assert result.payment_intent_id == "pi_reschedule_existing"
-        assert result.payment_method_id == "pm_reschedule_existing"
+        assert result.payment_detail.payment_intent_id == "pi_reschedule_existing"
+        assert result.payment_detail.payment_method_id == "pm_reschedule_existing"
         assert original_reschedule is not None
         assert original_reschedule.rescheduled_to_booking_id == result.id
         assert payment_record is not None
         assert payment_record.booking_id == result.id
-        assert result.credits_reserved_cents == 2000
-        assert original_booking.credits_reserved_cents == 0
+        assert result.payment_detail.credits_reserved_cents == 2000
+        assert original_booking.payment_detail.credits_reserved_cents == 0
 
     def test_create_rescheduled_booking_missing_original_raises(
         self,
@@ -2181,13 +2201,14 @@ class TestRescheduledBookingWithLockedFundsIntegration:
         )
 
         db.refresh(original_booking)
+        _reload_payment_detail(db, result)
         original_reschedule = _get_reschedule(db, original_booking.id)
         result_reschedule = _get_reschedule(db, result.id)
         assert result.rescheduled_from_booking_id == original_booking.id
         assert original_reschedule is not None
         assert original_reschedule.rescheduled_to_booking_id == result.id
         assert result.has_locked_funds is True
-        assert result.payment_status == PaymentStatus.LOCKED.value
+        assert result.payment_detail.payment_status == PaymentStatus.LOCKED.value
         assert result_reschedule is not None
         assert result_reschedule.late_reschedule_used is True
 
@@ -2425,8 +2446,8 @@ class TestPaymentProcessingScenariosIntegration:
         db.refresh(booking)
         transfer = _get_transfer(db, booking.id)
         assert result.status == BookingStatus.CANCELLED
-        assert booking.payment_status == PaymentStatus.SETTLED.value
-        assert booking.settlement_outcome == "student_cancel_12_24_full_credit"
+        assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
+        assert booking.payment_detail.settlement_outcome == "student_cancel_12_24_full_credit"
         assert transfer is not None
         assert transfer.transfer_reversal_id == "trr_12_24"
 
@@ -2478,8 +2499,8 @@ class TestPaymentProcessingScenariosIntegration:
         db.refresh(booking)
         transfer = _get_transfer(db, booking.id)
         assert result.status == BookingStatus.CANCELLED
-        assert booking.payment_status == PaymentStatus.SETTLED.value
-        assert booking.settlement_outcome == "student_cancel_lt12_split_50_50"
+        assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
+        assert booking.payment_detail.settlement_outcome == "student_cancel_lt12_split_50_50"
         assert transfer is not None
         assert transfer.payout_transfer_id == "tr_payout_under_12"
 
@@ -2549,7 +2570,7 @@ class TestPaymentProcessingScenariosIntegration:
         db.refresh(booking)
         transfer = _get_transfer(db, booking.id)
         assert result.status == BookingStatus.CANCELLED
-        assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
+        assert booking.payment_detail.payment_status == PaymentStatus.MANUAL_REVIEW.value
         assert transfer is not None
         assert transfer.transfer_reversal_failed is True
 
@@ -2583,8 +2604,8 @@ class TestPaymentProcessingScenariosIntegration:
 
         db.refresh(booking)
         assert result.status == BookingStatus.CANCELLED
-        assert booking.payment_status == PaymentStatus.SETTLED.value
-        assert booking.settlement_outcome == "student_cancel_gt24_no_charge"
+        assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
+        assert booking.payment_detail.settlement_outcome == "student_cancel_gt24_no_charge"
 
     def test_cancel_under_12h_no_payment_intent_marks_manual_review(
         self,
@@ -2612,7 +2633,7 @@ class TestPaymentProcessingScenariosIntegration:
         )
         booking.booking_start_utc = start_utc
         booking.booking_end_utc = end_utc
-        booking.payment_intent_id = None
+        booking.payment_detail.payment_intent_id = None
         db.commit()
 
         result = booking_service_integration.cancel_booking(
@@ -2621,8 +2642,8 @@ class TestPaymentProcessingScenariosIntegration:
 
         db.refresh(booking)
         assert result.status == BookingStatus.CANCELLED
-        assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
-        assert booking.auth_last_error == "missing_payment_intent"
+        assert booking.payment_detail.payment_status == PaymentStatus.MANUAL_REVIEW.value
+        assert booking.payment_detail.auth_last_error == "missing_payment_intent"
 
     def test_instructor_cancel_refund_success_on_captured_payment(
         self,
@@ -2668,8 +2689,8 @@ class TestPaymentProcessingScenariosIntegration:
         assert result.status == BookingStatus.CANCELLED
         assert transfer is not None
         assert transfer.refund_id == "re_refund_success"
-        assert booking.payment_status == PaymentStatus.SETTLED.value
-        assert booking.settlement_outcome == "instructor_cancel_full_refund"
+        assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
+        assert booking.payment_detail.settlement_outcome == "instructor_cancel_full_refund"
 
     def test_over_24h_gaming_cancel_success_sets_credit(
         self,
@@ -2737,8 +2758,8 @@ class TestPaymentProcessingScenariosIntegration:
         db.refresh(booking)
         transfer = _get_transfer(db, booking.id)
         assert result.status == BookingStatus.CANCELLED
-        assert booking.payment_status == PaymentStatus.SETTLED.value
-        assert booking.settlement_outcome == "student_cancel_12_24_full_credit"
+        assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
+        assert booking.payment_detail.settlement_outcome == "student_cancel_12_24_full_credit"
         assert transfer is not None
         assert transfer.transfer_reversal_id == "trr_gaming_success"
 
@@ -2778,8 +2799,8 @@ class TestPaymentProcessingScenariosIntegration:
 
         db.refresh(booking)
         assert result.status == BookingStatus.CANCELLED
-        assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
-        assert booking.auth_last_error == "cancel failed"
+        assert booking.payment_detail.payment_status == PaymentStatus.MANUAL_REVIEW.value
+        assert booking.payment_detail.auth_last_error == "cancel failed"
 
     def test_instructor_cancel_refund_failed_marks_manual_review(
         self,
@@ -2818,7 +2839,7 @@ class TestPaymentProcessingScenariosIntegration:
         db.refresh(booking)
         transfer = _get_transfer(db, booking.id)
         assert result.status == BookingStatus.CANCELLED
-        assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
+        assert booking.payment_detail.payment_status == PaymentStatus.MANUAL_REVIEW.value
         assert transfer is not None
         assert transfer.refund_failed_at is not None
         assert transfer.refund_error == "refund failed"
@@ -2865,7 +2886,7 @@ class TestPaymentProcessingScenariosIntegration:
         db.refresh(booking)
         transfer = _get_transfer(db, booking.id)
         assert result.status == BookingStatus.CANCELLED
-        assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
+        assert booking.payment_detail.payment_status == PaymentStatus.MANUAL_REVIEW.value
         assert transfer is not None
         assert transfer.transfer_reversal_failed is True
 
@@ -2911,7 +2932,7 @@ class TestPaymentProcessingScenariosIntegration:
         db.refresh(booking)
         transfer = _get_transfer(db, booking.id)
         assert result.status == BookingStatus.CANCELLED
-        assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
+        assert booking.payment_detail.payment_status == PaymentStatus.MANUAL_REVIEW.value
         assert transfer is not None
         assert transfer.payout_transfer_failed_at is not None
         assert transfer.payout_transfer_error == "missing_instructor_account"
@@ -2976,9 +2997,9 @@ class TestPaymentProcessingScenariosIntegration:
 
         db.refresh(booking)
         assert result.status == BookingStatus.CANCELLED
-        assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-        assert booking.capture_failed_at is not None
-        assert booking.auth_last_error == "capture failed"
+        assert booking.payment_detail.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+        assert booking.payment_detail.capture_failed_at is not None
+        assert booking.payment_detail.auth_last_error == "capture failed"
 
     def test_under_12h_cancel_reverse_failure_manual_review(
         self,
@@ -3022,7 +3043,7 @@ class TestPaymentProcessingScenariosIntegration:
         db.refresh(booking)
         transfer = _get_transfer(db, booking.id)
         assert result.status == BookingStatus.CANCELLED
-        assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
+        assert booking.payment_detail.payment_status == PaymentStatus.MANUAL_REVIEW.value
         assert transfer is not None
         assert transfer.transfer_reversal_failed is True
 
@@ -3115,7 +3136,7 @@ class TestResolveLockResolutionsIntegration:
         db.refresh(booking)
         transfer = _get_transfer(db, booking.id)
         assert result.get("success") is True
-        assert booking.payment_status == PaymentStatus.SETTLED.value
+        assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
         assert transfer is not None
         assert transfer.payout_transfer_id == "tr_lock_paid"
 
@@ -3268,7 +3289,7 @@ class TestResolveLockResolutionsIntegration:
 
         db.refresh(booking)
         assert result.get("success") is True
-        assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
+        assert booking.payment_detail.payment_status == PaymentStatus.MANUAL_REVIEW.value
 
 
 class TestBuildCancellationContextIntegration:
@@ -3610,7 +3631,7 @@ class TestInstructorCompletionIntegration:
             reason="Disputed completion",
         )
 
-        assert result.payment_status == PaymentStatus.MANUAL_REVIEW.value
+        assert result.payment_detail.payment_status == PaymentStatus.MANUAL_REVIEW.value
 
     def test_instructor_mark_complete_not_found(
         self,

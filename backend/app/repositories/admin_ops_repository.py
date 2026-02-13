@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..core.exceptions import RepositoryException
 from ..models.booking import Booking, BookingStatus, PaymentStatus
+from ..models.booking_payment import BookingPayment
 from ..models.instructor import InstructorProfile
 from ..models.payment import PaymentIntent
 from ..models.service_catalog import InstructorService, ServiceCatalog
@@ -177,8 +178,9 @@ class AdminOpsRepository(BaseRepository[Booking]):
             return cast(
                 int,
                 self.db.query(func.count(Booking.id))
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .filter(
-                    Booking.payment_status == PaymentStatus.SCHEDULED.value,
+                    BookingPayment.payment_status == PaymentStatus.SCHEDULED.value,
                     Booking.booking_date >= from_date,
                     Booking.status == BookingStatus.CONFIRMED.value,
                 )
@@ -207,8 +209,10 @@ class AdminOpsRepository(BaseRepository[Booking]):
             Count of matching bookings
         """
         try:
-            query = self.db.query(func.count(Booking.id)).filter(
-                Booking.payment_status == payment_status
+            query = (
+                self.db.query(func.count(Booking.id))
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .filter(BookingPayment.payment_status == payment_status)
             )
 
             if booking_status:
@@ -236,8 +240,9 @@ class AdminOpsRepository(BaseRepository[Booking]):
             return cast(
                 int,
                 self.db.query(func.count(Booking.id))
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .filter(
-                    Booking.payment_status.in_(
+                    BookingPayment.payment_status.in_(
                         [
                             PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
                             PaymentStatus.MANUAL_REVIEW.value,
@@ -266,8 +271,9 @@ class AdminOpsRepository(BaseRepository[Booking]):
             return cast(
                 int,
                 self.db.query(func.count(Booking.id))
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .filter(
-                    Booking.settlement_outcome.like("%refund%"),
+                    BookingPayment.settlement_outcome.like("%refund%"),
                     Booking.updated_at >= updated_since,
                 )
                 .scalar()
@@ -291,8 +297,9 @@ class AdminOpsRepository(BaseRepository[Booking]):
             return cast(
                 int,
                 self.db.query(func.count(Booking.id))
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .filter(
-                    Booking.payment_status == PaymentStatus.SCHEDULED.value,
+                    BookingPayment.payment_status == PaymentStatus.SCHEDULED.value,
                     Booking.booking_start_utc <= cutoff_time,
                     Booking.status == BookingStatus.CONFIRMED.value,
                 )
@@ -317,8 +324,9 @@ class AdminOpsRepository(BaseRepository[Booking]):
             return cast(
                 int,
                 self.db.query(func.count(Booking.id))
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .filter(
-                    Booking.payment_status == PaymentStatus.AUTHORIZED.value,
+                    BookingPayment.payment_status == PaymentStatus.AUTHORIZED.value,
                     Booking.status == BookingStatus.COMPLETED.value,
                     Booking.completed_at < completed_before,
                 )
@@ -342,8 +350,9 @@ class AdminOpsRepository(BaseRepository[Booking]):
         try:
             result = (
                 self.db.query(func.sum(Booking.total_price))
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .filter(
-                    Booking.payment_status == PaymentStatus.SETTLED.value,
+                    BookingPayment.payment_status == PaymentStatus.SETTLED.value,
                     Booking.updated_at >= updated_since,
                 )
                 .scalar()
@@ -375,8 +384,9 @@ class AdminOpsRepository(BaseRepository[Booking]):
                     func.count(Booking.id).label("lesson_count"),
                     func.min(Booking.completed_at).label("oldest_date"),
                 )
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .filter(
-                    Booking.payment_status == PaymentStatus.AUTHORIZED.value,
+                    BookingPayment.payment_status == PaymentStatus.AUTHORIZED.value,
                     Booking.status == BookingStatus.COMPLETED.value,
                 )
                 .group_by(Booking.instructor_id)
@@ -478,8 +488,9 @@ class AdminOpsRepository(BaseRepository[Booking]):
             total = (
                 self.db.query(func.coalesce(func.sum(PaymentIntent.application_fee), 0))
                 .join(Booking, Booking.id == PaymentIntent.booking_id)
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .filter(
-                    Booking.payment_status == PaymentStatus.SETTLED.value,
+                    BookingPayment.payment_status == PaymentStatus.SETTLED.value,
                     Booking.booking_date >= start_date,
                     Booking.booking_date <= end_date,
                 )
@@ -683,7 +694,10 @@ class AdminOpsRepository(BaseRepository[Booking]):
             return cast(
                 Optional[Booking],
                 self.db.query(Booking)
-                .options(joinedload(Booking.payment_intent))
+                .options(
+                    joinedload(Booking.payment_intent),
+                    joinedload(Booking.payment_detail),
+                )
                 .filter(Booking.id == booking_id)
                 .first(),
             )
@@ -702,12 +716,16 @@ class AdminOpsRepository(BaseRepository[Booking]):
         try:
             query = (
                 self.db.query(Booking)
-                .options(joinedload(Booking.payment_intent))
+                .outerjoin(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(
+                    joinedload(Booking.payment_intent),
+                    joinedload(Booking.payment_detail),
+                )
                 .filter(Booking.student_id == user_id)
                 .filter(
                     or_(
                         Booking.booking_start_utc.between(start_time, end_time),
-                        Booking.auth_scheduled_for.between(start_time, end_time),
+                        BookingPayment.auth_scheduled_for.between(start_time, end_time),
                     )
                 )
                 .order_by(Booking.created_at.desc())

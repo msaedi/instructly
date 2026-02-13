@@ -135,9 +135,14 @@ def _attach_payment(
     amount_cents: int = 10000,
     application_fee_cents: int = 1000,
 ) -> PaymentIntent:
+    from app.models.booking_payment import BookingPayment
     payment_intent_id = f"pi_{generate_ulid()}"
-    booking.payment_intent_id = payment_intent_id
-    booking.payment_status = payment_status
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    if bp:
+        bp.payment_intent_id = payment_intent_id
+        bp.payment_status = payment_status
+    else:
+        db.add(BookingPayment(booking_id=booking.id, payment_intent_id=payment_intent_id, payment_status=payment_status))
     payment_intent_status = "succeeded" if payment_status == PaymentStatus.SETTLED.value else "requires_capture"
 
     payment = PaymentIntent(

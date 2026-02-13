@@ -815,7 +815,8 @@ class BookingService(BaseService):
                         logger.debug("Non-fatal error ignored", exc_info=True)
                 # Override status to PENDING until payment confirmed
                 booking.status = BookingStatus.PENDING
-                booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+                bp = self.repository.ensure_payment(booking.id)
+                bp.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
                 self._enqueue_booking_outbox_event(booking, "booking.created")
 
                 # Transaction handles flush/commit automatically
@@ -1002,11 +1003,12 @@ class BookingService(BaseService):
                     current_reschedule.late_reschedule_used = True
 
                 # Reuse payment fields from the original booking
-                booking.payment_intent_id = payment_intent_id
+                bp = self.repository.ensure_payment(booking.id)
+                bp.payment_intent_id = payment_intent_id
                 if isinstance(payment_method_id, str):
-                    booking.payment_method_id = payment_method_id
+                    bp.payment_method_id = payment_method_id
                 if isinstance(payment_status, str):
-                    booking.payment_status = payment_status
+                    bp.payment_status = payment_status
 
                 # Transfer reserved credits to the new booking when reusing payment
                 try:
@@ -1021,8 +1023,9 @@ class BookingService(BaseService):
                         )
                         credit.reserved_for_booking_id = booking.id
                     if reserved_total > 0:
-                        booking.credits_reserved_cents = reserved_total
-                        old_booking.credits_reserved_cents = 0
+                        bp.credits_reserved_cents = reserved_total
+                        old_bp = self.repository.ensure_payment(old_booking.id)
+                        old_bp.credits_reserved_cents = 0
                 except Exception as exc:
                     logger.warning(
                         "Failed to transfer reserved credits from booking %s: %s",
@@ -1149,7 +1152,8 @@ class BookingService(BaseService):
                 current_reschedule = self.repository.ensure_reschedule(booking.id)
                 current_reschedule.original_lesson_datetime = original_lesson_dt
                 booking.has_locked_funds = True
-                booking.payment_status = PaymentStatus.LOCKED.value
+                bp = self.repository.ensure_payment(booking.id)
+                bp.payment_status = PaymentStatus.LOCKED.value
                 old_reschedule = self.repository.ensure_reschedule(old_booking.id)
                 old_reschedule.rescheduled_to_booking_id = booking.id
                 previous_count = int(old_reschedule.reschedule_count or 0)
@@ -1287,8 +1291,9 @@ class BookingService(BaseService):
 
         with self.transaction():
             # Save payment method
-            booking.payment_method_id = payment_method_id
-            booking.payment_status = PaymentStatus.SCHEDULED.value
+            bp = self.repository.ensure_payment(booking.id)
+            bp.payment_method_id = payment_method_id
+            bp.payment_status = PaymentStatus.SCHEDULED.value
 
             # Phase 2.2: Schedule authorization based on lesson timing (UTC)
             booking_start_utc = self._get_booking_start_utc(booking)
@@ -1317,10 +1322,10 @@ class BookingService(BaseService):
 
             if is_gaming_reschedule:
                 # Gaming reschedule: authorize immediately to prevent delayed-auth loophole.
-                booking.payment_status = PaymentStatus.SCHEDULED.value
-                booking.auth_scheduled_for = datetime.now(timezone.utc)
-                booking.auth_last_error = None
-                booking.auth_failure_count = 0
+                bp.payment_status = PaymentStatus.SCHEDULED.value
+                bp.auth_scheduled_for = datetime.now(timezone.utc)
+                bp.auth_last_error = None
+                bp.auth_failure_count = 0
                 trigger_immediate_auth = True
                 immediate_auth_hours_until = hours_until_lesson
 
@@ -1339,10 +1344,10 @@ class BookingService(BaseService):
 
             elif auth_timing["immediate"]:
                 # Lesson is within 24 hours - mark for immediate authorization by background task
-                booking.payment_status = PaymentStatus.SCHEDULED.value
-                booking.auth_scheduled_for = datetime.now(timezone.utc)
-                booking.auth_last_error = None
-                booking.auth_failure_count = 0
+                bp.payment_status = PaymentStatus.SCHEDULED.value
+                bp.auth_scheduled_for = datetime.now(timezone.utc)
+                bp.auth_last_error = None
+                bp.auth_failure_count = 0
 
                 # Create auth event; actual authorization is handled by worker
                 payment_repo = PaymentRepository(self.db)
@@ -1361,10 +1366,10 @@ class BookingService(BaseService):
             else:
                 # Lesson is >24 hours away - schedule authorization
                 auth_time = auth_timing["scheduled_for"]
-                booking.payment_status = PaymentStatus.SCHEDULED.value
-                booking.auth_scheduled_for = auth_time
-                booking.auth_last_error = None
-                booking.auth_failure_count = 0
+                bp.payment_status = PaymentStatus.SCHEDULED.value
+                bp.auth_scheduled_for = auth_time
+                bp.auth_last_error = None
+                bp.auth_failure_count = 0
 
                 # Create scheduled event using repository
                 payment_repo = PaymentRepository(self.db)
@@ -1392,7 +1397,7 @@ class BookingService(BaseService):
         self.log_operation(
             "confirm_booking_payment_completed",
             booking_id=booking.id,
-            payment_status=booking.payment_status,
+            payment_status=getattr(booking.payment_detail, "payment_status", None),
         )
 
         auth_result: Optional[Dict[str, Any]] = None
@@ -1423,8 +1428,9 @@ class BookingService(BaseService):
                     if refreshed and refreshed.status == BookingStatus.PENDING:
                         refreshed.status = BookingStatus.CONFIRMED
                         refreshed.confirmed_at = datetime.now(timezone.utc)
-                        if refreshed.payment_status == PaymentStatus.SCHEDULED.value:
-                            refreshed.payment_status = PaymentStatus.AUTHORIZED.value
+                        refreshed_bp = self.repository.ensure_payment(refreshed.id)
+                        if refreshed_bp.payment_status == PaymentStatus.SCHEDULED.value:
+                            refreshed_bp.payment_status = PaymentStatus.AUTHORIZED.value
                 self.repository.refresh(booking)
             except Exception:
                 logger.debug("Non-fatal error ignored", exc_info=True)
@@ -1502,18 +1508,20 @@ class BookingService(BaseService):
         if booking.status == BookingStatus.CANCELLED:
             raise BusinessRuleException("Booking has been cancelled")
 
-        if booking.payment_status not in {
+        pd = booking.payment_detail
+        cur_payment_status = pd.payment_status if pd is not None else None
+        if cur_payment_status not in {
             PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             PaymentStatus.SCHEDULED.value,
         }:
-            raise BusinessRuleException(f"Cannot retry payment in status: {booking.payment_status}")
+            raise BusinessRuleException(f"Cannot retry payment in status: {cur_payment_status}")
 
         payment_repo = PaymentRepository(self.db)
         default_method = payment_repo.get_default_payment_method(user.id)
         payment_method_id = (
             default_method.stripe_payment_method_id
             if default_method and default_method.stripe_payment_method_id
-            else booking.payment_method_id
+            else (pd.payment_method_id if pd is not None else None)
         )
 
         if not payment_method_id:
@@ -1535,11 +1543,12 @@ class BookingService(BaseService):
                 booking = self.repository.get_booking_with_details(booking_id)
                 if not booking:
                     raise NotFoundException("Booking not found")
-                booking.payment_status = PaymentStatus.AUTHORIZED.value
-                booking.auth_attempted_at = now
-                booking.auth_failure_count = 0
-                booking.auth_last_error = None
-                booking.payment_method_id = payment_method_id
+                bp = self.repository.ensure_payment(booking.id)
+                bp.payment_status = PaymentStatus.AUTHORIZED.value
+                bp.auth_attempted_at = now
+                bp.auth_failure_count = 0
+                bp.auth_last_error = None
+                bp.payment_method_id = payment_method_id
 
                 payment_repo.create_payment_event(
                     booking_id=booking.id,
@@ -1556,11 +1565,10 @@ class BookingService(BaseService):
                 "failure_count": 0,
             }
 
+        pd_for_pi = booking.payment_detail
+        raw_pi_id = pd_for_pi.payment_intent_id if pd_for_pi is not None else None
         payment_intent_id = (
-            booking.payment_intent_id
-            if isinstance(booking.payment_intent_id, str)
-            and booking.payment_intent_id.startswith("pi_")
-            else None
+            raw_pi_id if isinstance(raw_pi_id, str) and raw_pi_id.startswith("pi_") else None
         )
 
         stripe_error: Optional[str] = None
@@ -1588,15 +1596,16 @@ class BookingService(BaseService):
             if not booking:
                 raise NotFoundException("Booking not found")
 
-            booking.payment_method_id = payment_method_id
-            booking.auth_attempted_at = now
-            booking.auth_scheduled_for = None
+            bp = self.repository.ensure_payment(booking.id)
+            bp.payment_method_id = payment_method_id
+            bp.auth_attempted_at = now
+            bp.auth_scheduled_for = None
 
             if success:
-                booking.payment_status = PaymentStatus.AUTHORIZED.value
-                booking.payment_intent_id = payment_intent_id
-                booking.auth_failure_count = 0
-                booking.auth_last_error = None
+                bp.payment_status = PaymentStatus.AUTHORIZED.value
+                bp.payment_intent_id = payment_intent_id
+                bp.auth_failure_count = 0
+                bp.auth_last_error = None
                 payment_repo.create_payment_event(
                     booking_id=booking.id,
                     event_type="auth_retry_succeeded",
@@ -1608,24 +1617,24 @@ class BookingService(BaseService):
                     },
                 )
             else:
-                booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-                booking.auth_failure_count = int(getattr(booking, "auth_failure_count", 0) or 0) + 1
-                booking.auth_last_error = stripe_error or stripe_status or "authorization_failed"
+                bp.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+                bp.auth_failure_count = int(bp.auth_failure_count or 0) + 1
+                bp.auth_last_error = stripe_error or stripe_status or "authorization_failed"
                 payment_repo.create_payment_event(
                     booking_id=booking.id,
                     event_type="auth_retry_failed",
                     event_data={
                         "payment_intent_id": payment_intent_id,
-                        "error": booking.auth_last_error,
+                        "error": bp.auth_last_error,
                         "failed_at": now.isoformat(),
                     },
                 )
 
         return {
             "success": success,
-            "payment_status": booking.payment_status,
-            "failure_count": booking.auth_failure_count,
-            "error": None if success else booking.auth_last_error,
+            "payment_status": bp.payment_status,
+            "failure_count": bp.auth_failure_count,
+            "error": None if success else bp.auth_last_error,
         }
 
     @BaseService.measure_operation("find_booking_opportunities")
@@ -1708,7 +1717,7 @@ class BookingService(BaseService):
 
         # ========== PHASE 1: Read/validate (quick transaction) ==========
         with self.transaction():
-            booking = self.repository.get_by_id_for_update(booking_id, load_relationships=False)
+            booking = self.repository.get_by_id_for_update(booking_id)
             if not booking:
                 raise NotFoundException("Booking not found")
 
@@ -1749,7 +1758,10 @@ class BookingService(BaseService):
                         else RoleName.INSTRUCTOR.value
                     ),
                 }
-            elif booking.payment_status == PaymentStatus.LOCKED.value:
+            elif (
+                getattr(booking.payment_detail, "payment_status", None)
+                == PaymentStatus.LOCKED.value
+            ):
                 booking_start_utc = self._get_booking_start_utc(booking)
                 hours_until = TimezoneService.hours_until(booking_start_utc)
                 if cancelled_by_role == "instructor":
@@ -1793,7 +1805,7 @@ class BookingService(BaseService):
         # ========== PHASE 3: Write results (quick transaction) ==========
         with self.transaction():
             # Re-fetch booking to avoid stale ORM object
-            booking = self.repository.get_by_id_for_update(booking_id, load_relationships=False)
+            booking = self.repository.get_by_id_for_update(booking_id)
             if not booking:
                 raise NotFoundException("Booking not found after Stripe calls")
 
@@ -1803,7 +1815,8 @@ class BookingService(BaseService):
             if "locked_booking_id" in cancel_ctx:
                 # LOCK-driven cancellation: no direct Stripe updates on this booking
                 if stripe_results.get("success") or stripe_results.get("skipped"):
-                    booking.payment_status = PaymentStatus.SETTLED.value
+                    bp = self.repository.ensure_payment(booking.id)
+                    bp.payment_status = PaymentStatus.SETTLED.value
             else:
                 # Finalize cancellation with Stripe results
                 self._finalize_cancellation(booking, cancel_ctx, stripe_results, payment_repo)
@@ -1858,7 +1871,8 @@ class BookingService(BaseService):
             audit_before = self._snapshot_booking(booking)
 
             if clear_payment_intent:
-                booking.payment_intent_id = None
+                bp = self.repository.ensure_payment(booking.id)
+                bp.payment_intent_id = None
 
             booking.cancel(user.id, reason)
             self._enqueue_booking_outbox_event(booking, "booking.cancelled")
@@ -1903,7 +1917,9 @@ class BookingService(BaseService):
         if not (12 <= hours_until_start < 24):
             return False
 
-        payment_status = (booking.payment_status or "").lower()
+        pd = booking.payment_detail
+        payment_status = (pd.payment_status if pd is not None else None) or ""
+        payment_status = payment_status.lower()
         if payment_status == PaymentStatus.LOCKED.value:
             return False
 
@@ -1922,21 +1938,21 @@ class BookingService(BaseService):
         hours_until_lesson: Optional[float] = None
         needs_authorization = False
         with self.transaction():
-            booking = self.repository.get_by_id_for_update(booking_id, load_relationships=False)
+            booking = self.repository.get_by_id_for_update(booking_id)
             if not booking:
                 raise NotFoundException("Booking not found")
 
-            if booking.payment_status == PaymentStatus.LOCKED.value:
+            pd = booking.payment_detail
+            cur_ps = pd.payment_status if pd is not None else None
+            if cur_ps == PaymentStatus.LOCKED.value:
                 return {"locked": True, "already_locked": True}
 
-            payment_status = (booking.payment_status or "").lower()
+            payment_status = (cur_ps or "").lower()
             if payment_status not in {
                 PaymentStatus.AUTHORIZED.value,
                 PaymentStatus.SCHEDULED.value,
             }:
-                raise BusinessRuleException(
-                    f"Cannot lock booking with status {booking.payment_status}"
-                )
+                raise BusinessRuleException(f"Cannot lock booking with status {cur_ps}")
 
             if payment_status == PaymentStatus.SCHEDULED.value:
                 booking_start_utc = self._get_booking_start_utc(booking)
@@ -1960,16 +1976,14 @@ class BookingService(BaseService):
         if not booking:
             raise NotFoundException("Booking not found after authorization")
 
-        payment_intent_id = (
-            booking.payment_intent_id
-            if isinstance(booking.payment_intent_id, str)
-            and booking.payment_intent_id.startswith("pi_")
-            else None
-        )
+        pd = booking.payment_detail
+        raw_pi = pd.payment_intent_id if pd is not None else None
+        payment_intent_id = raw_pi if isinstance(raw_pi, str) and raw_pi.startswith("pi_") else None
         if not payment_intent_id:
             raise BusinessRuleException("No authorized payment available to lock")
-        if booking.payment_status != PaymentStatus.AUTHORIZED.value:
-            raise BusinessRuleException(f"Cannot lock booking with status {booking.payment_status}")
+        cur_ps = pd.payment_status if pd is not None else None
+        if cur_ps != PaymentStatus.AUTHORIZED.value:
+            raise BusinessRuleException(f"Cannot lock booking with status {cur_ps}")
 
         # Phase 2: Stripe calls (no transaction)
         stripe_service = StripeService(
@@ -2015,7 +2029,7 @@ class BookingService(BaseService):
             locked_amount = None
 
         with self.transaction():
-            booking = self.repository.get_by_id_for_update(booking_id, load_relationships=False)
+            booking = self.repository.get_by_id_for_update(booking_id)
             if not booking:
                 raise NotFoundException("Booking not found after lock capture")
 
@@ -2023,8 +2037,9 @@ class BookingService(BaseService):
             from ..services.credit_service import CreditService
 
             credit_service = CreditService(self.db)
+            bp = self.repository.ensure_payment(booking.id)
             if reverse_failed:
-                booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
+                bp.payment_status = PaymentStatus.MANUAL_REVIEW.value
                 transfer_record = self._ensure_transfer_record(booking.id)
                 transfer_record.stripe_transfer_id = transfer_id
                 transfer_record.transfer_reversal_failed = True
@@ -2053,8 +2068,8 @@ class BookingService(BaseService):
                         booking.id,
                         exc,
                     )
-                booking.credits_reserved_cents = 0
-                booking.payment_status = PaymentStatus.LOCKED.value
+                bp.credits_reserved_cents = 0
+                bp.payment_status = PaymentStatus.LOCKED.value
                 lock_record = self.repository.ensure_lock(booking.id)
                 lock_record.locked_at = datetime.now(timezone.utc)
                 lock_record.locked_amount_cents = locked_amount
@@ -2101,9 +2116,7 @@ class BookingService(BaseService):
         }
 
         with self.transaction():
-            locked_booking = self.repository.get_by_id_for_update(
-                locked_booking_id, load_relationships=False
-            )
+            locked_booking = self.repository.get_by_id_for_update(locked_booking_id)
             if not locked_booking:
                 raise NotFoundException("Locked booking not found")
 
@@ -2112,13 +2125,15 @@ class BookingService(BaseService):
             if lock_record is not None and lock_record.lock_resolved_at is not None:
                 return {"success": True, "skipped": True, "reason": "already_resolved"}
 
-            if locked_booking.payment_status == PaymentStatus.SETTLED.value:
+            locked_pd = locked_booking.payment_detail
+            locked_ps = locked_pd.payment_status if locked_pd is not None else None
+            if locked_ps == PaymentStatus.SETTLED.value:
                 return {"success": True, "skipped": True, "reason": "already_settled"}
 
-            if locked_booking.payment_status != PaymentStatus.LOCKED.value:
+            if locked_ps != PaymentStatus.LOCKED.value:
                 return {"success": False, "skipped": True, "reason": "not_locked"}
 
-            payment_intent_id = locked_booking.payment_intent_id
+            payment_intent_id = locked_pd.payment_intent_id if locked_pd is not None else None
             locked_amount_cents = lock_record.locked_amount_cents if lock_record else None
             lesson_price_cents = int(
                 float(locked_booking.hourly_rate) * locked_booking.duration_minutes * 100 / 60
@@ -2236,18 +2251,19 @@ class BookingService(BaseService):
             def _locked_transfer() -> BookingTransfer:
                 return self._ensure_transfer_record(locked_booking.id)
 
+            locked_bp = self.repository.ensure_payment(locked_booking.id)
             if resolution == "new_lesson_completed":
-                locked_booking.settlement_outcome = "lesson_completed_full_payout"
+                locked_bp.settlement_outcome = "lesson_completed_full_payout"
                 locked_booking.student_credit_amount = 0
-                locked_booking.instructor_payout_amount = stripe_result.get("payout_amount_cents")
+                locked_bp.instructor_payout_amount = stripe_result.get("payout_amount_cents")
                 locked_booking.refunded_to_card_amount = 0
-                locked_booking.credits_reserved_cents = 0
+                locked_bp.credits_reserved_cents = 0
                 if stripe_result.get("payout_success"):
-                    locked_booking.payment_status = PaymentStatus.SETTLED.value
+                    locked_bp.payment_status = PaymentStatus.SETTLED.value
                     transfer_record = _locked_transfer()
                     transfer_record.payout_transfer_id = stripe_result.get("payout_transfer_id")
                 else:
-                    locked_booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
+                    locked_bp.payment_status = PaymentStatus.MANUAL_REVIEW.value
                     transfer_record = _locked_transfer()
                     transfer_record.payout_transfer_failed_at = datetime.now(timezone.utc)
                     transfer_record.payout_transfer_error = stripe_result.get("error")
@@ -2271,12 +2287,12 @@ class BookingService(BaseService):
                         source_booking_id=locked_booking_id,
                         use_transaction=False,
                     )
-                locked_booking.settlement_outcome = "locked_cancel_ge12_full_credit"
+                locked_bp.settlement_outcome = "locked_cancel_ge12_full_credit"
                 locked_booking.student_credit_amount = credit_amount
-                locked_booking.instructor_payout_amount = 0
+                locked_bp.instructor_payout_amount = 0
                 locked_booking.refunded_to_card_amount = 0
-                locked_booking.credits_reserved_cents = 0
-                locked_booking.payment_status = PaymentStatus.SETTLED.value
+                locked_bp.credits_reserved_cents = 0
+                locked_bp.payment_status = PaymentStatus.SETTLED.value
 
             elif resolution == "new_lesson_cancelled_lt12":
                 credit_amount = int(round(lesson_price_cents * 0.5))
@@ -2289,17 +2305,17 @@ class BookingService(BaseService):
                         source_booking_id=locked_booking_id,
                         use_transaction=False,
                     )
-                locked_booking.settlement_outcome = "locked_cancel_lt12_split_50_50"
+                locked_bp.settlement_outcome = "locked_cancel_lt12_split_50_50"
                 locked_booking.student_credit_amount = credit_amount
-                locked_booking.instructor_payout_amount = stripe_result.get("payout_amount_cents")
+                locked_bp.instructor_payout_amount = stripe_result.get("payout_amount_cents")
                 locked_booking.refunded_to_card_amount = 0
-                locked_booking.credits_reserved_cents = 0
+                locked_bp.credits_reserved_cents = 0
                 if stripe_result.get("payout_success"):
-                    locked_booking.payment_status = PaymentStatus.SETTLED.value
+                    locked_bp.payment_status = PaymentStatus.SETTLED.value
                     transfer_record = _locked_transfer()
                     transfer_record.payout_transfer_id = stripe_result.get("payout_transfer_id")
                 else:
-                    locked_booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
+                    locked_bp.payment_status = PaymentStatus.MANUAL_REVIEW.value
                     transfer_record = _locked_transfer()
                     transfer_record.payout_transfer_failed_at = datetime.now(timezone.utc)
                     transfer_record.payout_transfer_error = stripe_result.get("error")
@@ -2320,17 +2336,17 @@ class BookingService(BaseService):
                         refund_amount = int(refund_amount)
                     except (TypeError, ValueError):
                         refund_amount = None
-                locked_booking.settlement_outcome = "instructor_cancel_full_refund"
+                locked_bp.settlement_outcome = "instructor_cancel_full_refund"
                 locked_booking.student_credit_amount = 0
-                locked_booking.instructor_payout_amount = 0
+                locked_bp.instructor_payout_amount = 0
                 locked_booking.refunded_to_card_amount = (
                     refund_amount if refund_amount is not None else locked_amount_cents or 0
                 )
                 if stripe_result.get("refund_success"):
                     transfer_record = _locked_transfer()
                     transfer_record.refund_id = refund_data.get("refund_id")
-                locked_booking.credits_reserved_cents = 0
-                locked_booking.payment_status = (
+                locked_bp.credits_reserved_cents = 0
+                locked_bp.payment_status = (
                     PaymentStatus.SETTLED.value
                     if stripe_result.get("refund_success")
                     else PaymentStatus.MANUAL_REVIEW.value
@@ -2352,7 +2368,7 @@ class BookingService(BaseService):
                 event_type="lock_resolved",
                 event_data={
                     "resolution": resolution,
-                    "payout_amount_cents": locked_booking.instructor_payout_amount,
+                    "payout_amount_cents": locked_bp.instructor_payout_amount,
                     "student_credit_cents": locked_booking.student_credit_amount,
                     "refunded_cents": locked_booking.refunded_to_card_amount,
                     "error": stripe_result.get("error"),
@@ -2369,7 +2385,8 @@ class BookingService(BaseService):
         booking_start_utc = self._get_booking_start_utc(booking)
         hours_until = TimezoneService.hours_until(booking_start_utc)
 
-        raw_payment_intent_id = booking.payment_intent_id
+        pd = booking.payment_detail
+        raw_payment_intent_id = pd.payment_intent_id if pd is not None else None
         payment_intent_id = (
             raw_payment_intent_id
             if isinstance(raw_payment_intent_id, str) and raw_payment_intent_id.startswith("pi_")
@@ -2398,9 +2415,10 @@ class BookingService(BaseService):
         cancelled_by_role = "student" if user.id == booking.student_id else "instructor"
 
         # Determine cancellation scenario
+        cur_ps = pd.payment_status if pd is not None else None
         is_pending_payment = (
             booking.status == BookingStatus.PENDING
-            or booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+            or cur_ps == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
         ) and payment_intent_id is None
         if is_pending_payment:
             scenario = "pending_payment"
@@ -2417,10 +2435,7 @@ class BookingService(BaseService):
             else:
                 scenario = "under_12h" if payment_intent_id else "under_12h_no_pi"
 
-            if (
-                scenario == "over_24h_gaming"
-                and booking.payment_status != PaymentStatus.AUTHORIZED.value
-            ):
+            if scenario == "over_24h_gaming" and cur_ps != PaymentStatus.AUTHORIZED.value:
                 raise BusinessRuleException(
                     "Gaming reschedule cancellations require an authorized payment"
                 )
@@ -2465,7 +2480,7 @@ class BookingService(BaseService):
             "student_id": booking.student_id,
             "instructor_id": booking.instructor_id,
             "payment_intent_id": payment_intent_id,
-            "payment_status": booking.payment_status,
+            "payment_status": cur_ps,
             "scenario": scenario,
             "hours_until": hours_until,
             "hours_from_original": hours_from_original,
@@ -2769,6 +2784,7 @@ class BookingService(BaseService):
         from ..services.credit_service import CreditService
 
         credit_service = CreditService(self.db)
+        bp = self.repository.ensure_payment(booking.id)
 
         def _cancellation_credit_already_issued() -> bool:
             try:
@@ -2793,23 +2809,23 @@ class BookingService(BaseService):
             instructor_payout_cents: Optional[int] = None,
             refunded_cents: Optional[int] = None,
         ) -> None:
-            booking.settlement_outcome = outcome
+            bp.settlement_outcome = outcome
             booking.student_credit_amount = student_credit_cents
-            booking.instructor_payout_amount = instructor_payout_cents
+            bp.instructor_payout_amount = instructor_payout_cents
             booking.refunded_to_card_amount = refunded_cents
 
         def _mark_capture_failed(error: Optional[str]) -> None:
-            booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-            booking.capture_failed_at = datetime.now(timezone.utc)
-            booking.capture_retry_count = int(getattr(booking, "capture_retry_count", 0) or 0) + 1
+            bp.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+            bp.capture_failed_at = datetime.now(timezone.utc)
+            bp.capture_retry_count = int(bp.capture_retry_count or 0) + 1
             if error:
-                booking.auth_last_error = error
-                booking.capture_error = error
+                bp.auth_last_error = error
+                bp.capture_error = error
 
         def _mark_manual_review(reason: Optional[str]) -> None:
-            booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
+            bp.payment_status = PaymentStatus.MANUAL_REVIEW.value
             if reason:
-                booking.auth_last_error = reason
+                bp.auth_last_error = reason
 
         def _transfer_record() -> BookingTransfer:
             return self._ensure_transfer_record(booking_id)
@@ -2853,7 +2869,7 @@ class BookingService(BaseService):
                         booking_id,
                         exc,
                     )
-                booking.credits_reserved_cents = 0
+                bp.credits_reserved_cents = 0
                 if not _cancellation_credit_already_issued():
                     try:
                         credit_service.issue_credit(
@@ -2885,7 +2901,7 @@ class BookingService(BaseService):
                             else None,
                         },
                     )
-                booking.payment_status = PaymentStatus.SETTLED.value
+                bp.payment_status = PaymentStatus.SETTLED.value
                 _apply_settlement(
                     "student_cancel_12_24_full_credit",
                     student_credit_cents=credit_amount_cents,
@@ -2914,7 +2930,7 @@ class BookingService(BaseService):
                     booking_id,
                     exc,
                 )
-            booking.credits_reserved_cents = 0
+            bp.credits_reserved_cents = 0
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="auth_released",
@@ -2926,7 +2942,7 @@ class BookingService(BaseService):
             if ctx.get("payment_intent_id") and not stripe_results.get("cancel_pi_success"):
                 _mark_manual_review(stripe_results.get("error"))
             else:
-                booking.payment_status = PaymentStatus.SETTLED.value
+                bp.payment_status = PaymentStatus.SETTLED.value
             _apply_settlement(
                 "student_cancel_gt24_no_charge",
                 student_credit_cents=0,
@@ -2985,7 +3001,7 @@ class BookingService(BaseService):
                         booking_id,
                         exc,
                     )
-                booking.credits_reserved_cents = 0
+                bp.credits_reserved_cents = 0
                 if not _cancellation_credit_already_issued():
                     try:
                         credit_service.issue_credit(
@@ -3010,7 +3026,7 @@ class BookingService(BaseService):
                             "total_charged_cents": capture_data.get("amount_received"),
                         },
                     )
-                booking.payment_status = PaymentStatus.SETTLED.value
+                bp.payment_status = PaymentStatus.SETTLED.value
                 _apply_settlement(
                     "student_cancel_12_24_full_credit",
                     student_credit_cents=credit_amount_cents,
@@ -3118,7 +3134,7 @@ class BookingService(BaseService):
                         booking_id,
                         exc,
                     )
-                booking.credits_reserved_cents = 0
+                bp.credits_reserved_cents = 0
                 if not _cancellation_credit_already_issued():
                     try:
                         credit_service.issue_credit(
@@ -3144,8 +3160,8 @@ class BookingService(BaseService):
                             "payout_amount_cents": stripe_results.get("payout_amount_cents"),
                         },
                     )
-                if booking.payment_status != PaymentStatus.MANUAL_REVIEW.value:
-                    booking.payment_status = PaymentStatus.SETTLED.value
+                if bp.payment_status != PaymentStatus.MANUAL_REVIEW.value:
+                    bp.payment_status = PaymentStatus.SETTLED.value
                 payout_amount_cents = stripe_results.get("payout_amount_cents")
                 if payout_amount_cents is not None:
                     try:
@@ -3177,7 +3193,7 @@ class BookingService(BaseService):
                     booking_id,
                     exc,
                 )
-            booking.credits_reserved_cents = 0
+            bp.credits_reserved_cents = 0
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="capture_skipped_no_intent",
@@ -3196,13 +3212,13 @@ class BookingService(BaseService):
                     booking_id,
                     exc,
                 )
-            booking.credits_reserved_cents = 0
+            bp.credits_reserved_cents = 0
             payment_repo.create_payment_event(
                 booking_id=booking_id,
                 event_type="cancelled_before_payment",
                 event_data={"reason": "pending_payment_method"},
             )
-            booking.payment_status = PaymentStatus.SETTLED.value
+            bp.payment_status = PaymentStatus.SETTLED.value
             _apply_settlement(
                 "student_cancel_gt24_no_charge",
                 student_credit_cents=0,
@@ -3221,7 +3237,7 @@ class BookingService(BaseService):
                     booking_id,
                     exc,
                 )
-            booking.credits_reserved_cents = 0
+            bp.credits_reserved_cents = 0
             if stripe_results.get("refund_success"):
                 refund_data = stripe_results.get("refund_data") or {}
                 payment_repo.create_payment_event(
@@ -3234,7 +3250,7 @@ class BookingService(BaseService):
                         "amount_refunded": refund_data.get("amount_refunded"),
                     },
                 )
-                booking.payment_status = PaymentStatus.SETTLED.value
+                bp.payment_status = PaymentStatus.SETTLED.value
                 transfer_record = _transfer_record()
                 transfer_record.refund_id = refund_data.get("refund_id")
                 refund_amount = refund_data.get("amount_refunded")
@@ -3266,7 +3282,7 @@ class BookingService(BaseService):
                         "payment_intent_id": ctx["payment_intent_id"],
                     },
                 )
-                booking.payment_status = PaymentStatus.SETTLED.value
+                bp.payment_status = PaymentStatus.SETTLED.value
                 _apply_settlement(
                     "instructor_cancel_full_refund",
                     student_credit_cents=0,
@@ -3282,7 +3298,7 @@ class BookingService(BaseService):
                         "reason": "no_payment_intent",
                     },
                 )
-                booking.payment_status = PaymentStatus.SETTLED.value
+                bp.payment_status = PaymentStatus.SETTLED.value
                 _apply_settlement(
                     "instructor_cancel_full_refund",
                     student_credit_cents=0,
@@ -3347,9 +3363,9 @@ class BookingService(BaseService):
             "student_wins_dispute_full_refund",
             "admin_refund",
         }
-        if (
-            booking.payment_status == PaymentStatus.SETTLED.value
-            and booking.settlement_outcome in refund_hook_outcomes
+        pd = booking.payment_detail
+        if (pd is not None and pd.payment_status == PaymentStatus.SETTLED.value) and (
+            pd is not None and pd.settlement_outcome in refund_hook_outcomes
         ):
             try:
                 credit_service = StudentCreditService(self.db)
@@ -3835,8 +3851,9 @@ class BookingService(BaseService):
             )
 
             # Update payment status to prevent capture
-            if booking.payment_status == PaymentStatus.AUTHORIZED.value:
-                booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
+            dispute_bp = self.repository.ensure_payment(booking.id)
+            if dispute_bp.payment_status == PaymentStatus.AUTHORIZED.value:
+                dispute_bp.payment_status = PaymentStatus.MANUAL_REVIEW.value
 
         # Reload for fresh state after commit
         refreshed = self.repository.get_by_id(booking_id)
@@ -3897,9 +3914,10 @@ class BookingService(BaseService):
                 raise BusinessRuleException("No-show already reported for this booking")
 
             audit_before = self._snapshot_booking(booking)
-            previous_payment_status = booking.payment_status
+            noshow_bp = self.repository.ensure_payment(booking.id)
+            previous_payment_status = noshow_bp.payment_status
 
-            booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
+            noshow_bp.payment_status = PaymentStatus.MANUAL_REVIEW.value
             no_show_record = self.repository.ensure_no_show(booking.id)
             no_show_record.no_show_reported_by = reporter.id
             no_show_record.no_show_reported_at = now
@@ -4063,11 +4081,12 @@ class BookingService(BaseService):
                 raise BusinessRuleException("No-show already resolved")
 
             no_show_type = no_show_record.no_show_type
-            payment_status = booking.payment_status or ""
+            resolve_pd = booking.payment_detail
+            payment_status = (resolve_pd.payment_status if resolve_pd is not None else None) or ""
+            raw_resolve_pi = resolve_pd.payment_intent_id if resolve_pd is not None else None
             payment_intent_id = (
-                booking.payment_intent_id
-                if isinstance(booking.payment_intent_id, str)
-                and booking.payment_intent_id.startswith("pi_")
+                raw_resolve_pi
+                if isinstance(raw_resolve_pi, str) and raw_resolve_pi.startswith("pi_")
                 else None
             )
             has_locked_funds = (
@@ -4251,8 +4270,9 @@ class BookingService(BaseService):
                     payout_cents=instructor_payout_cents,
                     locked_booking_id=locked_booking_id,
                 )
-                booking.settlement_outcome = "lesson_completed_full_payout"
-                booking.payment_status = PaymentStatus.SETTLED.value
+                upheld_bp = self.repository.ensure_payment(booking.id)
+                upheld_bp.settlement_outcome = "lesson_completed_full_payout"
+                upheld_bp.payment_status = PaymentStatus.SETTLED.value
 
             elif resolution == "cancelled":
                 self._cancel_no_show_report(booking)
@@ -4288,7 +4308,7 @@ class BookingService(BaseService):
             "success": True,
             "booking_id": booking_id,
             "resolution": resolution,
-            "settlement_outcome": booking.settlement_outcome,
+            "settlement_outcome": getattr(booking.payment_detail, "settlement_outcome", None),
         }
 
     def _refund_for_instructor_no_show(
@@ -4381,13 +4401,14 @@ class BookingService(BaseService):
     ) -> None:
         """Persist instructor no-show settlement."""
         credit_service.release_credits_for_booking(booking_id=booking.id, use_transaction=False)
-        booking.settlement_outcome = "instructor_no_show_full_refund"
+        bp = self.repository.ensure_payment(booking.id)
+        bp.settlement_outcome = "instructor_no_show_full_refund"
         booking.student_credit_amount = 0
-        booking.instructor_payout_amount = 0
+        bp.instructor_payout_amount = 0
 
         if locked_booking_id:
             booking.refunded_to_card_amount = 0
-            booking.payment_status = (
+            bp.payment_status = (
                 PaymentStatus.SETTLED.value
                 if stripe_result.get("skipped") or stripe_result.get("success")
                 else PaymentStatus.MANUAL_REVIEW.value
@@ -4409,7 +4430,7 @@ class BookingService(BaseService):
             if stripe_result.get("refund_success"):
                 transfer_record = self._ensure_transfer_record(booking.id)
                 transfer_record.refund_id = refund_data.get("refund_id")
-            booking.payment_status = PaymentStatus.SETTLED.value
+            bp.payment_status = PaymentStatus.SETTLED.value
         else:
             transfer_record = self._ensure_transfer_record(booking.id)
             transfer_record.refund_failed_at = datetime.now(timezone.utc)
@@ -4417,7 +4438,7 @@ class BookingService(BaseService):
             transfer_record.refund_retry_count = (
                 int(getattr(transfer_record, "refund_retry_count", 0) or 0) + 1
             )
-            booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
+            bp.payment_status = PaymentStatus.MANUAL_REVIEW.value
 
     def _finalize_student_no_show(
         self,
@@ -4430,54 +4451,54 @@ class BookingService(BaseService):
     ) -> None:
         """Persist student no-show settlement."""
         credit_service.forfeit_credits_for_booking(booking_id=booking.id, use_transaction=False)
-        booking.settlement_outcome = "student_no_show_full_payout"
+        bp = self.repository.ensure_payment(booking.id)
+        bp.settlement_outcome = "student_no_show_full_payout"
         booking.student_credit_amount = 0
         booking.refunded_to_card_amount = 0
 
         if locked_booking_id:
-            booking.instructor_payout_amount = 0
-            booking.payment_status = (
+            bp.instructor_payout_amount = 0
+            bp.payment_status = (
                 PaymentStatus.SETTLED.value
                 if stripe_result.get("skipped") or stripe_result.get("success")
                 else PaymentStatus.MANUAL_REVIEW.value
             )
             return
 
-        booking.instructor_payout_amount = payout_cents
+        bp.instructor_payout_amount = payout_cents
         if stripe_result.get("capture_success") or stripe_result.get("already_captured"):
             capture_data = stripe_result.get("capture_data") or {}
             if capture_data.get("transfer_id"):
                 transfer_record = self._ensure_transfer_record(booking.id)
                 transfer_record.stripe_transfer_id = capture_data.get("transfer_id")
-            booking.payment_status = PaymentStatus.SETTLED.value
+            bp.payment_status = PaymentStatus.SETTLED.value
         else:
-            booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-            booking.capture_failed_at = datetime.now(timezone.utc)
-            booking.capture_retry_count = int(getattr(booking, "capture_retry_count", 0) or 0) + 1
-            booking.capture_error = stripe_result.get("error")
+            bp.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+            bp.capture_failed_at = datetime.now(timezone.utc)
+            bp.capture_retry_count = int(bp.capture_retry_count or 0) + 1
+            bp.capture_error = stripe_result.get("error")
 
     def _cancel_no_show_report(self, booking: Booking) -> None:
         """Cancel a no-show report and restore payment status."""
         from ..repositories.payment_repository import PaymentRepository
 
         payment_repo = PaymentRepository(self.db)
+        bp = self.repository.ensure_payment(booking.id)
         payment_record = payment_repo.get_payment_by_booking_id(booking.id)
         if payment_record and isinstance(payment_record.status, str):
             status = payment_record.status
             if status == "succeeded":
-                booking.payment_status = PaymentStatus.SETTLED.value
+                bp.payment_status = PaymentStatus.SETTLED.value
             elif status in {"requires_capture", "authorized"}:
-                booking.payment_status = PaymentStatus.AUTHORIZED.value
+                bp.payment_status = PaymentStatus.AUTHORIZED.value
             else:
-                booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+                bp.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
         else:
-            booking.payment_status = (
-                PaymentStatus.AUTHORIZED.value if booking.payment_intent_id else None
-            )
+            bp.payment_status = PaymentStatus.AUTHORIZED.value if bp.payment_intent_id else None
 
-        booking.settlement_outcome = None
+        bp.settlement_outcome = None
         booking.student_credit_amount = None
-        booking.instructor_payout_amount = None
+        bp.instructor_payout_amount = None
         booking.refunded_to_card_amount = None
 
     @BaseService.measure_operation("mark_no_show")
@@ -5615,7 +5636,7 @@ class BookingService(BaseService):
         Raises:
             BusinessRuleException: If booking has already been rescheduled once
         """
-        if booking.payment_status == PaymentStatus.LOCKED.value:
+        if getattr(booking.payment_detail, "payment_status", None) == PaymentStatus.LOCKED.value:
             raise BusinessRuleException(
                 message="This booking has locked funds and cannot be rescheduled.",
                 code="reschedule_locked",

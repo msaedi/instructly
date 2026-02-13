@@ -104,7 +104,9 @@ def test_preview_refund_raises_for_missing_booking_and_payment():
 
 def test_preview_refund_adds_credit_policy_warning_for_cancel_policy():
     service = _service()
-    booking = SimpleNamespace(payment_status="authorized", auth_attempted_at=None)
+    booking = SimpleNamespace(
+        payment_detail=SimpleNamespace(payment_status="authorized", auth_attempted_at=None),
+    )
     payment = SimpleNamespace(
         amount=10000,
         application_fee=1000,

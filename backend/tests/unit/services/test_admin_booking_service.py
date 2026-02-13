@@ -28,11 +28,7 @@ def _make_booking(**overrides: object) -> Mock:
     booking = Mock()
     booking.id = overrides.get("id", "booking-1")
     booking.status = overrides.get("status", BookingStatus.CONFIRMED)
-    booking.payment_intent_id = overrides.get("payment_intent_id", "pi_123")
     booking.refunded_to_card_amount = overrides.get("refunded_to_card_amount", 0)
-    booking.settlement_outcome = overrides.get("settlement_outcome", None)
-    booking.payment_status = overrides.get("payment_status", PaymentStatus.AUTHORIZED.value)
-    booking.credits_reserved_cents = overrides.get("credits_reserved_cents", 1000)
     booking.to_dict.return_value = overrides.get("to_dict", {})
     booking.created_at = overrides.get("created_at", datetime(2024, 1, 1, tzinfo=timezone.utc))
     booking.updated_at = overrides.get("updated_at", None)
@@ -47,6 +43,14 @@ def _make_booking(**overrides: object) -> Mock:
     booking.booking_date = overrides.get("booking_date", date(2024, 1, 1))
     booking.start_time = overrides.get("start_time", datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc).time())
     booking.end_time = overrides.get("end_time", datetime(2024, 1, 1, 11, 0, tzinfo=timezone.utc).time())
+
+    # Payment fields live on the payment_detail satellite
+    pd = Mock()
+    pd.payment_intent_id = overrides.get("payment_intent_id", "pi_123")
+    pd.settlement_outcome = overrides.get("settlement_outcome", None)
+    pd.payment_status = overrides.get("payment_status", PaymentStatus.AUTHORIZED.value)
+    pd.credits_reserved_cents = overrides.get("credits_reserved_cents", 1000)
+    booking.payment_detail = pd
     return booking
 
 
@@ -88,6 +92,7 @@ class TestAdminBookingServiceCancel:
     ) -> None:
         booking = _make_booking(payment_intent_id=None)
         service.booking_repo.get_booking_with_details.return_value = booking
+        service.booking_repo.ensure_payment.return_value = booking.payment_detail
 
         fake_credit_module = ModuleType("app.services.credit_service")
 
@@ -117,7 +122,9 @@ class TestAdminBookingServiceCancel:
         self, service: AdminBookingService, monkeypatch
     ) -> None:
         booking = _make_booking()
+        bp_mock = booking.payment_detail
         service.booking_repo.get_booking_with_details.return_value = booking
+        service.booking_repo.ensure_payment.return_value = bp_mock
         service._resolve_full_refund_cents = Mock(return_value=1200)
         service._issue_refund = Mock(return_value={"refund_id": "re_456"})
 
@@ -144,8 +151,8 @@ class TestAdminBookingServiceCancel:
 
         assert updated_booking is booking
         assert refund_id == "re_456"
-        assert booking.payment_status == PaymentStatus.SETTLED.value
-        assert booking.settlement_outcome == "admin_refund"
+        assert bp_mock.payment_status == PaymentStatus.SETTLED.value
+        assert bp_mock.settlement_outcome == "admin_refund"
         assert booking.refunded_to_card_amount == 1200
         assert service.audit_repo.write.call_count == 2
 
@@ -193,7 +200,7 @@ class TestAdminBookingServiceHelpers:
         payment_info = service._build_payment_info(booking, payment_intent=None, credits_applied_cents=0)
 
         assert "stripe.com" in payment_info.stripe_url
-        assert booking.payment_intent_id in payment_info.stripe_url
+        assert booking.payment_detail.payment_intent_id in payment_info.stripe_url
 
     def test_resolve_payment_intent_handles_exception(self, service: AdminBookingService) -> None:
         booking = _make_booking()
@@ -222,7 +229,7 @@ class TestAdminBookingServiceHelpers:
 
         assert service._resolve_full_refund_cents(booking) == 2500
 
-        booking.payment_intent_id = "pi_missing"
+        booking.payment_detail.payment_intent_id = "pi_missing"
         service.payment_repo.get_payment_by_intent_id.return_value = None
         booking.total_price = None
 

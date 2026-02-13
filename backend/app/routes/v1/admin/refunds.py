@@ -63,7 +63,8 @@ async def admin_refund_booking(
         if not booking:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
 
-        if not booking.payment_intent_id:
+        pd = booking.payment_detail
+        if not (pd.payment_intent_id if pd else None):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Booking has no payment to refund",
@@ -72,7 +73,7 @@ async def admin_refund_booking(
         if (
             booking.refunded_to_card_amount
             and booking.refunded_to_card_amount > 0
-            or (booking.settlement_outcome or "")
+            or ((pd.settlement_outcome if pd else None) or "")
             in {
                 "admin_refund",
                 "instructor_cancel_full_refund",
@@ -101,6 +102,13 @@ async def admin_refund_booking(
                 detail=f"Refund amount exceeds original charge ({full_amount_cents} cents)",
             )
 
+        intent_id: str | None = pd.payment_intent_id if pd else None
+        if not intent_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Booking has no Stripe payment intent — cannot refund",
+            )
+
         stripe_reason = REASON_TO_STRIPE.get(request.reason, "requested_by_customer")
         amount_key = amount_cents if amount_cents is not None else "full"
         idempotency_key = f"admin_refund_{booking_id}_{amount_key}"
@@ -114,7 +122,7 @@ async def admin_refund_booking(
         try:
             refund_result = await asyncio.to_thread(
                 stripe_service.refund_payment,
-                payment_intent_id=booking.payment_intent_id,
+                payment_intent_id=intent_id,
                 amount_cents=amount_cents,
                 reason=stripe_reason,
                 reverse_transfer=True,

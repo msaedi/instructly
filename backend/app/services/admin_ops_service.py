@@ -765,20 +765,26 @@ class AdminOpsService(BaseService):
             timeline.append({"ts": ts, "state": state})
             seen.add(state)
 
-        if booking.auth_scheduled_for and "scheduled" not in seen:
-            timeline.append({"ts": _ensure_utc(booking.auth_scheduled_for), "state": "scheduled"})
+        pd = booking.payment_detail
+        if (pd.auth_scheduled_for if pd else None) and "scheduled" not in seen:
+            timeline.append({"ts": _ensure_utc(pd.auth_scheduled_for), "state": "scheduled"})
             seen.add("scheduled")
 
+        pd_payment_status = pd.payment_status if pd else None
         if (
-            booking.payment_status
-            and booking.payment_status.lower() == PaymentStatus.AUTHORIZED.value
+            pd_payment_status
+            and pd_payment_status.lower() == PaymentStatus.AUTHORIZED.value
             and "authorized" not in seen
         ):
-            ts = booking.auth_attempted_at or booking.updated_at or datetime.now(timezone.utc)
+            ts = (
+                (pd.auth_attempted_at if pd else None)
+                or booking.updated_at
+                or datetime.now(timezone.utc)
+            )
             timeline.append({"ts": _ensure_utc(ts), "state": "authorized"})
             seen.add("authorized")
 
-        if booking.payment_status and booking.payment_status.lower() in {"settled", "refunded"}:
+        if pd_payment_status and pd_payment_status.lower() in {"settled", "refunded"}:
             if "settled" not in seen:
                 ts = booking.updated_at or booking.completed_at or datetime.now(timezone.utc)
                 timeline.append({"ts": _ensure_utc(ts), "state": "settled"})
@@ -803,7 +809,9 @@ class AdminOpsService(BaseService):
         status_timeline: list[dict[str, Any]],
         failure: Optional[dict[str, Any]],
     ) -> str:
-        raw_status = str(booking.payment_status).lower() if booking.payment_status else ""
+        pd = booking.payment_detail
+        _ps = pd.payment_status if pd else None
+        raw_status = str(_ps).lower() if _ps else ""
         last_state: str | None = None
         if status_timeline:
             state_value = status_timeline[-1].get("state")
@@ -830,8 +838,10 @@ class AdminOpsService(BaseService):
         self, booking: Booking, events: Sequence[PaymentEvent]
     ) -> dict[str, str]:
         refs: dict[str, str] = {}
-        if booking.payment_intent_id:
-            redacted = _redact_stripe_id(booking.payment_intent_id)
+        pd = booking.payment_detail
+        pd_intent_id = pd.payment_intent_id if pd else None
+        if pd_intent_id:
+            redacted = _redact_stripe_id(pd_intent_id)
             if redacted:
                 refs["payment_intent"] = redacted
 

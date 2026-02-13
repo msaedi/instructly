@@ -48,21 +48,33 @@ def _freeze_time(monkeypatch: pytest.MonkeyPatch, target: datetime) -> None:
 
 
 def make_booking(**overrides: object) -> SimpleNamespace:
+    pd = SimpleNamespace(
+        payment_status=overrides.pop("payment_status", PaymentStatus.AUTHORIZED.value),
+        payment_intent_id=overrides.pop("payment_intent_id", "pi_123"),
+        payment_method_id=overrides.pop("payment_method_id", None),
+        credits_reserved_cents=overrides.pop("credits_reserved_cents", 0),
+        settlement_outcome=overrides.pop("settlement_outcome", None),
+        instructor_payout_amount=overrides.pop("instructor_payout_amount", None),
+        auth_scheduled_for=overrides.pop("auth_scheduled_for", None),
+        auth_attempted_at=overrides.pop("auth_attempted_at", None),
+        auth_failure_count=overrides.pop("auth_failure_count", 0),
+        auth_last_error=overrides.pop("auth_last_error", None),
+        capture_failed_at=overrides.pop("capture_failed_at", None),
+        capture_retry_count=overrides.pop("capture_retry_count", 0),
+        capture_error=overrides.pop("capture_error", None),
+    )
     booking = SimpleNamespace(
         id=overrides.get("id", generate_ulid()),
         student_id=overrides.get("student_id", generate_ulid()),
         instructor_id=overrides.get("instructor_id", generate_ulid()),
         status=overrides.get("status", BookingStatus.CONFIRMED),
-        payment_status=overrides.get("payment_status", PaymentStatus.AUTHORIZED.value),
         booking_date=overrides.get("booking_date", date(2030, 1, 1)),
         start_time=overrides.get("start_time", time(10, 0)),
         end_time=overrides.get("end_time", time(11, 0)),
         duration_minutes=overrides.get("duration_minutes", 60),
         hourly_rate=overrides.get("hourly_rate", 100),
         total_price=overrides.get("total_price", 100),
-        payment_intent_id=overrides.get("payment_intent_id", "pi_123"),
         locked_amount_cents=overrides.get("locked_amount_cents", 0),
-        credits_reserved_cents=overrides.get("credits_reserved_cents", 0),
         is_cancellable=overrides.get("is_cancellable", True),
         has_locked_funds=overrides.get("has_locked_funds", False),
         rescheduled_from_booking_id=overrides.get("rescheduled_from_booking_id", None),
@@ -76,8 +88,8 @@ def make_booking(**overrides: object) -> SimpleNamespace:
         confirmed_at=overrides.get("confirmed_at", None),
         completed_at=overrides.get("completed_at", None),
         instructor_service=overrides.get("instructor_service", None),
-        settlement_outcome=overrides.get("settlement_outcome", None),
         cancelled_at=overrides.get("cancelled_at", None),
+        payment_detail=pd,
     )
     for key, value in overrides.items():
         setattr(booking, key, value)
@@ -127,6 +139,37 @@ def mock_repository() -> MagicMock:
     )
     repo.get_no_show_by_booking_id.return_value = None
     repo.ensure_no_show.return_value = make_no_show_record()
+    repo.ensure_payment.return_value = SimpleNamespace(
+        payment_status=None,
+        payment_intent_id=None,
+        payment_method_id=None,
+        credits_reserved_cents=0,
+        settlement_outcome=None,
+        instructor_payout_amount=None,
+        auth_scheduled_for=None,
+        auth_attempted_at=None,
+        auth_failure_count=0,
+        auth_last_error=None,
+        capture_failed_at=None,
+        capture_retry_count=0,
+        capture_error=None,
+    )
+    repo.ensure_transfer.return_value = SimpleNamespace(
+        stripe_transfer_id=None,
+        transfer_reversal_failed=False,
+        transfer_reversal_retry_count=0,
+        transfer_reversal_error=None,
+        payout_transfer_failed_at=None,
+        payout_transfer_error=None,
+        payout_transfer_retry_count=0,
+        transfer_failed_at=None,
+        transfer_error=None,
+        transfer_retry_count=0,
+        refund_id=None,
+        refund_failed_at=None,
+        refund_error=None,
+        refund_retry_count=0,
+    )
     return repo
 
 
@@ -252,7 +295,8 @@ def test_create_booking_with_payment_setup_reschedule_linkage_exception_suppress
         )
 
     assert result.status == BookingStatus.PENDING
-    assert result.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+    bp = mock_repository.ensure_payment.return_value
+    assert bp.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
 
 
 # --- Group 4: reschedule lock paths ---
@@ -300,8 +344,9 @@ def test_activate_lock_for_reschedule_locked_amount_parse_and_credit_forfeit_err
 
     assert result["locked"] is True
     assert result["locked_amount_cents"] is None
-    assert booking.payment_status == PaymentStatus.LOCKED.value
-    assert booking.credits_reserved_cents == 0
+    bp = mock_repository.ensure_payment.return_value
+    assert bp.payment_status == PaymentStatus.LOCKED.value
+    assert bp.credits_reserved_cents == 0
 
 
 def test_resolve_lock_for_booking_refund_error_and_missing_account(
@@ -362,7 +407,8 @@ def test_finalize_cancellation_over_24h_regular_release_credit_error(
         credit_cls.return_value.release_credits_for_booking.side_effect = Exception("boom")
         booking_service._finalize_cancellation(booking, ctx, stripe_results, payment_repo)
 
-    assert booking.payment_status == PaymentStatus.SETTLED.value
+    bp = booking_service.repository.ensure_payment.return_value
+    assert bp.payment_status == PaymentStatus.SETTLED.value
 
 
 def test_finalize_cancellation_over_24h_gaming_credit_issue_error(
@@ -393,8 +439,9 @@ def test_finalize_cancellation_over_24h_gaming_credit_issue_error(
         credit_cls.return_value.issue_credit.side_effect = Exception("boom")
         booking_service._finalize_cancellation(booking, ctx, stripe_results, payment_repo)
 
-    assert booking.payment_status == PaymentStatus.SETTLED.value
-    assert booking.settlement_outcome == "student_cancel_12_24_full_credit"
+    bp = booking_service.repository.ensure_payment.return_value
+    assert bp.payment_status == PaymentStatus.SETTLED.value
+    assert bp.settlement_outcome == "student_cancel_12_24_full_credit"
 
 
 def test_finalize_cancellation_under_12h_payout_amount_cast_error_and_credit_forfeit_error(
@@ -423,8 +470,9 @@ def test_finalize_cancellation_under_12h_payout_amount_cast_error_and_credit_for
         credit_cls.return_value.issue_credit = Mock()
         booking_service._finalize_cancellation(booking, ctx, stripe_results, payment_repo)
 
-    assert booking.payment_status == PaymentStatus.SETTLED.value
-    assert booking.instructor_payout_amount == 0
+    bp = booking_service.repository.ensure_payment.return_value
+    assert bp.payment_status == PaymentStatus.SETTLED.value
+    assert bp.instructor_payout_amount == 0
 
 
 def test_finalize_cancellation_under_12h_capture_failed(
@@ -444,8 +492,9 @@ def test_finalize_cancellation_under_12h_capture_failed(
     with patch("app.services.credit_service.CreditService"):
         booking_service._finalize_cancellation(booking, ctx, stripe_results, payment_repo)
 
-    assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-    assert booking.capture_retry_count == 1
+    bp = booking_service.repository.ensure_payment.return_value
+    assert bp.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+    assert bp.capture_retry_count == 1
 
 
 def test_finalize_cancellation_under_12h_no_pi_release_error(
@@ -466,8 +515,9 @@ def test_finalize_cancellation_under_12h_no_pi_release_error(
         credit_cls.return_value.release_credits_for_booking.side_effect = Exception("boom")
         booking_service._finalize_cancellation(booking, ctx, stripe_results, payment_repo)
 
-    assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
-    assert booking.auth_last_error == "missing_payment_intent"
+    bp = booking_service.repository.ensure_payment.return_value
+    assert bp.payment_status == PaymentStatus.MANUAL_REVIEW.value
+    assert bp.auth_last_error == "missing_payment_intent"
 
 
 def test_finalize_cancellation_instructor_cancel_refund_amount_invalid(

@@ -40,12 +40,16 @@ class TestCancelBookingLogic:
 
         # Lines 273-284: Check for already refunded
         booking = Mock()
-        booking.payment_intent_id = "pi_123"
+        pd = Mock()
+        pd.payment_intent_id = "pi_123"
+        pd.settlement_outcome = None
+        booking.payment_detail = pd
         booking.refunded_to_card_amount = 5000  # Already refunded
 
         refund = True
 
-        if refund and booking.payment_intent_id:
+        pd_intent_id = pd.payment_intent_id if pd is not None else None
+        if refund and pd_intent_id:
             already_refunded = (
                 booking.refunded_to_card_amount
                 and booking.refunded_to_card_amount > 0
@@ -59,9 +63,11 @@ class TestCancelBookingLogic:
         from app.core.exceptions import ServiceException
 
         booking = Mock()
-        booking.payment_intent_id = "pi_123"
+        pd = Mock()
+        pd.payment_intent_id = "pi_123"
+        pd.settlement_outcome = "admin_refund"
+        booking.payment_detail = pd
         booking.refunded_to_card_amount = 0
-        booking.settlement_outcome = "admin_refund"
 
         settlement_outcomes = {
             "admin_refund",
@@ -70,7 +76,8 @@ class TestCancelBookingLogic:
             "student_wins_dispute_full_refund",
         }
 
-        if (booking.settlement_outcome or "") in settlement_outcomes:
+        pd_settlement = pd.settlement_outcome if pd is not None else None
+        if (pd_settlement or "") in settlement_outcomes:
             with pytest.raises(ServiceException):
                 raise ServiceException("Booking already refunded", code="invalid_request")
 
@@ -355,7 +362,9 @@ class TestAdminBookingServiceRealBranches:
 
         service = AdminBookingService(Mock())
         booking = Mock()
-        booking.payment_intent_id = None
+        pd = Mock()
+        pd.payment_intent_id = None
+        booking.payment_detail = pd
         booking.status = BookingStatus.CONFIRMED
         service.booking_repo = Mock(get_booking_with_details=Mock(return_value=booking))
 
@@ -375,10 +384,12 @@ class TestAdminBookingServiceRealBranches:
 
         service = AdminBookingService(Mock())
         booking = Mock()
-        booking.payment_intent_id = "pi_1"
+        pd = Mock()
+        pd.payment_intent_id = "pi_1"
+        pd.settlement_outcome = None
+        booking.payment_detail = pd
         booking.status = BookingStatus.CONFIRMED
         booking.refunded_to_card_amount = 0
-        booking.settlement_outcome = None
         service.booking_repo = Mock(get_booking_with_details=Mock(return_value=booking))
         service._resolve_full_refund_cents = Mock(return_value=0)
 
@@ -415,7 +426,9 @@ class TestAdminBookingServiceRealBranches:
 
         service = AdminBookingService(Mock())
         booking = Mock()
-        booking.payment_intent_id = None
+        pd = Mock()
+        pd.payment_intent_id = None
+        booking.payment_detail = pd
 
         assert service._resolve_payment_intent(booking) is None
 

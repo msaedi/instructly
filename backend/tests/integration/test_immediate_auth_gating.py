@@ -4,8 +4,10 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from sqlalchemy.orm import Session
+import ulid
 
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService
 from app.models.user import User
@@ -69,7 +71,12 @@ def _create_pending_booking(
         meeting_location="Test",
         location_type="neutral_location",
     )
-    booking.payment_status = PaymentStatus.SCHEDULED.value
+    bp = BookingPayment(
+        id=str(ulid.ULID()),
+        booking_id=booking.id,
+        payment_status=PaymentStatus.SCHEDULED.value,
+    )
+    db.add(bp)
     db.commit()
     return booking
 
@@ -85,7 +92,9 @@ def test_immediate_auth_success_confirms_booking(
     def _auth_success(booking_id: str, _hours_until: float) -> dict:
         target = db.query(Booking).filter(Booking.id == booking_id).first()
         assert target is not None
-        target.payment_status = PaymentStatus.AUTHORIZED.value
+        bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking_id).first()
+        if bp:
+            bp.payment_status = PaymentStatus.AUTHORIZED.value
         target.status = BookingStatus.CONFIRMED
         target.confirmed_at = datetime.now(timezone.utc)
         db.commit()
@@ -97,8 +106,10 @@ def test_immediate_auth_success_confirms_booking(
         )
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
     assert booking.status == BookingStatus.CONFIRMED
-    assert booking.payment_status == PaymentStatus.AUTHORIZED.value
+    assert bp is not None
+    assert bp.payment_status == PaymentStatus.AUTHORIZED.value
 
 
 def test_immediate_auth_failure_keeps_booking_pending(
@@ -112,9 +123,11 @@ def test_immediate_auth_failure_keeps_booking_pending(
     def _auth_failure(booking_id: str, _hours_until: float) -> dict:
         target = db.query(Booking).filter(Booking.id == booking_id).first()
         assert target is not None
-        target.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-        target.auth_failure_count = 1
-        target.auth_attempted_at = datetime.now(timezone.utc)
+        bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking_id).first()
+        if bp:
+            bp.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+            bp.auth_failure_count = 1
+            bp.auth_attempted_at = datetime.now(timezone.utc)
         db.commit()
         return {"success": False, "error": "card_declined"}
 
@@ -124,8 +137,10 @@ def test_immediate_auth_failure_keeps_booking_pending(
         )
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
     assert booking.status == BookingStatus.PENDING
-    assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+    assert bp is not None
+    assert bp.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
 
 
 def test_immediate_auth_failure_does_not_reserve_slot(
@@ -139,9 +154,11 @@ def test_immediate_auth_failure_does_not_reserve_slot(
     def _auth_failure(booking_id: str, _hours_until: float) -> dict:
         target = db.query(Booking).filter(Booking.id == booking_id).first()
         assert target is not None
-        target.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-        target.auth_failure_count = 1
-        target.auth_attempted_at = datetime.now(timezone.utc)
+        bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking_id).first()
+        if bp:
+            bp.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+            bp.auth_failure_count = 1
+            bp.auth_attempted_at = datetime.now(timezone.utc)
         db.commit()
         return {"success": False, "error": "card_declined"}
 

@@ -74,7 +74,8 @@ class RefundPolicyEngine:
         reason_code: RefundReasonCode,
         requested_amount_cents: int,
     ) -> RefundPolicyResult:
-        payment_status = (booking.payment_status or payment.status or "").lower()
+        pd = booking.payment_detail
+        payment_status = ((pd.payment_status if pd else None) or payment.status or "").lower()
         if payment_status not in {"authorized", "captured", "settled"}:
             return RefundPolicyResult(
                 eligible=False,

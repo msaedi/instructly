@@ -20,7 +20,6 @@ class BookingTransfer(Base):
         ForeignKey("bookings.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
-        index=True,
     )
 
     stripe_transfer_id = Column(String(100), nullable=True)

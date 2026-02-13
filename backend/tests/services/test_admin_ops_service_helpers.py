@@ -138,10 +138,12 @@ def test_map_event_state_branches(db):
 def test_build_status_timeline_settled_includes_state(db):
     service = AdminOpsService(db)
     booking = _Booking(
-        payment_status="settled",
+        payment_detail=SimpleNamespace(
+            payment_status="settled",
+            auth_scheduled_for=None,
+            auth_attempted_at=None,
+        ),
         updated_at=datetime(2026, 2, 1, tzinfo=timezone.utc),
-        auth_scheduled_for=None,
-        auth_attempted_at=None,
         completed_at=None,
     )
 
@@ -153,7 +155,7 @@ def test_build_status_timeline_settled_includes_state(db):
 
 def test_build_provider_refs_and_refunds(db):
     service = AdminOpsService(db)
-    booking = _Booking(payment_intent_id="pi_1234567890")
+    booking = _Booking(payment_detail=SimpleNamespace(payment_intent_id="pi_1234567890"))
 
     events = [
         PaymentEvent(
@@ -189,7 +191,7 @@ def test_build_provider_refs_and_refunds(db):
 
 def test_build_provider_refs_uses_booking_payment_intent(db):
     service = AdminOpsService(db)
-    booking = _Booking(payment_intent_id="pi_1234567890")
+    booking = _Booking(payment_detail=SimpleNamespace(payment_intent_id="pi_1234567890"))
 
     refs = service._build_provider_refs(booking, [])
 
@@ -237,7 +239,7 @@ def test_resolve_scheduled_capture_at_missing_dates_returns_none(db):
 
 def test_normalize_payment_status_uses_last_state(db):
     service = AdminOpsService(db)
-    booking = _Booking(payment_status=None)
+    booking = _Booking(payment_detail=SimpleNamespace(payment_status=None))
 
     status = service._normalize_payment_status(booking, [{"state": "authorized"}], None)
 
@@ -246,7 +248,7 @@ def test_normalize_payment_status_uses_last_state(db):
 
 def test_normalize_payment_status_uses_failure_fallback(db):
     service = AdminOpsService(db)
-    booking = _Booking(payment_status=None)
+    booking = _Booking(payment_detail=SimpleNamespace(payment_status=None))
 
     status = service._normalize_payment_status(booking, [], {"category": "card_declined"})
 
@@ -286,13 +288,15 @@ def test_query_payment_timeline_uses_user_bookings(db):
     now = datetime.now(timezone.utc)
     booking = _Booking(
         id="bk_user",
-        payment_status="scheduled",
+        payment_detail=SimpleNamespace(
+            payment_status="scheduled",
+            payment_intent_id=None,
+            auth_scheduled_for=None,
+            auth_attempted_at=None,
+        ),
         created_at=now,
         payment_intent=None,
-        payment_intent_id=None,
         total_price=10.0,
-        auth_scheduled_for=None,
-        auth_attempted_at=None,
         updated_at=None,
         completed_at=None,
         booking_start_utc=now,

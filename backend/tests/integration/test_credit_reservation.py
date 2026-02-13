@@ -87,10 +87,9 @@ def _create_booking(
         status=BookingStatus.CONFIRMED,
         meeting_location="Test",
         location_type="neutral_location",
+        payment_intent_id=payment_intent_id,
+        payment_status=payment_status,
     )
-    booking.payment_intent_id = payment_intent_id
-    booking.payment_status = payment_status
-    db.flush()
     return booking
 
 
@@ -274,7 +273,7 @@ class TestCreditRelease:
             booking_id=booking.id,
             max_amount_cents=6000,
         )
-        booking.credits_reserved_cents = reserved
+        booking.payment_detail.credits_reserved_cents = reserved
         db.flush()
 
         booking_service = BookingService(db)
@@ -313,7 +312,7 @@ class TestCreditRelease:
             booking_id=booking.id,
             max_amount_cents=4000,
         )
-        booking.credits_reserved_cents = reserved
+        booking.payment_detail.credits_reserved_cents = reserved
         db.flush()
 
         booking_service = BookingService(db)
@@ -354,7 +353,7 @@ class TestCreditForfeit:
             booking_id=booking.id,
             max_amount_cents=4000,
         )
-        booking.credits_reserved_cents = reserved
+        booking.payment_detail.credits_reserved_cents = reserved
         db.flush()
 
         mock_capture.return_value = {
@@ -419,7 +418,7 @@ class TestCreditForfeit:
             booking_id=booking.id,
             max_amount_cents=6000,
         )
-        booking.credits_reserved_cents = reserved
+        booking.payment_detail.credits_reserved_cents = reserved
         db.flush()
 
         mock_capture.return_value = {
@@ -463,8 +462,8 @@ class TestCreditForfeit:
             service=service,
             hours_from_now=30,
         )
-        booking.payment_status = "authorized"
-        booking.payment_intent_id = "pi_capture"
+        booking.payment_detail.payment_status = "authorized"
+        booking.payment_detail.payment_intent_id = "pi_capture"
         db.flush()
 
         _create_credit(
@@ -479,7 +478,7 @@ class TestCreditForfeit:
             booking_id=booking.id,
             max_amount_cents=4000,
         )
-        booking.credits_reserved_cents = reserved
+        booking.payment_detail.credits_reserved_cents = reserved
         db.flush()
         db.commit()
 
@@ -593,7 +592,7 @@ class TestCreditWithLock:
             booking_id=booking.id,
             max_amount_cents=3000,
         )
-        booking.credits_reserved_cents = reserved
+        booking.payment_detail.credits_reserved_cents = reserved
         db.flush()
 
         mock_capture.return_value = {

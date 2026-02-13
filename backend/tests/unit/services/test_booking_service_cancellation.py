@@ -26,13 +26,22 @@ def _transaction_cm() -> MagicMock:
 
 
 def make_booking(**overrides: object) -> SimpleNamespace:
+    pd = SimpleNamespace(
+        payment_status=overrides.pop("payment_status", PaymentStatus.AUTHORIZED.value),
+        payment_intent_id=overrides.pop("payment_intent_id", "pi_123"),
+        payment_method_id=overrides.pop("payment_method_id", None),
+        credits_reserved_cents=overrides.pop("credits_reserved_cents", 0),
+        settlement_outcome=overrides.pop("settlement_outcome", None),
+        instructor_payout_amount=overrides.pop("instructor_payout_amount", None),
+        auth_last_error=overrides.pop("auth_last_error", None),
+        capture_failed_at=overrides.pop("capture_failed_at", None),
+        capture_retry_count=overrides.pop("capture_retry_count", 0),
+    )
     booking = SimpleNamespace(
         id=overrides.get("id", generate_ulid()),
         student_id=overrides.get("student_id", generate_ulid()),
         instructor_id=overrides.get("instructor_id", generate_ulid()),
         status=overrides.get("status", BookingStatus.CONFIRMED),
-        payment_status=overrides.get("payment_status", PaymentStatus.AUTHORIZED.value),
-        payment_intent_id=overrides.get("payment_intent_id", "pi_123"),
         hourly_rate=overrides.get("hourly_rate", 100),
         duration_minutes=overrides.get("duration_minutes", 60),
         booking_date=overrides.get("booking_date", date(2030, 1, 1)),
@@ -45,7 +54,7 @@ def make_booking(**overrides: object) -> SimpleNamespace:
         no_show_type=overrides.get("no_show_type", "instructor"),
         has_locked_funds=overrides.get("has_locked_funds", False),
         rescheduled_from_booking_id=overrides.get("rescheduled_from_booking_id", None),
-        settlement_outcome=overrides.get("settlement_outcome", None),
+        payment_detail=pd,
     )
     for key, value in overrides.items():
         setattr(booking, key, value)
@@ -68,6 +77,17 @@ def mock_repository() -> MagicMock:
         refund_retry_count=0,
     )
     repo.get_transfer_by_booking_id.return_value = repo.ensure_transfer.return_value
+    repo.ensure_payment.return_value = SimpleNamespace(
+        payment_status=None,
+        payment_intent_id=None,
+        payment_method_id=None,
+        credits_reserved_cents=0,
+        settlement_outcome=None,
+        instructor_payout_amount=None,
+        auth_last_error=None,
+        capture_failed_at=None,
+        capture_retry_count=0,
+    )
     return repo
 
 
@@ -182,9 +202,10 @@ def test_finalize_instructor_no_show_locked_skipped(booking_service: BookingServ
         locked_booking_id="lock_1",
     )
 
-    assert booking.payment_status == PaymentStatus.SETTLED.value
+    bp = booking_service.repository.ensure_payment.return_value
+    assert bp.payment_status == PaymentStatus.SETTLED.value
     assert booking.refunded_to_card_amount == 0
-    assert booking.settlement_outcome == "instructor_no_show_full_refund"
+    assert bp.settlement_outcome == "instructor_no_show_full_refund"
 
 
 def test_finalize_instructor_no_show_refund_success_parses_amount(
@@ -201,7 +222,8 @@ def test_finalize_instructor_no_show_refund_success_parses_amount(
         locked_booking_id=None,
     )
 
-    assert booking.payment_status == PaymentStatus.SETTLED.value
+    bp = booking_service.repository.ensure_payment.return_value
+    assert bp.payment_status == PaymentStatus.SETTLED.value
     transfer_record = booking_service.repository.ensure_transfer.return_value
     assert transfer_record.refund_id == "rf_1"
     assert booking.refunded_to_card_amount == 1200
@@ -219,7 +241,8 @@ def test_finalize_instructor_no_show_refund_failed(booking_service: BookingServi
         locked_booking_id=None,
     )
 
-    assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
+    bp = booking_service.repository.ensure_payment.return_value
+    assert bp.payment_status == PaymentStatus.MANUAL_REVIEW.value
     transfer_record = booking_service.repository.ensure_transfer.return_value
     assert transfer_record.refund_failed_at is not None
 
@@ -236,8 +259,9 @@ def test_finalize_student_no_show_locked_manual_review(booking_service: BookingS
         locked_booking_id="lock_2",
     )
 
-    assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
-    assert booking.instructor_payout_amount == 0
+    bp = booking_service.repository.ensure_payment.return_value
+    assert bp.payment_status == PaymentStatus.MANUAL_REVIEW.value
+    assert bp.instructor_payout_amount == 0
 
 
 def test_finalize_student_no_show_capture_failed(booking_service: BookingService) -> None:
@@ -252,8 +276,9 @@ def test_finalize_student_no_show_capture_failed(booking_service: BookingService
         locked_booking_id=None,
     )
 
-    assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-    assert booking.capture_failed_at is not None
+    bp = booking_service.repository.ensure_payment.return_value
+    assert bp.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+    assert bp.capture_failed_at is not None
 
 
 @pytest.mark.parametrize(
@@ -276,7 +301,8 @@ def test_cancel_no_show_report_status_mapping(
     with patch("app.repositories.payment_repository.PaymentRepository", return_value=payment_repo):
         booking_service._cancel_no_show_report(booking)
 
-    assert booking.payment_status == expected
+    bp = booking_service.repository.ensure_payment.return_value
+    assert bp.payment_status == expected
 
 
 def test_cancel_no_show_report_no_payment_record(booking_service: BookingService) -> None:
@@ -287,7 +313,8 @@ def test_cancel_no_show_report_no_payment_record(booking_service: BookingService
     with patch("app.repositories.payment_repository.PaymentRepository", return_value=payment_repo):
         booking_service._cancel_no_show_report(booking)
 
-    assert booking.payment_status is None
+    bp = booking_service.repository.ensure_payment.return_value
+    assert bp.payment_status is None
 
 
 def test_resolve_no_show_cancelled_calculates_from_base_price(

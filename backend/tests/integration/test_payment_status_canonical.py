@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.booking import BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.factories.booking_builders import create_booking_pg_safe
@@ -75,6 +76,7 @@ def test_payment_status_accepts_canonical_values(db, test_student, test_instruct
     )
 
     db.commit()
-    db.refresh(booking)
 
-    assert booking.payment_status == PaymentStatus.AUTHORIZED.value
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
+    assert bp.payment_status == PaymentStatus.AUTHORIZED.value

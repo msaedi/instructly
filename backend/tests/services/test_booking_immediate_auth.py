@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 import ulid
 
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_payment import BookingPayment
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.subcategory import ServiceSubcategory
@@ -117,8 +118,13 @@ def test_confirm_payment_immediate_defers_and_emits_event(db: Session):
     def _authorize_now(booking_id: str, _hours_until: float):
         target = db.query(Booking).filter(Booking.id == booking_id).first()
         assert target is not None
-        target.payment_status = "authorized"
-        target.payment_intent_id = "pi_test"
+        # Payment fields go on the BookingPayment satellite
+        bp = db.query(BookingPayment).filter_by(booking_id=booking_id).first()
+        if bp is None:
+            bp = BookingPayment(booking_id=booking_id)
+            db.add(bp)
+        bp.payment_status = "authorized"
+        bp.payment_intent_id = "pi_test"
         db.flush()
         return {"success": True}
 
@@ -130,7 +136,8 @@ def test_confirm_payment_immediate_defers_and_emits_event(db: Session):
 
     # Booking moves to CONFIRMED and is authorized immediately
     assert updated.status == BookingStatus.CONFIRMED
-    assert updated.payment_status == "authorized"
+    updated.payment_detail = db.query(BookingPayment).filter_by(booking_id=updated.id).first()
+    assert updated.payment_detail.payment_status == "authorized"
     mock_authorize.assert_called_once()
     # Event emitted
     mock_event.assert_called()

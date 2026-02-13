@@ -22,16 +22,16 @@ def _lock(acquired: bool):
 def test_should_retry_auth_intervals():
     now = datetime(2030, 1, 1, tzinfo=timezone.utc)
 
-    booking = SimpleNamespace(auth_attempted_at=None, auth_failure_count=0)
+    booking = SimpleNamespace(payment_detail=SimpleNamespace(auth_attempted_at=None, auth_failure_count=0))
     assert payment_tasks._should_retry_auth(booking, now) is True
 
     booking = SimpleNamespace(
-        auth_attempted_at=now - timedelta(hours=2), auth_failure_count=1
+        payment_detail=SimpleNamespace(auth_attempted_at=now - timedelta(hours=2), auth_failure_count=1)
     )
     assert payment_tasks._should_retry_auth(booking, now) is True
 
     booking = SimpleNamespace(
-        auth_attempted_at=now - timedelta(hours=2), auth_failure_count=2
+        payment_detail=SimpleNamespace(auth_attempted_at=now - timedelta(hours=2), auth_failure_count=2)
     )
     assert payment_tasks._should_retry_auth(booking, now) is False
 
@@ -39,10 +39,10 @@ def test_should_retry_auth_intervals():
 def test_should_retry_capture():
     now = datetime(2030, 1, 1, tzinfo=timezone.utc)
 
-    booking = SimpleNamespace(capture_failed_at=None)
+    booking = SimpleNamespace(payment_detail=SimpleNamespace(capture_failed_at=None))
     assert payment_tasks._should_retry_capture(booking, now) is False
 
-    booking = SimpleNamespace(capture_failed_at=now - timedelta(hours=5))
+    booking = SimpleNamespace(payment_detail=SimpleNamespace(capture_failed_at=now - timedelta(hours=5)))
     assert payment_tasks._should_retry_capture(booking, now) is True
 
 
@@ -74,8 +74,10 @@ def test_process_scheduled_authorizations_skips_when_not_due():
     now = datetime.now(timezone.utc)
     future_booking = SimpleNamespace(
         id="booking_future",
-        payment_status=PaymentStatus.SCHEDULED.value,
-        auth_scheduled_for=now + timedelta(hours=1),
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.SCHEDULED.value,
+            auth_scheduled_for=now + timedelta(hours=1),
+        ),
         student_id="student-1",
         booking_start_utc=now + timedelta(hours=24),
     )
@@ -142,10 +144,12 @@ def test_retry_failed_authorizations_cancels_when_due():
 def test_check_immediate_auth_timeout_cancelled_status():
     booking = SimpleNamespace(
         status=BookingStatus.CANCELLED,
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        ),
     )
     db = MagicMock()
-    db.query.return_value.filter.return_value.first.return_value = booking
+    db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
@@ -156,13 +160,15 @@ def test_check_immediate_auth_timeout_cancelled_status():
 
 def test_retry_failed_captures_skips_when_not_capture_failure():
     db_read = MagicMock()
-    db_read.query.return_value.filter.return_value.all.return_value = [
+    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
         SimpleNamespace(id="booking_id")
     ]
     db_check = MagicMock()
-    db_check.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        capture_failed_at=None,
+    db_check.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            capture_failed_at=None,
+        ),
     )
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_check]):
@@ -185,6 +191,7 @@ def test_escalate_capture_failure_handles_payment_record_error():
         student_id="student_id",
         payout_transfer_retry_count=0,
         transfer_retry_count=0,
+        payment_detail=SimpleNamespace(payment_status=None),
     )
     student = SimpleNamespace(account_locked=False)
 
@@ -192,12 +199,16 @@ def test_escalate_capture_failure_handles_payment_record_error():
     db_read.query.return_value.filter.return_value.first.return_value = booking_read
     db_write = MagicMock()
 
+    from app.models.booking_payment import BookingPayment as BP
+
     def _query_side_effect(model):
         query = MagicMock()
         if model is payment_tasks.Booking:
-            query.filter.return_value.first.return_value = booking_write
+            query.options.return_value.filter.return_value.first.return_value = booking_write
         elif model is payment_tasks.User:
             query.filter.return_value.first.return_value = student
+        elif model is BP:
+            query.filter.return_value.one_or_none.return_value = booking_write.payment_detail
         else:
             query.filter.return_value.first.return_value = None
         return query
@@ -230,7 +241,7 @@ def test_escalate_capture_failure_handles_payment_record_error():
                 ):
                     payment_tasks._escalate_capture_failure("booking_id", now)
 
-    assert booking_write.payment_status == PaymentStatus.MANUAL_REVIEW.value
+    assert booking_write.payment_detail.payment_status == PaymentStatus.MANUAL_REVIEW.value
 
 
 def test_capture_completed_lessons_skips_expired_when_cancelled():
@@ -253,9 +264,9 @@ def test_capture_completed_lessons_skips_expired_when_cancelled():
 
     db_read = MagicMock()
     db_expired = MagicMock()
-    db_expired.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    db_expired.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
         status=BookingStatus.CANCELLED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
+        payment_detail=SimpleNamespace(payment_status=PaymentStatus.AUTHORIZED.value),
     )
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_expired]):
@@ -280,17 +291,18 @@ def test_attempt_payment_capture_skips_cancelled_already_captured():
     booking = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.CANCELLED,
-        payment_status=PaymentStatus.SETTLED.value,
+        payment_detail=SimpleNamespace(payment_status=PaymentStatus.SETTLED.value),
     )
     payment_repo = MagicMock()
     stripe_service = MagicMock()
 
-    result = payment_tasks.attempt_payment_capture(
-        booking=booking,
-        payment_repo=payment_repo,
-        capture_reason="manual",
-        stripe_service=stripe_service,
-    )
+    with patch("sqlalchemy.orm.object_session", return_value=None):
+        result = payment_tasks.attempt_payment_capture(
+            booking=booking,
+            payment_repo=payment_repo,
+            capture_reason="manual",
+            stripe_service=stripe_service,
+        )
 
     assert result == {"success": True, "already_captured": True}
 
@@ -336,14 +348,18 @@ def test_resolve_undisputed_no_shows_handles_exception():
 
 
 def test_mark_child_booking_settled_updates_status():
-    booking = SimpleNamespace(payment_status=None)
+    booking = SimpleNamespace(id="booking_id", payment_detail=SimpleNamespace(payment_status=None))
     db = MagicMock()
-    db.query.return_value.filter.return_value.first.return_value = booking
+    db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db):
-        payment_tasks._mark_child_booking_settled("booking_id")
+        with patch(
+            "app.repositories.booking_repository.BookingRepository.ensure_payment",
+            return_value=booking.payment_detail,
+        ):
+            payment_tasks._mark_child_booking_settled("booking_id")
 
-    assert booking.payment_status == PaymentStatus.SETTLED.value
+    assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
     db.commit.assert_called_once()
     db.close.assert_called_once()
 
@@ -363,11 +379,13 @@ def test_check_immediate_auth_timeout_retry_window_open():
     now = datetime.now(timezone.utc)
     booking = SimpleNamespace(
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-        auth_attempted_at=now - timedelta(minutes=10),
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+            auth_attempted_at=now - timedelta(minutes=10),
+        ),
     )
     db = MagicMock()
-    db.query.return_value.filter.return_value.first.return_value = booking
+    db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
@@ -380,11 +398,13 @@ def test_check_immediate_auth_timeout_cancelled():
     now = datetime.now(timezone.utc)
     booking = SimpleNamespace(
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-        auth_attempted_at=now - timedelta(hours=1),
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+            auth_attempted_at=now - timedelta(hours=1),
+        ),
     )
     db = MagicMock()
-    db.query.return_value.filter.return_value.first.return_value = booking
+    db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
@@ -409,14 +429,18 @@ def test_process_scheduled_authorizations_sends_first_failure_email():
     now = datetime.now(timezone.utc)
     scheduled_booking = SimpleNamespace(
         id="booking_scheduled",
-        payment_status=PaymentStatus.SCHEDULED.value,
-        auth_scheduled_for=now - timedelta(minutes=5),
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.SCHEDULED.value,
+            auth_scheduled_for=now - timedelta(minutes=5),
+        ),
         student_id="student-1",
     )
     legacy_booking = SimpleNamespace(
         id="booking_legacy",
-        payment_status=PaymentStatus.SCHEDULED.value,
-        auth_scheduled_for=None,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.SCHEDULED.value,
+            auth_scheduled_for=None,
+        ),
         student_id="student-2",
     )
 
@@ -428,14 +452,14 @@ def test_process_scheduled_authorizations_sends_first_failure_email():
 
     db_read = MagicMock()
     db_notify = MagicMock()
-    db_notify.query.return_value.filter.return_value.first.side_effect = [
+    db_notify.query.return_value.options.return_value.filter.return_value.first.side_effect = [
         SimpleNamespace(
             id="booking_id",
-            auth_failure_first_email_sent_at=None,
+            payment_detail=SimpleNamespace(auth_failure_first_email_sent_at=None),
         ),
         SimpleNamespace(
             id="booking_id",
-            auth_failure_first_email_sent_at=None,
+            payment_detail=SimpleNamespace(auth_failure_first_email_sent_at=None),
         ),
     ]
     payment_repo = MagicMock()
@@ -469,7 +493,11 @@ def test_process_scheduled_authorizations_sends_first_failure_email():
                                 with patch(
                                     "app.tasks.payment_tasks.NotificationService"
                                 ) as notification_cls:
-                                    result = payment_tasks.process_scheduled_authorizations()
+                                    with patch(
+                                        "app.repositories.booking_repository.BookingRepository.ensure_payment",
+                                        side_effect=lambda *a, **kw: SimpleNamespace(auth_failure_first_email_sent_at=None),
+                                    ):
+                                        result = payment_tasks.process_scheduled_authorizations()
 
     assert result["failed"] == 2
     assert notification_cls.return_value.send_final_payment_warning.call_count == 2
@@ -480,8 +508,10 @@ def test_process_scheduled_authorizations_skips_duplicate_email():
     now = datetime.now(timezone.utc)
     scheduled_booking = SimpleNamespace(
         id="booking_scheduled",
-        payment_status=PaymentStatus.SCHEDULED.value,
-        auth_scheduled_for=now - timedelta(minutes=5),
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.SCHEDULED.value,
+            auth_scheduled_for=now - timedelta(minutes=5),
+        ),
         student_id="student-1",
     )
 
@@ -490,9 +520,9 @@ def test_process_scheduled_authorizations_skips_duplicate_email():
 
     db_read = MagicMock()
     db_notify = MagicMock()
-    db_notify.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    db_notify.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
         id="booking_id",
-        auth_failure_first_email_sent_at=now,
+        payment_detail=SimpleNamespace(auth_failure_first_email_sent_at=now),
     )
     payment_repo = MagicMock()
     payment_repo.get_payment_events_for_booking.return_value = []
@@ -536,8 +566,10 @@ def test_process_scheduled_authorizations_records_failure_on_exception():
     now = datetime.now(timezone.utc)
     scheduled_booking = SimpleNamespace(
         id="booking_scheduled",
-        payment_status=PaymentStatus.SCHEDULED.value,
-        auth_scheduled_for=now - timedelta(minutes=5),
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.SCHEDULED.value,
+            auth_scheduled_for=now - timedelta(minutes=5),
+        ),
         student_id="student-1",
     )
 
@@ -577,8 +609,10 @@ def test_process_scheduled_authorizations_skips_email_when_event_already_exists(
     now = datetime.now(timezone.utc)
     scheduled_booking = SimpleNamespace(
         id="booking_scheduled",
-        payment_status=PaymentStatus.SCHEDULED.value,
-        auth_scheduled_for=now - timedelta(minutes=5),
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.SCHEDULED.value,
+            auth_scheduled_for=now - timedelta(minutes=5),
+        ),
         student_id="student-1",
     )
 
@@ -631,8 +665,10 @@ def test_process_scheduled_authorizations_handles_missing_booking_for_email():
     now = datetime.now(timezone.utc)
     scheduled_booking = SimpleNamespace(
         id="booking_scheduled",
-        payment_status=PaymentStatus.SCHEDULED.value,
-        auth_scheduled_for=now - timedelta(minutes=5),
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.SCHEDULED.value,
+            auth_scheduled_for=now - timedelta(minutes=5),
+        ),
         student_id="student-1",
     )
 
@@ -641,7 +677,7 @@ def test_process_scheduled_authorizations_handles_missing_booking_for_email():
 
     db_read = MagicMock()
     db_notify = MagicMock()
-    db_notify.query.return_value.filter.return_value.first.return_value = None
+    db_notify.query.return_value.options.return_value.filter.return_value.first.return_value = None
     payment_repo = MagicMock()
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_notify]):
@@ -682,17 +718,19 @@ def test_process_authorization_for_booking_phase3_missing():
     booking = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.SCHEDULED.value,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.SCHEDULED.value,
+            payment_method_id="pm_1",
+            payment_intent_id=None,
+        ),
         student_id="student-1",
         instructor_id="instructor-1",
-        payment_method_id="pm_1",
-        payment_intent_id=None,
     )
 
     db1 = MagicMock()
-    db1.query.return_value.filter.return_value.first.return_value = booking
+    db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking
     db3 = MagicMock()
-    db3.query.return_value.filter.return_value.first.return_value = None
+    db3.query.return_value.options.return_value.filter.return_value.first.return_value = None
 
     payment_repo = MagicMock()
     payment_repo.get_customer_by_user_id.return_value = None
@@ -716,12 +754,16 @@ def test_retry_failed_authorizations_warn_only_sends_warning():
 
     db_read = MagicMock()
     db_warn = MagicMock()
-    db_warn.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    booking_warn = SimpleNamespace(
+        id="booking_id",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-        capture_failed_at=None,
-        auth_failure_t13_warning_sent_at=None,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+            capture_failed_at=None,
+            auth_failure_t13_warning_sent_at=None,
+        ),
     )
+    db_warn.query.return_value.options.return_value.filter.return_value.first.return_value = booking_warn
 
     payment_repo = MagicMock()
 
@@ -757,7 +799,11 @@ def test_retry_failed_authorizations_warn_only_sends_warning():
                                     with patch(
                                         "app.tasks.payment_tasks.NotificationService"
                                     ) as notification_cls:
-                                        result = payment_tasks.retry_failed_authorizations()
+                                        with patch(
+                                            "app.repositories.booking_repository.BookingRepository.ensure_payment",
+                                            return_value=booking_warn.payment_detail,
+                                        ):
+                                            result = payment_tasks.retry_failed_authorizations()
 
     assert result["warnings_sent"] == 1
     assert result["retried"] == 0
@@ -773,11 +819,13 @@ def test_retry_failed_authorizations_warn_only_skips_when_already_sent():
 
     db_read = MagicMock()
     db_warn = MagicMock()
-    db_warn.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    db_warn.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-        capture_failed_at=None,
-        auth_failure_t13_warning_sent_at=now,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+            capture_failed_at=None,
+            auth_failure_t13_warning_sent_at=now,
+        ),
     )
 
     payment_repo = MagicMock()
@@ -989,7 +1037,7 @@ def test_retry_failed_authorizations_cancel_path_noop_when_cancel_returns_false(
 
 def test_check_immediate_auth_timeout_booking_not_found():
     db = MagicMock()
-    db.query.return_value.filter.return_value.first.return_value = None
+    db.query.return_value.options.return_value.filter.return_value.first.return_value = None
 
     with patch("app.database.SessionLocal", return_value=db):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
@@ -1001,11 +1049,13 @@ def test_check_immediate_auth_timeout_booking_not_found():
 def test_check_immediate_auth_timeout_resolved():
     booking = SimpleNamespace(
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        auth_attempted_at=None,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            auth_attempted_at=None,
+        ),
     )
     db = MagicMock()
-    db.query.return_value.filter.return_value.first.return_value = booking
+    db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
@@ -1018,11 +1068,13 @@ def test_check_immediate_auth_timeout_attempted_at_missing():
     now = datetime.now(timezone.utc)
     booking = SimpleNamespace(
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-        auth_attempted_at=None,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+            auth_attempted_at=None,
+        ),
     )
     db = MagicMock()
-    db.query.return_value.filter.return_value.first.return_value = booking
+    db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
@@ -1045,7 +1097,7 @@ def test_check_immediate_auth_timeout_attempted_at_missing():
 
 def test_retry_failed_captures_skips_when_lock_unavailable():
     db_read = MagicMock()
-    db_read.query.return_value.filter.return_value.all.return_value = [
+    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
         SimpleNamespace(id="booking_id")
     ]
 
@@ -1058,11 +1110,11 @@ def test_retry_failed_captures_skips_when_lock_unavailable():
 
 def test_retry_failed_captures_skips_when_booking_missing():
     db_read = MagicMock()
-    db_read.query.return_value.filter.return_value.all.return_value = [
+    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
         SimpleNamespace(id="booking_id")
     ]
     db_check = MagicMock()
-    db_check.query.return_value.filter.return_value.first.return_value = None
+    db_check.query.return_value.options.return_value.filter.return_value.first.return_value = None
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_check]):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
@@ -1074,13 +1126,15 @@ def test_retry_failed_captures_skips_when_booking_missing():
 def test_retry_failed_captures_escalates_after_72_hours():
     now = datetime.now(timezone.utc)
     db_read = MagicMock()
-    db_read.query.return_value.filter.return_value.all.return_value = [
+    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
         SimpleNamespace(id="booking_id")
     ]
     db_check = MagicMock()
-    db_check.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-        capture_failed_at=now - timedelta(hours=80),
+    db_check.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+            capture_failed_at=now - timedelta(hours=80),
+        ),
     )
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_check]):
@@ -1097,13 +1151,15 @@ def test_retry_failed_captures_escalates_after_72_hours():
 def test_retry_failed_captures_skips_when_not_ready():
     now = datetime.now(timezone.utc)
     db_read = MagicMock()
-    db_read.query.return_value.filter.return_value.all.return_value = [
+    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
         SimpleNamespace(id="booking_id")
     ]
     db_check = MagicMock()
-    db_check.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-        capture_failed_at=now - timedelta(hours=1),
+    db_check.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+            capture_failed_at=now - timedelta(hours=1),
+        ),
     )
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_check]):
@@ -1120,13 +1176,15 @@ def test_retry_failed_captures_skips_when_not_ready():
 def test_retry_failed_captures_processes_success():
     now = datetime.now(timezone.utc)
     db_read = MagicMock()
-    db_read.query.return_value.filter.return_value.all.return_value = [
+    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
         SimpleNamespace(id="booking_id")
     ]
     db_check = MagicMock()
-    db_check.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-        capture_failed_at=now - timedelta(hours=5),
+    db_check.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+            capture_failed_at=now - timedelta(hours=5),
+        ),
     )
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_check]):
@@ -1144,13 +1202,15 @@ def test_retry_failed_captures_processes_success():
 def test_retry_failed_captures_skips_when_process_capture_skipped():
     now = datetime.now(timezone.utc)
     db_read = MagicMock()
-    db_read.query.return_value.filter.return_value.all.return_value = [
+    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
         SimpleNamespace(id="booking_id")
     ]
     db_check = MagicMock()
-    db_check.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-        capture_failed_at=now - timedelta(hours=5),
+    db_check.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+            capture_failed_at=now - timedelta(hours=5),
+        ),
     )
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_check]):
@@ -1167,13 +1227,15 @@ def test_retry_failed_captures_skips_when_process_capture_skipped():
 def test_retry_failed_captures_handles_exception():
     now = datetime.now(timezone.utc)
     db_read = MagicMock()
-    db_read.query.return_value.filter.return_value.all.return_value = [
+    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
         SimpleNamespace(id="booking_id")
     ]
     db_check = MagicMock()
-    db_check.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-        capture_failed_at=now - timedelta(hours=5),
+    db_check.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+            capture_failed_at=now - timedelta(hours=5),
+        ),
     )
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_check]):
@@ -1209,6 +1271,7 @@ def test_escalate_capture_failure_transfer_error():
         student_id="student_id",
         payout_transfer_retry_count=0,
         transfer_retry_count=0,
+        payment_detail=SimpleNamespace(payment_status=None),
     )
     student = SimpleNamespace(account_locked=False)
 
@@ -1217,12 +1280,16 @@ def test_escalate_capture_failure_transfer_error():
     db_stripe = MagicMock()
     db_write = MagicMock()
 
+    from app.models.booking_payment import BookingPayment as BP
+
     def _query_side_effect(model):
         query = MagicMock()
         if model is payment_tasks.Booking:
-            query.filter.return_value.first.return_value = booking_write
+            query.options.return_value.filter.return_value.first.return_value = booking_write
         elif model is payment_tasks.User:
             query.filter.return_value.first.return_value = student
+        elif model is BP:
+            query.filter.return_value.one_or_none.return_value = booking_write.payment_detail
         else:
             query.filter.return_value.first.return_value = None
         return query
@@ -1267,23 +1334,28 @@ def test_escalate_capture_failure_transfer_error():
                         with patch("app.tasks.payment_tasks.ConfigService"):
                             payment_tasks._escalate_capture_failure("booking_id", now)
 
-    assert booking_write.payment_status == PaymentStatus.MANUAL_REVIEW.value
+    assert booking_write.payment_detail.payment_status == PaymentStatus.MANUAL_REVIEW.value
     assert student.account_locked is True
 
 
 def test_handle_authorization_failure_sets_status():
-    booking = SimpleNamespace(id="booking_id", payment_status=None)
+    booking = SimpleNamespace(id="booking_id", payment_detail=SimpleNamespace(payment_status=None))
     payment_repo = MagicMock()
 
-    payment_tasks.handle_authorization_failure(
-        booking=booking,
-        payment_repo=payment_repo,
-        error="boom",
-        error_type="card_declined",
-        hours_until_lesson=12.0,
-    )
+    with patch("sqlalchemy.orm.object_session", return_value=MagicMock()):
+        with patch(
+            "app.repositories.booking_repository.BookingRepository.ensure_payment",
+            return_value=booking.payment_detail,
+        ):
+            payment_tasks.handle_authorization_failure(
+                booking=booking,
+                payment_repo=payment_repo,
+                error="boom",
+                error_type="card_declined",
+                hours_until_lesson=12.0,
+            )
 
-    assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+    assert booking.payment_detail.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
     payment_repo.create_payment_event.assert_called_once()
 
 
@@ -1291,12 +1363,12 @@ def test_process_capture_for_booking_locked_funds():
     booking = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
+        payment_detail=SimpleNamespace(payment_status=PaymentStatus.AUTHORIZED.value),
         rescheduled_from_booking_id="locked_parent",
         has_locked_funds=True,
     )
     db1 = MagicMock()
-    db1.query.return_value.filter.return_value.first.return_value = booking
+    db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db1):
         with patch(
@@ -1319,12 +1391,12 @@ def test_process_capture_for_booking_locked_funds_without_settle_when_resolution
     booking = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
+        payment_detail=SimpleNamespace(payment_status=PaymentStatus.AUTHORIZED.value),
         rescheduled_from_booking_id="locked_parent",
         has_locked_funds=True,
     )
     db1 = MagicMock()
-    db1.query.return_value.filter.return_value.first.return_value = booking
+    db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db1):
         with patch(
@@ -1345,24 +1417,28 @@ def test_process_capture_for_booking_already_captured():
     booking_phase1 = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.COMPLETED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        payment_intent_id="pi_123",
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_123",
+        ),
         rescheduled_from_booking_id=None,
         has_locked_funds=False,
     )
     booking_phase3 = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.COMPLETED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        payment_intent_id="pi_123",
-        credits_reserved_cents=100,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_123",
+            credits_reserved_cents=100,
+        ),
     )
 
     db1 = MagicMock()
-    db1.query.return_value.filter.return_value.first.return_value = booking_phase1
+    db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking_phase1
     db_stripe = MagicMock()
     db3 = MagicMock()
-    db3.query.return_value.filter.return_value.first.return_value = booking_phase3
+    db3.query.return_value.options.return_value.filter.return_value.first.return_value = booking_phase3
 
     stripe_service = MagicMock()
     stripe_service.capture_booking_payment_intent.side_effect = stripe.error.InvalidRequestError(
@@ -1390,13 +1466,17 @@ def test_process_capture_for_booking_already_captured():
                             credit_cls.return_value.forfeit_credits_for_booking.side_effect = (
                                 RuntimeError("boom")
                             )
-                            result = payment_tasks._process_capture_for_booking(
-                                "booking_id",
-                                "instructor_completed",
-                            )
+                            with patch(
+                                "app.repositories.booking_repository.BookingRepository.ensure_payment",
+                                return_value=booking_phase3.payment_detail,
+                            ):
+                                result = payment_tasks._process_capture_for_booking(
+                                    "booking_id",
+                                    "instructor_completed",
+                                )
 
     assert result.get("already_captured") is True
-    assert booking_phase3.payment_status == PaymentStatus.SETTLED.value
+    assert booking_phase3.payment_detail.payment_status == PaymentStatus.SETTLED.value
     payment_repo.create_payment_event.assert_called_once()
 
 
@@ -1404,17 +1484,19 @@ def test_process_capture_for_booking_phase3_missing():
     booking_phase1 = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        payment_intent_id="pi_123",
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_123",
+        ),
         rescheduled_from_booking_id=None,
         has_locked_funds=False,
     )
 
     db1 = MagicMock()
-    db1.query.return_value.filter.return_value.first.return_value = booking_phase1
+    db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking_phase1
     db_stripe = MagicMock()
     db3 = MagicMock()
-    db3.query.return_value.filter.return_value.first.return_value = None
+    db3.query.return_value.options.return_value.filter.return_value.first.return_value = None
 
     stripe_service = MagicMock()
     stripe_service.capture_booking_payment_intent.return_value = {
@@ -1442,15 +1524,17 @@ def test_auto_complete_booking_locked_funds():
     booking = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        payment_intent_id="pi_123",
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_123",
+        ),
         has_locked_funds=True,
         rescheduled_from_booking_id="parent_id",
         instructor_id="instructor_id",
         student_id="student_id",
     )
     db1 = MagicMock()
-    db1.query.return_value.filter.return_value.first.return_value = booking
+    db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking
 
     payment_repo = MagicMock()
 
@@ -1494,15 +1578,17 @@ def test_auto_complete_booking_locked_funds_resolution_failure_keeps_uncaptured(
     booking = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        payment_intent_id="pi_123",
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_123",
+        ),
         has_locked_funds=True,
         rescheduled_from_booking_id="parent_id",
         instructor_id="instructor_id",
         student_id="student_id",
     )
     db1 = MagicMock()
-    db1.query.return_value.filter.return_value.first.return_value = booking
+    db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking
 
     payment_repo = MagicMock()
 
@@ -1546,15 +1632,17 @@ def test_auto_complete_booking_no_payment_intent():
     booking = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        payment_intent_id=None,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id=None,
+        ),
         has_locked_funds=False,
         rescheduled_from_booking_id=None,
         instructor_id="instructor_id",
         student_id="student_id",
     )
     db1 = MagicMock()
-    db1.query.return_value.filter.return_value.first.return_value = booking
+    db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking
 
     payment_repo = MagicMock()
 
@@ -1587,7 +1675,7 @@ def test_capture_completed_lessons_handles_capture_and_auto_complete_failures():
     now = datetime.now(timezone.utc)
     booking_capture = SimpleNamespace(
         id="capture_id",
-        payment_intent_id="pi_123",
+        payment_detail=SimpleNamespace(payment_intent_id="pi_123"),
         has_locked_funds=False,
     )
     booking_auto = SimpleNamespace(id="auto_id")
@@ -1720,9 +1808,11 @@ def test_capture_completed_lessons_marks_expired_auth():
     booking_expired = SimpleNamespace(
         id="expired_id",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        payment_intent_id="pi_123",
-        capture_retry_count=0,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_123",
+            capture_retry_count=0,
+        ),
     )
     auth_event = SimpleNamespace(
         event_type="auth_succeeded",
@@ -1739,7 +1829,7 @@ def test_capture_completed_lessons_marks_expired_auth():
 
     db_read = MagicMock()
     db_expired = MagicMock()
-    db_expired.query.return_value.filter.return_value.first.return_value = booking_expired
+    db_expired.query.return_value.options.return_value.filter.return_value.first.return_value = booking_expired
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_expired]):
         with patch(
@@ -1754,11 +1844,15 @@ def test_capture_completed_lessons_marks_expired_auth():
                     "app.tasks.payment_tasks.booking_lock_sync",
                     return_value=_lock(True),
                 ):
-                    result = payment_tasks.capture_completed_lessons()
+                    with patch(
+                        "app.repositories.booking_repository.BookingRepository.ensure_payment",
+                        return_value=booking_expired.payment_detail,
+                    ):
+                        result = payment_tasks.capture_completed_lessons()
 
     assert result["expired_handled"] == 1
-    assert booking_expired.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-    assert booking_expired.capture_retry_count == 1
+    assert booking_expired.payment_detail.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+    assert booking_expired.payment_detail.capture_retry_count == 1
     payment_repo.create_payment_event.assert_called_once()
 
 
@@ -1766,18 +1860,21 @@ def test_attempt_payment_capture_skips_cancelled_settled():
     booking = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.CANCELLED,
-        payment_status=PaymentStatus.SETTLED.value,
-        payment_intent_id="pi_123",
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.SETTLED.value,
+            payment_intent_id="pi_123",
+        ),
     )
     payment_repo = MagicMock()
     stripe_service = MagicMock()
 
-    result = payment_tasks.attempt_payment_capture(
-        booking,
-        payment_repo,
-        "test_reason",
-        stripe_service,
-    )
+    with patch("sqlalchemy.orm.object_session", return_value=None):
+        result = payment_tasks.attempt_payment_capture(
+            booking,
+            payment_repo,
+            "test_reason",
+            stripe_service,
+        )
 
     assert result == {"success": True, "already_captured": True}
 
@@ -1785,11 +1882,13 @@ def test_attempt_payment_capture_skips_cancelled_settled():
 def test_create_new_authorization_and_capture_commit_error():
     booking = SimpleNamespace(
         id="booking_id",
-        payment_intent_id="pi_old",
-        payment_method_id="pm_1",
         status=BookingStatus.COMPLETED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        credits_reserved_cents=100,
+        payment_detail=SimpleNamespace(
+            payment_intent_id="pi_old",
+            payment_method_id="pm_1",
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            credits_reserved_cents=100,
+        ),
     )
     payment_repo = MagicMock()
     payment_repo.get_payment_by_booking_id.return_value = SimpleNamespace(
@@ -1821,15 +1920,19 @@ def test_create_new_authorization_and_capture_commit_error():
                         credit_cls.return_value.forfeit_credits_for_booking.side_effect = (
                             RuntimeError("boom")
                         )
-                        result = payment_tasks.create_new_authorization_and_capture(
-                            booking,
-                            payment_repo,
-                            db,
-                            lock_acquired=True,
-                        )
+                        with patch(
+                            "app.repositories.booking_repository.BookingRepository.ensure_payment",
+                            return_value=booking.payment_detail,
+                        ):
+                            result = payment_tasks.create_new_authorization_and_capture(
+                                booking,
+                                payment_repo,
+                                db,
+                                lock_acquired=True,
+                            )
 
     assert result["success"] is True
-    assert booking.payment_status == PaymentStatus.SETTLED.value
+    assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
     payment_repo.create_payment_event.assert_called_once()
 
 
@@ -1929,9 +2032,11 @@ def test_capture_late_cancellation_already_captured():
     now = datetime.now(timezone.utc)
     booking = SimpleNamespace(
         id="booking_id",
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        payment_intent_id="pi_123",
-        settlement_outcome=None,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_123",
+            settlement_outcome=None,
+        ),
     )
 
     booking_repo = MagicMock()
@@ -1979,10 +2084,12 @@ def test_capture_late_cancellation_credit_service_failure():
     now = datetime.now(timezone.utc)
     booking = SimpleNamespace(
         id="booking_id",
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        payment_intent_id="pi_123",
-        settlement_outcome=None,
-        credits_reserved_cents=100,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_123",
+            settlement_outcome=None,
+            credits_reserved_cents=100,
+        ),
     )
 
     booking_repo = MagicMock()
@@ -2035,7 +2142,7 @@ def test_capture_completed_lessons_capture_loop_exception_counts_failed():
     now = datetime.now(timezone.utc)
     booking_capture = SimpleNamespace(
         id="capture_id",
-        payment_intent_id="pi_capture",
+        payment_detail=SimpleNamespace(payment_intent_id="pi_capture"),
         has_locked_funds=False,
     )
 
@@ -2137,22 +2244,24 @@ def test_capture_completed_lessons_expired_auth_skip_paths_and_error_branch():
 
     db_read = MagicMock()
     db_missing = MagicMock()
-    db_missing.query.return_value.filter.return_value.first.return_value = None
+    db_missing.query.return_value.options.return_value.filter.return_value.first.return_value = None
     db_manual = MagicMock()
-    db_manual.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    db_manual.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.MANUAL_REVIEW.value,
+        payment_detail=SimpleNamespace(payment_status=PaymentStatus.MANUAL_REVIEW.value),
     )
     db_not_auth = MagicMock()
-    db_not_auth.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    db_not_auth.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        payment_detail=SimpleNamespace(payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value),
     )
     db_error = MagicMock()
-    db_error.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    db_error.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
         status=BookingStatus.COMPLETED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        payment_intent_id="pi_123",
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_123",
+        ),
     )
 
     lock_iter = iter([False, True, True, True, True])
@@ -2191,25 +2300,29 @@ def test_process_capture_for_booking_already_captured_sets_completed_fields(payo
     booking_phase1 = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.COMPLETED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        payment_intent_id="pi_123",
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_123",
+        ),
         rescheduled_from_booking_id=None,
         has_locked_funds=False,
     )
     booking_phase3 = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.COMPLETED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        payment_intent_id="pi_123",
-        credits_reserved_cents=120,
-        capture_retry_count=0,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_123",
+            credits_reserved_cents=120,
+            capture_retry_count=0,
+        ),
     )
 
     db1 = MagicMock()
-    db1.query.return_value.filter.return_value.first.return_value = booking_phase1
+    db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking_phase1
     db_stripe = MagicMock()
     db3 = MagicMock()
-    db3.query.return_value.filter.return_value.first.return_value = booking_phase3
+    db3.query.return_value.options.return_value.filter.return_value.first.return_value = booking_phase3
 
     stripe_service = MagicMock()
     stripe_service.capture_booking_payment_intent.side_effect = stripe.error.InvalidRequestError(
@@ -2232,16 +2345,20 @@ def test_process_capture_for_booking_already_captured_sets_completed_fields(payo
                     with patch("app.tasks.payment_tasks.PricingService"):
                         with patch("app.services.credit_service.CreditService") as credit_cls:
                             credit_cls.return_value.forfeit_credits_for_booking = MagicMock()
-                            result = payment_tasks._process_capture_for_booking(
-                                "booking_id",
-                                "instructor_completed",
-                            )
+                            with patch(
+                                "app.repositories.booking_repository.BookingRepository.ensure_payment",
+                                return_value=booking_phase3.payment_detail,
+                            ):
+                                result = payment_tasks._process_capture_for_booking(
+                                    "booking_id",
+                                    "instructor_completed",
+                                )
 
     assert result.get("already_captured") is True
-    assert booking_phase3.payment_status == PaymentStatus.SETTLED.value
-    assert booking_phase3.credits_reserved_cents == 0
-    assert booking_phase3.settlement_outcome == "lesson_completed_full_payout"
-    assert booking_phase3.instructor_payout_amount is None
+    assert booking_phase3.payment_detail.payment_status == PaymentStatus.SETTLED.value
+    assert booking_phase3.payment_detail.credits_reserved_cents == 0
+    assert booking_phase3.payment_detail.settlement_outcome == "lesson_completed_full_payout"
+    assert booking_phase3.payment_detail.instructor_payout_amount is None
     payment_repo.create_payment_event.assert_called_once()
 
 
@@ -2256,11 +2373,13 @@ def test_process_capture_for_booking_already_captured_sets_completed_fields(payo
 def test_create_new_authorization_and_capture_handles_payout_lookup_issues(payment_lookup_result):
     booking = SimpleNamespace(
         id="booking_id",
-        payment_intent_id="pi_old",
-        payment_method_id="pm_123",
         status=BookingStatus.COMPLETED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        credits_reserved_cents=100,
+        payment_detail=SimpleNamespace(
+            payment_intent_id="pi_old",
+            payment_method_id="pm_123",
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            credits_reserved_cents=100,
+        ),
     )
     payment_repo = MagicMock()
     if isinstance(payment_lookup_result, Exception):
@@ -2283,16 +2402,20 @@ def test_create_new_authorization_and_capture_handles_payout_lookup_issues(payme
                 with patch("app.tasks.payment_tasks.PricingService"):
                     with patch("app.services.credit_service.CreditService") as credit_cls:
                         credit_cls.return_value.forfeit_credits_for_booking = MagicMock()
-                        result = payment_tasks.create_new_authorization_and_capture(
-                            booking,
-                            payment_repo,
-                            db,
-                            lock_acquired=True,
-                        )
+                        with patch(
+                            "app.repositories.booking_repository.BookingRepository.ensure_payment",
+                            return_value=booking.payment_detail,
+                        ):
+                            result = payment_tasks.create_new_authorization_and_capture(
+                                booking,
+                                payment_repo,
+                                db,
+                                lock_acquired=True,
+                            )
 
     assert result["success"] is True
-    assert booking.payment_status == PaymentStatus.SETTLED.value
-    assert booking.instructor_payout_amount is None
+    assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
+    assert booking.payment_detail.instructor_payout_amount is None
     payment_repo.create_payment_event.assert_called_once()
 
 
@@ -2337,8 +2460,10 @@ def test_process_scheduled_authorizations_ignores_non_scheduled_bookings():
     now = datetime.now(timezone.utc)
     booking = SimpleNamespace(
         id="booking_id",
-        payment_status=PaymentStatus.AUTHORIZED.value,
-        auth_scheduled_for=now - timedelta(hours=1),
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            auth_scheduled_for=now - timedelta(hours=1),
+        ),
         student_id="student-1",
     )
 
@@ -2379,11 +2504,13 @@ def test_retry_failed_authorizations_warn_only_skips_when_booking_no_longer_elig
 
     db_read = MagicMock()
     db_warn = MagicMock()
-    db_warn.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    db_warn.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
         status=BookingStatus.CANCELLED,
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-        capture_failed_at=None,
-        auth_failure_t13_warning_sent_at=None,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+            capture_failed_at=None,
+            auth_failure_t13_warning_sent_at=None,
+        ),
     )
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_warn]):
@@ -2427,12 +2554,16 @@ def test_retry_failed_authorizations_warn_only_then_retry_success():
 
     db_read = MagicMock()
     db_warn = MagicMock()
-    db_warn.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    booking_warn = SimpleNamespace(
+        id="booking_id",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-        capture_failed_at=None,
-        auth_failure_t13_warning_sent_at=None,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+            capture_failed_at=None,
+            auth_failure_t13_warning_sent_at=None,
+        ),
     )
+    db_warn.query.return_value.options.return_value.filter.return_value.first.return_value = booking_warn
     payment_repo = MagicMock()
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_warn]):
@@ -2468,7 +2599,11 @@ def test_retry_failed_authorizations_warn_only_then_retry_success():
                                         with patch(
                                             "app.tasks.payment_tasks.NotificationService"
                                         ) as notification_cls:
-                                            result = payment_tasks.retry_failed_authorizations()
+                                            with patch(
+                                                "app.repositories.booking_repository.BookingRepository.ensure_payment",
+                                                return_value=booking_warn.payment_detail,
+                                            ):
+                                                result = payment_tasks.retry_failed_authorizations()
 
     assert result["warnings_sent"] == 1
     assert result["retried"] == 1
@@ -2481,18 +2616,20 @@ def test_process_retry_authorization_returns_phase3_missing():
     booking_phase1 = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+            payment_method_id="pm_123",
+            payment_intent_id=None,
+        ),
         student_id="student-1",
         instructor_id="instructor-1",
-        payment_method_id="pm_123",
-        payment_intent_id=None,
     )
     db1 = MagicMock()
-    db1.query.return_value.filter.return_value.first.return_value = booking_phase1
+    db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking_phase1
 
     db_stripe = MagicMock()
     db3 = MagicMock()
-    db3.query.return_value.filter.return_value.first.return_value = None
+    db3.query.return_value.options.return_value.filter.return_value.first.return_value = None
 
     payment_repo = MagicMock()
     payment_repo.get_customer_by_user_id.return_value = SimpleNamespace(id="cus_123")
@@ -2547,7 +2684,7 @@ def test_escalate_capture_failure_returns_when_booking_missing_in_phase3():
     instructor_repo.get_by_user_id.return_value = None
 
     db_write = MagicMock()
-    db_write.query.return_value.filter.return_value.first.return_value = None
+    db_write.query.return_value.options.return_value.filter.return_value.first.return_value = None
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_write]):
         with patch(
@@ -2569,8 +2706,10 @@ def test_escalate_capture_failure_commits_without_student_record():
     booking_write = SimpleNamespace(
         id="booking_id",
         student_id="student-1",
-        payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-        capture_retry_count=2,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+            capture_retry_count=2,
+        ),
         transfer_retry_count=0,
         payout_transfer_retry_count=0,
     )
@@ -2587,7 +2726,22 @@ def test_escalate_capture_failure_commits_without_student_record():
     instructor_repo.get_by_user_id.return_value = None
 
     db_write = MagicMock()
-    db_write.query.return_value.filter.return_value.first.side_effect = [booking_write, None]
+
+    from app.models.booking_payment import BookingPayment as BP
+
+    def _query_side_effect_no_student(model):
+        query = MagicMock()
+        if model is payment_tasks.Booking:
+            query.options.return_value.filter.return_value.first.return_value = booking_write
+        elif model is payment_tasks.User:
+            query.filter.return_value.first.return_value = None
+        elif model is BP:
+            query.filter.return_value.one_or_none.return_value = booking_write.payment_detail
+        else:
+            query.filter.return_value.first.return_value = None
+        return query
+
+    db_write.query.side_effect = _query_side_effect_no_student
     payment_repo_write = MagicMock()
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_write]):

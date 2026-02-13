@@ -20,7 +20,6 @@ class BookingLock(Base):
         ForeignKey("bookings.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
-        index=True,
     )
 
     locked_at = Column(DateTime(timezone=True), nullable=True)

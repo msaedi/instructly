@@ -20,7 +20,6 @@ class BookingNoShow(Base):
         ForeignKey("bookings.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
-        index=True,
     )
 
     no_show_reported_by = Column(String(26), ForeignKey("users.id"), nullable=True)

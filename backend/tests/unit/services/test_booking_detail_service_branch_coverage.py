@@ -53,8 +53,8 @@ def test_resolve_helpers_return_safe_defaults_on_errors():
     service.review_repo.get_by_booking_id = lambda _id: (_ for _ in ()).throw(RuntimeError())
     service.review_tip_repo.get_by_booking_id = lambda _id: (_ for _ in ()).throw(RuntimeError())
 
-    assert service._resolve_payment_intent(SimpleNamespace(payment_intent_id="pi_123", id="b1")) is None
-    assert service._resolve_payment_intent(SimpleNamespace(payment_intent_id=None, id="b1")) is None
+    assert service._resolve_payment_intent(SimpleNamespace(payment_detail=SimpleNamespace(payment_intent_id="pi_123"), id="b1")) is None
+    assert service._resolve_payment_intent(SimpleNamespace(payment_detail=SimpleNamespace(payment_intent_id=None), id="b1")) is None
     assert service._resolve_payment_events("b1") == []
     assert service._resolve_review("b1") is None
     assert service._resolve_tip("b1") is None
@@ -77,10 +77,10 @@ def test_payment_status_and_failure_branches():
     failures = service._build_payment_failures(events)
     assert failures == []
 
-    booking = SimpleNamespace(payment_status="unknown", auth_scheduled_for=None)
+    booking = SimpleNamespace(payment_detail=SimpleNamespace(payment_status="unknown", auth_scheduled_for=None))
     assert service._resolve_payment_status(booking, events) == "refunded"
 
-    booking.auth_scheduled_for = now
+    booking.payment_detail.auth_scheduled_for = now
     assert service._resolve_payment_status(booking, []) == "scheduled"
 
 
@@ -114,8 +114,7 @@ def test_timeline_skips_none_timestamps_and_deduplicates_same_event_time():
         cancelled_at=None,
         completed_at=None,
         status=BookingStatus.CONFIRMED,
-        auth_scheduled_for=None,
-        payment_status=None,
+        payment_detail=SimpleNamespace(auth_scheduled_for=None, payment_status=None),
     )
 
     payment_events = [
@@ -210,7 +209,7 @@ def test_build_payment_amount_handles_invalid_total_and_explicit_payout():
 
 def test_resolve_payment_status_additional_paths():
     service = _svc()
-    booking = SimpleNamespace(payment_status="unknown", auth_scheduled_for=None)
+    booking = SimpleNamespace(payment_detail=SimpleNamespace(payment_status="unknown", auth_scheduled_for=None))
     events = [
         PaymentEvent(
             booking_id="b1",
@@ -230,11 +229,11 @@ def test_resolve_payment_status_additional_paths():
         )
     ]
     assert service._resolve_payment_status(booking, events) == "scheduled"
-    booking.payment_status = "authorized"
+    booking.payment_detail.payment_status = "authorized"
     assert service._resolve_payment_status(booking, []) == "authorized"
-    booking.payment_status = "mystery"
+    booking.payment_detail.payment_status = "mystery"
     assert service._resolve_payment_status(booking, []) == "mystery"
-    booking.payment_status = ""
+    booking.payment_detail.payment_status = ""
     assert service._resolve_payment_status(booking, []) == "failed"
 
 
@@ -267,8 +266,7 @@ def test_timeline_includes_confirmed_cancelled_and_skips_unmapped_events():
         cancelled_at=now - timedelta(hours=2),
         completed_at=None,
         status=BookingStatus.CANCELLED,
-        auth_scheduled_for=None,
-        payment_status=None,
+        payment_detail=SimpleNamespace(auth_scheduled_for=None, payment_status=None),
     )
     payment_events = [
         PaymentEvent(
@@ -335,9 +333,7 @@ def test_get_booking_detail_trace_links_without_webhooks():
         cancelled_at=None,
         cancelled_by_id=None,
         cancellation_reason=None,
-        payment_status=None,
-        payment_intent_id=None,
-        auth_scheduled_for=None,
+        payment_detail=SimpleNamespace(payment_status=None, payment_intent_id=None, auth_scheduled_for=None),
         rescheduled_from_booking_id=None,
         rescheduled_to_booking_id=None,
         student_note=None,

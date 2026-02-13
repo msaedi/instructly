@@ -113,9 +113,7 @@ def _resolve_tip_cents(tip: ReviewTip | None) -> int:
 def _resolve_scheduled_authorize_at(booking: Booking) -> datetime | None:
     payment_detail = getattr(booking, "payment_detail", None)
     auth_scheduled_for = (
-        getattr(payment_detail, "auth_scheduled_for", None)
-        if payment_detail is not None
-        else getattr(booking, "auth_scheduled_for", None)
+        getattr(payment_detail, "auth_scheduled_for", None) if payment_detail is not None else None
     )
     if auth_scheduled_for:
         return _ensure_utc(auth_scheduled_for)
@@ -338,10 +336,8 @@ class BookingDetailService(BaseService):
     def _payment_attr(booking: Booking, field: str) -> Any:
         payment_detail = getattr(booking, "payment_detail", None)
         if payment_detail is not None:
-            value = getattr(payment_detail, field, None)
-            if value is not None:
-                return value
-        return getattr(booking, field, None)
+            return getattr(payment_detail, field, None)
+        return None
 
     def _resolve_payment_intent(self, booking: Booking) -> PaymentIntent | None:
         booking_payment_intent_id = self._payment_attr(booking, "payment_intent_id")

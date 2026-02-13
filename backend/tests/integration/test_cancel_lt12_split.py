@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 import ulid
 
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_payment import BookingPayment
 from app.models.instructor import InstructorProfile
 from app.models.payment import StripeConnectedAccount
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
@@ -125,11 +126,17 @@ def _create_booking(
         total_price=120.00,
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
+    )
+    db.add(bk)
+    db.flush()
+    payment = BookingPayment(
+        booking_id=bk.id,
         payment_method_id="pm_x",
         payment_intent_id="pi_x",
         payment_status="authorized",
     )
-    db.add(bk)
+    db.add(payment)
+    bk.payment_detail = payment
     db.flush()
     return bk
 
@@ -287,7 +294,7 @@ def test_lt12_cancel_sets_settlement_fields(lt12_booking, db: Session):
         mock_transfer.return_value = {"transfer_id": "tr_payout"}
         result = service.cancel_booking(booking.id, user=student, reason="test")
 
-    assert result.settlement_outcome == "student_cancel_lt12_split_50_50"
+    assert result.payment_detail.settlement_outcome == "student_cancel_lt12_split_50_50"
     assert result.student_credit_amount == 6000
-    assert result.instructor_payout_amount == 5280
+    assert result.payment_detail.instructor_payout_amount == 5280
     assert result.refunded_to_card_amount == 0

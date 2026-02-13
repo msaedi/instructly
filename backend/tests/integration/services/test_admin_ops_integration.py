@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
 from app.models.payment import PaymentIntent
 from app.models.user import User
 from app.repositories.admin_ops_repository import AdminOpsRepository
@@ -220,18 +221,25 @@ class TestAdminOpsRepositoryIntegration:
         today = datetime.now(timezone.utc).date()
 
         test_booking.booking_date = today
-        test_booking.payment_status = PaymentStatus.SETTLED.value
-        test_booking.payment_intent_id = test_booking.payment_intent_id or f"pi_{generate_ulid()}"
+        pi_id_1 = f"pi_{generate_ulid()}"
+        bp1 = BookingPayment(
+            id=generate_ulid(),
+            booking_id=test_booking.id,
+            payment_status=PaymentStatus.SETTLED.value,
+            payment_intent_id=pi_id_1,
+        )
+        db.add(bp1)
         db.add(
             PaymentIntent(
                 booking_id=test_booking.id,
-                stripe_payment_intent_id=test_booking.payment_intent_id,
+                stripe_payment_intent_id=pi_id_1,
                 amount=10000,
                 application_fee=1200,
                 status="succeeded",
             )
         )
 
+        pi_id_2 = f"pi_{generate_ulid()}"
         second_booking = create_booking_pg_safe(
             db,
             student_id=test_booking.student_id,
@@ -242,6 +250,7 @@ class TestAdminOpsRepositoryIntegration:
             end_time=time(14, 0),
             status=BookingStatus.COMPLETED,
             payment_status=PaymentStatus.SETTLED.value,
+            payment_intent_id=pi_id_2,
             service_name=test_booking.service_name,
             hourly_rate=test_booking.hourly_rate,
             total_price=test_booking.total_price,
@@ -250,11 +259,10 @@ class TestAdminOpsRepositoryIntegration:
             service_area=test_booking.service_area,
             allow_overlap=True,
         )
-        second_booking.payment_intent_id = f"pi_{generate_ulid()}"
         db.add(
             PaymentIntent(
                 booking_id=second_booking.id,
-                stripe_payment_intent_id=second_booking.payment_intent_id,
+                stripe_payment_intent_id=pi_id_2,
                 amount=8000,
                 application_fee=900,
                 status="succeeded",

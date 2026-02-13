@@ -20,7 +20,6 @@ class BookingDispute(Base):
         ForeignKey("bookings.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
-        index=True,
     )
 
     dispute_id = Column(String(100), nullable=True)

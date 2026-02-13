@@ -68,14 +68,17 @@ def _make_booking(booking_date: date, end_time: time, tz_name: str) -> MagicMock
     booking = MagicMock(spec=Booking)
     booking.id = generate_ulid()
     booking.status = BookingStatus.CONFIRMED
-    booking.payment_status = "authorized"
     booking.student_id = "student_test"
     booking.instructor_id = "instructor_test"
-    booking.payment_intent_id = "pi_test"
     booking.booking_date = booking_date
     booking.end_time = end_time
     booking.instructor = MagicMock()
     booking.instructor.timezone = tz_name
+    # Payment fields live on the payment_detail satellite
+    payment_detail = MagicMock()
+    payment_detail.payment_status = "authorized"
+    payment_detail.payment_intent_id = "pi_test"
+    booking.payment_detail = payment_detail
     return booking
 
 

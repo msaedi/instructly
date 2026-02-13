@@ -5,6 +5,7 @@ import pytest
 
 from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_payment import BookingPayment
 from app.models.instructor import InstructorProfile
 from app.models.payment import PaymentEvent, PaymentIntent
 from app.models.service_catalog import InstructorService
@@ -49,6 +50,9 @@ def _create_booking(
     service_name: str,
     payment_status: str | None = None,
 ) -> Booking:
+    extra_payment: dict = {}
+    if payment_status is not None:
+        extra_payment["payment_status"] = payment_status
     booking = create_booking_pg_safe(
         db,
         student_id=student_id,
@@ -63,25 +67,31 @@ def _create_booking(
         duration_minutes=60,
         status=status,
         offset_index=offset_index,
+        **extra_payment,
     )
-    if payment_status is not None:
-        booking.payment_status = payment_status
-    db.flush()
     return booking
 
 
 def _attach_payment_events(db, booking: Booking, *, amount_cents: int) -> None:
-    booking.payment_intent_id = booking.payment_intent_id or f"pi_{generate_ulid()}"
-    booking.payment_status = "settled"
+    pi_id = f"pi_{generate_ulid()}"
     booking.created_at = booking.created_at or datetime.now(timezone.utc)
     booking.completed_at = booking.completed_at or datetime.now(timezone.utc)
     booking.status = BookingStatus.COMPLETED
     db.flush()
 
+    # Create or update BookingPayment satellite
+    bp = db.query(BookingPayment).filter_by(booking_id=booking.id).first()
+    if bp is None:
+        bp = BookingPayment(booking_id=booking.id)
+        db.add(bp)
+    bp.payment_intent_id = pi_id
+    bp.payment_status = "settled"
+    db.flush()
+
     db.add(
         PaymentIntent(
             booking_id=booking.id,
-            stripe_payment_intent_id=booking.payment_intent_id,
+            stripe_payment_intent_id=pi_id,
             amount=amount_cents,
             application_fee=1000,
             status="succeeded",
@@ -118,7 +128,10 @@ class TestAdminBookingService:
             service_name="Refunded Lesson",
             payment_status="settled",
         )
-        booking_refunded.settlement_outcome = "admin_refund"
+        bp = db.query(BookingPayment).filter_by(booking_id=booking_refunded.id).first()
+        assert bp is not None
+        bp.settlement_outcome = "admin_refund"
+        db.flush()
         booking_captured = _create_booking(
             db,
             student_id=test_student.id,
@@ -185,11 +198,13 @@ class TestAdminBookingService:
             service_name="Stats Lesson 2",
         )
 
-        booking_today.payment_intent_id = f"pi_{generate_ulid()}"
+        pi_id = f"pi_{generate_ulid()}"
+        bp = BookingPayment(booking_id=booking_today.id, payment_intent_id=pi_id, payment_status="settled")
+        db.add(bp)
         db.add(
             PaymentIntent(
                 booking_id=booking_today.id,
-                stripe_payment_intent_id=booking_today.payment_intent_id,
+                stripe_payment_intent_id=pi_id,
                 amount=7500,
                 application_fee=750,
                 status="succeeded",

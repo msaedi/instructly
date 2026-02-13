@@ -97,31 +97,43 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     def ensure_dispute(self, booking_id: str) -> BookingDispute:
         """Get or create dispute satellite row for a booking."""
+        dispute = self.get_dispute_by_booking_id(booking_id)
+        if dispute is not None:
+            return dispute
         try:
-            dispute = self.get_dispute_by_booking_id(booking_id)
-            if dispute is not None:
-                return dispute
+            nested = self.db.begin_nested()
             dispute = BookingDispute(booking_id=booking_id)
             self.db.add(dispute)
             self.db.flush()
             return dispute
-        except Exception as e:
-            self.logger.error(f"Error ensuring dispute for booking {booking_id}: {str(e)}")
-            raise RepositoryException(f"Failed to ensure booking dispute: {str(e)}")
+        except IntegrityError:
+            nested.rollback()
+            dispute = self.get_dispute_by_booking_id(booking_id)
+            if dispute is not None:
+                return dispute
+            raise RepositoryException(
+                f"Failed to ensure booking dispute after retry for booking {booking_id}"
+            )
 
     def ensure_transfer(self, booking_id: str) -> BookingTransfer:
         """Get or create transfer satellite row for a booking."""
+        transfer = self.get_transfer_by_booking_id(booking_id)
+        if transfer is not None:
+            return transfer
         try:
-            transfer = self.get_transfer_by_booking_id(booking_id)
-            if transfer is not None:
-                return transfer
+            nested = self.db.begin_nested()
             transfer = BookingTransfer(booking_id=booking_id)
             self.db.add(transfer)
             self.db.flush()
             return transfer
-        except Exception as e:
-            self.logger.error(f"Error ensuring transfer for booking {booking_id}: {str(e)}")
-            raise RepositoryException(f"Failed to ensure booking transfer: {str(e)}")
+        except IntegrityError:
+            nested.rollback()
+            transfer = self.get_transfer_by_booking_id(booking_id)
+            if transfer is not None:
+                return transfer
+            raise RepositoryException(
+                f"Failed to ensure booking transfer after retry for booking {booking_id}"
+            )
 
     def get_no_show_by_booking_id(self, booking_id: str) -> Optional[BookingNoShow]:
         """Return no-show satellite row for a booking, if present."""
@@ -153,31 +165,43 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     def ensure_no_show(self, booking_id: str) -> BookingNoShow:
         """Get or create no-show satellite row for a booking."""
+        no_show = self.get_no_show_by_booking_id(booking_id)
+        if no_show is not None:
+            return no_show
         try:
-            no_show = self.get_no_show_by_booking_id(booking_id)
-            if no_show is not None:
-                return no_show
+            nested = self.db.begin_nested()
             no_show = BookingNoShow(booking_id=booking_id)
             self.db.add(no_show)
             self.db.flush()
             return no_show
-        except Exception as e:
-            self.logger.error(f"Error ensuring no-show for booking {booking_id}: {str(e)}")
-            raise RepositoryException(f"Failed to ensure booking no-show: {str(e)}")
+        except IntegrityError:
+            nested.rollback()
+            no_show = self.get_no_show_by_booking_id(booking_id)
+            if no_show is not None:
+                return no_show
+            raise RepositoryException(
+                f"Failed to ensure booking no-show after retry for booking {booking_id}"
+            )
 
     def ensure_lock(self, booking_id: str) -> BookingLock:
         """Get or create lock satellite row for a booking."""
+        lock = self.get_lock_by_booking_id(booking_id)
+        if lock is not None:
+            return lock
         try:
-            lock = self.get_lock_by_booking_id(booking_id)
-            if lock is not None:
-                return lock
+            nested = self.db.begin_nested()
             lock = BookingLock(booking_id=booking_id)
             self.db.add(lock)
             self.db.flush()
             return lock
-        except Exception as e:
-            self.logger.error(f"Error ensuring lock for booking {booking_id}: {str(e)}")
-            raise RepositoryException(f"Failed to ensure booking lock: {str(e)}")
+        except IntegrityError:
+            nested.rollback()
+            lock = self.get_lock_by_booking_id(booking_id)
+            if lock is not None:
+                return lock
+            raise RepositoryException(
+                f"Failed to ensure booking lock after retry for booking {booking_id}"
+            )
 
     def get_reschedule_by_booking_id(self, booking_id: str) -> Optional[BookingReschedule]:
         """Return reschedule satellite row for a booking, if present."""
@@ -195,17 +219,23 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     def ensure_reschedule(self, booking_id: str) -> BookingReschedule:
         """Get or create reschedule satellite row for a booking."""
+        reschedule = self.get_reschedule_by_booking_id(booking_id)
+        if reschedule is not None:
+            return reschedule
         try:
-            reschedule = self.get_reschedule_by_booking_id(booking_id)
-            if reschedule is not None:
-                return reschedule
+            nested = self.db.begin_nested()
             reschedule = BookingReschedule(booking_id=booking_id)
             self.db.add(reschedule)
             self.db.flush()
             return reschedule
-        except Exception as e:
-            self.logger.error(f"Error ensuring reschedule for booking {booking_id}: {str(e)}")
-            raise RepositoryException(f"Failed to ensure booking reschedule: {str(e)}")
+        except IntegrityError:
+            nested.rollback()
+            reschedule = self.get_reschedule_by_booking_id(booking_id)
+            if reschedule is not None:
+                return reschedule
+            raise RepositoryException(
+                f"Failed to ensure booking reschedule after retry for booking {booking_id}"
+            )
 
     def get_payment_by_booking_id(self, booking_id: str) -> Optional[BookingPayment]:
         """Return payment satellite row for a booking, if present."""
@@ -223,17 +253,23 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     def ensure_payment(self, booking_id: str) -> BookingPayment:
         """Get or create payment satellite row for a booking."""
+        payment = self.get_payment_by_booking_id(booking_id)
+        if payment is not None:
+            return payment
         try:
-            payment = self.get_payment_by_booking_id(booking_id)
-            if payment is not None:
-                return payment
+            nested = self.db.begin_nested()
             payment = BookingPayment(booking_id=booking_id)
             self.db.add(payment)
             self.db.flush()
             return payment
-        except Exception as e:
-            self.logger.error(f"Error ensuring payment for booking {booking_id}: {str(e)}")
-            raise RepositoryException(f"Failed to ensure booking payment: {str(e)}")
+        except IntegrityError:
+            nested.rollback()
+            payment = self.get_payment_by_booking_id(booking_id)
+            if payment is not None:
+                return payment
+            raise RepositoryException(
+                f"Failed to ensure booking payment after retry for booking {booking_id}"
+            )
 
     # Time-based Booking Queries (NEW)
 
@@ -1616,6 +1652,10 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             joinedload(Booking.instructor_service),
             joinedload(Booking.payment_detail),
             joinedload(Booking.reschedule_detail),
+            joinedload(Booking.no_show_detail),
+            joinedload(Booking.lock_detail),
+            joinedload(Booking.dispute),
+            joinedload(Booking.transfer),
         )
 
     def count_old_bookings(self, cutoff_date: datetime) -> int:

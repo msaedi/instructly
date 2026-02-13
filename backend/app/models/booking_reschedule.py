@@ -20,7 +20,6 @@ class BookingReschedule(Base):
         ForeignKey("bookings.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
-        index=True,
     )
 
     late_reschedule_used = Column(

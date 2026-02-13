@@ -836,8 +836,10 @@ async def reschedule_booking(
                 location_place_id=_location_place_id,
             )
 
-            raw_payment_intent_id = getattr(original, "payment_intent_id", None)
-            raw_payment_status = getattr(original, "payment_status", None)
+            _pd = original.payment_detail
+            raw_payment_intent_id = _pd.payment_intent_id if _pd is not None else None
+            raw_payment_status = _pd.payment_status if _pd is not None else None
+            raw_payment_method_id = _pd.payment_method_id if _pd is not None else None
             normalized_payment_status = raw_payment_status
             if raw_payment_status == "requires_capture":
                 normalized_payment_status = PaymentStatus.AUTHORIZED.value
@@ -879,7 +881,7 @@ async def reschedule_booking(
                     original.id,
                     cast(str, raw_payment_intent_id),
                     cast(Optional[str], normalized_payment_status),
-                    cast(Optional[str], getattr(original, "payment_method_id", None)),
+                    cast(Optional[str], raw_payment_method_id),
                 )
             else:
                 # Preflight: Check payment method (using service method, no direct db access)

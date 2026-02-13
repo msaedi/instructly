@@ -185,8 +185,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("booking_id"),
     )
-    op.create_index("ix_booking_disputes_booking_id", "booking_disputes", ["booking_id"], unique=True)
-
     op.create_table(
         "booking_transfers",
         sa.Column("id", sa.String(26), nullable=False),
@@ -214,8 +212,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("booking_id"),
     )
-    op.create_index("ix_booking_transfers_booking_id", "booking_transfers", ["booking_id"], unique=True)
-
     op.create_table(
         "booking_no_shows",
         sa.Column("id", sa.String(26), nullable=False),
@@ -233,7 +229,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("booking_id"),
     )
-    op.create_index("ix_booking_no_shows_booking_id", "booking_no_shows", ["booking_id"], unique=True)
     op.create_index(
         "ix_booking_no_shows_reported_at",
         "booking_no_shows",
@@ -252,8 +247,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("booking_id"),
     )
-    op.create_index("ix_booking_locks_booking_id", "booking_locks", ["booking_id"], unique=True)
-
     op.create_table(
         "booking_payments",
         sa.Column("id", sa.String(26), nullable=False),
@@ -278,7 +271,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("booking_id"),
     )
-    op.create_index("ix_booking_payments_booking_id", "booking_payments", ["booking_id"], unique=True)
     op.create_index("ix_booking_payments_payment_status", "booking_payments", ["payment_status"])
     op.create_index(
         "ix_booking_payments_auth_scheduled_for",
@@ -299,10 +291,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("booking_id"),
     )
-    op.create_index(
-        "ix_booking_reschedules_booking_id", "booking_reschedules", ["booking_id"], unique=True
-    )
-
     op.create_index("idx_bookings_student_id", "bookings", ["student_id"])
     op.create_index("idx_bookings_instructor_id", "bookings", ["instructor_id"])
     op.create_index("idx_bookings_date", "bookings", ["booking_date"])

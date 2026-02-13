@@ -13,6 +13,7 @@ import stripe
 
 from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
 from app.models.payment import PaymentIntent
 from app.models.user import User
 from app.repositories.payment_repository import PaymentRepository
@@ -105,10 +106,12 @@ def _create_booking(
 
 
 def _create_payment_intent(db: Session, booking: Booking, payout_cents: int = 8000) -> None:
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    pi_id = (bp.payment_intent_id if bp else None) or f"pi_{generate_ulid()}"
     payment_intent = PaymentIntent(
         id=generate_ulid(),
         booking_id=booking.id,
-        stripe_payment_intent_id=booking.payment_intent_id or f"pi_{generate_ulid()}",
+        stripe_payment_intent_id=pi_id,
         amount=10000,
         application_fee=1000,
         status="requires_capture",
@@ -135,7 +138,9 @@ def _prepare_capture_booking(
         payment_intent_id=payment_intent_id,
     )
     booking.status = BookingStatus.COMPLETED
-    booking.capture_retry_count = capture_retry_count
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    if bp:
+        bp.capture_retry_count = capture_retry_count
     db.commit()
     return booking
 
@@ -153,7 +158,9 @@ def test_process_scheduled_authorizations_success(
         start_dt=start_dt,
         payment_status=PaymentStatus.SCHEDULED.value,
     )
-    booking.auth_scheduled_for = now - timedelta(minutes=5)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
+    bp.auth_scheduled_for = now - timedelta(minutes=5)
     db.commit()
 
     _ensure_stripe_customer(db, test_student.id)
@@ -173,9 +180,11 @@ def test_process_scheduled_authorizations_success(
         results = process_scheduled_authorizations()
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert results["success"] == 1
-    assert booking.payment_status == PaymentStatus.AUTHORIZED.value
-    assert booking.payment_intent_id == "pi_auth_success"
+    assert bp.payment_status == PaymentStatus.AUTHORIZED.value
+    assert bp.payment_intent_id == "pi_auth_success"
 
 
 def test_retry_failed_authorizations_cancels_and_retries(
@@ -191,8 +200,10 @@ def test_retry_failed_authorizations_cancels_and_retries(
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
         payment_method_id="pm_cancel",
     )
-    booking_cancel.auth_attempted_at = now - timedelta(hours=2)
-    booking_cancel.auth_failure_count = 2
+    bp_cancel = db.query(BookingPayment).filter(BookingPayment.booking_id == booking_cancel.id).first()
+    assert bp_cancel is not None
+    bp_cancel.auth_attempted_at = now - timedelta(hours=2)
+    bp_cancel.auth_failure_count = 2
 
     booking_retry = _create_booking(
         db,
@@ -202,8 +213,10 @@ def test_retry_failed_authorizations_cancels_and_retries(
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
         payment_method_id="pm_retry",
     )
-    booking_retry.auth_attempted_at = now - timedelta(hours=2)
-    booking_retry.auth_failure_count = 1
+    bp_retry = db.query(BookingPayment).filter(BookingPayment.booking_id == booking_retry.id).first()
+    assert bp_retry is not None
+    bp_retry.auth_attempted_at = now - timedelta(hours=2)
+    bp_retry.auth_failure_count = 1
     db.commit()
 
     _ensure_stripe_customer(db, test_student.id)
@@ -226,12 +239,16 @@ def test_retry_failed_authorizations_cancels_and_retries(
 
     db.refresh(booking_cancel)
     db.refresh(booking_retry)
+    bp_cancel = db.query(BookingPayment).filter(BookingPayment.booking_id == booking_cancel.id).first()
+    bp_retry = db.query(BookingPayment).filter(BookingPayment.booking_id == booking_retry.id).first()
     assert results["cancelled"] == 1
     assert results["retried"] == 1
     assert booking_cancel.status == BookingStatus.CANCELLED
-    assert booking_cancel.payment_status == PaymentStatus.SETTLED.value
-    assert booking_retry.payment_status == PaymentStatus.AUTHORIZED.value
-    assert booking_retry.payment_intent_id == "pi_retry_success"
+    assert bp_cancel is not None
+    assert bp_cancel.payment_status == PaymentStatus.SETTLED.value
+    assert bp_retry is not None
+    assert bp_retry.payment_status == PaymentStatus.AUTHORIZED.value
+    assert bp_retry.payment_intent_id == "pi_retry_success"
 
 
 def test_retry_failed_authorizations_warn_only_sends_warning(
@@ -247,16 +264,20 @@ def test_retry_failed_authorizations_warn_only_sends_warning(
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
         payment_method_id="pm_warn_only",
     )
-    booking.auth_attempted_at = now - timedelta(minutes=30)
-    booking.auth_failure_count = 1
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
+    bp.auth_attempted_at = now - timedelta(minutes=30)
+    bp.auth_failure_count = 1
     db.commit()
 
     with patch("app.tasks.payment_tasks.NotificationService.send_final_payment_warning") as mock_warning:
         results = retry_failed_authorizations()
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert results["warnings_sent"] >= 1
-    assert booking.auth_failure_t13_warning_sent_at is not None
+    assert bp.auth_failure_t13_warning_sent_at is not None
     mock_warning.assert_called()
 
 
@@ -271,7 +292,9 @@ def test_check_immediate_auth_timeout_cancels_after_window(
         start_dt=now + timedelta(hours=10),
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
     )
-    booking.auth_attempted_at = now - timedelta(minutes=31)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
+    bp.auth_attempted_at = now - timedelta(minutes=31)
     db.commit()
 
     with patch(
@@ -298,7 +321,9 @@ def test_retry_failed_captures_escalates_after_72h(
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
         payment_intent_id=payment_intent_id,
     )
-    booking.capture_failed_at = now - timedelta(hours=80)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
+    bp.capture_failed_at = now - timedelta(hours=80)
     db.commit()
 
     _ensure_connected_account(db, test_instructor_with_availability)
@@ -312,9 +337,11 @@ def test_retry_failed_captures_escalates_after_72h(
 
     db.refresh(booking)
     db.refresh(test_student)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert results["escalated"] == 1
-    assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
-    assert booking.capture_escalated_at is not None
+    assert bp.payment_status == PaymentStatus.MANUAL_REVIEW.value
+    assert bp.capture_escalated_at is not None
     assert test_student.account_locked is True
 
 
@@ -360,9 +387,11 @@ def test_capture_completed_lessons_captures_and_auto_completes(
 
     db.refresh(completed_booking)
     db.refresh(auto_booking)
+    bp_completed = db.query(BookingPayment).filter(BookingPayment.booking_id == completed_booking.id).first()
     assert result["captured"] >= 1
     assert result["auto_completed"] >= 1
-    assert completed_booking.payment_status == PaymentStatus.SETTLED.value
+    assert bp_completed is not None
+    assert bp_completed.payment_status == PaymentStatus.SETTLED.value
     assert auto_booking.status == BookingStatus.COMPLETED
 
 
@@ -390,8 +419,10 @@ def test_capture_late_cancellation_success(
         result = capture_late_cancellation(booking.id)
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
     assert result["success"] is True
-    assert booking.payment_status == PaymentStatus.SETTLED.value
+    assert bp is not None
+    assert bp.payment_status == PaymentStatus.SETTLED.value
 
 
 def test_process_capture_already_captured(
@@ -416,8 +447,10 @@ def test_process_capture_already_captured(
         result = _process_capture_for_booking(booking.id, "instructor_completed")
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
     assert result.get("already_captured") is True
-    assert booking.payment_status == PaymentStatus.SETTLED.value
+    assert bp is not None
+    assert bp.payment_status == PaymentStatus.SETTLED.value
 
 
 def test_process_capture_expired_marks_failed(
@@ -443,9 +476,11 @@ def test_process_capture_expired_marks_failed(
         result = _process_capture_for_booking(booking.id, "instructor_completed")
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert result.get("expired") is True
-    assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-    assert booking.capture_failed_at is not None
+    assert bp.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+    assert bp.capture_failed_at is not None
 
 
 def test_process_capture_card_error_marks_failed(
@@ -471,9 +506,11 @@ def test_process_capture_card_error_marks_failed(
         result = _process_capture_for_booking(booking.id, "instructor_completed")
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert result.get("card_error") is True
-    assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-    assert booking.capture_error == "Card declined"
+    assert bp.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+    assert bp.capture_error == "Card declined"
 
 
 def test_process_capture_generic_error_marks_failed(
@@ -494,8 +531,10 @@ def test_process_capture_generic_error_marks_failed(
         result = _process_capture_for_booking(booking.id, "instructor_completed")
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert result.get("success") is False
-    assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+    assert bp.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
 
 
 def test_process_capture_booking_not_found() -> None:
@@ -623,7 +662,9 @@ def test_process_capture_not_capture_failure_skipped(
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
         payment_intent_id="pi_retry_capture",
     )
-    booking.capture_failed_at = None
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    if bp:
+        bp.capture_failed_at = None
     db.commit()
 
     result = _process_capture_for_booking(booking.id, "retry_failed_capture")
@@ -660,9 +701,11 @@ def test_process_capture_locked_funds_skips_and_settles_child(
     result = _process_capture_for_booking(child_booking.id, "instructor_completed")
 
     db.refresh(child_booking)
+    bp_child = db.query(BookingPayment).filter(BookingPayment.booking_id == child_booking.id).first()
     assert result.get("skipped") is True
     assert result.get("reason") == "locked_funds"
-    assert child_booking.payment_status == PaymentStatus.SETTLED.value
+    assert bp_child is not None
+    assert bp_child.payment_status == PaymentStatus.SETTLED.value
 
 
 def test_process_capture_success_uses_amount_field(
@@ -684,8 +727,10 @@ def test_process_capture_success_uses_amount_field(
         result = _process_capture_for_booking(booking.id, "instructor_completed")
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert result.get("success") is True
-    assert booking.payment_status == PaymentStatus.SETTLED.value
+    assert bp.payment_status == PaymentStatus.SETTLED.value
 
 
 def test_process_capture_invalid_request_notifies_failure(
@@ -715,8 +760,10 @@ def test_process_capture_invalid_request_notifies_failure(
         result = _process_capture_for_booking(booking.id, "instructor_completed")
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert result.get("success") is False
-    assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+    assert bp.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
 
 
 def test_process_capture_credit_forfeit_failure_logs(
@@ -743,8 +790,10 @@ def test_process_capture_credit_forfeit_failure_logs(
         result = _process_capture_for_booking(booking.id, "instructor_completed")
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert result.get("success") is True
-    assert booking.payment_status == PaymentStatus.SETTLED.value
+    assert bp.payment_status == PaymentStatus.SETTLED.value
 
 
 def test_mark_child_booking_settled_updates_status(
@@ -765,7 +814,9 @@ def test_mark_child_booking_settled_updates_status(
     _mark_child_booking_settled(booking.id)
 
     db.refresh(booking)
-    assert booking.payment_status == PaymentStatus.SETTLED.value
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
+    assert bp.payment_status == PaymentStatus.SETTLED.value
 
 
 def test_mark_child_booking_settled_missing_booking() -> None:
@@ -898,9 +949,11 @@ def test_process_authorization_existing_payment_intent_confirms(
         result = _process_authorization_for_booking(booking.id, 30.0)
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert result.get("success") is True
-    assert booking.payment_status == PaymentStatus.AUTHORIZED.value
-    assert booking.payment_intent_id == "pi_existing"
+    assert bp.payment_status == PaymentStatus.AUTHORIZED.value
+    assert bp.payment_intent_id == "pi_existing"
     assert booking.status == BookingStatus.CONFIRMED
 
 
@@ -938,8 +991,10 @@ def test_process_authorization_existing_intent_unexpected_status_marks_failed(
         result = _process_authorization_for_booking(booking.id, 30.0)
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert result.get("success") is False
-    assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+    assert bp.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
 
 
 def test_process_authorization_credits_only_handles_notification_error(
@@ -975,8 +1030,10 @@ def test_process_authorization_credits_only_handles_notification_error(
         result = _process_authorization_for_booking(booking.id, 30.0)
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert result.get("success") is True
-    assert booking.payment_status == PaymentStatus.AUTHORIZED.value
+    assert bp.payment_status == PaymentStatus.AUTHORIZED.value
     assert booking.status == BookingStatus.CONFIRMED
 
 
@@ -1015,9 +1072,11 @@ def test_process_authorization_missing_payment_method_marks_failed(
         result = _process_authorization_for_booking(booking.id, 10.0)
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert result.get("success") is False
-    assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-    assert booking.auth_failure_count == 1
+    assert bp.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+    assert bp.auth_failure_count == 1
 
 
 def test_process_authorization_not_eligible_skipped(
@@ -1071,7 +1130,9 @@ def test_process_retry_authorization_failure_updates_booking(
         start_dt=now + timedelta(hours=20),
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
     )
-    booking.auth_failure_count = 1
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
+    bp.auth_failure_count = 1
     db.commit()
 
     _ensure_stripe_customer(db, test_student.id)
@@ -1089,9 +1150,11 @@ def test_process_retry_authorization_failure_updates_booking(
         result = _process_retry_authorization(booking.id, 20.0)
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert result.get("success") is False
-    assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-    assert booking.auth_failure_count == 2
+    assert bp.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+    assert bp.auth_failure_count == 2
 
 
 def test_process_retry_authorization_booking_not_found(db: Session) -> None:
@@ -1244,8 +1307,10 @@ def test_process_retry_authorization_credits_only(
         result = _process_retry_authorization(booking.id, 20.0)
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert result.get("success") is True
-    assert booking.payment_status == PaymentStatus.AUTHORIZED.value
+    assert bp.payment_status == PaymentStatus.AUTHORIZED.value
 
 
 def test_process_scheduled_authorizations_sends_t24_warning(
@@ -1261,7 +1326,9 @@ def test_process_scheduled_authorizations_sends_t24_warning(
         payment_status=PaymentStatus.SCHEDULED.value,
         payment_method_id="pm_warn",
     )
-    booking.auth_scheduled_for = now - timedelta(minutes=1)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
+    bp.auth_scheduled_for = now - timedelta(minutes=1)
     db.commit()
 
     _ensure_stripe_customer(db, test_student.id)
@@ -1281,8 +1348,10 @@ def test_process_scheduled_authorizations_sends_t24_warning(
         results = process_scheduled_authorizations()
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     assert results["failed"] >= 1
-    assert booking.auth_failure_first_email_sent_at is not None
+    assert bp.auth_failure_first_email_sent_at is not None
     mock_warning.assert_called()
 
 
@@ -1299,7 +1368,9 @@ def test_process_scheduled_authorizations_legacy_window_sends_t24_warning(
         payment_status=PaymentStatus.SCHEDULED.value,
         payment_method_id="pm_warn_legacy",
     )
-    booking.auth_scheduled_for = None
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    if bp:
+        bp.auth_scheduled_for = None
     db.commit()
 
     _ensure_stripe_customer(db, test_student.id)
@@ -1319,11 +1390,13 @@ def test_process_scheduled_authorizations_legacy_window_sends_t24_warning(
         results = process_scheduled_authorizations()
 
     db.refresh(booking)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
     payment_repo = PaymentRepository(db)
     events = payment_repo.get_payment_events_for_booking(booking.id)
 
     assert results["failed"] >= 1
-    assert booking.auth_failure_first_email_sent_at is not None
+    assert bp.auth_failure_first_email_sent_at is not None
     assert "t24_first_failure_email_sent" in {event.event_type for event in events}
     mock_warning.assert_called()
 
@@ -1341,7 +1414,9 @@ def test_process_scheduled_authorizations_t24_email_failure_logs(
         payment_status=PaymentStatus.SCHEDULED.value,
         payment_method_id="pm_warn_fail",
     )
-    booking.auth_scheduled_for = None
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    if bp:
+        bp.auth_scheduled_for = None
     db.commit()
 
     _ensure_stripe_customer(db, test_student.id)
@@ -1399,7 +1474,9 @@ def test_cancel_booking_payment_failed_credit_release_failure(
         start_dt=now + timedelta(hours=10),
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
     )
-    booking.credits_reserved_cents = 1000
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    if bp:
+        bp.credits_reserved_cents = 1000
     db.commit()
 
     with patch(

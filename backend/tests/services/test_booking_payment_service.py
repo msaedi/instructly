@@ -6,6 +6,7 @@ import ulid
 
 # Assuming test utilities/fixtures provide these imports; adjust paths if needed
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_payment import BookingPayment
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
@@ -68,9 +69,11 @@ async def test_confirm_booking_payment_boundary_within_24h(db, auth_headers_stud
         total_price=100.0,
         duration_minutes=60,
         status=BookingStatus.PENDING,
-        payment_status = "payment_method_required",
     )
     db.add(booking)
+    db.flush()
+    bp = BookingPayment(id=str(ulid.ULID()), booking_id=booking.id, payment_status="payment_method_required")
+    db.add(bp)
     db.flush()
 
     import app.services.booking_service as mod
@@ -87,8 +90,13 @@ async def test_confirm_booking_payment_boundary_within_24h(db, auth_headers_stud
     def _authorize_now(booking_id: str, _hours_until: float):
         target = db.query(Booking).filter(Booking.id == booking_id).first()
         assert target is not None
-        target.payment_status = "authorized"
-        target.payment_intent_id = "pi_test"
+        from app.models.booking_payment import BookingPayment as BP
+        bp = db.query(BP).filter(BP.booking_id == target.id).first()
+        if bp:
+            bp.payment_status = "authorized"
+            bp.payment_intent_id = "pi_test"
+        else:
+            db.add(BP(booking_id=target.id, payment_status="authorized", payment_intent_id="pi_test"))
         db.flush()
         return {"success": True}
 
@@ -112,7 +120,8 @@ async def test_confirm_booking_payment_boundary_within_24h(db, auth_headers_stud
         mod.datetime = RealDT
 
     assert confirmed.status == BookingStatus.CONFIRMED
-    assert confirmed.payment_status == "authorized"
+    confirmed.payment_detail = db.query(BookingPayment).filter_by(booking_id=confirmed.id).first()
+    assert confirmed.payment_detail.payment_status == "authorized"
 
 
 @pytest.mark.anyio
@@ -155,9 +164,11 @@ async def test_confirm_booking_payment_boundary_beyond_24h(db, auth_headers_stud
         total_price=100.0,
         duration_minutes=60,
         status=BookingStatus.PENDING,
-        payment_status = "payment_method_required",
     )
     db.add(booking)
+    db.flush()
+    bp = BookingPayment(id=str(ulid.ULID()), booking_id=booking.id, payment_status="payment_method_required")
+    db.add(bp)
     db.flush()
 
     import app.services.booking_service as mod
@@ -192,7 +203,7 @@ async def test_confirm_booking_payment_boundary_beyond_24h(db, auth_headers_stud
         mod.datetime = RealDT
 
     assert confirmed.status == BookingStatus.CONFIRMED
-    assert confirmed.payment_status == "scheduled"
+    assert confirmed.payment_detail.payment_status == "scheduled"
 
 """
 Tests for BookingService payment functionality (Phase 2).
@@ -389,8 +400,9 @@ class TestBookingPaymentService:
         # Verify booking created with PENDING status
         assert booking.id is not None
         assert booking.status == BookingStatus.PENDING
-        assert booking.payment_status == "payment_method_required"
-        assert booking.payment_intent_id is None
+        booking.payment_detail = db.query(BookingPayment).filter_by(booking_id=booking.id).first()
+        assert booking.payment_detail.payment_status == "payment_method_required"
+        assert (booking.payment_detail is None or booking.payment_detail.payment_intent_id is None)
         assert hasattr(booking, "setup_intent_client_secret")
         assert booking.setup_intent_client_secret == "seti_test123_secret"
 
@@ -467,16 +479,23 @@ class TestBookingPaymentService:
             total_price=100.00,
             duration_minutes=60,
             status=BookingStatus.PENDING,
-            payment_status = "payment_method_required",
         )
         db.add(booking)
+        db.flush()
+        bp = BookingPayment(id=str(ulid.ULID()), booking_id=booking.id, payment_status="payment_method_required")
+        db.add(bp)
         db.flush()
 
         def _authorize_now(booking_id: str, _hours_until: float):
             target = db.query(Booking).filter(Booking.id == booking_id).first()
             assert target is not None
-            target.payment_status = "authorized"
-            target.payment_intent_id = "pi_test"
+            from app.models.booking_payment import BookingPayment as BP
+            bp = db.query(BP).filter(BP.booking_id == booking_id).first()
+            if not bp:
+                bp = BP(id=str(ulid.ULID()), booking_id=booking_id)
+                db.add(bp)
+            bp.payment_status = "authorized"
+            bp.payment_intent_id = "pi_test"
             db.flush()
             return {"success": True}
 
@@ -495,8 +514,9 @@ class TestBookingPaymentService:
 
         # Verify booking updated correctly
         assert confirmed_booking.status == BookingStatus.CONFIRMED
-        assert confirmed_booking.payment_method_id == "pm_test123"
-        assert confirmed_booking.payment_status == "authorized"
+        confirmed_booking.payment_detail = db.query(BookingPayment).filter_by(booking_id=confirmed_booking.id).first()
+        assert confirmed_booking.payment_detail.payment_method_id == "pm_test123"
+        assert confirmed_booking.payment_detail.payment_status == "authorized"
         assert confirmed_booking.confirmed_at is not None
 
         # Verify immediate auth event created
@@ -534,9 +554,11 @@ class TestBookingPaymentService:
             total_price=100.00,
             duration_minutes=60,
             status=BookingStatus.PENDING,
-            payment_status = "payment_method_required",
         )
         db.add(booking)
+        db.flush()
+        bp = BookingPayment(id=str(ulid.ULID()), booking_id=booking.id, payment_status="payment_method_required")
+        db.add(bp)
         db.flush()
 
         # Confirm payment
@@ -550,8 +572,8 @@ class TestBookingPaymentService:
 
         # Verify booking updated correctly
         assert confirmed_booking.status == BookingStatus.CONFIRMED
-        assert confirmed_booking.payment_method_id == "pm_test456"
-        assert confirmed_booking.payment_status == "scheduled"
+        assert confirmed_booking.payment_detail.payment_method_id == "pm_test456"
+        assert confirmed_booking.payment_detail.payment_status == "scheduled"
 
         # Verify scheduled auth event created
         scheduled_event = db.query(PaymentEvent).filter_by(booking_id=booking.id, event_type="auth_scheduled").first()

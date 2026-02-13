@@ -13,6 +13,7 @@ import ulid
 from app.core.exceptions import BusinessRuleException
 from app.models.booking import Booking, BookingStatus
 from app.models.booking_lock import BookingLock
+from app.models.booking_payment import BookingPayment
 from app.models.booking_reschedule import BookingReschedule
 from app.models.instructor import InstructorProfile
 from app.models.payment import StripeConnectedAccount
@@ -141,13 +142,28 @@ def _create_booking(
         status=status,
         meeting_location="Test",
         location_type="neutral_location",
+    )
+    db.add(booking)
+    db.flush()
+
+    bp = BookingPayment(
+        booking_id=booking.id,
         payment_method_id="pm_test",
         payment_intent_id=payment_intent_id,
         payment_status=payment_status,
     )
-    db.add(booking)
+    db.add(bp)
     db.flush()
+    booking.payment_detail = bp
+
     return booking
+
+
+def _reload_payment(db: Session, booking: Booking) -> None:
+    """Re-attach payment_detail after db.refresh (noload relationship)."""
+    booking.payment_detail = (
+        db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).one_or_none()
+    )
 
 
 def _mock_charge_context() -> SimpleNamespace:
@@ -196,12 +212,13 @@ def test_scheduled_booking_in_12_24h_triggers_lock(db: Session) -> None:
         service.activate_lock_for_reschedule(booking.id)
 
     db.refresh(booking)
+    _reload_payment(db, booking)
     lock = db.query(BookingLock).filter(BookingLock.booking_id == booking.id).one_or_none()
     reschedule = (
         db.query(BookingReschedule).filter(BookingReschedule.booking_id == booking.id).one_or_none()
     )
-    assert booking.payment_status == "locked"
-    assert booking.payment_intent_id == "pi_auth"
+    assert booking.payment_detail.payment_status == "locked"
+    assert booking.payment_detail.payment_intent_id == "pi_auth"
     assert lock is not None
     assert reschedule is not None
     assert lock.locked_at is not None
@@ -243,7 +260,8 @@ def test_scheduled_booking_auth_failure_blocks_lock(db: Session) -> None:
             service.activate_lock_for_reschedule(booking.id)
 
     db.refresh(booking)
-    assert booking.payment_status == "payment_method_required"
+    _reload_payment(db, booking)
+    assert booking.payment_detail.payment_status == "payment_method_required"
     mock_capture.assert_not_called()
     mock_retry.assert_called()
 
@@ -278,8 +296,9 @@ def test_authorized_booking_in_12_24h_still_triggers_lock(db: Session) -> None:
         service.activate_lock_for_reschedule(booking.id)
 
     db.refresh(booking)
+    _reload_payment(db, booking)
     lock = db.query(BookingLock).filter(BookingLock.booking_id == booking.id).one_or_none()
-    assert booking.payment_status == "locked"
+    assert booking.payment_detail.payment_status == "locked"
     assert lock is not None
     assert lock.locked_at is not None
     mock_capture.assert_called_once()

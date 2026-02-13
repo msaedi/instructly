@@ -144,7 +144,8 @@ class RefundService(BaseService):
         )
 
         warnings: list[str] = []
-        payment_status = (booking.payment_status or payment.status or "").lower()
+        pd = booking.payment_detail
+        payment_status = ((pd.payment_status if pd else None) or payment.status or "").lower()
         if payment_status == "settled":
             warnings.append("Instructor payout already transferred - this will trigger a clawback")
         if policy_result.method == "credit" and reason_code == RefundReasonCode.CANCEL_POLICY:
@@ -404,8 +405,9 @@ class RefundService(BaseService):
             if payment.instructor_payout_cents is not None
             else max(0, gross_cents - platform_fee_cents)
         )
-        payment_status = booking.payment_status or payment.status or "unknown"
-        captured_at = getattr(booking, "auth_attempted_at", None)
+        pd = booking.payment_detail
+        payment_status = (pd.payment_status if pd else None) or payment.status or "unknown"
+        captured_at = pd.auth_attempted_at if pd else None
 
         return RefundImpact(
             refund_method=policy_result.method or "",
@@ -430,16 +432,18 @@ class RefundService(BaseService):
         reason_code: RefundReasonCode,
     ) -> None:
         now = datetime.now(timezone.utc)
+        pd = booking.payment_detail
         instructor_payout_amount = max(
             0,
-            (booking.instructor_payout_amount or 0) + policy_result.instructor_payout_delta_cents,
+            ((pd.instructor_payout_amount if pd else None) or 0)
+            + policy_result.instructor_payout_delta_cents,
         )
         self.booking_repo.apply_refund_updates(
             booking,
             status=BookingStatus.CANCELLED,
             cancelled_at=now,
             cancellation_reason=reason_code.value,
-            settlement_outcome=booking.settlement_outcome or "admin_refund",
+            settlement_outcome=(pd.settlement_outcome if pd else None) or "admin_refund",
             refunded_to_card_amount=policy_result.student_card_refund_cents,
             student_credit_amount=policy_result.student_credit_cents,
             instructor_payout_amount=instructor_payout_amount,

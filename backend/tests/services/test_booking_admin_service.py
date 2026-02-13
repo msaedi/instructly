@@ -5,6 +5,8 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy.orm import selectinload
+import ulid
 
 from app.core.exceptions import (
     ConflictException,
@@ -14,6 +16,7 @@ from app.core.exceptions import (
 )
 from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
 from app.models.instructor import InstructorProfile
 from app.models.payment import PaymentIntent
 from app.models.service_catalog import InstructorService
@@ -178,10 +181,12 @@ def _attach_payment(db, booking_id: str, *, payment_status: str = PaymentStatus.
         status="succeeded" if payment_status == PaymentStatus.SETTLED.value else "requires_capture",
     )
     db.add(payment)
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
-    if booking:
-        booking.payment_intent_id = payment_intent_id
-        booking.payment_status = payment_status
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking_id).first()
+    if not bp:
+        bp = BookingPayment(id=str(ulid.ULID()), booking_id=booking_id)
+        db.add(bp)
+    bp.payment_intent_id = payment_intent_id
+    bp.payment_status = payment_status
     db.flush()
 
 
@@ -313,10 +318,12 @@ def test_force_cancel_preview_requires_start_time_for_policy_based(db, test_stud
     fake_booking = SimpleNamespace(
         id="bk1",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_123",
+        ),
         booking_start_utc=None,
         booking_end_utc=None,
-        payment_intent_id="pi_123",
         total_price=100,
         hourly_rate=100,
         duration_minutes=60,
@@ -754,16 +761,18 @@ def test_cancel_without_refund_capture_failure_does_not_set_settled(db, test_stu
     )
     _attach_payment(db, booking_id, payment_status=PaymentStatus.AUTHORIZED.value)
     db.commit()
+    db.expire_all()
 
     stripe = StripeCaptureFail()
     service, _ = _build_service(db, stripe=stripe)
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    booking = db.query(Booking).options(selectinload(Booking.payment_detail)).filter(Booking.id == booking_id).first()
     service._cancel_without_refund(booking, reason_code="ADMIN_DISCRETION")
     db.commit()
+    db.expire_all()
 
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    booking = db.query(Booking).options(selectinload(Booking.payment_detail)).filter(Booking.id == booking_id).first()
     assert booking.status == BookingStatus.CANCELLED
-    assert booking.payment_status == PaymentStatus.AUTHORIZED.value
+    assert booking.payment_detail.payment_status == PaymentStatus.AUTHORIZED.value
 
 
 def test_cancel_with_full_refund_without_payment_intent(db, test_student, test_instructor_with_availability):
@@ -774,12 +783,18 @@ def test_cancel_with_full_refund_without_payment_intent(db, test_student, test_i
         instructor_id=test_instructor_with_availability.id,
         instructor_service_id=service_id,
     )
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
-    booking.payment_intent_id = None
-    booking.payment_status = PaymentStatus.AUTHORIZED.value
+    booking = db.query(Booking).options(selectinload(Booking.payment_detail)).filter(Booking.id == booking_id).first()
+    bp_upd = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    if not bp_upd:
+        bp_upd = BookingPayment(id=str(ulid.ULID()), booking_id=booking.id)
+        db.add(bp_upd)
+    bp_upd.payment_intent_id = None
+    bp_upd.payment_status = PaymentStatus.AUTHORIZED.value
     booking.total_price = 100
     db.commit()
 
+    db.expire_all()
+    booking = db.query(Booking).options(selectinload(Booking.payment_detail)).filter(Booking.id == booking_id).first()
     service, _ = _build_service(db)
     refund_id, refund_issued = service._cancel_with_full_refund(
         booking,
@@ -789,9 +804,9 @@ def test_cancel_with_full_refund_without_payment_intent(db, test_student, test_i
 
     assert refund_id is None
     assert refund_issued is False
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    booking = db.query(Booking).options(selectinload(Booking.payment_detail)).filter(Booking.id == booking_id).first()
     assert booking.status == BookingStatus.CANCELLED
-    assert booking.payment_status == PaymentStatus.AUTHORIZED.value
+    assert booking.payment_detail.payment_status == PaymentStatus.AUTHORIZED.value
 
 
 def test_preview_force_complete_warnings_and_ineligible(db, test_student, test_instructor_with_availability):
@@ -807,11 +822,13 @@ def test_preview_force_complete_warnings_and_ineligible(db, test_student, test_i
     fake_booking = SimpleNamespace(
         id=booking_id,
         status=BookingStatus.CONFIRMED,
-        payment_status="failed",
+        payment_detail=SimpleNamespace(
+            payment_status="failed",
+            payment_intent_id="pi_123",
+        ),
         booking_start_utc=datetime.now(timezone.utc),
         booking_end_utc=datetime.now(timezone.utc) - timedelta(hours=1),
         duration_minutes=60,
-        payment_intent_id="pi_123",
         total_price=100,
         hourly_rate=100,
     )
@@ -830,9 +847,16 @@ def test_preview_force_complete_warnings_and_ineligible(db, test_student, test_i
     assert response.ineligible_reason == "Booking payment not in a capture-ready state"
 
     booking = db.query(Booking).filter(Booking.id == booking_id).first()
-    booking.payment_status = PaymentStatus.AUTHORIZED.value
+    from app.models.booking_payment import BookingPayment as BP
+    bp = db.query(BP).filter(BP.booking_id == booking.id).first()
+    if bp:
+        bp.payment_status = PaymentStatus.AUTHORIZED.value
+    else:
+        db.add(BP(booking_id=booking.id, payment_status=PaymentStatus.AUTHORIZED.value))
+    db.flush()
     booking.booking_end_utc = datetime.now(timezone.utc) + timedelta(hours=4)
     db.commit()
+    db.expire_all()
 
     service2, _ = _build_service(db)
     response = service2.preview_force_complete(
@@ -843,8 +867,10 @@ def test_preview_force_complete_warnings_and_ineligible(db, test_student, test_i
     )
     assert any("future" in warning for warning in response.warnings)
 
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
     booking.booking_end_utc = datetime.now(timezone.utc) - timedelta(days=8)
     db.commit()
+    db.expire_all()
 
     response = service2.preview_force_complete(
         booking_id=booking_id,
@@ -868,6 +894,7 @@ async def test_execute_force_complete_capture_amount_fallback(db, test_student, 
     booking = db.query(Booking).filter(Booking.id == booking_id).first()
     booking.booking_end_utc = datetime.now(timezone.utc) - timedelta(hours=1)
     db.commit()
+    db.expire_all()
 
     def _fake_capture(_booking_id, _source):
         return {"success": True, "amount_received": "bad"}
@@ -904,6 +931,7 @@ async def test_execute_force_complete_capture_exception(db, test_student, test_i
     )
     _attach_payment(db, booking_id, payment_status=PaymentStatus.AUTHORIZED.value)
     db.commit()
+    db.expire_all()
 
     def _boom(_booking_id, _source):
         raise RuntimeError("boom")
@@ -1135,10 +1163,10 @@ def test_booking_admin_resolve_payment_handles_repo_errors():
 
     service = BookingAdminService.__new__(BookingAdminService)
     service.payment_repo = PaymentRepo()
-    booking = SimpleNamespace(payment_intent_id="pi_123", id="bk1")
+    booking = SimpleNamespace(payment_detail=SimpleNamespace(payment_intent_id="pi_123"), id="bk1")
     assert service._resolve_payment(booking) is None
 
-    booking.payment_intent_id = None
+    booking.payment_detail = SimpleNamespace(payment_intent_id=None)
     assert service._resolve_payment(booking) is None
 
 
@@ -1204,7 +1232,7 @@ async def test_execute_force_cancel_success_no_refund(db, test_student, test_ins
     assert response.success is True
     booking = db.query(Booking).filter(Booking.id == booking_id).first()
     assert booking.status == BookingStatus.CANCELLED
-    assert booking.payment_status == PaymentStatus.SETTLED.value
+    assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
 
 
 def test_force_cancel_preview_not_found(db):
@@ -1435,11 +1463,13 @@ def test_force_complete_preview_uses_start_plus_duration(db):
     fake_booking = SimpleNamespace(
         id="bk1",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_123",
+        ),
         booking_start_utc=datetime.now(timezone.utc) - timedelta(hours=2),
         booking_end_utc=None,
         duration_minutes=60,
-        payment_intent_id="pi_123",
         total_price=100,
         hourly_rate=100,
     )
@@ -1566,7 +1596,9 @@ async def test_execute_force_complete_missing_inside_transaction(db):
     booking = SimpleNamespace(
         id="bk1",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+        ),
         booking_end_utc=None,
     )
 
@@ -1668,9 +1700,10 @@ def test_cancel_with_full_refund_cancels_payment_intent(db, test_student, test_i
     )
     _attach_payment(db, booking_id, payment_status=PaymentStatus.AUTHORIZED.value)
     db.commit()
+    db.expire_all()
 
     service, stripe = _build_service(db)
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    booking = db.query(Booking).options(selectinload(Booking.payment_detail)).filter(Booking.id == booking_id).first()
     refund_id, refund_issued = service._cancel_with_full_refund(
         booking,
         reason_code="ADMIN_DISCRETION",
@@ -1693,8 +1726,10 @@ def test_cancel_with_full_refund_missing_booking_in_transaction(db):
     service, _ = _build_service(db)
     booking = SimpleNamespace(
         id="bk1",
-        payment_intent_id=None,
-        payment_status=PaymentStatus.AUTHORIZED.value,
+        payment_detail=SimpleNamespace(
+            payment_intent_id=None,
+            payment_status=PaymentStatus.AUTHORIZED.value,
+        ),
         booking_start_utc=datetime.now(timezone.utc),
         total_price=0,
         hourly_rate=0,
@@ -1713,8 +1748,10 @@ def test_cancel_without_refund_missing_booking_in_transaction(db):
     service, _ = _build_service(db)
     booking = SimpleNamespace(
         id="bk1",
-        payment_intent_id=None,
-        payment_status=PaymentStatus.AUTHORIZED.value,
+        payment_detail=SimpleNamespace(
+            payment_intent_id=None,
+            payment_status=PaymentStatus.AUTHORIZED.value,
+        ),
     )
     service.booking_repo = RepoStub()
     with pytest.raises(NotFoundException):
@@ -1976,11 +2013,13 @@ def test_preview_force_complete_missing_times_warns(db, test_student, test_instr
     fake_booking = SimpleNamespace(
         id="bk1",
         status=BookingStatus.CONFIRMED,
-        payment_status=PaymentStatus.AUTHORIZED.value,
+        payment_detail=SimpleNamespace(
+            payment_status=PaymentStatus.AUTHORIZED.value,
+            payment_intent_id="pi_123",
+        ),
         booking_start_utc=None,
         booking_end_utc=None,
         duration_minutes=None,
-        payment_intent_id="pi_123",
         total_price=100,
         hourly_rate=100,
     )
@@ -2109,10 +2148,11 @@ def test_cancel_with_full_refund_handles_credit_release_failure(db, test_student
     )
     _attach_payment(db, booking_id, payment_status=PaymentStatus.SETTLED.value)
     db.commit()
+    db.expire_all()
 
     credit = CreditFail()
     service, _ = _build_service(db, credit=credit)
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    booking = db.query(Booking).options(selectinload(Booking.payment_detail)).filter(Booking.id == booking_id).first()
     refund_id, refund_issued = service._cancel_with_full_refund(
         booking,
         reason_code="ADMIN_DISCRETION",

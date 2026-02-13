@@ -36,7 +36,7 @@ def test_refund_policy_engine_rejects_non_refundable_payment_status():
     engine = RefundPolicyEngine()
     booking = SimpleNamespace(
         status=BookingStatus.CONFIRMED,
-        payment_status="processing",
+        payment_detail=SimpleNamespace(payment_status="processing"),
         booking_start_utc=datetime.now(timezone.utc) + timedelta(hours=30),
     )
     payment = SimpleNamespace(status="processing", amount=10000, application_fee=1000)
@@ -51,7 +51,7 @@ def test_refund_policy_engine_rejects_missing_booking_start_time():
     engine = RefundPolicyEngine()
     booking = SimpleNamespace(
         status=BookingStatus.CONFIRMED,
-        payment_status="authorized",
+        payment_detail=SimpleNamespace(payment_status="authorized"),
         booking_start_utc=None,
     )
     payment = SimpleNamespace(status="authorized", amount=10000, application_fee=1000)
@@ -66,7 +66,7 @@ def test_refund_policy_engine_handles_naive_start_time_for_window_logic():
     engine = RefundPolicyEngine()
     booking = SimpleNamespace(
         status=BookingStatus.CONFIRMED,
-        payment_status="authorized",
+        payment_detail=SimpleNamespace(payment_status="authorized"),
         booking_start_utc=(datetime.now(timezone.utc) + timedelta(hours=18)).replace(tzinfo=None),
     )
     payment = SimpleNamespace(status="authorized", amount=10000, application_fee=1000)
@@ -88,7 +88,7 @@ def test_refund_policy_engine_zero_gross_skips_platform_fee_proration():
     engine = RefundPolicyEngine()
     booking = SimpleNamespace(
         status=BookingStatus.CONFIRMED,
-        payment_status="authorized",
+        payment_detail=SimpleNamespace(payment_status="authorized"),
         booking_start_utc=datetime.now(timezone.utc) + timedelta(hours=30),
     )
     payment = SimpleNamespace(status="authorized", amount=0, application_fee=500)

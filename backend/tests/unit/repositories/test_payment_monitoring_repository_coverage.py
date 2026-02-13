@@ -71,6 +71,7 @@ class TestGetPaymentStatusCounts:
         mock_db = MagicMock()
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
+        mock_query.join.return_value = mock_query
         mock_query.filter.return_value = mock_query
         mock_query.group_by.return_value = mock_query
 
@@ -96,6 +97,7 @@ class TestGetPaymentStatusCounts:
         mock_db = MagicMock()
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
+        mock_query.join.return_value = mock_query
         mock_query.filter.return_value = mock_query
         mock_query.group_by.return_value = mock_query
         mock_query.all.return_value = []
@@ -177,6 +179,7 @@ class TestCountOverdueAuthorizations:
         mock_db = MagicMock()
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
+        mock_query.join.return_value = mock_query
         mock_query.filter.return_value = mock_query
         mock_query.count.return_value = 0
 
@@ -192,6 +195,7 @@ class TestCountOverdueAuthorizations:
         mock_db = MagicMock()
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
+        mock_query.join.return_value = mock_query
         mock_query.filter.return_value = mock_query
         mock_query.count.return_value = 5
 
@@ -207,6 +211,7 @@ class TestCountOverdueAuthorizations:
         mock_db = MagicMock()
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
+        mock_query.join.return_value = mock_query
         mock_query.filter.return_value = mock_query
         mock_query.count.return_value = 0
 

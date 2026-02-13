@@ -600,6 +600,8 @@ class BookingResponse(BookingBase):
         Create BookingResponse from Booking ORM model.
         Handles privacy transformation automatically.
         """
+        # NOTE: Satellite field extraction is duplicated between BookingResponse.from_booking()
+        # and BookingCreateResponse.from_booking(). When adding satellite fields, update BOTH.
 
         # Build the response with proper privacy protection
         # Defensive getters for possibly mocked attributes in tests
@@ -644,7 +646,7 @@ class BookingResponse(BookingBase):
         def _payment_value(field_name: str) -> object:
             if payment_detail is not None:
                 return getattr(payment_detail, field_name, None)
-            return getattr(booking, field_name, None)
+            return None
 
         response_data = {
             # Base fields from BookingBase
@@ -797,6 +799,8 @@ class BookingCreateResponse(BookingResponse):
         Create BookingCreateResponse from Booking ORM model.
         Inherits privacy protection from parent and adds payment setup fields.
         """
+        # NOTE: Satellite field extraction is duplicated between BookingResponse.from_booking()
+        # and BookingCreateResponse.from_booking(). When adding satellite fields, update BOTH.
 
         def _safe_datetime(value: object) -> Optional[datetime]:
             return value if isinstance(value, datetime) else None
@@ -810,6 +814,11 @@ class BookingCreateResponse(BookingResponse):
             if isinstance(value, (int, float, Decimal)):
                 return float(value)
             return None
+
+        no_show_detail = getattr(booking, "no_show_detail", None)
+        lock_detail = getattr(booking, "lock_detail", None)
+        payment_detail = getattr(booking, "payment_detail", None)
+        reschedule_detail = getattr(booking, "reschedule_detail", None)
 
         # Use the parent's from_booking method to build base response
         response_data = {
@@ -851,6 +860,64 @@ class BookingCreateResponse(BookingResponse):
             # Cancellation info
             "cancelled_by_id": booking.cancelled_by_id,
             "cancellation_reason": booking.cancellation_reason,
+            # Reschedule tracking
+            "rescheduled_from_booking_id": _safe_str(
+                getattr(booking, "rescheduled_from_booking_id", None)
+            ),
+            "rescheduled_to_booking_id": _safe_str(
+                getattr(reschedule_detail, "rescheduled_to_booking_id", None)
+            ),
+            "has_locked_funds": getattr(booking, "has_locked_funds", None),
+            # No-show tracking
+            "no_show_reported_by": _safe_str(getattr(no_show_detail, "no_show_reported_by", None)),
+            "no_show_reported_at": _safe_datetime(
+                getattr(no_show_detail, "no_show_reported_at", None)
+            ),
+            "no_show_type": _safe_str(getattr(no_show_detail, "no_show_type", None)),
+            "no_show_disputed": getattr(no_show_detail, "no_show_disputed", None)
+            if no_show_detail
+            else None,
+            "no_show_disputed_at": _safe_datetime(
+                getattr(no_show_detail, "no_show_disputed_at", None)
+            ),
+            "no_show_dispute_reason": _safe_str(
+                getattr(no_show_detail, "no_show_dispute_reason", None)
+            ),
+            "no_show_resolved_at": _safe_datetime(
+                getattr(no_show_detail, "no_show_resolved_at", None)
+            ),
+            "no_show_resolution": _safe_str(getattr(no_show_detail, "no_show_resolution", None)),
+            # Settlement tracking
+            "settlement_outcome": _safe_str(
+                getattr(payment_detail, "settlement_outcome", None) if payment_detail else None
+            ),
+            "student_credit_amount": getattr(booking, "student_credit_amount", None),
+            "instructor_payout_amount": getattr(payment_detail, "instructor_payout_amount", None)
+            if payment_detail
+            else None,
+            "refunded_to_card_amount": getattr(booking, "refunded_to_card_amount", None),
+            "credits_reserved_cents": getattr(payment_detail, "credits_reserved_cents", None)
+            if payment_detail
+            else None,
+            "auth_scheduled_for": _safe_datetime(
+                getattr(payment_detail, "auth_scheduled_for", None) if payment_detail else None
+            ),
+            "auth_attempted_at": _safe_datetime(
+                getattr(payment_detail, "auth_attempted_at", None) if payment_detail else None
+            ),
+            "auth_failure_count": getattr(payment_detail, "auth_failure_count", None)
+            if payment_detail
+            else None,
+            "auth_last_error": _safe_str(
+                getattr(payment_detail, "auth_last_error", None) if payment_detail else None
+            ),
+            # Lock tracking
+            "locked_at": _safe_datetime(getattr(lock_detail, "locked_at", None)),
+            "locked_amount_cents": getattr(lock_detail, "locked_amount_cents", None)
+            if lock_detail
+            else None,
+            "lock_resolved_at": _safe_datetime(getattr(lock_detail, "lock_resolved_at", None)),
+            "lock_resolution": _safe_str(getattr(lock_detail, "lock_resolution", None)),
             # Related objects with privacy protection
             "instructor": InstructorInfo.from_user(booking.instructor),
             "student": StudentInfo(

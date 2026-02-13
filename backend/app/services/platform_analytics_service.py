@@ -464,7 +464,8 @@ class PlatformAnalyticsService(BaseService):
             if status == "COMPLETED":
                 completed += 1
                 gmv += _decimal(booking.total_price)
-                payout_cents += int(booking.instructor_payout_amount or 0)
+                pd = booking.payment_detail
+                payout_cents += int((pd.instructor_payout_amount if pd else None) or 0)
             elif status == "CANCELLED":
                 cancelled += 1
         instructor_payouts = Decimal(payout_cents) / Decimal("100")
@@ -518,7 +519,10 @@ class PlatformAnalyticsService(BaseService):
             entry["bookings"] = int(entry["bookings"]) + 1
             if (booking.status or "").upper() == "COMPLETED":
                 gmv = _decimal(booking.total_price)
-                payout = Decimal(int(booking.instructor_payout_amount or 0)) / Decimal("100")
+                pd = booking.payment_detail
+                payout = Decimal(int((pd.instructor_payout_amount if pd else None) or 0)) / Decimal(
+                    "100"
+                )
                 entry["gmv"] = Decimal(entry["gmv"]) + gmv
                 entry["revenue"] = Decimal(entry["revenue"]) + (gmv - payout)
 

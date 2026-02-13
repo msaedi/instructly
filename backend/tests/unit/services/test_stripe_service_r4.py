@@ -216,8 +216,10 @@ class TestCreateRetryAndProcessErrors:
             id="booking_1",
             student_id="student_1",
             instructor_id="instructor_1",
-            payment_intent_id=None,
-            payment_status=None,
+            payment_detail=SimpleNamespace(
+                payment_intent_id=None,
+                payment_status=None,
+            ),
         )
         service.booking_repository.get_by_id.return_value = booking
         service.payment_repository.get_customer_by_user_id.return_value = SimpleNamespace(
@@ -250,6 +252,12 @@ class TestCreateRetryAndProcessErrors:
     def test_process_booking_payment_immediate_auth_generic_error(self):
         service = _make_service()
         start_dt = datetime.now(timezone.utc) + stripe_service.timedelta(hours=1)
+        pd = SimpleNamespace(
+            payment_status=None,
+            auth_failure_count=0,
+            auth_last_error=None,
+            auth_scheduled_for=None,
+        )
         booking = SimpleNamespace(
             id="booking_2",
             student_id="student_2",
@@ -259,12 +267,10 @@ class TestCreateRetryAndProcessErrors:
             booking_start_utc=start_dt,
             duration_minutes=60,
             status="PENDING",
-            payment_status=None,
-            auth_failure_count=0,
-            auth_last_error=None,
-            auth_scheduled_for=None,
+            payment_detail=pd,
         )
         service.booking_repository.get_by_id.side_effect = [booking, booking]
+        service.booking_repository.ensure_payment.return_value = pd
         service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(id="prof_2")
         service.payment_repository.get_connected_account_by_instructor_id.return_value = (
             SimpleNamespace(stripe_account_id="acct_2", onboarding_completed=True)
@@ -305,7 +311,7 @@ class TestCreateRetryAndProcessErrors:
             )
 
         assert result["status"] == "auth_failed"
-        assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+        assert booking.payment_detail.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
 
 
 class TestWebhookEdgePaths:
@@ -537,8 +543,10 @@ class TestDisputeHandlers:
         service.payment_repository.get_payment_by_intent_id.return_value = SimpleNamespace(
             booking_id="booking_1"
         )
-        booking = SimpleNamespace(id="booking_1", student_id="student_1")
+        pd = SimpleNamespace(settlement_outcome=None, payment_status=None)
+        booking = SimpleNamespace(id="booking_1", student_id="student_1", payment_detail=pd)
         service.booking_repository.get_by_id.side_effect = [booking, booking]
+        service.booking_repository.ensure_payment.return_value = pd
 
         negative_event = SimpleNamespace(event_type="negative_balance_applied", event_data={"amount_cents": "bad"})
         service.payment_repository.get_payment_events_for_booking.return_value = [negative_event]
@@ -557,7 +565,7 @@ class TestDisputeHandlers:
             event = {"data": {"object": {"id": "dp_1", "status": "won"}}}
             assert StripeService._handle_dispute_closed(service, event) is True
 
-        assert booking.settlement_outcome == "dispute_won"
+        assert pd.settlement_outcome == "dispute_won"
 
     def test_dispute_closed_lost_handles_event_errors(self):
         service = _make_service()
@@ -565,8 +573,10 @@ class TestDisputeHandlers:
         service.payment_repository.get_payment_by_intent_id.return_value = SimpleNamespace(
             booking_id="booking_1"
         )
-        booking = SimpleNamespace(id="booking_1", student_id="student_1")
+        pd = SimpleNamespace(settlement_outcome=None, payment_status=None)
+        booking = SimpleNamespace(id="booking_1", student_id="student_1", payment_detail=pd)
         service.booking_repository.get_by_id.side_effect = [booking, booking]
+        service.booking_repository.ensure_payment.return_value = pd
         service.payment_repository.get_payment_events_for_booking.side_effect = Exception("boom")
         service.payment_repository.create_payment_event.side_effect = [
             Exception("neg"),
@@ -587,7 +597,7 @@ class TestDisputeHandlers:
             event = {"data": {"object": {"id": "dp_1", "status": "lost"}}}
             assert StripeService._handle_dispute_closed(service, event) is True
 
-        assert booking.settlement_outcome == "student_wins_dispute_full_refund"
+        assert pd.settlement_outcome == "student_wins_dispute_full_refund"
 
 
 class TestPayoutAndIdentityErrors:

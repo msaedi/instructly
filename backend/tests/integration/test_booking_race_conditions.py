@@ -14,6 +14,7 @@ import pytest
 from app.api.dependencies.services import get_booking_service
 from app.main import fastapi_app as app
 from app.models.booking import BookingStatus
+from app.models.booking_payment import BookingPayment
 from app.services.booking_service import BookingService
 from app.tasks.payment_tasks import capture_completed_lessons, process_scheduled_authorizations
 
@@ -33,9 +34,33 @@ def client_with_mock_booking_service(client, mock_booking_service):
     app.dependency_overrides.clear()
 
 
+_PAYMENT_FIELDS = {
+    "payment_status", "payment_intent_id", "payment_method_id",
+    "auth_scheduled_for", "auth_attempted_at", "auth_failure_count",
+    "auth_last_error", "auth_failure_first_email_sent_at",
+    "auth_failure_t13_warning_sent_at", "credits_reserved_cents",
+    "settlement_outcome", "instructor_payout_amount",
+    "capture_failed_at", "capture_escalated_at", "capture_retry_count",
+    "capture_error",
+}
+
+
 def _update_booking(db, booking, **updates):
-    for key, value in updates.items():
+    from app.core.ulid_helper import generate_ulid
+
+    payment_updates = {k: v for k, v in updates.items() if k in _PAYMENT_FIELDS}
+    booking_updates = {k: v for k, v in updates.items() if k not in _PAYMENT_FIELDS}
+    for key, value in booking_updates.items():
         setattr(booking, key, value)
+    if payment_updates:
+        bp = db.query(BookingPayment).filter_by(booking_id=booking.id).first()
+        if bp is None:
+            bp = BookingPayment(id=generate_ulid(), booking_id=booking.id)
+            db.add(bp)
+        for key, value in payment_updates.items():
+            setattr(bp, key, value)
+        db.flush()
+        booking.payment_detail = bp
     db.commit()
     return booking
 

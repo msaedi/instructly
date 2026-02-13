@@ -9,6 +9,23 @@ import app.services.admin_refund_service as admin_refund_module
 from app.services.admin_refund_service import AdminRefundService
 
 
+class _DummyPaymentDetail:
+    def __init__(
+        self,
+        *,
+        payment_intent_id: str | None = "pi_1",
+        payment_status: str = "captured",
+        settlement_outcome: str | None = None,
+        instructor_payout_amount: int = 0,
+        credits_reserved_cents: int = 250,
+    ) -> None:
+        self.payment_intent_id = payment_intent_id
+        self.payment_status = payment_status
+        self.settlement_outcome = settlement_outcome
+        self.instructor_payout_amount = instructor_payout_amount
+        self.credits_reserved_cents = credits_reserved_cents
+
+
 class _DummyBooking:
     def __init__(
         self,
@@ -19,22 +36,18 @@ class _DummyBooking:
         cancelled_at: datetime | None = None,
     ) -> None:
         self.id = booking_id
-        self.payment_intent_id = payment_intent_id
         self.total_price = total_price
-        self.payment_status = "captured"
         self.status = "CONFIRMED"
         self.cancelled_at = cancelled_at
         self.instructor_id = "inst_1"
-        self.settlement_outcome = None
         self.refunded_to_card_amount = 0
         self.student_credit_amount = 0
-        self.instructor_payout_amount = 0
-        self.credits_reserved_cents = 250
+        self.payment_detail = _DummyPaymentDetail(payment_intent_id=payment_intent_id)
 
     def to_dict(self) -> dict[str, object]:
         return {
             "id": self.id,
-            "payment_status": self.payment_status,
+            "payment_status": self.payment_detail.payment_status,
             "status": self.status,
             "cancelled_at": self.cancelled_at.isoformat() if self.cancelled_at else None,
             "refunded_to_card_amount": self.refunded_to_card_amount,
@@ -92,6 +105,7 @@ def test_apply_refund_updates_handles_non_fatal_credit_and_audit_errors(monkeypa
     service = _make_service()
     booking = _DummyBooking()
     service.booking_repo.get_booking_with_details.return_value = booking
+    service.booking_repo.ensure_payment.return_value = booking.payment_detail
     actor = SimpleNamespace(id="admin_2")
 
     monkeypatch.setattr(admin_refund_module, "AUDIT_ENABLED", True)
@@ -117,10 +131,10 @@ def test_apply_refund_updates_handles_non_fatal_credit_and_audit_errors(monkeypa
                 )
 
     assert result is booking
-    assert booking.payment_status == "settled"
+    assert booking.payment_detail.payment_status == "settled"
     assert booking.status == "CANCELLED"
     assert booking.refunded_to_card_amount == 1250
-    assert booking.credits_reserved_cents == 250
+    assert booking.payment_detail.credits_reserved_cents == 250
     service.audit_repo.write.assert_called_once()
     logger_mock.warning.assert_called_once()
     logger_mock.debug.assert_called_once()
@@ -130,6 +144,7 @@ def test_apply_refund_updates_skips_audit_when_disabled(monkeypatch) -> None:
     service = _make_service()
     booking = _DummyBooking(cancelled_at=datetime.now(timezone.utc))
     service.booking_repo.get_booking_with_details.return_value = booking
+    service.booking_repo.ensure_payment.return_value = booking.payment_detail
 
     monkeypatch.setattr(admin_refund_module, "AUDIT_ENABLED", False)
 

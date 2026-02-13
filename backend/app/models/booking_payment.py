@@ -20,7 +20,6 @@ class BookingPayment(Base):
         ForeignKey("bookings.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
-        index=True,
     )
 
     payment_method_id = Column(String(255), nullable=True)

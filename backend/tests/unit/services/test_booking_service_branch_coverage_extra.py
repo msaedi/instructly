@@ -51,18 +51,26 @@ def test_validate_reschedule_allowed_branches():
     service.repository.get_reschedule_by_booking_id.return_value = None
 
     locked = SimpleNamespace(
-        id="booking-locked", payment_status=PaymentStatus.LOCKED.value, late_reschedule_used=False
+        id="booking-locked",
+        payment_detail=SimpleNamespace(payment_status=PaymentStatus.LOCKED.value),
+        late_reschedule_used=False,
     )
     with pytest.raises(BusinessRuleException):
         service.validate_reschedule_allowed(locked)
 
-    normal = SimpleNamespace(id="booking-normal", payment_status="authorized", late_reschedule_used=False)
+    normal = SimpleNamespace(
+        id="booking-normal",
+        payment_detail=SimpleNamespace(payment_status="authorized"),
+        late_reschedule_used=False,
+    )
     service.get_hours_until_start = MagicMock(return_value=10)
     with pytest.raises(BusinessRuleException):
         service.validate_reschedule_allowed(normal)
 
     late_used = SimpleNamespace(
-        id="booking-late", payment_status="authorized", late_reschedule_used=False
+        id="booking-late",
+        payment_detail=SimpleNamespace(payment_status="authorized"),
+        late_reschedule_used=False,
     )
     service.get_hours_until_start = MagicMock(return_value=30)
     service.repository.get_reschedule_by_booking_id.return_value = SimpleNamespace(

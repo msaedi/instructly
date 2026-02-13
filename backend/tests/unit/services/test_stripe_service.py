@@ -69,10 +69,6 @@ def _make_booking_for_payment(
         booking_start_utc=start_utc,
         duration_minutes=60,
         status=status,
-        payment_status=None,
-        auth_failure_count=0,
-        auth_last_error=None,
-        auth_scheduled_for=None,
     )
 
 
@@ -1154,14 +1150,15 @@ class TestBookingCheckoutAndProcessing:
             student_id="student_3",
             status="PENDING",
             confirmed_at=None,
-            payment_status=None,
             instructor_service=SimpleNamespace(name="Piano"),
             booking_date=date.today(),
             start_time=time(10, 0),
             instructor_id="inst_3",
         )
+        bp_mock = MagicMock()
         service.booking_repository.get_by_id.return_value = booking
         service.booking_repository.get_by_id_for_update.return_value = booking
+        service.booking_repository.ensure_payment.return_value = bp_mock
         service.payment_repository.get_payment_by_booking_id.return_value = None
         service.process_booking_payment = MagicMock(
             return_value={
@@ -1190,13 +1187,15 @@ class TestBookingCheckoutAndProcessing:
             booking_service=booking_service,
         )
 
-        assert booking.payment_status == PaymentStatus.SCHEDULED.value
+        assert bp_mock.payment_status == PaymentStatus.SCHEDULED.value
         booking_service.system_message_service.create_booking_created_message.assert_called_once()
 
     def test_process_booking_payment_credit_only(self):
         service = _make_service()
         booking = _make_booking_for_payment(start_utc="legacy")
+        bp_mock = MagicMock()
         service.booking_repository.get_by_id.side_effect = [booking, booking]
+        service.booking_repository.ensure_payment.return_value = bp_mock
         service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(id="prof_1")
         service.payment_repository.get_connected_account_by_instructor_id.return_value = (
             SimpleNamespace(stripe_account_id="acct_1", onboarding_completed=True)
@@ -1224,12 +1223,15 @@ class TestBookingCheckoutAndProcessing:
         )
 
         assert result["status"] == "succeeded"
-        assert booking.payment_status == PaymentStatus.AUTHORIZED.value
+        assert bp_mock.payment_status == PaymentStatus.AUTHORIZED.value
 
     def test_process_booking_payment_immediate_auth_card_error(self):
         service = _make_service()
         booking = _make_booking_for_payment(start_utc=datetime.now() + timedelta(hours=1))
+        bp_mock = MagicMock()
+        bp_mock.auth_failure_count = 0
         service.booking_repository.get_by_id.side_effect = [booking, booking]
+        service.booking_repository.ensure_payment.return_value = bp_mock
         service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(id="prof_2")
         service.payment_repository.get_connected_account_by_instructor_id.return_value = (
             SimpleNamespace(stripe_account_id="acct_2", onboarding_completed=True)
@@ -1272,14 +1274,16 @@ class TestBookingCheckoutAndProcessing:
                 )
 
         assert result["status"] == "auth_failed"
-        assert booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
-        assert booking.auth_failure_count == 1
+        assert bp_mock.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+        assert bp_mock.auth_failure_count == 1
 
     def test_process_booking_payment_schedules_authorization(self):
         service = _make_service()
         start_dt = datetime.now(timezone.utc) + timedelta(hours=30)
         booking = _make_booking_for_payment(start_utc=start_dt)
+        bp_mock = MagicMock()
         service.booking_repository.get_by_id.side_effect = [booking, booking]
+        service.booking_repository.ensure_payment.return_value = bp_mock
         service.instructor_repository.get_by_user_id.return_value = SimpleNamespace(id="prof_3")
         service.payment_repository.get_connected_account_by_instructor_id.return_value = (
             SimpleNamespace(stripe_account_id="acct_3", onboarding_completed=True)
@@ -1317,7 +1321,7 @@ class TestBookingCheckoutAndProcessing:
         )
 
         assert result["status"] == "scheduled"
-        assert booking.payment_status == PaymentStatus.SCHEDULED.value
+        assert bp_mock.payment_status == PaymentStatus.SCHEDULED.value
 
     def test_create_or_retry_booking_payment_intent_sets_authorized(self):
         service = _make_service()
@@ -1325,10 +1329,10 @@ class TestBookingCheckoutAndProcessing:
             id="booking_retry",
             student_id="student_4",
             instructor_id="instructor_4",
-            payment_intent_id=None,
-            payment_status=None,
         )
+        bp_mock = MagicMock()
         service.booking_repository.get_by_id.return_value = booking
+        service.booking_repository.ensure_payment.return_value = bp_mock
         service.payment_repository.get_customer_by_user_id.return_value = SimpleNamespace(
             stripe_customer_id="cus_retry"
         )
@@ -1360,7 +1364,7 @@ class TestBookingCheckoutAndProcessing:
             )
 
         assert result.id == "pi_retry"
-        assert booking.payment_status == PaymentStatus.AUTHORIZED.value
+        assert bp_mock.payment_status == PaymentStatus.AUTHORIZED.value
 
 
 class TestSavePaymentMethodExisting:

@@ -269,12 +269,15 @@ class AdminBookingService(BaseService):
         amount_cents: Optional[int] = None
 
         if refund:
-            if not booking.payment_intent_id:
+            pd = booking.payment_detail
+            pd_intent_id = pd.payment_intent_id if pd is not None else None
+            if not pd_intent_id:
                 raise ServiceException("Booking has no payment to refund", code="invalid_request")
+            pd_settlement = pd.settlement_outcome if pd is not None else None
             if (
                 booking.refunded_to_card_amount
                 and booking.refunded_to_card_amount > 0
-                or (booking.settlement_outcome or "")
+                or (pd_settlement or "")
                 in {
                     "admin_refund",
                     "instructor_cancel_full_refund",
@@ -301,8 +304,9 @@ class AdminBookingService(BaseService):
             if not booking:
                 return None, refund_id
 
+            bp = self.booking_repo.ensure_payment(booking.id)
             audit_before = redact(booking.to_dict()) or {}
-            audit_before["payment_status"] = booking.payment_status
+            audit_before["payment_status"] = bp.payment_status
 
             booking.status = BookingStatus.CANCELLED
             booking.cancelled_at = datetime.now(timezone.utc)
@@ -316,7 +320,7 @@ class AdminBookingService(BaseService):
                 credit_service.release_credits_for_booking(
                     booking_id=booking.id, use_transaction=False
                 )
-                booking.credits_reserved_cents = 0
+                bp.credits_reserved_cents = 0
             except Exception as exc:
                 logger.warning(
                     "Failed to release reserved credits for booking %s: %s",
@@ -325,13 +329,13 @@ class AdminBookingService(BaseService):
                 )
 
             if refund:
-                booking.payment_status = PaymentStatus.SETTLED.value
-                booking.settlement_outcome = "admin_refund"
+                bp.payment_status = PaymentStatus.SETTLED.value
+                bp.settlement_outcome = "admin_refund"
                 if amount_cents is not None:
                     booking.refunded_to_card_amount = amount_cents
 
             audit_after = redact(booking.to_dict()) or {}
-            audit_after["payment_status"] = booking.payment_status
+            audit_after["payment_status"] = bp.payment_status
             audit_after["admin_cancel"] = {
                 "reason": reason,
                 "note": note,
@@ -428,8 +432,10 @@ class AdminBookingService(BaseService):
                     code="invalid_request",
                 )
 
+            pd = booking.payment_detail
+            pd_payment_status = pd.payment_status if pd is not None else None
             audit_before = redact(booking.to_dict()) or {}
-            audit_before["payment_status"] = booking.payment_status
+            audit_before["payment_status"] = pd_payment_status
             previous_status = self._status_value(booking.status)
 
             if status == BookingStatus.COMPLETED:
@@ -439,8 +445,9 @@ class AdminBookingService(BaseService):
             else:
                 raise ServiceException("Unsupported status update", code="invalid_request")
 
+            pd = booking.payment_detail
             audit_after = redact(booking.to_dict()) or {}
-            audit_after["payment_status"] = booking.payment_status
+            audit_after["payment_status"] = pd.payment_status if pd is not None else None
             audit_after["status_change"] = {
                 "from": previous_status,
                 "to": status.value,
@@ -480,6 +487,7 @@ class AdminBookingService(BaseService):
             return booking
 
     def _build_booking_list_item(self, booking: Booking) -> AdminBookingListItem:
+        pd = booking.payment_detail
         return AdminBookingListItem(
             id=booking.id,
             student=self._build_person(booking.student, include_phone=False),
@@ -495,8 +503,8 @@ class AdminBookingService(BaseService):
             student_timezone=getattr(booking, "student_tz_at_booking", None),
             total_price=self._to_float(booking.total_price),
             status=self._status_value(booking.status),
-            payment_status=booking.payment_status,
-            payment_intent_id=booking.payment_intent_id,
+            payment_status=pd.payment_status if pd is not None else None,
+            payment_intent_id=pd.payment_intent_id if pd is not None else None,
             created_at=booking.created_at,
         )
 
@@ -514,17 +522,20 @@ class AdminBookingService(BaseService):
         )
         platform_revenue_cents = platform_fee_cents
 
+        pd = booking.payment_detail
+        pd_intent_id = pd.payment_intent_id if pd is not None else None
+
         stripe_url = None
-        if booking.payment_intent_id:
-            stripe_url = f"https://dashboard.stripe.com/payments/{booking.payment_intent_id}"
+        if pd_intent_id:
+            stripe_url = f"https://dashboard.stripe.com/payments/{pd_intent_id}"
 
         return AdminBookingPaymentInfo(
             total_price=total_price,
             lesson_price=lesson_price_cents / 100.0,
             platform_fee=platform_fee_cents / 100.0,
             credits_applied=credits_applied_cents / 100.0,
-            payment_status=booking.payment_status,
-            payment_intent_id=booking.payment_intent_id,
+            payment_status=pd.payment_status if pd is not None else None,
+            payment_intent_id=pd_intent_id,
             instructor_payout=instructor_payout_cents / 100.0,
             platform_revenue=platform_revenue_cents / 100.0,
             stripe_url=stripe_url,
@@ -597,10 +608,12 @@ class AdminBookingService(BaseService):
         return cents / 100.0 if cents is not None else None
 
     def _resolve_payment_intent(self, booking: Booking) -> Optional[PaymentIntent]:
-        if not booking.payment_intent_id:
+        pd = booking.payment_detail
+        pd_intent_id = pd.payment_intent_id if pd is not None else None
+        if not pd_intent_id:
             return None
         try:
-            return self.payment_repo.get_payment_by_intent_id(booking.payment_intent_id)
+            return self.payment_repo.get_payment_by_intent_id(pd_intent_id)
         except Exception:
             return None
 
@@ -658,7 +671,8 @@ class AdminBookingService(BaseService):
         return 0
 
     def _resolve_full_refund_cents(self, booking: Booking) -> int:
-        payment_intent_id = booking.payment_intent_id
+        pd = booking.payment_detail
+        payment_intent_id = pd.payment_intent_id if pd is not None else None
         if payment_intent_id:
             payment_record = self.payment_repo.get_payment_by_intent_id(payment_intent_id)
             if payment_record and payment_record.amount:
@@ -687,9 +701,16 @@ class AdminBookingService(BaseService):
             config_service=ConfigService(self.db),
             pricing_service=PricingService(self.db),
         )
+        pd = booking.payment_detail
+        pd_intent_id: str | None = pd.payment_intent_id if pd is not None else None
+        if not pd_intent_id:
+            raise ServiceException(
+                "Booking has no Stripe payment intent — cannot refund",
+                code="missing_payment_intent",
+            )
         try:
             return stripe_service.refund_payment(
-                payment_intent_id=booking.payment_intent_id,
+                payment_intent_id=pd_intent_id,
                 amount_cents=amount_cents,
                 reason=self._stripe_reason_for_cancel(reason),
                 reverse_transfer=True,

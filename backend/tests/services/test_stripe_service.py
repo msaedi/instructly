@@ -19,6 +19,7 @@ import ulid
 from app.core.config import settings
 from app.core.exceptions import ServiceException
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.subcategory import ServiceSubcategory
@@ -39,6 +40,15 @@ except ModuleNotFoundError:  # pragma: no cover
 def _no_floors_for_service_tests(disable_price_floors):
     """Disable price floors for StripeService unit tests."""
     yield
+
+
+def _sync_payment_detail(stripe_service: StripeService, booking: Booking) -> None:
+    """Reload noload payment_detail relationship after ensure_payment creates it."""
+    booking.payment_detail = (
+        stripe_service.db.query(BookingPayment)
+        .filter_by(booking_id=booking.id)
+        .one_or_none()
+    )
 
 
 def _round_cents(value: Decimal) -> int:
@@ -1694,8 +1704,9 @@ class TestStripeService:
             f"mock_pi_{test_booking.id}"
         )
         assert record is not None
-        assert test_booking.payment_intent_id == f"mock_pi_{test_booking.id}"
-        assert test_booking.payment_status == "authorized"
+        _sync_payment_detail(stripe_service, test_booking)
+        assert test_booking.payment_detail.payment_intent_id == f"mock_pi_{test_booking.id}"
+        assert test_booking.payment_detail.payment_status == "authorized"
 
     def test_create_or_retry_booking_payment_intent_missing_booking(
         self, stripe_service: StripeService
@@ -2572,8 +2583,9 @@ class TestStripeService:
 
         assert result["success"] is True
         assert result["status"] == "scheduled"
-        assert test_booking.payment_status == "scheduled"
-        assert test_booking.auth_scheduled_for == start_at - timedelta(hours=24)
+        _sync_payment_detail(stripe_service, test_booking)
+        assert test_booking.payment_detail.payment_status == "scheduled"
+        assert test_booking.payment_detail.auth_scheduled_for == start_at - timedelta(hours=24)
         mock_confirm.assert_not_called()
 
     def test_process_booking_payment_credit_only(
@@ -2607,7 +2619,8 @@ class TestStripeService:
 
         assert result["status"] == "succeeded"
         assert result["payment_intent_id"] == "credit_only"
-        assert test_booking.payment_status == "authorized"
+        _sync_payment_detail(stripe_service, test_booking)
+        assert test_booking.payment_detail.payment_status == "authorized"
 
         events = stripe_service.payment_repository.get_payment_events_for_booking(test_booking.id)
         assert any(evt.event_type == "auth_succeeded_credits_only" for evt in events)
@@ -2680,7 +2693,8 @@ class TestStripeService:
 
         assert result["status"] == "requires_action"
         assert result["client_secret"] == "secret_action"
-        assert test_booking.payment_status != "authorized"
+        _sync_payment_detail(stripe_service, test_booking)
+        assert test_booking.payment_detail.payment_status != "authorized"
 
     @patch("stripe.Transfer.create")
     @patch("stripe.PaymentIntent.capture")
@@ -3082,7 +3096,8 @@ class TestStripeService:
         result = stripe_service.process_booking_payment(test_booking.id, payment_method_id=None)
 
         assert result["status"] == "succeeded"
-        assert test_booking.payment_status == "authorized"
+        _sync_payment_detail(stripe_service, test_booking)
+        assert test_booking.payment_detail.payment_status == "authorized"
 
     def test_process_booking_payment_card_error(
         self, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
@@ -3111,7 +3126,8 @@ class TestStripeService:
 
         assert result["success"] is False
         assert result["status"] == "auth_failed"
-        assert test_booking.payment_status == "payment_method_required"
+        _sync_payment_detail(stripe_service, test_booking)
+        assert test_booking.payment_detail.payment_status == "payment_method_required"
 
     def test_process_booking_payment_update_status_failure(
         self, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
@@ -3140,7 +3156,8 @@ class TestStripeService:
             result = stripe_service.process_booking_payment(test_booking.id, "pm_ok")
 
         assert result["status"] == "requires_capture"
-        assert test_booking.payment_status == "authorized"
+        _sync_payment_detail(stripe_service, test_booking)
+        assert test_booking.payment_detail.payment_status == "authorized"
 
     def test_process_booking_payment_unexpected_exception(
         self, stripe_service: StripeService, test_booking: Booking
@@ -3327,7 +3344,8 @@ class TestStripeService:
         assert response.requires_action is False
         assert response.client_secret is None
         assert test_booking.status == "CONFIRMED"
-        assert test_booking.payment_status == "authorized"
+        _sync_payment_detail(stripe_service, test_booking)
+        assert test_booking.payment_detail.payment_status == "authorized"
 
         booking_service.repository.flush.assert_called_once()
         booking_service.invalidate_booking_cache.assert_called_once_with(test_booking)
@@ -3373,7 +3391,8 @@ class TestStripeService:
             )
 
         assert response.status == "scheduled"
-        assert test_booking.payment_status == PaymentStatus.SCHEDULED.value
+        _sync_payment_detail(stripe_service, test_booking)
+        assert test_booking.payment_detail.payment_status == PaymentStatus.SCHEDULED.value
 
     def test_create_booking_checkout_invalid_state_after_payment_refund(
         self, stripe_service: StripeService, test_booking: Booking, test_user: User

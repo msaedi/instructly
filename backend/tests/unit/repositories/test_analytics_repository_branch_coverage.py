@@ -13,6 +13,7 @@ def _query(*, all_result=None, scalar_result=None):
     q = MagicMock()
     q.filter.return_value = q
     q.join.return_value = q
+    q.outerjoin.return_value = q
     q.group_by.return_value = q
     q.order_by.return_value = q
     q.limit.return_value = q

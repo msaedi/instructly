@@ -30,10 +30,8 @@ from sqlalchemy import (
     String,
     Text,
     Time,
-    select,
 )
-from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import object_session, relationship
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import ulid
 
@@ -42,31 +40,6 @@ from ..database import Base
 logger = logging.getLogger(__name__)
 
 IS_SQLITE = os.getenv("DB_DIALECT", "").lower().startswith("sqlite")
-
-
-def _build_payment_hybrid(field_name: str) -> Any:
-    """Return a hybrid descriptor backed by BookingPayment.<field_name>."""
-
-    def _getter(self: "Booking") -> Any:
-        return self._get_payment_detail_value(field_name)
-
-    def _setter(self: "Booking", value: Any) -> None:
-        self._set_payment_detail_value(field_name, value)
-
-    def _expression(owner_cls: type["Booking"]) -> Any:
-        from .booking_payment import BookingPayment
-
-        return (
-            select(getattr(BookingPayment, field_name))
-            .where(BookingPayment.booking_id == owner_cls.id)
-            .correlate_except(BookingPayment)
-            .scalar_subquery()
-        )
-
-    descriptor = hybrid_property(_getter)
-    descriptor = descriptor.setter(_setter)
-    descriptor = descriptor.expression(_expression)
-    return descriptor
 
 
 class BookingStatus(str, Enum):
@@ -313,59 +286,6 @@ class Booking(Base):
 
     __table_args__ = tuple(_table_constraints)
 
-    def _get_payment_detail_value(self, field_name: str) -> Any:
-        payment_detail = getattr(self, "payment_detail", None)
-        if payment_detail is None and getattr(self, "id", None):
-            session = object_session(self)
-            if session is not None:
-                from .booking_payment import BookingPayment
-
-                payment_detail = (
-                    session.query(BookingPayment)
-                    .filter(BookingPayment.booking_id == self.id)
-                    .one_or_none()
-                )
-                if payment_detail is not None:
-                    self.payment_detail = payment_detail
-        if payment_detail is None:
-            return None
-        return getattr(payment_detail, field_name, None)
-
-    def _set_payment_detail_value(self, field_name: str, value: Any) -> None:
-        payment_detail = getattr(self, "payment_detail", None)
-        if payment_detail is None:
-            from .booking_payment import BookingPayment
-
-            existing_detail = None
-            if getattr(self, "id", None):
-                session = object_session(self)
-                if session is not None:
-                    existing_detail = (
-                        session.query(BookingPayment)
-                        .filter(BookingPayment.booking_id == self.id)
-                        .one_or_none()
-                    )
-            payment_detail = existing_detail or BookingPayment()
-            self.payment_detail = payment_detail
-        setattr(payment_detail, field_name, value)
-
-    payment_method_id = _build_payment_hybrid("payment_method_id")
-    payment_intent_id = _build_payment_hybrid("payment_intent_id")
-    payment_status = _build_payment_hybrid("payment_status")
-    auth_scheduled_for = _build_payment_hybrid("auth_scheduled_for")
-    auth_attempted_at = _build_payment_hybrid("auth_attempted_at")
-    auth_failure_count = _build_payment_hybrid("auth_failure_count")
-    auth_last_error = _build_payment_hybrid("auth_last_error")
-    auth_failure_first_email_sent_at = _build_payment_hybrid("auth_failure_first_email_sent_at")
-    auth_failure_t13_warning_sent_at = _build_payment_hybrid("auth_failure_t13_warning_sent_at")
-    credits_reserved_cents = _build_payment_hybrid("credits_reserved_cents")
-    settlement_outcome = _build_payment_hybrid("settlement_outcome")
-    instructor_payout_amount = _build_payment_hybrid("instructor_payout_amount")
-    capture_failed_at = _build_payment_hybrid("capture_failed_at")
-    capture_escalated_at = _build_payment_hybrid("capture_escalated_at")
-    capture_retry_count = _build_payment_hybrid("capture_retry_count")
-    capture_error = _build_payment_hybrid("capture_error")
-
     def __init__(self, **kwargs: Any) -> None:
         """Initialize with instant confirmation by default."""
         super().__init__(**kwargs)
@@ -383,7 +303,7 @@ class Booking(Base):
             f"time={self.start_time}-{self.end_time}, status={self.status}>"
         )
 
-    def cancel(self, cancelled_by_user_id: int, reason: Optional[str] = None) -> None:
+    def cancel(self, cancelled_by_user_id: str, reason: Optional[str] = None) -> None:
         """Cancel this booking."""
         self.status = BookingStatus.CANCELLED
         self.cancelled_at = datetime.now(timezone.utc)
