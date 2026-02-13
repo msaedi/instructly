@@ -639,6 +639,7 @@ class BookingResponse(BookingBase):
         no_show_detail = getattr(booking, "no_show_detail", None)
         lock_detail = getattr(booking, "lock_detail", None)
         payment_detail = getattr(booking, "payment_detail", None)
+        reschedule_detail = getattr(booking, "reschedule_detail", None)
 
         def _payment_value(field_name: str) -> object:
             if payment_detail is not None:
@@ -655,7 +656,7 @@ class BookingResponse(BookingBase):
             if isinstance(rescheduled_from_booking_id_value, str)
             else None,
             "rescheduled_to_booking_id": _safe_str(
-                getattr(booking, "rescheduled_to_booking_id", None)
+                getattr(reschedule_detail, "rescheduled_to_booking_id", None)
             ),
             "has_locked_funds": _safe_bool(getattr(booking, "has_locked_funds", None)),
             # Booking details

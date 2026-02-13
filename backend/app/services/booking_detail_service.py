@@ -593,10 +593,14 @@ class BookingDetailService(BaseService):
             seen.add(key)
             events.append(TimelineEvent(ts=ts_value, event=event, details=details or {}))
 
+        reschedule_detail = getattr(booking, "reschedule_detail", None)
+
         add_event(booking.created_at, "BOOKING_CREATED")
         if booking.confirmed_at:
             add_event(booking.confirmed_at, "BOOKING_CONFIRMED")
-        if booking.rescheduled_from_booking_id or booking.rescheduled_to_booking_id:
+        if booking.rescheduled_from_booking_id or getattr(
+            reschedule_detail, "rescheduled_to_booking_id", None
+        ):
             add_event(booking.updated_at or booking.created_at, "BOOKING_RESCHEDULED")
         if booking.cancelled_at:
             add_event(booking.cancelled_at, "BOOKING_CANCELLED")

@@ -13,6 +13,7 @@ import ulid
 from app.core.exceptions import BusinessRuleException
 from app.models.booking import Booking, BookingStatus
 from app.models.booking_lock import BookingLock
+from app.models.booking_reschedule import BookingReschedule
 from app.models.instructor import InstructorProfile
 from app.models.payment import StripeConnectedAccount
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
@@ -196,12 +197,16 @@ def test_scheduled_booking_in_12_24h_triggers_lock(db: Session) -> None:
 
     db.refresh(booking)
     lock = db.query(BookingLock).filter(BookingLock.booking_id == booking.id).one_or_none()
+    reschedule = (
+        db.query(BookingReschedule).filter(BookingReschedule.booking_id == booking.id).one_or_none()
+    )
     assert booking.payment_status == "locked"
     assert booking.payment_intent_id == "pi_auth"
     assert lock is not None
+    assert reschedule is not None
     assert lock.locked_at is not None
     assert lock.locked_amount_cents == 13440
-    assert booking.late_reschedule_used is True
+    assert reschedule.late_reschedule_used is True
     mock_capture.assert_called_once()
     mock_reverse.assert_called_once()
 

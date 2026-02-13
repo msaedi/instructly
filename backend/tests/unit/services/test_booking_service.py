@@ -72,6 +72,13 @@ def mock_repository() -> MagicMock:
     repo.check_time_conflict.return_value = False
     repo.check_student_time_conflict.return_value = []
     repo.get_by_id.return_value = None
+    repo.get_reschedule_by_booking_id.return_value = None
+    repo.ensure_reschedule.return_value = SimpleNamespace(
+        rescheduled_to_booking_id=None,
+        reschedule_count=0,
+        late_reschedule_used=False,
+        original_lesson_datetime=None,
+    )
     return repo
 
 
@@ -786,6 +793,9 @@ def test_confirm_booking_payment_gaming_reschedule_success_fallback_message(
     student.id = booking.student_id
 
     mock_repository.get_by_id.side_effect = [booking, booking, None]
+    mock_repository.get_reschedule_by_booking_id.return_value = SimpleNamespace(
+        original_lesson_datetime=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
+    )
     booking_service._get_booking_start_utc = Mock(
         return_value=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
     )
@@ -840,6 +850,9 @@ def test_build_cancellation_context_reschedule_time_missing(
     booking_service._get_booking_start_utc = Mock(
         return_value=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
     )
+    booking_service.repository.get_reschedule_by_booking_id.return_value = SimpleNamespace(
+        original_lesson_datetime=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
+    )
     with patch("app.services.booking_service.TimezoneService.hours_until", return_value=30):
         with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
             payment_repo.return_value.get_connected_account_by_instructor_id.return_value = None
@@ -865,6 +878,9 @@ def test_build_cancellation_context_gaming_requires_authorized_payment(
 
     booking_service._get_booking_start_utc = Mock(
         return_value=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
+    )
+    booking_service.repository.get_reschedule_by_booking_id.return_value = SimpleNamespace(
+        original_lesson_datetime=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
     )
     with patch("app.services.booking_service.TimezoneService.hours_until", return_value=30):
         with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:

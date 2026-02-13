@@ -12,6 +12,7 @@ import ulid
 
 from app.models.booking import Booking, BookingStatus
 from app.models.booking_lock import BookingLock
+from app.models.booking_reschedule import BookingReschedule
 from app.models.instructor import InstructorProfile
 from app.models.payment import StripeConnectedAccount
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
@@ -398,8 +399,12 @@ def test_create_rescheduled_booking_with_locked_funds_links_chain(db: Session):
         )
 
     db.refresh(original)
+    original_reschedule = (
+        db.query(BookingReschedule).filter(BookingReschedule.booking_id == original.id).one_or_none()
+    )
     assert new_booking.rescheduled_from_booking_id == original.id
-    assert original.rescheduled_to_booking_id == new_booking.id
+    assert original_reschedule is not None
+    assert original_reschedule.rescheduled_to_booking_id == new_booking.id
     assert new_booking.has_locked_funds is True
     assert new_booking.payment_status == "locked"
 

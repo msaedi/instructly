@@ -794,20 +794,22 @@ class BookingService(BaseService):
                         updated_booking = self.repository.update(
                             booking.id,
                             rescheduled_from_booking_id=rescheduled_from_booking_id,
-                            original_lesson_datetime=original_lesson_dt,
                         )
                         if updated_booking is not None:
                             booking = updated_booking
                         if previous_booking:
-                            previous_booking.rescheduled_to_booking_id = booking.id
-                            previous_count = int(
-                                getattr(previous_booking, "reschedule_count", 0) or 0
+                            previous_reschedule = self.repository.ensure_reschedule(
+                                previous_booking.id
                             )
+                            current_reschedule = self.repository.ensure_reschedule(booking.id)
+                            current_reschedule.original_lesson_datetime = original_lesson_dt
+                            previous_reschedule.rescheduled_to_booking_id = booking.id
+                            previous_count = int(previous_reschedule.reschedule_count or 0)
                             new_count = previous_count + 1
-                            previous_booking.reschedule_count = new_count
-                            booking.reschedule_count = new_count
-                            if getattr(previous_booking, "late_reschedule_used", False):
-                                booking.late_reschedule_used = True
+                            previous_reschedule.reschedule_count = new_count
+                            current_reschedule.reschedule_count = new_count
+                            if bool(previous_reschedule.late_reschedule_used):
+                                current_reschedule.late_reschedule_used = True
                     except Exception:
                         # Non-fatal; linkage is analytics-only
                         logger.debug("Non-fatal error ignored", exc_info=True)
@@ -988,14 +990,16 @@ class BookingService(BaseService):
 
                 original_lesson_dt = self._get_booking_start_utc(old_booking)
                 booking.rescheduled_from_booking_id = old_booking.id
-                booking.original_lesson_datetime = original_lesson_dt
-                old_booking.rescheduled_to_booking_id = booking.id
-                previous_count = int(getattr(old_booking, "reschedule_count", 0) or 0)
+                old_reschedule = self.repository.ensure_reschedule(old_booking.id)
+                current_reschedule = self.repository.ensure_reschedule(booking.id)
+                current_reschedule.original_lesson_datetime = original_lesson_dt
+                old_reschedule.rescheduled_to_booking_id = booking.id
+                previous_count = int(old_reschedule.reschedule_count or 0)
                 new_count = previous_count + 1
-                old_booking.reschedule_count = new_count
-                booking.reschedule_count = new_count
-                if getattr(old_booking, "late_reschedule_used", False):
-                    booking.late_reschedule_used = True
+                old_reschedule.reschedule_count = new_count
+                current_reschedule.reschedule_count = new_count
+                if bool(old_reschedule.late_reschedule_used):
+                    current_reschedule.late_reschedule_used = True
 
                 # Reuse payment fields from the original booking
                 booking.payment_intent_id = payment_intent_id
@@ -1142,15 +1146,17 @@ class BookingService(BaseService):
 
                 original_lesson_dt = self._get_booking_start_utc(old_booking)
                 booking.rescheduled_from_booking_id = old_booking.id
-                booking.original_lesson_datetime = original_lesson_dt
+                current_reschedule = self.repository.ensure_reschedule(booking.id)
+                current_reschedule.original_lesson_datetime = original_lesson_dt
                 booking.has_locked_funds = True
                 booking.payment_status = PaymentStatus.LOCKED.value
-                old_booking.rescheduled_to_booking_id = booking.id
-                previous_count = int(getattr(old_booking, "reschedule_count", 0) or 0)
+                old_reschedule = self.repository.ensure_reschedule(old_booking.id)
+                old_reschedule.rescheduled_to_booking_id = booking.id
+                previous_count = int(old_reschedule.reschedule_count or 0)
                 new_count = previous_count + 1
-                old_booking.reschedule_count = new_count
-                booking.reschedule_count = new_count
-                booking.late_reschedule_used = True
+                old_reschedule.reschedule_count = new_count
+                current_reschedule.reschedule_count = new_count
+                current_reschedule.late_reschedule_used = True
 
                 self._enqueue_booking_outbox_event(booking, "booking.created")
                 audit_after = self._snapshot_booking(booking)
@@ -1291,8 +1297,12 @@ class BookingService(BaseService):
 
             is_gaming_reschedule = False
             hours_from_original: Optional[float] = None
-            if booking.rescheduled_from_booking_id and booking.original_lesson_datetime:
-                original_dt = booking.original_lesson_datetime
+            reschedule_record = self.repository.get_reschedule_by_booking_id(booking.id)
+            original_lesson_datetime = (
+                reschedule_record.original_lesson_datetime if reschedule_record else None
+            )
+            if booking.rescheduled_from_booking_id and original_lesson_datetime:
+                original_dt = original_lesson_datetime
                 if original_dt.tzinfo is None:
                     original_dt = original_dt.replace(tzinfo=timezone.utc)
                 reschedule_time = booking.created_at
@@ -2052,7 +2062,8 @@ class BookingService(BaseService):
                 transfer_record.stripe_transfer_id = transfer_id
                 transfer_record.transfer_reversed = True if transfer_id else False
                 transfer_record.transfer_reversal_id = reversal_id
-                booking.late_reschedule_used = True
+                reschedule_record = self.repository.ensure_reschedule(booking.id)
+                reschedule_record.late_reschedule_used = True
                 payment_repo.create_payment_event(
                     booking_id=booking.id,
                     event_type="lock_activated",
@@ -2368,8 +2379,12 @@ class BookingService(BaseService):
         # Part 4b: Fair Reschedule Loophole Fix
         was_gaming_reschedule = False
         hours_from_original: Optional[float] = None
-        if booking.rescheduled_from_booking_id and booking.original_lesson_datetime:
-            original_dt = booking.original_lesson_datetime
+        reschedule_record = self.repository.get_reschedule_by_booking_id(booking.id)
+        original_lesson_datetime = (
+            reschedule_record.original_lesson_datetime if reschedule_record else None
+        )
+        if booking.rescheduled_from_booking_id and original_lesson_datetime:
+            original_dt = original_lesson_datetime
             if original_dt.tzinfo is None:
                 original_dt = original_dt.replace(tzinfo=timezone.utc)
             reschedule_time = booking.created_at
@@ -2458,7 +2473,7 @@ class BookingService(BaseService):
             "lesson_price_cents": lesson_price_cents,
             "instructor_stripe_account_id": instructor_stripe_account_id,
             "rescheduled_from_booking_id": booking.rescheduled_from_booking_id,
-            "original_lesson_datetime": booking.original_lesson_datetime,
+            "original_lesson_datetime": original_lesson_datetime,
             "default_role": default_role,
             "cancelled_by_role": cancelled_by_role,
             "booking_date": booking.booking_date,
@@ -5616,7 +5631,8 @@ class BookingService(BaseService):
                 code="reschedule_window_closed",
             )
 
-        if getattr(booking, "late_reschedule_used", False):
+        reschedule_record = self.repository.get_reschedule_by_booking_id(booking.id)
+        if bool(reschedule_record and reschedule_record.late_reschedule_used):
             raise BusinessRuleException(
                 message=(
                     "You've already used your late reschedule for this booking. "

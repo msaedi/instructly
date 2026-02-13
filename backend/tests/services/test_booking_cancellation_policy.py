@@ -13,6 +13,7 @@ import ulid
 
 from app.core.exceptions import BusinessRuleException
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_reschedule import BookingReschedule
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.subcategory import ServiceSubcategory
@@ -126,6 +127,17 @@ def _create_booking(db: Session, student: User, instructor: User, svc: Instructo
     db.add(bk)
     db.flush()
     return bk
+
+
+def _upsert_reschedule(db: Session, booking_id: str, **fields: object) -> BookingReschedule:
+    row = db.query(BookingReschedule).filter(BookingReschedule.booking_id == booking_id).one_or_none()
+    if row is None:
+        row = BookingReschedule(booking_id=booking_id)
+        db.add(row)
+    for key, value in fields.items():
+        setattr(row, key, value)
+    db.flush()
+    return row
 
 
 def test_cancel_over_24h_releases_auth(db: Session):
@@ -719,11 +731,15 @@ def _create_rescheduled_booking(
         payment_method_id="pm_x",
         payment_intent_id="pi_x",
         rescheduled_from_booking_id=original_booking_id,
-        original_lesson_datetime=original_lesson_datetime,  # For fair policy!
         created_at=datetime.now(timezone.utc),
     )
     db.add(bk)
     db.flush()
+    _upsert_reschedule(
+        db,
+        bk.id,
+        original_lesson_datetime=original_lesson_datetime,
+    )
     return bk
 
 
@@ -1146,7 +1162,7 @@ def test_second_reschedule_blocked(db: Session):
     rescheduled_when = datetime.combine(date.today() + timedelta(days=5), time(15, 0))
     rescheduled_booking = _create_booking(db, student, instructor, svc, rescheduled_when)
     rescheduled_booking.rescheduled_from_booking_id = original_booking.id
-    rescheduled_booking.late_reschedule_used = True
+    _upsert_reschedule(db, rescheduled_booking.id, late_reschedule_used=True)
     db.flush()
 
     service = BookingService(db)
@@ -1176,7 +1192,7 @@ def test_second_reschedule_error_message(db: Session):
     rescheduled_when = datetime.combine(date.today() + timedelta(days=5), time(15, 0))
     rescheduled_booking = _create_booking(db, student, instructor, svc, rescheduled_when)
     rescheduled_booking.rescheduled_from_booking_id = original_booking.id
-    rescheduled_booking.late_reschedule_used = True
+    _upsert_reschedule(db, rescheduled_booking.id, late_reschedule_used=True)
     db.flush()
 
     service = BookingService(db)

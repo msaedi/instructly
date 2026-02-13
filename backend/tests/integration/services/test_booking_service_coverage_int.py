@@ -30,6 +30,7 @@ from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.booking_lock import BookingLock
 from app.models.booking_no_show import BookingNoShow
+from app.models.booking_reschedule import BookingReschedule
 from app.models.booking_transfer import BookingTransfer
 from app.models.payment import PaymentMethod
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog
@@ -164,6 +165,22 @@ def _upsert_lock(db: Session, booking_id: str, **fields) -> BookingLock:
     for key, value in fields.items():
         setattr(lock, key, value)
     return lock
+
+
+def _get_reschedule(db: Session, booking_id: str) -> BookingReschedule | None:
+    return (
+        db.query(BookingReschedule).filter(BookingReschedule.booking_id == booking_id).one_or_none()
+    )
+
+
+def _upsert_reschedule(db: Session, booking_id: str, **fields) -> BookingReschedule:
+    reschedule = _get_reschedule(db, booking_id)
+    if reschedule is None:
+        reschedule = BookingReschedule(booking_id=booking_id)
+        db.add(reschedule)
+    for key, value in fields.items():
+        setattr(reschedule, key, value)
+    return reschedule
 
 
 @pytest.fixture(autouse=True)
@@ -1803,7 +1820,9 @@ class TestCreateBookingWithRescheduleIntegration:
 
         # Verify original booking was updated
         db.refresh(original_booking)
-        assert original_booking.rescheduled_to_booking_id == result.id
+        original_reschedule = _get_reschedule(db, original_booking.id)
+        assert original_reschedule is not None
+        assert original_reschedule.rescheduled_to_booking_id == result.id
 
 
 class TestConfirmBookingPaymentIntegration:
@@ -1896,7 +1915,7 @@ class TestConfirmBookingPaymentIntegration:
         booking.booking_start_utc = start_utc
         booking.booking_end_utc = end_utc
         booking.rescheduled_from_booking_id = original_booking.id
-        booking.original_lesson_datetime = original_start_utc
+        _upsert_reschedule(db, booking.id, original_lesson_datetime=original_start_utc)
         booking.created_at = now
         db.commit()
 
@@ -1961,7 +1980,7 @@ class TestRescheduledBookingWithExistingPaymentIntegration:
             offset_index=40,
         )
         original_booking.payment_method_id = "pm_reschedule_existing"
-        original_booking.late_reschedule_used = True
+        _upsert_reschedule(db, original_booking.id, late_reschedule_used=True)
         db.commit()
 
         payment_repo = PaymentRepository(db)
@@ -2010,12 +2029,16 @@ class TestRescheduledBookingWithExistingPaymentIntegration:
 
         db.refresh(original_booking)
         payment_record = payment_repo.get_payment_by_intent_id("pi_reschedule_existing")
+        result_reschedule = _get_reschedule(db, result.id)
+        original_reschedule = _get_reschedule(db, original_booking.id)
 
         assert result.rescheduled_from_booking_id == original_booking.id
-        assert result.late_reschedule_used is True
+        assert result_reschedule is not None
+        assert result_reschedule.late_reschedule_used is True
         assert result.payment_intent_id == "pi_reschedule_existing"
         assert result.payment_method_id == "pm_reschedule_existing"
-        assert original_booking.rescheduled_to_booking_id == result.id
+        assert original_reschedule is not None
+        assert original_reschedule.rescheduled_to_booking_id == result.id
         assert payment_record is not None
         assert payment_record.booking_id == result.id
         assert result.credits_reserved_cents == 2000
@@ -2158,11 +2181,15 @@ class TestRescheduledBookingWithLockedFundsIntegration:
         )
 
         db.refresh(original_booking)
+        original_reschedule = _get_reschedule(db, original_booking.id)
+        result_reschedule = _get_reschedule(db, result.id)
         assert result.rescheduled_from_booking_id == original_booking.id
-        assert original_booking.rescheduled_to_booking_id == result.id
+        assert original_reschedule is not None
+        assert original_reschedule.rescheduled_to_booking_id == result.id
         assert result.has_locked_funds is True
         assert result.payment_status == PaymentStatus.LOCKED.value
-        assert result.late_reschedule_used is True
+        assert result_reschedule is not None
+        assert result_reschedule.late_reschedule_used is True
 
     def test_create_rescheduled_booking_locked_missing_original_raises(
         self,
@@ -2502,7 +2529,7 @@ class TestPaymentProcessingScenariosIntegration:
         booking.booking_start_utc = start_utc
         booking.booking_end_utc = end_utc
         booking.rescheduled_from_booking_id = original_booking.id
-        booking.original_lesson_datetime = original_start_utc
+        _upsert_reschedule(db, booking.id, original_lesson_datetime=original_start_utc)
         booking.created_at = now
         db.commit()
 
@@ -2690,7 +2717,7 @@ class TestPaymentProcessingScenariosIntegration:
         booking.booking_start_utc = start_utc
         booking.booking_end_utc = end_utc
         booking.rescheduled_from_booking_id = original_booking.id
-        booking.original_lesson_datetime = original_start_utc
+        _upsert_reschedule(db, booking.id, original_lesson_datetime=original_start_utc)
         booking.created_at = now
         db.commit()
 
@@ -2935,7 +2962,7 @@ class TestPaymentProcessingScenariosIntegration:
         booking.booking_start_utc = start_utc
         booking.booking_end_utc = end_utc
         booking.rescheduled_from_booking_id = original_booking.id
-        booking.original_lesson_datetime = original_start_utc
+        _upsert_reschedule(db, booking.id, original_lesson_datetime=original_start_utc)
         booking.created_at = now
         db.commit()
 
@@ -3338,7 +3365,7 @@ class TestValidateRescheduleAllowedIntegration:
             future_date, time(10, 0), time(11, 0),
             offset_index=31,
         )
-        booking.late_reschedule_used = True
+        _upsert_reschedule(db, booking.id, late_reschedule_used=True)
         db.commit()
 
         with pytest.raises(BusinessRuleException, match="late reschedule"):

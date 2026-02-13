@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.booking import Booking, BookingStatus
 from app.models.booking_lock import BookingLock
 from app.models.booking_no_show import BookingNoShow
+from app.models.booking_reschedule import BookingReschedule
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.booking_timezone import booking_timezone_fields
@@ -37,6 +38,13 @@ LOCK_FIELDS = {
     "locked_amount_cents",
     "lock_resolved_at",
     "lock_resolution",
+}
+
+RESCHEDULE_FIELDS = {
+    "late_reschedule_used",
+    "reschedule_count",
+    "rescheduled_to_booking_id",
+    "original_lesson_datetime",
 }
 
 
@@ -262,7 +270,11 @@ def create_booking_pg_safe(
         "end_time": end_time,
         "status": status,
         **timezone_fields,
-        **{k: v for k, v in extra_fields.items() if k not in NO_SHOW_FIELDS and k not in LOCK_FIELDS},
+        **{
+            k: v
+            for k, v in extra_fields.items()
+            if k not in NO_SHOW_FIELDS and k not in LOCK_FIELDS and k not in RESCHEDULE_FIELDS
+        },
     }
 
     if status == BookingStatus.CANCELLED and booking_kwargs.get("cancelled_at") is None:
@@ -295,6 +307,16 @@ def create_booking_pg_safe(
             lock_resolution=extra_fields.get("lock_resolution"),
         )
         session.add(lock)
+
+    if any(field in extra_fields for field in RESCHEDULE_FIELDS):
+        reschedule = BookingReschedule(
+            booking_id=booking.id,
+            late_reschedule_used=bool(extra_fields.get("late_reschedule_used", False)),
+            reschedule_count=int(extra_fields.get("reschedule_count", 0) or 0),
+            rescheduled_to_booking_id=extra_fields.get("rescheduled_to_booking_id"),
+            original_lesson_datetime=extra_fields.get("original_lesson_datetime"),
+        )
+        session.add(reschedule)
 
     session.flush()
     return booking

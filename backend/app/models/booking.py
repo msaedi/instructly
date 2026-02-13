@@ -198,20 +198,6 @@ class Booking(Base):
         comment="Refunded to card in cents (v2.1.1)",
     )
 
-    # Reschedule tracking (v2.1.1)
-    late_reschedule_used = Column(
-        Boolean,
-        nullable=False,
-        default=False,
-        comment="Late reschedule used in 12-24h window (v2.1.1)",
-    )
-    reschedule_count = Column(
-        Integer,
-        nullable=False,
-        default=0,
-        comment="Total reschedule count (v2.1.1)",
-    )
-
     # Relationships
     student = relationship("User", foreign_keys=[student_id], backref="student_bookings")
     instructor = relationship("User", foreign_keys=[instructor_id], backref="instructor_bookings")
@@ -244,6 +230,14 @@ class Booking(Base):
         uselist=False,
         cascade="all, delete-orphan",
         lazy="noload",
+    )
+    reschedule_detail = relationship(
+        "BookingReschedule",
+        back_populates="booking",
+        uselist=False,
+        cascade="all, delete-orphan",
+        lazy="noload",
+        foreign_keys="BookingReschedule.booking_id",
     )
     dispute = relationship(
         "BookingDispute",
@@ -287,31 +281,12 @@ class Booking(Base):
         post_update=True,
         foreign_keys=[rescheduled_from_booking_id],
     )
-    rescheduled_to_booking_id = Column(String(26), ForeignKey("bookings.id"), nullable=True)
-    rescheduled_to = relationship(
-        "Booking",
-        remote_side=[id],
-        uselist=False,
-        post_update=True,
-        foreign_keys=[rescheduled_to_booking_id],
-    )
     has_locked_funds = Column(
         Boolean,
         nullable=False,
         default=False,
         comment="New booking has funds locked from reschedule (v2.1.1)",
     )
-
-    # Lesson datetime of the IMMEDIATE previous booking when rescheduled.
-    # Used for Part 4b: Fair Reschedule Loophole Fix - gaming detection.
-    #
-    # IMPORTANT: This is NOT traced back to the original booking in a chain.
-    # It stores the lesson datetime of the booking the user rescheduled FROM.
-    #
-    # Policy:
-    # - If rescheduled while >24h from PREVIOUS booking → legitimate, normal cancel policy
-    # - If rescheduled while <24h from PREVIOUS booking → gaming attempt, credit-only policy
-    original_lesson_datetime = Column(DateTime(timezone=True), nullable=True)
 
     # Data integrity constraints
     _table_constraints = [

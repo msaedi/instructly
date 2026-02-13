@@ -35,6 +35,7 @@ from ..models.booking_dispute import BookingDispute
 from ..models.booking_lock import BookingLock
 from ..models.booking_no_show import BookingNoShow
 from ..models.booking_payment import BookingPayment
+from ..models.booking_reschedule import BookingReschedule
 from ..models.booking_transfer import BookingTransfer
 from ..models.user import User
 from .base_repository import BaseRepository
@@ -177,6 +178,34 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except Exception as e:
             self.logger.error(f"Error ensuring lock for booking {booking_id}: {str(e)}")
             raise RepositoryException(f"Failed to ensure booking lock: {str(e)}")
+
+    def get_reschedule_by_booking_id(self, booking_id: str) -> Optional[BookingReschedule]:
+        """Return reschedule satellite row for a booking, if present."""
+        try:
+            reschedule = cast(
+                Optional[BookingReschedule],
+                self.db.query(BookingReschedule)
+                .filter(BookingReschedule.booking_id == booking_id)
+                .one_or_none(),
+            )
+            return reschedule
+        except Exception as e:
+            self.logger.error(f"Error getting reschedule for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to get booking reschedule: {str(e)}")
+
+    def ensure_reschedule(self, booking_id: str) -> BookingReschedule:
+        """Get or create reschedule satellite row for a booking."""
+        try:
+            reschedule = self.get_reschedule_by_booking_id(booking_id)
+            if reschedule is not None:
+                return reschedule
+            reschedule = BookingReschedule(booking_id=booking_id)
+            self.db.add(reschedule)
+            self.db.flush()
+            return reschedule
+        except Exception as e:
+            self.logger.error(f"Error ensuring reschedule for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to ensure booking reschedule: {str(e)}")
 
     def get_payment_by_booking_id(self, booking_id: str) -> Optional[BookingPayment]:
         """Return payment satellite row for a booking, if present."""
@@ -652,6 +681,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     selectinload(Booking.payment_detail),
                     selectinload(Booking.no_show_detail),
                     selectinload(Booking.lock_detail),
+                    selectinload(Booking.reschedule_detail),
                 )
                 .filter(Booking.student_id == student_id)
             )
@@ -816,6 +846,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     selectinload(Booking.payment_detail),
                     selectinload(Booking.no_show_detail),
                     selectinload(Booking.lock_detail),
+                    selectinload(Booking.reschedule_detail),
                 )
                 .filter(Booking.instructor_id == instructor_id)
             )
@@ -1079,6 +1110,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     selectinload(Booking.payment_detail),
                     selectinload(Booking.no_show_detail),
                     selectinload(Booking.lock_detail),
+                    selectinload(Booking.reschedule_detail),
                 )
                 .filter(Booking.id == booking_id)
                 .first()
@@ -1583,6 +1615,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             joinedload(Booking.instructor),
             joinedload(Booking.instructor_service),
             joinedload(Booking.payment_detail),
+            joinedload(Booking.reschedule_detail),
         )
 
     def count_old_bookings(self, cutoff_date: datetime) -> int:

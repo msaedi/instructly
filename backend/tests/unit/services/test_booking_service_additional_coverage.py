@@ -145,6 +145,13 @@ def mock_repository() -> MagicMock:
         lock_resolved_at=None,
         lock_resolution=None,
     )
+    repo.get_reschedule_by_booking_id.return_value = None
+    repo.ensure_reschedule.return_value = SimpleNamespace(
+        rescheduled_to_booking_id=None,
+        reschedule_count=0,
+        late_reschedule_used=False,
+        original_lesson_datetime=None,
+    )
     repo.ensure_transfer.return_value = SimpleNamespace(
         stripe_transfer_id=None,
         transfer_reversal_failed=False,
@@ -321,8 +328,18 @@ def test_create_booking_with_payment_setup_reschedule_linkage(
     updated_booking = make_booking(id=booking.id)
     previous_booking = make_booking(
         id=generate_ulid(),
+    )
+    previous_reschedule = SimpleNamespace(
         reschedule_count=1,
         late_reschedule_used=True,
+        rescheduled_to_booking_id=None,
+        original_lesson_datetime=None,
+    )
+    current_reschedule = SimpleNamespace(
+        reschedule_count=0,
+        late_reschedule_used=False,
+        rescheduled_to_booking_id=None,
+        original_lesson_datetime=None,
     )
 
     booking_service._validate_booking_prerequisites = Mock(return_value=(service, instructor_profile))
@@ -336,6 +353,7 @@ def test_create_booking_with_payment_setup_reschedule_linkage(
     mock_repository.transaction.return_value = _transaction_cm()
     mock_repository.get_by_id.side_effect = [previous_booking, booking]
     mock_repository.update.return_value = updated_booking
+    mock_repository.ensure_reschedule.side_effect = [previous_reschedule, current_reschedule]
     booking_service._create_booking_record = Mock(return_value=booking)
 
     with patch("app.services.stripe_service.StripeService") as mock_stripe_service:
@@ -356,8 +374,10 @@ def test_create_booking_with_payment_setup_reschedule_linkage(
                     rescheduled_from_booking_id=previous_booking.id,
                 )
 
-    assert updated_booking.reschedule_count == 2
-    assert updated_booking.late_reschedule_used is True
+    assert previous_reschedule.reschedule_count == 2
+    assert previous_reschedule.rescheduled_to_booking_id == booking.id
+    assert current_reschedule.reschedule_count == 2
+    assert current_reschedule.late_reschedule_used is True
 
 
 def test_create_booking_with_payment_setup_refresh_missing(
@@ -893,10 +913,12 @@ def test_resolve_lock_for_booking_cancelled_ge12_credit(
 def test_build_cancellation_context_timezone_handling(booking_service: BookingService) -> None:
     booking = make_booking(
         rescheduled_from_booking_id=generate_ulid(),
-        original_lesson_datetime=datetime(2030, 1, 2, 10, 0, 0),
         created_at=datetime(2030, 1, 1, 12, 0, 0),
     )
     user = make_user(RoleName.STUDENT.value, id=booking.student_id)
+    booking_service.repository.get_reschedule_by_booking_id.return_value = SimpleNamespace(
+        original_lesson_datetime=datetime(2030, 1, 2, 10, 0, 0)
+    )
 
     booking_service._get_booking_start_utc = Mock(return_value=datetime(2030, 1, 2, 10, 0, 0))
     with patch("app.services.booking_service.TimezoneService.hours_until", return_value=10):
