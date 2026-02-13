@@ -1,15 +1,14 @@
+from importlib import reload
+import os
+
 from fastapi.testclient import TestClient
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def _enable_strict(monkeypatch):
-    monkeypatch.setenv("STRICT_SCHEMAS", "true")
-
-
-@pytest.fixture()
-def client(_enable_strict):
-    from importlib import reload
+@pytest.fixture(scope="module")
+def client():
+    old = os.environ.get("STRICT_SCHEMAS")
+    os.environ["STRICT_SCHEMAS"] = "true"
 
     import app.main as main
     import app.routes.v1.search_history as rh
@@ -20,7 +19,17 @@ def client(_enable_strict):
     reload(sh)
     reload(rh)
     reload(main)
-    return TestClient(main.fastapi_app)
+    _client = TestClient(main.fastapi_app)
+    yield _client
+
+    if old is None:
+        os.environ.pop("STRICT_SCHEMAS", None)
+    else:
+        os.environ["STRICT_SCHEMAS"] = old
+    reload(base)
+    reload(sh)
+    reload(rh)
+    reload(main)
 
 
 def test_extra_field_rejected_for_search_create(client: TestClient):

@@ -1,15 +1,14 @@
+from importlib import reload
+import os
+
 from fastapi.testclient import TestClient
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def _enable_strict(monkeypatch):
-    monkeypatch.setenv("STRICT_SCHEMAS", "true")
-
-
-@pytest.fixture()
-def client(_enable_strict):
-    from importlib import reload
+@pytest.fixture(scope="module")
+def client():
+    old = os.environ.get("STRICT_SCHEMAS")
+    os.environ["STRICT_SCHEMAS"] = "true"
 
     import app.main as main
     import app.routes.v1.reviews as routes  # Phase 12: Reviews migrated to v1
@@ -18,7 +17,16 @@ def client(_enable_strict):
     reload(base)
     reload(routes)
     reload(main)
-    return TestClient(main.fastapi_app, raise_server_exceptions=False)
+    _client = TestClient(main.fastapi_app, raise_server_exceptions=False)
+    yield _client
+
+    if old is None:
+        os.environ.pop("STRICT_SCHEMAS", None)
+    else:
+        os.environ["STRICT_SCHEMAS"] = old
+    reload(base)
+    reload(routes)
+    reload(main)
 
 
 def test_submit_review_rejects_extra_field(client: TestClient):

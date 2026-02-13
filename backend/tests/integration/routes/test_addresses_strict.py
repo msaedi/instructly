@@ -1,3 +1,6 @@
+from importlib import reload
+import os
+
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
@@ -6,14 +9,22 @@ import ulid
 from app.models.region_boundary import RegionBoundary
 
 
-@pytest.fixture()
+@pytest.fixture(scope="module")
 def client():
-    from importlib import reload
+    old = os.environ.get("STRICT_SCHEMAS")
+    os.environ["STRICT_SCHEMAS"] = "1"
 
     import app.main as main
 
     reload(main)
-    return TestClient(main.fastapi_app, raise_server_exceptions=False)
+    _client = TestClient(main.fastapi_app, raise_server_exceptions=False)
+    yield _client
+
+    if old is None:
+        os.environ.pop("STRICT_SCHEMAS", None)
+    else:
+        os.environ["STRICT_SCHEMAS"] = old
+    reload(main)
 
 
 def test_zip_is_nyc_rejects_extra_query_param(client: TestClient):
