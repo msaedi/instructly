@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, text
+from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, String, text
 from sqlalchemy.orm import relationship
 import ulid
 
@@ -13,6 +13,14 @@ class BookingPayment(Base):
     """Payment and capture state for a single booking."""
 
     __tablename__ = "booking_payments"
+    __table_args__ = (
+        CheckConstraint(
+            "payment_status IS NULL OR payment_status IN ("
+            "'scheduled','authorized','payment_method_required','manual_review','locked','settled'"
+            ")",
+            name="ck_booking_payments_payment_status",
+        ),
+    )
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     booking_id = Column(

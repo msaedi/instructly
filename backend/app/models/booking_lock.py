@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 import ulid
 
@@ -13,6 +13,21 @@ class BookingLock(Base):
     """Lock lifecycle state for a single booking."""
 
     __tablename__ = "booking_locks"
+    __table_args__ = (
+        CheckConstraint(
+            "lock_resolution IS NULL OR lock_resolution IN ("
+            "'new_lesson_completed',"
+            "'new_lesson_cancelled_ge12',"
+            "'new_lesson_cancelled_lt12',"
+            "'instructor_cancelled',"
+            "'completed',"
+            "'cancelled_by_student',"
+            "'cancelled_by_instructor',"
+            "'expired'"
+            ")",
+            name="ck_booking_locks_lock_resolution",
+        ),
+    )
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     booking_id = Column(

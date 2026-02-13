@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, text
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, String, text
 from sqlalchemy.orm import relationship
 import ulid
 
@@ -13,6 +13,12 @@ class BookingNoShow(Base):
     """No-show report state for a single booking."""
 
     __tablename__ = "booking_no_shows"
+    __table_args__ = (
+        CheckConstraint(
+            "no_show_type IS NULL OR no_show_type IN ('instructor', 'student')",
+            name="ck_booking_no_shows_no_show_type",
+        ),
+    )
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     booking_id = Column(

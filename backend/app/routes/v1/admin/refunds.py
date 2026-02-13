@@ -102,12 +102,7 @@ async def admin_refund_booking(
                 detail=f"Refund amount exceeds original charge ({full_amount_cents} cents)",
             )
 
-        intent_id: str | None = pd.payment_intent_id if pd else None
-        if not intent_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Booking has no Stripe payment intent — cannot refund",
-            )
+        intent_id = pd.payment_intent_id  # guaranteed non-None by guard on line 67
 
         stripe_reason = REASON_TO_STRIPE.get(request.reason, "requested_by_customer")
         amount_key = amount_cents if amount_cents is not None else "full"

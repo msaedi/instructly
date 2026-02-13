@@ -368,8 +368,13 @@ class Booking(Base):
         return _checker
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for API responses."""
-        return {
+        """Convert to dictionary for API responses and audit trails.
+
+        Includes satellite data when loaded (via joinedload/subqueryload).
+        Satellites use ``lazy="noload"`` so ``getattr`` returns ``None``
+        when they have not been eagerly loaded, avoiding accidental queries.
+        """
+        d: dict[str, Any] = {
             "id": self.id,
             "student_id": self.student_id,
             "instructor_id": self.instructor_id,
@@ -400,6 +405,124 @@ class Booking(Base):
             "cancelled_by_id": self.cancelled_by_id,
             "cancellation_reason": self.cancellation_reason,
         }
+
+        # -- Satellite: BookingPayment (payment_detail) --
+        pd = getattr(self, "payment_detail", None)
+        if pd is not None:
+            d["payment_method_id"] = pd.payment_method_id
+            d["payment_intent_id"] = pd.payment_intent_id
+            d["payment_status"] = pd.payment_status
+            d["auth_scheduled_for"] = (
+                pd.auth_scheduled_for.isoformat() if pd.auth_scheduled_for else None
+            )
+            d["auth_attempted_at"] = (
+                pd.auth_attempted_at.isoformat() if pd.auth_attempted_at else None
+            )
+            d["auth_failure_count"] = pd.auth_failure_count
+            d["auth_last_error"] = pd.auth_last_error
+            d["auth_failure_first_email_sent_at"] = (
+                pd.auth_failure_first_email_sent_at.isoformat()
+                if pd.auth_failure_first_email_sent_at
+                else None
+            )
+            d["auth_failure_t13_warning_sent_at"] = (
+                pd.auth_failure_t13_warning_sent_at.isoformat()
+                if pd.auth_failure_t13_warning_sent_at
+                else None
+            )
+            d["credits_reserved_cents"] = pd.credits_reserved_cents
+            d["settlement_outcome"] = pd.settlement_outcome
+            d["instructor_payout_amount"] = pd.instructor_payout_amount
+            d["capture_failed_at"] = (
+                pd.capture_failed_at.isoformat() if pd.capture_failed_at else None
+            )
+            d["capture_escalated_at"] = (
+                pd.capture_escalated_at.isoformat() if pd.capture_escalated_at else None
+            )
+            d["capture_retry_count"] = pd.capture_retry_count
+            d["capture_error"] = pd.capture_error
+
+        # -- Satellite: BookingNoShow (no_show_detail) --
+        ns = getattr(self, "no_show_detail", None)
+        if ns is not None:
+            d["no_show_reported_by"] = ns.no_show_reported_by
+            d["no_show_reported_at"] = (
+                ns.no_show_reported_at.isoformat() if ns.no_show_reported_at else None
+            )
+            d["no_show_type"] = ns.no_show_type
+            d["no_show_disputed"] = ns.no_show_disputed
+            d["no_show_disputed_at"] = (
+                ns.no_show_disputed_at.isoformat() if ns.no_show_disputed_at else None
+            )
+            d["no_show_dispute_reason"] = ns.no_show_dispute_reason
+            d["no_show_resolved_at"] = (
+                ns.no_show_resolved_at.isoformat() if ns.no_show_resolved_at else None
+            )
+            d["no_show_resolution"] = ns.no_show_resolution
+
+        # -- Satellite: BookingLock (lock_detail) --
+        lk = getattr(self, "lock_detail", None)
+        if lk is not None:
+            d["locked_at"] = lk.locked_at.isoformat() if lk.locked_at else None
+            d["locked_amount_cents"] = lk.locked_amount_cents
+            d["lock_resolved_at"] = lk.lock_resolved_at.isoformat() if lk.lock_resolved_at else None
+            d["lock_resolution"] = lk.lock_resolution
+
+        # -- Satellite: BookingReschedule (reschedule_detail) --
+        rs = getattr(self, "reschedule_detail", None)
+        if rs is not None:
+            d["late_reschedule_used"] = rs.late_reschedule_used
+            d["reschedule_count"] = rs.reschedule_count
+            d["rescheduled_to_booking_id"] = rs.rescheduled_to_booking_id
+            d["original_lesson_datetime"] = (
+                rs.original_lesson_datetime.isoformat() if rs.original_lesson_datetime else None
+            )
+
+        # -- Satellite: BookingDispute (dispute) --
+        dp = getattr(self, "dispute", None)
+        if dp is not None:
+            d["dispute_id"] = dp.dispute_id
+            d["dispute_status"] = dp.dispute_status
+            d["dispute_amount"] = dp.dispute_amount
+            d["dispute_created_at"] = (
+                dp.dispute_created_at.isoformat() if dp.dispute_created_at else None
+            )
+            d["dispute_resolved_at"] = (
+                dp.dispute_resolved_at.isoformat() if dp.dispute_resolved_at else None
+            )
+
+        # -- Satellite: BookingTransfer (transfer) --
+        tr = getattr(self, "transfer", None)
+        if tr is not None:
+            d["stripe_transfer_id"] = tr.stripe_transfer_id
+            d["transfer_failed_at"] = (
+                tr.transfer_failed_at.isoformat() if tr.transfer_failed_at else None
+            )
+            d["transfer_error"] = tr.transfer_error
+            d["transfer_retry_count"] = tr.transfer_retry_count
+            d["transfer_reversed"] = tr.transfer_reversed
+            d["transfer_reversal_id"] = tr.transfer_reversal_id
+            d["transfer_reversal_failed"] = tr.transfer_reversal_failed
+            d["transfer_reversal_error"] = tr.transfer_reversal_error
+            d["transfer_reversal_failed_at"] = (
+                tr.transfer_reversal_failed_at.isoformat()
+                if tr.transfer_reversal_failed_at
+                else None
+            )
+            d["transfer_reversal_retry_count"] = tr.transfer_reversal_retry_count
+            d["refund_id"] = tr.refund_id
+            d["refund_failed_at"] = tr.refund_failed_at.isoformat() if tr.refund_failed_at else None
+            d["refund_error"] = tr.refund_error
+            d["refund_retry_count"] = tr.refund_retry_count
+            d["payout_transfer_id"] = tr.payout_transfer_id
+            d["advanced_payout_transfer_id"] = tr.advanced_payout_transfer_id
+            d["payout_transfer_failed_at"] = (
+                tr.payout_transfer_failed_at.isoformat() if tr.payout_transfer_failed_at else None
+            )
+            d["payout_transfer_error"] = tr.payout_transfer_error
+            d["payout_transfer_retry_count"] = tr.payout_transfer_retry_count
+
+        return d
 
 
 Index(
