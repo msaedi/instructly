@@ -19,9 +19,11 @@ from sqlalchemy.orm import Session
 @pytest.fixture(autouse=True, scope="function")
 def _seed_booking_payment_routes(db: Session, client: TestClient, request):
     """Seed fixed users, services, and availability for booking-payment route tests."""
-    # Skip seeding for booking_date_validation tests - they use a custom client fixture
-    # that overrides dependencies and doesn't need seeded availability
-    if "test_booking_date_validation" in request.node.nodeid:
+    # Skip seeding for tests that don't need booking/payment fixtures:
+    # - strict schema tests only validate request shapes, not real booking flows
+    # - booking_date_validation tests use a custom client fixture
+    nodeid = request.node.nodeid
+    if "_strict" in nodeid or "test_booking_date_validation" in nodeid:
         yield
         return
 
@@ -66,6 +68,11 @@ def _ensure_availability_for_class_instructor(db: Session, request):
     Some modules/classes define an 'instructor_setup' fixture that creates an instructor
     without availability. Ensure availability is seeded for that instructor AFTER it exists.
     """
+    # Strict schema tests don't need instructor availability
+    if "_strict" in request.node.nodeid:
+        yield
+        return
+
     # Try to get the fixture value - this will trigger it if it exists
     # We catch exceptions to be resilient
     try:

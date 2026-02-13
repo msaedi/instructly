@@ -1,8 +1,17 @@
-from app.main import fastapi_app as app
+import pytest
 
 
-def test_all_openapi_operation_ids_are_unique():
-    doc = app.openapi()
+@pytest.fixture(scope="module")
+def openapi_schema():
+    """Generate the OpenAPI schema from the lightweight schema-only app."""
+    from app.openapi_app import build_openapi_app
+
+    app = build_openapi_app()
+    return app.openapi()
+
+
+def test_all_openapi_operation_ids_are_unique(openapi_schema):
+    doc = openapi_schema
     paths = doc.get("paths", {})
     op_ids = []
 
