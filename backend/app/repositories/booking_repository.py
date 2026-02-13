@@ -34,6 +34,7 @@ from ..models.booking import Booking, BookingStatus, PaymentStatus
 from ..models.booking_dispute import BookingDispute
 from ..models.booking_lock import BookingLock
 from ..models.booking_no_show import BookingNoShow
+from ..models.booking_payment import BookingPayment
 from ..models.booking_transfer import BookingTransfer
 from ..models.user import User
 from .base_repository import BaseRepository
@@ -176,6 +177,34 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except Exception as e:
             self.logger.error(f"Error ensuring lock for booking {booking_id}: {str(e)}")
             raise RepositoryException(f"Failed to ensure booking lock: {str(e)}")
+
+    def get_payment_by_booking_id(self, booking_id: str) -> Optional[BookingPayment]:
+        """Return payment satellite row for a booking, if present."""
+        try:
+            payment = cast(
+                Optional[BookingPayment],
+                self.db.query(BookingPayment)
+                .filter(BookingPayment.booking_id == booking_id)
+                .one_or_none(),
+            )
+            return payment
+        except Exception as e:
+            self.logger.error(f"Error getting payment for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to get booking payment: {str(e)}")
+
+    def ensure_payment(self, booking_id: str) -> BookingPayment:
+        """Get or create payment satellite row for a booking."""
+        try:
+            payment = self.get_payment_by_booking_id(booking_id)
+            if payment is not None:
+                return payment
+            payment = BookingPayment(booking_id=booking_id)
+            self.db.add(payment)
+            self.db.flush()
+            return payment
+        except Exception as e:
+            self.logger.error(f"Error ensuring payment for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to ensure booking payment: {str(e)}")
 
     # Time-based Booking Queries (NEW)
 
@@ -438,11 +467,15 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(
                 List[Booking],
                 self.db.query(Booking)
-                .options(joinedload(Booking.payment_intent))
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(
+                    joinedload(Booking.payment_intent),
+                    joinedload(Booking.payment_detail),
+                )
                 .filter(
                     Booking.instructor_id == instructor_id,
                     Booking.status == BookingStatus.COMPLETED,
-                    Booking.payment_status == PaymentStatus.AUTHORIZED.value,
+                    BookingPayment.payment_status == PaymentStatus.AUTHORIZED.value,
                 )
                 .all(),
             )
@@ -616,6 +649,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     joinedload(Booking.student),
                     joinedload(Booking.instructor),
                     joinedload(Booking.instructor_service),
+                    selectinload(Booking.payment_detail),
                     selectinload(Booking.no_show_detail),
                     selectinload(Booking.lock_detail),
                 )
@@ -779,6 +813,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     joinedload(Booking.student),
                     joinedload(Booking.instructor),
                     joinedload(Booking.instructor_service),
+                    selectinload(Booking.payment_detail),
                     selectinload(Booking.no_show_detail),
                     selectinload(Booking.lock_detail),
                 )
@@ -1041,6 +1076,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     joinedload(Booking.instructor_service),
                     joinedload(Booking.rescheduled_from),
                     joinedload(Booking.cancelled_by),
+                    selectinload(Booking.payment_detail),
                     selectinload(Booking.no_show_detail),
                     selectinload(Booking.lock_detail),
                 )
@@ -1098,10 +1134,15 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
     ) -> tuple[List[Booking], int]:
         """Return admin booking list with filters and pagination."""
         try:
-            query = self.db.query(Booking).options(
-                joinedload(Booking.student),
-                joinedload(Booking.instructor),
-                joinedload(Booking.instructor_service),
+            query = (
+                self.db.query(Booking)
+                .outerjoin(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(
+                    joinedload(Booking.student),
+                    joinedload(Booking.instructor),
+                    joinedload(Booking.instructor_service),
+                    selectinload(Booking.payment_detail),
+                )
             )
 
             if search:
@@ -1115,7 +1156,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         or_(
                             Booking.id.ilike(term),
                             Booking.service_name.ilike(term),
-                            Booking.payment_intent_id.ilike(term),
+                            BookingPayment.payment_intent_id.ilike(term),
                             student_alias.first_name.ilike(term),
                             student_alias.last_name.ilike(term),
                             student_alias.email.ilike(term),
@@ -1136,9 +1177,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 if cleaned:
                     filters = []
                     if "pending" in cleaned:
-                        filters.append(Booking.payment_status.is_(None))
+                        filters.append(BookingPayment.payment_status.is_(None))
                         filters.append(
-                            func.lower(Booking.payment_status)
+                            func.lower(BookingPayment.payment_status)
                             == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
                         )
                         cleaned = [status for status in cleaned if status != "pending"]
@@ -1151,13 +1192,14 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         }
                         filters.append(
                             and_(
-                                func.lower(Booking.payment_status) == PaymentStatus.SETTLED.value,
-                                Booking.settlement_outcome.in_(refund_outcomes),
+                                func.lower(BookingPayment.payment_status)
+                                == PaymentStatus.SETTLED.value,
+                                BookingPayment.settlement_outcome.in_(refund_outcomes),
                             )
                         )
                         cleaned = [status for status in cleaned if status != "refunded"]
                     if cleaned:
-                        filters.append(func.lower(Booking.payment_status).in_(cleaned))
+                        filters.append(func.lower(BookingPayment.payment_status).in_(cleaned))
                     query = query.filter(or_(*filters))
 
             if date_from:
@@ -1445,11 +1487,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             booking.status = status
             booking.cancelled_at = booking.cancelled_at or cancelled_at
             booking.cancellation_reason = cancellation_reason
+            payment = self.ensure_payment(booking.id)
             if settlement_outcome:
-                booking.settlement_outcome = settlement_outcome
+                payment.settlement_outcome = settlement_outcome
             booking.refunded_to_card_amount = refunded_to_card_amount
             booking.student_credit_amount = student_credit_amount
-            booking.instructor_payout_amount = instructor_payout_amount
+            payment.instructor_payout_amount = instructor_payout_amount
             booking.updated_at = updated_at
 
             self.db.flush()
@@ -1505,6 +1548,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             query = (
                 self.db.query(Booking)
                 .join(BookingNoShow, BookingNoShow.booking_id == Booking.id)
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .filter(
                     BookingNoShow.no_show_reported_at.is_not(None),
                     BookingNoShow.no_show_reported_at <= reported_before,
@@ -1513,9 +1557,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         BookingNoShow.no_show_disputed.is_(None),
                     ),
                     BookingNoShow.no_show_resolved_at.is_(None),
-                    Booking.payment_status == PaymentStatus.MANUAL_REVIEW.value,
+                    BookingPayment.payment_status == PaymentStatus.MANUAL_REVIEW.value,
                 )
-                .options(joinedload(Booking.no_show_detail))
+                .options(
+                    joinedload(Booking.no_show_detail),
+                    joinedload(Booking.payment_detail),
+                )
                 .order_by(BookingNoShow.no_show_reported_at.asc())
             )
             return cast(List[Booking], query.all())
@@ -1535,6 +1582,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             joinedload(Booking.student),
             joinedload(Booking.instructor),
             joinedload(Booking.instructor_service),
+            joinedload(Booking.payment_detail),
         )
 
     def count_old_bookings(self, cutoff_date: datetime) -> int:
@@ -1624,11 +1672,13 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(
                 List[Booking],
                 self.db.query(Booking)
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(joinedload(Booking.payment_detail))
                 .filter(
                     and_(
                         Booking.status == BookingStatus.CONFIRMED,
-                        Booking.payment_status == PaymentStatus.SCHEDULED.value,
-                        Booking.payment_method_id.isnot(None),
+                        BookingPayment.payment_status == PaymentStatus.SCHEDULED.value,
+                        BookingPayment.payment_method_id.isnot(None),
                     )
                 )
                 .all(),
@@ -1650,12 +1700,15 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(
                 List[Booking],
                 self.db.query(Booking)
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(joinedload(Booking.payment_detail))
                 .filter(
                     and_(
                         Booking.status == BookingStatus.CONFIRMED,
-                        Booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-                        Booking.capture_failed_at.is_(None),
-                        Booking.payment_method_id.isnot(None),
+                        BookingPayment.payment_status
+                        == PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+                        BookingPayment.capture_failed_at.is_(None),
+                        BookingPayment.payment_method_id.isnot(None),
                     )
                 )
                 .all(),
@@ -1678,13 +1731,17 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(
                 List[Booking],
                 self.db.query(Booking)
+                # Locked-funds capture paths can exist even when a payment satellite row has not
+                # been initialized yet, so keep payment join optional for this mixed predicate.
+                .outerjoin(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(joinedload(Booking.payment_detail))
                 .filter(
                     and_(
                         Booking.status == BookingStatus.COMPLETED,
                         or_(
                             and_(
-                                Booking.payment_status == PaymentStatus.AUTHORIZED.value,
-                                Booking.payment_intent_id.isnot(None),
+                                BookingPayment.payment_status == PaymentStatus.AUTHORIZED.value,
+                                BookingPayment.payment_intent_id.isnot(None),
                             ),
                             and_(
                                 Booking.has_locked_funds.is_(True),
@@ -1713,13 +1770,17 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(
                 List[Booking],
                 self.db.query(Booking)
+                # Locked-funds auto-completion paths can exist even when a payment satellite row
+                # has not been initialized yet, so keep payment join optional for this mixed predicate.
+                .outerjoin(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(joinedload(Booking.payment_detail))
                 .filter(
                     and_(
                         Booking.status == BookingStatus.CONFIRMED,
                         or_(
                             and_(
-                                Booking.payment_status == PaymentStatus.AUTHORIZED.value,
-                                Booking.payment_intent_id.isnot(None),
+                                BookingPayment.payment_status == PaymentStatus.AUTHORIZED.value,
+                                BookingPayment.payment_intent_id.isnot(None),
                             ),
                             and_(
                                 Booking.has_locked_funds.is_(True),
@@ -1746,10 +1807,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(
                 List[Booking],
                 self.db.query(Booking)
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(joinedload(Booking.payment_detail))
                 .filter(
                     and_(
-                        Booking.payment_status == PaymentStatus.AUTHORIZED.value,
-                        Booking.payment_intent_id.isnot(None),
+                        BookingPayment.payment_status == PaymentStatus.AUTHORIZED.value,
+                        BookingPayment.payment_intent_id.isnot(None),
                     )
                 )
                 .all(),
@@ -1771,10 +1834,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         try:
             return int(
                 self.db.query(Booking)
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .filter(
                     and_(
                         Booking.status == BookingStatus.CONFIRMED,
-                        Booking.payment_status == PaymentStatus.SCHEDULED.value,
+                        BookingPayment.payment_status == PaymentStatus.SCHEDULED.value,
                         Booking.booking_date <= current_date,
                     )
                 )

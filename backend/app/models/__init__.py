@@ -26,6 +26,7 @@ from .booking_dispute import BookingDispute
 from .booking_lock import BookingLock
 from .booking_no_show import BookingNoShow
 from .booking_note import BookingNote
+from .booking_payment import BookingPayment
 from .booking_transfer import BookingTransfer
 from .conversation import Conversation
 from .conversation_user_state import ConversationUserState
@@ -137,6 +138,7 @@ __all__ = [
     "BookingLock",
     "BookingNote",
     "BookingNoShow",
+    "BookingPayment",
     "BookingTransfer",
     "AuditLog",
     "AuditLogEntry",

@@ -638,6 +638,12 @@ class BookingResponse(BookingBase):
         rescheduled_from_booking_id_value = getattr(booking, "rescheduled_from_booking_id", None)
         no_show_detail = getattr(booking, "no_show_detail", None)
         lock_detail = getattr(booking, "lock_detail", None)
+        payment_detail = getattr(booking, "payment_detail", None)
+
+        def _payment_value(field_name: str) -> object:
+            if payment_detail is not None:
+                return getattr(payment_detail, field_name, None)
+            return getattr(booking, field_name, None)
 
         response_data = {
             # Base fields from BookingBase
@@ -703,17 +709,15 @@ class BookingResponse(BookingBase):
             ),
             "no_show_resolution": _safe_str(getattr(no_show_detail, "no_show_resolution", None)),
             # Settlement tracking
-            "settlement_outcome": _safe_str(getattr(booking, "settlement_outcome", None)),
+            "settlement_outcome": _safe_str(_payment_value("settlement_outcome")),
             "student_credit_amount": _safe_int(getattr(booking, "student_credit_amount", None)),
-            "instructor_payout_amount": _safe_int(
-                getattr(booking, "instructor_payout_amount", None)
-            ),
+            "instructor_payout_amount": _safe_int(_payment_value("instructor_payout_amount")),
             "refunded_to_card_amount": _safe_int(getattr(booking, "refunded_to_card_amount", None)),
-            "credits_reserved_cents": _safe_int(getattr(booking, "credits_reserved_cents", None)),
-            "auth_scheduled_for": _safe_datetime(getattr(booking, "auth_scheduled_for", None)),
-            "auth_attempted_at": _safe_datetime(getattr(booking, "auth_attempted_at", None)),
-            "auth_failure_count": _safe_int(getattr(booking, "auth_failure_count", None)),
-            "auth_last_error": _safe_str(getattr(booking, "auth_last_error", None)),
+            "credits_reserved_cents": _safe_int(_payment_value("credits_reserved_cents")),
+            "auth_scheduled_for": _safe_datetime(_payment_value("auth_scheduled_for")),
+            "auth_attempted_at": _safe_datetime(_payment_value("auth_attempted_at")),
+            "auth_failure_count": _safe_int(_payment_value("auth_failure_count")),
+            "auth_last_error": _safe_str(_payment_value("auth_last_error")),
             "locked_at": _safe_datetime(getattr(lock_detail, "locked_at", None)),
             "locked_amount_cents": _safe_int(getattr(lock_detail, "locked_amount_cents", None)),
             "lock_resolved_at": _safe_datetime(getattr(lock_detail, "lock_resolved_at", None)),

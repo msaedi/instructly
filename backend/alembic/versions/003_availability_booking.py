@@ -166,30 +166,8 @@ def upgrade() -> None:
         sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("cancelled_by_id", sa.String(26), nullable=True),
         sa.Column("cancellation_reason", sa.Text(), nullable=True),
-        sa.Column("payment_method_id", sa.String(255), nullable=True, comment="Stripe payment method ID"),
-        sa.Column("payment_intent_id", sa.String(255), nullable=True, comment="Current Stripe payment intent"),
-        sa.Column("payment_status", sa.String(50), nullable=True, comment="Computed from latest events"),
-        sa.Column("auth_scheduled_for", sa.DateTime(timezone=True), nullable=True, comment="When authorization is scheduled to run (v2.1.1)"),
-        sa.Column("auth_attempted_at", sa.DateTime(timezone=True), nullable=True, comment="Last time authorization was attempted (v2.1.1)"),
-        sa.Column("auth_failure_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Authorization failure count (v2.1.1)"),
-        sa.Column("auth_last_error", sa.String(500), nullable=True, comment="Last authorization error (v2.1.1)"),
-        sa.Column("auth_failure_first_email_sent_at", sa.DateTime(timezone=True), nullable=True, comment="First auth failure email sent at (v2.1.1)"),
-        sa.Column("auth_failure_t13_warning_sent_at", sa.DateTime(timezone=True), nullable=True, comment="T-13 warning email sent at (v2.1.1)"),
-        sa.Column(
-            "credits_reserved_cents",
-            sa.Integer(),
-            nullable=False,
-            server_default=sa.text("0"),
-            comment="Credits reserved for this booking in cents (v2.1.1)",
-        ),
-        sa.Column("settlement_outcome", sa.String(50), nullable=True, comment="Policy settlement outcome (v2.1.1)"),
         sa.Column("student_credit_amount", sa.Integer(), nullable=True, comment="Student credit issued in cents (v2.1.1)"),
-        sa.Column("instructor_payout_amount", sa.Integer(), nullable=True, comment="Instructor payout in cents (v2.1.1)"),
         sa.Column("refunded_to_card_amount", sa.Integer(), nullable=True, comment="Refunded to card in cents (v2.1.1)"),
-        sa.Column("capture_failed_at", sa.DateTime(timezone=True), nullable=True, comment="Capture failure timestamp (v2.1.1)"),
-        sa.Column("capture_escalated_at", sa.DateTime(timezone=True), nullable=True, comment="Capture escalation timestamp (v2.1.1)"),
-        sa.Column("capture_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Capture retry count (v2.1.1)"),
-        sa.Column("capture_error", sa.String(500), nullable=True, comment="Capture error (v2.1.1)"),
         sa.Column("late_reschedule_used", sa.Boolean(), nullable=False, server_default=sa.text("false"), comment="Late reschedule used in 12-24h window (v2.1.1)"),
         sa.Column("reschedule_count", sa.Integer(), nullable=False, server_default=sa.text("0"), comment="Total reschedule count (v2.1.1)"),
         sa.Column("rescheduled_to_booking_id", sa.String(26), nullable=True),
@@ -286,6 +264,38 @@ def upgrade() -> None:
     )
     op.create_index("ix_booking_locks_booking_id", "booking_locks", ["booking_id"], unique=True)
 
+    op.create_table(
+        "booking_payments",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("booking_id", sa.String(26), nullable=False),
+        sa.Column("payment_method_id", sa.String(255), nullable=True),
+        sa.Column("payment_intent_id", sa.String(255), nullable=True),
+        sa.Column("payment_status", sa.String(50), nullable=True),
+        sa.Column("auth_scheduled_for", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("auth_attempted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("auth_failure_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
+        sa.Column("auth_last_error", sa.String(500), nullable=True),
+        sa.Column("auth_failure_first_email_sent_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("auth_failure_t13_warning_sent_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("credits_reserved_cents", sa.Integer(), nullable=False, server_default=sa.text("0")),
+        sa.Column("settlement_outcome", sa.String(50), nullable=True),
+        sa.Column("instructor_payout_amount", sa.Integer(), nullable=True),
+        sa.Column("capture_failed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("capture_escalated_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("capture_retry_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
+        sa.Column("capture_error", sa.String(500), nullable=True),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("booking_id"),
+    )
+    op.create_index("ix_booking_payments_booking_id", "booking_payments", ["booking_id"], unique=True)
+    op.create_index("ix_booking_payments_payment_status", "booking_payments", ["payment_status"])
+    op.create_index(
+        "ix_booking_payments_auth_scheduled_for",
+        "booking_payments",
+        ["auth_scheduled_for"],
+    )
+
     op.create_index("idx_bookings_student_id", "bookings", ["student_id"])
     op.create_index("idx_bookings_instructor_id", "bookings", ["instructor_id"])
     op.create_index("idx_bookings_date", "bookings", ["booking_date"])
@@ -322,24 +332,6 @@ def upgrade() -> None:
     op.create_index("idx_bookings_rescheduled_from_id", "bookings", ["rescheduled_from_booking_id"])
     op.create_index("idx_bookings_rescheduled_to_id", "bookings", ["rescheduled_to_booking_id"])
     op.create_index("idx_bookings_location_place_id", "bookings", ["location_place_id"])
-    op.create_index(
-        "ix_bookings_payment_status",
-        "bookings",
-        ["payment_status"],
-        postgresql_where=sa.text("payment_status IS NOT NULL"),
-    )
-    op.create_index(
-        "ix_bookings_auth_scheduled_for",
-        "bookings",
-        ["auth_scheduled_for"],
-        postgresql_where=sa.text("auth_scheduled_for IS NOT NULL"),
-    )
-    op.create_index(
-        "ix_bookings_payment_status_auth_scheduled",
-        "bookings",
-        ["payment_status", "auth_scheduled_for"],
-    )
-
     op.create_check_constraint(
         "ck_bookings_status",
         "bookings",
@@ -351,8 +343,8 @@ def upgrade() -> None:
         "location_type IN ('student_location', 'instructor_location', 'online', 'neutral_location')",
     )
     op.create_check_constraint(
-        "ck_bookings_payment_status",
-        "bookings",
+        "ck_booking_payments_payment_status",
+        "booking_payments",
         "payment_status IS NULL OR payment_status IN ("
         "'scheduled','authorized','payment_method_required','manual_review','locked','settled'"
         ")",
@@ -843,6 +835,7 @@ def downgrade() -> None:
     op.drop_index("idx_stripe_customers_user_id", table_name="stripe_customers")
     op.drop_table("stripe_customers")
 
+    op.drop_table("booking_payments")
     op.drop_table("booking_locks")
     op.drop_table("booking_no_shows")
     op.drop_table("booking_transfers")
@@ -857,13 +850,8 @@ def downgrade() -> None:
     op.drop_constraint("check_rate_positive", "bookings", type_="check")
     op.drop_constraint("check_price_non_negative", "bookings", type_="check")
     op.drop_constraint("check_duration_positive", "bookings", type_="check")
-    op.drop_constraint("ck_bookings_payment_status", "bookings", type_="check")
     op.drop_constraint("ck_bookings_location_type", "bookings", type_="check")
     op.drop_constraint("ck_bookings_status", "bookings", type_="check")
-
-    op.drop_index("ix_bookings_payment_status_auth_scheduled", table_name="bookings")
-    op.drop_index("ix_bookings_auth_scheduled_for", table_name="bookings")
-    op.drop_index("ix_bookings_payment_status", table_name="bookings")
     op.drop_index("idx_bookings_location_place_id", table_name="bookings")
     op.drop_index("idx_bookings_rescheduled_to_id", table_name="bookings")
     op.drop_index("idx_bookings_rescheduled_from_id", table_name="bookings")

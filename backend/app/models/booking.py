@@ -30,8 +30,10 @@ from sqlalchemy import (
     String,
     Text,
     Time,
+    select,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import object_session, relationship
 from sqlalchemy.sql import func
 import ulid
 
@@ -40,6 +42,31 @@ from ..database import Base
 logger = logging.getLogger(__name__)
 
 IS_SQLITE = os.getenv("DB_DIALECT", "").lower().startswith("sqlite")
+
+
+def _build_payment_hybrid(field_name: str) -> Any:
+    """Return a hybrid descriptor backed by BookingPayment.<field_name>."""
+
+    def _getter(self: "Booking") -> Any:
+        return self._get_payment_detail_value(field_name)
+
+    def _setter(self: "Booking", value: Any) -> None:
+        self._set_payment_detail_value(field_name, value)
+
+    def _expression(owner_cls: type["Booking"]) -> Any:
+        from .booking_payment import BookingPayment
+
+        return (
+            select(getattr(BookingPayment, field_name))
+            .where(BookingPayment.booking_id == owner_cls.id)
+            .correlate_except(BookingPayment)
+            .scalar_subquery()
+        )
+
+    descriptor = hybrid_property(_getter)
+    descriptor = descriptor.setter(_setter)
+    descriptor = descriptor.expression(_expression)
+    return descriptor
 
 
 class BookingStatus(str, Enum):
@@ -159,107 +186,16 @@ class Booking(Base):
     cancelled_by_id = Column(String(26), ForeignKey("users.id"), nullable=True)
     cancellation_reason = Column(Text, nullable=True)
 
-    # Payment fields (Phase 1.2)
-    payment_method_id = Column(String(255), nullable=True, comment="Stripe payment method ID")
-    payment_intent_id = Column(String(255), nullable=True, comment="Current Stripe payment intent")
-    payment_status = Column(
-        String(50),
-        nullable=True,
-        comment="Canonical payment status per v2.1.1 policy",
-    )
-    auth_scheduled_for = Column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="When authorization is scheduled to run (v2.1.1)",
-    )
-    auth_attempted_at = Column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="Last time authorization was attempted (v2.1.1)",
-    )
-    auth_failure_count = Column(
-        Integer,
-        nullable=False,
-        default=0,
-        comment="Authorization failure count (v2.1.1)",
-    )
-    auth_last_error = Column(
-        String(500),
-        nullable=True,
-        comment="Last authorization error (v2.1.1)",
-    )
-    auth_failure_first_email_sent_at = Column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="First auth failure email sent at (v2.1.1)",
-    )
-    auth_failure_t13_warning_sent_at = Column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="T-13 warning email sent at (v2.1.1)",
-    )
-    credits_reserved_cents = Column(
-        Integer,
-        nullable=False,
-        default=0,
-        comment="Credits reserved for this booking in cents (v2.1.1)",
-    )
-    # settlement_outcome values per v2.1.1 policy:
-    # - lesson_completed_full_payout
-    # - student_cancel_12_24_full_credit
-    # - student_cancel_lt12_split_50_50
-    # - student_cancel_gt24_no_charge
-    # - locked_cancel_ge12_full_credit
-    # - locked_cancel_lt12_split_50_50
-    # - instructor_cancel_full_refund
-    # - instructor_no_show_full_refund
-    # - student_wins_dispute_full_refund
-    # - capture_failure_instructor_paid
-    # - dispute_won
-    # - admin_refund
-    # - admin_no_refund
-    settlement_outcome = Column(
-        String(50),
-        nullable=True,
-        comment="Policy settlement outcome (v2.1.1)",
-    )
+    # Settlement values still stored on booking core
     student_credit_amount = Column(
         Integer,
         nullable=True,
         comment="Student credit issued in cents (v2.1.1)",
     )
-    instructor_payout_amount = Column(
-        Integer,
-        nullable=True,
-        comment="Instructor payout in cents (v2.1.1)",
-    )
     refunded_to_card_amount = Column(
         Integer,
         nullable=True,
         comment="Refunded to card in cents (v2.1.1)",
-    )
-
-    # Capture failure tracking (v2.1.1 failure handling)
-    capture_failed_at = Column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="Capture failure timestamp (v2.1.1)",
-    )
-    capture_escalated_at = Column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="Capture escalation timestamp (v2.1.1)",
-    )
-    capture_retry_count = Column(
-        Integer,
-        nullable=False,
-        default=0,
-        comment="Capture retry count (v2.1.1)",
-    )
-    capture_error = Column(
-        String(500),
-        nullable=True,
-        comment="Capture error (v2.1.1)",
     )
 
     # Reschedule tracking (v2.1.1)
@@ -287,6 +223,13 @@ class Booking(Base):
     )
     payment_events = relationship(
         "PaymentEvent", back_populates="booking", cascade="all, delete-orphan"
+    )
+    payment_detail = relationship(
+        "BookingPayment",
+        back_populates="booking",
+        uselist=False,
+        cascade="all, delete-orphan",
+        lazy="noload",
     )
     no_show_detail = relationship(
         "BookingNoShow",
@@ -383,12 +326,6 @@ class Booking(Base):
         CheckConstraint("duration_minutes > 0", name="check_duration_positive"),
         CheckConstraint("total_price >= 0", name="check_price_non_negative"),
         CheckConstraint("hourly_rate > 0", name="check_rate_positive"),
-        CheckConstraint(
-            "payment_status IS NULL OR payment_status IN ("
-            "'scheduled','authorized','payment_method_required','manual_review','locked','settled'"
-            ")",
-            name="ck_bookings_payment_status",
-        ),
     ]
 
     if not IS_SQLITE:
@@ -400,6 +337,59 @@ class Booking(Base):
         )
 
     __table_args__ = tuple(_table_constraints)
+
+    def _get_payment_detail_value(self, field_name: str) -> Any:
+        payment_detail = getattr(self, "payment_detail", None)
+        if payment_detail is None and getattr(self, "id", None):
+            session = object_session(self)
+            if session is not None:
+                from .booking_payment import BookingPayment
+
+                payment_detail = (
+                    session.query(BookingPayment)
+                    .filter(BookingPayment.booking_id == self.id)
+                    .one_or_none()
+                )
+                if payment_detail is not None:
+                    self.payment_detail = payment_detail
+        if payment_detail is None:
+            return None
+        return getattr(payment_detail, field_name, None)
+
+    def _set_payment_detail_value(self, field_name: str, value: Any) -> None:
+        payment_detail = getattr(self, "payment_detail", None)
+        if payment_detail is None:
+            from .booking_payment import BookingPayment
+
+            existing_detail = None
+            if getattr(self, "id", None):
+                session = object_session(self)
+                if session is not None:
+                    existing_detail = (
+                        session.query(BookingPayment)
+                        .filter(BookingPayment.booking_id == self.id)
+                        .one_or_none()
+                    )
+            payment_detail = existing_detail or BookingPayment()
+            self.payment_detail = payment_detail
+        setattr(payment_detail, field_name, value)
+
+    payment_method_id = _build_payment_hybrid("payment_method_id")
+    payment_intent_id = _build_payment_hybrid("payment_intent_id")
+    payment_status = _build_payment_hybrid("payment_status")
+    auth_scheduled_for = _build_payment_hybrid("auth_scheduled_for")
+    auth_attempted_at = _build_payment_hybrid("auth_attempted_at")
+    auth_failure_count = _build_payment_hybrid("auth_failure_count")
+    auth_last_error = _build_payment_hybrid("auth_last_error")
+    auth_failure_first_email_sent_at = _build_payment_hybrid("auth_failure_first_email_sent_at")
+    auth_failure_t13_warning_sent_at = _build_payment_hybrid("auth_failure_t13_warning_sent_at")
+    credits_reserved_cents = _build_payment_hybrid("credits_reserved_cents")
+    settlement_outcome = _build_payment_hybrid("settlement_outcome")
+    instructor_payout_amount = _build_payment_hybrid("instructor_payout_amount")
+    capture_failed_at = _build_payment_hybrid("capture_failed_at")
+    capture_escalated_at = _build_payment_hybrid("capture_escalated_at")
+    capture_retry_count = _build_payment_hybrid("capture_retry_count")
+    capture_error = _build_payment_hybrid("capture_error")
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize with instant confirmation by default."""
