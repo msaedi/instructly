@@ -1754,12 +1754,11 @@ class StripeService(BaseService):
                         bp.credits_reserved_cents = applied_credit_cents
                 else:
                     applied_credit_cents = existing_applied
-
-                bp = self.booking_repository.ensure_payment(booking.id)
-                if existing_applied > 0 and (
-                    getattr(bp, "credits_reserved_cents", 0) != existing_applied
-                ):
-                    bp.credits_reserved_cents = existing_applied
+                    bp = self.booking_repository.ensure_payment(booking.id)
+                    if existing_applied > 0 and (
+                        getattr(bp, "credits_reserved_cents", 0) != existing_applied
+                    ):
+                        bp.credits_reserved_cents = existing_applied
 
                 pricing = self.pricing_service.compute_booking_pricing(
                     booking_id=booking_id,

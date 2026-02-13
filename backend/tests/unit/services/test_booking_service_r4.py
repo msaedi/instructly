@@ -246,9 +246,10 @@ def test_create_booking_with_payment_setup_operational_error_non_deadlock_propag
         booking_service.create_booking_with_payment_setup(student, booking_data, selected_duration=60)
 
 
-def test_create_booking_with_payment_setup_reschedule_linkage_exception_suppressed(
+def test_create_booking_with_payment_setup_reschedule_linkage_exception_propagates(
     booking_service: BookingService, mock_repository: MagicMock
 ) -> None:
+    """Reschedule satellite failures now propagate (policy-critical after normalization)."""
     student = make_user(RoleName.STUDENT)
     booking_data = SimpleNamespace(
         instructor_id=generate_ulid(),
@@ -271,7 +272,7 @@ def test_create_booking_with_payment_setup_reschedule_linkage_exception_suppress
     booking_service._snapshot_booking = Mock(return_value={})
     mock_repository.transaction.return_value = _transaction_cm()
 
-    def _get_by_id(booking_id: str):
+    def _get_by_id(booking_id: str, **kwargs: object):
         if booking_id == reschedule_id:
             raise Exception("boom")
         return booking
@@ -287,16 +288,13 @@ def test_create_booking_with_payment_setup_reschedule_linkage_exception_suppress
         )
         payment_repo.return_value.create_payment_event = Mock()
 
-        result = booking_service.create_booking_with_payment_setup(
-            student,
-            booking_data,
-            selected_duration=60,
-            rescheduled_from_booking_id=reschedule_id,
-        )
-
-    assert result.status == BookingStatus.PENDING
-    bp = mock_repository.ensure_payment.return_value
-    assert bp.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+        with pytest.raises(Exception, match="boom"):
+            booking_service.create_booking_with_payment_setup(
+                student,
+                booking_data,
+                selected_duration=60,
+                rescheduled_from_booking_id=reschedule_id,
+            )
 
 
 # --- Group 4: reschedule lock paths ---

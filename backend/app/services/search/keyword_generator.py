@@ -40,16 +40,12 @@ class KeywordDictCache:
         force_refresh: bool = False,
     ) -> dict[str, dict[str, str]]:
         with self._lock:
-            if self._dicts is not None and not force_refresh:
-                # Return cached data if:
-                # - no db was provided (seed-only mode), OR
-                # - cache was already populated from the DB, OR
-                # - cache was populated from seed as a DB-fallback (avoid
-                #   retrying a failing DB session on every call — callers can
-                #   use force_refresh=True or invalidate() to retry).
+            should_use_cache = self._dicts is not None and not force_refresh
+            if should_use_cache and (db is None or self._source == "db"):
                 cached = self._dicts
                 if cached is None:
                     raise RuntimeError("keyword cache unexpectedly missing")
+                # Returned dictionaries are treated as read-only by callers.
                 return cached
 
             if db is None:

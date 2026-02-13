@@ -159,7 +159,11 @@ class Booking(Base):
     cancelled_by_id = Column(String(26), ForeignKey("users.id"), nullable=True)
     cancellation_reason = Column(Text, nullable=True)
 
-    # Settlement values still stored on booking core
+    # NOTE: student_credit_amount and refunded_to_card_amount remain on the core
+    # bookings table because they represent student-facing refund disposition
+    # (set during cancellation), not payment processing state. The payment
+    # satellite (BookingPayment) holds instructor-facing and Stripe-facing fields
+    # (settlement_outcome, instructor_payout_amount, credits_reserved_cents).
     student_credit_amount = Column(
         Integer,
         nullable=True,

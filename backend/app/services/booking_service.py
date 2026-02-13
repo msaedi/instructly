@@ -783,36 +783,39 @@ class BookingService(BaseService):
                 # When creating C from B, original_lesson_datetime = B's lesson time
                 # NOT: trace back to find A's lesson time
                 if rescheduled_from_booking_id:
-                    try:
-                        # Fetch the IMMEDIATE previous booking (NOT the chain's original)
-                        previous_booking = self.repository.get_by_id(rescheduled_from_booking_id)
-                        original_lesson_dt = None
-                        if previous_booking:
-                            # Store the previous booking's lesson datetime for fair cancellation policy
-                            original_lesson_dt = self._get_booking_start_utc(previous_booking)
+                    # Fetch the IMMEDIATE previous booking (NOT the chain's original)
+                    previous_booking = self.repository.get_by_id(rescheduled_from_booking_id)
+                    original_lesson_dt = None
+                    if previous_booking:
+                        # Store the previous booking's lesson datetime for fair cancellation policy
+                        original_lesson_dt = self._get_booking_start_utc(previous_booking)
 
-                        updated_booking = self.repository.update(
-                            booking.id,
-                            rescheduled_from_booking_id=rescheduled_from_booking_id,
-                        )
-                        if updated_booking is not None:
-                            booking = updated_booking
-                        if previous_booking:
-                            previous_reschedule = self.repository.ensure_reschedule(
-                                previous_booking.id
-                            )
-                            current_reschedule = self.repository.ensure_reschedule(booking.id)
-                            current_reschedule.original_lesson_datetime = original_lesson_dt
-                            previous_reschedule.rescheduled_to_booking_id = booking.id
+                    updated_booking = self.repository.update(
+                        booking.id,
+                        rescheduled_from_booking_id=rescheduled_from_booking_id,
+                    )
+                    if updated_booking is not None:
+                        booking = updated_booking
+                    if previous_booking:
+                        # Policy-critical satellite writes — must succeed
+                        previous_reschedule = self.repository.ensure_reschedule(previous_booking.id)
+                        current_reschedule = self.repository.ensure_reschedule(booking.id)
+                        current_reschedule.original_lesson_datetime = original_lesson_dt
+                        previous_reschedule.rescheduled_to_booking_id = booking.id
+                        if bool(previous_reschedule.late_reschedule_used):
+                            current_reschedule.late_reschedule_used = True
+                        # Analytics-only counter — safe to swallow
+                        try:
                             previous_count = int(previous_reschedule.reschedule_count or 0)
                             new_count = previous_count + 1
                             previous_reschedule.reschedule_count = new_count
                             current_reschedule.reschedule_count = new_count
-                            if bool(previous_reschedule.late_reschedule_used):
-                                current_reschedule.late_reschedule_used = True
-                    except Exception:
-                        # Non-fatal; linkage is analytics-only
-                        logger.debug("Non-fatal error ignored", exc_info=True)
+                        except Exception:
+                            logger.warning(
+                                "Failed to increment reschedule_count for booking %s",
+                                booking.id,
+                                exc_info=True,
+                            )
                 # Override status to PENDING until payment confirmed
                 booking.status = BookingStatus.PENDING
                 bp = self.repository.ensure_payment(booking.id)

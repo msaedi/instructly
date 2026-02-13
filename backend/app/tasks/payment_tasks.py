@@ -35,6 +35,7 @@ from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.payment import PaymentEvent
 from app.models.user import User
 from app.monitoring.sentry_crons import monitor_if_configured
+from app.repositories.base_repository import RepositoryException
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.factory import RepositoryFactory
 from app.services.booking_service import BookingService
@@ -1263,7 +1264,12 @@ def _escalate_capture_failure(booking_id: str, now: datetime) -> None:
 
         try:
             payment_record = payment_repo.get_payment_by_booking_id(booking.id)
-        except Exception:
+        except RepositoryException:
+            logger.warning(
+                "Failed to load payment record for booking %s during escalation",
+                booking.id,
+                exc_info=True,
+            )
             payment_record = None
 
         payout_value = (
@@ -1387,6 +1393,12 @@ def handle_authorization_failure(
     if _db is not None:
         bp_fail = BookingRepository(_db).ensure_payment(booking.id)
         bp_fail.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
+    else:
+        logger.warning(
+            "Booking %s has no active session — payment status update skipped. "
+            "Payment event was still recorded, manual reconciliation may be needed.",
+            booking.id,
+        )
 
     payment_repo.create_payment_event(
         booking_id=booking.id,
@@ -1773,7 +1785,12 @@ def _process_capture_for_booking(
         def _resolve_payout_cents() -> Optional[int]:
             try:
                 payment_record = payment_repo.get_payment_by_booking_id(booking_id)
-            except Exception:
+            except RepositoryException:
+                logger.warning(
+                    "Failed to load payment record for booking %s during capture",
+                    booking_id,
+                    exc_info=True,
+                )
                 return None
             if not payment_record:
                 return None
@@ -2431,7 +2448,8 @@ def create_new_authorization_and_capture(
         try:
             db.commit()
         except Exception:
-            logger.debug("Non-fatal error ignored", exc_info=True)
+            logger.error("Pre-capture commit failed for booking %s", booking.id, exc_info=True)
+            return {"success": False, "error": "pre_capture_commit_failed"}
         # ========== Phase 2: Stripe calls (NO transaction) ==========
         db_stripe: Session = SessionLocal()
         try:
@@ -2488,7 +2506,12 @@ def create_new_authorization_and_capture(
             payout_cents: Optional[int] = None
             try:
                 payment_record = payment_repo.get_payment_by_booking_id(booking.id)
-            except Exception:
+            except RepositoryException:
+                logger.warning(
+                    "Failed to load payment record for booking %s during reauth",
+                    booking.id,
+                    exc_info=True,
+                )
                 payment_record = None
             if payment_record:
                 payout_value = getattr(payment_record, "instructor_payout_cents", None)

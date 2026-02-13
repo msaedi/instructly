@@ -11,6 +11,7 @@ import pytest
 import stripe
 
 from app.models.booking import BookingStatus, PaymentStatus
+from app.repositories.base_repository import RepositoryException
 from app.tasks import payment_tasks
 
 
@@ -216,7 +217,7 @@ def test_escalate_capture_failure_handles_payment_record_error():
     db_write.query.side_effect = _query_side_effect
 
     payment_repo = MagicMock()
-    payment_repo.get_payment_by_booking_id.side_effect = RuntimeError("boom")
+    payment_repo.get_payment_by_booking_id.side_effect = RepositoryException("boom")
 
     instructor_repo = MagicMock()
     instructor_repo.get_by_user_id.return_value = None
@@ -1447,7 +1448,7 @@ def test_process_capture_for_booking_already_captured():
     )
 
     payment_repo = MagicMock()
-    payment_repo.get_payment_by_booking_id.side_effect = RuntimeError("boom")
+    payment_repo.get_payment_by_booking_id.side_effect = RepositoryException("boom")
 
     with patch("app.database.SessionLocal", side_effect=[db1, db_stripe, db3]):
         with patch(
@@ -1880,6 +1881,7 @@ def test_attempt_payment_capture_skips_cancelled_settled():
 
 
 def test_create_new_authorization_and_capture_commit_error():
+    """Pre-capture commit failure now returns early instead of proceeding to Stripe."""
     booking = SimpleNamespace(
         id="booking_id",
         status=BookingStatus.COMPLETED,
@@ -1931,9 +1933,10 @@ def test_create_new_authorization_and_capture_commit_error():
                                 lock_acquired=True,
                             )
 
-    assert result["success"] is True
-    assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
-    payment_repo.create_payment_event.assert_called_once()
+    assert result["success"] is False
+    assert result["error"] == "pre_capture_commit_failed"
+    # Stripe should NOT have been called since commit failed
+    stripe_service.capture_booking_payment_intent.assert_not_called()
 
 
 def test_resolve_undisputed_no_shows_skips_and_fails():
@@ -2365,7 +2368,7 @@ def test_process_capture_for_booking_already_captured_sets_completed_fields(payo
 @pytest.mark.parametrize(
     "payment_lookup_result",
     [
-        RuntimeError("lookup failed"),
+        RepositoryException("lookup failed"),
         SimpleNamespace(instructor_payout_cents="bad-int"),
         SimpleNamespace(instructor_payout_cents=None),
     ],

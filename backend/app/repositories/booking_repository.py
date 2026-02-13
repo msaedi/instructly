@@ -114,6 +114,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             raise RepositoryException(
                 f"Failed to ensure booking dispute after retry for booking {booking_id}"
             )
+        except Exception:
+            nested.rollback()
+            raise
 
     def ensure_transfer(self, booking_id: str) -> BookingTransfer:
         """Get or create transfer satellite row for a booking."""
@@ -134,6 +137,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             raise RepositoryException(
                 f"Failed to ensure booking transfer after retry for booking {booking_id}"
             )
+        except Exception:
+            nested.rollback()
+            raise
 
     def get_no_show_by_booking_id(self, booking_id: str) -> Optional[BookingNoShow]:
         """Return no-show satellite row for a booking, if present."""
@@ -182,6 +188,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             raise RepositoryException(
                 f"Failed to ensure booking no-show after retry for booking {booking_id}"
             )
+        except Exception:
+            nested.rollback()
+            raise
 
     def ensure_lock(self, booking_id: str) -> BookingLock:
         """Get or create lock satellite row for a booking."""
@@ -202,6 +211,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             raise RepositoryException(
                 f"Failed to ensure booking lock after retry for booking {booking_id}"
             )
+        except Exception:
+            nested.rollback()
+            raise
 
     def get_reschedule_by_booking_id(self, booking_id: str) -> Optional[BookingReschedule]:
         """Return reschedule satellite row for a booking, if present."""
@@ -236,6 +248,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             raise RepositoryException(
                 f"Failed to ensure booking reschedule after retry for booking {booking_id}"
             )
+        except Exception:
+            nested.rollback()
+            raise
 
     def get_payment_by_booking_id(self, booking_id: str) -> Optional[BookingPayment]:
         """Return payment satellite row for a booking, if present."""
@@ -270,6 +285,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             raise RepositoryException(
                 f"Failed to ensure booking payment after retry for booking {booking_id}"
             )
+        except Exception:
+            nested.rollback()
+            raise
 
     # Time-based Booking Queries (NEW)
 
@@ -718,6 +736,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     selectinload(Booking.no_show_detail),
                     selectinload(Booking.lock_detail),
                     selectinload(Booking.reschedule_detail),
+                    selectinload(Booking.dispute),
+                    selectinload(Booking.transfer),
                 )
                 .filter(Booking.student_id == student_id)
             )
@@ -883,6 +903,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     selectinload(Booking.no_show_detail),
                     selectinload(Booking.lock_detail),
                     selectinload(Booking.reschedule_detail),
+                    selectinload(Booking.dispute),
+                    selectinload(Booking.transfer),
                 )
                 .filter(Booking.instructor_id == instructor_id)
             )
@@ -1147,6 +1169,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     selectinload(Booking.no_show_detail),
                     selectinload(Booking.lock_detail),
                     selectinload(Booking.reschedule_detail),
+                    selectinload(Booking.dispute),
+                    selectinload(Booking.transfer),
                 )
                 .filter(Booking.id == booking_id)
                 .first()
@@ -1210,6 +1234,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     joinedload(Booking.instructor),
                     joinedload(Booking.instructor_service),
                     selectinload(Booking.payment_detail),
+                    selectinload(Booking.no_show_detail),
+                    selectinload(Booking.lock_detail),
+                    selectinload(Booking.reschedule_detail),
+                    selectinload(Booking.dispute),
+                    selectinload(Booking.transfer),
                 )
             )
 
