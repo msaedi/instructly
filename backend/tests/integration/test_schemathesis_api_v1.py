@@ -34,9 +34,15 @@ validates that responses with 2xx status codes conform to the OpenAPI schema.
 """
 import os
 
+import pytest
+
+# Gate expensive app boot: skip entire module before heavy imports when not running nightly
+RUN_NIGHTLY_SCHEMATHESIS = os.environ.get("RUN_NIGHTLY_SCHEMATHESIS", "0") == "1"
+if not RUN_NIGHTLY_SCHEMATHESIS:
+    pytest.skip("Schemathesis tests run nightly (set RUN_NIGHTLY_SCHEMATHESIS=1)", allow_module_level=True)
+
 from fastapi.testclient import TestClient
 from hypothesis import HealthCheck, Phase, settings
-import pytest
 from schemathesis.openapi import from_asgi
 from schemathesis.specs.openapi.checks import negative_data_rejection, unsupported_method
 from sqlalchemy.orm import Session
@@ -51,8 +57,6 @@ app = fastapi_app
 # This loads the OpenAPI schema directly from the /openapi.json endpoint
 # Note: In Schemathesis 4.x, from_asgi is in schemathesis.openapi module
 schema = from_asgi("/openapi.json", app)
-
-RUN_NIGHTLY_SCHEMATHESIS = os.environ.get("RUN_NIGHTLY_SCHEMATHESIS", "0") == "1"
 
 # Filter to test /api/v1/instructors/** endpoints
 filtered_instructors_schema = schema.include(path_regex="/api/v1/instructors/.*")

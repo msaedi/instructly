@@ -18,22 +18,20 @@ Tested aspects:
 import os
 import re
 
-from fastapi.testclient import TestClient
 import pytest
+
+# Gate expensive app boot: skip entire module before heavy imports when not running SSE tests
+RUN_SSE_TESTS = os.environ.get("RUN_SSE_TESTS", "0") == "1"
+if not RUN_SSE_TESTS:
+    pytest.skip("SSE tests run in nightly CI job (set RUN_SSE_TESTS=1)", allow_module_level=True)
+
+from fastapi.testclient import TestClient
 
 from app.database import get_db
 from app.main import fastapi_app
 
-# Only run SSE tests when explicitly requested (nightly CI or local testing)
-RUN_SSE_TESTS = os.environ.get("RUN_SSE_TESTS", "0") == "1"
-
 # Same pattern used to exclude from schemathesis - keeps them in sync
 STREAMING_ENDPOINT_PATTERN = re.compile(r".*/stream.*")
-
-pytestmark = pytest.mark.skipif(
-    not RUN_SSE_TESTS,
-    reason="SSE tests run in nightly CI job (set RUN_SSE_TESTS=1 to run locally)",
-)
 
 
 def discover_streaming_endpoints() -> list[tuple[str, str]]:
