@@ -837,38 +837,6 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error getting student bookings: {str(e)}")
             raise RepositoryException(f"Failed to get student bookings: {str(e)}")
 
-    def get_bookings_by_student_and_instructor(
-        self,
-        student_id: str,
-        instructor_id: str,
-    ) -> List[Booking]:
-        """
-        Get all bookings for a specific student-instructor pair.
-
-        Used for SSE routing - when a conversation has multiple bookings,
-        we need all booking IDs so the frontend can match any of them.
-
-        Args:
-            student_id: The student's user ID
-            instructor_id: The instructor's user ID
-
-        Returns:
-            List of bookings for this pair (may be empty)
-        """
-        try:
-            return cast(
-                List[Booking],
-                self.db.query(Booking)
-                .filter(
-                    Booking.student_id == student_id,
-                    Booking.instructor_id == instructor_id,
-                )
-                .all(),
-            )
-        except Exception as e:
-            self.logger.error(f"Error getting bookings by pair: {str(e)}")
-            raise RepositoryException(f"Failed to get bookings by pair: {str(e)}")
-
     def get_instructor_bookings(
         self,
         instructor_id: str,
@@ -1922,6 +1890,29 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except Exception as e:
             self.logger.error(f"Error getting bookings with expired auth: {str(e)}")
             raise RepositoryException(f"Failed to get bookings with expired auth: {str(e)}")
+
+    def get_failed_capture_booking_ids(self) -> List[str]:
+        """
+        Get booking IDs with failed captures needing retry.
+
+        Returns bookings where:
+        - Payment status: PAYMENT_METHOD_REQUIRED
+        - capture_failed_at is set
+        """
+        try:
+            rows = (
+                self.db.query(Booking.id)
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .filter(
+                    BookingPayment.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+                    BookingPayment.capture_failed_at.isnot(None),
+                )
+                .all()
+            )
+            return [row[0] for row in rows]
+        except Exception as e:
+            self.logger.error(f"Error getting failed capture booking IDs: {str(e)}")
+            raise RepositoryException(f"Failed to get failed capture booking IDs: {str(e)}")
 
     def count_overdue_authorizations(self, current_date: date) -> int:
         """

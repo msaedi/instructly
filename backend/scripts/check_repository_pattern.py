@@ -28,7 +28,7 @@ VIOLATION_PATTERNS = [
     r"self\.db\.rollback\(",
     r"self\.db\.refresh\(",
     r"self\.db\.merge\(",
-    r"db\.query\(",  # For utilities like timezone_utils
+    r"db\w*\.query\(",  # Catches db.query(, db1.query(, db_read.query(, etc.
 ]
 
 # Additional patterns for query operations
@@ -49,6 +49,7 @@ QUERY_METHOD_PATTERNS = [
 SERVICE_PATHS = [
     "backend/app/services",
     "backend/app/core",  # Some utilities might violate
+    "backend/app/tasks",  # Celery tasks must also use repositories
 ]
 
 # Files to exclude from checks

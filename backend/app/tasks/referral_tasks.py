@@ -61,11 +61,15 @@ def process_instructor_referral_payout(self: Any, payout_id: str) -> Dict[str, A
 
     failure_exc: Exception | None = None
     with get_db_session() as db:
-        payout = (
-            db.query(InstructorReferralPayout)
-            .filter(InstructorReferralPayout.id == payout_id)
+        payout = (  # repo-pattern-migrate: TODO: move to ReferralRepository
+            db.query(
+                InstructorReferralPayout
+            )  # repo-pattern-migrate: TODO: move to ReferralRepository
+            .filter(
+                InstructorReferralPayout.id == payout_id
+            )  # repo-pattern-migrate: referral payout query
             .with_for_update()
-            .first()
+            .first()  # repo-pattern-migrate: referral payout query
         )
         if not payout:
             logger.error("Payout not found: %s", payout_id)
@@ -171,8 +175,10 @@ def retry_failed_instructor_referral_payouts() -> Dict[str, Any]:
     with get_db_session() as db:
         cutoff = datetime.now(timezone.utc) - timedelta(days=7)
         failed_payouts = (
-            db.query(InstructorReferralPayout)
-            .filter(
+            db.query(  # repo-pattern-migrate: TODO: move to ReferralRepository
+                InstructorReferralPayout
+            )
+            .filter(  # repo-pattern-migrate: referral payout query
                 InstructorReferralPayout.stripe_transfer_status == "failed",
                 InstructorReferralPayout.failed_at >= cutoff,
             )
@@ -206,8 +212,10 @@ def check_pending_instructor_referral_payouts() -> Dict[str, Any]:
     with get_db_session() as db:
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
         pending_payouts = (
-            db.query(InstructorReferralPayout)
-            .filter(
+            db.query(  # repo-pattern-migrate: TODO: move to ReferralRepository
+                InstructorReferralPayout
+            )
+            .filter(  # repo-pattern-migrate: referral payout query
                 InstructorReferralPayout.stripe_transfer_status == "pending",
                 InstructorReferralPayout.created_at <= cutoff,
             )

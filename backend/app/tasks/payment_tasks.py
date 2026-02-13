@@ -24,7 +24,7 @@ from typing import (
 )
 
 from celery.result import AsyncResult
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 import stripe
 
 from app.core.booking_lock import booking_lock_sync
@@ -222,12 +222,7 @@ def _process_authorization_for_booking(
     payment_method_id: str | None = None
     existing_payment_intent_id: str | None = None
     try:
-        booking = (
-            db1.query(Booking)
-            .options(joinedload(Booking.payment_detail))
-            .filter(Booking.id == booking_id)
-            .first()
-        )
+        booking = BookingRepository(db1).get_by_id(booking_id)
         if not booking:
             # Can't continue without booking
             return {"success": False, "error": "Booking not found"}
@@ -365,17 +360,13 @@ def _process_authorization_for_booking(
     send_confirmation_notifications = False
     send_payment_failed_notification = False
     try:
-        booking = (
-            db3.query(Booking)
-            .options(joinedload(Booking.payment_detail))
-            .filter(Booking.id == booking_id)
-            .first()
-        )
+        repo3 = BookingRepository(db3)
+        booking = repo3.get_by_id(booking_id)
         if not booking:
             return {"success": False, "error": "Booking not found in Phase 3"}
 
         payment_repo = RepositoryFactory.get_payment_repository(db3)
-        booking_payment = BookingRepository(db3).ensure_payment(booking.id)
+        booking_payment = repo3.ensure_payment(booking.id)
         previous_capture_retry_count = int(getattr(booking_payment, "capture_retry_count", 0) or 0)
 
         def _notify_payment_failed_once() -> None:
@@ -604,19 +595,15 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
                             payment_repo, booking_id, "t24_first_failure_email_sent"
                         ):
                             notification_service = NotificationService(db_notify)
-                            booking = (
-                                db_notify.query(Booking)
-                                .options(joinedload(Booking.payment_detail))
-                                .filter(Booking.id == booking_id)
-                                .first()
-                            )
-                            if booking:
-                                bp_notify = BookingRepository(db_notify).ensure_payment(booking.id)
+                            repo_notify = BookingRepository(db_notify)
+                            booking_notify: Booking | None = repo_notify.get_by_id(booking_id)
+                            if booking_notify:
+                                bp_notify = repo_notify.ensure_payment(booking_notify.id)
                                 if bp_notify.auth_failure_first_email_sent_at is not None:
                                     db_notify.commit()
                                     continue
                                 notification_service.send_final_payment_warning(
-                                    booking, hours_until_lesson
+                                    booking_notify, hours_until_lesson
                                 )
                                 bp_notify.auth_failure_first_email_sent_at = datetime.now(
                                     timezone.utc
@@ -671,12 +658,8 @@ def _cancel_booking_payment_failed(
 
     db: Session = SessionLocal()
     try:
-        booking = (
-            db.query(Booking)
-            .options(joinedload(Booking.payment_detail))
-            .filter(Booking.id == booking_id)
-            .first()
-        )
+        repo = BookingRepository(db)
+        booking = repo.get_by_id(booking_id)
         if not booking:
             return False
 
@@ -689,7 +672,7 @@ def _cancel_booking_payment_failed(
         booking.cancelled_at = now
         booking.cancellation_reason = "Payment authorization failed after multiple attempts"
 
-        bp_cancel = BookingRepository(db).ensure_payment(booking.id)
+        bp_cancel = repo.ensure_payment(booking.id)
         bp_cancel.payment_status = PaymentStatus.SETTLED.value
         bp_cancel.settlement_outcome = "student_cancel_gt24_no_charge"
         bp_cancel.instructor_payout_amount = 0
@@ -747,12 +730,7 @@ def _process_retry_authorization(booking_id: str, hours_until_lesson: float) -> 
     # ========== PHASE 1: Read booking data (quick transaction) ==========
     db1: Session = SessionLocal()
     try:
-        booking = (
-            db1.query(Booking)
-            .options(joinedload(Booking.payment_detail))
-            .filter(Booking.id == booking_id)
-            .first()
-        )
+        booking = BookingRepository(db1).get_by_id(booking_id)
         if not booking:
             return {"success": False, "error": "Booking not found"}
 
@@ -856,17 +834,13 @@ def _process_retry_authorization(booking_id: str, hours_until_lesson: float) -> 
     # ========== PHASE 3: Write results (quick transaction) ==========
     db3: Session = SessionLocal()
     try:
-        booking = (
-            db3.query(Booking)
-            .options(joinedload(Booking.payment_detail))
-            .filter(Booking.id == booking_id)
-            .first()
-        )
+        repo3 = BookingRepository(db3)
+        booking = repo3.get_by_id(booking_id)
         if not booking:
             return {"success": False, "error": "Booking not found in Phase 3"}
 
         payment_repo = RepositoryFactory.get_payment_repository(db3)
-        bp_retry = BookingRepository(db3).ensure_payment(booking.id)
+        bp_retry = repo3.ensure_payment(booking.id)
 
         attempted_at = datetime.now(timezone.utc)
 
@@ -1037,27 +1011,23 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
                 elif action == "warn_only":
                     db_warn_retry: Session = SessionLocal()
                     try:
-                        booking = (
-                            db_warn_retry.query(Booking)
-                            .options(joinedload(Booking.payment_detail))
-                            .filter(Booking.id == booking_id)
-                            .first()
-                        )
-                        pd_warn = booking.payment_detail if booking else None
+                        repo_warn = BookingRepository(db_warn_retry)
+                        booking_warn: Booking | None = repo_warn.get_by_id(booking_id)
+                        pd_warn = booking_warn.payment_detail if booking_warn else None
                         if (
-                            booking
-                            and booking.status == BookingStatus.CONFIRMED
+                            booking_warn
+                            and booking_warn.status == BookingStatus.CONFIRMED
                             and getattr(pd_warn, "payment_status", None)
                             == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
                             and getattr(pd_warn, "capture_failed_at", None) is None
                         ):
-                            bp_warn = BookingRepository(db_warn_retry).ensure_payment(booking.id)
+                            bp_warn = repo_warn.ensure_payment(booking_warn.id)
                             if bp_warn.auth_failure_t13_warning_sent_at is not None:
                                 db_warn_retry.commit()
                                 continue
                             notification_service = NotificationService(db_warn_retry)
                             notification_service.send_final_payment_warning(
-                                booking, hours_until_lesson
+                                booking_warn, hours_until_lesson
                             )
                             bp_warn.auth_failure_t13_warning_sent_at = now
 
@@ -1122,12 +1092,7 @@ def check_immediate_auth_timeout(booking_id: str) -> Dict[str, Any]:
             if not acquired:
                 return {"skipped": True}
 
-            booking = (
-                db.query(Booking)
-                .options(joinedload(Booking.payment_detail))
-                .filter(Booking.id == booking_id)
-                .first()
-            )
+            booking = BookingRepository(db).get_by_id(booking_id)
             if not booking:
                 return {"error": "Booking not found"}
 
@@ -1170,20 +1135,9 @@ def retry_failed_captures(self: Any) -> CaptureRetryResults:
         "processed_at": now.isoformat(),
     }
 
-    from app.models.booking_payment import BookingPayment
-
     db_read: Session = SessionLocal()
     try:
-        failed = (
-            db_read.query(Booking)
-            .join(BookingPayment, BookingPayment.booking_id == Booking.id)
-            .filter(
-                BookingPayment.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-                BookingPayment.capture_failed_at.isnot(None),
-            )
-            .all()
-        )
-        booking_ids = [booking.id for booking in failed]
+        booking_ids = BookingRepository(db_read).get_failed_capture_booking_ids()
     finally:
         db_read.close()
 
@@ -1196,12 +1150,7 @@ def retry_failed_captures(self: Any) -> CaptureRetryResults:
 
                 db_check: Session = SessionLocal()
                 try:
-                    booking = (
-                        db_check.query(Booking)
-                        .options(joinedload(Booking.payment_detail))
-                        .filter(Booking.id == booking_id)
-                        .first()
-                    )
+                    booking = BookingRepository(db_check).get_by_id(booking_id)
                     if not booking:
                         results["skipped"] += 1
                         continue
@@ -1255,7 +1204,7 @@ def _escalate_capture_failure(booking_id: str, now: datetime) -> None:
     # Phase 1: Read booking + resolve payout/account ids.
     db_read: Session = SessionLocal()
     try:
-        booking = db_read.query(Booking).filter(Booking.id == booking_id).first()
+        booking = BookingRepository(db_read).get_by_id(booking_id)
         if not booking:
             return
 
@@ -1324,15 +1273,10 @@ def _escalate_capture_failure(booking_id: str, now: datetime) -> None:
     # Phase 3: Persist escalation + account lock.
     db_write: Session = SessionLocal()
     try:
-        booking = (
-            db_write.query(Booking)
-            .options(joinedload(Booking.payment_detail))
-            .filter(Booking.id == booking_id)
-            .first()
-        )
+        booking_repo = BookingRepository(db_write)
+        booking = booking_repo.get_by_id(booking_id)
         if not booking:
             return
-        booking_repo = BookingRepository(db_write)
         bp_escalate = booking_repo.ensure_payment(booking.id)
 
         bp_escalate.payment_status = PaymentStatus.MANUAL_REVIEW.value
@@ -1360,6 +1304,7 @@ def _escalate_capture_failure(booking_id: str, now: datetime) -> None:
                 int(getattr(transfer_record, "transfer_retry_count", 0) or 0) + 1
             )
 
+        # repo-pattern-migrate: TODO: move to UserRepository.lock_account()
         student = db_write.query(User).filter(User.id == booking.student_id).first()
         if student:
             student.account_locked = True
@@ -1585,14 +1530,10 @@ def _mark_child_booking_settled(booking_id: str) -> None:
 
     db: Session = SessionLocal()
     try:
-        booking = (
-            db.query(Booking)
-            .options(joinedload(Booking.payment_detail))
-            .filter(Booking.id == booking_id)
-            .first()
-        )
+        repo = BookingRepository(db)
+        booking = repo.get_by_id(booking_id)
         if booking:
-            bp_child = BookingRepository(db).ensure_payment(booking.id)
+            bp_child = repo.ensure_payment(booking.id)
             bp_child.payment_status = PaymentStatus.SETTLED.value
             db.commit()
     finally:
@@ -1618,12 +1559,7 @@ def _process_capture_for_booking(
     # ========== PHASE 1: Read booking data (quick transaction) ==========
     db1: Session = SessionLocal()
     try:
-        booking = (
-            db1.query(Booking)
-            .options(joinedload(Booking.payment_detail))
-            .filter(Booking.id == booking_id)
-            .first()
-        )
+        booking = BookingRepository(db1).get_by_id(booking_id)
         if not booking:
             return {"success": False, "error": "Booking not found"}
 
@@ -1755,15 +1691,10 @@ def _process_capture_for_booking(
     # ========== PHASE 3: Write results (quick transaction) ==========
     db3: Session = SessionLocal()
     try:
-        booking = (
-            db3.query(Booking)
-            .options(joinedload(Booking.payment_detail))
-            .filter(Booking.id == booking_id)
-            .first()
-        )
+        booking_repo = BookingRepository(db3)
+        booking = booking_repo.get_by_id(booking_id)
         if not booking:
             return {"success": False, "error": "Booking not found in Phase 3"}
-        booking_repo = BookingRepository(db3)
         bp_cap3 = booking_repo.ensure_payment(booking.id)
 
         payment_repo = RepositoryFactory.get_payment_repository(db3)
@@ -1914,12 +1845,7 @@ def _auto_complete_booking(booking_id: str, now: datetime) -> Dict[str, Any]:
     locked_parent_id: Optional[str] = None
     has_locked_funds = False
     try:
-        booking = (
-            db1.query(Booking)
-            .options(joinedload(Booking.payment_detail))
-            .filter(Booking.id == booking_id)
-            .first()
-        )
+        booking = BookingRepository(db1).get_by_id(booking_id)
         if not booking:
             return {"success": False, "error": "Booking not found"}
 
@@ -2178,33 +2104,29 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
                     continue
                 db_expired: Session = SessionLocal()
                 try:
-                    booking = (
-                        db_expired.query(Booking)
-                        .options(joinedload(Booking.payment_detail))
-                        .filter(Booking.id == booking_id)
-                        .first()
-                    )
-                    if not booking:
+                    repo_expired = BookingRepository(db_expired)
+                    booking_exp: Booking | None = repo_expired.get_by_id(booking_id)
+                    if not booking_exp:
                         continue
 
-                    if booking.status == BookingStatus.CANCELLED:
+                    if booking_exp.status == BookingStatus.CANCELLED:
                         continue
 
-                    pd_exp = booking.payment_detail
+                    pd_exp = booking_exp.payment_detail
                     if getattr(pd_exp, "payment_status", None) == PaymentStatus.MANUAL_REVIEW.value:
                         continue
 
                     if getattr(pd_exp, "payment_status", None) != PaymentStatus.AUTHORIZED.value:
                         continue
 
-                    if booking.status == BookingStatus.COMPLETED:
+                    if booking_exp.status == BookingStatus.COMPLETED:
                         # Try capture first (uses 3-phase internally)
                         capture_result = _process_capture_for_booking(booking_id, "expired_auth")
                         if not capture_result.get("success"):
                             # Create new auth and capture (3-phase pattern)
                             payment_repo = RepositoryFactory.get_payment_repository(db_expired)
                             new_auth_result = create_new_authorization_and_capture(
-                                booking, payment_repo, db_expired, lock_acquired=True
+                                booking_exp, payment_repo, db_expired, lock_acquired=True
                             )
                             db_expired.commit()
                             if new_auth_result["success"]:
@@ -2215,7 +2137,7 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
                             results["captured"] += 1
                     else:
                         # Mark as expired
-                        bp_exp = BookingRepository(db_expired).ensure_payment(booking.id)
+                        bp_exp = repo_expired.ensure_payment(booking_exp.id)
                         bp_exp.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
                         bp_exp.capture_failed_at = now
                         bp_exp.capture_retry_count = (
@@ -2806,12 +2728,14 @@ def check_authorization_health() -> Dict[str, Any]:
         # we'd add a method to payment_repo to get latest events across all bookings
         last_auth_event = None
         try:
-            # repo-pattern-ignore: Health check needs cross-booking event query
             last_auth_event = (
-                db.query(PaymentEvent)
-                .filter(PaymentEvent.event_type.in_(["auth_succeeded", "auth_retry_succeeded"]))
+                # repo-pattern-ignore: Health check needs cross-booking event query
+                db.query(PaymentEvent)  # repo-pattern-ignore: health check query
+                .filter(
+                    PaymentEvent.event_type.in_(["auth_succeeded", "auth_retry_succeeded"])
+                )  # repo-pattern-ignore: health check query
                 .order_by(PaymentEvent.created_at.desc())
-                .first()
+                .first()  # repo-pattern-ignore: health check query
             )
         except Exception:
             logger.debug(
@@ -2874,9 +2798,9 @@ def audit_and_fix_payout_schedules(self: Any) -> Dict[str, Any]:
             pricing_service=pricing_service,
         )
 
-        # repo-pattern-ignore: Simple scan over connected accounts table
         from app.models.payment import StripeConnectedAccount
 
+        # repo-pattern-ignore: Simple scan over connected accounts table
         accounts = db.query(StripeConnectedAccount).all()
         fixed = 0
         checked = 0

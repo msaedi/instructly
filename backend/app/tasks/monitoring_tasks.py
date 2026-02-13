@@ -151,8 +151,8 @@ def process_monitoring_alert(
             message=message,
             details=details or {},
         )
-        self.db.add(alert)
-        self.db.commit()
+        self.db.add(alert)  # repo-pattern-migrate: TODO: MonitoringTask needs AlertRepository
+        self.db.commit()  # repo-pattern-migrate: TODO: MonitoringTask needs AlertRepository
 
         # Send email for critical alerts
         if severity == "critical":
@@ -179,17 +179,19 @@ def process_monitoring_alert(
 def send_alert_email(self: MonitoringTask, alert_id: str) -> None:
     """Send email notification for an alert."""
     try:
+        # repo-pattern-migrate: TODO: MonitoringTask needs AlertRepository
         alert: Optional[AlertHistory] = self.db.query(AlertHistory).filter_by(id=alert_id).first()
         if not alert:
             logger.error(f"Alert {alert_id} not found")
             return
 
-        # Get admin users
-        admin_users = (
-            self.db.query(User)
+        admin_users = (  # repo-pattern-migrate: TODO: MonitoringTask needs UserRepository
+            self.db.query(User)  # repo-pattern-migrate: admin user query
             .join(User.roles)
-            .filter(Role.name == RoleName.ADMIN, User.is_active.is_(True))
-            .all()
+            .filter(  # repo-pattern-migrate: admin user query
+                Role.name == RoleName.ADMIN, User.is_active.is_(True)
+            )
+            .all()  # repo-pattern-migrate: admin user query
         )
 
         if not admin_users:
@@ -260,7 +262,7 @@ def send_alert_email(self: MonitoringTask, alert_id: str) -> None:
         # Update alert record
         alert.email_sent = True
         alert.notified_at = datetime.now(timezone.utc)
-        self.db.commit()
+        self.db.commit()  # repo-pattern-migrate: TODO: MonitoringTask needs AlertRepository
 
         logger.info(f"Alert email sent for alert {alert_id}")
 
@@ -273,6 +275,7 @@ def send_alert_email(self: MonitoringTask, alert_id: str) -> None:
 def create_github_issue_for_alert(self: MonitoringTask, alert_id: str) -> None:
     """Create a GitHub issue for persistent alerts."""
     try:
+        # repo-pattern-migrate: TODO: MonitoringTask needs AlertRepository
         alert = self.db.query(AlertHistory).filter_by(id=alert_id).first()
         if not alert:
             logger.error(f"Alert {alert_id} not found")
@@ -335,7 +338,7 @@ def create_github_issue_for_alert(self: MonitoringTask, alert_id: str) -> None:
             # Update alert record
             alert.github_issue_created = True
             alert.github_issue_url = issue_url
-            self.db.commit()
+            self.db.commit()  # repo-pattern-migrate: TODO: MonitoringTask needs AlertRepository
 
             logger.info(f"GitHub issue created for alert {alert_id}: {issue_url}")
 
@@ -359,8 +362,10 @@ def should_create_github_issue(db: Session, alert_type: str, severity: str) -> b
         # Check for repeated warnings
         one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
         recent_count = (
-            db.query(func.count(AlertHistory.id))
-            .filter(
+            db.query(  # repo-pattern-migrate: TODO: MonitoringTask needs AlertRepository
+                func.count(AlertHistory.id)
+            )
+            .filter(  # repo-pattern-migrate: TODO: MonitoringTask needs AlertRepository
                 AlertHistory.alert_type == alert_type,
                 AlertHistory.severity == "warning",
                 AlertHistory.created_at >= one_hour_ago,
@@ -380,7 +385,7 @@ def cleanup_old_alerts() -> None:
         db = SessionLocal()
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
 
-        deleted_count = (
+        deleted_count = (  # repo-pattern-migrate: TODO: MonitoringTask needs AlertRepository
             db.query(AlertHistory).filter(AlertHistory.created_at < cutoff_date).delete()
         )
 

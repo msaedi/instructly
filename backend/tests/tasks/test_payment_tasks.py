@@ -123,6 +123,7 @@ class TestPaymentTasks:
         mock_query.filter.return_value.all.return_value = [booking]
         mock_query.filter.return_value.first.return_value = booking  # Support 3-phase pattern
         mock_query.options.return_value.filter.return_value.first.return_value = booking  # joinedload chain
+        mock_query.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
         mock_db.query.return_value = mock_query
 
         mock_stripe_service_instance = mock_stripe_service.return_value
@@ -224,6 +225,7 @@ class TestPaymentTasks:
         mock_query.filter.return_value.all.return_value = [booking]
         mock_query.filter.return_value.first.return_value = booking
         mock_query.options.return_value.filter.return_value.first.return_value = booking  # joinedload chain
+        mock_query.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
         mock_db.query.return_value = mock_query
 
         mock_stripe_service_instance = mock_stripe_service.return_value
@@ -318,6 +320,7 @@ class TestPaymentTasks:
         mock_query.filter.return_value.all.return_value = [booking]
         mock_query.filter.return_value.first.return_value = booking  # Support 3-phase pattern
         mock_query.options.return_value.filter.return_value.first.return_value = booking  # joinedload chain
+        mock_query.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
         mock_db.query.return_value = mock_query
 
         # Mock Stripe service (not used in the actual code)
@@ -419,6 +422,7 @@ class TestPaymentTasks:
         mock_query.filter.return_value.all.return_value = [booking]
         mock_query.filter.return_value.first.return_value = booking  # Support 3-phase pattern
         mock_query.options.return_value.filter.return_value.first.return_value = booking  # joinedload chain
+        mock_query.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
         mock_db.query.return_value = mock_query
 
         # Mock payment repository with retry count
@@ -523,6 +527,7 @@ class TestPaymentTasks:
         mock_query.filter.return_value.all.return_value = [booking]
         mock_query.filter.return_value.first.return_value = booking  # Support 3-phase pattern
         mock_query.options.return_value.filter.return_value.first.return_value = booking  # joinedload chain
+        mock_query.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
         mock_db.query.return_value = mock_query
 
         # Mock payment repository with 3 failed attempts
@@ -657,6 +662,7 @@ class TestPaymentTasks:
         mock_query.filter.return_value.all.return_value = [booking]
         mock_query.filter.return_value.first.return_value = booking  # Support 3-phase pattern
         mock_query.options.return_value.filter.return_value.first.return_value = booking  # joinedload chain
+        mock_query.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
         mock_db.query.return_value = mock_query
 
         # Mock Stripe service (not used in the actual code)
@@ -1012,6 +1018,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_customer_by_user_id.return_value = MagicMock()
@@ -1179,6 +1186,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_payment_events_for_booking.return_value = []
@@ -1488,6 +1496,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
@@ -1561,6 +1570,7 @@ class TestPaymentTasks:
         # Setup query mock to return the booking for direct db.query() calls
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
@@ -1616,6 +1626,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         now = datetime.now(timezone.utc)
         auth_event = MagicMock()
@@ -1662,6 +1673,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         now = datetime.now(timezone.utc)
         auth_event = MagicMock()
@@ -1956,6 +1968,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_customer_by_user_id.return_value = MagicMock()
@@ -2226,6 +2239,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_customer_by_user_id.return_value = None
@@ -2288,6 +2302,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_customer_by_user_id.return_value = MagicMock()
@@ -2349,6 +2364,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_customer_by_user_id.return_value = MagicMock()
@@ -2412,6 +2428,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_customer_by_user_id.return_value = None
@@ -2474,6 +2491,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_customer_by_user_id.return_value = MagicMock()
@@ -2629,6 +2647,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         with patch("app.tasks.payment_tasks.booking_lock_sync", _always_acquire_lock):
             with patch(
@@ -2662,6 +2681,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         with patch("app.tasks.payment_tasks.booking_lock_sync", _always_acquire_lock):
             with patch(
@@ -2784,6 +2804,7 @@ class TestPaymentTasks:
         # Setup query mock to return the booking for direct db.query() calls
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
@@ -2875,6 +2896,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_payment_events_for_booking.return_value = [auth_event]
@@ -2922,6 +2944,7 @@ class TestPaymentTasks:
         # Chain: db.query(Booking).options(...).filter(...).first()
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
         mock_db.query.return_value.filter.return_value.first.return_value = booking
+        mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = booking  # repo get_by_id chain
 
         now = datetime.now(timezone.utc)
         auth_event = MagicMock()
@@ -3203,8 +3226,9 @@ class TestPaymentTasks:
         assert result["healthy"] is False
         assert "error" in result
 
+    @patch("app.tasks.payment_tasks.BookingRepository")
     @patch("app.database.SessionLocal")
-    def test_retry_failed_captures_retries_due_bookings(self, mock_session_local):
+    def test_retry_failed_captures_retries_due_bookings(self, mock_session_local, mock_booking_repo_class):
         """Retry job attempts capture when failure is older than 4 hours."""
         now = datetime.now(timezone.utc)
 
@@ -3217,12 +3241,10 @@ class TestPaymentTasks:
         db_check = MagicMock()
         mock_session_local.side_effect = [db_read, db_check]
 
-        # db_read uses .join().filter().all() chain
-        db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [booking]
-        db_read.query.return_value.filter.return_value.all.return_value = [booking]
-        # db_check uses .options(joinedload).filter().first() chain
-        db_check.query.return_value.options.return_value.filter.return_value.first.return_value = booking
-        db_check.query.return_value.filter.return_value.first.return_value = booking
+        # BookingRepository(db_read).get_failed_capture_booking_ids() returns list of booking IDs
+        mock_booking_repo_class.return_value.get_failed_capture_booking_ids.return_value = [booking.id]
+        # BookingRepository(db_check).get_by_id() returns the booking
+        mock_booking_repo_class.return_value.get_by_id.return_value = booking
 
         with patch("app.tasks.payment_tasks.booking_lock_sync", _always_acquire_lock):
             with patch(
@@ -3235,8 +3257,9 @@ class TestPaymentTasks:
         assert result["succeeded"] == 1
         mock_process.assert_called_once_with(booking.id, "retry_failed_capture")
 
+    @patch("app.tasks.payment_tasks.BookingRepository")
     @patch("app.database.SessionLocal")
-    def test_retry_failed_captures_escalates_after_72_hours(self, mock_session_local):
+    def test_retry_failed_captures_escalates_after_72_hours(self, mock_session_local, mock_booking_repo_class):
         """Retry job escalates to manual_review after 72 hours."""
         now = datetime.now(timezone.utc)
 
@@ -3249,12 +3272,10 @@ class TestPaymentTasks:
         db_check = MagicMock()
         mock_session_local.side_effect = [db_read, db_check]
 
-        # db_read uses .join().filter().all() chain
-        db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [booking]
-        db_read.query.return_value.filter.return_value.all.return_value = [booking]
-        # db_check uses .options(joinedload).filter().first() chain
-        db_check.query.return_value.options.return_value.filter.return_value.first.return_value = booking
-        db_check.query.return_value.filter.return_value.first.return_value = booking
+        # BookingRepository(db_read).get_failed_capture_booking_ids() returns list of booking IDs
+        mock_booking_repo_class.return_value.get_failed_capture_booking_ids.return_value = [booking.id]
+        # BookingRepository(db_check).get_by_id() returns the booking
+        mock_booking_repo_class.return_value.get_by_id.return_value = booking
 
         with patch("app.tasks.payment_tasks.booking_lock_sync", _always_acquire_lock):
             with patch("app.tasks.payment_tasks._escalate_capture_failure") as mock_escalate:

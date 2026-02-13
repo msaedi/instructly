@@ -151,6 +151,7 @@ def test_check_immediate_auth_timeout_cancelled_status():
     )
     db = MagicMock()
     db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
+    db.query.return_value.filter.return_value.options.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
@@ -160,21 +161,30 @@ def test_check_immediate_auth_timeout_cancelled_status():
 
 
 def test_retry_failed_captures_skips_when_not_capture_failure():
-    db_read = MagicMock()
-    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
-        SimpleNamespace(id="booking_id")
-    ]
-    db_check = MagicMock()
-    db_check.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    check_booking = SimpleNamespace(
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.AUTHORIZED.value,
             capture_failed_at=None,
         ),
     )
+    db_read = MagicMock()
+    db_check = MagicMock()
+
+    mock_repo_instances = []
+
+    def _make_repo(db):
+        repo = MagicMock()
+        mock_repo_instances.append((db, repo))
+        if db is db_read:
+            repo.get_failed_capture_booking_ids.return_value = ["booking_id"]
+        elif db is db_check:
+            repo.get_by_id.return_value = check_booking
+        return repo
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_check]):
-        with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
-            result = payment_tasks.retry_failed_captures()
+        with patch("app.tasks.payment_tasks.BookingRepository", side_effect=_make_repo):
+            with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
+                result = payment_tasks.retry_failed_captures()
 
     assert result["skipped"] == 1
 
@@ -198,6 +208,7 @@ def test_escalate_capture_failure_handles_payment_record_error():
 
     db_read = MagicMock()
     db_read.query.return_value.filter.return_value.first.return_value = booking_read
+    db_read.query.return_value.filter.return_value.options.return_value.first.return_value = booking_read
     db_write = MagicMock()
 
     from app.models.booking_payment import BookingPayment as BP
@@ -206,6 +217,7 @@ def test_escalate_capture_failure_handles_payment_record_error():
         query = MagicMock()
         if model is payment_tasks.Booking:
             query.options.return_value.filter.return_value.first.return_value = booking_write
+            query.filter.return_value.options.return_value.first.return_value = booking_write
         elif model is payment_tasks.User:
             query.filter.return_value.first.return_value = student
         elif model is BP:
@@ -265,10 +277,12 @@ def test_capture_completed_lessons_skips_expired_when_cancelled():
 
     db_read = MagicMock()
     db_expired = MagicMock()
-    db_expired.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    cancelled_expired = SimpleNamespace(
         status=BookingStatus.CANCELLED,
         payment_detail=SimpleNamespace(payment_status=PaymentStatus.AUTHORIZED.value),
     )
+    db_expired.query.return_value.options.return_value.filter.return_value.first.return_value = cancelled_expired
+    db_expired.query.return_value.filter.return_value.options.return_value.first.return_value = cancelled_expired
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_expired]):
         with patch(
@@ -352,6 +366,7 @@ def test_mark_child_booking_settled_updates_status():
     booking = SimpleNamespace(id="booking_id", payment_detail=SimpleNamespace(payment_status=None))
     db = MagicMock()
     db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
+    db.query.return_value.filter.return_value.options.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db):
         with patch(
@@ -387,6 +402,7 @@ def test_check_immediate_auth_timeout_retry_window_open():
     )
     db = MagicMock()
     db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
+    db.query.return_value.filter.return_value.options.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
@@ -406,6 +422,7 @@ def test_check_immediate_auth_timeout_cancelled():
     )
     db = MagicMock()
     db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
+    db.query.return_value.filter.return_value.options.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
@@ -454,6 +471,16 @@ def test_process_scheduled_authorizations_sends_first_failure_email():
     db_read = MagicMock()
     db_notify = MagicMock()
     db_notify.query.return_value.options.return_value.filter.return_value.first.side_effect = [
+        SimpleNamespace(
+            id="booking_id",
+            payment_detail=SimpleNamespace(auth_failure_first_email_sent_at=None),
+        ),
+        SimpleNamespace(
+            id="booking_id",
+            payment_detail=SimpleNamespace(auth_failure_first_email_sent_at=None),
+        ),
+    ]
+    db_notify.query.return_value.filter.return_value.options.return_value.first.side_effect = [
         SimpleNamespace(
             id="booking_id",
             payment_detail=SimpleNamespace(auth_failure_first_email_sent_at=None),
@@ -522,6 +549,10 @@ def test_process_scheduled_authorizations_skips_duplicate_email():
     db_read = MagicMock()
     db_notify = MagicMock()
     db_notify.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+        id="booking_id",
+        payment_detail=SimpleNamespace(auth_failure_first_email_sent_at=now),
+    )
+    db_notify.query.return_value.filter.return_value.options.return_value.first.return_value = SimpleNamespace(
         id="booking_id",
         payment_detail=SimpleNamespace(auth_failure_first_email_sent_at=now),
     )
@@ -679,6 +710,7 @@ def test_process_scheduled_authorizations_handles_missing_booking_for_email():
     db_read = MagicMock()
     db_notify = MagicMock()
     db_notify.query.return_value.options.return_value.filter.return_value.first.return_value = None
+    db_notify.query.return_value.filter.return_value.options.return_value.first.return_value = None
     payment_repo = MagicMock()
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_notify]):
@@ -730,8 +762,10 @@ def test_process_authorization_for_booking_phase3_missing():
 
     db1 = MagicMock()
     db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking
+    db1.query.return_value.filter.return_value.options.return_value.first.return_value = booking
     db3 = MagicMock()
     db3.query.return_value.options.return_value.filter.return_value.first.return_value = None
+    db3.query.return_value.filter.return_value.options.return_value.first.return_value = None
 
     payment_repo = MagicMock()
     payment_repo.get_customer_by_user_id.return_value = None
@@ -765,6 +799,7 @@ def test_retry_failed_authorizations_warn_only_sends_warning():
         ),
     )
     db_warn.query.return_value.options.return_value.filter.return_value.first.return_value = booking_warn
+    db_warn.query.return_value.filter.return_value.options.return_value.first.return_value = booking_warn
 
     payment_repo = MagicMock()
 
@@ -820,7 +855,7 @@ def test_retry_failed_authorizations_warn_only_skips_when_already_sent():
 
     db_read = MagicMock()
     db_warn = MagicMock()
-    db_warn.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    warn_booking = SimpleNamespace(
         status=BookingStatus.CONFIRMED,
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
@@ -828,6 +863,8 @@ def test_retry_failed_authorizations_warn_only_skips_when_already_sent():
             auth_failure_t13_warning_sent_at=now,
         ),
     )
+    db_warn.query.return_value.options.return_value.filter.return_value.first.return_value = warn_booking
+    db_warn.query.return_value.filter.return_value.options.return_value.first.return_value = warn_booking
 
     payment_repo = MagicMock()
 
@@ -1039,6 +1076,7 @@ def test_retry_failed_authorizations_cancel_path_noop_when_cancel_returns_false(
 def test_check_immediate_auth_timeout_booking_not_found():
     db = MagicMock()
     db.query.return_value.options.return_value.filter.return_value.first.return_value = None
+    db.query.return_value.filter.return_value.options.return_value.first.return_value = None
 
     with patch("app.database.SessionLocal", return_value=db):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
@@ -1057,6 +1095,7 @@ def test_check_immediate_auth_timeout_resolved():
     )
     db = MagicMock()
     db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
+    db.query.return_value.filter.return_value.options.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
@@ -1076,6 +1115,7 @@ def test_check_immediate_auth_timeout_attempted_at_missing():
     )
     db = MagicMock()
     db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
+    db.query.return_value.filter.return_value.options.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db):
         with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
@@ -1098,52 +1138,64 @@ def test_check_immediate_auth_timeout_attempted_at_missing():
 
 def test_retry_failed_captures_skips_when_lock_unavailable():
     db_read = MagicMock()
-    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
-        SimpleNamespace(id="booking_id")
-    ]
+
+    mock_repo = MagicMock()
+    mock_repo.get_failed_capture_booking_ids.return_value = ["booking_id"]
 
     with patch("app.database.SessionLocal", return_value=db_read):
-        with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(False)):
-            result = payment_tasks.retry_failed_captures()
+        with patch("app.tasks.payment_tasks.BookingRepository", return_value=mock_repo):
+            with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(False)):
+                result = payment_tasks.retry_failed_captures()
 
     assert result["skipped"] == 1
 
 
 def test_retry_failed_captures_skips_when_booking_missing():
     db_read = MagicMock()
-    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
-        SimpleNamespace(id="booking_id")
-    ]
     db_check = MagicMock()
-    db_check.query.return_value.options.return_value.filter.return_value.first.return_value = None
+
+    def _make_repo(db):
+        repo = MagicMock()
+        if db is db_read:
+            repo.get_failed_capture_booking_ids.return_value = ["booking_id"]
+        elif db is db_check:
+            repo.get_by_id.return_value = None
+        return repo
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_check]):
-        with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
-            result = payment_tasks.retry_failed_captures()
+        with patch("app.tasks.payment_tasks.BookingRepository", side_effect=_make_repo):
+            with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
+                result = payment_tasks.retry_failed_captures()
 
     assert result["skipped"] == 1
 
 
 def test_retry_failed_captures_escalates_after_72_hours():
     now = datetime.now(timezone.utc)
-    db_read = MagicMock()
-    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
-        SimpleNamespace(id="booking_id")
-    ]
-    db_check = MagicMock()
-    db_check.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    check_booking = SimpleNamespace(
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             capture_failed_at=now - timedelta(hours=80),
         ),
     )
+    db_read = MagicMock()
+    db_check = MagicMock()
+
+    def _make_repo(db):
+        repo = MagicMock()
+        if db is db_read:
+            repo.get_failed_capture_booking_ids.return_value = ["booking_id"]
+        elif db is db_check:
+            repo.get_by_id.return_value = check_booking
+        return repo
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_check]):
-        with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
-            with patch(
-                "app.tasks.payment_tasks._escalate_capture_failure"
-            ) as escalate_mock:
-                result = payment_tasks.retry_failed_captures()
+        with patch("app.tasks.payment_tasks.BookingRepository", side_effect=_make_repo):
+            with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
+                with patch(
+                    "app.tasks.payment_tasks._escalate_capture_failure"
+                ) as escalate_mock:
+                    result = payment_tasks.retry_failed_captures()
 
     escalate_mock.assert_called_once()
     assert result["escalated"] == 1
@@ -1151,50 +1203,62 @@ def test_retry_failed_captures_escalates_after_72_hours():
 
 def test_retry_failed_captures_skips_when_not_ready():
     now = datetime.now(timezone.utc)
-    db_read = MagicMock()
-    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
-        SimpleNamespace(id="booking_id")
-    ]
-    db_check = MagicMock()
-    db_check.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    check_booking = SimpleNamespace(
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             capture_failed_at=now - timedelta(hours=1),
         ),
     )
+    db_read = MagicMock()
+    db_check = MagicMock()
+
+    def _make_repo(db):
+        repo = MagicMock()
+        if db is db_read:
+            repo.get_failed_capture_booking_ids.return_value = ["booking_id"]
+        elif db is db_check:
+            repo.get_by_id.return_value = check_booking
+        return repo
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_check]):
-        with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
-            with patch(
-                "app.tasks.payment_tasks._should_retry_capture",
-                return_value=False,
-            ):
-                result = payment_tasks.retry_failed_captures()
+        with patch("app.tasks.payment_tasks.BookingRepository", side_effect=_make_repo):
+            with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
+                with patch(
+                    "app.tasks.payment_tasks._should_retry_capture",
+                    return_value=False,
+                ):
+                    result = payment_tasks.retry_failed_captures()
 
     assert result["skipped"] == 1
 
 
 def test_retry_failed_captures_processes_success():
     now = datetime.now(timezone.utc)
-    db_read = MagicMock()
-    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
-        SimpleNamespace(id="booking_id")
-    ]
-    db_check = MagicMock()
-    db_check.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    check_booking = SimpleNamespace(
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             capture_failed_at=now - timedelta(hours=5),
         ),
     )
+    db_read = MagicMock()
+    db_check = MagicMock()
+
+    def _make_repo(db):
+        repo = MagicMock()
+        if db is db_read:
+            repo.get_failed_capture_booking_ids.return_value = ["booking_id"]
+        elif db is db_check:
+            repo.get_by_id.return_value = check_booking
+        return repo
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_check]):
-        with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
-            with patch(
-                "app.tasks.payment_tasks._process_capture_for_booking",
-                return_value={"success": True},
-            ):
-                result = payment_tasks.retry_failed_captures()
+        with patch("app.tasks.payment_tasks.BookingRepository", side_effect=_make_repo):
+            with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
+                with patch(
+                    "app.tasks.payment_tasks._process_capture_for_booking",
+                    return_value={"success": True},
+                ):
+                    result = payment_tasks.retry_failed_captures()
 
     assert result["retried"] == 1
     assert result["succeeded"] == 1
@@ -1202,50 +1266,62 @@ def test_retry_failed_captures_processes_success():
 
 def test_retry_failed_captures_skips_when_process_capture_skipped():
     now = datetime.now(timezone.utc)
-    db_read = MagicMock()
-    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
-        SimpleNamespace(id="booking_id")
-    ]
-    db_check = MagicMock()
-    db_check.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    check_booking = SimpleNamespace(
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             capture_failed_at=now - timedelta(hours=5),
         ),
     )
+    db_read = MagicMock()
+    db_check = MagicMock()
+
+    def _make_repo(db):
+        repo = MagicMock()
+        if db is db_read:
+            repo.get_failed_capture_booking_ids.return_value = ["booking_id"]
+        elif db is db_check:
+            repo.get_by_id.return_value = check_booking
+        return repo
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_check]):
-        with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
-            with patch(
-                "app.tasks.payment_tasks._process_capture_for_booking",
-                return_value={"skipped": True},
-            ):
-                result = payment_tasks.retry_failed_captures()
+        with patch("app.tasks.payment_tasks.BookingRepository", side_effect=_make_repo):
+            with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
+                with patch(
+                    "app.tasks.payment_tasks._process_capture_for_booking",
+                    return_value={"skipped": True},
+                ):
+                    result = payment_tasks.retry_failed_captures()
 
     assert result["skipped"] == 1
 
 
 def test_retry_failed_captures_handles_exception():
     now = datetime.now(timezone.utc)
-    db_read = MagicMock()
-    db_read.query.return_value.join.return_value.filter.return_value.all.return_value = [
-        SimpleNamespace(id="booking_id")
-    ]
-    db_check = MagicMock()
-    db_check.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    check_booking = SimpleNamespace(
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
             capture_failed_at=now - timedelta(hours=5),
         ),
     )
+    db_read = MagicMock()
+    db_check = MagicMock()
+
+    def _make_repo(db):
+        repo = MagicMock()
+        if db is db_read:
+            repo.get_failed_capture_booking_ids.return_value = ["booking_id"]
+        elif db is db_check:
+            repo.get_by_id.return_value = check_booking
+        return repo
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_check]):
-        with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
-            with patch(
-                "app.tasks.payment_tasks._process_capture_for_booking",
-                side_effect=RuntimeError("boom"),
-            ):
-                result = payment_tasks.retry_failed_captures()
+        with patch("app.tasks.payment_tasks.BookingRepository", side_effect=_make_repo):
+            with patch("app.tasks.payment_tasks.booking_lock_sync", return_value=_lock(True)):
+                with patch(
+                    "app.tasks.payment_tasks._process_capture_for_booking",
+                    side_effect=RuntimeError("boom"),
+                ):
+                    result = payment_tasks.retry_failed_captures()
 
     assert result["retried"] == 0
     assert result["succeeded"] == 0
@@ -1254,6 +1330,7 @@ def test_retry_failed_captures_handles_exception():
 def test_escalate_capture_failure_returns_when_booking_missing():
     db_read = MagicMock()
     db_read.query.return_value.filter.return_value.first.return_value = None
+    db_read.query.return_value.filter.return_value.options.return_value.first.return_value = None
 
     with patch("app.database.SessionLocal", return_value=db_read):
         payment_tasks._escalate_capture_failure("booking_id", datetime.now(timezone.utc))
@@ -1278,6 +1355,7 @@ def test_escalate_capture_failure_transfer_error():
 
     db_read = MagicMock()
     db_read.query.return_value.filter.return_value.first.return_value = booking_read
+    db_read.query.return_value.filter.return_value.options.return_value.first.return_value = booking_read
     db_stripe = MagicMock()
     db_write = MagicMock()
 
@@ -1287,6 +1365,7 @@ def test_escalate_capture_failure_transfer_error():
         query = MagicMock()
         if model is payment_tasks.Booking:
             query.options.return_value.filter.return_value.first.return_value = booking_write
+            query.filter.return_value.options.return_value.first.return_value = booking_write
         elif model is payment_tasks.User:
             query.filter.return_value.first.return_value = student
         elif model is BP:
@@ -1370,6 +1449,7 @@ def test_process_capture_for_booking_locked_funds():
     )
     db1 = MagicMock()
     db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking
+    db1.query.return_value.filter.return_value.options.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db1):
         with patch(
@@ -1398,6 +1478,7 @@ def test_process_capture_for_booking_locked_funds_without_settle_when_resolution
     )
     db1 = MagicMock()
     db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking
+    db1.query.return_value.filter.return_value.options.return_value.first.return_value = booking
 
     with patch("app.database.SessionLocal", return_value=db1):
         with patch(
@@ -1437,9 +1518,11 @@ def test_process_capture_for_booking_already_captured():
 
     db1 = MagicMock()
     db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking_phase1
+    db1.query.return_value.filter.return_value.options.return_value.first.return_value = booking_phase1
     db_stripe = MagicMock()
     db3 = MagicMock()
     db3.query.return_value.options.return_value.filter.return_value.first.return_value = booking_phase3
+    db3.query.return_value.filter.return_value.options.return_value.first.return_value = booking_phase3
 
     stripe_service = MagicMock()
     stripe_service.capture_booking_payment_intent.side_effect = stripe.error.InvalidRequestError(
@@ -1495,9 +1578,11 @@ def test_process_capture_for_booking_phase3_missing():
 
     db1 = MagicMock()
     db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking_phase1
+    db1.query.return_value.filter.return_value.options.return_value.first.return_value = booking_phase1
     db_stripe = MagicMock()
     db3 = MagicMock()
     db3.query.return_value.options.return_value.filter.return_value.first.return_value = None
+    db3.query.return_value.filter.return_value.options.return_value.first.return_value = None
 
     stripe_service = MagicMock()
     stripe_service.capture_booking_payment_intent.return_value = {
@@ -1536,6 +1621,7 @@ def test_auto_complete_booking_locked_funds():
     )
     db1 = MagicMock()
     db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking
+    db1.query.return_value.filter.return_value.options.return_value.first.return_value = booking
 
     payment_repo = MagicMock()
 
@@ -1590,6 +1676,7 @@ def test_auto_complete_booking_locked_funds_resolution_failure_keeps_uncaptured(
     )
     db1 = MagicMock()
     db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking
+    db1.query.return_value.filter.return_value.options.return_value.first.return_value = booking
 
     payment_repo = MagicMock()
 
@@ -1644,6 +1731,7 @@ def test_auto_complete_booking_no_payment_intent():
     )
     db1 = MagicMock()
     db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking
+    db1.query.return_value.filter.return_value.options.return_value.first.return_value = booking
 
     payment_repo = MagicMock()
 
@@ -1831,6 +1919,7 @@ def test_capture_completed_lessons_marks_expired_auth():
     db_read = MagicMock()
     db_expired = MagicMock()
     db_expired.query.return_value.options.return_value.filter.return_value.first.return_value = booking_expired
+    db_expired.query.return_value.filter.return_value.options.return_value.first.return_value = booking_expired
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_expired]):
         with patch(
@@ -2248,24 +2337,31 @@ def test_capture_completed_lessons_expired_auth_skip_paths_and_error_branch():
     db_read = MagicMock()
     db_missing = MagicMock()
     db_missing.query.return_value.options.return_value.filter.return_value.first.return_value = None
+    db_missing.query.return_value.filter.return_value.options.return_value.first.return_value = None
     db_manual = MagicMock()
-    db_manual.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    manual_booking = SimpleNamespace(
         status=BookingStatus.CONFIRMED,
         payment_detail=SimpleNamespace(payment_status=PaymentStatus.MANUAL_REVIEW.value),
     )
+    db_manual.query.return_value.options.return_value.filter.return_value.first.return_value = manual_booking
+    db_manual.query.return_value.filter.return_value.options.return_value.first.return_value = manual_booking
     db_not_auth = MagicMock()
-    db_not_auth.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    not_auth_booking = SimpleNamespace(
         status=BookingStatus.CONFIRMED,
         payment_detail=SimpleNamespace(payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value),
     )
+    db_not_auth.query.return_value.options.return_value.filter.return_value.first.return_value = not_auth_booking
+    db_not_auth.query.return_value.filter.return_value.options.return_value.first.return_value = not_auth_booking
     db_error = MagicMock()
-    db_error.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    error_booking = SimpleNamespace(
         status=BookingStatus.COMPLETED,
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.AUTHORIZED.value,
             payment_intent_id="pi_123",
         ),
     )
+    db_error.query.return_value.options.return_value.filter.return_value.first.return_value = error_booking
+    db_error.query.return_value.filter.return_value.options.return_value.first.return_value = error_booking
 
     lock_iter = iter([False, True, True, True, True])
 
@@ -2323,9 +2419,11 @@ def test_process_capture_for_booking_already_captured_sets_completed_fields(payo
 
     db1 = MagicMock()
     db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking_phase1
+    db1.query.return_value.filter.return_value.options.return_value.first.return_value = booking_phase1
     db_stripe = MagicMock()
     db3 = MagicMock()
     db3.query.return_value.options.return_value.filter.return_value.first.return_value = booking_phase3
+    db3.query.return_value.filter.return_value.options.return_value.first.return_value = booking_phase3
 
     stripe_service = MagicMock()
     stripe_service.capture_booking_payment_intent.side_effect = stripe.error.InvalidRequestError(
@@ -2507,7 +2605,7 @@ def test_retry_failed_authorizations_warn_only_skips_when_booking_no_longer_elig
 
     db_read = MagicMock()
     db_warn = MagicMock()
-    db_warn.query.return_value.options.return_value.filter.return_value.first.return_value = SimpleNamespace(
+    warn_booking_cancelled = SimpleNamespace(
         status=BookingStatus.CANCELLED,
         payment_detail=SimpleNamespace(
             payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
@@ -2515,6 +2613,8 @@ def test_retry_failed_authorizations_warn_only_skips_when_booking_no_longer_elig
             auth_failure_t13_warning_sent_at=None,
         ),
     )
+    db_warn.query.return_value.options.return_value.filter.return_value.first.return_value = warn_booking_cancelled
+    db_warn.query.return_value.filter.return_value.options.return_value.first.return_value = warn_booking_cancelled
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_warn]):
         with patch(
@@ -2567,6 +2667,7 @@ def test_retry_failed_authorizations_warn_only_then_retry_success():
         ),
     )
     db_warn.query.return_value.options.return_value.filter.return_value.first.return_value = booking_warn
+    db_warn.query.return_value.filter.return_value.options.return_value.first.return_value = booking_warn
     payment_repo = MagicMock()
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_warn]):
@@ -2629,10 +2730,12 @@ def test_process_retry_authorization_returns_phase3_missing():
     )
     db1 = MagicMock()
     db1.query.return_value.options.return_value.filter.return_value.first.return_value = booking_phase1
+    db1.query.return_value.filter.return_value.options.return_value.first.return_value = booking_phase1
 
     db_stripe = MagicMock()
     db3 = MagicMock()
     db3.query.return_value.options.return_value.filter.return_value.first.return_value = None
+    db3.query.return_value.filter.return_value.options.return_value.first.return_value = None
 
     payment_repo = MagicMock()
     payment_repo.get_customer_by_user_id.return_value = SimpleNamespace(id="cus_123")
@@ -2677,6 +2780,7 @@ def test_escalate_capture_failure_returns_when_booking_missing_in_phase3():
     booking_read = SimpleNamespace(id="booking_id", instructor_id="instructor-1")
     db_read = MagicMock()
     db_read.query.return_value.filter.return_value.first.return_value = booking_read
+    db_read.query.return_value.filter.return_value.options.return_value.first.return_value = booking_read
 
     payment_repo_read = MagicMock()
     payment_repo_read.get_payment_by_booking_id.return_value = SimpleNamespace(
@@ -2688,6 +2792,7 @@ def test_escalate_capture_failure_returns_when_booking_missing_in_phase3():
 
     db_write = MagicMock()
     db_write.query.return_value.options.return_value.filter.return_value.first.return_value = None
+    db_write.query.return_value.filter.return_value.options.return_value.first.return_value = None
 
     with patch("app.database.SessionLocal", side_effect=[db_read, db_write]):
         with patch(
@@ -2719,6 +2824,7 @@ def test_escalate_capture_failure_commits_without_student_record():
 
     db_read = MagicMock()
     db_read.query.return_value.filter.return_value.first.return_value = booking_read
+    db_read.query.return_value.filter.return_value.options.return_value.first.return_value = booking_read
 
     payment_repo_read = MagicMock()
     payment_repo_read.get_payment_by_booking_id.return_value = SimpleNamespace(
@@ -2736,6 +2842,7 @@ def test_escalate_capture_failure_commits_without_student_record():
         query = MagicMock()
         if model is payment_tasks.Booking:
             query.options.return_value.filter.return_value.first.return_value = booking_write
+            query.filter.return_value.options.return_value.first.return_value = booking_write
         elif model is payment_tasks.User:
             query.filter.return_value.first.return_value = None
         elif model is BP:

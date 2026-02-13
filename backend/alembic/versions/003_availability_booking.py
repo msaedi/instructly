@@ -225,7 +225,7 @@ def upgrade() -> None:
         sa.Column("no_show_resolved_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("no_show_resolution", sa.String(30), nullable=True),
         sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["no_show_reported_by"], ["users.id"]),
+        sa.ForeignKeyConstraint(["no_show_reported_by"], ["users.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("booking_id"),
     )

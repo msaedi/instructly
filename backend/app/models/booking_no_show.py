@@ -28,7 +28,9 @@ class BookingNoShow(Base):
         unique=True,
     )
 
-    no_show_reported_by = Column(String(26), ForeignKey("users.id"), nullable=True)
+    no_show_reported_by = Column(
+        String(26), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     no_show_reported_at = Column(DateTime(timezone=True), nullable=True)
     no_show_type = Column(String(20), nullable=True)
     no_show_disputed = Column(Boolean, nullable=False, default=False, server_default=text("false"))
