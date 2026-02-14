@@ -396,3 +396,84 @@ def test_extension_points_defaults(monkeypatch) -> None:
     assert cfg._validate_schema_version() is False
     assert cfg._check_dry_run_mode() is False
     assert cfg._rate_limit_check("op") is False
+
+
+def test_get_database_url_unknown_site_mode_uses_detected_staging(monkeypatch) -> None:
+    cfg = _make_config(monkeypatch)
+    monkeypatch.setenv("SITE_MODE", "sandbox")
+    monkeypatch.setattr(cfg, "_detect_environment", lambda: "stg")
+    monkeypatch.setattr(cfg, "_get_staging_url", lambda: "stg-url")
+
+    assert cfg.get_database_url() == "stg-url"
+
+
+def test_get_database_url_unknown_site_mode_defaults_to_int(monkeypatch) -> None:
+    cfg = _make_config(monkeypatch)
+    monkeypatch.setenv("SITE_MODE", "sandbox")
+    monkeypatch.setattr(cfg, "_detect_environment", lambda: "prod")
+    monkeypatch.setattr(cfg, "_get_int_url", lambda: "int-url")
+
+    assert cfg.get_database_url() == "int-url"
+
+
+def test_get_database_url_ci_without_database_url_falls_back_to_site_mode(monkeypatch) -> None:
+    cfg = _make_config(monkeypatch)
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("SITE_MODE", "local")
+    monkeypatch.setattr(cfg, "_get_staging_url", lambda: "stg-url")
+
+    assert cfg.get_database_url() == "stg-url"
+
+
+def test_detect_environment_returns_int_when_pytest_present(monkeypatch) -> None:
+    cfg = _make_config(monkeypatch)
+    monkeypatch.setitem(database_config.sys.modules, "pytest", object())
+    monkeypatch.setattr(cfg, "_is_ci_environment", lambda: False)
+    monkeypatch.setattr(cfg, "_is_local_development", lambda: False)
+    monkeypatch.setattr(cfg, "_check_production_mode", lambda: True)
+
+    assert cfg._detect_environment() == "int"
+
+
+def test_validate_configuration_stg_mode_requires_stg_or_prod(monkeypatch) -> None:
+    cfg = _make_config(monkeypatch)
+    cfg.stg_url = None
+    cfg.prod_url = ""
+    monkeypatch.setenv("SITE_MODE", "stg")
+
+    with pytest.raises(ValueError, match="STG database"):
+        cfg.validate_configuration()
+
+
+def test_validate_configuration_int_mode_requires_int_url(monkeypatch) -> None:
+    cfg = _make_config(monkeypatch)
+    cfg.int_url = None
+    monkeypatch.setenv("SITE_MODE", "int")
+
+    with pytest.raises(ValueError, match="INT database"):
+        cfg.validate_configuration()
+
+
+def test_staging_and_preview_url_emit_banner_and_audit(monkeypatch) -> None:
+    cfg = _make_config(monkeypatch)
+    logged: list[tuple[str, str]] = []
+    audited: list[tuple[str, dict[str, object]]] = []
+    database_config._PRINTED_ENV_BANNERS.clear()
+
+    monkeypatch.setattr(
+        database_config, "scripts_log_info", lambda env, message: logged.append((env, message))
+    )
+    monkeypatch.setattr(
+        cfg, "_audit_log_operation", lambda operation, details: audited.append((operation, details))
+    )
+
+    assert cfg._get_staging_url() == cfg.stg_url
+    assert cfg._get_preview_url() == cfg.preview_url
+
+    assert ("stg", "Using Staging/Local Dev database (preserves data)") in logged
+    assert ("preview", "Using Preview database") in logged
+    assert "stg" in database_config._PRINTED_ENV_BANNERS
+    assert "preview" in database_config._PRINTED_ENV_BANNERS
+    assert any(item[1]["environment"] == "stg" for item in audited)
+    assert any(item[1]["environment"] == "preview" for item in audited)
