@@ -119,6 +119,34 @@ def test_setup_verify_success_and_failure(db, test_student, monkeypatch):
     assert exc.value.status_code == 400
 
 
+def test_setup_verify_invalidates_all_tokens(db, test_student, monkeypatch):
+    auth_service = _AuthService(test_student)
+    tfa_service = _TFAService(db)
+    calls: list[str] = []
+
+    class _Repo:
+        def invalidate_all_tokens(self, user_id: str):
+            calls.append(user_id)
+            return True
+
+    monkeypatch.setattr(
+        routes.RepositoryFactory,
+        "create_user_repository",
+        lambda _db: _Repo(),
+    )
+
+    response = routes.setup_verify(
+        TFASetupVerifyRequest(code="123456"),
+        Response(),
+        _make_request(),
+        current_user=test_student.email,
+        auth_service=auth_service,
+        tfa_service=tfa_service,
+    )
+    assert response.enabled is True
+    assert calls == [test_student.id]
+
+
 def test_disable_success_and_failure(db, test_student, monkeypatch):
     auth_service = _AuthService(test_student)
 
@@ -155,6 +183,33 @@ def test_disable_success_and_failure(db, test_student, monkeypatch):
             tfa_service=_BadService(db),
         )
     assert exc.value.status_code == 400
+
+
+def test_disable_invalidates_all_tokens(db, test_student, monkeypatch):
+    auth_service = _AuthService(test_student)
+    calls: list[str] = []
+
+    class _Repo:
+        def invalidate_all_tokens(self, user_id: str):
+            calls.append(user_id)
+            return True
+
+    monkeypatch.setattr(
+        routes.RepositoryFactory,
+        "create_user_repository",
+        lambda _db: _Repo(),
+    )
+
+    response = routes.disable(
+        TFADisableRequest(current_password="password"),
+        Response(),
+        _make_request(),
+        current_user=test_student.email,
+        auth_service=auth_service,
+        tfa_service=_TFAService(db),
+    )
+    assert response.message
+    assert calls == [test_student.id]
 
 
 def test_setup_verify_audit_failure(db, test_student, monkeypatch):

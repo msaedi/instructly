@@ -651,6 +651,12 @@ async def change_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update password"
         )
 
+    invalidated = await asyncio.to_thread(user_repository.invalidate_all_tokens, user.id)
+    if not invalidated:
+        logger.warning(
+            "Password updated but token invalidation helper returned false for %s", user.id
+        )
+
     try:
         await asyncio.to_thread(
             _send_password_changed_notification_sync,
@@ -1003,6 +1009,8 @@ async def update_current_user(
     Raises:
         HTTPException: If user not found or update fails
     """
+    # TODO(security): if email change is added to this endpoint, call
+    # UserRepository.invalidate_all_tokens(updated_user.id) after commit.
     try:
         # Wrap all sync DB operations in thread pool to avoid blocking event loop
         def _update_user_profile() -> tuple[Any, ...]:

@@ -4,6 +4,7 @@ Test authentication functionality using proper test client fixture.
 """
 
 from datetime import datetime, timedelta, timezone
+import time as time_module
 
 from fastapi.testclient import TestClient
 import jwt
@@ -13,6 +14,7 @@ from app.auth import create_access_token, get_password_hash, verify_password
 from app.core.auth_cache import invalidate_cached_user_by_id_sync
 from app.core.config import settings
 from app.core.enums import RoleName
+from app.models.password_reset import PasswordResetToken
 from app.models.user import User
 
 
@@ -282,3 +284,120 @@ class TestAuth:
         response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
         assert response.json()["id"] == test_student.id
+
+    def test_change_password_invalidates_old_token_and_allows_new_login(
+        self, db: Session, client: TestClient, test_student: User, test_password: str
+    ):
+        old_token = create_access_token({"sub": test_student.id, "email": test_student.email})
+        # iat is second-granularity; ensure invalidation timestamp is strictly later.
+        time_module.sleep(1.1)
+        change_response = client.post(
+            "/api/v1/auth/change-password",
+            json={"current_password": test_password, "new_password": "NewSecurePassword123"},
+            headers={"Authorization": f"Bearer {old_token}"},
+        )
+        assert change_response.status_code == 200
+
+        old_token_response = client.get(
+            "/api/v1/auth/me", headers={"Authorization": f"Bearer {old_token}"}
+        )
+        assert old_token_response.status_code == 401
+        assert old_token_response.json().get("detail") == "Token has been invalidated"
+
+        login_response = client.post(
+            "/api/v1/auth/login",
+            data={"username": test_student.email, "password": "NewSecurePassword123"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        assert login_response.status_code == 200
+        assert login_response.json().get("access_token")
+
+    def test_password_reset_invalidates_old_token_and_allows_new_login(
+        self, db: Session, client: TestClient, test_student: User
+    ):
+        old_token = create_access_token({"sub": test_student.id, "email": test_student.email})
+        # iat is second-granularity; ensure invalidation timestamp is strictly later.
+        time_module.sleep(1.1)
+        reset_token_value = f"phase3-reset-token-{test_student.id}"
+        reset_token = PasswordResetToken(
+            user_id=test_student.id,
+            token=reset_token_value,
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            used=False,
+        )
+        db.add(reset_token)
+        db.commit()
+
+        confirm_response = client.post(
+            "/api/v1/password-reset/confirm",
+            json={
+                "token": reset_token_value,
+                "new_password": "ResetSecurePassword123",
+            },
+        )
+        assert confirm_response.status_code == 200
+
+        old_token_response = client.get(
+            "/api/v1/auth/me", headers={"Authorization": f"Bearer {old_token}"}
+        )
+        assert old_token_response.status_code == 401
+        assert old_token_response.json().get("detail") == "Token has been invalidated"
+
+        login_response = client.post(
+            "/api/v1/auth/login",
+            data={"username": test_student.email, "password": "ResetSecurePassword123"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        assert login_response.status_code == 200
+        assert login_response.json().get("access_token")
+
+    def test_logout_all_devices_invalidates_existing_tokens(
+        self, client: TestClient, test_student: User, test_password: str
+    ):
+        token_a = create_access_token({"sub": test_student.id, "email": test_student.email})
+        token_b = create_access_token({"sub": test_student.id, "email": test_student.email})
+        # Ensure tokens predate tokens_valid_after set by logout-all.
+        time_module.sleep(1.1)
+        headers = {"Authorization": f"Bearer {token_a}"}
+
+        logout_response = client.post("/api/v1/account/logout-all-devices", headers=headers)
+        assert logout_response.status_code == 200
+        assert logout_response.json().get("message") == "All sessions have been logged out"
+
+        token_a_response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token_a}"})
+        assert token_a_response.status_code == 401
+
+        token_b_response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token_b}"})
+        assert token_b_response.status_code == 401
+
+        login_response = client.post(
+            "/api/v1/auth/login",
+            data={"username": test_student.email, "password": test_password},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        assert login_response.status_code == 200
+        assert login_response.json().get("access_token")
+
+    def test_admin_force_logout_invalidates_target_but_keeps_admin_active(
+        self, client: TestClient, test_student: User, admin_user: User
+    ):
+        target_token = create_access_token({"sub": test_student.id, "email": test_student.email})
+        admin_token = create_access_token({"sub": admin_user.id, "email": admin_user.email})
+        # Ensure target token predates tokens_valid_after set by force-logout.
+        time_module.sleep(1.1)
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+        force_response = client.post(
+            f"/api/v1/admin/users/{test_student.id}/force-logout",
+            headers=admin_headers,
+        )
+        assert force_response.status_code == 200
+        assert force_response.json().get("message") == "User sessions have been logged out"
+
+        target_me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {target_token}"})
+        assert target_me.status_code == 401
+        assert target_me.json().get("detail") == "Token has been invalidated"
+
+        admin_me = client.get("/api/v1/auth/me", headers=admin_headers)
+        assert admin_me.status_code == 200
+        assert admin_me.json().get("id") == admin_user.id

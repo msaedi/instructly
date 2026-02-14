@@ -18,6 +18,7 @@ from app.auth import create_access_token, get_current_user
 from app.core.config import settings
 from app.database import get_db
 from app.middleware.rate_limiter import RateLimitKeyType, rate_limit
+from app.repositories.factory import RepositoryFactory
 from app.services.audit_service import AuditService
 from app.services.auth_service import AuthService
 from app.services.notification_service import NotificationService
@@ -80,6 +81,11 @@ def setup_verify(
     was_enabled = bool(getattr(user, "totp_enabled", False))
     try:
         backup_codes = tfa_service.setup_verify(user, req.code)
+        user_repo = RepositoryFactory.create_user_repository(tfa_service.db)
+        if not user_repo.invalidate_all_tokens(user.id):
+            logger.warning(
+                "2FA enable succeeded but token invalidation returned false for %s", user.id
+            )
         # On successful re-setup, ensure trust cookie is cleared; user can re-trust on next verify
         response.delete_cookie(
             key="tfa_trusted",
@@ -133,6 +139,11 @@ def disable(
     was_enabled = bool(getattr(user, "totp_enabled", False))
     try:
         tfa_service.disable(user, req.current_password)
+        user_repo = RepositoryFactory.create_user_repository(tfa_service.db)
+        if not user_repo.invalidate_all_tokens(user.id):
+            logger.warning(
+                "2FA disable succeeded but token invalidation returned false for %s", user.id
+            )
         # Invalidate any trusted-browser cookie on disable
         response.delete_cookie(
             key="tfa_trusted",

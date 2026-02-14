@@ -247,6 +247,71 @@ async def test_account_status_error(test_instructor_with_availability):
 
 
 @pytest.mark.asyncio
+async def test_logout_all_devices_revokes_current_token(monkeypatch, test_student, db):
+    revoked: list[tuple[str, int]] = []
+
+    class _Repo:
+        def invalidate_all_tokens(self, _user_id: str):
+            return True
+
+    class _Blacklist:
+        async def revoke_token(self, jti: str, exp: int):
+            revoked.append((jti, exp))
+
+    monkeypatch.setattr(
+        account_routes.RepositoryFactory,
+        "create_user_repository",
+        lambda _db: _Repo(),
+    )
+    monkeypatch.setattr(
+        account_routes,
+        "decode_access_token",
+        lambda *_args, **_kwargs: {"jti": "token-jti", "exp": 9999999999},
+    )
+    monkeypatch.setattr(account_routes, "TokenBlacklistService", lambda: _Blacklist())
+
+    request = SimpleNamespace(headers={"authorization": "Bearer token"}, cookies={})
+    response = await account_routes.logout_all_devices(request, test_student, db)
+    assert response.message == "All sessions have been logged out"
+    assert revoked == [("token-jti", 9999999999)]
+
+
+@pytest.mark.asyncio
+async def test_logout_all_devices_without_token_still_succeeds(monkeypatch, test_student, db):
+    class _Repo:
+        def invalidate_all_tokens(self, _user_id: str):
+            return True
+
+    monkeypatch.setattr(
+        account_routes.RepositoryFactory,
+        "create_user_repository",
+        lambda _db: _Repo(),
+    )
+
+    request = SimpleNamespace(headers={}, cookies={})
+    response = await account_routes.logout_all_devices(request, test_student, db)
+    assert response.message == "All sessions have been logged out"
+
+
+@pytest.mark.asyncio
+async def test_logout_all_devices_returns_404_when_user_not_found(monkeypatch, test_student, db):
+    class _Repo:
+        def invalidate_all_tokens(self, _user_id: str):
+            return False
+
+    monkeypatch.setattr(
+        account_routes.RepositoryFactory,
+        "create_user_repository",
+        lambda _db: _Repo(),
+    )
+
+    request = SimpleNamespace(headers={}, cookies={})
+    with pytest.raises(HTTPException) as exc:
+        await account_routes.logout_all_devices(request, test_student, db)
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_phone_update_and_get(db, test_student):
     cache = DummyCacheService()
     test_student.phone = "+15551234567"

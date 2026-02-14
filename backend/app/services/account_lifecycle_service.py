@@ -47,7 +47,7 @@ class AccountLifecycleService(BaseService):
         """
         super().__init__(db, cache=cache_service)
         self.booking_repository = RepositoryFactory.create_booking_repository(db)
-        self.user_repository = RepositoryFactory.create_base_repository(db, User)
+        self.user_repository = RepositoryFactory.create_user_repository(db)
         self.cache_service = cache_service
 
     @BaseService.measure_operation("check_future_bookings")
@@ -115,6 +115,12 @@ class AccountLifecycleService(BaseService):
         if self.cache_service:
             self.cache_service.delete_pattern(f"instructor:{instructor.id}:*")
             self.cache_service.delete_pattern(f"availability:instructor:{instructor.id}:*")
+
+        if not self.user_repository.invalidate_all_tokens(instructor.id):
+            self.logger.warning(
+                "Failed to invalidate active tokens for suspended instructor %s",
+                instructor.id,
+            )
 
         self.logger.info(f"Instructor {instructor.id} account suspended successfully")
 

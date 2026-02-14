@@ -16,7 +16,7 @@ import asyncio
 import logging
 import re
 import secrets
-from typing import Any, Dict
+from typing import Any, Dict, Mapping, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -28,8 +28,10 @@ from ...api.dependencies.services import (
     get_cache_service_dep,
     get_sms_service,
 )
+from ...auth import decode_access_token
 from ...core.exceptions import BusinessRuleException, ValidationException
 from ...models.user import User
+from ...ratelimit.dependency import rate_limit
 from ...repositories import RepositoryFactory
 from ...schemas.account_lifecycle import AccountStatusChangeResponse, AccountStatusResponse
 from ...schemas.phone import (
@@ -38,10 +40,13 @@ from ...schemas.phone import (
     PhoneVerifyConfirmRequest,
     PhoneVerifyResponse,
 )
+from ...schemas.security import SessionInvalidationResponse
 from ...services.account_lifecycle_service import AccountLifecycleService
 from ...services.audit_service import AuditService
 from ...services.cache_service import CacheService
 from ...services.sms_service import SMSService, SMSStatus
+from ...services.token_blacklist_service import TokenBlacklistService
+from ...utils.cookies import session_cookie_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +59,35 @@ PHONE_VERIFY_RATE_LIMIT = 3
 PHONE_VERIFY_WINDOW_SECONDS = 600
 PHONE_CONFIRM_MAX_ATTEMPTS = 5
 PHONE_CONFIRM_WINDOW_SECONDS = 300
+
+
+def _extract_request_access_token(request: Request) -> str | None:
+    auth_header = (request.headers.get("authorization") or "").strip()
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        if token:
+            return token
+
+    if hasattr(request, "cookies"):
+        cookies = cast(Mapping[str, str], request.cookies)
+        for cookie_name in session_cookie_candidates():
+            token = cookies.get(cookie_name)
+            if token:
+                return token
+    return None
+
+
+def _parse_epoch(value: object) -> int | None:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
 
 
 @router.post("/suspend", response_model=AccountStatusChangeResponse)
@@ -229,6 +263,36 @@ async def check_account_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to check account status",
         )
+
+
+@router.post(
+    "/logout-all-devices",
+    response_model=SessionInvalidationResponse,
+    dependencies=[Depends(rate_limit("write"))],
+)
+async def logout_all_devices(
+    request: Request,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> SessionInvalidationResponse:
+    """Invalidate all active sessions for the current user."""
+    user_repo = RepositoryFactory.create_user_repository(db)
+    invalidated = await asyncio.to_thread(user_repo.invalidate_all_tokens, current_user.id)
+    if not invalidated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    token = _extract_request_access_token(request)
+    if token:
+        try:
+            payload = decode_access_token(token, enforce_audience=False)
+            jti = payload.get("jti")
+            exp_ts = _parse_epoch(payload.get("exp"))
+            if isinstance(jti, str) and jti and exp_ts is not None:
+                await TokenBlacklistService().revoke_token(jti, exp_ts)
+        except Exception:
+            logger.debug("Failed to decode token during logout-all blacklist step", exc_info=True)
+
+    return SessionInvalidationResponse(message="All sessions have been logged out")
 
 
 @router.get("/phone", response_model=PhoneUpdateResponse)

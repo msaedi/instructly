@@ -6,12 +6,14 @@ Tests all instructor account status change endpoints with real database.
 """
 
 from datetime import date, time, timedelta
+import time as time_module
 
 from fastapi import status
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
+from app.auth import create_access_token
 from app.core.enums import RoleName
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
@@ -104,6 +106,24 @@ class TestAccountLifecycleEndpoints:
 
         assert response.status_code == status.HTTP_409_CONFLICT
         assert "future bookings" in response.json()["detail"].lower()
+
+    def test_suspend_account_invalidates_existing_token(
+        self, client: TestClient, instructor_with_no_bookings: User
+    ):
+        """Suspension should invalidate the in-flight token via tokens_valid_after."""
+        token = create_access_token(
+            {"sub": instructor_with_no_bookings.id, "email": instructor_with_no_bookings.email}
+        )
+        headers = {"Authorization": f"Bearer {token}"}
+        # iat is second-granularity; ensure suspend timestamp is strictly later.
+        time_module.sleep(1.1)
+
+        response = client.post("/api/v1/account/suspend", headers=headers)
+        assert response.status_code == status.HTTP_200_OK
+
+        me_response = client.get("/api/v1/auth/me", headers=headers)
+        assert me_response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert me_response.json().get("detail") == "Token has been invalidated"
 
     def test_suspend_account_unauthorized(self, client: TestClient, test_instructor: User):
         """Test suspension without authentication."""

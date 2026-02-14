@@ -8118,6 +8118,10 @@ export interface ServiceSearchResponse {
   search_type?: 'service';
 }
 
+export interface SessionInvalidationResponse {
+  message: string;
+}
+
 export type SignedUploadResponseHeaders = { [key: string]: string };
 
 /**

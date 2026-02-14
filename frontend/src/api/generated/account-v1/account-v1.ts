@@ -29,6 +29,7 @@ import type {
   PhoneUpdateResponse,
   PhoneVerifyConfirmRequest,
   PhoneVerifyResponse,
+  SessionInvalidationResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
@@ -126,6 +127,94 @@ export const useDeactivateAccountApiV1AccountDeactivatePost = <
 > => {
   return useMutation(
     getDeactivateAccountApiV1AccountDeactivatePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Invalidate all active sessions for the current user.
+ * @summary Logout All Devices
+ */
+export const getLogoutAllDevicesApiV1AccountLogoutAllDevicesPostUrl = () => {
+  return `/api/v1/account/logout-all-devices`;
+};
+
+export const logoutAllDevicesApiV1AccountLogoutAllDevicesPost = async (
+  options?: RequestInit
+): Promise<SessionInvalidationResponse> => {
+  return customFetch<SessionInvalidationResponse>(
+    getLogoutAllDevicesApiV1AccountLogoutAllDevicesPostUrl(),
+    {
+      ...options,
+      method: 'POST',
+    }
+  );
+};
+
+export const getLogoutAllDevicesApiV1AccountLogoutAllDevicesPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logoutAllDevicesApiV1AccountLogoutAllDevicesPost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof logoutAllDevicesApiV1AccountLogoutAllDevicesPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['logoutAllDevicesApiV1AccountLogoutAllDevicesPost'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof logoutAllDevicesApiV1AccountLogoutAllDevicesPost>>,
+    void
+  > = () => {
+    return logoutAllDevicesApiV1AccountLogoutAllDevicesPost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LogoutAllDevicesApiV1AccountLogoutAllDevicesPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof logoutAllDevicesApiV1AccountLogoutAllDevicesPost>>
+>;
+
+export type LogoutAllDevicesApiV1AccountLogoutAllDevicesPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Logout All Devices
+ */
+export const useLogoutAllDevicesApiV1AccountLogoutAllDevicesPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof logoutAllDevicesApiV1AccountLogoutAllDevicesPost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof logoutAllDevicesApiV1AccountLogoutAllDevicesPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getLogoutAllDevicesApiV1AccountLogoutAllDevicesPostMutationOptions(options),
     queryClient
   );
 };

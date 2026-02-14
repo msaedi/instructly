@@ -156,6 +156,7 @@ from .routes.v1.admin import (
     location_learning as admin_location_learning_v1,
     refunds as admin_refunds_v1,
     search_config as admin_search_config_v1,
+    users as admin_users_v1,
 )
 from .routes.v1.admin.mcp import (
     analytics as admin_mcp_analytics_v1,
@@ -1133,6 +1134,7 @@ api_v1.include_router(admin_auth_blocks_v1.router, prefix="/admin/auth-blocks") 
 api_v1.include_router(admin_location_learning_v1.router, prefix="/admin/location-learning")  # type: ignore[attr-defined]
 api_v1.include_router(admin_bookings_v1.router, prefix="/admin")  # type: ignore[attr-defined]
 api_v1.include_router(admin_refunds_v1.router, prefix="/admin/bookings")  # type: ignore[attr-defined]
+api_v1.include_router(admin_users_v1.router, prefix="/admin")  # type: ignore[attr-defined]
 api_v1.include_router(  # type: ignore[attr-defined]
     admin_mcp_founding_v1.router,
     prefix="/admin/mcp/founding",

@@ -82,6 +82,30 @@ def test_update_and_clear_profile(db, test_student):
     assert repo.update_password("missing-user", "hashed") is False
 
 
+def test_invalidate_all_tokens_sets_timestamp_and_invalidates_cache(monkeypatch, db, test_student):
+    repo = UserRepository(db)
+    test_student.tokens_valid_after = None
+    db.commit()
+
+    cache_invalidation_calls: list[str] = []
+
+    def _invalidate(user_id: str, _db) -> bool:
+        cache_invalidation_calls.append(user_id)
+        return True
+
+    monkeypatch.setattr("app.core.auth_cache.invalidate_cached_user_by_id_sync", _invalidate)
+
+    assert repo.invalidate_all_tokens(test_student.id) is True
+    db.refresh(test_student)
+    assert test_student.tokens_valid_after is not None
+    assert cache_invalidation_calls == [test_student.id]
+
+
+def test_invalidate_all_tokens_missing_user_returns_false(db):
+    repo = UserRepository(db)
+    assert repo.invalidate_all_tokens("missing-user-id") is False
+
+
 def test_bulk_queries(db, test_student, test_instructor_with_availability):
     repo = UserRepository(db)
 

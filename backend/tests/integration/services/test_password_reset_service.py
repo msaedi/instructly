@@ -260,6 +260,10 @@ class TestPasswordResetService:
         # Check email was sent
         mock_email_service.send_password_reset_confirmation.assert_called_once()
 
+        # Existing sessions should be invalidated by updating tokens_valid_after
+        db.refresh(unique_test_user)
+        assert unique_test_user.tokens_valid_after is not None
+
     def test_confirm_password_reset_invalid_token(self, password_reset_service):
         """Test password reset with invalid token."""
         # Execute & Verify

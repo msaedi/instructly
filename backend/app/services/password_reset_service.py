@@ -50,7 +50,7 @@ class PasswordResetService(BaseService):
             self.email_service = email_service
 
         # Initialize repositories using BaseRepository
-        self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)
+        self.user_repository = user_repository or RepositoryFactory.create_user_repository(db)
         self.token_repository = token_repository or RepositoryFactory.create_base_repository(
             db, PasswordResetToken
         )
@@ -198,8 +198,15 @@ class PasswordResetService(BaseService):
                     user_name=user.first_name,
                 )
 
-                self.logger.info(f"Password successfully reset for user {user.id}")
-                return True
+            invalidation_repo = RepositoryFactory.create_user_repository(self.db)
+            if not invalidation_repo.invalidate_all_tokens(user.id):
+                self.logger.warning(
+                    "Password reset succeeded but token invalidation helper returned false for user %s",
+                    user.id,
+                )
+
+            self.logger.info(f"Password successfully reset for user {user.id}")
+            return True
 
         except Exception as e:
             self.logger.error(f"Error resetting password: {str(e)}")

@@ -450,6 +450,12 @@ class StudentAdminService(BaseService):
             user.account_status = "suspended"
             archived_count = self._archive_conversations(user.id)
 
+        if not self.user_repo.invalidate_all_tokens(user.id):
+            logger.warning(
+                "Student suspend succeeded but token invalidation helper returned false for %s",
+                user.id,
+            )
+
         notifications_sent = []
         if cancel_pending_bookings and pending_bookings:
             notifications_sent.append("instructors_booking_cancelled")

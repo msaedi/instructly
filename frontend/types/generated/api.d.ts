@@ -131,6 +131,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/account/logout-all-devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout All Devices
+         * @description Invalidate all active sessions for the current user.
+         */
+        post: operations["logout_all_devices_api_v1_account_logout_all_devices_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/account/phone": {
         parameters: {
             query?: never;
@@ -19653,6 +19673,11 @@ export type components = {
              */
             search_type: "service";
         };
+        /** SessionInvalidationResponse */
+        SessionInvalidationResponse: {
+            /** Message */
+            message: string;
+        };
         /**
          * SignedUploadResponse
          * @description Response payload for signed upload requests.
@@ -21310,6 +21335,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountStatusChangeResponse"];
+                };
+            };
+        };
+    };
+    logout_all_devices_api_v1_account_logout_all_devices_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionInvalidationResponse"];
                 };
             };
         };

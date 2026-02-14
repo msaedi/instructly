@@ -6,7 +6,7 @@ Handles all User data access operations, fixing 30+ repository pattern violation
 Provides methods for basic lookups, role checks, and user counts.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 from typing import Any, List, Optional, Sequence, cast
 
@@ -399,6 +399,30 @@ class UserRepository(BaseRepository[User]):
             return True
         except Exception as e:
             self.logger.error(f"Error updating user password {user_id}: {str(e)}")
+            self.db.rollback()
+            return False
+
+    def invalidate_all_tokens(self, user_id: str) -> bool:
+        """Invalidate all active JWTs for a user via tokens_valid_after and cache eviction."""
+        try:
+            user = self.get_by_id(user_id, load_relationships=False, use_retry=False)
+            if not user:
+                return False
+
+            user.tokens_valid_after = datetime.now(timezone.utc)
+            self.db.commit()
+
+            # Keep auth cache in sync so tokens_valid_after checks use the new floor immediately.
+            from ..core.auth_cache import invalidate_cached_user_by_id_sync
+
+            if not invalidate_cached_user_by_id_sync(user_id, self.db):
+                self.logger.warning(
+                    "[AUTH-CACHE] Failed to invalidate cache after token invalidation for user %s",
+                    user_id,
+                )
+            return True
+        except Exception as e:
+            self.logger.error(f"Error invalidating all tokens for user {user_id}: {str(e)}")
             self.db.rollback()
             return False
 

@@ -71,3 +71,8 @@ class TFAVerifyLoginResponse(StrictModel):
 class BackupCodesResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     backup_codes: List[str]
+
+
+class SessionInvalidationResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    message: str
