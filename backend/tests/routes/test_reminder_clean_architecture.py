@@ -163,40 +163,25 @@ class TestReminderQueryLogic:
 
         service = NotificationService(db)
 
-        # Intercept the query to verify it's correct
-        original_query = db.query
+        # Mock the repository method to return empty list and verify args
+        with patch(
+            "app.repositories.booking_repository.BookingRepository.get_bookings_by_date_range_and_status",
+            return_value=[],
+        ) as mock_repo_method:
+            # Run the query
+            count = service.send_reminder_emails()
 
-        def mock_query(model):
-            if model == Booking:
-                # Create a mock that tracks filter calls
-                mock = Mock()
+            # Verify the repository method was called with date-based args
+            mock_repo_method.assert_called_once()
+            call_args = mock_repo_method.call_args[0]
+            start_date, end_date, status = call_args
 
-                def mock_filter(*args, **kwargs):
-                    # Verify the filter arguments
-                    for arg in args:
-                        # Convert to string to check
-                        arg_str = str(arg)
-                        # Should filter by booking_date
-                        assert "booking_date" in arg_str or "status" in arg_str
-                        # Should NOT filter by slot
-                        assert "slot" not in arg_str.lower()
-                        assert "availability" not in arg_str.lower()
+            # Should filter by booking_date range (date objects, not slot references)
+            assert isinstance(start_date, date)
+            assert isinstance(end_date, date)
+            assert status == "CONFIRMED"
 
-                    # Return mock that returns empty list
-                    mock_result = Mock()
-                    mock_result.all.return_value = []
-                    return mock_result
-
-                mock.filter = mock_filter
-                return mock
-
-            return original_query(model)
-
-        monkeypatch.setattr(db, "query", mock_query)
-
-        # Run the query
-        count = service.send_reminder_emails()
-        assert count == 0  # No bookings found
+            assert count == 0  # No bookings found
 
     def test_reminder_booking_date_calculation(self):
         """Test that tomorrow's date is calculated correctly."""

@@ -111,8 +111,12 @@ def _resolve_tip_cents(tip: ReviewTip | None) -> int:
 
 
 def _resolve_scheduled_authorize_at(booking: Booking) -> datetime | None:
-    if booking.auth_scheduled_for:
-        return _ensure_utc(booking.auth_scheduled_for)
+    payment_detail = getattr(booking, "payment_detail", None)
+    auth_scheduled_for = (
+        getattr(payment_detail, "auth_scheduled_for", None) if payment_detail is not None else None
+    )
+    if auth_scheduled_for:
+        return _ensure_utc(auth_scheduled_for)
     if booking.booking_start_utc is None:
         return None
     return _ensure_utc(booking.booking_start_utc) - timedelta(hours=24)
@@ -328,10 +332,18 @@ class BookingDetailService(BaseService):
             email_hash=_hash_email(getattr(participant, "email", None)),
         )
 
+    @staticmethod
+    def _payment_attr(booking: Booking, field: str) -> Any:
+        payment_detail = getattr(booking, "payment_detail", None)
+        if payment_detail is not None:
+            return getattr(payment_detail, field, None)
+        return None
+
     def _resolve_payment_intent(self, booking: Booking) -> PaymentIntent | None:
-        if booking.payment_intent_id:
+        booking_payment_intent_id = self._payment_attr(booking, "payment_intent_id")
+        if booking_payment_intent_id:
             try:
-                return self.payment_repo.get_payment_by_intent_id(booking.payment_intent_id)
+                return self.payment_repo.get_payment_by_intent_id(booking_payment_intent_id)
             except Exception:
                 return None
         try:
@@ -415,7 +427,7 @@ class BookingDetailService(BaseService):
         payment_events: Sequence[PaymentEvent],
         payment_intent: PaymentIntent | None,
     ) -> PaymentIds:
-        intent_value = booking.payment_intent_id
+        intent_value = self._payment_attr(booking, "payment_intent_id")
         if not intent_value and payment_intent is not None:
             intent_value = payment_intent.stripe_payment_intent_id
         payment_intent_redacted = _redact_stripe_id(intent_value)
@@ -449,7 +461,7 @@ class BookingDetailService(BaseService):
     def _resolve_payment_status(
         self, booking: Booking, payment_events: Sequence[PaymentEvent]
     ) -> str:
-        raw_status = (booking.payment_status or "").lower()
+        raw_status = str(self._payment_attr(booking, "payment_status") or "").lower()
         if raw_status in {PaymentStatus.LOCKED.value, PaymentStatus.SETTLED.value}:
             return raw_status
 
@@ -471,7 +483,7 @@ class BookingDetailService(BaseService):
             return "scheduled"
         if raw_status in _ALLOWED_PAYMENT_STATUSES:
             return raw_status
-        if booking.auth_scheduled_for:
+        if self._payment_attr(booking, "auth_scheduled_for"):
             return "scheduled"
         return raw_status or "failed"
 
@@ -483,7 +495,7 @@ class BookingDetailService(BaseService):
         credits_applied_cents: int,
         tip: ReviewTip | None,
     ) -> PaymentInfo | None:
-        if not (payment_intent or booking.payment_status or payment_events):
+        if not (payment_intent or self._payment_attr(booking, "payment_status") or payment_events):
             return None
 
         amount = self._build_payment_amount(
@@ -577,10 +589,14 @@ class BookingDetailService(BaseService):
             seen.add(key)
             events.append(TimelineEvent(ts=ts_value, event=event, details=details or {}))
 
+        reschedule_detail = getattr(booking, "reschedule_detail", None)
+
         add_event(booking.created_at, "BOOKING_CREATED")
         if booking.confirmed_at:
             add_event(booking.confirmed_at, "BOOKING_CONFIRMED")
-        if booking.rescheduled_from_booking_id or booking.rescheduled_to_booking_id:
+        if booking.rescheduled_from_booking_id or getattr(
+            reschedule_detail, "rescheduled_to_booking_id", None
+        ):
             add_event(booking.updated_at or booking.created_at, "BOOKING_RESCHEDULED")
         if booking.cancelled_at:
             add_event(booking.cancelled_at, "BOOKING_CANCELLED")
@@ -592,8 +608,9 @@ class BookingDetailService(BaseService):
         ):
             add_event(booking.updated_at or booking.created_at, "BOOKING_CANCELLED")
 
-        if booking.auth_scheduled_for:
-            add_event(booking.auth_scheduled_for, "PAYMENT_SCHEDULED")
+        auth_scheduled_for = self._payment_attr(booking, "auth_scheduled_for")
+        if auth_scheduled_for:
+            add_event(auth_scheduled_for, "PAYMENT_SCHEDULED")
 
         for event in payment_events:
             mapped = _map_payment_event(event.event_type)
@@ -605,13 +622,16 @@ class BookingDetailService(BaseService):
                 {"source": "payment_event", "event_type": event.event_type},
             )
 
-        if booking.payment_status:
-            status = booking.payment_status.lower()
+        payment_status = self._payment_attr(booking, "payment_status")
+        if payment_status:
+            status = str(payment_status).lower()
             if status == PaymentStatus.SETTLED.value:
                 add_event(booking.updated_at or booking.completed_at, "PAYMENT_SETTLED")
             if status == PaymentStatus.LOCKED.value:
+                lock_detail = getattr(booking, "lock_detail", None)
                 add_event(
-                    getattr(booking, "locked_at", None) or booking.updated_at, "PAYMENT_LOCKED"
+                    (getattr(lock_detail, "locked_at", None) or booking.updated_at),
+                    "PAYMENT_LOCKED",
                 )
 
         for webhook_event in webhook_events:

@@ -614,6 +614,8 @@ TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_eng
 
 _DB_PREPARED = False
 _DB_PREPARE_LOCK = threading.Lock()
+_CATALOG_SEEDED = False
+_RBAC_SEEDED = False
 
 
 def ensure_outbox_table() -> None:
@@ -919,6 +921,10 @@ def ensure_test_database_ready() -> None:
 
 def _ensure_rbac_roles():
     """Ensure RBAC roles and permissions exist in the test database."""
+    global _RBAC_SEEDED
+    if _RBAC_SEEDED:
+        return
+
     from app.core.enums import PermissionName
     from app.models.rbac import Permission, Role, RolePermission
 
@@ -928,6 +934,7 @@ def _ensure_rbac_roles():
         existing_permissions = session.query(Permission).count()
         if existing_permissions > 0:
             # Already seeded, just return
+            _RBAC_SEEDED = True
             return
 
         # Get or create standard roles
@@ -1007,6 +1014,7 @@ def _ensure_rbac_roles():
 
         session.commit()
         print(f"✅ Created {len(roles)} RBAC roles with permissions")
+        _RBAC_SEEDED = True
     except Exception as e:
         print(f"❌ Error creating RBAC roles: {e}")
         session.rollback()
@@ -1017,6 +1025,10 @@ def _ensure_rbac_roles():
 
 def _ensure_catalog_data():
     """Ensure catalog data is seeded for tests (3-level taxonomy)."""
+    global _CATALOG_SEEDED
+    if _CATALOG_SEEDED:
+        return
+
     mod = _load_seed_taxonomy_module()
     seed_taxonomy = mod.seed_taxonomy
 
@@ -1067,6 +1079,7 @@ def _ensure_catalog_data():
                 )
 
             print(f"✅ Seeded {categories_count} categories and {services_count} services")
+        _CATALOG_SEEDED = True
     except Exception as e:
         print(f"\n❌ Error seeding catalog data: {e}")
         raise

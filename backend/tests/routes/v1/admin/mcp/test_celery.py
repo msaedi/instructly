@@ -4,8 +4,10 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
+import ulid
 
 from app.models.booking import BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
 
 
 class TestCeleryWorkersEndpoint:
@@ -266,11 +268,16 @@ class TestCeleryPaymentHealthEndpoint:
         """Test payment health with issues detected."""
         # Update the existing test_booking to have an overdue scheduled payment
         now = datetime.now(timezone.utc)
-        test_booking.payment_status = PaymentStatus.SCHEDULED.value
         test_booking.status = BookingStatus.CONFIRMED.value
         test_booking.booking_start_utc = now + timedelta(hours=12)  # Within 24h
         test_booking.booking_end_utc = now + timedelta(hours=13)
         test_booking.booking_date = (now + timedelta(hours=12)).date()
+        bp = BookingPayment(
+            id=str(ulid.ULID()),
+            booking_id=test_booking.id,
+            payment_status=PaymentStatus.SCHEDULED.value,
+        )
+        db.add(bp)
         db.commit()
 
         with patch(

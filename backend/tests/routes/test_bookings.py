@@ -164,6 +164,30 @@ class TestBookingRoutes:
         mock_booking.cancelled_at = None
         mock_booking.cancelled_by_id = None
         mock_booking.cancellation_reason = None
+        # UTC / timezone fields accessed by BookingCreateResponse.from_booking
+        mock_booking.booking_start_utc = None
+        mock_booking.booking_end_utc = None
+        mock_booking.lesson_timezone = "America/New_York"
+        mock_booking.instructor_tz_at_booking = "America/New_York"
+        mock_booking.student_tz_at_booking = "America/New_York"
+        # Location extras
+        mock_booking.location_address = None
+        mock_booking.location_lat = None
+        mock_booking.location_lng = None
+        mock_booking.location_place_id = None
+        # Reschedule / lock / settlement fields on core booking
+        mock_booking.rescheduled_from_booking_id = None
+        mock_booking.has_locked_funds = None
+        mock_booking.student_credit_amount = None
+        mock_booking.refunded_to_card_amount = None
+        mock_booking.setup_intent_client_secret = None
+        # Satellite relationships (noload by default, None when not populated)
+        mock_booking.payment_detail = None
+        mock_booking.no_show_detail = None
+        mock_booking.lock_detail = None
+        mock_booking.reschedule_detail = None
+        # Related relationship used by from_booking
+        mock_booking.rescheduled_from = None
 
         # Setup related objects properly
         mock_booking.student = student_user
@@ -173,8 +197,8 @@ class TestBookingRoutes:
         # Set return value for the actual method being called in the route
         mock_booking_service.create_booking_with_payment_setup.return_value = mock_booking
 
-        # Execute
-        response = client_with_mock_booking_service.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
+        # Execute (no trailing slash — avoids 307 redirect through middleware stack)
+        response = client_with_mock_booking_service.post("/api/v1/bookings", json=booking_data, headers=auth_headers_student)
 
         # Verify
         if response.status_code == 422:
@@ -1436,9 +1460,12 @@ class TestBookingRoutes:
         original.location_place_id = None
         original.student_note = "Bring sheet music"
         original.instructor_note = None
-        original.payment_intent_id = "pi_test123"
-        original.payment_status = "settled"
-        original.payment_method_id = "pm_test123"
+        # Payment fields now live on the payment_detail satellite
+        original.payment_detail = SimpleNamespace(
+            payment_intent_id="pi_test123",
+            payment_status="settled",
+            payment_method_id="pm_test123",
+        )
         original.student = Mock(id=generate_ulid(), first_name="Stu", last_name="Dent", email="s@example.com")
         original.instructor = Mock(id=generate_ulid(), first_name="Ins", last_name="Tructor", email="i@example.com")
         original.instructor_service = self._create_mock_instructor_service(name="Piano Lessons")

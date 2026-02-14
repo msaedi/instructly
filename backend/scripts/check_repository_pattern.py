@@ -2,12 +2,14 @@
 """
 Repository Pattern Violation Checker
 
-Ensures that service files don't make direct database queries and only use repositories.
-Similar to check_api_contracts.py and check_timezone_consistency.py
+Ensures that ALL app code outside repositories uses the repository pattern
+for database access. Direct db.query() / db.add() / db.commit() etc. are
+FORBIDDEN outside repository classes.
 
-Supports inline markers for legitimate DB access:
-  # repo-pattern-ignore: Legitimate reason
-  # repo-pattern-migrate: TODO: Will be fixed in migration
+Inline markers exist for pre-approved exceptions ONLY — do NOT add them
+without explicit project owner approval:
+  # repo-pattern-ignore: <approved reason>
+  # repo-pattern-migrate: <approved reason>
 """
 
 from datetime import datetime
@@ -28,7 +30,7 @@ VIOLATION_PATTERNS = [
     r"self\.db\.rollback\(",
     r"self\.db\.refresh\(",
     r"self\.db\.merge\(",
-    r"db\.query\(",  # For utilities like timezone_utils
+    r"db\w*\.query\(",  # Catches db.query(, db1.query(, db_read.query(, etc.
 ]
 
 # Additional patterns for query operations
@@ -45,10 +47,17 @@ QUERY_METHOD_PATTERNS = [
     r"\.update\(",  # for query.update()
 ]
 
-# Files/directories to check
-SERVICE_PATHS = [
-    "backend/app/services",
-    "backend/app/core",  # Some utilities might violate
+# Root directory to check — enforces repository pattern across ALL app code
+APP_ROOT = "backend/app"
+
+# Subdirectories to exclude (have dedicated hooks or are allowed direct DB access)
+EXCLUDED_DIRS = [
+    "routes",  # Covered by 'Check for direct DB access in routes' hook
+    "repositories",  # Repositories ARE the DB access layer
+    "models",  # Model definitions, not queries
+    "schemas",  # Pydantic schemas
+    "middleware",  # Middleware has its own access patterns
+    "__pycache__",
 ]
 
 # Files to exclude from checks
@@ -188,6 +197,10 @@ class RepositoryPatternChecker:
     def check_directory(self, directory: Path) -> None:
         """Recursively check directory for violations."""
         for path in directory.rglob("*.py"):
+            # Skip excluded directories
+            if any(f"/{excluded_dir}/" in str(path) or str(path).endswith(f"/{excluded_dir}") for excluded_dir in EXCLUDED_DIRS):
+                continue
+
             # Skip excluded files
             if any(excluded in str(path) for excluded in EXCLUDED_FILES):
                 continue
@@ -213,7 +226,7 @@ class RepositoryPatternChecker:
                         self.violations.append((path, line_num, line, context))
 
     def check_all(self, save_tracking=True) -> bool:
-        """Check all service directories for violations."""
+        """Check all app code for violations."""
         cwd = Path.cwd()
 
         # Ensure we're in the right directory
@@ -224,10 +237,9 @@ class RepositoryPatternChecker:
             elif cwd.name == "backend":
                 cwd = cwd.parent
 
-        for service_path in SERVICE_PATHS:
-            path = cwd / service_path if not service_path.startswith("/") else Path(service_path)
-            if path.exists():
-                self.check_directory(path)
+        app_path = cwd / APP_ROOT
+        if app_path.exists():
+            self.check_directory(app_path)
 
         # Save tracking data only if requested (not during pre-commit)
         if save_tracking:
@@ -250,7 +262,7 @@ class RepositoryPatternChecker:
 
         # Show unmarked violations (these are the problems)
         if self.violations:
-            print("\n❌ UNMARKED VIOLATIONS (Must Fix or Mark):\n")
+            print("\n❌ REPOSITORY PATTERN VIOLATIONS (Must Fix — No Bypass Allowed):\n")
 
             # Group violations by file
             violations_by_file: Dict[Path, List] = {}
@@ -271,17 +283,22 @@ class RepositoryPatternChecker:
                 for line_num, line, context in file_violations[:3]:  # Show max 3 per file
                     print(f"\n   Line {line_num}:")
                     print(f"   >>> {line}")
-                    print("   Fix: Add '# repo-pattern-migrate: TODO: migrate to repository' above this line")
+                    print("   Fix: Move this query into the appropriate repository class.")
 
                 if len(file_violations) > 3:
                     print(f"   ... and {len(file_violations) - 3} more violations")
 
             print("\n" + "=" * 80)
             print("❌ REPOSITORY PATTERN VIOLATIONS DETECTED")
-            print("\nTo fix these violations, either:")
-            print("1. Replace with repository calls (preferred)")
-            print("2. Add '# repo-pattern-migrate: TODO: <reason>' above the line")
-            print("3. Add '# repo-pattern-ignore: <reason>' if legitimately needed")
+            print(
+                "\nDirect database access outside repositories is FORBIDDEN."
+                "\nYou MUST move this query into the appropriate repository class."
+                "\n"
+                "\nDo NOT add bypass markers (repo-pattern-ignore / repo-pattern-migrate)"
+                "\nwithout explicit approval from the project owner. If you believe this is"
+                "\na legitimate exception, STOP and request permission first — explain WHY"
+                "\nthe repository pattern cannot be used here. Do NOT proceed otherwise."
+            )
             print("=" * 80)
 
         # Show migration-marked violations (tracking)
@@ -338,7 +355,7 @@ class RepositoryPatternChecker:
                 json.dump(
                     {
                         "total_violations": len(all_violations),
-                        "instructions": "Add '# repo-pattern-migrate: TODO: migrate to repository' above each violation",
+                        "instructions": "Move each query into the appropriate repository class. Do NOT add bypass markers without project owner approval.",
                         "violations": all_violations,
                     },
                     f,
@@ -346,8 +363,8 @@ class RepositoryPatternChecker:
                 )
 
             print(f"\n📝 Generated violation list: {output_file}")
-            print(f"   Total violations to mark: {len(all_violations)}")
-            print("   Add migration markers to proceed with commits")
+            print(f"   Total violations to fix: {len(all_violations)}")
+            print("   Move each query into the appropriate repository class.")
 
 
 def main():
@@ -403,8 +420,9 @@ def main():
     # Exit with appropriate code
     # Only fail on unmarked violations
     if len(checker.violations) > 0:
-        print("\n❌ Pre-commit check FAILED - unmarked violations found")
-        print("   Run with --generate-markers to get list of violations to mark")
+        print("\n❌ Pre-commit check FAILED — direct DB access detected outside repositories")
+        print("   Move the queries into the appropriate repository class.")
+        print("   Do NOT add bypass markers without explicit project owner approval.")
         sys.exit(1)
     else:
         print("\n✅ Pre-commit check PASSED")

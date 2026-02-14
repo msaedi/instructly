@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 import ulid
 
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_payment import BookingPayment
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.subcategory import ServiceSubcategory
@@ -115,10 +116,11 @@ def _create_booking(
         total_price=100.00,
         duration_minutes=60,
         status=BookingStatus.CONFIRMED,
-        payment_method_id="pm_x",
-        payment_intent_id="pi_x",
     )
     db.add(bk)
+    db.flush()
+    bp = BookingPayment(id=str(ulid.ULID()), booking_id=bk.id, payment_method_id="pm_x", payment_intent_id="pi_x")
+    db.add(bp)
     db.flush()
     return bk
 
@@ -128,7 +130,10 @@ def test_refund_when_captured(db: Session):
     student = _create_student(db)
     when = datetime.combine(date.today() + timedelta(days=1), time(14, 0))
     booking = _create_booking(db, student, instructor, svc, when)
-    booking.payment_status = "settled"
+    from app.models.booking_payment import BookingPayment as BP
+    bp = db.query(BP).filter(BP.booking_id == booking.id).first()
+    if bp:
+        bp.payment_status = "settled"
     db.commit()
 
     service = BookingService(db)
@@ -141,11 +146,11 @@ def test_refund_when_captured(db: Session):
         mock_refund.return_value = {"refund_id": "re_test", "amount_refunded": 10000}
         result = service.cancel_booking(booking.id, user=instructor, reason="test")
 
-    assert result.payment_status == "settled"
-    assert result.settlement_outcome == "instructor_cancel_full_refund"
-    assert result.settlement_outcome == "instructor_cancel_full_refund"
+    assert result.payment_detail.payment_status == "settled"
+    assert result.payment_detail.settlement_outcome == "instructor_cancel_full_refund"
+    assert result.payment_detail.settlement_outcome == "instructor_cancel_full_refund"
     assert result.student_credit_amount == 0
-    assert result.instructor_payout_amount == 0
+    assert result.payment_detail.instructor_payout_amount == 0
     assert result.refunded_to_card_amount == 10000
     mock_refund.assert_called_once()
     refund_kwargs = mock_refund.call_args.kwargs
@@ -161,7 +166,9 @@ def test_release_auth_when_not_captured(db: Session):
     student = _create_student(db)
     when = datetime.combine(date.today() + timedelta(days=2), time(14, 0))
     booking = _create_booking(db, student, instructor, svc, when)
-    booking.payment_status = "authorized"
+    bp2 = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    if bp2:
+        bp2.payment_status = "authorized"
     db.commit()
 
     service = BookingService(db)
@@ -173,10 +180,10 @@ def test_release_auth_when_not_captured(db: Session):
     ) as mock_credit_service:
         result = service.cancel_booking(booking.id, user=instructor, reason="test")
 
-    assert result.payment_status == "settled"
-    assert result.settlement_outcome == "instructor_cancel_full_refund"
+    assert result.payment_detail.payment_status == "settled"
+    assert result.payment_detail.settlement_outcome == "instructor_cancel_full_refund"
     assert result.student_credit_amount == 0
-    assert result.instructor_payout_amount == 0
+    assert result.payment_detail.instructor_payout_amount == 0
     assert result.refunded_to_card_amount == 0
     mock_cancel.assert_called_once()
     mock_refund.assert_not_called()

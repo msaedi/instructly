@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 import ulid
 
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_payment import BookingPayment
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
@@ -90,9 +91,11 @@ def test_confirm_booking_payment_boundary_route(
         total_price=100.00,
         duration_minutes=60,
         status=BookingStatus.PENDING,
-        payment_status = "payment_method_required",
     )
     db.add(booking)
+    db.flush()
+    bp = BookingPayment(id=str(ulid.ULID()), booking_id=booking.id, payment_status="payment_method_required")
+    db.add(bp)
     db.commit()
 
     # Monkeypatch datetime.now used inside booking_service
@@ -109,8 +112,12 @@ def test_confirm_booking_payment_boundary_route(
     def _authorize_now(booking_id: str, _hours_until: float):
         target = db.query(Booking).filter(Booking.id == booking_id).first()
         assert target is not None
-        target.payment_status = "authorized"
-        target.payment_intent_id = "pi_test"
+        bp_target = db.query(BookingPayment).filter(BookingPayment.booking_id == booking_id).first()
+        if not bp_target:
+            bp_target = BookingPayment(id=str(ulid.ULID()), booking_id=booking_id)
+            db.add(bp_target)
+        bp_target.payment_status = "authorized"
+        bp_target.payment_intent_id = "pi_test"
         target.status = BookingStatus.CONFIRMED
         target.confirmed_at = fixed_now
         db.commit()
@@ -136,7 +143,9 @@ def test_confirm_booking_payment_boundary_route(
     # Determine dynamic threshold: 24h plus any buffer_time_minutes from profile
     threshold_minutes = 24 * 60 + getattr(_profile, "buffer_time_minutes", 0)
     expected_status = "scheduled" if minutes_ahead > threshold_minutes else "authorized"
-    assert booking.payment_status == expected_status
+    bp_check = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp_check is not None, "BookingPayment row should exist"
+    assert bp_check.payment_status == expected_status
 
 """
 Tests for booking payment route endpoints (Phase 2).
@@ -346,8 +355,10 @@ class TestBookingPaymentRoutes:
         booking = db.query(Booking).filter_by(id=data["id"]).first()
         assert booking is not None
         assert booking.status == BookingStatus.PENDING
-        assert booking.payment_status == "payment_method_required"
-        assert booking.payment_intent_id is None
+        bp_check = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+        assert bp_check is not None, "BookingPayment row should exist"
+        assert bp_check.payment_status == "payment_method_required"
+        assert bp_check.payment_intent_id is None
 
     def test_create_booking_invalid_duration(
         self,
@@ -469,10 +480,12 @@ class TestBookingPaymentRoutes:
             total_price=100.00,
             duration_minutes=60,
             status=BookingStatus.PENDING,
-            payment_status = "payment_method_required",
         )
         db.add(booking)
-        db.commit()  # Need to commit, not just flush
+        db.flush()
+        bp = BookingPayment(id=str(ulid.ULID()), booking_id=booking.id, payment_status="payment_method_required")
+        db.add(bp)
+        db.commit()
 
         # Confirm payment
         payment_data = {
@@ -483,8 +496,12 @@ class TestBookingPaymentRoutes:
         def _authorize_now(booking_id: str, _hours_until: float):
             target = db.query(Booking).filter(Booking.id == booking_id).first()
             assert target is not None
-            target.payment_status = "authorized"
-            target.payment_intent_id = "pi_test"
+            bp_x = db.query(BookingPayment).filter(BookingPayment.booking_id == booking_id).first()
+            if not bp_x:
+                bp_x = BookingPayment(id=str(ulid.ULID()), booking_id=booking_id)
+                db.add(bp_x)
+            bp_x.payment_status = "authorized"
+            bp_x.payment_intent_id = "pi_test"
             db.commit()
             return {"success": True}
 
@@ -512,8 +529,10 @@ class TestBookingPaymentRoutes:
         # Verify booking updated
         db.refresh(booking)
         assert booking.status == BookingStatus.CONFIRMED
-        assert booking.payment_method_id == "pm_test123"
-        assert booking.payment_status == "authorized"
+        bp_check = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+        assert bp_check is not None
+        assert bp_check.payment_method_id == "pm_test123"
+        assert bp_check.payment_status == "authorized"
 
     def test_confirm_booking_payment_scheduled(
         self,
@@ -546,10 +565,12 @@ class TestBookingPaymentRoutes:
             total_price=100.00,
             duration_minutes=60,
             status=BookingStatus.PENDING,
-            payment_status = "payment_method_required",
         )
         db.add(booking)
-        db.commit()  # Need to commit, not just flush
+        db.flush()
+        bp = BookingPayment(id=str(ulid.ULID()), booking_id=booking.id, payment_status="payment_method_required")
+        db.add(bp)
+        db.commit()
 
         # Mock Stripe services to avoid real API calls
         with patch("app.services.stripe_service.StripeService.save_payment_method") as mock_save_payment, patch(
@@ -578,7 +599,9 @@ class TestBookingPaymentRoutes:
 
         # Verify booking updated
         db.refresh(booking)
-        assert booking.payment_status == "scheduled"
+        bp_check = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+        assert bp_check is not None
+        assert bp_check.payment_status == "scheduled"
 
     def test_confirm_booking_not_owner(
         self,

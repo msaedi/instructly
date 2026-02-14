@@ -19,6 +19,7 @@ ModelT = TypeVar("ModelT")
 # Avoid circular imports
 if TYPE_CHECKING:
     from .address_repository import InstructorServiceAreaRepository
+    from .alerts_repository import AlertsRepository
     from .analytics_repository import AnalyticsRepository
     from .audit_repository import AuditRepository
     from .availability_repository import AvailabilityRepository
@@ -85,6 +86,13 @@ class RepositoryFactory:
         return BaseRepository(db, model)
 
     # create_slot_manager_repository removed - SlotManagerRepository deleted (bitmap-only storage)
+
+    @staticmethod
+    def create_alerts_repository(db: Session) -> "AlertsRepository":
+        """Create repository for alert monitoring operations."""
+        from .alerts_repository import AlertsRepository
+
+        return AlertsRepository(db)
 
     @staticmethod
     def create_availability_repository(db: Session) -> "AvailabilityRepository":

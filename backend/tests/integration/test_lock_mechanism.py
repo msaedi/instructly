@@ -11,6 +11,9 @@ from sqlalchemy.orm import Session
 import ulid
 
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_lock import BookingLock
+from app.models.booking_payment import BookingPayment
+from app.models.booking_reschedule import BookingReschedule
 from app.models.instructor import InstructorProfile
 from app.models.payment import StripeConnectedAccount
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
@@ -140,15 +143,44 @@ def _create_booking(
         status=status,
         meeting_location="Test",
         location_type="neutral_location",
-        payment_method_id="pm_test",
-        payment_intent_id=payment_intent_id,
-        payment_status=payment_status,
         has_locked_funds=has_locked_funds,
         rescheduled_from_booking_id=rescheduled_from_id,
     )
     db.add(booking)
     db.flush()
+
+    bp = BookingPayment(
+        booking_id=booking.id,
+        payment_method_id="pm_test",
+        payment_intent_id=payment_intent_id,
+        payment_status=payment_status,
+    )
+    db.add(bp)
+    db.flush()
+    booking.payment_detail = bp
+
     return booking
+
+
+def _set_lock(db: Session, booking: Booking, *, locked_amount_cents: int) -> BookingLock:
+    lock = db.query(BookingLock).filter(BookingLock.booking_id == booking.id).one_or_none()
+    if lock is None:
+        lock = BookingLock(booking_id=booking.id)
+        db.add(lock)
+    lock.locked_amount_cents = locked_amount_cents
+    db.flush()
+    return lock
+
+
+def _get_lock(db: Session, booking_id: str) -> BookingLock | None:
+    return db.query(BookingLock).filter(BookingLock.booking_id == booking_id).one_or_none()
+
+
+def _reload_payment(db: Session, booking: Booking) -> None:
+    """Re-attach payment_detail after db.refresh (noload relationship)."""
+    booking.payment_detail = (
+        db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).one_or_none()
+    )
 
 
 @pytest.mark.parametrize(
@@ -190,9 +222,12 @@ def test_lock_activation_captures_and_reverses(db: Session):
         service.activate_lock_for_reschedule(booking.id)
 
     db.refresh(booking)
-    assert booking.payment_status == "locked"
-    assert booking.locked_at is not None
-    assert booking.locked_amount_cents == 13440
+    _reload_payment(db, booking)
+    lock = _get_lock(db, booking.id)
+    assert booking.payment_detail.payment_status == "locked"
+    assert lock is not None
+    assert lock.locked_at is not None
+    assert lock.locked_amount_cents == 13440
     mock_reverse.assert_called_once()
 
 
@@ -224,7 +259,7 @@ def test_resolve_lock_new_lesson_completed(db: Session):
         payment_status="locked",
         payment_intent_id="pi_locked",
     )
-    locked_booking.locked_amount_cents = 13440
+    _set_lock(db, locked_booking, locked_amount_cents=13440)
 
     service = BookingService(db)
 
@@ -237,10 +272,13 @@ def test_resolve_lock_new_lesson_completed(db: Session):
 
     assert result.get("success") is True
     db.refresh(locked_booking)
-    assert locked_booking.settlement_outcome == "lesson_completed_full_payout"
-    assert locked_booking.instructor_payout_amount == 10560
-    assert locked_booking.payment_status == "settled"
-    assert locked_booking.lock_resolution == "new_lesson_completed"
+    _reload_payment(db, locked_booking)
+    assert locked_booking.payment_detail.settlement_outcome == "lesson_completed_full_payout"
+    assert locked_booking.payment_detail.instructor_payout_amount == 10560
+    assert locked_booking.payment_detail.payment_status == "settled"
+    lock = _get_lock(db, locked_booking.id)
+    assert lock is not None
+    assert lock.lock_resolution == "new_lesson_completed"
 
 
 def test_resolve_lock_new_lesson_cancelled_ge12(db: Session):
@@ -264,7 +302,8 @@ def test_resolve_lock_new_lesson_cancelled_ge12(db: Session):
 
     assert result.get("success") is True
     db.refresh(locked_booking)
-    assert locked_booking.settlement_outcome == "locked_cancel_ge12_full_credit"
+    _reload_payment(db, locked_booking)
+    assert locked_booking.payment_detail.settlement_outcome == "locked_cancel_ge12_full_credit"
     assert locked_booking.student_credit_amount == 12000
     mock_credit.assert_called_once()
 
@@ -296,9 +335,10 @@ def test_resolve_lock_new_lesson_cancelled_lt12(db: Session):
 
     assert result.get("success") is True
     db.refresh(locked_booking)
-    assert locked_booking.settlement_outcome == "locked_cancel_lt12_split_50_50"
+    _reload_payment(db, locked_booking)
+    assert locked_booking.payment_detail.settlement_outcome == "locked_cancel_lt12_split_50_50"
     assert locked_booking.student_credit_amount == 6000
-    assert locked_booking.instructor_payout_amount == 5280
+    assert locked_booking.payment_detail.instructor_payout_amount == 5280
     mock_transfer.assert_called_once()
     mock_credit.assert_called_once()
 
@@ -316,7 +356,7 @@ def test_resolve_lock_instructor_cancelled(db: Session):
         payment_status="locked",
         payment_intent_id="pi_locked",
     )
-    locked_booking.locked_amount_cents = 13440
+    _set_lock(db, locked_booking, locked_amount_cents=13440)
 
     service = BookingService(db)
 
@@ -326,9 +366,10 @@ def test_resolve_lock_instructor_cancelled(db: Session):
 
     assert result.get("success") is True
     db.refresh(locked_booking)
-    assert locked_booking.settlement_outcome == "instructor_cancel_full_refund"
+    _reload_payment(db, locked_booking)
+    assert locked_booking.payment_detail.settlement_outcome == "instructor_cancel_full_refund"
     assert locked_booking.refunded_to_card_amount == 13440
-    assert locked_booking.payment_status == "settled"
+    assert locked_booking.payment_detail.payment_status == "settled"
 
 
 def test_resolve_lock_skips_if_not_locked(db: Session):
@@ -379,10 +420,15 @@ def test_create_rescheduled_booking_with_locked_funds_links_chain(db: Session):
         )
 
     db.refresh(original)
+    original_reschedule = (
+        db.query(BookingReschedule).filter(BookingReschedule.booking_id == original.id).one_or_none()
+    )
     assert new_booking.rescheduled_from_booking_id == original.id
-    assert original.rescheduled_to_booking_id == new_booking.id
+    assert original_reschedule is not None
+    assert original_reschedule.rescheduled_to_booking_id == new_booking.id
     assert new_booking.has_locked_funds is True
-    assert new_booking.payment_status == "locked"
+    _reload_payment(db, new_booking)
+    assert new_booking.payment_detail.payment_status == "locked"
 
 
 def test_cancel_new_booking_resolves_lock(db: Session):

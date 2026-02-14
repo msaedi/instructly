@@ -1,8 +1,11 @@
+import os
+
 from fastapi.testclient import TestClient
 
 
-def _make_client(monkeypatch, overrides):
-    monkeypatch.delenv('STRICT_SCHEMAS', raising=False)
+def _make_client(overrides):
+    old = os.environ.get('STRICT_SCHEMAS')
+    os.environ.pop('STRICT_SCHEMAS', None)
     from importlib import reload
 
     import app.api.dependencies as api_dependencies  # noqa: F401
@@ -18,6 +21,10 @@ def _make_client(monkeypatch, overrides):
             for dep in getattr(route, 'dependencies', []) or []:
                 main.fastapi_app.dependency_overrides.setdefault(dep.dependency, lambda: None)
 
+    # Restore env var
+    if old is not None:
+        os.environ['STRICT_SCHEMAS'] = old
+
     return client, main
 
 
@@ -25,7 +32,7 @@ def _problem_keys(body):
     return {k: body.get(k) for k in ['type', 'title', 'detail', 'status', 'instance', 'code']}
 
 
-def test_auth_login_problem_contract(monkeypatch):
+def test_auth_login_problem_contract():
     import app.api.dependencies.services as service_deps
 
     class DummyAuthService:
@@ -38,7 +45,7 @@ def test_auth_login_problem_contract(monkeypatch):
         def release_connection(self):
             pass  # Mock for DB connection release
 
-    client, main = _make_client(monkeypatch, {service_deps.get_auth_service: lambda: DummyAuthService()})
+    client, main = _make_client({service_deps.get_auth_service: lambda: DummyAuthService()})
     try:
         resp = client.post('/api/v1/auth/login', data={'username': 'foo@example.com', 'password': 'bad'})
         assert resp.status_code == 401
@@ -55,7 +62,7 @@ def test_auth_login_problem_contract(monkeypatch):
         main.fastapi_app.dependency_overrides.clear()
 
 
-def test_bookings_problem_contract(monkeypatch):
+def test_bookings_problem_contract():
     from types import SimpleNamespace
 
     import app.api.dependencies as api_dependencies
@@ -67,7 +74,6 @@ def test_bookings_problem_contract(monkeypatch):
             raise AssertionError('service should not execute')
 
     client, main = _make_client(
-        monkeypatch,
         {
             api_dependencies.get_current_active_user: lambda: dummy_user,
             api_dependencies.get_booking_service: lambda: DummyBookingService(),
@@ -87,7 +93,7 @@ def test_bookings_problem_contract(monkeypatch):
         main.fastapi_app.dependency_overrides.clear()
 
 
-def test_payments_instructor_guard_problem_contract(monkeypatch):
+def test_payments_instructor_guard_problem_contract():
     from types import SimpleNamespace
 
     import app.api.dependencies.auth as auth_deps
@@ -106,7 +112,7 @@ def test_payments_instructor_guard_problem_contract(monkeypatch):
 
     overrides[get_stripe_service] = lambda: DummyStripeService()
 
-    client, main = _make_client(monkeypatch, overrides)
+    client, main = _make_client(overrides)
     try:
         resp = client.post('/api/v1/payments/connect/onboard')
         assert resp.status_code == 403

@@ -26,6 +26,7 @@ import ulid
 
 from ..core.exceptions import RepositoryException
 from ..models.booking import Booking
+from ..models.booking_payment import BookingPayment
 from ..models.payment import (
     InstructorPayoutEvent,
     PaymentEvent,
@@ -465,6 +466,10 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         except Exception as e:
             self.logger.error(f"Failed to get connected account by stripe id: {str(e)}")
             raise RepositoryException(f"Failed to get connected account by stripe id: {str(e)}")
+
+    def get_all_connected_accounts(self) -> List[StripeConnectedAccount]:
+        """Get all Stripe connected accounts."""
+        return list(self.db.query(StripeConnectedAccount).all())
 
     # ========== Payment Method Management ==========
 
@@ -1254,9 +1259,13 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
 
         try:
             try:
-                booking = self.db.query(Booking).filter(Booking.id == booking_id).first()
-                if booking and getattr(booking, "credits_reserved_cents", None):
-                    return max(0, int(booking.credits_reserved_cents or 0))
+                bp = (
+                    self.db.query(BookingPayment)
+                    .filter(BookingPayment.booking_id == booking_id)
+                    .first()
+                )
+                if bp and bp.credits_reserved_cents:
+                    return max(0, int(bp.credits_reserved_cents or 0))
             except Exception:
                 logger.debug("Non-fatal error ignored", exc_info=True)
             credit_use_events = (

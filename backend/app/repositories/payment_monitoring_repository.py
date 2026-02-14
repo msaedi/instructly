@@ -13,6 +13,7 @@ from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 from ..models.booking import Booking, BookingStatus, PaymentStatus
+from ..models.booking_payment import BookingPayment
 from ..models.payment import PaymentEvent
 
 
@@ -50,12 +51,13 @@ class PaymentMonitoringRepository:
             List of payment status counts
         """
         rows = (
-            self.db.query(Booking.payment_status, func.count(Booking.id).label("count"))
+            self.db.query(BookingPayment.payment_status, func.count(Booking.id).label("count"))
+            .join(BookingPayment, BookingPayment.booking_id == Booking.id)
             .filter(
                 Booking.status == BookingStatus.CONFIRMED,
                 Booking.booking_date >= min_booking_date.date(),
             )
-            .group_by(Booking.payment_status)
+            .group_by(BookingPayment.payment_status)
             .all()
         )
 
@@ -92,10 +94,11 @@ class PaymentMonitoringRepository:
         """
         result: int = (
             self.db.query(Booking)
+            .join(BookingPayment, BookingPayment.booking_id == Booking.id)
             .filter(
                 and_(
                     Booking.status == BookingStatus.CONFIRMED,
-                    Booking.payment_status == PaymentStatus.SCHEDULED.value,
+                    BookingPayment.payment_status == PaymentStatus.SCHEDULED.value,
                     Booking.booking_date <= as_of_date.date(),
                 )
             )

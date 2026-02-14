@@ -6,6 +6,8 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
 
 
@@ -139,24 +141,39 @@ class TestConfigServiceSetPricingConfig:
 
 
 class TestConfigServiceTransactions:
-    """Tests for commit and rollback methods."""
+    """Tests for transaction handling via BaseService.transaction()."""
 
-    def test_commit_calls_db_commit(self) -> None:
-        """Line 41: commit() calls db.commit()."""
+    def test_set_pricing_config_commits_via_transaction(self) -> None:
+        """set_pricing_config commits through self.transaction() context manager."""
         db = MagicMock()
+        payload = deepcopy(DEFAULT_PRICING_CONFIG)
 
-        with patch("app.services.config_service.PlatformConfigRepository"):
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            mock_record = MagicMock()
+            mock_record.value_json = payload
+            mock_record.updated_at = datetime.now(timezone.utc)
+            mock_repo.upsert.return_value = mock_record
+            mock_repo_class.return_value = mock_repo
+
             service = ConfigService(db)
-            service.commit()
+            service.set_pricing_config(payload)
 
+            # transaction() context manager calls db.commit()
             db.commit.assert_called_once()
 
-    def test_rollback_calls_db_rollback(self) -> None:
-        """Line 45: rollback() calls db.rollback()."""
+    def test_set_pricing_config_rolls_back_on_error(self) -> None:
+        """set_pricing_config rolls back through self.transaction() on failure."""
         db = MagicMock()
+        payload = deepcopy(DEFAULT_PRICING_CONFIG)
 
-        with patch("app.services.config_service.PlatformConfigRepository"):
+        with patch("app.services.config_service.PlatformConfigRepository") as mock_repo_class:
+            mock_repo = MagicMock()
+            mock_repo.upsert.side_effect = RuntimeError("boom")
+            mock_repo_class.return_value = mock_repo
+
             service = ConfigService(db)
-            service.rollback()
+            with pytest.raises(RuntimeError, match="boom"):
+                service.set_pricing_config(payload)
 
             db.rollback.assert_called_once()

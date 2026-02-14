@@ -5,14 +5,33 @@ Integration tests for admin refund idempotency keys.
 from decimal import Decimal
 from unittest.mock import patch
 
+from app.models.booking import Booking
+from app.models.booking_payment import BookingPayment
 from app.services.admin_booking_service import AdminBookingService
 
 
 def _prepare_booking_for_refund(db, booking):
-    booking.payment_intent_id = booking.payment_intent_id or "pi_test_admin_refund"
-    booking.payment_status = "settled"
+    booking_id = booking.id
+    bp = db.query(BookingPayment).filter_by(booking_id=booking_id).first()
+    if bp is None:
+        bp = BookingPayment(booking_id=booking_id)
+        db.add(bp)
+    bp.payment_intent_id = bp.payment_intent_id or "pi_test_admin_refund"
+    bp.payment_status = "settled"
     db.commit()
-    db.refresh(booking)
+    # Evict the booking (and its payment satellite) from the identity map
+    # so that subsequent queries with selectinload properly populate the
+    # noload payment_detail relationship.
+    db.expunge(bp)
+    db.expunge(booking)
+    from sqlalchemy.orm import selectinload
+
+    booking = (
+        db.query(Booking)
+        .options(selectinload(Booking.payment_detail))
+        .filter(Booking.id == booking_id)
+        .first()
+    )
     return booking
 
 

@@ -2,20 +2,23 @@
 
 from __future__ import annotations
 
-from typing import Optional, cast
+from typing import TYPE_CHECKING, Optional
 
 from fastapi import Request
 from sqlalchemy.orm import Session
 
 from app.auth import decode_access_token
-from app.models.user import User
+from app.repositories.user_repository import UserRepository
 from app.utils.cookies import session_cookie_candidates
 
+if TYPE_CHECKING:
+    from app.models.user import User
 
-def _lookup_active_user(email: str, db: Session) -> Optional[User]:
+
+def _lookup_active_user(email: str, db: Session) -> Optional["User"]:
     if not email:
         return None
-    user = cast(Optional[User], db.query(User).filter(User.email == email).first())
+    user = UserRepository(db).get_by_email(email)
     if user and getattr(user, "is_active", False):
         return user
     return None

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from app.models.booking_payment import BookingPayment
 from app.models.payment import PaymentEvent
 from app.models.user import User
 from app.services.admin_ops_service import AdminOpsService
@@ -12,6 +13,20 @@ try:  # pragma: no cover - support running from repo root or backend/
     from backend.tests.factories.booking_builders import create_booking_pg_safe
 except ModuleNotFoundError:  # pragma: no cover
     from tests.factories.booking_builders import create_booking_pg_safe
+
+
+def _ensure_payment(db, booking, **fields):
+    """Create or update BookingPayment satellite for a booking."""
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    if bp:
+        for key, value in fields.items():
+            setattr(bp, key, value)
+    else:
+        bp = BookingPayment(booking_id=booking.id, **fields)
+        db.add(bp)
+    db.flush()
+    booking.payment_detail = bp
+    return bp
 
 
 @pytest.mark.asyncio
@@ -117,7 +132,7 @@ async def test_payment_timeline_pending_refund_flag(db, test_booking):
 
 @pytest.mark.asyncio
 async def test_payment_timeline_includes_scheduled_payments(db, test_booking):
-    test_booking.payment_status = "scheduled"
+    _ensure_payment(db, test_booking, payment_status="scheduled")
     db.commit()
 
     service = AdminOpsService(db)
@@ -135,9 +150,12 @@ async def test_payment_timeline_includes_scheduled_payments(db, test_booking):
 @pytest.mark.asyncio
 async def test_payment_timeline_includes_authorized_payments(db, test_booking):
     now = datetime.now(timezone.utc)
-    test_booking.payment_status = "authorized"
-    test_booking.auth_scheduled_for = now - timedelta(hours=2)
-    test_booking.auth_attempted_at = now - timedelta(hours=1)
+    _ensure_payment(
+        db, test_booking,
+        payment_status="authorized",
+        auth_scheduled_for=now - timedelta(hours=2),
+        auth_attempted_at=now - timedelta(hours=1),
+    )
     db.commit()
 
     service = AdminOpsService(db)
@@ -158,7 +176,7 @@ async def test_payment_timeline_includes_authorized_payments(db, test_booking):
 
 @pytest.mark.asyncio
 async def test_payment_timeline_summary_by_status(db, test_booking):
-    test_booking.payment_status = "scheduled"
+    _ensure_payment(db, test_booking, payment_status="scheduled")
 
     other_booking = create_booking_pg_safe(
         db,
@@ -195,7 +213,7 @@ async def test_payment_timeline_summary_by_status(db, test_booking):
 @pytest.mark.asyncio
 async def test_payment_timeline_includes_scheduling_fields(db, test_booking):
     scheduled_start = datetime(2026, 2, 20, 14, 0, tzinfo=timezone.utc)
-    test_booking.payment_status = "scheduled"
+    _ensure_payment(db, test_booking, payment_status="scheduled")
     test_booking.booking_start_utc = scheduled_start
     test_booking.booking_end_utc = scheduled_start + timedelta(minutes=30)
     test_booking.duration_minutes = 30
@@ -217,7 +235,7 @@ async def test_payment_timeline_includes_scheduling_fields(db, test_booking):
 @pytest.mark.asyncio
 async def test_payment_timeline_scheduling_fields_only_for_pending_states(db, test_booking):
     scheduled_start = datetime(2026, 2, 20, 14, 0, tzinfo=timezone.utc)
-    test_booking.payment_status = "settled"
+    _ensure_payment(db, test_booking, payment_status="settled")
     test_booking.booking_start_utc = scheduled_start
     test_booking.booking_end_utc = scheduled_start + timedelta(minutes=30)
     test_booking.duration_minutes = 30

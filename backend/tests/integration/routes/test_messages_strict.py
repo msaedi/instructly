@@ -1,4 +1,5 @@
 from importlib import reload
+import os
 
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -7,13 +8,11 @@ import pytest
 from app.routes.v1.messages import ReactionRequest
 
 
-@pytest.fixture(autouse=True)
-def _enable_strict(monkeypatch):
-    monkeypatch.setenv("STRICT_SCHEMAS", "true")
+@pytest.fixture(scope="module")
+def client():
+    old = os.environ.get("STRICT_SCHEMAS")
+    os.environ["STRICT_SCHEMAS"] = "true"
 
-
-@pytest.fixture()
-def client(_enable_strict):
     import app.main as main
     import app.routes.v1.messages as routes
     import app.schemas.base as base
@@ -23,7 +22,17 @@ def client(_enable_strict):
     reload(req)
     reload(routes)
     reload(main)
-    return TestClient(main.fastapi_app, raise_server_exceptions=False)
+    _client = TestClient(main.fastapi_app, raise_server_exceptions=False)
+    yield _client
+
+    if old is None:
+        os.environ.pop("STRICT_SCHEMAS", None)
+    else:
+        os.environ["STRICT_SCHEMAS"] = old
+    reload(base)
+    reload(req)
+    reload(routes)
+    reload(main)
 
 
 def test_mark_read_rejects_extra_field(client: TestClient):

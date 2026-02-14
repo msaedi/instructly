@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 import ulid
 
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
 from app.models.payment import PaymentIntent
 from app.models.user import User
 from app.repositories.payment_repository import PaymentRepository
@@ -90,7 +91,9 @@ def test_dispute_lost_revokes_credits(
     assert credit.status == "revoked"
     assert credit.revoked_at is not None
     assert test_student.account_restricted is True
-    assert booking.settlement_outcome == "student_wins_dispute_full_refund"
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
+    assert bp.settlement_outcome == "student_wins_dispute_full_refund"
 
 
 def test_dispute_won_unfreezes_credits_and_clears_negative_balance(
@@ -135,4 +138,6 @@ def test_dispute_won_unfreezes_credits_and_clears_negative_balance(
     assert credit.status == "available"
     assert test_student.credit_balance_cents >= 0
     assert test_student.account_restricted is False
-    assert booking.settlement_outcome == "dispute_won"
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
+    assert bp.settlement_outcome == "dispute_won"

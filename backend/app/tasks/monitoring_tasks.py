@@ -10,16 +10,10 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, TypeVar,
 
 from celery.app.task import Task
 import httpx
-from sqlalchemy import func
 from sqlalchemy.orm import Session, sessionmaker
-import ulid
 
 from app.core.config import settings
-from app.core.enums import RoleName
 from app.database import SessionLocal
-from app.models import User
-from app.models.monitoring import AlertHistory
-from app.models.rbac import Role
 from app.services.email import EmailService
 from app.services.email_config import EmailConfigService
 from app.tasks.celery_app import celery_app
@@ -27,11 +21,13 @@ from app.tasks.enqueue import enqueue_task
 
 TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
 if TYPE_CHECKING:
+    from app.repositories.alerts_repository import AlertsRepository
 
     class MonitoringTaskBase:
         _db: Optional[Session]
         _email_service: Optional[EmailService]
         _email_config_service: Optional[EmailConfigService]
+        _alert_repo_instance: Optional["AlertsRepository"]
 
         def after_return(
             self,
@@ -66,11 +62,13 @@ class MonitoringTask(MonitoringTaskBase):
     _db: Optional[Session]
     _email_service: Optional[EmailService]
     _email_config_service: Optional[EmailConfigService]
+    _alert_repo_instance: Optional["AlertsRepository"]
 
     def __init__(self) -> None:
         self._db = None
         self._email_service = None
         self._email_config_service = None
+        self._alert_repo_instance = None
 
     @property
     def db(self) -> Session:
@@ -107,6 +105,14 @@ class MonitoringTask(MonitoringTaskBase):
             self._email_config_service = EmailConfigService(self.db)
         return self._email_config_service
 
+    @property
+    def alert_repo(self) -> "AlertsRepository":
+        if not hasattr(self, "_alert_repo_instance") or self._alert_repo_instance is None:
+            from app.repositories.alerts_repository import AlertsRepository
+
+            self._alert_repo_instance = AlertsRepository(self.db)
+        return self._alert_repo_instance
+
     def after_return(
         self,
         status: str,
@@ -120,6 +126,7 @@ class MonitoringTask(MonitoringTaskBase):
         if self._db is not None:
             self._db.close()
             self._db = None
+        self._alert_repo_instance = None
 
 
 @typed_task(base=MonitoringTask, bind=True, max_retries=3)
@@ -142,17 +149,15 @@ def process_monitoring_alert(
         details: Additional alert details
     """
     try:
-        # Create alert history record - explicitly set id with ULID
-        alert = AlertHistory(
-            id=str(ulid.ULID()),
-            alert_type=alert_type,
-            severity=severity,
-            title=title,
-            message=message,
-            details=details or {},
-        )
-        self.db.add(alert)
-        self.db.commit()
+        # Create alert history record via repository
+        with self.alert_repo.transaction():
+            alert = self.alert_repo.create_alert(
+                alert_type=alert_type,
+                severity=severity,
+                title=title,
+                message=message,
+                details=details,
+            )
 
         # Send email for critical alerts
         if severity == "critical":
@@ -179,18 +184,15 @@ def process_monitoring_alert(
 def send_alert_email(self: MonitoringTask, alert_id: str) -> None:
     """Send email notification for an alert."""
     try:
-        alert: Optional[AlertHistory] = self.db.query(AlertHistory).filter_by(id=alert_id).first()
+        alert = self.alert_repo.get_by_id(alert_id)
         if not alert:
             logger.error(f"Alert {alert_id} not found")
             return
 
-        # Get admin users
-        admin_users = (
-            self.db.query(User)
-            .join(User.roles)
-            .filter(Role.name == RoleName.ADMIN, User.is_active.is_(True))
-            .all()
-        )
+        from app.repositories.user_repository import UserRepository
+
+        user_repo = UserRepository(self.db)
+        admin_users = user_repo.get_active_admin_users()
 
         if not admin_users:
             # Fallback to configured admin email
@@ -258,9 +260,8 @@ def send_alert_email(self: MonitoringTask, alert_id: str) -> None:
                 logger.error(f"Failed to send alert email to {email}: {str(e)}")
 
         # Update alert record
-        alert.email_sent = True
-        alert.notified_at = datetime.now(timezone.utc)
-        self.db.commit()
+        with self.alert_repo.transaction():
+            self.alert_repo.mark_email_sent(alert_id)
 
         logger.info(f"Alert email sent for alert {alert_id}")
 
@@ -273,7 +274,7 @@ def send_alert_email(self: MonitoringTask, alert_id: str) -> None:
 def create_github_issue_for_alert(self: MonitoringTask, alert_id: str) -> None:
     """Create a GitHub issue for persistent alerts."""
     try:
-        alert = self.db.query(AlertHistory).filter_by(id=alert_id).first()
+        alert = self.alert_repo.get_by_id(alert_id)
         if not alert:
             logger.error(f"Alert {alert_id} not found")
             return
@@ -333,9 +334,8 @@ def create_github_issue_for_alert(self: MonitoringTask, alert_id: str) -> None:
             issue_url = response.json()["html_url"]
 
             # Update alert record
-            alert.github_issue_created = True
-            alert.github_issue_url = issue_url
-            self.db.commit()
+            with self.alert_repo.transaction():
+                self.alert_repo.mark_github_issue_created(alert_id, issue_url)
 
             logger.info(f"GitHub issue created for alert {alert_id}: {issue_url}")
 
@@ -358,16 +358,11 @@ def should_create_github_issue(db: Session, alert_type: str, severity: str) -> b
     if severity == "warning":
         # Check for repeated warnings
         one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
-        recent_count = (
-            db.query(func.count(AlertHistory.id))
-            .filter(
-                AlertHistory.alert_type == alert_type,
-                AlertHistory.severity == "warning",
-                AlertHistory.created_at >= one_hour_ago,
-            )
-            .scalar()
-        )
-        return (recent_count or 0) >= 3
+        from app.repositories.alerts_repository import AlertsRepository
+
+        alert_repo = AlertsRepository(db)
+        recent_count = alert_repo.count_warnings_since(alert_type, one_hour_ago)
+        return recent_count >= 3
 
     return False
 
@@ -380,11 +375,12 @@ def cleanup_old_alerts() -> None:
         db = SessionLocal()
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
 
-        deleted_count = (
-            db.query(AlertHistory).filter(AlertHistory.created_at < cutoff_date).delete()
-        )
+        from app.repositories.alerts_repository import AlertsRepository
 
-        db.commit()
+        alert_repo = AlertsRepository(db)
+        with alert_repo.transaction():
+            deleted_count = alert_repo.delete_older_than(cutoff_date)
+
         db.close()
 
         logger.info(f"Cleaned up {deleted_count} old alert records")

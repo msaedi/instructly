@@ -8,11 +8,12 @@ import logging
 from typing import Iterable, Optional, Sequence
 
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.address import InstructorServiceArea, RegionBoundary
 from app.models.availability_day import AvailabilityDay
 from app.models.booking import Booking
+from app.models.booking_payment import BookingPayment
 from app.models.instructor import InstructorProfile
 from app.models.payment import PaymentEvent
 from app.models.rbac import Role, UserRole
@@ -51,9 +52,13 @@ class AnalyticsRepository:
         statuses: Optional[Sequence[str]] = None,
         instructor_ids: Optional[Sequence[str]] = None,
     ) -> list[Booking]:
-        query = self.db.query(Booking).filter(
-            Booking.booking_start_utc >= start,
-            Booking.booking_start_utc <= end,
+        query = (
+            self.db.query(Booking)
+            .options(joinedload(Booking.payment_detail))
+            .filter(
+                Booking.booking_start_utc >= start,
+                Booking.booking_start_utc <= end,
+            )
         )
         if statuses:
             query = query.filter(Booking.status.in_(list(statuses)))
@@ -142,7 +147,9 @@ class AnalyticsRepository:
         statuses: Optional[Sequence[str]] = None,
         instructor_ids: Optional[Sequence[str]] = None,
     ) -> int:
-        query = self.db.query(func.coalesce(func.sum(Booking.instructor_payout_amount), 0))
+        query = self.db.query(
+            func.coalesce(func.sum(BookingPayment.instructor_payout_amount), 0)
+        ).outerjoin(BookingPayment, Booking.id == BookingPayment.booking_id)
         if date_field == "created_at":
             query = query.filter(Booking.created_at >= start, Booking.created_at <= end)
         else:
@@ -185,10 +192,11 @@ class AnalyticsRepository:
                 ServiceCategory.name,
                 Booking.status,
                 Booking.total_price,
-                Booking.instructor_payout_amount,
+                BookingPayment.instructor_payout_amount,
                 Booking.student_id,
                 Booking.instructor_id,
             )
+            .outerjoin(BookingPayment, Booking.id == BookingPayment.booking_id)
             .join(InstructorService, Booking.instructor_service_id == InstructorService.id)
             .join(ServiceCatalog, InstructorService.service_catalog_id == ServiceCatalog.id)
             .join(ServiceSubcategory, ServiceCatalog.subcategory_id == ServiceSubcategory.id)

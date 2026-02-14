@@ -25,12 +25,18 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Query, Session, aliased, joinedload
+from sqlalchemy.orm import Query, Session, aliased, joinedload, selectinload
 
 from ..core.enums import RoleName
 from ..core.exceptions import NotFoundException, RepositoryException
 from ..core.timezone_utils import get_user_now_by_id, get_user_today_by_id
 from ..models.booking import Booking, BookingStatus, PaymentStatus
+from ..models.booking_dispute import BookingDispute
+from ..models.booking_lock import BookingLock
+from ..models.booking_no_show import BookingNoShow
+from ..models.booking_payment import BookingPayment
+from ..models.booking_reschedule import BookingReschedule
+from ..models.booking_transfer import BookingTransfer
 from ..models.user import User
 from .base_repository import BaseRepository
 from .cached_repository_mixin import CachedRepositoryMixin, cached_method
@@ -59,6 +65,228 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except RepositoryException as exc:
             if isinstance(exc.__cause__, IntegrityError):
                 raise exc.__cause__
+            raise
+
+    def get_dispute_by_booking_id(self, booking_id: str) -> Optional[BookingDispute]:
+        """Return dispute satellite row for a booking, if present."""
+        try:
+            dispute = cast(
+                Optional[BookingDispute],
+                self.db.query(BookingDispute)
+                .filter(BookingDispute.booking_id == booking_id)
+                .one_or_none(),
+            )
+            return dispute
+        except Exception as e:
+            self.logger.error(f"Error getting dispute for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to get booking dispute: {str(e)}")
+
+    def get_transfer_by_booking_id(self, booking_id: str) -> Optional[BookingTransfer]:
+        """Return transfer satellite row for a booking, if present."""
+        try:
+            transfer = cast(
+                Optional[BookingTransfer],
+                self.db.query(BookingTransfer)
+                .filter(BookingTransfer.booking_id == booking_id)
+                .one_or_none(),
+            )
+            return transfer
+        except Exception as e:
+            self.logger.error(f"Error getting transfer for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to get booking transfer: {str(e)}")
+
+    def ensure_dispute(self, booking_id: str) -> BookingDispute:
+        """Get or create dispute satellite row for a booking."""
+        dispute = self.get_dispute_by_booking_id(booking_id)
+        if dispute is not None:
+            return dispute
+        try:
+            nested = self.db.begin_nested()
+            dispute = BookingDispute(booking_id=booking_id)
+            self.db.add(dispute)
+            self.db.flush()
+            return dispute
+        except IntegrityError:
+            nested.rollback()
+            dispute = self.get_dispute_by_booking_id(booking_id)
+            if dispute is not None:
+                return dispute
+            raise RepositoryException(
+                f"Failed to ensure booking dispute after retry for booking {booking_id}"
+            )
+        except Exception:
+            nested.rollback()
+            raise
+
+    def ensure_transfer(self, booking_id: str) -> BookingTransfer:
+        """Get or create transfer satellite row for a booking."""
+        transfer = self.get_transfer_by_booking_id(booking_id)
+        if transfer is not None:
+            return transfer
+        try:
+            nested = self.db.begin_nested()
+            transfer = BookingTransfer(booking_id=booking_id)
+            self.db.add(transfer)
+            self.db.flush()
+            return transfer
+        except IntegrityError:
+            nested.rollback()
+            transfer = self.get_transfer_by_booking_id(booking_id)
+            if transfer is not None:
+                return transfer
+            raise RepositoryException(
+                f"Failed to ensure booking transfer after retry for booking {booking_id}"
+            )
+        except Exception:
+            nested.rollback()
+            raise
+
+    def get_no_show_by_booking_id(self, booking_id: str) -> Optional[BookingNoShow]:
+        """Return no-show satellite row for a booking, if present."""
+        try:
+            no_show = cast(
+                Optional[BookingNoShow],
+                self.db.query(BookingNoShow)
+                .filter(BookingNoShow.booking_id == booking_id)
+                .one_or_none(),
+            )
+            return no_show
+        except Exception as e:
+            self.logger.error(f"Error getting no-show for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to get booking no-show: {str(e)}")
+
+    def get_lock_by_booking_id(self, booking_id: str) -> Optional[BookingLock]:
+        """Return lock satellite row for a booking, if present."""
+        try:
+            lock = cast(
+                Optional[BookingLock],
+                self.db.query(BookingLock)
+                .filter(BookingLock.booking_id == booking_id)
+                .one_or_none(),
+            )
+            return lock
+        except Exception as e:
+            self.logger.error(f"Error getting lock for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to get booking lock: {str(e)}")
+
+    def ensure_no_show(self, booking_id: str) -> BookingNoShow:
+        """Get or create no-show satellite row for a booking."""
+        no_show = self.get_no_show_by_booking_id(booking_id)
+        if no_show is not None:
+            return no_show
+        try:
+            nested = self.db.begin_nested()
+            no_show = BookingNoShow(booking_id=booking_id)
+            self.db.add(no_show)
+            self.db.flush()
+            return no_show
+        except IntegrityError:
+            nested.rollback()
+            no_show = self.get_no_show_by_booking_id(booking_id)
+            if no_show is not None:
+                return no_show
+            raise RepositoryException(
+                f"Failed to ensure booking no-show after retry for booking {booking_id}"
+            )
+        except Exception:
+            nested.rollback()
+            raise
+
+    def ensure_lock(self, booking_id: str) -> BookingLock:
+        """Get or create lock satellite row for a booking."""
+        lock = self.get_lock_by_booking_id(booking_id)
+        if lock is not None:
+            return lock
+        try:
+            nested = self.db.begin_nested()
+            lock = BookingLock(booking_id=booking_id)
+            self.db.add(lock)
+            self.db.flush()
+            return lock
+        except IntegrityError:
+            nested.rollback()
+            lock = self.get_lock_by_booking_id(booking_id)
+            if lock is not None:
+                return lock
+            raise RepositoryException(
+                f"Failed to ensure booking lock after retry for booking {booking_id}"
+            )
+        except Exception:
+            nested.rollback()
+            raise
+
+    def get_reschedule_by_booking_id(self, booking_id: str) -> Optional[BookingReschedule]:
+        """Return reschedule satellite row for a booking, if present."""
+        try:
+            reschedule = cast(
+                Optional[BookingReschedule],
+                self.db.query(BookingReschedule)
+                .filter(BookingReschedule.booking_id == booking_id)
+                .one_or_none(),
+            )
+            return reschedule
+        except Exception as e:
+            self.logger.error(f"Error getting reschedule for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to get booking reschedule: {str(e)}")
+
+    def ensure_reschedule(self, booking_id: str) -> BookingReschedule:
+        """Get or create reschedule satellite row for a booking."""
+        reschedule = self.get_reschedule_by_booking_id(booking_id)
+        if reschedule is not None:
+            return reschedule
+        try:
+            nested = self.db.begin_nested()
+            reschedule = BookingReschedule(booking_id=booking_id)
+            self.db.add(reschedule)
+            self.db.flush()
+            return reschedule
+        except IntegrityError:
+            nested.rollback()
+            reschedule = self.get_reschedule_by_booking_id(booking_id)
+            if reschedule is not None:
+                return reschedule
+            raise RepositoryException(
+                f"Failed to ensure booking reschedule after retry for booking {booking_id}"
+            )
+        except Exception:
+            nested.rollback()
+            raise
+
+    def get_payment_by_booking_id(self, booking_id: str) -> Optional[BookingPayment]:
+        """Return payment satellite row for a booking, if present."""
+        try:
+            payment = cast(
+                Optional[BookingPayment],
+                self.db.query(BookingPayment)
+                .filter(BookingPayment.booking_id == booking_id)
+                .one_or_none(),
+            )
+            return payment
+        except Exception as e:
+            self.logger.error(f"Error getting payment for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to get booking payment: {str(e)}")
+
+    def ensure_payment(self, booking_id: str) -> BookingPayment:
+        """Get or create payment satellite row for a booking."""
+        payment = self.get_payment_by_booking_id(booking_id)
+        if payment is not None:
+            return payment
+        try:
+            nested = self.db.begin_nested()
+            payment = BookingPayment(booking_id=booking_id)
+            self.db.add(payment)
+            self.db.flush()
+            return payment
+        except IntegrityError:
+            nested.rollback()
+            payment = self.get_payment_by_booking_id(booking_id)
+            if payment is not None:
+                return payment
+            raise RepositoryException(
+                f"Failed to ensure booking payment after retry for booking {booking_id}"
+            )
+        except Exception:
+            nested.rollback()
             raise
 
     # Time-based Booking Queries (NEW)
@@ -322,11 +550,15 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(
                 List[Booking],
                 self.db.query(Booking)
-                .options(joinedload(Booking.payment_intent))
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(
+                    joinedload(Booking.payment_intent),
+                    joinedload(Booking.payment_detail),
+                )
                 .filter(
                     Booking.instructor_id == instructor_id,
                     Booking.status == BookingStatus.COMPLETED,
-                    Booking.payment_status == PaymentStatus.AUTHORIZED.value,
+                    BookingPayment.payment_status == PaymentStatus.AUTHORIZED.value,
                 )
                 .all(),
             )
@@ -500,6 +732,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     joinedload(Booking.student),
                     joinedload(Booking.instructor),
                     joinedload(Booking.instructor_service),
+                    selectinload(Booking.payment_detail),
+                    selectinload(Booking.no_show_detail),
+                    selectinload(Booking.lock_detail),
+                    selectinload(Booking.reschedule_detail),
+                    selectinload(Booking.dispute),
+                    selectinload(Booking.transfer),
                 )
                 .filter(Booking.student_id == student_id)
             )
@@ -599,38 +837,6 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error getting student bookings: {str(e)}")
             raise RepositoryException(f"Failed to get student bookings: {str(e)}")
 
-    def get_bookings_by_student_and_instructor(
-        self,
-        student_id: str,
-        instructor_id: str,
-    ) -> List[Booking]:
-        """
-        Get all bookings for a specific student-instructor pair.
-
-        Used for SSE routing - when a conversation has multiple bookings,
-        we need all booking IDs so the frontend can match any of them.
-
-        Args:
-            student_id: The student's user ID
-            instructor_id: The instructor's user ID
-
-        Returns:
-            List of bookings for this pair (may be empty)
-        """
-        try:
-            return cast(
-                List[Booking],
-                self.db.query(Booking)
-                .filter(
-                    Booking.student_id == student_id,
-                    Booking.instructor_id == instructor_id,
-                )
-                .all(),
-            )
-        except Exception as e:
-            self.logger.error(f"Error getting bookings by pair: {str(e)}")
-            raise RepositoryException(f"Failed to get bookings by pair: {str(e)}")
-
     def get_instructor_bookings(
         self,
         instructor_id: str,
@@ -661,6 +867,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     joinedload(Booking.student),
                     joinedload(Booking.instructor),
                     joinedload(Booking.instructor_service),
+                    selectinload(Booking.payment_detail),
+                    selectinload(Booking.no_show_detail),
+                    selectinload(Booking.lock_detail),
+                    selectinload(Booking.reschedule_detail),
+                    selectinload(Booking.dispute),
+                    selectinload(Booking.transfer),
                 )
                 .filter(Booking.instructor_id == instructor_id)
             )
@@ -921,6 +1133,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     joinedload(Booking.instructor_service),
                     joinedload(Booking.rescheduled_from),
                     joinedload(Booking.cancelled_by),
+                    selectinload(Booking.payment_detail),
+                    selectinload(Booking.no_show_detail),
+                    selectinload(Booking.lock_detail),
+                    selectinload(Booking.reschedule_detail),
+                    selectinload(Booking.dispute),
+                    selectinload(Booking.transfer),
                 )
                 .filter(Booking.id == booking_id)
                 .first()
@@ -976,10 +1194,20 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
     ) -> tuple[List[Booking], int]:
         """Return admin booking list with filters and pagination."""
         try:
-            query = self.db.query(Booking).options(
-                joinedload(Booking.student),
-                joinedload(Booking.instructor),
-                joinedload(Booking.instructor_service),
+            query = (
+                self.db.query(Booking)
+                .outerjoin(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(
+                    joinedload(Booking.student),
+                    joinedload(Booking.instructor),
+                    joinedload(Booking.instructor_service),
+                    selectinload(Booking.payment_detail),
+                    selectinload(Booking.no_show_detail),
+                    selectinload(Booking.lock_detail),
+                    selectinload(Booking.reschedule_detail),
+                    selectinload(Booking.dispute),
+                    selectinload(Booking.transfer),
+                )
             )
 
             if search:
@@ -993,7 +1221,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         or_(
                             Booking.id.ilike(term),
                             Booking.service_name.ilike(term),
-                            Booking.payment_intent_id.ilike(term),
+                            BookingPayment.payment_intent_id.ilike(term),
                             student_alias.first_name.ilike(term),
                             student_alias.last_name.ilike(term),
                             student_alias.email.ilike(term),
@@ -1014,9 +1242,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 if cleaned:
                     filters = []
                     if "pending" in cleaned:
-                        filters.append(Booking.payment_status.is_(None))
+                        filters.append(BookingPayment.payment_status.is_(None))
                         filters.append(
-                            func.lower(Booking.payment_status)
+                            func.lower(BookingPayment.payment_status)
                             == PaymentStatus.PAYMENT_METHOD_REQUIRED.value
                         )
                         cleaned = [status for status in cleaned if status != "pending"]
@@ -1029,13 +1257,14 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         }
                         filters.append(
                             and_(
-                                func.lower(Booking.payment_status) == PaymentStatus.SETTLED.value,
-                                Booking.settlement_outcome.in_(refund_outcomes),
+                                func.lower(BookingPayment.payment_status)
+                                == PaymentStatus.SETTLED.value,
+                                BookingPayment.settlement_outcome.in_(refund_outcomes),
                             )
                         )
                         cleaned = [status for status in cleaned if status != "refunded"]
                     if cleaned:
-                        filters.append(func.lower(Booking.payment_status).in_(cleaned))
+                        filters.append(func.lower(BookingPayment.payment_status).in_(cleaned))
                     query = query.filter(or_(*filters))
 
             if date_from:
@@ -1166,7 +1395,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 query = query.filter(Booking.status == status)
 
             if with_relationships:
-                query = query.options(joinedload(Booking.student), joinedload(Booking.instructor))
+                query = query.options(
+                    selectinload(Booking.student), selectinload(Booking.instructor)
+                )
 
             return cast(List[Booking], query.all())
 
@@ -1323,11 +1554,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             booking.status = status
             booking.cancelled_at = booking.cancelled_at or cancelled_at
             booking.cancellation_reason = cancellation_reason
+            payment = self.ensure_payment(booking.id)
             if settlement_outcome:
-                booking.settlement_outcome = settlement_outcome
+                payment.settlement_outcome = settlement_outcome
             booking.refunded_to_card_amount = refunded_to_card_amount
             booking.student_credit_amount = student_credit_amount
-            booking.instructor_payout_amount = instructor_payout_amount
+            payment.instructor_payout_amount = instructor_payout_amount
             booking.updated_at = updated_at
 
             self.db.flush()
@@ -1382,17 +1614,23 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         try:
             query = (
                 self.db.query(Booking)
+                .join(BookingNoShow, BookingNoShow.booking_id == Booking.id)
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .filter(
-                    Booking.no_show_reported_at.is_not(None),
-                    Booking.no_show_reported_at <= reported_before,
+                    BookingNoShow.no_show_reported_at.is_not(None),
+                    BookingNoShow.no_show_reported_at <= reported_before,
                     or_(
-                        Booking.no_show_disputed.is_(False),
-                        Booking.no_show_disputed.is_(None),
+                        BookingNoShow.no_show_disputed.is_(False),
+                        BookingNoShow.no_show_disputed.is_(None),
                     ),
-                    Booking.no_show_resolved_at.is_(None),
-                    Booking.payment_status == PaymentStatus.MANUAL_REVIEW.value,
+                    BookingNoShow.no_show_resolved_at.is_(None),
+                    BookingPayment.payment_status == PaymentStatus.MANUAL_REVIEW.value,
                 )
-                .order_by(Booking.no_show_reported_at.asc())
+                .options(
+                    joinedload(Booking.no_show_detail),
+                    joinedload(Booking.payment_detail),
+                )
+                .order_by(BookingNoShow.no_show_reported_at.asc())
             )
             return cast(List[Booking], query.all())
         except Exception as exc:
@@ -1411,6 +1649,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             joinedload(Booking.student),
             joinedload(Booking.instructor),
             joinedload(Booking.instructor_service),
+            joinedload(Booking.payment_detail),
+            joinedload(Booking.reschedule_detail),
+            joinedload(Booking.no_show_detail),
+            joinedload(Booking.lock_detail),
+            joinedload(Booking.dispute),
+            joinedload(Booking.transfer),
         )
 
     def count_old_bookings(self, cutoff_date: datetime) -> int:
@@ -1450,6 +1694,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 List[Booking],
                 self.db.query(Booking)
                 .filter(Booking.booking_date == booking_date, Booking.status == status)
+                .options(selectinload(Booking.student), selectinload(Booking.instructor))
                 .all(),
             )
         except Exception as e:
@@ -1481,6 +1726,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     Booking.booking_date <= end_date,
                     Booking.status == status,
                 )
+                .options(selectinload(Booking.student), selectinload(Booking.instructor))
                 .all(),
             )
         except Exception as e:
@@ -1500,11 +1746,13 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(
                 List[Booking],
                 self.db.query(Booking)
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(joinedload(Booking.payment_detail))
                 .filter(
                     and_(
                         Booking.status == BookingStatus.CONFIRMED,
-                        Booking.payment_status == PaymentStatus.SCHEDULED.value,
-                        Booking.payment_method_id.isnot(None),
+                        BookingPayment.payment_status == PaymentStatus.SCHEDULED.value,
+                        BookingPayment.payment_method_id.isnot(None),
                     )
                 )
                 .all(),
@@ -1526,12 +1774,15 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(
                 List[Booking],
                 self.db.query(Booking)
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(joinedload(Booking.payment_detail))
                 .filter(
                     and_(
                         Booking.status == BookingStatus.CONFIRMED,
-                        Booking.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
-                        Booking.capture_failed_at.is_(None),
-                        Booking.payment_method_id.isnot(None),
+                        BookingPayment.payment_status
+                        == PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+                        BookingPayment.capture_failed_at.is_(None),
+                        BookingPayment.payment_method_id.isnot(None),
                     )
                 )
                 .all(),
@@ -1554,13 +1805,17 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(
                 List[Booking],
                 self.db.query(Booking)
+                # Locked-funds capture paths can exist even when a payment satellite row has not
+                # been initialized yet, so keep payment join optional for this mixed predicate.
+                .outerjoin(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(joinedload(Booking.payment_detail))
                 .filter(
                     and_(
                         Booking.status == BookingStatus.COMPLETED,
                         or_(
                             and_(
-                                Booking.payment_status == PaymentStatus.AUTHORIZED.value,
-                                Booking.payment_intent_id.isnot(None),
+                                BookingPayment.payment_status == PaymentStatus.AUTHORIZED.value,
+                                BookingPayment.payment_intent_id.isnot(None),
                             ),
                             and_(
                                 Booking.has_locked_funds.is_(True),
@@ -1589,13 +1844,17 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(
                 List[Booking],
                 self.db.query(Booking)
+                # Locked-funds auto-completion paths can exist even when a payment satellite row
+                # has not been initialized yet, so keep payment join optional for this mixed predicate.
+                .outerjoin(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(joinedload(Booking.payment_detail))
                 .filter(
                     and_(
                         Booking.status == BookingStatus.CONFIRMED,
                         or_(
                             and_(
-                                Booking.payment_status == PaymentStatus.AUTHORIZED.value,
-                                Booking.payment_intent_id.isnot(None),
+                                BookingPayment.payment_status == PaymentStatus.AUTHORIZED.value,
+                                BookingPayment.payment_intent_id.isnot(None),
                             ),
                             and_(
                                 Booking.has_locked_funds.is_(True),
@@ -1622,10 +1881,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(
                 List[Booking],
                 self.db.query(Booking)
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .options(joinedload(Booking.payment_detail))
                 .filter(
                     and_(
-                        Booking.payment_status == PaymentStatus.AUTHORIZED.value,
-                        Booking.payment_intent_id.isnot(None),
+                        BookingPayment.payment_status == PaymentStatus.AUTHORIZED.value,
+                        BookingPayment.payment_intent_id.isnot(None),
                     )
                 )
                 .all(),
@@ -1633,6 +1894,29 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except Exception as e:
             self.logger.error(f"Error getting bookings with expired auth: {str(e)}")
             raise RepositoryException(f"Failed to get bookings with expired auth: {str(e)}")
+
+    def get_failed_capture_booking_ids(self) -> List[str]:
+        """
+        Get booking IDs with failed captures needing retry.
+
+        Returns bookings where:
+        - Payment status: PAYMENT_METHOD_REQUIRED
+        - capture_failed_at is set
+        """
+        try:
+            rows = (
+                self.db.query(Booking.id)
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
+                .filter(
+                    BookingPayment.payment_status == PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+                    BookingPayment.capture_failed_at.isnot(None),
+                )
+                .all()
+            )
+            return [row[0] for row in rows]
+        except Exception as e:
+            self.logger.error(f"Error getting failed capture booking IDs: {str(e)}")
+            raise RepositoryException(f"Failed to get failed capture booking IDs: {str(e)}")
 
     def count_overdue_authorizations(self, current_date: date) -> int:
         """
@@ -1647,10 +1931,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         try:
             return int(
                 self.db.query(Booking)
+                .join(BookingPayment, BookingPayment.booking_id == Booking.id)
                 .filter(
                     and_(
                         Booking.status == BookingStatus.CONFIRMED,
-                        Booking.payment_status == PaymentStatus.SCHEDULED.value,
+                        BookingPayment.payment_status == PaymentStatus.SCHEDULED.value,
                         Booking.booking_date <= current_date,
                     )
                 )
@@ -1751,6 +2036,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             return cast(
                 List[Booking],
                 self.db.query(Booking)
+                .options(selectinload(Booking.payment_detail))
                 .filter(Booking.student_id == student_id)
                 .filter(
                     or_(

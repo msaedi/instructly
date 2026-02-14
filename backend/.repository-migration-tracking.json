@@ -1,10 +1,10 @@
 {
   "known_violations": {},
   "statistics": {
-    "total_marked": 14,
-    "migration_marked": 0,
-    "ignored_marked": 14,
+    "total_marked": 35,
+    "migration_marked": 18,
+    "ignored_marked": 17,
     "migrated_count": 0
   },
-  "last_updated": "2026-02-02T07:53:55.696082"
+  "last_updated": "2026-02-13T19:20:00.197995"
 }

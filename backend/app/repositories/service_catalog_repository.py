@@ -992,6 +992,19 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
 
         return analytics
 
+    def count_all(self) -> int:
+        """Return total number of analytics records."""
+        return self.db.query(func.count(ServiceAnalytics.service_catalog_id)).scalar() or 0
+
+    def get_most_recent(self) -> Optional[ServiceAnalytics]:
+        """Return the most recently calculated analytics record."""
+        return cast(
+            Optional[ServiceAnalytics],
+            self.db.query(ServiceAnalytics)
+            .order_by(ServiceAnalytics.last_calculated.desc())
+            .first(),
+        )
+
     def increment_search_count(self, service_catalog_id: str) -> None:
         """
         Increment search count for a service.

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 from backend.tests.factories.booking_builders import create_booking_pg_safe
 import pytest
+import ulid
 
 from app.core.exceptions import (
     ConflictException,
@@ -14,6 +15,7 @@ from app.core.exceptions import (
     ValidationException,
 )
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
 from app.models.conversation import Conversation
 from app.models.instructor import InstructorProfile
 from app.models.payment import StripeConnectedAccount
@@ -119,7 +121,8 @@ def _seed_completed_booking(db, *, instructor_id: str, student_id: str, service_
         offset_index=5,
         max_shifts=240,
     )
-    booking.payment_status = PaymentStatus.AUTHORIZED.value
+    bp = BookingPayment(id=str(ulid.ULID()), booking_id=booking.id, payment_status=PaymentStatus.AUTHORIZED.value)
+    db.add(bp)
     booking.completed_at = datetime.now(timezone.utc) - timedelta(days=1)
     db.flush()
     return booking

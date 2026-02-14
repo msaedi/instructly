@@ -4,94 +4,68 @@ Tests the OpenAPI schema generation app setup.
 """
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
+import pytest
+
+
+@pytest.fixture(scope="module")
+def openapi_app():
+    """Build the OpenAPI app once for all tests in this module."""
+    from app.openapi_app import build_openapi_app
+
+    return build_openapi_app()
+
+
+@pytest.fixture(scope="module")
+def openapi_schema(openapi_app):
+    """Generate the OpenAPI schema once for all tests in this module."""
+    return openapi_app.openapi()
 
 
 class TestBuildOpenAPIApp:
     """Tests for build_openapi_app() function."""
 
-    def test_build_openapi_app_returns_fastapi_instance(self):
+    def test_build_openapi_app_returns_fastapi_instance(self, openapi_app):
         """Test that build_openapi_app returns a FastAPI instance."""
-        from app.openapi_app import build_openapi_app
+        assert isinstance(openapi_app, FastAPI)
 
-        app = build_openapi_app()
-
-        assert isinstance(app, FastAPI)
-
-    def test_openapi_app_has_correct_title(self):
+    def test_openapi_app_has_correct_title(self, openapi_app):
         """Test that the app has the correct title."""
-        from app.openapi_app import build_openapi_app
+        assert openapi_app.title == "iNSTAiNSTRU API"
 
-        app = build_openapi_app()
-
-        assert app.title == "iNSTAiNSTRU API"
-
-    def test_openapi_app_has_correct_version(self):
+    def test_openapi_app_has_correct_version(self, openapi_app):
         """Test that the app has the correct version."""
-        from app.openapi_app import build_openapi_app
+        assert openapi_app.version == "1.0.0"
 
-        app = build_openapi_app()
-
-        assert app.version == "1.0.0"
-
-    def test_openapi_app_has_correct_description(self):
+    def test_openapi_app_has_correct_description(self, openapi_app):
         """Test that the app has the correct description."""
-        from app.openapi_app import build_openapi_app
+        assert "iNSTAiNSTRU" in openapi_app.description
+        assert "NYC" in openapi_app.description
 
-        app = build_openapi_app()
-
-        assert "iNSTAiNSTRU" in app.description
-        assert "NYC" in app.description
-
-    def test_openapi_app_has_openapi_url(self):
+    def test_openapi_app_has_openapi_url(self, openapi_app):
         """Test that openapi_url is set correctly."""
-        from app.openapi_app import build_openapi_app
+        assert openapi_app.openapi_url == "/openapi.json"
 
-        app = build_openapi_app()
-
-        assert app.openapi_url == "/openapi.json"
-
-    def test_openapi_app_docs_disabled(self):
+    def test_openapi_app_docs_disabled(self, openapi_app):
         """Test that docs are disabled (not needed for schema generation)."""
-        from app.openapi_app import build_openapi_app
+        assert openapi_app.docs_url is None
+        assert openapi_app.redoc_url is None
 
-        app = build_openapi_app()
-
-        assert app.docs_url is None
-        assert app.redoc_url is None
-
-    def test_openapi_schema_can_be_generated(self):
+    def test_openapi_schema_can_be_generated(self, openapi_schema):
         """Test that OpenAPI schema can be generated without errors."""
-        from app.openapi_app import build_openapi_app
+        assert isinstance(openapi_schema, dict)
+        assert "openapi" in openapi_schema
+        assert "info" in openapi_schema
+        assert "paths" in openapi_schema
 
-        app = build_openapi_app()
-
-        # This should not raise
-        schema = app.openapi()
-
-        assert isinstance(schema, dict)
-        assert "openapi" in schema
-        assert "info" in schema
-        assert "paths" in schema
-
-    def test_openapi_schema_has_api_v1_paths(self):
+    def test_openapi_schema_has_api_v1_paths(self, openapi_schema):
         """Test that schema includes /api/v1/* paths."""
-        from app.openapi_app import build_openapi_app
-
-        app = build_openapi_app()
-        schema = app.openapi()
-
         # At least some paths should start with /api/v1
-        api_v1_paths = [p for p in schema["paths"].keys() if p.startswith("/api/v1")]
+        api_v1_paths = [p for p in openapi_schema["paths"].keys() if p.startswith("/api/v1")]
         assert len(api_v1_paths) > 0, "No /api/v1 paths found in OpenAPI schema"
 
-    def test_openapi_schema_includes_critical_endpoints(self):
+    def test_openapi_schema_includes_critical_endpoints(self, openapi_schema):
         """Test that critical endpoints are present in schema."""
-        from app.openapi_app import build_openapi_app
-
-        app = build_openapi_app()
-        schema = app.openapi()
-
-        paths = schema["paths"].keys()
+        paths = openapi_schema["paths"].keys()
 
         # Check for critical endpoint prefixes
         critical_prefixes = [

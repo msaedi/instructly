@@ -116,9 +116,10 @@ class BookingAdminService(BaseService):
         if not booking:
             raise NotFoundException(f"Booking {booking_id} not found", code="BOOKING_NOT_FOUND")
 
+        pd = booking.payment_detail
         current_state = BookingState(
             status=self._status_value(booking.status),
-            payment_status=booking.payment_status,
+            payment_status=pd.payment_status if pd is not None else None,
         )
 
         eligible = True
@@ -166,7 +167,8 @@ class BookingAdminService(BaseService):
             eligible = False
             ineligible_reason = "Booking start time unavailable for policy evaluation"
 
-        payment_status = (booking.payment_status or "").lower()
+        pd_status = (pd.payment_status if pd is not None else None) or ""
+        payment_status = pd_status.lower()
         if payment_status == PaymentStatus.SETTLED.value:
             warnings.append("Instructor already paid out - may trigger clawback")
 
@@ -401,9 +403,11 @@ class BookingAdminService(BaseService):
         if not booking:
             raise NotFoundException(f"Booking {booking_id} not found", code="BOOKING_NOT_FOUND")
 
+        pd = booking.payment_detail
+        pd_payment_status = pd.payment_status if pd is not None else None
         current_state = BookingState(
             status=self._status_value(booking.status),
-            payment_status=booking.payment_status,
+            payment_status=pd_payment_status,
         )
 
         eligible = True
@@ -411,7 +415,7 @@ class BookingAdminService(BaseService):
         if self._status_value(booking.status) != BookingStatus.CONFIRMED.value:
             eligible = False
             ineligible_reason = "Booking not in confirmed status"
-        elif (booking.payment_status or "") not in {
+        elif (pd_payment_status or "") not in {
             PaymentStatus.AUTHORIZED.value,
             PaymentStatus.SETTLED.value,
             "captured",
@@ -480,7 +484,7 @@ class BookingAdminService(BaseService):
             current_state=current_state,
             will_mark_complete=eligible,
             will_capture_payment=eligible
-            and (booking.payment_status or "") == PaymentStatus.AUTHORIZED.value,
+            and (pd_payment_status or "") == PaymentStatus.AUTHORIZED.value,
             capture_amount=_cents_to_decimal(amounts["full_amount_cents"]),
             instructor_payout=_cents_to_decimal(amounts["instructor_payout_cents"]),
             platform_fee=_cents_to_decimal(amounts["platform_fee_cents"]),
@@ -566,7 +570,9 @@ class BookingAdminService(BaseService):
 
         payment_captured = False
         capture_amount: Decimal | None = None
-        if (booking.payment_status or "") == PaymentStatus.AUTHORIZED.value:
+        pd = booking.payment_detail
+        pd_payment_status = pd.payment_status if pd is not None else None
+        if (pd_payment_status or "") == PaymentStatus.AUTHORIZED.value:
             try:
                 from app.tasks.payment_tasks import _process_capture_for_booking
 
@@ -615,7 +621,8 @@ class BookingAdminService(BaseService):
             payment_captured=payment_captured,
             capture_amount=capture_amount,
             instructor_payout_scheduled=payment_captured
-            or (booking.payment_status or "") == PaymentStatus.SETTLED.value,
+            or (getattr(booking.payment_detail, "payment_status", None) or "")
+            == PaymentStatus.SETTLED.value,
             payout_amount=_cents_to_decimal(amounts["instructor_payout_cents"]),
             audit_id=audit_id,
         )
@@ -779,9 +786,11 @@ class BookingAdminService(BaseService):
         )
 
     def _resolve_payment(self, booking: Booking) -> PaymentIntent | None:
-        if booking.payment_intent_id:
+        pd = booking.payment_detail
+        pd_intent_id = pd.payment_intent_id if pd is not None else None
+        if pd_intent_id:
             try:
-                return self.payment_repo.get_payment_by_intent_id(booking.payment_intent_id)
+                return self.payment_repo.get_payment_by_intent_id(pd_intent_id)
             except Exception:
                 return None
         try:
@@ -923,9 +932,10 @@ class BookingAdminService(BaseService):
         refund_id = None
         refund_issued = False
 
-        payment_intent_id = booking.payment_intent_id
-        payment_status = (booking.payment_status or "").lower()
-        already_captured = payment_status in {
+        pd = booking.payment_detail
+        payment_intent_id = pd.payment_intent_id if pd is not None else None
+        pd_payment_status = (pd.payment_status if pd is not None else None) or ""
+        already_captured = pd_payment_status.lower() in {
             PaymentStatus.SETTLED.value,
             PaymentStatus.LOCKED.value,
         }
@@ -956,14 +966,13 @@ class BookingAdminService(BaseService):
             booking_locked.status = BookingStatus.CANCELLED
             booking_locked.cancelled_at = datetime.now(timezone.utc)
             booking_locked.cancellation_reason = reason_code
-            booking_locked.settlement_outcome = "admin_refund"
+            bp = self.booking_repo.ensure_payment(booking_locked.id)
+            bp.settlement_outcome = "admin_refund"
             booking_locked.refunded_to_card_amount = refund_amount_cents if refund_issued else 0
             if refund_issued:
-                booking_locked.payment_status = PaymentStatus.SETTLED.value
+                bp.payment_status = PaymentStatus.SETTLED.value
             else:
-                booking_locked.payment_status = (
-                    booking_locked.payment_status or PaymentStatus.MANUAL_REVIEW.value
-                )
+                bp.payment_status = bp.payment_status or PaymentStatus.MANUAL_REVIEW.value
 
         try:
             self.credit_service.release_credits_for_booking(
@@ -976,10 +985,11 @@ class BookingAdminService(BaseService):
         return refund_id, refund_issued
 
     def _cancel_without_refund(self, booking: Booking, *, reason_code: str) -> None:
-        payment_intent_id = booking.payment_intent_id
-        payment_status = (booking.payment_status or "").lower()
+        pd = booking.payment_detail
+        payment_intent_id = pd.payment_intent_id if pd is not None else None
+        pd_payment_status = ((pd.payment_status if pd is not None else None) or "").lower()
         capture_success = False
-        if payment_intent_id and payment_status == PaymentStatus.AUTHORIZED.value:
+        if payment_intent_id and pd_payment_status == PaymentStatus.AUTHORIZED.value:
             try:
                 self.stripe_service.capture_booking_payment_intent(
                     booking_id=booking.id,
@@ -997,11 +1007,12 @@ class BookingAdminService(BaseService):
             booking_locked.status = BookingStatus.CANCELLED
             booking_locked.cancelled_at = datetime.now(timezone.utc)
             booking_locked.cancellation_reason = reason_code
-            booking_locked.settlement_outcome = "admin_no_refund"
+            bp = self.booking_repo.ensure_payment(booking_locked.id)
+            bp.settlement_outcome = "admin_no_refund"
             if payment_intent_id and (
-                capture_success or payment_status == PaymentStatus.SETTLED.value
+                capture_success or pd_payment_status == PaymentStatus.SETTLED.value
             ):
-                booking_locked.payment_status = PaymentStatus.SETTLED.value
+                bp.payment_status = PaymentStatus.SETTLED.value
 
         try:
             self.credit_service.forfeit_credits_for_booking(

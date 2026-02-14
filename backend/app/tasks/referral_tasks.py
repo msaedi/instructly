@@ -61,12 +61,10 @@ def process_instructor_referral_payout(self: Any, payout_id: str) -> Dict[str, A
 
     failure_exc: Exception | None = None
     with get_db_session() as db:
-        payout = (
-            db.query(InstructorReferralPayout)
-            .filter(InstructorReferralPayout.id == payout_id)
-            .with_for_update()
-            .first()
-        )
+        from app.repositories.referral_repository import ReferralRewardRepository
+
+        reward_repo = ReferralRewardRepository(db)
+        payout = reward_repo.get_payout_for_update(payout_id)
         if not payout:
             logger.error("Payout not found: %s", payout_id)
             return {"status": "error", "reason": "payout_not_found"}
@@ -169,15 +167,11 @@ def retry_failed_instructor_referral_payouts() -> Dict[str, Any]:
     logger.info("Retrying failed instructor referral payouts")
 
     with get_db_session() as db:
+        from app.repositories.referral_repository import ReferralRewardRepository
+
+        reward_repo = ReferralRewardRepository(db)
         cutoff = datetime.now(timezone.utc) - timedelta(days=7)
-        failed_payouts = (
-            db.query(InstructorReferralPayout)
-            .filter(
-                InstructorReferralPayout.stripe_transfer_status == "failed",
-                InstructorReferralPayout.failed_at >= cutoff,
-            )
-            .all()
-        )
+        failed_payouts = reward_repo.get_failed_payouts_since(cutoff)
 
         retried = 0
         for payout in failed_payouts:
@@ -204,15 +198,11 @@ def check_pending_instructor_referral_payouts() -> Dict[str, Any]:
     logger.info("Checking for pending instructor referral payouts")
 
     with get_db_session() as db:
+        from app.repositories.referral_repository import ReferralRewardRepository
+
+        reward_repo = ReferralRewardRepository(db)
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
-        pending_payouts = (
-            db.query(InstructorReferralPayout)
-            .filter(
-                InstructorReferralPayout.stripe_transfer_status == "pending",
-                InstructorReferralPayout.created_at <= cutoff,
-            )
-            .all()
-        )
+        pending_payouts = reward_repo.get_pending_payouts_older_than(cutoff)
 
         queued = 0
         for payout in pending_payouts:

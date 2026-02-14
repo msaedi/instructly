@@ -273,7 +273,7 @@ class TestProcessAuthorizationForBooking:
         with patch("app.database.SessionLocal") as mock_session:
             mock_db = MagicMock()
             mock_session.return_value = mock_db
-            mock_db.query.return_value.filter.return_value.first.return_value = None
+            mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = None
 
             result = _process_authorization_for_booking(generate_ulid(), 24.0)
 
@@ -291,7 +291,7 @@ class TestProcessAuthorizationForBooking:
             mock_booking = MagicMock()
             mock_booking.id = generate_ulid()
             mock_booking.status = BookingStatus.CANCELLED
-            mock_db.query.return_value.filter.return_value.first.return_value = mock_booking
+            mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = mock_booking
 
             result = _process_authorization_for_booking(mock_booking.id, 24.0)
 
@@ -401,8 +401,10 @@ class TestRetryHeuristics:
         from app.tasks.payment_tasks import _should_retry_auth
 
         booking = MagicMock()
-        booking.auth_attempted_at = None
-        booking.auth_failure_count = 0
+        pd = MagicMock()
+        pd.auth_attempted_at = None
+        pd.auth_failure_count = 0
+        booking.payment_detail = pd
 
         assert _should_retry_auth(booking, datetime.now(timezone.utc)) is True
 
@@ -412,8 +414,10 @@ class TestRetryHeuristics:
 
         now = datetime.now(timezone.utc)
         booking = MagicMock()
-        booking.auth_attempted_at = now - timedelta(hours=2)
-        booking.auth_failure_count = 1
+        pd = MagicMock()
+        pd.auth_attempted_at = now - timedelta(hours=2)
+        pd.auth_failure_count = 1
+        booking.payment_detail = pd
 
         assert _should_retry_auth(booking, now) is True
 
@@ -423,8 +427,10 @@ class TestRetryHeuristics:
 
         now = datetime.now(timezone.utc)
         booking = MagicMock()
-        booking.auth_attempted_at = now - timedelta(hours=5)
-        booking.auth_failure_count = 2
+        pd = MagicMock()
+        pd.auth_attempted_at = now - timedelta(hours=5)
+        pd.auth_failure_count = 2
+        booking.payment_detail = pd
 
         assert _should_retry_auth(booking, now) is True
 
@@ -434,8 +440,10 @@ class TestRetryHeuristics:
 
         now = datetime.now(timezone.utc)
         booking = MagicMock()
-        booking.auth_attempted_at = now - timedelta(hours=9)
-        booking.auth_failure_count = 3
+        pd = MagicMock()
+        pd.auth_attempted_at = now - timedelta(hours=9)
+        pd.auth_failure_count = 3
+        booking.payment_detail = pd
 
         assert _should_retry_auth(booking, now) is True
 
@@ -444,7 +452,9 @@ class TestRetryHeuristics:
         from app.tasks.payment_tasks import _should_retry_capture
 
         booking = MagicMock()
-        booking.capture_failed_at = None
+        pd = MagicMock()
+        pd.capture_failed_at = None
+        booking.payment_detail = pd
 
         assert _should_retry_capture(booking, datetime.now(timezone.utc)) is False
 
@@ -454,7 +464,9 @@ class TestRetryHeuristics:
 
         now = datetime.now(timezone.utc)
         booking = MagicMock()
-        booking.capture_failed_at = now - timedelta(hours=5)
+        pd = MagicMock()
+        pd.capture_failed_at = now - timedelta(hours=5)
+        booking.payment_detail = pd
 
         assert _should_retry_capture(booking, now) is True
 
@@ -470,12 +482,16 @@ class TestProcessCaptureHelpers:
 
         # Recently failed - should not retry yet
         booking_recent = MagicMock()
-        booking_recent.capture_failed_at = now - timedelta(hours=1)
+        pd_recent = MagicMock()
+        pd_recent.capture_failed_at = now - timedelta(hours=1)
+        booking_recent.payment_detail = pd_recent
         assert _should_retry_capture(booking_recent, now) is False
 
         # Failed long ago - should retry
         booking_old = MagicMock()
-        booking_old.capture_failed_at = now - timedelta(hours=5)
+        pd_old = MagicMock()
+        pd_old.capture_failed_at = now - timedelta(hours=5)
+        booking_old.payment_detail = pd_old
         assert _should_retry_capture(booking_old, now) is True
 
 
@@ -490,12 +506,16 @@ class TestShouldRetryAuth:
 
         # Recently attempted - should not retry yet
         booking_recent = MagicMock()
-        booking_recent.auth_attempted_at = now - timedelta(minutes=30)
+        pd_recent = MagicMock()
+        pd_recent.auth_attempted_at = now - timedelta(minutes=30)
+        booking_recent.payment_detail = pd_recent
         assert _should_retry_auth(booking_recent, now) is False
 
         # Attempted long ago - should retry
         booking_old = MagicMock()
-        booking_old.auth_attempted_at = now - timedelta(hours=2)
+        pd_old = MagicMock()
+        pd_old.auth_attempted_at = now - timedelta(hours=2)
+        booking_old.payment_detail = pd_old
         assert _should_retry_auth(booking_old, now) is True
 
 
@@ -544,8 +564,10 @@ class TestProcessRetryAuthorizationFunction:
 
             mock_booking = MagicMock()
             mock_booking.status = BookingStatus.CONFIRMED
-            mock_booking.payment_status = PaymentStatus.AUTHORIZED.value
-            mock_db.query.return_value.filter.return_value.first.return_value = mock_booking
+            mock_pd = MagicMock()
+            mock_pd.payment_status = PaymentStatus.AUTHORIZED.value
+            mock_booking.payment_detail = mock_pd
+            mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_booking
 
             result = _process_retry_authorization(generate_ulid(), 20.0)
 
@@ -605,7 +627,7 @@ class TestCancelBookingPaymentFailed:
         with patch("app.database.SessionLocal") as mock_session_class:
             mock_db = MagicMock()
             mock_session_class.return_value = mock_db
-            mock_db.query.return_value.filter.return_value.first.return_value = None
+            mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = None
 
             result = _cancel_booking_payment_failed(
                 generate_ulid(),
@@ -626,7 +648,7 @@ class TestCancelBookingPaymentFailed:
 
             mock_booking = MagicMock()
             mock_booking.status = BookingStatus.CANCELLED
-            mock_db.query.return_value.filter.return_value.first.return_value = mock_booking
+            mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = mock_booking
 
             result = _cancel_booking_payment_failed(
                 generate_ulid(),

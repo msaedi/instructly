@@ -14,6 +14,7 @@ import ulid
 
 from app.core.enums import RoleName
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_payment import BookingPayment
 from app.models.instructor import InstructorProfile
 from app.models.rbac import Role
 from app.models.user import User
@@ -125,8 +126,13 @@ def test_immediate_vs_scheduled_boundary(db: Session) -> None:
     def _authorize_now(booking_id: str, _hours_until: float):
         target = db.query(Booking).filter(Booking.id == booking_id).first()
         assert target is not None
-        target.payment_status = "authorized"
-        target.payment_intent_id = "pi_test"
+        from app.models.booking_payment import BookingPayment as BP
+        bp = db.query(BP).filter(BP.booking_id == booking_id).first()
+        if bp:
+            bp.payment_status = "authorized"
+            bp.payment_intent_id = "pi_test"
+        else:
+            db.add(BP(booking_id=booking_id, payment_status="authorized", payment_intent_id="pi_test"))
         db.flush()
         return {"success": True}
 
@@ -136,7 +142,8 @@ def test_immediate_vs_scheduled_boundary(db: Session) -> None:
     ):
         c1 = svc.confirm_booking_payment(b1.id, student, "pm_x", False)
 
-    assert c1.payment_status == "authorized"
+    c1.payment_detail = db.query(BookingPayment).filter_by(booking_id=c1.id).first()
+    assert c1.payment_detail.payment_status == "authorized"
 
     # 24h01m ⇒ scheduled
     start2 = start_just_over_24h()
@@ -174,4 +181,5 @@ def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         offset_index=2,
     )
     c2 = svc.confirm_booking_payment(b2.id, student, "pm_x", False)
-    assert c2.payment_status == "scheduled"
+    c2.payment_detail = db.query(BookingPayment).filter_by(booking_id=c2.id).first()
+    assert c2.payment_detail.payment_status == "scheduled"

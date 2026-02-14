@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessRuleException
 from app.models.booking import BookingStatus, PaymentStatus
+from app.models.booking_reschedule import BookingReschedule
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.subcategory import ServiceSubcategory
@@ -297,5 +298,13 @@ def test_reschedule_count_incremented(
 
     db.refresh(original)
     db.refresh(rescheduled)
-    assert original.reschedule_count == 1
-    assert rescheduled.reschedule_count == 1
+    original_reschedule = (
+        db.query(BookingReschedule).filter(BookingReschedule.booking_id == original.id).one_or_none()
+    )
+    new_reschedule = (
+        db.query(BookingReschedule).filter(BookingReschedule.booking_id == rescheduled.id).one_or_none()
+    )
+    assert original_reschedule is not None
+    assert new_reschedule is not None
+    assert original_reschedule.reschedule_count == 1
+    assert new_reschedule.reschedule_count == 1

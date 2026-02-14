@@ -22,6 +22,7 @@ def _task_db(db):
         task._db = db
         task._email_service = None
         task._email_config_service = None
+        task._alert_repo_instance = None
 
     yield
 
@@ -29,6 +30,7 @@ def _task_db(db):
         task._db = None
         task._email_service = None
         task._email_config_service = None
+        task._alert_repo_instance = None
 
 
 def _create_alert(db, alert_type: str = "slow_query", severity: str = "warning") -> AlertHistory:

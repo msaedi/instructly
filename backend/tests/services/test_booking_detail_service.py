@@ -83,10 +83,15 @@ def _attach_payment(
     event_type: str = "auth_succeeded",
     event_time: datetime | None = None,
 ) -> tuple[str, str]:
+    from app.models.booking_payment import BookingPayment
     payment_intent_id = f"pi_{generate_ulid()}"
     charge_id = f"ch_{generate_ulid()}"
-    booking.payment_intent_id = payment_intent_id
-    booking.payment_status = payment_status
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    if bp:
+        bp.payment_intent_id = payment_intent_id
+        bp.payment_status = payment_status
+    else:
+        db.add(BookingPayment(booking_id=booking.id, payment_intent_id=payment_intent_id, payment_status=payment_status))
     db.flush()
 
     db.add(
@@ -415,7 +420,7 @@ def test_booking_detail_credit_tip_and_schedule_helpers():
     assert booking_detail_module._resolve_tip_cents(tip_pending) == 600
 
     booking_with_auth = SimpleNamespace(
-        auth_scheduled_for=now,
+        payment_detail=SimpleNamespace(auth_scheduled_for=now),
         booking_start_utc=now + timedelta(hours=1),
         booking_end_utc=None,
         duration_minutes=60,
@@ -423,7 +428,7 @@ def test_booking_detail_credit_tip_and_schedule_helpers():
     assert booking_detail_module._resolve_scheduled_authorize_at(booking_with_auth) == now
 
     booking_with_start = SimpleNamespace(
-        auth_scheduled_for=None,
+        payment_detail=SimpleNamespace(auth_scheduled_for=None),
         booking_start_utc=now,
         booking_end_utc=None,
         duration_minutes=60,
@@ -436,7 +441,7 @@ def test_booking_detail_credit_tip_and_schedule_helpers():
     )
 
     booking_with_end = SimpleNamespace(
-        auth_scheduled_for=None,
+        payment_detail=SimpleNamespace(auth_scheduled_for=None),
         booking_start_utc=now,
         booking_end_utc=now + timedelta(minutes=30),
         duration_minutes=30,
@@ -448,7 +453,7 @@ def test_booking_detail_credit_tip_and_schedule_helpers():
 
 def test_booking_detail_failure_inference_and_payment_ids(db):
     service = BookingDetailService(db)
-    booking = SimpleNamespace(payment_intent_id=None)
+    booking = SimpleNamespace(payment_detail=SimpleNamespace(payment_intent_id=None))
     payment_intent = PaymentIntent(
         booking_id="bk1",
         stripe_payment_intent_id="pi_1234567890",
@@ -486,7 +491,7 @@ def test_booking_detail_helper_edge_cases():
     assert booking_detail_module._resolve_tip_cents(tip_success) == 900
 
     booking_missing = SimpleNamespace(
-        auth_scheduled_for=None,
+        payment_detail=SimpleNamespace(auth_scheduled_for=None),
         booking_start_utc=None,
         booking_end_utc=None,
         duration_minutes=None,
@@ -511,22 +516,24 @@ def test_booking_detail_payment_status_and_amount_helpers(db):
     now = datetime.now(timezone.utc)
 
     booking = SimpleNamespace(
-        payment_status="locked",
-        auth_scheduled_for=None,
+        payment_detail=SimpleNamespace(
+            payment_status="locked",
+            auth_scheduled_for=None,
+        ),
         booking_start_utc=None,
         booking_end_utc=None,
         duration_minutes=None,
     )
     assert service._resolve_payment_status(booking, []) == "locked"
 
-    booking.payment_status = "settled"
+    booking.payment_detail.payment_status = "settled"
     assert service._resolve_payment_status(booking, []) == "settled"
 
-    booking.payment_status = "unknown"
-    booking.auth_scheduled_for = now
+    booking.payment_detail.payment_status = "unknown"
+    booking.payment_detail.auth_scheduled_for = now
     assert service._resolve_payment_status(booking, []) == "scheduled"
 
-    booking.auth_scheduled_for = None
+    booking.payment_detail.auth_scheduled_for = None
     events = [
         PaymentEvent(
             booking_id="bk1",
@@ -561,7 +568,7 @@ def test_booking_detail_payment_status_and_amount_helpers(db):
     assert amount_error.gross == 0.0
 
     ids = service._build_payment_ids(
-        SimpleNamespace(payment_intent_id="pi_9999"),
+        SimpleNamespace(payment_detail=SimpleNamespace(payment_intent_id="pi_9999")),
         [PaymentEvent(booking_id="bk1", event_type="capture", event_data={}, created_at=now)],
         None,
     )
@@ -569,8 +576,8 @@ def test_booking_detail_payment_status_and_amount_helpers(db):
     assert ids.charge is None
 
     assert service._build_payment_info(
-        SimpleNamespace(payment_status=None, auth_scheduled_for=None, booking_start_utc=None,
-                        booking_end_utc=None, duration_minutes=None),
+        SimpleNamespace(payment_detail=SimpleNamespace(payment_status=None, auth_scheduled_for=None),
+                        booking_start_utc=None, booking_end_utc=None, duration_minutes=None),
         None,
         [],
         0,
@@ -641,8 +648,10 @@ def test_booking_detail_messages_webhooks_and_timeline_helpers(db):
         cancelled_at=None,
         completed_at=None,
         status=BookingStatus.CANCELLED,
-        auth_scheduled_for=now - timedelta(days=1, hours=3),
-        payment_status=PaymentStatus.LOCKED.value,
+        payment_detail=SimpleNamespace(
+            auth_scheduled_for=now - timedelta(days=1, hours=3),
+            payment_status=PaymentStatus.LOCKED.value,
+        ),
         booking_start_utc=now - timedelta(days=2),
         booking_end_utc=now - timedelta(days=2, hours=1),
         duration_minutes=60,
@@ -662,7 +671,7 @@ def test_booking_detail_messages_webhooks_and_timeline_helpers(db):
     assert "PAYMENT_LOCKED" in events
     assert "MESSAGE_SENT" in events
 
-    timeline_booking.payment_status = PaymentStatus.SETTLED.value
+    timeline_booking.payment_detail.payment_status = PaymentStatus.SETTLED.value
     timeline2 = service._build_timeline(
         timeline_booking,
         [],

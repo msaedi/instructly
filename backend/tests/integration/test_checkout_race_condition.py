@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import BookingCancelledException, BookingNotFoundException
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
 from app.schemas.payment_schemas import CreateCheckoutRequest
 from app.services.booking_service import BookingService
 from app.services.config_service import ConfigService
@@ -19,8 +20,11 @@ from app.services.stripe_service import StripeService
 
 def _prepare_pending_booking(db: Session, booking: Booking) -> Booking:
     booking.status = BookingStatus.PENDING.value
-    booking.payment_status = None
     booking.confirmed_at = None
+    # Clear payment_status on the BookingPayment satellite
+    bp = db.query(BookingPayment).filter_by(booking_id=booking.id).first()
+    if bp is not None:
+        bp.payment_status = None
     db.commit()
     return booking
 
@@ -124,7 +128,9 @@ def test_normal_checkout_still_works(db: Session, test_booking: Booking, test_st
     db.refresh(booking)
     assert response.success is True
     assert booking.status == BookingStatus.CONFIRMED.value
-    assert booking.payment_status == PaymentStatus.AUTHORIZED.value
+    bp = db.query(BookingPayment).filter_by(booking_id=booking.id).first()
+    assert bp is not None
+    assert bp.payment_status == PaymentStatus.AUTHORIZED.value
     mock_void.assert_not_called()
 
 

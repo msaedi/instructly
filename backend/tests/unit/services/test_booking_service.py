@@ -41,12 +41,26 @@ def _freeze_time(monkeypatch: pytest.MonkeyPatch, target: datetime) -> None:
 
 
 def make_booking(**overrides: object) -> SimpleNamespace:
+    pd = SimpleNamespace(
+        payment_status=overrides.pop("payment_status", PaymentStatus.AUTHORIZED.value),
+        payment_intent_id=overrides.pop("payment_intent_id", "pi_123"),
+        payment_method_id=overrides.pop("payment_method_id", None),
+        credits_reserved_cents=overrides.pop("credits_reserved_cents", 0),
+        settlement_outcome=overrides.pop("settlement_outcome", None),
+        instructor_payout_amount=overrides.pop("instructor_payout_amount", None),
+        auth_scheduled_for=overrides.pop("auth_scheduled_for", None),
+        auth_attempted_at=overrides.pop("auth_attempted_at", None),
+        auth_failure_count=overrides.pop("auth_failure_count", 0),
+        auth_last_error=overrides.pop("auth_last_error", None),
+        capture_failed_at=overrides.pop("capture_failed_at", None),
+        capture_retry_count=overrides.pop("capture_retry_count", 0),
+        capture_error=overrides.pop("capture_error", None),
+    )
     booking = SimpleNamespace(
         id=overrides.get("id", generate_ulid()),
         student_id=overrides.get("student_id", generate_ulid()),
         instructor_id=overrides.get("instructor_id", generate_ulid()),
         status=overrides.get("status", BookingStatus.CONFIRMED),
-        payment_status=overrides.get("payment_status", PaymentStatus.AUTHORIZED.value),
         booking_date=overrides.get("booking_date", date(2030, 1, 1)),
         start_time=overrides.get("start_time", time(10, 0)),
         end_time=overrides.get("end_time", time(11, 0)),
@@ -54,7 +68,7 @@ def make_booking(**overrides: object) -> SimpleNamespace:
         instructor_service=overrides.get("instructor_service", None),
         student=overrides.get("student", None),
         instructor=overrides.get("instructor", None),
-        payment_intent_id=overrides.get("payment_intent_id", "pi_123"),
+        payment_detail=pd,
     )
     for key, value in overrides.items():
         setattr(booking, key, value)
@@ -72,6 +86,28 @@ def mock_repository() -> MagicMock:
     repo.check_time_conflict.return_value = False
     repo.check_student_time_conflict.return_value = []
     repo.get_by_id.return_value = None
+    repo.get_reschedule_by_booking_id.return_value = None
+    repo.ensure_reschedule.return_value = SimpleNamespace(
+        rescheduled_to_booking_id=None,
+        reschedule_count=0,
+        late_reschedule_used=False,
+        original_lesson_datetime=None,
+    )
+    repo.ensure_payment.return_value = SimpleNamespace(
+        payment_status=None,
+        payment_intent_id=None,
+        payment_method_id=None,
+        credits_reserved_cents=0,
+        settlement_outcome=None,
+        instructor_payout_amount=None,
+        auth_scheduled_for=None,
+        auth_attempted_at=None,
+        auth_failure_count=0,
+        auth_last_error=None,
+        capture_failed_at=None,
+        capture_retry_count=0,
+        capture_error=None,
+    )
     return repo
 
 
@@ -762,9 +798,10 @@ def test_create_rescheduled_booking_with_existing_payment_skips_non_str_fields(
             payment_method_id=None,
         )
 
-    assert result.payment_intent_id == "pi_123"
-    assert result.payment_method_id is None
-    assert result.payment_status is None
+    bp = mock_repository.ensure_payment.return_value
+    assert bp.payment_intent_id == "pi_123"
+    assert bp.payment_method_id is None
+    assert bp.payment_status is None
     assert result.rescheduled_from_booking_id == old_booking.id
 
 
@@ -786,6 +823,9 @@ def test_confirm_booking_payment_gaming_reschedule_success_fallback_message(
     student.id = booking.student_id
 
     mock_repository.get_by_id.side_effect = [booking, booking, None]
+    mock_repository.get_reschedule_by_booking_id.return_value = SimpleNamespace(
+        original_lesson_datetime=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
+    )
     booking_service._get_booking_start_utc = Mock(
         return_value=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
     )
@@ -840,6 +880,9 @@ def test_build_cancellation_context_reschedule_time_missing(
     booking_service._get_booking_start_utc = Mock(
         return_value=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
     )
+    booking_service.repository.get_reschedule_by_booking_id.return_value = SimpleNamespace(
+        original_lesson_datetime=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
+    )
     with patch("app.services.booking_service.TimezoneService.hours_until", return_value=30):
         with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
             payment_repo.return_value.get_connected_account_by_instructor_id.return_value = None
@@ -865,6 +908,9 @@ def test_build_cancellation_context_gaming_requires_authorized_payment(
 
     booking_service._get_booking_start_utc = Mock(
         return_value=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
+    )
+    booking_service.repository.get_reschedule_by_booking_id.return_value = SimpleNamespace(
+        original_lesson_datetime=datetime(2030, 1, 2, 10, 0, tzinfo=timezone.utc)
     )
     with patch("app.services.booking_service.TimezoneService.hours_until", return_value=30):
         with patch("app.repositories.payment_repository.PaymentRepository") as payment_repo:
@@ -892,7 +938,7 @@ def test_cancel_booking_without_stripe_keeps_payment_intent(
 
     booking_service.cancel_booking_without_stripe(booking.id, user, clear_payment_intent=False)
 
-    assert booking.payment_intent_id == "pi_123"
+    assert booking.payment_detail.payment_intent_id == "pi_123"
     booking.cancel.assert_called_once()
 
 

@@ -7,6 +7,7 @@ from unittest.mock import patch
 from sqlalchemy.orm import Session
 
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
 from app.models.user import User
 from app.tasks.payment_tasks import process_scheduled_authorizations, retry_failed_authorizations
 
@@ -48,8 +49,8 @@ def _create_scheduled_booking(
         location_type="neutral_location",
         payment_status=PaymentStatus.SCHEDULED.value,
         payment_method_id="pm_test",
+        auth_scheduled_for=now - timedelta(minutes=5),
     )
-    booking.auth_scheduled_for = now - timedelta(minutes=5)
     db.commit()
     return booking
 
@@ -86,9 +87,9 @@ def _create_failed_auth_booking(
         location_type="neutral_location",
         payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
         payment_method_id="pm_test",
+        auth_attempted_at=now - timedelta(hours=2),
+        auth_failure_count=1,
     )
-    booking.auth_attempted_at = now - timedelta(hours=2)
-    booking.auth_failure_count = 1
     db.commit()
     return booking
 
@@ -111,7 +112,9 @@ def test_first_auth_failure_sends_email(
         process_scheduled_authorizations()
 
     db.refresh(booking)
-    assert booking.auth_failure_first_email_sent_at is not None
+    bp = db.query(BookingPayment).filter_by(booking_id=booking.id).one_or_none()
+    assert bp is not None
+    assert bp.auth_failure_first_email_sent_at is not None
     assert mock_warn.called is True
 
 
@@ -133,5 +136,7 @@ def test_t13_warning_sent(
         retry_failed_authorizations()
 
     db.refresh(booking)
-    assert booking.auth_failure_t13_warning_sent_at is not None
+    bp = db.query(BookingPayment).filter_by(booking_id=booking.id).one_or_none()
+    assert bp is not None
+    assert bp.auth_failure_t13_warning_sent_at is not None
     assert mock_warn.called is True

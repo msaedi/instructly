@@ -10,6 +10,8 @@ from fastapi import status
 
 from app.core.ulid_helper import generate_ulid
 from app.models.booking import BookingStatus
+from app.models.booking_no_show import BookingNoShow
+from app.models.booking_payment import BookingPayment
 from app.models.payment import PaymentIntent, PlatformCredit
 from app.services.booking_service import BookingService
 from app.tasks.payment_tasks import resolve_undisputed_no_shows
@@ -54,6 +56,32 @@ def _create_reserved_credit(db, booking, amount_cents: int = 6000) -> PlatformCr
     return credit
 
 
+def _get_no_show(db, booking_id: str) -> BookingNoShow | None:
+    return db.query(BookingNoShow).filter(BookingNoShow.booking_id == booking_id).one_or_none()
+
+
+def _ensure_payment_detail(db, booking, **fields) -> BookingPayment:
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).one_or_none()
+    if bp is None:
+        bp = BookingPayment(id=generate_ulid(), booking_id=booking.id)
+        db.add(bp)
+    for key, value in fields.items():
+        setattr(bp, key, value)
+    db.flush()
+    booking.payment_detail = bp
+    return bp
+
+
+def _upsert_no_show(db, booking, **fields) -> BookingNoShow:
+    no_show = _get_no_show(db, booking.id)
+    if no_show is None:
+        no_show = BookingNoShow(booking_id=booking.id)
+        db.add(no_show)
+    for key, value in fields.items():
+        setattr(no_show, key, value)
+    return no_show
+
+
 class TestNoShowReporting:
     def test_student_can_report_instructor_no_show(
         self, client, db, test_booking, auth_headers_student
@@ -73,8 +101,12 @@ class TestNoShowReporting:
         assert data["no_show_type"] == "instructor"
 
         db.refresh(test_booking)
-        assert test_booking.payment_status == "manual_review"
-        assert test_booking.no_show_type == "instructor"
+        bp = db.query(BookingPayment).filter_by(booking_id=test_booking.id).one_or_none()
+        no_show = _get_no_show(db, test_booking.id)
+        assert bp is not None
+        assert bp.payment_status == "manual_review"
+        assert no_show is not None
+        assert no_show.no_show_type == "instructor"
 
     def test_admin_can_report_any_no_show(
         self, client, db, test_booking, auth_headers_admin
@@ -148,10 +180,14 @@ class TestNoShowDispute:
     ):
         now = datetime.now(timezone.utc)
         _set_booking_times(test_booking, _safe_recent_start(now))
-        test_booking.no_show_reported_at = now - timedelta(hours=1)
-        test_booking.no_show_reported_by = test_booking.student_id
-        test_booking.no_show_type = "instructor"
-        test_booking.payment_status = "manual_review"
+        _upsert_no_show(
+            db,
+            test_booking,
+            no_show_reported_at=now - timedelta(hours=1),
+            no_show_reported_by=test_booking.student_id,
+            no_show_type="instructor",
+        )
+        _ensure_payment_detail(db, test_booking, payment_status="manual_review")
         db.commit()
 
         response = client.post(
@@ -162,17 +198,23 @@ class TestNoShowDispute:
 
         assert response.status_code == status.HTTP_200_OK
         db.refresh(test_booking)
-        assert test_booking.no_show_disputed is True
+        no_show = _get_no_show(db, test_booking.id)
+        assert no_show is not None
+        assert no_show.no_show_disputed is True
 
     def test_cannot_dispute_after_24h(
         self, client, db, test_booking, auth_headers_instructor
     ):
         now = datetime.now(timezone.utc)
         _set_booking_times(test_booking, _safe_recent_start(now))
-        test_booking.no_show_reported_at = now - timedelta(hours=25)
-        test_booking.no_show_reported_by = test_booking.student_id
-        test_booking.no_show_type = "instructor"
-        test_booking.payment_status = "manual_review"
+        _upsert_no_show(
+            db,
+            test_booking,
+            no_show_reported_at=now - timedelta(hours=25),
+            no_show_reported_by=test_booking.student_id,
+            no_show_type="instructor",
+        )
+        _ensure_payment_detail(db, test_booking, payment_status="manual_review")
         db.commit()
 
         response = client.post(
@@ -188,10 +230,14 @@ class TestNoShowDispute:
     ):
         now = datetime.now(timezone.utc)
         _set_booking_times(test_booking, _safe_recent_start(now))
-        test_booking.no_show_reported_at = now - timedelta(hours=1)
-        test_booking.no_show_reported_by = test_booking.student_id
-        test_booking.no_show_type = "instructor"
-        test_booking.payment_status = "manual_review"
+        _upsert_no_show(
+            db,
+            test_booking,
+            no_show_reported_at=now - timedelta(hours=1),
+            no_show_reported_by=test_booking.student_id,
+            no_show_type="instructor",
+        )
+        _ensure_payment_detail(db, test_booking, payment_status="manual_review")
         db.commit()
 
         response = client.post(
@@ -207,12 +253,16 @@ class TestNoShowDispute:
     ):
         now = datetime.now(timezone.utc)
         _set_booking_times(test_booking, _safe_recent_start(now))
-        test_booking.no_show_reported_at = now - timedelta(hours=1)
-        test_booking.no_show_reported_by = test_booking.student_id
-        test_booking.no_show_type = "instructor"
-        test_booking.payment_status = "manual_review"
-        test_booking.no_show_disputed = True
-        test_booking.no_show_disputed_at = now - timedelta(minutes=30)
+        _upsert_no_show(
+            db,
+            test_booking,
+            no_show_reported_at=now - timedelta(hours=1),
+            no_show_reported_by=test_booking.student_id,
+            no_show_type="instructor",
+            no_show_disputed=True,
+            no_show_disputed_at=now - timedelta(minutes=30),
+        )
+        _ensure_payment_detail(db, test_booking, payment_status="manual_review")
         db.commit()
 
         response = client.post(
@@ -228,12 +278,15 @@ class TestNoShowAutoResolution:
     def test_auto_resolve_undisputed_after_24h(self, db, test_booking):
         now = datetime.now(timezone.utc)
         _set_booking_times(test_booking, _safe_recent_start(now))
-        test_booking.no_show_reported_at = now - timedelta(hours=25)
-        test_booking.no_show_reported_by = test_booking.student_id
-        test_booking.no_show_type = "student"
-        test_booking.payment_status = "manual_review"
+        _upsert_no_show(
+            db,
+            test_booking,
+            no_show_reported_at=now - timedelta(hours=25),
+            no_show_reported_by=test_booking.student_id,
+            no_show_type="student",
+        )
         pi_id = f"pi_{generate_ulid()}"
-        test_booking.payment_intent_id = pi_id
+        _ensure_payment_detail(db, test_booking, payment_status="manual_review", payment_intent_id=pi_id)
         db.add(
             PaymentIntent(
                 id=generate_ulid(),
@@ -260,17 +313,25 @@ class TestNoShowAutoResolution:
 
         assert results["resolved"] == 1
         db.refresh(test_booking)
-        assert test_booking.no_show_resolution == "confirmed_no_dispute"
-        assert test_booking.payment_status == "settled"
+        bp = db.query(BookingPayment).filter_by(booking_id=test_booking.id).one_or_none()
+        no_show = _get_no_show(db, test_booking.id)
+        assert no_show is not None
+        assert no_show.no_show_resolution == "confirmed_no_dispute"
+        assert bp is not None
+        assert bp.payment_status == "settled"
 
     def test_disputed_not_auto_resolved(self, db, test_booking):
         now = datetime.now(timezone.utc)
         _set_booking_times(test_booking, _safe_recent_start(now))
-        test_booking.no_show_reported_at = now - timedelta(hours=25)
-        test_booking.no_show_reported_by = test_booking.student_id
-        test_booking.no_show_type = "student"
-        test_booking.no_show_disputed = True
-        test_booking.payment_status = "manual_review"
+        _upsert_no_show(
+            db,
+            test_booking,
+            no_show_reported_at=now - timedelta(hours=25),
+            no_show_reported_by=test_booking.student_id,
+            no_show_type="student",
+            no_show_disputed=True,
+        )
+        _ensure_payment_detail(db, test_booking, payment_status="manual_review")
         db.commit()
 
         with patch("app.tasks.payment_tasks.booking_lock_sync", _lock_acquired):
@@ -278,7 +339,9 @@ class TestNoShowAutoResolution:
 
         assert results["resolved"] == 0
         db.refresh(test_booking)
-        assert test_booking.no_show_resolved_at is None
+        no_show = _get_no_show(db, test_booking.id)
+        assert no_show is not None
+        assert no_show.no_show_resolved_at is None
 
 
 class TestNoShowAdminResolution:
@@ -287,12 +350,15 @@ class TestNoShowAdminResolution:
     ):
         now = datetime.now(timezone.utc)
         _set_booking_times(test_booking, _safe_recent_start(now))
-        test_booking.no_show_reported_at = now - timedelta(hours=1)
-        test_booking.no_show_reported_by = test_booking.student_id
-        test_booking.no_show_type = "instructor"
-        test_booking.payment_status = "settled"
+        _upsert_no_show(
+            db,
+            test_booking,
+            no_show_reported_at=now - timedelta(hours=1),
+            no_show_reported_by=test_booking.student_id,
+            no_show_type="instructor",
+        )
         pi_id = f"pi_{generate_ulid()}"
-        test_booking.payment_intent_id = pi_id
+        _ensure_payment_detail(db, test_booking, payment_status="settled", payment_intent_id=pi_id)
         db.commit()
 
         stripe_service_instance = MagicMock()
@@ -309,20 +375,25 @@ class TestNoShowAdminResolution:
 
         assert response.status_code == status.HTTP_200_OK
         db.refresh(test_booking)
-        assert test_booking.settlement_outcome == "instructor_no_show_full_refund"
-        assert test_booking.payment_status == "settled"
+        bp = db.query(BookingPayment).filter_by(booking_id=test_booking.id).one_or_none()
+        assert bp is not None
+        assert bp.settlement_outcome == "instructor_no_show_full_refund"
+        assert bp.payment_status == "settled"
 
     def test_admin_can_uphold_dispute(
         self, client, db, test_booking, auth_headers_admin
     ):
         now = datetime.now(timezone.utc)
         _set_booking_times(test_booking, _safe_recent_start(now))
-        test_booking.no_show_reported_at = now - timedelta(hours=2)
-        test_booking.no_show_reported_by = test_booking.student_id
-        test_booking.no_show_type = "instructor"
-        test_booking.payment_status = "authorized"
+        _upsert_no_show(
+            db,
+            test_booking,
+            no_show_reported_at=now - timedelta(hours=2),
+            no_show_reported_by=test_booking.student_id,
+            no_show_type="instructor",
+        )
         pi_id = f"pi_{generate_ulid()}"
-        test_booking.payment_intent_id = pi_id
+        _ensure_payment_detail(db, test_booking, payment_status="authorized", payment_intent_id=pi_id)
         db.commit()
 
         stripe_service_instance = MagicMock()
@@ -342,20 +413,25 @@ class TestNoShowAdminResolution:
 
         assert response.status_code == status.HTTP_200_OK
         db.refresh(test_booking)
+        bp = db.query(BookingPayment).filter_by(booking_id=test_booking.id).one_or_none()
         assert test_booking.status == BookingStatus.COMPLETED
-        assert test_booking.payment_status == "settled"
+        assert bp is not None
+        assert bp.payment_status == "settled"
 
     def test_admin_can_cancel_report(
         self, client, db, test_booking, auth_headers_admin
     ):
         now = datetime.now(timezone.utc)
         _set_booking_times(test_booking, _safe_recent_start(now))
-        test_booking.no_show_reported_at = now - timedelta(hours=2)
-        test_booking.no_show_reported_by = test_booking.student_id
-        test_booking.no_show_type = "instructor"
-        test_booking.payment_status = "manual_review"
+        _upsert_no_show(
+            db,
+            test_booking,
+            no_show_reported_at=now - timedelta(hours=2),
+            no_show_reported_by=test_booking.student_id,
+            no_show_type="instructor",
+        )
         pi_id = f"pi_{generate_ulid()}"
-        test_booking.payment_intent_id = pi_id
+        _ensure_payment_detail(db, test_booking, payment_status="manual_review", payment_intent_id=pi_id)
         db.add(
             PaymentIntent(
                 id=generate_ulid(),
@@ -376,20 +452,27 @@ class TestNoShowAdminResolution:
 
         assert response.status_code == status.HTTP_200_OK
         db.refresh(test_booking)
-        assert test_booking.no_show_resolution == "cancelled"
-        assert test_booking.payment_status == "authorized"
+        bp = db.query(BookingPayment).filter_by(booking_id=test_booking.id).one_or_none()
+        no_show = _get_no_show(db, test_booking.id)
+        assert no_show is not None
+        assert no_show.no_show_resolution == "cancelled"
+        assert bp is not None
+        assert bp.payment_status == "authorized"
 
 
 class TestNoShowSettlement:
     def test_instructor_no_show_releases_credits(self, db, test_booking):
         now = datetime.now(timezone.utc)
         _set_booking_times(test_booking, _safe_recent_start(now))
-        test_booking.no_show_reported_at = now - timedelta(hours=1)
-        test_booking.no_show_reported_by = test_booking.student_id
-        test_booking.no_show_type = "instructor"
-        test_booking.payment_status = "settled"
+        _upsert_no_show(
+            db,
+            test_booking,
+            no_show_reported_at=now - timedelta(hours=1),
+            no_show_reported_by=test_booking.student_id,
+            no_show_type="instructor",
+        )
         pi_id = f"pi_{generate_ulid()}"
-        test_booking.payment_intent_id = pi_id
+        _ensure_payment_detail(db, test_booking, payment_status="settled", payment_intent_id=pi_id)
         db.commit()
 
         credit = _create_reserved_credit(db, test_booking)
@@ -414,12 +497,15 @@ class TestNoShowSettlement:
     def test_student_no_show_forfeits_credits(self, db, test_booking):
         now = datetime.now(timezone.utc)
         _set_booking_times(test_booking, _safe_recent_start(now))
-        test_booking.no_show_reported_at = now - timedelta(hours=1)
-        test_booking.no_show_reported_by = test_booking.student_id
-        test_booking.no_show_type = "student"
-        test_booking.payment_status = "authorized"
+        _upsert_no_show(
+            db,
+            test_booking,
+            no_show_reported_at=now - timedelta(hours=1),
+            no_show_reported_by=test_booking.student_id,
+            no_show_type="student",
+        )
         pi_id = f"pi_{generate_ulid()}"
-        test_booking.payment_intent_id = pi_id
+        _ensure_payment_detail(db, test_booking, payment_status="authorized", payment_intent_id=pi_id)
         db.add(
             PaymentIntent(
                 id=generate_ulid(),
@@ -452,6 +538,8 @@ class TestNoShowSettlement:
 
         db.refresh(credit)
         db.refresh(test_booking)
+        bp = db.query(BookingPayment).filter_by(booking_id=test_booking.id).one_or_none()
         assert credit.status == "forfeited"
         assert credit.reserved_amount_cents == 0
-        assert test_booking.settlement_outcome == "student_no_show_full_payout"
+        assert bp is not None
+        assert bp.settlement_outcome == "student_no_show_full_payout"

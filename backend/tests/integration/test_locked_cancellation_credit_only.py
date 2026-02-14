@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 import ulid
 
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
+from app.models.booking_transfer import BookingTransfer
 from app.models.instructor import InstructorProfile
 from app.models.payment import PaymentIntent, PlatformCredit, StripeConnectedAccount
 from app.models.service_catalog import InstructorService
@@ -114,6 +116,21 @@ def _create_locked_booking(
     return booking
 
 
+def _reload_payment(db: Session, booking: Booking) -> None:
+    """Re-attach payment_detail after db.refresh (noload relationship)."""
+    booking.payment_detail = (
+        db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).one_or_none()
+    )
+
+
+def _get_transfer(db: Session, booking_id: str) -> BookingTransfer | None:
+    return (
+        db.query(BookingTransfer)
+        .filter(BookingTransfer.booking_id == booking_id)
+        .first()
+    )
+
+
 def test_student_locked_cancel_ge12_gets_credit_not_refund(
     db: Session, test_student: User, test_instructor: User
 ) -> None:
@@ -130,6 +147,7 @@ def test_student_locked_cancel_ge12_gets_credit_not_refund(
         stripe_instance.refund_payment.assert_not_called()
 
     db.refresh(booking)
+    _reload_payment(db, booking)
     credit = (
         db.query(PlatformCredit)
         .filter(PlatformCredit.source_booking_id == booking.id)
@@ -137,9 +155,9 @@ def test_student_locked_cancel_ge12_gets_credit_not_refund(
     )
     assert credit is not None
     assert credit.amount_cents == 12000
-    assert booking.settlement_outcome == "locked_cancel_ge12_full_credit"
+    assert booking.payment_detail.settlement_outcome == "locked_cancel_ge12_full_credit"
     assert booking.refunded_to_card_amount == 0
-    assert booking.payment_status == PaymentStatus.SETTLED.value
+    assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
 
 
 def test_student_locked_cancel_lt12_gets_50_credit_not_refund(
@@ -158,6 +176,7 @@ def test_student_locked_cancel_lt12_gets_50_credit_not_refund(
         stripe_instance.refund_payment.assert_not_called()
 
     db.refresh(booking)
+    _reload_payment(db, booking)
     credit = (
         db.query(PlatformCredit)
         .filter(PlatformCredit.source_booking_id == booking.id)
@@ -165,10 +184,12 @@ def test_student_locked_cancel_lt12_gets_50_credit_not_refund(
     )
     assert credit is not None
     assert credit.amount_cents == 6000
-    assert booking.payout_transfer_id == "tr_payout"
-    assert booking.settlement_outcome == "locked_cancel_lt12_split_50_50"
+    transfer = _get_transfer(db, booking.id)
+    assert transfer is not None
+    assert transfer.payout_transfer_id == "tr_payout"
+    assert booking.payment_detail.settlement_outcome == "locked_cancel_lt12_split_50_50"
     assert booking.refunded_to_card_amount == 0
-    assert booking.payment_status == PaymentStatus.SETTLED.value
+    assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value
 
 
 def test_instructor_locked_cancel_gets_full_refund(
@@ -189,6 +210,9 @@ def test_instructor_locked_cancel_gets_full_refund(
         stripe_instance.refund_payment.assert_called_once()
 
     db.refresh(booking)
-    assert booking.refund_id == "re_locked"
-    assert booking.settlement_outcome == "instructor_cancel_full_refund"
-    assert booking.payment_status == PaymentStatus.SETTLED.value
+    _reload_payment(db, booking)
+    transfer = _get_transfer(db, booking.id)
+    assert transfer is not None
+    assert transfer.refund_id == "re_locked"
+    assert booking.payment_detail.settlement_outcome == "instructor_cancel_full_refund"
+    assert booking.payment_detail.payment_status == PaymentStatus.SETTLED.value

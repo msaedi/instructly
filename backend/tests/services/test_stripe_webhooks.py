@@ -12,6 +12,9 @@ import ulid
 
 from app.core.exceptions import ServiceException
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_dispute import BookingDispute
+from app.models.booking_payment import BookingPayment
+from app.models.booking_transfer import BookingTransfer
 from app.models.instructor import InstructorProfile
 from app.models.payment import InstructorPayoutEvent, PaymentIntent, PlatformCredit
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
@@ -147,6 +150,18 @@ def _always_acquire_lock():
     return _lock
 
 
+def _ensure_payment_detail(db: Session, booking: Booking, **fields) -> BookingPayment:
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).one_or_none()
+    if bp is None:
+        bp = BookingPayment(id=str(ulid.ULID()), booking_id=booking.id)
+        db.add(bp)
+    for key, value in fields.items():
+        setattr(bp, key, value)
+    db.flush()
+    booking.payment_detail = bp
+    return bp
+
+
 @patch("stripe.Webhook.construct_event")
 @patch("app.services.stripe_service.settings")
 def test_verify_webhook_signature_valid(
@@ -242,8 +257,8 @@ def test_dispute_created_sets_manual_review_and_freezes_credits(
 ):
     """Dispute created moves booking to manual_review and freezes credits."""
     booking = test_booking
-    booking.payment_status = PaymentStatus.SETTLED.value
-    booking.stripe_transfer_id = "tr_test"
+    _ensure_payment_detail(db, booking, payment_status=PaymentStatus.SETTLED.value)
+    db.add(BookingTransfer(booking_id=booking.id, stripe_transfer_id="tr_test"))
     db.commit()
 
     _create_payment_record(db, booking, "pi_dispute")
@@ -265,11 +280,17 @@ def test_dispute_created_sets_manual_review_and_freezes_credits(
     assert result is True
     db.refresh(booking)
     db.refresh(credit)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).one_or_none()
+    dispute = db.query(BookingDispute).filter(BookingDispute.booking_id == booking.id).first()
+    transfer = db.query(BookingTransfer).filter(BookingTransfer.booking_id == booking.id).first()
 
-    assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
-    assert booking.dispute_id == "dp_test"
-    assert booking.transfer_reversed is True
-    assert booking.transfer_reversal_id == "trr_test"
+    assert bp is not None
+    assert bp.payment_status == PaymentStatus.MANUAL_REVIEW.value
+    assert dispute is not None
+    assert dispute.dispute_id == "dp_test"
+    assert transfer is not None
+    assert transfer.transfer_reversed is True
+    assert transfer.transfer_reversal_id == "trr_test"
     assert credit.status == "frozen"
 
 
@@ -281,8 +302,8 @@ def test_dispute_closed_won_unfreezes_credits(
 ):
     """Winning a dispute unfreezes credits and settles booking."""
     booking = test_booking
-    booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
-    booking.dispute_id = "dp_won"
+    _ensure_payment_detail(db, booking, payment_status=PaymentStatus.MANUAL_REVIEW.value)
+    db.add(BookingDispute(booking_id=booking.id, dispute_id="dp_won"))
     db.commit()
 
     _create_payment_record(db, booking, "pi_won")
@@ -299,9 +320,14 @@ def test_dispute_closed_won_unfreezes_credits(
     assert result is True
     db.refresh(booking)
     db.refresh(credit)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).one_or_none()
+    dispute = db.query(BookingDispute).filter(BookingDispute.booking_id == booking.id).first()
 
-    assert booking.payment_status == PaymentStatus.SETTLED.value
-    assert booking.settlement_outcome == "dispute_won"
+    assert bp is not None
+    assert bp.payment_status == PaymentStatus.SETTLED.value
+    assert bp.settlement_outcome == "dispute_won"
+    assert dispute is not None
+    assert dispute.dispute_status == "won"
     assert credit.status == "available"
 
 
@@ -313,8 +339,8 @@ def test_dispute_closed_lost_sets_refund_outcome(
 ):
     """Losing a dispute finalizes settlement as student refund."""
     booking = test_booking
-    booking.payment_status = PaymentStatus.MANUAL_REVIEW.value
-    booking.dispute_id = "dp_lost"
+    _ensure_payment_detail(db, booking, payment_status=PaymentStatus.MANUAL_REVIEW.value)
+    db.add(BookingDispute(booking_id=booking.id, dispute_id="dp_lost"))
     db.commit()
 
     _create_payment_record(db, booking, "pi_lost")
@@ -331,9 +357,14 @@ def test_dispute_closed_lost_sets_refund_outcome(
     assert result is True
     db.refresh(booking)
     db.refresh(credit)
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).one_or_none()
+    dispute = db.query(BookingDispute).filter(BookingDispute.booking_id == booking.id).first()
 
-    assert booking.payment_status == PaymentStatus.SETTLED.value
-    assert booking.settlement_outcome == "student_wins_dispute_full_refund"
+    assert bp is not None
+    assert bp.payment_status == PaymentStatus.SETTLED.value
+    assert bp.settlement_outcome == "student_wins_dispute_full_refund"
+    assert dispute is not None
+    assert dispute.dispute_status == "lost"
     assert credit.status == "revoked"
 
 

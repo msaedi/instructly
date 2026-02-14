@@ -1,28 +1,24 @@
+import os
 
 from fastapi.testclient import TestClient
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def _verbose_availability_logs(monkeypatch):
-    """Enable verbose logging for availability operations."""
-    monkeypatch.setenv("AVAILABILITY_PERF_DEBUG", "1", prepend=False)
-    monkeypatch.setenv("SUPPRESS_PAST_AVAILABILITY_EVENTS", "0", prepend=False)
-    monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true", prepend=False)
-    # Patch settings if available
-    try:
-        from app.core.config import settings
-        if hasattr(settings, "availability_perf_debug"):
-            monkeypatch.setattr(settings, "availability_perf_debug", True, raising=False)
-        if hasattr(settings, "suppress_past_availability_events"):
-            monkeypatch.setattr(settings, "suppress_past_availability_events", False, raising=False)
-    except Exception:
-        pass
+@pytest.fixture(scope="module")
+def client():
+    # Save and remove STRICT_SCHEMAS
+    old_strict = os.environ.get('STRICT_SCHEMAS')
+    os.environ.pop('STRICT_SCHEMAS', None)
 
-
-@pytest.fixture()
-def client(monkeypatch):
-    monkeypatch.delenv('STRICT_SCHEMAS', raising=False)
+    # Set verbose availability logging env vars
+    env_keys = {
+        "AVAILABILITY_PERF_DEBUG": "1",
+        "SUPPRESS_PAST_AVAILABILITY_EVENTS": "0",
+        "AVAILABILITY_ALLOW_PAST": "true",
+    }
+    old_env = {k: os.environ.get(k) for k in env_keys}
+    for k, v in env_keys.items():
+        os.environ[k] = v
 
     from importlib import reload
     from types import SimpleNamespace
@@ -59,7 +55,28 @@ def client(monkeypatch):
             for dep in route.dependencies:
                 main.fastapi_app.dependency_overrides[dep.dependency] = lambda: None
 
-    return TestClient(main.fastapi_app, raise_server_exceptions=False)
+    _client = TestClient(main.fastapi_app, raise_server_exceptions=False)
+    yield _client
+
+    # Cleanup dependency overrides
+    main.fastapi_app.dependency_overrides.clear()
+
+    # Restore env vars
+    if old_strict is None:
+        os.environ.pop('STRICT_SCHEMAS', None)
+    else:
+        os.environ['STRICT_SCHEMAS'] = old_strict
+
+    for k, old_val in old_env.items():
+        if old_val is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = old_val
+
+    reload(base)
+    reload(booking_schemas)
+    reload(bookings_routes)
+    reload(main)
 
 
 def test_create_booking_rejects_datetime_strings(client: TestClient):

@@ -8,7 +8,7 @@ Provides methods for basic lookups, role checks, and user counts.
 
 from datetime import datetime
 import logging
-from typing import Any, Optional, Sequence, cast
+from typing import Any, List, Optional, Sequence, cast
 
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session, joinedload
@@ -211,6 +211,24 @@ class UserRepository(BaseRepository[User]):
         except Exception as e:
             self.logger.error(f"Error getting instructor {user_id}: {str(e)}")
             return None
+
+    def get_active_admin_users(self) -> List[User]:
+        """Get all active users with the admin role."""
+        from ..core.enums import RoleName
+
+        try:
+            return cast(
+                List[User],
+                (
+                    self.db.query(User)
+                    .join(User.roles)
+                    .filter(Role.name == RoleName.ADMIN, User.is_active.is_(True))
+                    .all()
+                ),
+            )
+        except Exception as e:
+            self.logger.error(f"Error getting active admin users: {str(e)}")
+            return []
 
     def is_instructor(self, user_id: str) -> bool:
         """

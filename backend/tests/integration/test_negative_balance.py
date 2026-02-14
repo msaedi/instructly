@@ -8,6 +8,7 @@ import ulid
 
 from app.core.exceptions import BusinessRuleException
 from app.models.booking import Booking, BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
 from app.models.instructor import InstructorProfile
 from app.models.payment import PaymentIntent
 from app.models.service_catalog import InstructorService
@@ -108,7 +109,9 @@ def test_dispute_with_unspent_credits_freezes_only(
     db.refresh(booking)
     db.refresh(test_student)
     db.refresh(credit)
-    assert booking.payment_status == PaymentStatus.MANUAL_REVIEW.value
+    bp = db.query(BookingPayment).filter(BookingPayment.booking_id == booking.id).first()
+    assert bp is not None
+    assert bp.payment_status == PaymentStatus.MANUAL_REVIEW.value
     assert credit.status == "frozen"
     assert test_student.credit_balance_cents == 0
     assert getattr(test_student, "account_restricted", False) is False

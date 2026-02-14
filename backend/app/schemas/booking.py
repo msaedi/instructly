@@ -511,6 +511,133 @@ class BookingServiceInfo(StandardizedModel):
 ServiceInfo = BookingServiceInfo
 
 
+# ---------------------------------------------------------------------------
+# Shared satellite-field extraction helpers
+# ---------------------------------------------------------------------------
+# These module-level helpers are shared by BookingResponse.from_booking() and
+# BookingCreateResponse.from_booking() so that satellite field extraction is
+# defined in exactly one place.  When adding satellite fields, update
+# _extract_satellite_fields() — both response types pick up the change.
+# ---------------------------------------------------------------------------
+
+
+def _safe_location_type(value: object) -> Optional[str]:
+    """Coerce a location_type value to a known enum string, defaulting to 'online'."""
+    if isinstance(value, str) and value in (
+        "student_location",
+        "instructor_location",
+        "online",
+        "neutral_location",
+    ):
+        return value
+    return "online"
+
+
+def _safe_datetime(value: object) -> Optional[datetime]:
+    return value if isinstance(value, datetime) else None
+
+
+def _safe_str(value: object) -> Optional[str]:
+    return value if isinstance(value, str) else None
+
+
+def _safe_int(value: object) -> Optional[int]:
+    # Avoid bools (subclass of int) and mocked values.
+    if isinstance(value, bool):
+        return None
+    return value if isinstance(value, int) else None
+
+
+def _safe_float(value: object) -> Optional[float]:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float, Decimal)):
+        return float(value)
+    return None
+
+
+def _safe_bool(value: object) -> Optional[bool]:
+    return value if isinstance(value, bool) else None
+
+
+def _extract_satellite_fields(booking: Any) -> dict[str, Any]:
+    """Extract satellite table fields for API responses.
+
+    Shared by ``BookingResponse.from_booking()`` and
+    ``BookingCreateResponse.from_booking()``.  Update here to affect both
+    response types.
+
+    Returns a dict of field-name → value that can be merged into the
+    ``response_data`` dict built by each ``from_booking()`` call.
+    """
+    no_show_detail = getattr(booking, "no_show_detail", None)
+    lock_detail = getattr(booking, "lock_detail", None)
+    payment_detail = getattr(booking, "payment_detail", None)
+    reschedule_detail = getattr(booking, "reschedule_detail", None)
+
+    def _payment_value(field_name: str) -> object:
+        if payment_detail is not None:
+            return getattr(payment_detail, field_name, None)
+        return None
+
+    rescheduled_from_booking_id_raw = getattr(booking, "rescheduled_from_booking_id", None)
+
+    return {
+        # Reschedule tracking
+        "rescheduled_from_booking_id": rescheduled_from_booking_id_raw
+        if isinstance(rescheduled_from_booking_id_raw, str)
+        else None,
+        "rescheduled_to_booking_id": _safe_str(
+            getattr(reschedule_detail, "rescheduled_to_booking_id", None)
+        ),
+        "has_locked_funds": _safe_bool(getattr(booking, "has_locked_funds", None)),
+        # Booking temporal details
+        "booking_start_utc": _safe_datetime(getattr(booking, "booking_start_utc", None)),
+        "booking_end_utc": _safe_datetime(getattr(booking, "booking_end_utc", None)),
+        "lesson_timezone": _safe_str(getattr(booking, "lesson_timezone", None)),
+        "instructor_timezone": _safe_str(getattr(booking, "instructor_tz_at_booking", None)),
+        "student_timezone": _safe_str(getattr(booking, "student_tz_at_booking", None)),
+        # Location
+        "service_area": _safe_str(getattr(booking, "service_area", None)),
+        "meeting_location": _safe_str(getattr(booking, "meeting_location", None)),
+        "location_type": _safe_location_type(getattr(booking, "location_type", None)),
+        "location_address": _safe_str(getattr(booking, "location_address", None)),
+        "location_lat": _safe_float(getattr(booking, "location_lat", None)),
+        "location_lng": _safe_float(getattr(booking, "location_lng", None)),
+        "location_place_id": _safe_str(getattr(booking, "location_place_id", None)),
+        # Notes
+        "student_note": _safe_str(getattr(booking, "student_note", None)),
+        "instructor_note": _safe_str(getattr(booking, "instructor_note", None)),
+        # No-show tracking
+        "no_show_reported_by": _safe_str(getattr(no_show_detail, "no_show_reported_by", None)),
+        "no_show_reported_at": _safe_datetime(getattr(no_show_detail, "no_show_reported_at", None)),
+        "no_show_type": _safe_str(getattr(no_show_detail, "no_show_type", None)),
+        "no_show_disputed": _safe_bool(getattr(no_show_detail, "no_show_disputed", None)),
+        "no_show_disputed_at": _safe_datetime(getattr(no_show_detail, "no_show_disputed_at", None)),
+        "no_show_dispute_reason": _safe_str(
+            getattr(no_show_detail, "no_show_dispute_reason", None)
+        ),
+        "no_show_resolved_at": _safe_datetime(getattr(no_show_detail, "no_show_resolved_at", None)),
+        "no_show_resolution": _safe_str(getattr(no_show_detail, "no_show_resolution", None)),
+        # Settlement tracking
+        "settlement_outcome": _safe_str(_payment_value("settlement_outcome")),
+        "student_credit_amount": _safe_int(getattr(booking, "student_credit_amount", None)),
+        "instructor_payout_amount": _safe_int(_payment_value("instructor_payout_amount")),
+        "refunded_to_card_amount": _safe_int(getattr(booking, "refunded_to_card_amount", None)),
+        "credits_reserved_cents": _safe_int(_payment_value("credits_reserved_cents")),
+        # Authorization scheduling
+        "auth_scheduled_for": _safe_datetime(_payment_value("auth_scheduled_for")),
+        "auth_attempted_at": _safe_datetime(_payment_value("auth_attempted_at")),
+        "auth_failure_count": _safe_int(_payment_value("auth_failure_count")),
+        "auth_last_error": _safe_str(_payment_value("auth_last_error")),
+        # LOCK mechanism fields
+        "locked_at": _safe_datetime(getattr(lock_detail, "locked_at", None)),
+        "locked_amount_cents": _safe_int(getattr(lock_detail, "locked_amount_cents", None)),
+        "lock_resolved_at": _safe_datetime(getattr(lock_detail, "lock_resolved_at", None)),
+        "lock_resolution": _safe_str(getattr(lock_detail, "lock_resolution", None)),
+    }
+
+
 class PaymentSummary(StandardizedModel):
     """Student-facing payment breakdown for a booking."""
 
@@ -600,42 +727,8 @@ class BookingResponse(BookingBase):
         Create BookingResponse from Booking ORM model.
         Handles privacy transformation automatically.
         """
-
-        # Build the response with proper privacy protection
-        # Defensive getters for possibly mocked attributes in tests
-        def _safe_location_type(value: object) -> Optional[str]:
-            if isinstance(value, str) and value in [
-                "student_location",
-                "instructor_location",
-                "online",
-                "neutral_location",
-            ]:
-                return value
-            return "online"
-
-        def _safe_datetime(value: object) -> Optional[datetime]:
-            return value if isinstance(value, datetime) else None
-
-        def _safe_str(value: object) -> Optional[str]:
-            return value if isinstance(value, str) else None
-
-        def _safe_int(value: object) -> Optional[int]:
-            # Avoid bools (subclass of int) and mocked values.
-            if isinstance(value, bool):
-                return None
-            return value if isinstance(value, int) else None
-
-        def _safe_float(value: object) -> Optional[float]:
-            if isinstance(value, bool):
-                return None
-            if isinstance(value, (int, float, Decimal)):
-                return float(value)
-            return None
-
-        def _safe_bool(value: object) -> Optional[bool]:
-            return value if isinstance(value, bool) else None
-
-        rescheduled_from_booking_id_value = getattr(booking, "rescheduled_from_booking_id", None)
+        # Satellite fields extracted via shared module-level helper
+        satellite = _extract_satellite_fields(booking)
 
         response_data = {
             # Base fields from BookingBase
@@ -643,38 +736,15 @@ class BookingResponse(BookingBase):
             "student_id": booking.student_id,
             "instructor_id": booking.instructor_id,
             "instructor_service_id": booking.instructor_service_id,
-            "rescheduled_from_booking_id": rescheduled_from_booking_id_value
-            if isinstance(rescheduled_from_booking_id_value, str)
-            else None,
-            "rescheduled_to_booking_id": _safe_str(
-                getattr(booking, "rescheduled_to_booking_id", None)
-            ),
-            "has_locked_funds": _safe_bool(getattr(booking, "has_locked_funds", None)),
             # Booking details
             "booking_date": booking.booking_date,
             "start_time": booking.start_time,
             "end_time": booking.end_time,
-            "booking_start_utc": _safe_datetime(getattr(booking, "booking_start_utc", None)),
-            "booking_end_utc": _safe_datetime(getattr(booking, "booking_end_utc", None)),
-            "lesson_timezone": _safe_str(getattr(booking, "lesson_timezone", None)),
-            "instructor_timezone": _safe_str(getattr(booking, "instructor_tz_at_booking", None)),
-            "student_timezone": _safe_str(getattr(booking, "student_tz_at_booking", None)),
             "service_name": booking.service_name,
             "hourly_rate": booking.hourly_rate,
             "total_price": booking.total_price,
             "duration_minutes": booking.duration_minutes,
             "status": booking.status,
-            # Location
-            "service_area": _safe_str(getattr(booking, "service_area", None)),
-            "meeting_location": _safe_str(getattr(booking, "meeting_location", None)),
-            "location_type": _safe_location_type(getattr(booking, "location_type", None)),
-            "location_address": _safe_str(getattr(booking, "location_address", None)),
-            "location_lat": _safe_float(getattr(booking, "location_lat", None)),
-            "location_lng": _safe_float(getattr(booking, "location_lng", None)),
-            "location_place_id": _safe_str(getattr(booking, "location_place_id", None)),
-            # Notes
-            "student_note": _safe_str(getattr(booking, "student_note", None)),
-            "instructor_note": _safe_str(getattr(booking, "instructor_note", None)),
             # Timestamps
             "created_at": booking.created_at,
             "confirmed_at": booking.confirmed_at,
@@ -683,31 +753,6 @@ class BookingResponse(BookingBase):
             # Cancellation info
             "cancelled_by_id": booking.cancelled_by_id,
             "cancellation_reason": booking.cancellation_reason,
-            # No-show tracking
-            "no_show_reported_by": _safe_str(getattr(booking, "no_show_reported_by", None)),
-            "no_show_reported_at": _safe_datetime(getattr(booking, "no_show_reported_at", None)),
-            "no_show_type": _safe_str(getattr(booking, "no_show_type", None)),
-            "no_show_disputed": _safe_bool(getattr(booking, "no_show_disputed", None)),
-            "no_show_disputed_at": _safe_datetime(getattr(booking, "no_show_disputed_at", None)),
-            "no_show_dispute_reason": _safe_str(getattr(booking, "no_show_dispute_reason", None)),
-            "no_show_resolved_at": _safe_datetime(getattr(booking, "no_show_resolved_at", None)),
-            "no_show_resolution": _safe_str(getattr(booking, "no_show_resolution", None)),
-            # Settlement tracking
-            "settlement_outcome": _safe_str(getattr(booking, "settlement_outcome", None)),
-            "student_credit_amount": _safe_int(getattr(booking, "student_credit_amount", None)),
-            "instructor_payout_amount": _safe_int(
-                getattr(booking, "instructor_payout_amount", None)
-            ),
-            "refunded_to_card_amount": _safe_int(getattr(booking, "refunded_to_card_amount", None)),
-            "credits_reserved_cents": _safe_int(getattr(booking, "credits_reserved_cents", None)),
-            "auth_scheduled_for": _safe_datetime(getattr(booking, "auth_scheduled_for", None)),
-            "auth_attempted_at": _safe_datetime(getattr(booking, "auth_attempted_at", None)),
-            "auth_failure_count": _safe_int(getattr(booking, "auth_failure_count", None)),
-            "auth_last_error": _safe_str(getattr(booking, "auth_last_error", None)),
-            "locked_at": _safe_datetime(getattr(booking, "locked_at", None)),
-            "locked_amount_cents": _safe_int(getattr(booking, "locked_amount_cents", None)),
-            "lock_resolved_at": _safe_datetime(getattr(booking, "lock_resolved_at", None)),
-            "lock_resolution": _safe_str(getattr(booking, "lock_resolution", None)),
             # Privacy-protected nested objects
             "student": StudentInfo.model_validate(booking.student) if booking.student else None,
             "instructor": InstructorInfo.from_user(booking.instructor)
@@ -718,6 +763,8 @@ class BookingResponse(BookingBase):
             else None,
             # Nested minimal info for annotation
             "rescheduled_from": None,
+            # Merge all satellite fields
+            **satellite,
         }
 
         # Safely include minimal reschedule info only when real values are present
@@ -782,21 +829,9 @@ class BookingCreateResponse(BookingResponse):
         Create BookingCreateResponse from Booking ORM model.
         Inherits privacy protection from parent and adds payment setup fields.
         """
+        # Satellite fields extracted via shared module-level helper
+        satellite = _extract_satellite_fields(booking)
 
-        def _safe_datetime(value: object) -> Optional[datetime]:
-            return value if isinstance(value, datetime) else None
-
-        def _safe_str(value: object) -> Optional[str]:
-            return value if isinstance(value, str) else None
-
-        def _safe_float(value: object) -> Optional[float]:
-            if isinstance(value, bool):
-                return None
-            if isinstance(value, (int, float, Decimal)):
-                return float(value)
-            return None
-
-        # Use the parent's from_booking method to build base response
         response_data = {
             # Base fields from BookingBase
             "id": booking.id,
@@ -807,27 +842,11 @@ class BookingCreateResponse(BookingResponse):
             "booking_date": booking.booking_date,
             "start_time": booking.start_time,
             "end_time": booking.end_time,
-            "booking_start_utc": _safe_datetime(getattr(booking, "booking_start_utc", None)),
-            "booking_end_utc": _safe_datetime(getattr(booking, "booking_end_utc", None)),
-            "lesson_timezone": _safe_str(getattr(booking, "lesson_timezone", None)),
-            "instructor_timezone": _safe_str(getattr(booking, "instructor_tz_at_booking", None)),
-            "student_timezone": _safe_str(getattr(booking, "student_tz_at_booking", None)),
             "service_name": booking.service_name,
             "hourly_rate": booking.hourly_rate,
             "total_price": booking.total_price,
             "duration_minutes": booking.duration_minutes,
             "status": booking.status,
-            # Location
-            "service_area": booking.service_area,
-            "meeting_location": booking.meeting_location,
-            "location_type": booking.location_type,
-            "location_address": _safe_str(getattr(booking, "location_address", None)),
-            "location_lat": _safe_float(getattr(booking, "location_lat", None)),
-            "location_lng": _safe_float(getattr(booking, "location_lng", None)),
-            "location_place_id": _safe_str(getattr(booking, "location_place_id", None)),
-            # Notes
-            "student_note": booking.student_note,
-            "instructor_note": booking.instructor_note,
             # Timestamps
             "created_at": booking.created_at,
             "confirmed_at": booking.confirmed_at,
@@ -858,6 +877,8 @@ class BookingCreateResponse(BookingResponse):
             or getattr(booking, "setup_intent_client_secret", None),
             "requires_payment_method": True,
             "payment_summary": payment_summary,
+            # Merge all satellite fields
+            **satellite,
         }
 
         return cls(**response_data)

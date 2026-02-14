@@ -6,6 +6,7 @@ import pytest
 from app.core.ulid_helper import generate_ulid
 from app.models.audit_log import AuditLog
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_payment import BookingPayment
 from app.models.instructor import InstructorProfile
 from app.models.payment import PaymentEvent, PaymentIntent
 from app.models.service_catalog import InstructorService
@@ -27,6 +28,11 @@ def _create_related_booking(
     payment_intent_id: str | None = None,
     service_name: str | None = None,
 ) -> Booking:
+    extra_payment: dict = {}
+    if payment_status is not None:
+        extra_payment["payment_status"] = payment_status
+    if payment_intent_id is not None:
+        extra_payment["payment_intent_id"] = payment_intent_id
     booking = create_booking_pg_safe(
         db,
         student_id=base_booking.student_id,
@@ -41,21 +47,24 @@ def _create_related_booking(
         duration_minutes=base_booking.duration_minutes,
         status=status,
         offset_index=offset_index,
+        **extra_payment,
     )
-    if payment_status is not None:
-        booking.payment_status = payment_status
-    if payment_intent_id is not None:
-        booking.payment_intent_id = payment_intent_id
-    db.flush()
     return booking
 
 
 def _attach_payment_details(db, booking: Booking, *, amount_cents: int, fee_cents: int) -> str:
-    payment_intent_id = booking.payment_intent_id or f"pi_{generate_ulid()}"
-    booking.payment_intent_id = payment_intent_id
-    booking.payment_status = "settled"
+    payment_intent_id = f"pi_{generate_ulid()}"
     booking.completed_at = booking.completed_at or datetime.now(timezone.utc)
     booking.status = BookingStatus.COMPLETED
+    db.flush()
+
+    # Create or update BookingPayment satellite
+    bp = db.query(BookingPayment).filter_by(booking_id=booking.id).first()
+    if bp is None:
+        bp = BookingPayment(booking_id=booking.id)
+        db.add(bp)
+    bp.payment_intent_id = payment_intent_id
+    bp.payment_status = "settled"
     db.flush()
 
     intent = PaymentIntent(
@@ -170,7 +179,9 @@ class TestAdminBookingsList:
             offset_index=2,
             payment_status="settled",
         )
-        refunded.settlement_outcome = "admin_refund"
+        bp = db.query(BookingPayment).filter_by(booking_id=refunded.id).first()
+        assert bp is not None
+        bp.settlement_outcome = "admin_refund"
         db.commit()
 
         response = client.get(
@@ -313,11 +324,13 @@ class TestAdminBookingStats:
             status=BookingStatus.COMPLETED,
             offset_index=0,
         )
-        booking.payment_intent_id = f"pi_{generate_ulid()}"
+        pi_id = f"pi_{generate_ulid()}"
+        bp = BookingPayment(booking_id=booking.id, payment_intent_id=pi_id, payment_status="settled")
+        db.add(bp)
         db.add(
             PaymentIntent(
                 booking_id=booking.id,
-                stripe_payment_intent_id=booking.payment_intent_id,
+                stripe_payment_intent_id=pi_id,
                 amount=10000,
                 application_fee=1000,
                 status="succeeded",
@@ -367,11 +380,13 @@ class TestAdminBookingStats:
             offset_index=1,
         )
 
-        booking_today.payment_intent_id = f"pi_{generate_ulid()}"
+        pi_id = f"pi_{generate_ulid()}"
+        bp = BookingPayment(booking_id=booking_today.id, payment_intent_id=pi_id, payment_status="settled")
+        db.add(bp)
         db.add(
             PaymentIntent(
                 booking_id=booking_today.id,
-                stripe_payment_intent_id=booking_today.payment_intent_id,
+                stripe_payment_intent_id=pi_id,
                 amount=8000,
                 application_fee=800,
                 status="succeeded",
@@ -539,8 +554,12 @@ class TestAdminCancelBooking:
         test_booking,
         auth_headers_admin,
     ):
-        test_booking.payment_intent_id = "pi_cancel"
-        test_booking.payment_status = "settled"
+        bp = db.query(BookingPayment).filter_by(booking_id=test_booking.id).first()
+        if bp is None:
+            bp = BookingPayment(booking_id=test_booking.id)
+            db.add(bp)
+        bp.payment_intent_id = "pi_cancel"
+        bp.payment_status = "settled"
         db.commit()
 
         mock_refund_payment.return_value = {"refund_id": "re_cancel"}
@@ -557,8 +576,9 @@ class TestAdminCancelBooking:
 
         db.refresh(test_booking)
         assert test_booking.status == BookingStatus.CANCELLED
-        assert test_booking.payment_status == "settled"
-        assert test_booking.settlement_outcome == "admin_refund"
+        db.refresh(bp)
+        assert bp.payment_status == "settled"
+        assert bp.settlement_outcome == "admin_refund"
 
     def test_admin_cancel_without_refund(self, client, db, test_booking, auth_headers_admin):
         response = client.post(

@@ -213,7 +213,7 @@ class PrivacyService(BaseService):
             "bookings": 0,
         }
 
-        try:
+        with self.transaction():
             # Delete search history
             deletion_stats["search_history"] = self.search_history_repository.delete_user_searches(
                 user_id
@@ -266,16 +266,8 @@ class PrivacyService(BaseService):
                 if instructor:
                     self.instructor_repository.delete(instructor.id)
 
-            # repo-pattern-ignore: Transaction commit belongs in service layer
-            self.db.commit()
-            logger.info(f"Deleted data for user {user_id}: {deletion_stats}")
-            return deletion_stats
-
-        except Exception as e:
-            # repo-pattern-ignore: Rollback on error belongs in service layer
-            self.db.rollback()
-            logger.error(f"Error deleting user data: {str(e)}")
-            raise
+        logger.info(f"Deleted data for user {user_id}: {deletion_stats}")
+        return deletion_stats
 
     @BaseService.measure_operation("apply_retention_policies")
     def apply_retention_policies(self) -> RetentionStats:
@@ -288,7 +280,7 @@ class PrivacyService(BaseService):
         search_events_deleted = 0
         old_bookings_anonymized = 0
 
-        try:
+        with self.transaction():
             # Delete old search events (keep aggregated data only)
             if hasattr(settings, "search_event_retention_days"):
                 cutoff_date = datetime.now(timezone.utc) - timedelta(
@@ -312,21 +304,12 @@ class PrivacyService(BaseService):
 
             # Note: AlertHistory is for system alerts, not user-specific data retention
 
-            # repo-pattern-ignore: Transaction commit belongs in service layer
-            self.db.commit()
-
-            retention_stats = RetentionStats(
-                search_events_deleted=search_events_deleted,
-                old_bookings_anonymized=old_bookings_anonymized,
-            )
-            logger.info(f"Applied retention policies: {retention_stats}")
-            return retention_stats
-
-        except Exception as e:
-            # repo-pattern-ignore: Rollback on error belongs in service layer
-            self.db.rollback()
-            logger.error(f"Error applying retention policies: {str(e)}")
-            raise
+        retention_stats = RetentionStats(
+            search_events_deleted=search_events_deleted,
+            old_bookings_anonymized=old_bookings_anonymized,
+        )
+        logger.info(f"Applied retention policies: {retention_stats}")
+        return retention_stats
 
     @BaseService.measure_operation("get_privacy_statistics")
     def get_privacy_statistics(self) -> PrivacyStatistics:
@@ -364,11 +347,11 @@ class PrivacyService(BaseService):
         Returns:
             True if successful
         """
-        try:
-            user = self.user_repository.get_by_id(user_id)
-            if not user:
-                raise ValueError(f"User {user_id} not found")
+        user = self.user_repository.get_by_id(user_id)
+        if not user:
+            raise ValueError(f"User {user_id} not found")
 
+        with self.transaction():
             # Anonymize user data
             user.email = f"anon_{user.id}@anonymized.com"
             user.first_name = "Anonymous"
@@ -383,13 +366,5 @@ class PrivacyService(BaseService):
             self.search_history_repository.delete_user_searches(user_id)
             self.search_event_repository.delete_user_events(user_id)
 
-            # repo-pattern-ignore: Transaction commit belongs in service layer
-            self.db.commit()
-            logger.info(f"Anonymized user {user_id}")
-            return True
-
-        except Exception as e:
-            # repo-pattern-ignore: Rollback on error belongs in service layer
-            self.db.rollback()
-            logger.error(f"Error anonymizing user: {str(e)}")
-            raise
+        logger.info(f"Anonymized user {user_id}")
+        return True

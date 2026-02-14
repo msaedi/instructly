@@ -5,8 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+import ulid
 
 from app.models.booking import BookingStatus, PaymentStatus
+from app.models.booking_payment import BookingPayment
 from app.services.celery_admin_service import CeleryAdminService, _secret_value
 
 
@@ -423,11 +425,16 @@ class TestGetPaymentHealthWithTaskHistory:
         """Test payment health detects critical issues."""
         # Set up a booking with overdue authorization
         now = datetime.now(timezone.utc)
-        test_booking.payment_status = PaymentStatus.SCHEDULED.value
         test_booking.status = BookingStatus.CONFIRMED.value
         test_booking.booking_start_utc = now + timedelta(hours=12)
         test_booking.booking_end_utc = now + timedelta(hours=13)
         test_booking.booking_date = (now + timedelta(hours=12)).date()
+        bp = BookingPayment(
+            id=str(ulid.ULID()),
+            booking_id=test_booking.id,
+            payment_status=PaymentStatus.SCHEDULED.value,
+        )
+        db.add(bp)
         db.commit()
 
         with patch.object(service, "_call_flower", new_callable=AsyncMock) as mock_flower:
@@ -443,8 +450,13 @@ class TestGetPaymentHealthWithTaskHistory:
         self, service, db, test_booking
     ):
         """Test payment health warns about high pending captures."""
-        test_booking.payment_status = PaymentStatus.AUTHORIZED.value
         test_booking.status = BookingStatus.COMPLETED.value
+        bp = BookingPayment(
+            id=str(ulid.ULID()),
+            booking_id=test_booking.id,
+            payment_status=PaymentStatus.AUTHORIZED.value,
+        )
+        db.add(bp)
         db.commit()
 
         with patch.object(service, "_call_flower", new_callable=AsyncMock) as mock_flower:
@@ -460,8 +472,13 @@ class TestGetPaymentHealthWithTaskHistory:
     ):
         """Test payment health warns about failed payments in last 24h."""
         now = datetime.now(timezone.utc)
-        test_booking.payment_status = PaymentStatus.PAYMENT_METHOD_REQUIRED.value
         test_booking.updated_at = now - timedelta(hours=1)
+        bp = BookingPayment(
+            id=str(ulid.ULID()),
+            booking_id=test_booking.id,
+            payment_status=PaymentStatus.PAYMENT_METHOD_REQUIRED.value,
+        )
+        db.add(bp)
         db.commit()
 
         with patch.object(service, "_call_flower", new_callable=AsyncMock) as mock_flower:

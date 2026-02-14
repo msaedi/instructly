@@ -46,7 +46,8 @@ class AdminRefundService(BaseService):
 
     @BaseService.measure_operation("admin_refund.resolve_full_refund_cents")
     def resolve_full_refund_cents(self, booking: Booking) -> int:
-        payment_intent_id = booking.payment_intent_id
+        pd = booking.payment_detail
+        payment_intent_id = pd.payment_intent_id if pd is not None else None
         if payment_intent_id:
             payment_record = self.payment_repo.get_payment_by_intent_id(payment_intent_id)
             if payment_record and payment_record.amount:
@@ -75,23 +76,24 @@ class AdminRefundService(BaseService):
             if not booking:
                 return None
 
+            bp = self.booking_repo.ensure_payment(booking.id)
             audit_before = redact(booking.to_dict()) or {}
-            audit_before["payment_status"] = booking.payment_status
+            audit_before["payment_status"] = bp.payment_status
 
-            booking.payment_status = PaymentStatus.SETTLED.value
+            bp.payment_status = PaymentStatus.SETTLED.value
             booking.status = REASON_TO_BOOKING_STATUS[reason]
             if not booking.cancelled_at:
                 booking.cancelled_at = datetime.now(timezone.utc)
             if reason == AdminRefundReason.INSTRUCTOR_NO_SHOW:
                 booking.cancelled_by_id = booking.instructor_id
-                booking.settlement_outcome = "instructor_no_show_full_refund"
+                bp.settlement_outcome = "instructor_no_show_full_refund"
             elif reason == AdminRefundReason.DISPUTE:
-                booking.settlement_outcome = "student_wins_dispute_full_refund"
+                bp.settlement_outcome = "student_wins_dispute_full_refund"
             else:
-                booking.settlement_outcome = "admin_refund"
+                bp.settlement_outcome = "admin_refund"
             booking.refunded_to_card_amount = amount_cents
             booking.student_credit_amount = 0
-            booking.instructor_payout_amount = 0
+            bp.instructor_payout_amount = 0
 
             try:
                 from app.services.credit_service import CreditService
@@ -100,7 +102,7 @@ class AdminRefundService(BaseService):
                 credit_service.release_credits_for_booking(
                     booking_id=booking.id, use_transaction=False
                 )
-                booking.credits_reserved_cents = 0
+                bp.credits_reserved_cents = 0
             except Exception as exc:
                 logger.warning(
                     "Failed to release reserved credits for booking %s: %s",
@@ -117,7 +119,7 @@ class AdminRefundService(BaseService):
             }
 
             audit_after = redact(booking.to_dict()) or {}
-            audit_after["payment_status"] = booking.payment_status
+            audit_after["payment_status"] = bp.payment_status
             audit_after["refund"] = refund_payload
 
             if AUDIT_ENABLED:

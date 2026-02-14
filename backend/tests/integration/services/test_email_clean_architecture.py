@@ -272,22 +272,22 @@ class TestEmailDataStructures:
         """Test that send_reminder_emails uses clean date-based query."""
         service = NotificationService(db)
 
-        # Mock the query to return empty list
-        with patch.object(db, "query") as mock_query:
-            mock_filter = Mock()
-            mock_filter.all.return_value = []
-            mock_query.return_value.filter.return_value = mock_filter
-
+        # Mock the repository method that _get_tomorrows_bookings calls
+        with patch(
+            "app.repositories.booking_repository.BookingRepository.get_bookings_by_date_range_and_status",
+            return_value=[],
+        ) as mock_repo_method:
             # Call the method
             count = service.send_reminder_emails()
 
-            # Verify it queried correctly
-            mock_query.assert_called_with(Booking)
+            # Verify the repository method was called with date-based args
+            mock_repo_method.assert_called_once()
+            call_args = mock_repo_method.call_args[0]
+            start_date, end_date, status = call_args
 
-            # The filter should check booking_date and status
-            # but NOT availability_slot_id
-            mock_query.return_value.filter.call_args
+            # Should filter by booking_date and status (not slots)
+            assert isinstance(start_date, date)
+            assert isinstance(end_date, date)
+            assert status == "CONFIRMED"
 
-            # This is a bit tricky to test, but we can at least verify
-            # the method completed without errors
             assert count == 0  # No bookings found

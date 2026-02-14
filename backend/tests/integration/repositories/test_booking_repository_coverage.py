@@ -241,16 +241,6 @@ def test_student_instructor_filters_and_counts(
     )
     assert week_bookings
 
-    pair_bookings = repo.get_bookings_by_student_and_instructor(
-        test_student.id, test_instructor_with_availability.id
-    )
-    assert pair_bookings
-
-    other_pair = repo.get_bookings_by_student_and_instructor(
-        test_student.id, test_instructor_2.id
-    )
-    assert other_pair == []
-
 
 def test_payment_and_status_updates(
     db, test_student, test_instructor_with_availability, test_booking
@@ -1310,11 +1300,6 @@ def test_booking_repository_error_paths(
             booking_date=date.today(),
             start_time=time(9, 0),
             end_time=time(10, 0),
-        )
-    with pytest.raises(RepositoryException):
-        repo.get_bookings_by_student_and_instructor(
-            student_id=test_student.id,
-            instructor_id=test_instructor_with_availability.id,
         )
     with pytest.raises(RepositoryException):
         repo.get_instructor_bookings_for_date(

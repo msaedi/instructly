@@ -941,7 +941,11 @@ class StudentAdminService(BaseService):
                         booking_id=booking.id,
                         amount=_cents_to_decimal(refunded_to_card),
                         method="card",
-                        status=str(getattr(booking, "payment_status", "refunded")),
+                        status=(
+                            booking.payment_detail.payment_status
+                            if booking.payment_detail
+                            else None
+                        ),
                         refunded_at=refund_ts,
                     )
                 )
@@ -953,7 +957,11 @@ class StudentAdminService(BaseService):
                         booking_id=booking.id,
                         amount=_cents_to_decimal(credit_amount),
                         method="credit",
-                        status=str(getattr(booking, "payment_status", "credited")),
+                        status=(
+                            booking.payment_detail.payment_status
+                            if booking.payment_detail
+                            else None
+                        ),
                         refunded_at=refund_ts,
                     )
                 )

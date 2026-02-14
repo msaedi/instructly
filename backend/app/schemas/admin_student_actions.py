@@ -173,7 +173,7 @@ class RefundHistoryEntry(BaseModel):
     booking_id: str
     amount: Decimal
     method: str
-    status: str
+    status: str | None = None
     refunded_at: datetime | None = None
 
 

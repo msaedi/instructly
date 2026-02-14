@@ -77,8 +77,6 @@ def mock_booking(mock_user, mock_instructor) -> MagicMock:
     booking.student_id = mock_user.id
     booking.instructor_id = mock_instructor.id
     booking.status = BookingStatus.CONFIRMED
-    booking.payment_status = "authorized"
-    booking.payment_intent_id = "pi_test123"
     booking.booking_date = date.today() + timedelta(days=7)
     booking.start_time = time(10, 0)
     booking.end_time = time(11, 0)
@@ -90,6 +88,12 @@ def mock_booking(mock_user, mock_instructor) -> MagicMock:
     booking.original_start_time = None
     booking.student = mock_user
     booking.instructor = mock_instructor
+    # Payment fields live on the payment_detail satellite
+    payment_detail = MagicMock()
+    payment_detail.payment_status = "authorized"
+    payment_detail.payment_intent_id = "pi_test123"
+    payment_detail.payment_method_id = "pm_test"
+    booking.payment_detail = payment_detail
     return booking
 
 
@@ -278,8 +282,10 @@ class TestTransactionIsolation:
         """Expired-auth reauthorization should use a separate session for Stripe calls."""
         booking = MagicMock(spec=Booking)
         booking.id = generate_ulid()
-        booking.payment_method_id = "pm_test"
-        booking.payment_intent_id = "pi_old"
+        payment_detail = MagicMock()
+        payment_detail.payment_method_id = "pm_test"
+        payment_detail.payment_intent_id = "pi_old"
+        booking.payment_detail = payment_detail
 
         payment_repo = MagicMock()
         db = MagicMock()

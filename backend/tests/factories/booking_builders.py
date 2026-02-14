@@ -8,6 +8,10 @@ from typing import Any, Dict, Iterable, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_lock import BookingLock
+from app.models.booking_no_show import BookingNoShow
+from app.models.booking_payment import BookingPayment
+from app.models.booking_reschedule import BookingReschedule
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.booking_timezone import booking_timezone_fields
@@ -17,6 +21,50 @@ except ModuleNotFoundError:  # pragma: no cover
 ACTIVE_STATUSES: Dict[str, BookingStatus] = {
     status.name: status
     for status in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED, BookingStatus.NO_SHOW)
+}
+
+NO_SHOW_FIELDS = {
+    "no_show_reported_by",
+    "no_show_reported_at",
+    "no_show_type",
+    "no_show_disputed",
+    "no_show_disputed_at",
+    "no_show_dispute_reason",
+    "no_show_resolved_at",
+    "no_show_resolution",
+}
+
+LOCK_FIELDS = {
+    "locked_at",
+    "locked_amount_cents",
+    "lock_resolved_at",
+    "lock_resolution",
+}
+
+RESCHEDULE_FIELDS = {
+    "late_reschedule_used",
+    "reschedule_count",
+    "rescheduled_to_booking_id",
+    "original_lesson_datetime",
+}
+
+PAYMENT_FIELDS = {
+    "payment_status",
+    "payment_intent_id",
+    "payment_method_id",
+    "auth_scheduled_for",
+    "auth_attempted_at",
+    "auth_failure_count",
+    "auth_last_error",
+    "auth_failure_first_email_sent_at",
+    "auth_failure_t13_warning_sent_at",
+    "credits_reserved_cents",
+    "settlement_outcome",
+    "instructor_payout_amount",
+    "capture_failed_at",
+    "capture_escalated_at",
+    "capture_retry_count",
+    "capture_error",
 }
 
 
@@ -242,7 +290,14 @@ def create_booking_pg_safe(
         "end_time": end_time,
         "status": status,
         **timezone_fields,
-        **extra_fields,
+        **{
+            k: v
+            for k, v in extra_fields.items()
+            if k not in NO_SHOW_FIELDS
+            and k not in LOCK_FIELDS
+            and k not in RESCHEDULE_FIELDS
+            and k not in PAYMENT_FIELDS
+        },
     }
 
     if status == BookingStatus.CANCELLED and booking_kwargs.get("cancelled_at") is None:
@@ -250,6 +305,68 @@ def create_booking_pg_safe(
 
     booking = Booking(**booking_kwargs)
     session.add(booking)
+    session.flush()
+
+    if any(field in extra_fields for field in NO_SHOW_FIELDS):
+        no_show = BookingNoShow(
+            booking_id=booking.id,
+            no_show_reported_by=extra_fields.get("no_show_reported_by"),
+            no_show_reported_at=extra_fields.get("no_show_reported_at"),
+            no_show_type=extra_fields.get("no_show_type"),
+            no_show_disputed=bool(extra_fields.get("no_show_disputed", False)),
+            no_show_disputed_at=extra_fields.get("no_show_disputed_at"),
+            no_show_dispute_reason=extra_fields.get("no_show_dispute_reason"),
+            no_show_resolved_at=extra_fields.get("no_show_resolved_at"),
+            no_show_resolution=extra_fields.get("no_show_resolution"),
+        )
+        session.add(no_show)
+        booking.no_show_detail = no_show
+
+    if any(field in extra_fields for field in LOCK_FIELDS):
+        lock = BookingLock(
+            booking_id=booking.id,
+            locked_at=extra_fields.get("locked_at"),
+            locked_amount_cents=extra_fields.get("locked_amount_cents"),
+            lock_resolved_at=extra_fields.get("lock_resolved_at"),
+            lock_resolution=extra_fields.get("lock_resolution"),
+        )
+        session.add(lock)
+        booking.lock_detail = lock
+
+    if any(field in extra_fields for field in RESCHEDULE_FIELDS):
+        reschedule = BookingReschedule(
+            booking_id=booking.id,
+            late_reschedule_used=bool(extra_fields.get("late_reschedule_used", False)),
+            reschedule_count=int(extra_fields.get("reschedule_count", 0) or 0),
+            rescheduled_to_booking_id=extra_fields.get("rescheduled_to_booking_id"),
+            original_lesson_datetime=extra_fields.get("original_lesson_datetime"),
+        )
+        session.add(reschedule)
+        booking.reschedule_detail = reschedule
+
+    if any(field in extra_fields for field in PAYMENT_FIELDS):
+        payment = BookingPayment(
+            booking_id=booking.id,
+            payment_status=extra_fields.get("payment_status"),
+            payment_intent_id=extra_fields.get("payment_intent_id"),
+            payment_method_id=extra_fields.get("payment_method_id"),
+            auth_scheduled_for=extra_fields.get("auth_scheduled_for"),
+            auth_attempted_at=extra_fields.get("auth_attempted_at"),
+            auth_failure_count=int(extra_fields.get("auth_failure_count", 0) or 0),
+            auth_last_error=extra_fields.get("auth_last_error"),
+            auth_failure_first_email_sent_at=extra_fields.get("auth_failure_first_email_sent_at"),
+            auth_failure_t13_warning_sent_at=extra_fields.get("auth_failure_t13_warning_sent_at"),
+            credits_reserved_cents=int(extra_fields.get("credits_reserved_cents", 0) or 0),
+            settlement_outcome=extra_fields.get("settlement_outcome"),
+            instructor_payout_amount=extra_fields.get("instructor_payout_amount"),
+            capture_failed_at=extra_fields.get("capture_failed_at"),
+            capture_escalated_at=extra_fields.get("capture_escalated_at"),
+            capture_retry_count=int(extra_fields.get("capture_retry_count", 0) or 0),
+            capture_error=extra_fields.get("capture_error"),
+        )
+        session.add(payment)
+        booking.payment_detail = payment
+
     session.flush()
     return booking
 
