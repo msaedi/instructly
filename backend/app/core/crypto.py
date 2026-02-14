@@ -9,8 +9,9 @@ from typing import Optional
 from cryptography.exceptions import InvalidTag
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from pydantic import SecretStr
 
-from .config import settings
+from .config import secret_or_plain, settings
 
 _FERNET_INSTANCE: Optional[Fernet] = None
 _FERNET_KEY: Optional[str] = None
@@ -20,14 +21,15 @@ _ENVELOPE_PREFIX = "v1:"
 _NONCE_LEN = 12
 
 
-def validate_bgc_encryption_key(key: str | None) -> None:
+def validate_bgc_encryption_key(key: SecretStr | str | None) -> None:
     """Raise RuntimeError when the configured encryption key is unusable."""
 
-    if not key:
+    key_value = secret_or_plain(key).strip()
+    if not key_value:
         raise RuntimeError("BGC_ENCRYPTION_KEY must be configured when running in production.")
 
     try:
-        decoded = base64.urlsafe_b64decode(key.encode("utf-8"))
+        decoded = base64.urlsafe_b64decode(key_value.encode("utf-8"))
     except Exception as exc:  # pragma: no cover - configuration error surfaced at startup
         raise RuntimeError("BGC_ENCRYPTION_KEY is invalid (not urlsafe base64).") from exc
 
@@ -40,24 +42,24 @@ def _decoded_key() -> Optional[bytes]:
 
     global _AES_KEY, _FERNET_KEY
 
-    key = getattr(settings, "bgc_encryption_key", None)
-    if not key:
+    key_value = secret_or_plain(getattr(settings, "bgc_encryption_key", None)).strip()
+    if not key_value:
         _FERNET_KEY = None
         _AES_KEY = None
         return None
 
-    if _AES_KEY is not None and _FERNET_KEY == key:
+    if _AES_KEY is not None and _FERNET_KEY == key_value:
         return _AES_KEY
 
     try:
-        key_bytes = base64.urlsafe_b64decode(key.encode("utf-8"))
+        key_bytes = base64.urlsafe_b64decode(key_value.encode("utf-8"))
     except Exception as exc:  # pragma: no cover - misconfiguration
         raise ValueError("Invalid BGC_ENCRYPTION_KEY; expected urlsafe base64 string") from exc
 
     if len(key_bytes) != 32:
         raise ValueError("Invalid BGC_ENCRYPTION_KEY; expected decoded length of 32 bytes")
 
-    _FERNET_KEY = key
+    _FERNET_KEY = key_value
     _AES_KEY = key_bytes
     return key_bytes
 
@@ -90,16 +92,16 @@ def _fernet() -> Optional[Fernet]:
 
     global _FERNET_INSTANCE, _FERNET_KEY
 
-    key = getattr(settings, "bgc_encryption_key", None)
-    if not key:
+    key_value = secret_or_plain(getattr(settings, "bgc_encryption_key", None)).strip()
+    if not key_value:
         return None
 
-    if _FERNET_INSTANCE is not None and _FERNET_KEY == key:
+    if _FERNET_INSTANCE is not None and _FERNET_KEY == key_value:
         return _FERNET_INSTANCE
 
     try:
-        _FERNET_INSTANCE = Fernet(key.encode("utf-8"))
-        _FERNET_KEY = key
+        _FERNET_INSTANCE = Fernet(key_value.encode("utf-8"))
+        _FERNET_KEY = key_value
         return _FERNET_INSTANCE
     except Exception as exc:  # pragma: no cover - configuration error
         raise ValueError("Invalid BGC_ENCRYPTION_KEY; expected base64-encoded 32-byte key") from exc

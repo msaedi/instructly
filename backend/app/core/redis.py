@@ -16,7 +16,7 @@ from typing import Optional
 
 from redis.asyncio import Redis as AsyncRedis
 
-from app.core.config import settings
+from app.core.config import secret_or_plain, settings
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ async def get_async_redis_client() -> Optional[AsyncRedis]:
         async with _redis_lock:
             # Double-check after acquiring lock
             if _async_redis_client is None:
-                redis_url = settings.redis_url or "redis://localhost:6379"
+                redis_url = secret_or_plain(settings.redis_url).strip() or "redis://localhost:6379"
                 client = AsyncRedis.from_url(
                     redis_url,
                     encoding="utf-8",

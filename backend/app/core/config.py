@@ -11,7 +11,6 @@ from typing import (
     Literal,
     Mapping,
     NotRequired,
-    Optional,
     Set,
     TypedDict,
     cast,
@@ -87,6 +86,19 @@ def _classify_site_mode(raw_site_mode: str | None) -> tuple[str, bool, bool]:
     is_prod = normalized in PROD_SITE_MODES
     is_non_prod = normalized in NON_PROD_SITE_MODES
     return normalized, is_prod, is_non_prod
+
+
+def secret_or_plain(value: SecretStr | str | None, default: str = "") -> str:
+    """Return the underlying string for SecretStr-like values."""
+    if value is None:
+        return default
+    getter = getattr(value, "get_secret_value", None)
+    if callable(getter):
+        try:
+            return str(getter())
+        except Exception:
+            return default
+    return str(value)
 
 
 def _default_session_cookie_name() -> str:
@@ -234,7 +246,7 @@ class Settings(BaseSettings):
         alias="EMAIL_PROVIDER",
         description="Email provider name",
     )
-    resend_api_key: str | None = Field(
+    resend_api_key: SecretStr | None = Field(
         default=None,
         alias="RESEND_API_KEY",
         description="API key for Resend provider (optional)",
@@ -251,25 +263,27 @@ class Settings(BaseSettings):
     #  - preview_database_url
     #  - stg_database_url
     #  - test_database_url
-    prod_database_url_raw: Optional[str] = Field(
+    prod_database_url_raw: SecretStr | None = Field(
         default=None, alias="prod_database_url"
     )  # From env PROD_DATABASE_URL
-    prod_service_database_url_raw: Optional[str] = Field(
+    prod_service_database_url_raw: SecretStr | None = Field(
         default=None, alias="prod_service_database_url"
     )
-    preview_database_url_raw: str = Field(
-        default="", alias="preview_database_url"
+    preview_database_url_raw: SecretStr = Field(
+        default=SecretStr(""), alias="preview_database_url"
     )  # From env PREVIEW_DATABASE_URL
-    preview_service_database_url_raw: Optional[str] = Field(
+    preview_service_database_url_raw: SecretStr | None = Field(
         default=None, alias="preview_service_database_url"
     )
-    int_database_url_raw: str = Field(
-        default="postgresql://postgres:postgres@localhost:5432/instainstru_test"
+    int_database_url_raw: SecretStr = Field(
+        default=SecretStr("postgresql://postgres:postgres@localhost:5432/instainstru_test")
         if os.getenv("CI")
-        else "",
+        else SecretStr(""),
         alias="test_database_url",
     )  # From env TEST_DATABASE_URL
-    stg_database_url_raw: str = Field("", alias="stg_database_url")  # From env STG_DATABASE_URL
+    stg_database_url_raw: SecretStr = Field(
+        SecretStr(""), alias="stg_database_url"
+    )  # From env STG_DATABASE_URL
 
     # Database pool configuration (multi-pool)
     # Supabase Nano tier: 60 max connections
@@ -319,7 +333,7 @@ class Settings(BaseSettings):
     )
     admin_email: str = Field(default="admin@instainstru.com", alias="ADMIN_EMAIL")
     admin_name: str = Field(default="Instainstru Admin", alias="ADMIN_NAME")
-    admin_password: str | None = Field(default=None, alias="ADMIN_PASSWORD")
+    admin_password: SecretStr | None = Field(default=None, alias="ADMIN_PASSWORD")
 
     # Push notification settings
     vapid_public_key: str = Field(
@@ -327,8 +341,8 @@ class Settings(BaseSettings):
         alias="VAPID_PUBLIC_KEY",
         description="Base64-encoded VAPID public key",
     )
-    vapid_private_key: str = Field(
-        default="",
+    vapid_private_key: SecretStr = Field(
+        default=SecretStr(""),
         alias="VAPID_PRIVATE_KEY",
         description="Base64-encoded VAPID private key (keep secret)",
     )
@@ -466,7 +480,7 @@ class Settings(BaseSettings):
         default=False,
         description="Enable automated background-check expiry sweeps and demotions",
     )
-    bgc_encryption_key: str | None = Field(
+    bgc_encryption_key: SecretStr | None = Field(
         default=None,
         description="Base64-encoded 32-byte key for encrypting background check data",
     )
@@ -573,7 +587,7 @@ class Settings(BaseSettings):
         raise ValueError("metrics_ip_allowlist must be a comma-separated string or list")
 
     # Cache settings
-    redis_url: str = "redis://localhost:6379"
+    redis_url: SecretStr = SecretStr("redis://localhost:6379")
     cache_ttl: int = 3600  # 1 hour in seconds
 
     # Search Analytics Configuration
@@ -801,8 +815,8 @@ class Settings(BaseSettings):
         alias="CAPTCHA_FAILURE_THRESHOLD",
         description="Number of failed logins before CAPTCHA is required",
     )
-    turnstile_secret_key: str = Field(
-        default="",
+    turnstile_secret_key: SecretStr = Field(
+        default=SecretStr(""),
         alias="TURNSTILE_SECRET_KEY",
         description="Cloudflare Turnstile secret key (empty disables CAPTCHA)",
     )
@@ -843,8 +857,8 @@ class Settings(BaseSettings):
     )
 
     # Rate limit bypass for testing
-    rate_limit_bypass_token: str = Field(
-        default="", description="Token to bypass rate limiting (for load testing)"
+    rate_limit_bypass_token: SecretStr = Field(
+        default=SecretStr(""), description="Token to bypass rate limiting (for load testing)"
     )
 
     # Template Caching Configuration
@@ -863,11 +877,11 @@ class Settings(BaseSettings):
     geocoding_provider: str = Field(
         default="google", description="Geocoding provider: google|mapbox|mock"
     )
-    google_maps_api_key: str = Field(
-        default="", description="Google Maps API key for geocoding/places"
+    google_maps_api_key: SecretStr = Field(
+        default=SecretStr(""), description="Google Maps API key for geocoding/places"
     )
-    mapbox_access_token: str = Field(
-        default="", description="Mapbox access token for geocoding/search"
+    mapbox_access_token: SecretStr = Field(
+        default=SecretStr(""), description="Mapbox access token for geocoding/search"
     )
 
     # Referral program configuration (Instainstru Park Slope beta)
@@ -918,7 +932,7 @@ class Settings(BaseSettings):
     stripe_currency: str = Field(default="usd", description="Default currency for payments")
 
     # Preview staff access (for API-side preview bypass)
-    staff_preview_token: str = Field(default="", alias="staff_preview_token")
+    staff_preview_token: SecretStr = Field(default=SecretStr(""), alias="staff_preview_token")
     allow_preview_header: bool = Field(default=False, alias="allow_preview_header")
     preview_frontend_domain: str = Field(
         default="preview.instainstru.com", alias="preview_frontend_domain"
@@ -953,8 +967,8 @@ class Settings(BaseSettings):
     prometheus_http_url: str = Field(
         default="", description="Prometheus base URL, e.g., http://localhost:9090"
     )
-    prometheus_bearer_token: str = Field(
-        default="", description="Optional bearer token for Prometheus API"
+    prometheus_bearer_token: SecretStr = Field(
+        default=SecretStr(""), description="Optional bearer token for Prometheus API"
     )
 
     # Flower (Celery monitoring) configuration
@@ -963,7 +977,7 @@ class Settings(BaseSettings):
         alias="FLOWER_URL",
         description="Flower monitoring URL",
     )
-    flower_basic_auth: str | None = Field(
+    flower_basic_auth: SecretStr | None = Field(
         default=None,
         alias="FLOWER_BASIC_AUTH",
         description="Flower HTTP Basic Auth in format 'username:password'",
@@ -972,15 +986,17 @@ class Settings(BaseSettings):
     @property
     def flower_user(self) -> str | None:
         """Extract username from FLOWER_BASIC_AUTH."""
-        if self.flower_basic_auth and ":" in self.flower_basic_auth:
-            return self.flower_basic_auth.split(":", 1)[0]
+        auth_value = secret_or_plain(self.flower_basic_auth).strip()
+        if auth_value and ":" in auth_value:
+            return auth_value.split(":", 1)[0]
         return None
 
     @property
     def flower_password(self) -> str | None:
         """Extract password from FLOWER_BASIC_AUTH."""
-        if self.flower_basic_auth and ":" in self.flower_basic_auth:
-            return self.flower_basic_auth.split(":", 1)[1]
+        auth_value = secret_or_plain(self.flower_basic_auth).strip()
+        if auth_value and ":" in auth_value:
+            return auth_value.split(":", 1)[1]
         return None
 
     email_enabled: bool = Field(default=True, description="Flag to enable/disable email sending")
@@ -1024,19 +1040,23 @@ class Settings(BaseSettings):
 
     @field_validator("bgc_encryption_key")
     @classmethod
-    def require_bgc_key_in_prod(cls, value: str | None, info: ValidationInfo) -> str | None:
+    def require_bgc_key_in_prod(
+        cls, value: SecretStr | str | None, info: ValidationInfo
+    ) -> SecretStr | str | None:
         """Ensure encryption key is configured when running in production."""
 
         environment = info.data.get("environment", "development")
-        if environment == "production" and not value:
+        key_value = secret_or_plain(value).strip()
+        if environment == "production" and not key_value:
             raise ValueError("BGC_ENCRYPTION_KEY must be set in production environments.")
         return value
 
     @field_validator("int_database_url_raw")
     @classmethod
-    def validate_test_database(cls, v: str, info: ValidationInfo) -> str:
+    def validate_test_database(cls, v: SecretStr | str, info: ValidationInfo) -> SecretStr | str:
         """Ensure test database is not a production database."""
-        if not v:
+        value_raw = secret_or_plain(v).strip()
+        if not value_raw:
             return v
 
         # Get the list of production indicators from the values
@@ -1044,7 +1064,7 @@ class Settings(BaseSettings):
 
         # Check if test database URL contains any production indicators
         for indicator in prod_indicators:
-            if indicator in v.lower():
+            if indicator in value_raw.lower():
                 raise ValueError(
                     f"Test database URL contains production indicator '{indicator}'. "
                     f"Tests must not use production databases!"
@@ -1052,7 +1072,7 @@ class Settings(BaseSettings):
 
         # Ensure test database has clear test indicators
         test_indicators = ["test", "testing", "_test", "-test"]
-        has_test_indicator = any(indicator in v.lower() for indicator in test_indicators)
+        has_test_indicator = any(indicator in value_raw.lower() for indicator in test_indicators)
 
         if not has_test_indicator:
             logger.warning(
@@ -1077,7 +1097,7 @@ class Settings(BaseSettings):
 
     def is_production_database(self, url: str | None = None) -> bool:
         """Check if a database URL appears to be a production database."""
-        check_url = url or self.prod_database_url_raw or ""
+        check_url = url or secret_or_plain(self.prod_database_url_raw)
         return any(
             indicator in check_url.lower() for indicator in self.production_database_indicators
         )
@@ -1094,12 +1114,12 @@ class Settings(BaseSettings):
     @property
     def test_database_url(self) -> str:
         """Backward compatibility - always returns INT database."""
-        return self.int_database_url_raw
+        return secret_or_plain(self.int_database_url_raw)
 
     @property
     def stg_database_url(self) -> str:
         """Staging database URL."""
-        return self.stg_database_url_raw
+        return secret_or_plain(self.stg_database_url_raw)
 
     @model_validator(mode="after")
     def _load_sender_profiles(self) -> "Settings":

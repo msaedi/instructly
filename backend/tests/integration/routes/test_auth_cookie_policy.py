@@ -99,7 +99,10 @@ def test_preview_token_rejected_in_prod(client, db, test_password, monkeypatch):
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     assert preview_login.status_code == 200
-    token = preview_login.json()["access_token"]
+    cookie_name = f"{settings.session_cookie_name}="
+    set_cookie = preview_login.headers.get("set-cookie", "")
+    assert cookie_name in set_cookie
+    token = set_cookie.split(cookie_name, 1)[1].split(";", 1)[0]
 
     # Switch to prod and ensure the preview token is rejected (aud/iss mismatch)
     monkeypatch.setenv("SITE_MODE", "prod")

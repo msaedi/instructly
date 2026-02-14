@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from pywebpush import WebPushException, webpush
 from sqlalchemy.orm import Session
 
-from ..core.config import settings
+from ..core.config import secret_or_plain, settings
 from ..models.notification import PushSubscription
 from ..repositories.notification_repository import NotificationRepository
 from .base import BaseService
@@ -176,7 +176,7 @@ class PushNotificationService(BaseService):
                     },
                 },
                 data=payload,
-                vapid_private_key=settings.vapid_private_key,
+                vapid_private_key=secret_or_plain(settings.vapid_private_key).strip(),
                 vapid_claims={"sub": settings.vapid_claims_email},
             )
             return True
@@ -245,4 +245,6 @@ class PushNotificationService(BaseService):
     @BaseService.measure_operation("is_configured")
     def is_configured() -> bool:
         """Check if VAPID keys are configured."""
-        return bool(settings.vapid_public_key and settings.vapid_private_key)
+        return bool(
+            settings.vapid_public_key and secret_or_plain(settings.vapid_private_key).strip()
+        )

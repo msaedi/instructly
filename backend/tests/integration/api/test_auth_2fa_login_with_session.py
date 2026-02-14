@@ -18,6 +18,12 @@ from app.services.auth_service import AuthService
 from app.services.two_factor_auth_service import TwoFactorAuthService
 
 
+def _extract_session_token_from_set_cookie(set_cookie_header: str, cookie_name: str) -> str:
+    marker = f"{cookie_name}="
+    assert marker in set_cookie_header
+    return set_cookie_header.split(marker, 1)[1].split(";", 1)[0]
+
+
 def _register_user_with_2fa(db: Session, email: str) -> tuple[str, str]:
     auth_service = AuthService(db, None, None)
     user = auth_service.register_user(
@@ -76,7 +82,7 @@ class TestLoginWithSessionTwoFactor:
         payload = response.json()
         assert payload["requires_2fa"] is True
         assert payload["temp_token"]
-        assert payload["access_token"] is None
+        assert "access_token" not in payload
         assert response.headers.get("set-cookie") is None
 
     def test_verify_then_issues_session_and_converts_guests(self, client: TestClient, db: Session):
@@ -113,7 +119,11 @@ class TestLoginWithSessionTwoFactor:
             verify_response = post_with_code(-30)
 
         assert verify_response.status_code == 200
-        access_token = verify_response.json()["access_token"]
+        set_cookie = verify_response.headers.get("set-cookie") or ""
+        access_token = _extract_session_token_from_set_cookie(
+            set_cookie,
+            settings.session_cookie_name,
+        )
         decoded = jwt.decode(
             access_token,
             settings.secret_key.get_secret_value(),
@@ -147,7 +157,8 @@ class TestLoginWithSessionTwoFactor:
         assert follow_up.status_code == 200
         follow_payload = follow_up.json()
         assert follow_payload["requires_2fa"] is False
-        assert follow_payload["access_token"]
+        assert "access_token" not in follow_payload
+        assert f"{settings.session_cookie_name}=" in (follow_up.headers.get("set-cookie") or "")
 
     def test_wrong_2fa_code_rejected(self, client: TestClient, db: Session):
         client.cookies.clear()

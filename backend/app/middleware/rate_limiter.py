@@ -23,7 +23,7 @@ from fastapi import HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from ..core.config import settings
+from ..core.config import secret_or_plain, settings
 from ..services.cache_service import CacheService
 
 logger = logging.getLogger(__name__)
@@ -344,7 +344,9 @@ def rate_limit(
                 return await _call_wrapped(*args, **kwargs)
 
             # Check for rate limit bypass token (for load testing)
-            bypass_token = getattr(settings, "rate_limit_bypass_token", "") or ""
+            bypass_token = secret_or_plain(
+                getattr(settings, "rate_limit_bypass_token", None)
+            ).strip()
             if bypass_token and request.headers.get("X-Rate-Limit-Bypass") == bypass_token:
                 return await _call_wrapped(*args, **kwargs)
 

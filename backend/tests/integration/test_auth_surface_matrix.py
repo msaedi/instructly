@@ -70,9 +70,19 @@ def session_and_token() -> tuple[requests.Session, str]:
         timeout=30,
     )
     resp.raise_for_status()
-    data = resp.json()
-    token = data.get("access_token")
-    assert token, "Expected access_token in login response"
+    token = None
+    preferred_cookie_names = ("__Host-sid", "preview_access_token", "access_token")
+    for cookie_name in preferred_cookie_names:
+        cookie_value = session.cookies.get(cookie_name)
+        if cookie_value:
+            token = cookie_value
+            break
+    if token is None:
+        for cookie in session.cookies:
+            if "token" in cookie.name or "sid" in cookie.name:
+                token = cookie.value
+                break
+    assert token, "Expected session cookie token after login"
     return session, token
 
 

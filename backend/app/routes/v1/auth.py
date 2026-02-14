@@ -78,9 +78,6 @@ logger = logging.getLogger(__name__)
 KNOWN_DEVICE_TTL_SECONDS = 60 * 60 * 24 * 90  # 90 days
 KNOWN_DEVICE_MAX = 10
 
-# OAuth2 token type constant (avoids B105 false positive for "bearer" string literal)
-OAUTH2_TOKEN_TYPE: str = "bearer"
-
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["auth-v1"])
 
@@ -398,7 +395,7 @@ async def register(
         )
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post("/login", response_model=LoginResponse, response_model_exclude_none=True)
 @rate_limit(
     f"{settings.rate_limit_auth_per_minute}/minute",
     key_type=RateLimitKeyType.IP,
@@ -589,8 +586,6 @@ async def login(
             cache_service=cache_service,
         )
 
-    from app.core.constants import BEARER_SCHEME
-
     try:
         if user_id:
             AuditService(db).log(
@@ -606,7 +601,7 @@ async def login(
     except Exception:
         logger.warning("Audit log write failed for user login", exc_info=True)
 
-    return LoginResponse(access_token=access_token, token_type=BEARER_SCHEME, requires_2fa=False)
+    return LoginResponse(requires_2fa=False)
 
 
 @router.post("/change-password", response_model=PasswordChangeResponse)
@@ -687,7 +682,11 @@ async def change_password(
     return PasswordChangeResponse(message="Password changed successfully")
 
 
-@router.post("/login-with-session", response_model=LoginResponse)
+@router.post(
+    "/login-with-session",
+    response_model=LoginResponse,
+    response_model_exclude_none=True,
+)
 @rate_limit(
     f"{settings.rate_limit_auth_per_minute}/minute",
     key_type=RateLimitKeyType.IP,
@@ -880,11 +879,6 @@ async def login_with_session(
             cache_service=cache_service,
         )
 
-    response_payload = {
-        "access_token": access_token,
-        "token_type": OAUTH2_TOKEN_TYPE,
-        "requires_2fa": False,
-    }
     try:
         if user_id:
             AuditService(db).log(
@@ -899,7 +893,7 @@ async def login_with_session(
             )
     except Exception:
         logger.warning("Audit log write failed for user login", exc_info=True)
-    return LoginResponse(**model_filter(LoginResponse, response_payload))
+    return LoginResponse(requires_2fa=False)
 
 
 @router.get("/me", response_model=AuthUserWithPermissionsResponse)

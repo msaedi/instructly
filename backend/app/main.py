@@ -35,7 +35,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.middleware.perf_counters import PerfCounterMiddleware, perf_counters_enabled
 
 from .api.dependencies.authz import public_guard
-from .core.config import assert_env, settings
+from .core.config import assert_env, secret_or_plain, settings
 from .core.constants import (
     ALLOWED_ORIGINS,
     API_DESCRIPTION,
@@ -332,7 +332,7 @@ def _validate_startup_config() -> None:
 
         validate_bgc_encryption_key(getattr(runtime_settings, "bgc_encryption_key", None))
         logger.info("Background-check report encryption enabled for production")
-    elif getattr(runtime_settings, "bgc_encryption_key", None):
+    elif secret_or_plain(getattr(runtime_settings, "bgc_encryption_key", None)).strip():
         logger.info("Background-check report encryption enabled")
 
 

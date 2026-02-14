@@ -20,7 +20,7 @@ from typing import Optional
 
 from broadcaster import Broadcast
 
-from .config import settings
+from .config import secret_or_plain, settings
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ async def connect_broadcast() -> None:
     """
     global _broadcast
 
-    redis_url = settings.redis_url or "redis://localhost:6379"
+    redis_url = secret_or_plain(settings.redis_url).strip() or "redis://localhost:6379"
     _broadcast = Broadcast(redis_url)
     await _broadcast.connect()
     logger.info("[BROADCAST] Connected to Redis for SSE multiplexing: %s", redis_url)

@@ -29,7 +29,9 @@ import sys
 from typing import Any, Literal, Optional
 from urllib.parse import urlparse, urlunparse
 
-from .config import settings
+from pydantic import SecretStr
+
+from .config import secret_or_plain, settings
 
 try:
     from app.utils.env_logging import log_info as scripts_log_info
@@ -69,31 +71,39 @@ class DatabaseConfig:
 
     def __init__(self) -> None:
         """Initialize database configuration."""
+
+        def _optional_plain(value: SecretStr | str | None) -> str | None:
+            plain = secret_or_plain(value).strip()
+            return plain or None
+
         # Access raw fields directly to avoid circular dependency
         self.int_url = _getenv(
             "TEST_DATABASE_URL",
             "DATABASE_URL",
-            default=settings.int_database_url_raw,
+            default=secret_or_plain(settings.int_database_url_raw),
         )
         self.stg_url = _getenv(
             "STG_DATABASE_URL",
             "STAGING_DATABASE_URL",
             "DATABASE_URL",
-            default=settings.stg_database_url_raw or settings.prod_database_url_raw,
+            default=(
+                _optional_plain(settings.stg_database_url_raw)
+                or _optional_plain(settings.prod_database_url_raw)
+            ),
         )
         self.prod_url = (
             _getenv(
                 "PROD_DATABASE_URL",
                 "PRODUCTION_DATABASE_URL",
                 "DATABASE_URL",
-                default=settings.prod_database_url_raw,
+                default=_optional_plain(settings.prod_database_url_raw),
             )
             or ""
         )
         self.preview_url = _getenv(
             "PREVIEW_DATABASE_URL",
             "DATABASE_URL",
-            default=settings.preview_database_url_raw,
+            default=secret_or_plain(settings.preview_database_url_raw),
         )
 
         # Validate configuration on startup

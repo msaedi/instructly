@@ -4,7 +4,9 @@ Test authentication functionality using proper test client fixture.
 """
 
 from datetime import datetime, timedelta, timezone
+import re
 import time as time_module
+from typing import Any
 
 from fastapi.testclient import TestClient
 import jwt
@@ -16,6 +18,13 @@ from app.core.config import settings
 from app.core.enums import RoleName
 from app.models.password_reset import PasswordResetToken
 from app.models.user import User
+
+
+def _extract_session_token(response: Any) -> str:
+    set_cookie = response.headers.get("set-cookie", "")
+    match = re.search(rf"{re.escape(settings.session_cookie_name)}=([^;]+)", set_cookie)
+    assert match, f"Expected {settings.session_cookie_name} in set-cookie header"
+    return match.group(1)
 
 
 class TestAuth:
@@ -135,9 +144,10 @@ class TestAuth:
 
         assert response.status_code == 200
         data = response.json()
-        assert "access_token" in data
+        assert "access_token" not in data
+        token = _extract_session_token(response)
         decoded = jwt.decode(
-            data["access_token"],
+            token,
             settings.secret_key.get_secret_value(),
             algorithms=[settings.algorithm],
             options={"verify_aud": False},
@@ -159,7 +169,7 @@ class TestAuth:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         assert response.status_code == 200
-        token = response.json()["access_token"]
+        token = _extract_session_token(response)
 
         # Test with Authorization header (traditional method)
         response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
@@ -216,8 +226,7 @@ class TestAuth:
         r2 = client.get("/api/v1/addresses/me")
         assert r2.status_code == 200
         # header path still works
-        token = r.json().get("access_token")
-        r3 = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+        r3 = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {cookie_token}"})
         assert r3.status_code == 200
 
     def test_login_wrong_password(self, db: Session, client: TestClient, test_student: User):
@@ -310,7 +319,7 @@ class TestAuth:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         assert login_response.status_code == 200
-        assert login_response.json().get("access_token")
+        assert "access_token" not in login_response.json()
 
     def test_password_reset_invalidates_old_token_and_allows_new_login(
         self, db: Session, client: TestClient, test_student: User
@@ -349,7 +358,7 @@ class TestAuth:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         assert login_response.status_code == 200
-        assert login_response.json().get("access_token")
+        assert "access_token" not in login_response.json()
 
     def test_logout_all_devices_invalidates_existing_tokens(
         self, client: TestClient, test_student: User, test_password: str
@@ -376,7 +385,7 @@ class TestAuth:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         assert login_response.status_code == 200
-        assert login_response.json().get("access_token")
+        assert "access_token" not in login_response.json()
 
     def test_admin_force_logout_invalidates_target_but_keeps_admin_active(
         self, client: TestClient, test_student: User, admin_user: User

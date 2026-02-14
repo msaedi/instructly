@@ -16,7 +16,7 @@ from pydantic import SecretStr
 import requests
 from sqlalchemy.orm import Session
 
-from ...core.config import settings
+from ...core.config import secret_or_plain, settings
 from ...database import get_db
 from ...dependencies.permissions import require_role
 from ...middleware.beta_phase_header import invalidate_beta_settings_cache
@@ -220,7 +220,8 @@ def get_beta_metrics_summary(
     # If Prometheus HTTP API is configured, prefer a true 24h window query
     if settings.prometheus_http_url:
         result = _fetch_prometheus_summary(
-            settings.prometheus_http_url, settings.prometheus_bearer_token
+            settings.prometheus_http_url,
+            secret_or_plain(settings.prometheus_bearer_token).strip() or None,
         )
         if result is not None:
             return result

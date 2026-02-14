@@ -146,11 +146,8 @@ def _preview_bypass(request: Request, user: User | None) -> bool:
     # Optional header path (only if explicitly allowed) – must come from preview origins
     if settings.allow_preview_header and _from_preview_origin(request):
         token = request.headers.get("x-staff-preview-token", "")
-        if (
-            token
-            and settings.staff_preview_token
-            and hmac.compare_digest(token, settings.staff_preview_token)
-        ):
+        preview_token = _secret_value(settings.staff_preview_token).strip()
+        if token and preview_token and hmac.compare_digest(token, preview_token):
             try:
                 logger.info(
                     "preview_bypass",

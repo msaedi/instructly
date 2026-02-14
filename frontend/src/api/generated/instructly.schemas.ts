@@ -8335,8 +8335,8 @@ export interface TFAVerifyLoginRequest {
 }
 
 export interface TFAVerifyLoginResponse {
-  access_token: string;
-  token_type: string;
+  access_token?: string | null;
+  token_type?: string | null;
 }
 
 /**

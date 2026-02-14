@@ -14,7 +14,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from ..core.config import settings
+from ..core.config import secret_or_plain, settings
 from ..core.constants import ALLOWED_ORIGINS, CORS_ORIGIN_REGEX, SSE_PATH_PREFIX
 from .rate_limiter import RateLimiter
 
@@ -37,7 +37,9 @@ class RateLimitMiddlewareASGI:
         self.invite_limit = 10
         self.invite_window_seconds = 3600
         # Bypass token for load testing (configured via RATE_LIMIT_BYPASS_TOKEN env var)
-        self._bypass_token: str = getattr(settings, "rate_limit_bypass_token", "") or ""
+        self._bypass_token: str = secret_or_plain(
+            getattr(settings, "rate_limit_bypass_token", None)
+        ).strip()
 
     @staticmethod
     def _extract_client_ip(scope: Scope) -> str:

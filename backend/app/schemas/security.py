@@ -64,8 +64,8 @@ class TFAVerifyLoginRequest(StrictRequestModel):
 
 class TFAVerifyLoginResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    access_token: str
-    token_type: str
+    access_token: Optional[str] = None
+    token_type: Optional[str] = None
 
 
 class BackupCodesResponse(StrictModel):

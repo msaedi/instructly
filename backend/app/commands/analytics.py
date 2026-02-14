@@ -28,7 +28,7 @@ from celery.result import AsyncResult
 from redis import Redis
 from scripts.calculate_service_analytics import AnalyticsCalculator
 
-from app.core.config import settings
+from app.core.config import secret_or_plain, settings
 from app.database import get_db
 from app.repositories.service_catalog_repository import ServiceAnalyticsRepository
 from app.tasks.enqueue import enqueue_task
@@ -45,7 +45,8 @@ class AnalyticsCommand:
 
     def __init__(self) -> None:
         """Initialize the command handler."""
-        self.redis_client = Redis.from_url(settings.redis_url)
+        redis_url = secret_or_plain(settings.redis_url).strip() or "redis://localhost:6379"
+        self.redis_client = Redis.from_url(redis_url)
         self.last_run_key = "analytics:last_run"
 
     def run_analytics(self, days_back: int = 90, async_mode: bool = False) -> Dict[str, Any]:

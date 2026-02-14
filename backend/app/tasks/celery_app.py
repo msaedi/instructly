@@ -24,7 +24,7 @@ from celery import Celery, Task, signals
 from celery.schedules import crontab
 from celery.signals import setup_logging
 
-from app.core.config import settings
+from app.core.config import secret_or_plain, settings
 from app.core.request_context import attach_request_id_filter, reset_request_id, set_request_id
 from app.monitoring.otel import init_otel, instrument_additional_libraries, shutdown_otel
 from app.monitoring.sentry import init_sentry
@@ -136,7 +136,7 @@ def create_celery_app() -> Celery:
     broker_url = (
         os.getenv("CELERY_BROKER_URL")
         or os.getenv("REDIS_URL")
-        or settings.redis_url
+        or secret_or_plain(settings.redis_url).strip()
         or "redis://localhost:6379"
     )
     # Ensure Redis URL includes database number

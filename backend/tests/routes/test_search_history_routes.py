@@ -155,8 +155,8 @@ class TestAuthWithGuestSession:
 
         assert response.status_code == 200
         data = response.json()
-        assert "access_token" in data
-        assert data["token_type"] == "bearer"
+        assert data.get("requires_2fa") is False
+        assert "access_token" not in data
 
         # Verify searches were converted
         guest_searches = db.query(SearchHistory).filter_by(guest_session_id=guest_session_id).all()
@@ -244,8 +244,8 @@ class TestAuthWithGuestSession:
 
         assert response.status_code == 200
         data = response.json()
-        assert "access_token" in data
-        assert data["token_type"] == "bearer"
+        assert data.get("requires_2fa") is False
+        assert "access_token" not in data
 
 
 class TestAuthenticatedSearchEndpoints:

@@ -111,6 +111,20 @@ def test_database_url_resolution(monkeypatch):
         assert cfg.get_database_url() == "db-url"
 
 
+def test_settings_repr_and_str_mask_secret_values():
+    masked_values = {
+        "RESEND_API_KEY": "re_super_secret_value",
+        "REDIS_URL": "redis://:ultra-secret@localhost:6379/0",
+        "VAPID_PRIVATE_KEY": "private-vapid-secret",
+        "ADMIN_PASSWORD": "admin-super-secret",
+    }
+    cfg = Settings.model_validate(masked_values)
+    rendered = f"{cfg!r}\n{cfg}"
+
+    for raw_value in masked_values.values():
+        assert raw_value not in rendered
+
+
 def test_test_and_stg_database_url_accessors():
     cfg = Settings.model_validate(
         {

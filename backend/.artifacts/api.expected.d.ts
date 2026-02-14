@@ -10117,8 +10117,8 @@ export type components = {
  temp_token: string;
  };
  TFAVerifyLoginResponse: {
- access_token: string;
- token_type: string;
+ access_token?: string | null;
+ token_type?: string | null;
  };
  TemplateInfo: {
  category: string;

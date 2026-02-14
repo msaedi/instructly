@@ -329,7 +329,8 @@ def test_verify_login_success_with_trust_and_guest_conversion_error(db, test_stu
         tfa_service=tfa_service,
     )
 
-    assert result.token_type == "bearer"
+    assert result.token_type is None
+    assert result.access_token is None
     assert any(
         "tfa_trusted" in cookie for cookie in response.headers.getlist("set-cookie")
     )

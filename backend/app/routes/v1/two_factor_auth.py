@@ -209,7 +209,11 @@ def regenerate_backup_codes(
     return BackupCodesResponse(backup_codes=codes)
 
 
-@router.post("/verify-login", response_model=TFAVerifyLoginResponse)
+@router.post(
+    "/verify-login",
+    response_model=TFAVerifyLoginResponse,
+    response_model_exclude_none=True,
+)
 @rate_limit(
     f"{settings.rate_limit_auth_per_minute}/minute",
     key_type=RateLimitKeyType.IP,
@@ -307,8 +311,6 @@ def verify_login(
             samesite=settings.session_cookie_samesite or "lax",
             path="/",
         )
-    from app.core.constants import BEARER_SCHEME
-
     try:
         AuditService(tfa_service.db).log(
             action="user.login",
@@ -323,4 +325,4 @@ def verify_login(
     except Exception:
         logger.warning("Audit log write failed for 2FA login", exc_info=True)
 
-    return TFAVerifyLoginResponse(access_token=access_token, token_type=BEARER_SCHEME)
+    return TFAVerifyLoginResponse()

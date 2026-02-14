@@ -11,7 +11,7 @@ import os
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from ..core.config import settings
+from ..core.config import secret_or_plain, settings
 from ..database import get_db
 from .account_lifecycle_service import AccountLifecycleService
 from .booking_service import BookingService
@@ -103,7 +103,7 @@ def get_email_service(
     cache: CacheServiceSyncAdapter = Depends(get_cache_service_sync),
 ) -> EmailService | ConsoleEmailService:
     provider = getattr(settings, "email_provider", "console").lower()
-    missing_key = not settings.resend_api_key
+    missing_key = not secret_or_plain(settings.resend_api_key).strip()
     site_mode = getattr(settings, "site_mode", "local")
     is_ci = os.getenv("CI") == "true"
     if provider == "console" or missing_key or (site_mode in {"int", "local"} and is_ci):

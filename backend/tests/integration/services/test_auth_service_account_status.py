@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.auth import get_password_hash
+from app.core.config import settings
 from app.models.user import User
 from app.services.auth_service import AuthService
 
@@ -207,8 +208,8 @@ class TestAuthServiceAccountStatus:
 
         # Should succeed
         assert response.status_code == 200
-        assert "access_token" in response.json()
-        assert response.json()["token_type"] == "bearer"
+        assert response.json().get("requires_2fa") is False
+        assert "access_token" not in response.json()
 
     def test_api_protected_endpoint_with_suspended_user_token(
         self, client, suspended_instructor: User, test_password: str
@@ -218,7 +219,10 @@ class TestAuthServiceAccountStatus:
         login_response = client.post(
             "/api/v1/auth/login", data={"username": suspended_instructor.email, "password": test_password}
         )
-        token = login_response.json()["access_token"]
+        set_cookie = login_response.headers.get("set-cookie", "")
+        cookie_name = f"{settings.session_cookie_name}="
+        assert cookie_name in set_cookie
+        token = set_cookie.split(cookie_name, 1)[1].split(";", 1)[0]
 
         # Try to access a protected endpoint
         headers = {"Authorization": f"Bearer {token}"}

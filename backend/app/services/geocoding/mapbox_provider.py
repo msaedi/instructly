@@ -6,13 +6,13 @@ from urllib.parse import quote
 
 import httpx
 
-from ...core.config import settings
+from ...core.config import secret_or_plain, settings
 from .base import AutocompleteResult, GeocodedAddress, GeocodingProvider
 
 
 class MapboxProvider(GeocodingProvider):
     def __init__(self) -> None:
-        self.access_token = settings.mapbox_access_token
+        self.access_token = secret_or_plain(settings.mapbox_access_token).strip()
         self.base_url = "https://api.mapbox.com"
 
     async def geocode(self, address: str) -> Optional[GeocodedAddress]:
