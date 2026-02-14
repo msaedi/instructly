@@ -27,11 +27,10 @@ sys.path.insert(0, str(project_root))
 from celery.result import AsyncResult
 from redis import Redis
 from scripts.calculate_service_analytics import AnalyticsCalculator
-from sqlalchemy import desc, func
 
 from app.core.config import settings
 from app.database import get_db
-from app.models.service_catalog import ServiceAnalytics
+from app.repositories.service_catalog_repository import ServiceAnalyticsRepository
 from app.tasks.enqueue import enqueue_task
 
 # Configure logging
@@ -194,14 +193,10 @@ class AnalyticsCommand:
 
         # Get additional stats from database
         db = next(get_db())
+        repo = ServiceAnalyticsRepository(db)
 
-        # Count total analytics records
-        total_records = db.query(func.count(ServiceAnalytics.service_catalog_id)).scalar()
-
-        # Get most recent update
-        latest_update = (
-            db.query(ServiceAnalytics).order_by(desc(ServiceAnalytics.last_calculated)).first()
-        )
+        total_records = repo.count_all()
+        latest_update = repo.get_most_recent()
 
         if latest_update:
             last_run["latest_update"] = latest_update.last_calculated.isoformat()

@@ -29,13 +29,12 @@ import stripe
 
 from app.core.booking_lock import booking_lock_sync
 from app.core.config import settings
-from app.core.exceptions import ServiceException
+from app.core.exceptions import RepositoryException, ServiceException
 from app.database import get_db
 from app.models.booking import Booking, BookingStatus, PaymentStatus
 from app.models.payment import PaymentEvent
 from app.models.user import User
 from app.monitoring.sentry_crons import monitor_if_configured
-from app.repositories.base_repository import RepositoryException
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.factory import RepositoryFactory
 from app.services.booking_service import BookingService
