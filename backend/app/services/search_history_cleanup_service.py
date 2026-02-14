@@ -161,8 +161,6 @@ class SearchHistoryCleanupService(BaseService):
         }
 
         # Total soft-deleted records
-        # repo-pattern-ignore: Statistics query for reporting - count only deleted
-        # Use repository for statistics to comply with repository pattern
         stats["total_soft_deleted"] = self.repository.count_soft_deleted_total()
 
         # Soft-deleted records eligible for cleanup

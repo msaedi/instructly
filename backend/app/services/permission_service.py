@@ -231,17 +231,15 @@ class PermissionService(BaseService):
         # Check if override already exists
         user_perm = self.rbac_repository.get_user_permission(user_id, permission.id)
 
-        if user_perm:
-            user_perm.granted = True
-        else:
-            user_perm = self.rbac_repository.add_user_permission(
-                user_id, permission.id, granted=True
-            )
+        with self.transaction():
+            if user_perm:
+                user_perm.granted = True
+            else:
+                user_perm = self.rbac_repository.add_user_permission(
+                    user_id, permission.id, granted=True
+                )
 
-        # repo-pattern-ignore: Transaction commit belongs in service layer
-        self.db.commit()
-
-        # Clear cache for this user
+        # Clear cache for this user (best-effort, outside transaction)
         self._clear_user_cache(user_id)
 
         return True
@@ -269,17 +267,15 @@ class PermissionService(BaseService):
         # Check if override already exists
         user_perm = self.rbac_repository.get_user_permission(user_id, permission.id)
 
-        if user_perm:
-            user_perm.granted = False
-        else:
-            user_perm = self.rbac_repository.add_user_permission(
-                user_id, permission.id, granted=False
-            )
+        with self.transaction():
+            if user_perm:
+                user_perm.granted = False
+            else:
+                user_perm = self.rbac_repository.add_user_permission(
+                    user_id, permission.id, granted=False
+                )
 
-        # repo-pattern-ignore: Transaction commit belongs in service layer
-        self.db.commit()
-
-        # Clear cache for this user
+        # Clear cache for this user (best-effort, outside transaction)
         self._clear_user_cache(user_id)
 
         return True
@@ -308,11 +304,10 @@ class PermissionService(BaseService):
             return False
 
         # Assign role
-        user.roles.append(role)
-        # repo-pattern-ignore: Transaction commit belongs in service layer
-        self.db.commit()
+        with self.transaction():
+            user.roles.append(role)
 
-        # Clear cache for this user
+        # Clear cache for this user (best-effort, outside transaction)
         self._clear_user_cache(user_id)
 
         return True
@@ -341,11 +336,10 @@ class PermissionService(BaseService):
             return False
 
         # Remove role
-        user.roles.remove(role)
-        # repo-pattern-ignore: Transaction commit belongs in service layer
-        self.db.commit()
+        with self.transaction():
+            user.roles.remove(role)
 
-        # Clear cache for this user
+        # Clear cache for this user (best-effort, outside transaction)
         self._clear_user_cache(user_id)
 
         return True

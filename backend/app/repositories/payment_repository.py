@@ -467,6 +467,10 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             self.logger.error(f"Failed to get connected account by stripe id: {str(e)}")
             raise RepositoryException(f"Failed to get connected account by stripe id: {str(e)}")
 
+    def get_all_connected_accounts(self) -> List[StripeConnectedAccount]:
+        """Get all Stripe connected accounts."""
+        return list(self.db.query(StripeConnectedAccount).all())
+
     # ========== Payment Method Management ==========
 
     def save_payment_method(

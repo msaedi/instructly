@@ -486,6 +486,37 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
         )
         return cast(Optional[InstructorReferralPayout], result)
 
+    def get_payout_for_update(self, payout_id: str) -> Optional[InstructorReferralPayout]:
+        """Get a payout record with a SELECT FOR UPDATE lock."""
+        return (
+            self.db.query(InstructorReferralPayout)
+            .filter(InstructorReferralPayout.id == payout_id)
+            .with_for_update()
+            .first()
+        )
+
+    def get_failed_payouts_since(self, since: datetime) -> List[InstructorReferralPayout]:
+        """Get all failed payouts since the given time."""
+        return list(
+            self.db.query(InstructorReferralPayout)
+            .filter(
+                InstructorReferralPayout.stripe_transfer_status == "failed",
+                InstructorReferralPayout.failed_at >= since,
+            )
+            .all()
+        )
+
+    def get_pending_payouts_older_than(self, cutoff: datetime) -> List[InstructorReferralPayout]:
+        """Get pending payouts older than the cutoff time."""
+        return list(
+            self.db.query(InstructorReferralPayout)
+            .filter(
+                InstructorReferralPayout.stripe_transfer_status == "pending",
+                InstructorReferralPayout.created_at <= cutoff,
+            )
+            .all()
+        )
+
     def get_referrer_payouts(
         self,
         referrer_user_id: str,

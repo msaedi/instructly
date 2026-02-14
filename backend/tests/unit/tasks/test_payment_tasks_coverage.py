@@ -273,7 +273,7 @@ class TestProcessAuthorizationForBooking:
         with patch("app.database.SessionLocal") as mock_session:
             mock_db = MagicMock()
             mock_session.return_value = mock_db
-            mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = None
+            mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = None
 
             result = _process_authorization_for_booking(generate_ulid(), 24.0)
 
@@ -291,7 +291,7 @@ class TestProcessAuthorizationForBooking:
             mock_booking = MagicMock()
             mock_booking.id = generate_ulid()
             mock_booking.status = BookingStatus.CANCELLED
-            mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_booking
+            mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = mock_booking
 
             result = _process_authorization_for_booking(mock_booking.id, 24.0)
 
@@ -627,7 +627,7 @@ class TestCancelBookingPaymentFailed:
         with patch("app.database.SessionLocal") as mock_session_class:
             mock_db = MagicMock()
             mock_session_class.return_value = mock_db
-            mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = None
+            mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = None
 
             result = _cancel_booking_payment_failed(
                 generate_ulid(),
@@ -648,7 +648,7 @@ class TestCancelBookingPaymentFailed:
 
             mock_booking = MagicMock()
             mock_booking.status = BookingStatus.CANCELLED
-            mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_booking
+            mock_db.query.return_value.filter.return_value.options.return_value.first.return_value = mock_booking
 
             result = _cancel_booking_payment_failed(
                 generate_ulid(),

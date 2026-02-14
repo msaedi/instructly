@@ -245,19 +245,29 @@ class TestPaymentIntegration:
             booking_id=test_booking.id, payment_method_id="pm_test123"
         )
 
+        # Compute expected amounts dynamically from pricing config
+        pricing_config, _ = stripe_service.config_service.get_pricing_config()
+        _sfp = Decimal(str(pricing_config["student_fee_pct"]))
+        _tip = Decimal(str(pricing_config["instructor_tiers"][0]["pct"]))
+        _base = 8000  # $80 lesson (60 min at $80/hr)
+        _student_fee = int((Decimal(_base) * _sfp).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        _instructor_fee = int((Decimal(_base) * _tip).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        _expected_amount = _base + _student_fee
+        _expected_app_fee = _student_fee + _instructor_fee
+
         # Verify payment result
         assert payment_result["success"] is True
         assert payment_result["payment_intent_id"] == "pi_test123"
         assert payment_result["status"] == "succeeded"
-        assert payment_result["amount"] == 8960  # $80 base + 12% student fee
-        assert payment_result["application_fee"] == 2160  # 12% student fee + 15% platform fee
+        assert payment_result["amount"] == _expected_amount
+        assert payment_result["application_fee"] == _expected_app_fee
 
         # Step 6: Verify database records
         payment_record = stripe_service.payment_repository.get_payment_by_booking_id(test_booking.id)
         assert payment_record is not None
         assert payment_record.stripe_payment_intent_id == "pi_test123"
-        assert payment_record.amount == 8960
-        assert payment_record.application_fee == 2160
+        assert payment_record.amount == _expected_amount
+        assert payment_record.application_fee == _expected_app_fee
         assert payment_record.status == "succeeded"
 
         # Verify all Stripe calls were made
@@ -526,9 +536,9 @@ class TestPaymentIntegration:
         """Part 6: Verify credits are capped at lesson price and fee is charged to card.
 
         With Part 6, credits can only cover the lesson price, never the platform fee.
-        - $200 credit available, $80 lesson ($89.60 total with 12% fee)
+        - $200 credit available, $80 lesson
         - Credit applied: $80 (capped at lesson price)
-        - Card charged: $9.60 (platform fee - minimum card charge)
+        - Card charged: student fee only (minimum card charge)
         - Remaining credit: $120
         """
         # Mock Stripe responses
@@ -579,8 +589,13 @@ class TestPaymentIntegration:
         # Remaining = $200 - $80 = $120
         assert remaining == 12000, f"Remaining credit should be $120, got {remaining}"
 
-        # Card charged = $9.60 (fee only)
-        assert result["amount"] == 960, f"Card should be charged fee only ($9.60), got {result['amount']}"
+        # Card charged = student fee only (credits cover the lesson price)
+        pricing_config, _ = stripe_service.config_service.get_pricing_config()
+        _sfp = Decimal(str(pricing_config["student_fee_pct"]))
+        _expected_fee = int((Decimal(8000) * _sfp).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        assert result["amount"] == _expected_fee, (
+            f"Card should be charged fee only (${_expected_fee / 100:.2f}), got {result['amount']}"
+        )
 
     @patch("stripe.Customer.create")
     def test_multiple_payment_methods_flow(self, mock_customer_create, db: Session, student_user: User):

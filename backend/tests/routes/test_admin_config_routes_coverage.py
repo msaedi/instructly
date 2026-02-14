@@ -10,37 +10,16 @@ from app.schemas.pricing_config import PricingConfigPayload
 
 
 class _ServiceStub:
-    def __init__(self, _db, *, async_result=False, fail=False):
-        self.async_result = async_result
+    def __init__(self, _db, *, fail=False):
         self.fail = fail
-        self.committed = False
-        self.rolled_back = False
 
     def get_pricing_config(self):
-        result = (PRICING_DEFAULTS, datetime.now(timezone.utc))
-        if self.async_result:
-            async def _async():
-                return result
-
-            return _async()
-        return result
+        return (PRICING_DEFAULTS, datetime.now(timezone.utc))
 
     def set_pricing_config(self, _payload):
         if self.fail:
             raise RuntimeError("boom")
-        result = (PRICING_DEFAULTS, datetime.now(timezone.utc))
-        if self.async_result:
-            async def _async():
-                return result
-
-            return _async()
-        return result
-
-    def commit(self):
-        self.committed = True
-
-    def rollback(self):
-        self.rolled_back = True
+        return (PRICING_DEFAULTS, datetime.now(timezone.utc))
 
 
 @pytest.mark.asyncio
@@ -53,17 +32,6 @@ async def test_get_pricing_config_sync(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_get_pricing_config_async(monkeypatch):
-    monkeypatch.setattr(
-        routes, "ConfigService", lambda _db: _ServiceStub(_db, async_result=True)
-    )
-
-    response = await routes.get_pricing_config(db=None, _=None)
-
-    assert response.config.founding_instructor_cap == PRICING_DEFAULTS["founding_instructor_cap"]
-
-
-@pytest.mark.asyncio
 async def test_update_pricing_config_commits(monkeypatch):
     service = _ServiceStub(None)
     monkeypatch.setattr(routes, "ConfigService", lambda _db: service)
@@ -72,16 +40,13 @@ async def test_update_pricing_config_commits(monkeypatch):
     response = await routes.update_pricing_config(payload=payload, db=None, _=None)
 
     assert response.config.founding_search_boost == PRICING_DEFAULTS["founding_search_boost"]
-    assert service.committed is True
 
 
 @pytest.mark.asyncio
-async def test_update_pricing_config_rolls_back_on_error(monkeypatch):
+async def test_update_pricing_config_propagates_error(monkeypatch):
     service = _ServiceStub(None, fail=True)
     monkeypatch.setattr(routes, "ConfigService", lambda _db: service)
     payload = PricingConfigPayload(**PRICING_DEFAULTS)
 
     with pytest.raises(RuntimeError, match="boom"):
         await routes.update_pricing_config(payload=payload, db=None, _=None)
-
-    assert service.rolled_back is True

@@ -114,7 +114,6 @@ class TwoFactorAuthService(BaseService):
             user.totp_secret = encrypted
             user.totp_enabled = False
             user.two_factor_setup_at = datetime.now(timezone.utc)
-            # repo-pattern-ignore: commit handled by BaseService.transaction context manager
         return {"secret": secret, "qr_code_data_url": data_url, "otpauth_url": otpauth_url}
 
     @BaseService.measure_operation("tfa_verify_code")
@@ -155,7 +154,6 @@ class TwoFactorAuthService(BaseService):
             user.totp_enabled = True
             user.totp_verified_at = datetime.now(timezone.utc)
             user.backup_codes = backup_codes_hashed
-            # repo-pattern-ignore: commit handled by BaseService.transaction context manager
         return backup_codes_plain
 
     @BaseService.measure_operation("tfa_disable")
@@ -168,7 +166,6 @@ class TwoFactorAuthService(BaseService):
             user.totp_verified_at = None
             user.backup_codes = None
             user.two_factor_last_used_at = None
-            # repo-pattern-ignore: commit handled by BaseService.transaction context manager
 
     @BaseService.measure_operation("tfa_status")
     def status(self, user: User) -> Dict[str, Any]:
@@ -186,7 +183,6 @@ class TwoFactorAuthService(BaseService):
         if code and self.verify_totp_code(user, code):
             with self.transaction():
                 user.two_factor_last_used_at = datetime.now(timezone.utc)
-                # repo-pattern-ignore: commit handled by BaseService.transaction context manager
             return True
         # Fallback to backup code
         if backup_code and user.backup_codes:
@@ -199,7 +195,6 @@ class TwoFactorAuthService(BaseService):
                             codes.pop(idx)
                             user.backup_codes = codes
                             user.two_factor_last_used_at = datetime.now(timezone.utc)
-                            # repo-pattern-ignore: commit handled by BaseService.transaction context manager
                         return True
                 except Exception:
                     logger.debug("Non-fatal error ignored", exc_info=True)

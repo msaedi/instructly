@@ -2788,7 +2788,7 @@ def audit_and_fix_payout_schedules(self: Any) -> Dict[str, Any]:
 
     db: Session = SessionLocal()
     try:
-        _payment_repo = RepositoryFactory.get_payment_repository(db)
+        payment_repo = RepositoryFactory.get_payment_repository(db)
         config_service = ConfigService(db)
         pricing_service = PricingService(db)
         stripe_service = StripeService(
@@ -2797,10 +2797,7 @@ def audit_and_fix_payout_schedules(self: Any) -> Dict[str, Any]:
             pricing_service=pricing_service,
         )
 
-        from app.models.payment import StripeConnectedAccount
-
-        # repo-pattern-ignore: Simple scan over connected accounts table
-        accounts = db.query(StripeConnectedAccount).all()
+        accounts = payment_repo.get_all_connected_accounts()
         fixed = 0
         checked = 0
         for acc in accounts:
