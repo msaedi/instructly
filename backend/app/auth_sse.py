@@ -45,6 +45,7 @@ from .core.auth_cache import (
 from .core.cache_redis import get_async_cache_redis_client
 from .core.config import settings
 from .models.user import User
+from .services.token_blacklist_service import TokenBlacklistService
 from .utils.cookies import session_cookie_candidates
 
 logger = logging.getLogger(__name__)
@@ -151,9 +152,32 @@ async def get_current_user_sse(
 
     try:
         payload = decode_access_token(token)
-        user_email = payload.get("sub")
+        jti_obj = payload.get("jti")
+        jti = jti_obj if isinstance(jti_obj, str) else None
+        if not jti:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token format outdated, please re-login",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-        if not isinstance(user_email, str):
+        blacklist = TokenBlacklistService()
+        try:
+            revoked = await blacklist.is_revoked(jti)
+        except Exception as exc:
+            logger.warning("SSE blacklist check failed for jti=%s (fail-closed): %s", jti, exc)
+            revoked = True
+        if revoked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        user_id_obj = payload.get("sub")
+        user_id = user_id_obj if isinstance(user_id_obj, str) else None
+
+        if user_id is None:
             raise credentials_exception
 
     except (PyJWTError, InvalidIssuerError) as e:
@@ -165,10 +189,38 @@ async def get_current_user_sse(
     # =========================================================================
     # This uses Redis cache + asyncio.to_thread for DB queries to avoid
     # blocking the event loop under load.
-    user_data = await lookup_user_nonblocking(user_email)
+    user_data = await lookup_user_by_id_nonblocking(user_id)
+    if user_data is None:
+        # Defensive compatibility fallback for legacy email subjects.
+        user_data = await lookup_user_nonblocking(user_id)
 
     if user_data is None:
         raise credentials_exception
+
+    iat_obj = payload.get("iat")
+    iat_ts: int | None
+    if isinstance(iat_obj, int):
+        iat_ts = iat_obj
+    elif isinstance(iat_obj, float):
+        iat_ts = int(iat_obj)
+    elif isinstance(iat_obj, str):
+        try:
+            iat_ts = int(iat_obj)
+        except ValueError:
+            iat_ts = None
+    else:
+        iat_ts = None
+
+    if iat_ts is not None:
+        tokens_valid_after_ts = user_data.get("tokens_valid_after_ts")
+        if isinstance(tokens_valid_after_ts, float):
+            tokens_valid_after_ts = int(tokens_valid_after_ts)
+        if isinstance(tokens_valid_after_ts, int) and iat_ts < tokens_valid_after_ts:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been invalidated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     if not user_data.get("is_active", True):
         raise HTTPException(

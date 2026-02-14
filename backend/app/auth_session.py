@@ -9,25 +9,38 @@ from sqlalchemy.orm import Session
 
 from app.auth import decode_access_token
 from app.repositories.user_repository import UserRepository
+from app.services.token_blacklist_service import TokenBlacklistService
 from app.utils.cookies import session_cookie_candidates
 
 if TYPE_CHECKING:
     from app.models.user import User
 
 
-def _lookup_active_user(user_identifier: str, db: Session) -> Optional["User"]:
+def _lookup_active_user(
+    user_identifier: str,
+    db: Session,
+    token_iat: int | None = None,
+) -> Optional["User"]:
     if not user_identifier:
         return None
     user_repo = UserRepository(db)
     user = user_repo.get_by_id(user_identifier, use_retry=False)
     if not user:
         user = user_repo.get_by_email(user_identifier)
-    if user and getattr(user, "is_active", False):
-        return user
-    return None
+    if not user or not getattr(user, "is_active", False):
+        return None
+
+    # Token invalidation check by user-wide floor timestamp.
+    if token_iat is not None:
+        tokens_valid_after = getattr(user, "tokens_valid_after", None)
+        if tokens_valid_after and token_iat < int(tokens_valid_after.timestamp()):
+            return None
+
+    return user
 
 
-def _decode_email(token: str) -> Optional[str]:
+def _decode_token_claims(token: str) -> tuple[str, int | None] | None:
+    """Decode JWT claims and enforce jti + revocation checks."""
     from jwt import PyJWTError
 
     if not token:
@@ -38,10 +51,45 @@ def _decode_email(token: str) -> Optional[str]:
         return None
     except Exception:
         return None
-    if not payload.get("jti"):
+
+    jti_obj = payload.get("jti")
+    jti = jti_obj if isinstance(jti_obj, str) else None
+    if not jti:
         return None
+
+    try:
+        if TokenBlacklistService().is_revoked_sync(jti):
+            return None
+    except Exception:
+        # Defensive fail-closed fallback if sync bridge errors unexpectedly.
+        return None
+
     subject = payload.get("sub")
-    return subject if isinstance(subject, str) else None
+    if not isinstance(subject, str):
+        return None
+
+    iat_obj = payload.get("iat")
+    iat_ts: int | None
+    if isinstance(iat_obj, int):
+        iat_ts = iat_obj
+    elif isinstance(iat_obj, float):
+        iat_ts = int(iat_obj)
+    elif isinstance(iat_obj, str):
+        try:
+            iat_ts = int(iat_obj)
+        except ValueError:
+            iat_ts = None
+    else:
+        iat_ts = None
+
+    return subject, iat_ts
+
+
+def _decode_email(token: str) -> Optional[str]:
+    claims = _decode_token_claims(token)
+    if claims is None:
+        return None
+    return claims[0]
 
 
 def get_user_from_session_cookie(request: Request, db: Session) -> Optional[User]:
@@ -52,9 +100,10 @@ def get_user_from_session_cookie(request: Request, db: Session) -> Optional[User
         token = cookies.get(cookie_name)
         if not token:
             continue
-        email = _decode_email(token)
-        if email:
-            user = _lookup_active_user(email, db)
+        claims = _decode_token_claims(token)
+        if claims:
+            user_identifier, iat_ts = claims
+            user = _lookup_active_user(user_identifier, db, token_iat=iat_ts)
             if user:
                 return user
     return None
@@ -69,7 +118,8 @@ def get_user_from_bearer_header(request: Request, db: Session) -> Optional[User]
     token = auth_header.split(" ", 1)[1].strip()
     if not token:
         return None
-    email = _decode_email(token)
-    if not email:
+    claims = _decode_token_claims(token)
+    if not claims:
         return None
-    return _lookup_active_user(email, db)
+    user_identifier, iat_ts = claims
+    return _lookup_active_user(user_identifier, db, token_iat=iat_ts)

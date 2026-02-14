@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 import json
 from types import SimpleNamespace
 
@@ -348,6 +349,15 @@ def test_sync_user_lookup_by_id_returns_user(monkeypatch):
     result = auth_cache._sync_user_lookup_by_id("user-id")
     assert result is not None
     assert result["email"] == "user@example.com"
+
+
+def test_user_to_dict_includes_tokens_valid_after_ts():
+    user = User(email="user@example.com")
+    user.roles = []
+    user.tokens_valid_after = datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc)
+
+    result = auth_cache._user_to_dict(user)
+    assert result["tokens_valid_after_ts"] == int(user.tokens_valid_after.timestamp())
 
 
 @pytest.mark.asyncio

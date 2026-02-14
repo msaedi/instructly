@@ -488,12 +488,13 @@ class ReferralRewardRepository(BaseRepository[ReferralReward]):
 
     def get_payout_for_update(self, payout_id: str) -> Optional[InstructorReferralPayout]:
         """Get a payout record with a SELECT FOR UPDATE lock."""
-        return (
+        result = (
             self.db.query(InstructorReferralPayout)
             .filter(InstructorReferralPayout.id == payout_id)
             .with_for_update()
             .first()
         )
+        return cast(Optional[InstructorReferralPayout], result)
 
     def get_failed_payouts_since(self, since: datetime) -> List[InstructorReferralPayout]:
         """Get all failed payouts since the given time."""

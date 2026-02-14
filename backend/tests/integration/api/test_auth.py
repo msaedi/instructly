@@ -3,11 +3,14 @@
 Test authentication functionality using proper test client fixture.
 """
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi.testclient import TestClient
 import jwt
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token, get_password_hash, verify_password
+from app.core.auth_cache import invalidate_cached_user_by_id_sync
 from app.core.config import settings
 from app.core.enums import RoleName
 from app.models.user import User
@@ -253,3 +256,29 @@ class TestAuth:
 
         assert response.status_code == 401
         assert "Not authenticated" in response.json()["detail"]
+
+    def test_auth_rejects_token_when_tokens_valid_after_is_after_iat(
+        self, db: Session, client: TestClient, test_student: User
+    ):
+        token = create_access_token({"sub": test_student.id, "email": test_student.email})
+        test_student.tokens_valid_after = datetime.now(timezone.utc) + timedelta(seconds=30)
+        db.add(test_student)
+        db.commit()
+        invalidate_cached_user_by_id_sync(test_student.id, db)
+
+        response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert response.status_code == 401
+        assert response.json().get("detail") == "Token has been invalidated"
+
+    def test_auth_allows_token_when_tokens_valid_after_is_before_iat(
+        self, db: Session, client: TestClient, test_student: User
+    ):
+        test_student.tokens_valid_after = datetime.now(timezone.utc) - timedelta(minutes=10)
+        db.add(test_student)
+        db.commit()
+        invalidate_cached_user_by_id_sync(test_student.id, db)
+
+        token = create_access_token({"sub": test_student.id, "email": test_student.email})
+        response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert response.status_code == 200
+        assert response.json()["id"] == test_student.id

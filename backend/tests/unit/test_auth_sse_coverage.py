@@ -112,8 +112,22 @@ async def test_get_current_user_sse_invalid_jwt(monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_get_current_user_sse_inactive_user(monkeypatch) -> None:
     request = _make_request()
-    monkeypatch.setattr(auth_sse, "decode_access_token", lambda _token: {"sub": "a@b.com"})
-    monkeypatch.setattr(auth_sse, "lookup_user_nonblocking", AsyncMock(return_value={"id": "u1", "is_active": False}))
+    monkeypatch.setattr(
+        auth_sse,
+        "decode_access_token",
+        lambda _token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "jti": "test-jti", "iat": 123},
+    )
+
+    class _NeverRevoked:
+        async def is_revoked(self, _jti: str) -> bool:
+            return False
+
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevoked())
+    monkeypatch.setattr(
+        auth_sse,
+        "lookup_user_by_id_nonblocking",
+        AsyncMock(return_value={"id": "u1", "is_active": False}),
+    )
 
     with pytest.raises(HTTPException) as exc:
         await auth_sse.get_current_user_sse(request, token_header="token", token_query=None)
@@ -125,8 +139,22 @@ async def test_get_current_user_sse_inactive_user(monkeypatch) -> None:
 async def test_get_current_user_sse_cookie_flow(monkeypatch) -> None:
     request = _make_request("session=token")
     monkeypatch.setattr(auth_sse, "session_cookie_candidates", lambda _mode: ["session"])
-    monkeypatch.setattr(auth_sse, "decode_access_token", lambda _token: {"sub": "a@b.com"})
-    monkeypatch.setattr(auth_sse, "lookup_user_nonblocking", AsyncMock(return_value={"id": "u1", "is_active": True}))
+    monkeypatch.setattr(
+        auth_sse,
+        "decode_access_token",
+        lambda _token: {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "jti": "test-jti", "iat": 123},
+    )
+
+    class _NeverRevoked:
+        async def is_revoked(self, _jti: str) -> bool:
+            return False
+
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevoked())
+    monkeypatch.setattr(
+        auth_sse,
+        "lookup_user_by_id_nonblocking",
+        AsyncMock(return_value={"id": "u1", "is_active": True}),
+    )
     monkeypatch.setattr(auth_sse, "create_transient_user", lambda data: data)
 
     result = await auth_sse.get_current_user_sse(request, token_header=None, token_query=None)

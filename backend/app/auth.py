@@ -13,7 +13,9 @@ from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt import InvalidIssuerError, PyJWTError
 
+from .core.auth_cache import lookup_user_by_id_nonblocking, lookup_user_nonblocking
 from .core.config import settings
+from .services.token_blacklist_service import TokenBlacklistService
 from .utils.cookies import session_cookie_candidates
 
 logger = logging.getLogger(__name__)
@@ -283,6 +285,68 @@ def create_temp_token(data: Dict[str, Any], expires_delta: Optional[timedelta] =
     return encoded_jwt
 
 
+def _parse_iat_claim(payload: Dict[str, Any]) -> int | None:
+    """Parse iat claim as integer epoch seconds."""
+    iat_obj = payload.get("iat")
+    if isinstance(iat_obj, int):
+        return iat_obj
+    if isinstance(iat_obj, float):
+        return int(iat_obj)
+    if isinstance(iat_obj, str):
+        try:
+            return int(iat_obj)
+        except ValueError:
+            return None
+    return None
+
+
+async def _enforce_revocation_and_user_invalidation(payload: Dict[str, Any], user_id: str) -> None:
+    """Enforce revocation and tokens_valid_after checks for a decoded JWT."""
+    jti_obj = payload.get("jti")
+    jti = jti_obj if isinstance(jti_obj, str) else None
+    if not jti:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token format outdated, please re-login",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    blacklist = TokenBlacklistService()
+    try:
+        revoked = await blacklist.is_revoked(jti)
+    except Exception as exc:
+        logger.warning("Blacklist check failed for jti=%s (fail-closed): %s", jti, exc)
+        revoked = True
+
+    if revoked:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    iat_ts = _parse_iat_claim(payload)
+    if iat_ts is None:
+        return
+
+    # ID-first path with defensive fallback for legacy email-subject callers.
+    user_data = await lookup_user_by_id_nonblocking(user_id)
+    if user_data is None:
+        user_data = await lookup_user_nonblocking(user_id)
+    if not user_data:
+        return
+
+    tokens_valid_after_ts = user_data.get("tokens_valid_after_ts")
+    if isinstance(tokens_valid_after_ts, float):
+        tokens_valid_after_ts = int(tokens_valid_after_ts)
+    if isinstance(tokens_valid_after_ts, int) and iat_ts < tokens_valid_after_ts:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been invalidated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 async def get_current_user(
     request: Request, token: Optional[str] = Depends(oauth2_scheme_optional)
 ) -> str:
@@ -329,13 +393,6 @@ async def get_current_user(
         if not token:
             raise not_authenticated
         payload = decode_access_token(token)
-        if not payload.get("jti"):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token format outdated, please re-login",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
         user_id_obj = payload.get("sub")
         if not isinstance(user_id_obj, str):
             user_id: str | None = None
@@ -349,6 +406,8 @@ async def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
             raise credentials_exception
+
+        await _enforce_revocation_and_user_invalidation(payload, user_id)
 
         logger.debug(f"Successfully validated token for user: {user_id}")
         return user_id
@@ -400,18 +459,13 @@ async def get_current_user_optional(
 
     try:
         payload = decode_access_token(token)
-        if not payload.get("jti"):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token format outdated, please re-login",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
         user_id_obj = payload.get("sub")
         user_id: str | None = user_id_obj if isinstance(user_id_obj, str) else None
         if user_id is None:
             logger.warning("Token payload missing 'sub' field")
             return None
+
+        await _enforce_revocation_and_user_invalidation(payload, user_id)
 
         logger.debug(f"Successfully validated optional token for user: {user_id}")
         return user_id

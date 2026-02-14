@@ -44,6 +44,7 @@ from ...services.cache_service import CacheService
 from ...services.conflict_checker import ConflictChecker
 from ...services.email import EmailService
 from ...services.instructor_service import InstructorService
+from ...services.token_blacklist_service import TokenBlacklistService
 from ...utils.bitset import SLOTS_PER_DAY
 from ...utils.cookies import session_cookie_candidates
 from ...utils.time_helpers import string_to_time
@@ -267,6 +268,25 @@ def public_logout(
                     break
         if token:
             payload = decode_access_token(token, enforce_audience=False)
+            jti = payload.get("jti")
+            exp = payload.get("exp")
+            if isinstance(jti, str) and jti:
+                exp_ts: int | None
+                if isinstance(exp, int):
+                    exp_ts = exp
+                elif isinstance(exp, float):
+                    exp_ts = int(exp)
+                elif isinstance(exp, str):
+                    try:
+                        exp_ts = int(exp)
+                    except ValueError:
+                        exp_ts = None
+                else:
+                    exp_ts = None
+
+                if exp_ts is not None:
+                    TokenBlacklistService().revoke_token_sync(jti, exp_ts)
+
             email = payload.get("email")
             AuditService(db).log(
                 action="user.logout",

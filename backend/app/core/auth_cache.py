@@ -246,6 +246,14 @@ def _user_to_dict(user: User, beta_access: Optional[Any] = None) -> Dict[str, An
         "timezone": getattr(user, "timezone", None),
         "profile_picture_version": getattr(user, "profile_picture_version", 0),
         "has_profile_picture": getattr(user, "has_profile_picture", False),
+        # Keep this precomputed in cache so auth checks are integer comparisons.
+        # IMPORTANT: when tokens_valid_after is changed (Phase 3+), evict auth cache
+        # entries via invalidate_cached_user_by_id_sync() so this value refreshes.
+        "tokens_valid_after_ts": (
+            int(user.tokens_valid_after.timestamp())
+            if getattr(user, "tokens_valid_after", None)
+            else None
+        ),
         # Role names for direct use in /auth/me response
         "roles": role_names,
         "permissions": list(permissions),  # Cache permissions for SSE permission checks

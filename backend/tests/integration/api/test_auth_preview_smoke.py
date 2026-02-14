@@ -108,7 +108,9 @@ def test_preview_2fa_session_flow(client: TestClient, db: Session, monkeypatch) 
     me_response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {body['access_token']}"})
     assert me_response.status_code == 200
 
-    logout_response = client.post("/api/v1/public/logout", headers=_csrf_headers(client))
+    logout_headers = _csrf_headers(client)
+    logout_headers["Cookie"] = f"{settings.session_cookie_name}={body['access_token']}"
+    logout_response = client.post("/api/v1/public/logout", headers=logout_headers)
     assert logout_response.status_code == 204
     logout_cookies = logout_response.headers.get_list("set-cookie")
     logout_session_cookie = next(
@@ -121,6 +123,13 @@ def test_preview_2fa_session_flow(client: TestClient, db: Session, monkeypatch) 
     assert "HttpOnly" in logout_session_cookie
     assert "Path=/" in logout_session_cookie
     assert "SameSite=lax" in logout_session_cookie or "SameSite=Lax" in logout_session_cookie
+
+    revoked_response = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {body['access_token']}"},
+    )
+    assert revoked_response.status_code == 401
+    assert revoked_response.json().get("detail") == "Token has been revoked"
 
     me_after_logout = client.get("/api/v1/auth/me")
     assert me_after_logout.status_code == 401

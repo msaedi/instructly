@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import HTTPException
 import pytest
 from sqlalchemy.orm import Session
@@ -50,10 +52,16 @@ def _create_user(unit_db: Session, email: str = "chat@example.com") -> User:
     return user
 
 
+class _NeverRevokedService:
+    async def is_revoked(self, _jti: str) -> bool:
+        return False
+
+
 @pytest.mark.asyncio
 async def test_get_current_user_sse_accepts_configured_session_cookie(unit_db, monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
     monkeypatch.setattr(settings, "session_cookie_name", "sid", raising=False)
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevokedService())
     # Patch SessionLocal in the shared auth_cache module to return our test db session
     monkeypatch.setattr(auth_cache, "SessionLocal", lambda: unit_db)
     # Disable Redis caching to avoid stale cache hits from previous test runs
@@ -64,8 +72,7 @@ async def test_get_current_user_sse_accepts_configured_session_cookie(unit_db, m
     # Capture user attributes BEFORE calling get_current_user_sse
     # because it calls db.rollback() which expires all objects in the session
     expected_id = user.id
-    expected_email = user.email
-    token = create_access_token({"sub": expected_email})
+    token = create_access_token({"sub": expected_id, "email": user.email})
 
     request = _build_request(f"sid={token}")
 
@@ -81,6 +88,7 @@ async def test_get_current_user_sse_accepts_configured_session_cookie(unit_db, m
 @pytest.mark.asyncio
 async def test_get_current_user_sse_accepts_sse_query_token(unit_db, monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevokedService())
     # Patch SessionLocal in the shared auth_cache module to return our test db session
     monkeypatch.setattr(auth_cache, "SessionLocal", lambda: unit_db)
     # Disable Redis caching to avoid stale cache hits from previous test runs
@@ -133,6 +141,7 @@ async def test_get_current_user_sse_accepts_sse_query_token(unit_db, monkeypatch
 @pytest.mark.asyncio
 async def test_get_current_user_sse_requires_credentials(unit_db, monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevokedService())
     # Patch SessionLocal in the shared auth_cache module (needed if auth reaches DB lookup)
     monkeypatch.setattr(auth_cache, "SessionLocal", lambda: unit_db)
 
@@ -146,3 +155,69 @@ async def test_get_current_user_sse_requires_credentials(unit_db, monkeypatch):
         )
 
     assert getattr(exc_info.value, "status_code", None) == 401
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_sse_rejects_revoked_jwt(unit_db, monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "preview")
+    monkeypatch.setattr(auth_cache, "SessionLocal", lambda: unit_db)
+    monkeypatch.setattr(auth_cache, "_get_auth_redis_client", lambda: None)
+    user = _create_user(unit_db, email="sse-revoked@example.com")
+    token = create_access_token({"sub": user.id, "email": user.email})
+
+    class _RevokedService:
+        async def is_revoked(self, _jti: str) -> bool:
+            return True
+
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _RevokedService())
+    request = _build_request()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user_sse(request=request, token_header=token, token_query=None)
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Token has been revoked"
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_sse_rejects_token_invalidated_by_user_timestamp(unit_db, monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "preview")
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _NeverRevokedService())
+    monkeypatch.setattr(auth_cache, "SessionLocal", lambda: unit_db)
+    monkeypatch.setattr(auth_cache, "_get_auth_redis_client", lambda: None)
+
+    user = _create_user(unit_db, email="sse-invalidated@example.com")
+    token = create_access_token({"sub": user.id, "email": user.email})
+    # Ensure token iat is before tokens_valid_after.
+    user.tokens_valid_after = datetime.now(timezone.utc) + timedelta(seconds=30)
+    unit_db.add(user)
+    unit_db.commit()
+
+    request = _build_request()
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user_sse(request=request, token_header=token, token_query=None)
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Token has been invalidated"
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_sse_fail_closed_when_blacklist_errors(unit_db, monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "preview")
+    monkeypatch.setattr(auth_cache, "SessionLocal", lambda: unit_db)
+    monkeypatch.setattr(auth_cache, "_get_auth_redis_client", lambda: None)
+
+    user = _create_user(unit_db, email="sse-failclosed@example.com")
+    token = create_access_token({"sub": user.id, "email": user.email})
+
+    class _BrokenService:
+        async def is_revoked(self, _jti: str) -> bool:
+            raise RuntimeError("redis unavailable")
+
+    monkeypatch.setattr(auth_sse, "TokenBlacklistService", lambda: _BrokenService())
+    request = _build_request()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user_sse(request=request, token_header=token, token_query=None)
+
+    assert exc_info.value.status_code == 401
