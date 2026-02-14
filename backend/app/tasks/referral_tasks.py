@@ -93,7 +93,7 @@ def process_instructor_referral_payout(self: Any, payout_id: str) -> Dict[str, A
             _mark_payout_failed(payout, "referrer_no_stripe_account")
             return {"status": "error", "reason": "no_stripe_account"}
 
-        if not getattr(stripe_account, "onboarding_completed", True):
+        if not getattr(stripe_account, "onboarding_completed", False):
             logger.warning("Referrer Stripe onboarding incomplete: %s", payout.referrer_user_id)
             _mark_payout_failed(payout, "referrer_stripe_not_onboarded")
             return {"status": "error", "reason": "stripe_not_onboarded"}

@@ -250,7 +250,9 @@ class Booking(Base):
     )
 
     # Optional linkage when created by reschedule
-    rescheduled_from_booking_id = Column(String(26), ForeignKey("bookings.id"), nullable=True)
+    rescheduled_from_booking_id = Column(
+        String(26), ForeignKey("bookings.id", ondelete="SET NULL"), nullable=True
+    )
     rescheduled_from = relationship(
         "Booking",
         remote_side=[id],

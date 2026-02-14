@@ -8,10 +8,12 @@ from typing import Any, Dict, Iterable, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.models.booking import Booking, BookingStatus
+from app.models.booking_dispute import BookingDispute
 from app.models.booking_lock import BookingLock
 from app.models.booking_no_show import BookingNoShow
 from app.models.booking_payment import BookingPayment
 from app.models.booking_reschedule import BookingReschedule
+from app.models.booking_transfer import BookingTransfer
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.utils.booking_timezone import booking_timezone_fields
@@ -65,6 +67,36 @@ PAYMENT_FIELDS = {
     "capture_escalated_at",
     "capture_retry_count",
     "capture_error",
+}
+
+DISPUTE_FIELDS = {
+    "dispute_id",
+    "dispute_status",
+    "dispute_amount",
+    "dispute_created_at",
+    "dispute_resolved_at",
+}
+
+TRANSFER_FIELDS = {
+    "stripe_transfer_id",
+    "transfer_failed_at",
+    "transfer_error",
+    "transfer_retry_count",
+    "transfer_reversed",
+    "transfer_reversal_id",
+    "transfer_reversal_failed",
+    "transfer_reversal_error",
+    "transfer_reversal_failed_at",
+    "transfer_reversal_retry_count",
+    "refund_id",
+    "refund_failed_at",
+    "refund_error",
+    "refund_retry_count",
+    "payout_transfer_id",
+    "advanced_payout_transfer_id",
+    "payout_transfer_failed_at",
+    "payout_transfer_error",
+    "payout_transfer_retry_count",
 }
 
 
@@ -297,6 +329,8 @@ def create_booking_pg_safe(
             and k not in LOCK_FIELDS
             and k not in RESCHEDULE_FIELDS
             and k not in PAYMENT_FIELDS
+            and k not in DISPUTE_FIELDS
+            and k not in TRANSFER_FIELDS
         },
     }
 
@@ -366,6 +400,48 @@ def create_booking_pg_safe(
         )
         session.add(payment)
         booking.payment_detail = payment
+
+    if any(field in extra_fields for field in DISPUTE_FIELDS):
+        dispute = BookingDispute(
+            booking_id=booking.id,
+            dispute_id=extra_fields.get("dispute_id"),
+            dispute_status=extra_fields.get("dispute_status"),
+            dispute_amount=extra_fields.get("dispute_amount"),
+            dispute_created_at=extra_fields.get("dispute_created_at"),
+            dispute_resolved_at=extra_fields.get("dispute_resolved_at"),
+        )
+        session.add(dispute)
+        booking.dispute = dispute
+
+    if any(field in extra_fields for field in TRANSFER_FIELDS):
+        transfer = BookingTransfer(
+            booking_id=booking.id,
+            stripe_transfer_id=extra_fields.get("stripe_transfer_id"),
+            transfer_failed_at=extra_fields.get("transfer_failed_at"),
+            transfer_error=extra_fields.get("transfer_error"),
+            transfer_retry_count=int(extra_fields.get("transfer_retry_count", 0) or 0),
+            transfer_reversed=bool(extra_fields.get("transfer_reversed", False)),
+            transfer_reversal_id=extra_fields.get("transfer_reversal_id"),
+            transfer_reversal_failed=bool(extra_fields.get("transfer_reversal_failed", False)),
+            transfer_reversal_error=extra_fields.get("transfer_reversal_error"),
+            transfer_reversal_failed_at=extra_fields.get("transfer_reversal_failed_at"),
+            transfer_reversal_retry_count=int(
+                extra_fields.get("transfer_reversal_retry_count", 0) or 0
+            ),
+            refund_id=extra_fields.get("refund_id"),
+            refund_failed_at=extra_fields.get("refund_failed_at"),
+            refund_error=extra_fields.get("refund_error"),
+            refund_retry_count=int(extra_fields.get("refund_retry_count", 0) or 0),
+            payout_transfer_id=extra_fields.get("payout_transfer_id"),
+            advanced_payout_transfer_id=extra_fields.get("advanced_payout_transfer_id"),
+            payout_transfer_failed_at=extra_fields.get("payout_transfer_failed_at"),
+            payout_transfer_error=extra_fields.get("payout_transfer_error"),
+            payout_transfer_retry_count=int(
+                extra_fields.get("payout_transfer_retry_count", 0) or 0
+            ),
+        )
+        session.add(transfer)
+        booking.transfer = transfer
 
     session.flush()
     return booking
