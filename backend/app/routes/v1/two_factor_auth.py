@@ -249,7 +249,10 @@ def verify_login(
 
     # Issue final access token
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
-    access_token = create_access_token(data={"sub": user.email}, expires_delta=access_token_expires)
+    access_token = create_access_token(
+        data={"sub": user.id, "email": user.email},
+        expires_delta=access_token_expires,
+    )
     # Write session cookie (API host only)
     site_mode = settings.site_mode
     base_cookie_name = session_cookie_base_name(site_mode)

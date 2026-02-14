@@ -6,6 +6,7 @@ import time
 import uuid
 
 from fastapi.testclient import TestClient
+import jwt
 from pydantic import SecretStr
 import pyotp
 import pytest
@@ -112,7 +113,14 @@ class TestLoginWithSessionTwoFactor:
             verify_response = post_with_code(-30)
 
         assert verify_response.status_code == 200
-        assert "access_token" in verify_response.json()
+        access_token = verify_response.json()["access_token"]
+        decoded = jwt.decode(
+            access_token,
+            settings.secret_key.get_secret_value(),
+            algorithms=[settings.algorithm],
+            options={"verify_aud": False},
+        )
+        assert decoded["sub"] == user_id
         set_cookie = verify_response.headers.get("set-cookie") or ""
         assert f"{settings.session_cookie_name}=" in set_cookie
         assert "tfa_trusted=1" in set_cookie

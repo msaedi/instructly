@@ -25,6 +25,9 @@ def test_basic_getters(db, test_student, test_instructor_with_availability):
     user = repo.get_with_roles_and_permissions(test_instructor_with_availability.id)
     assert user is not None
     assert user.roles
+    user_with_id_lookup = repo.get_by_id_with_roles_and_permissions(test_instructor_with_availability.id)
+    assert user_with_id_lookup is not None
+    assert user_with_id_lookup.roles
 
     user_roles = repo.get_with_roles(test_instructor_with_availability.id)
     assert user_roles is not None
@@ -118,6 +121,7 @@ def test_user_repository_error_paths():
     assert repo.get_by_id("missing", use_retry=False, short_timeout=True) is None
     assert repo.get_by_email("missing@example.com") is None
     assert repo.get_with_roles_and_permissions("missing") is None
+    assert repo.get_by_id_with_roles_and_permissions("missing") is None
     assert repo.get_by_email_with_roles_and_permissions("missing@example.com") is None
     assert repo.get_with_roles("missing") is None
     assert repo.get_instructor("missing") is None

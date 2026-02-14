@@ -103,6 +103,24 @@ async def test_set_cached_user_success_and_error(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_set_cached_user_writes_id_primary_key(monkeypatch):
+    redis = StubRedis()
+
+    async def fake_get_client():
+        return redis
+
+    monkeypatch.setattr(auth_cache, "_get_auth_redis_client", fake_get_client)
+
+    await auth_cache.set_cached_user(
+        "ignored",
+        {"id": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "email": "user@example.com"},
+    )
+    cache_keys = [entry[0] for entry in redis.set_calls]
+    assert "auth_user:id:01ARZ3NDEKTSV4RRFFQ69G5FAV" in cache_keys
+    assert "auth_user:email:user@example.com" in cache_keys
+
+
+@pytest.mark.asyncio
 async def test_set_cached_user_no_redis(monkeypatch):
     async def fake_get_client():
         return None
@@ -164,7 +182,7 @@ def test_invalidate_cached_user_by_id_sync_event_loop_running(monkeypatch):
             pass
 
         def get_by_id(self, _user_id):
-            return SimpleNamespace(email="user@example.com")
+            return SimpleNamespace(id="user-id", email="user@example.com")
 
     class StubLoop:
         def __init__(self):
@@ -192,7 +210,7 @@ def test_invalidate_cached_user_by_id_sync_no_event_loop(monkeypatch):
             pass
 
         def get_by_id(self, _user_id):
-            return SimpleNamespace(email="user@example.com")
+            return SimpleNamespace(id="user-id", email="user@example.com")
 
     async def fake_invalidate(_email):
         return True
@@ -287,7 +305,7 @@ def test_sync_user_lookup_by_id_returns_none(monkeypatch):
         def __init__(self, _db):
             pass
 
-        def get_with_roles_and_permissions(self, _user_id):
+        def get_by_id_with_roles_and_permissions(self, _user_id):
             return None
 
     monkeypatch.setattr(auth_cache, "SessionLocal", lambda: StubSession())
@@ -313,7 +331,7 @@ def test_sync_user_lookup_by_id_returns_user(monkeypatch):
         def __init__(self, _db):
             pass
 
-        def get_with_roles_and_permissions(self, _user_id):
+        def get_by_id_with_roles_and_permissions(self, _user_id):
             return user
 
     class StubBetaRepo:
@@ -383,12 +401,47 @@ async def test_lookup_user_nonblocking_no_user(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_lookup_user_by_id_nonblocking(monkeypatch):
+    async def fake_get_cached(_identifier):
+        return None
+
+    async def fake_set_cached(_identifier, _data):
+        return None
+
     async def fake_to_thread(func, *args, **kwargs):
         return {"id": "user1"}
 
+    monkeypatch.setattr(auth_cache, "get_cached_user", fake_get_cached)
+    monkeypatch.setattr(auth_cache, "set_cached_user", fake_set_cached)
     monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
     result = await auth_cache.lookup_user_by_id_nonblocking("user1")
     assert result == {"id": "user1"}
+
+
+@pytest.mark.asyncio
+async def test_lookup_user_nonblocking_prefers_id_then_fallback(monkeypatch):
+    calls = []
+
+    async def fake_get_cached(_identifier):
+        return None
+
+    async def fake_set_cached(_identifier, _data):
+        return None
+
+    async def fake_to_thread(func, *args, **kwargs):
+        calls.append(func.__name__)
+        if func.__name__ == "_sync_user_lookup_by_id":
+            return None
+        if func.__name__ == "_sync_user_lookup":
+            return {"id": "db-user"}
+        return None
+
+    monkeypatch.setattr(auth_cache, "get_cached_user", fake_get_cached)
+    monkeypatch.setattr(auth_cache, "set_cached_user", fake_set_cached)
+    monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
+
+    result = await auth_cache.lookup_user_nonblocking("01ARZ3NDEKTSV4RRFFQ69G5FAV")
+    assert result == {"id": "db-user"}
+    assert calls == ["_sync_user_lookup_by_id", "_sync_user_lookup"]
 
 
 def test_create_transient_user_and_permissions():

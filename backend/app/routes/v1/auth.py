@@ -550,7 +550,7 @@ async def login(
     import os as _os_jwt
 
     _site_mode_jwt = _os_jwt.getenv("SITE_MODE", "").lower().strip()
-    _claims = {"sub": user_email}
+    _claims = {"sub": user_id, "email": user_email}
     if _site_mode_jwt == "preview":
         _claims.update({"aud": "preview", "iss": f"https://{settings.preview_api_domain}"})
     elif _site_mode_jwt in {"prod", "production", "live"}:
@@ -823,7 +823,7 @@ async def login_with_session(
     # Step 7: Create access token (no DB needed)
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = create_access_token(
-        data={"sub": user_email},
+        data={"sub": user_id, "email": user_email},
         expires_delta=access_token_expires,
         beta_claims=beta_claims,  # Pre-fetched in thread pool, no blocking DB call
     )

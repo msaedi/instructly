@@ -194,7 +194,7 @@ def _testing_bypass(request: Request | None) -> bool:
 
 async def get_current_user(
     request: Request,
-    current_user_email: str = Depends(auth_get_current_user),
+    current_user_id: str = Depends(auth_get_current_user),
     db: Session = Depends(get_db),
 ) -> User:
     """
@@ -205,7 +205,7 @@ async def get_current_user(
 
     Args:
         request: The incoming request
-        current_user_email: Email from JWT token
+        current_user_id: User ID from JWT token
         db: Database session (kept for backward compatibility with tests)
 
     Returns:
@@ -219,22 +219,28 @@ async def get_current_user(
     if isinstance(state_obj, User) and getattr(state_obj, "is_active", True):
         return state_obj
 
-    # Backward-compat for tests that call get_current_user(email, db) positionally
-    # In that case, request is a string (email) and current_user_email is a Session/Mock
-    if not isinstance(current_user_email, str) and isinstance(request, str):
+    # Backward-compat for tests that call get_current_user(identifier, db) positionally
+    # In that case, request is a string and current_user_id is a Session/Mock.
+    if not isinstance(current_user_id, str) and isinstance(request, str):
         # This is a legacy test call pattern - use sync lookup for compatibility
         from ...repositories.user_repository import UserRepository
 
-        swap_db = current_user_email if hasattr(current_user_email, "query") else db
+        swap_db = current_user_id if hasattr(current_user_id, "query") else db
         if not hasattr(swap_db, "query"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid database session for current user lookup",
             )
-        current_user_email = request
+        current_user_id = request
         user_repo = UserRepository(swap_db)
-        # async-blocking-ignore: Test/legacy fallback path, not used in production
-        user = user_repo.get_by_email(current_user_email)  # async-blocking-ignore
+        if "@" in current_user_id:
+            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
+        else:
+            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            user = user_repo.get_by_id(current_user_id, use_retry=False)  # async-blocking-ignore
+            if not user:
+                user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         return user
@@ -251,13 +257,22 @@ async def get_current_user(
         from ...repositories.user_repository import UserRepository
 
         user_repo = UserRepository(db)
-        # async-blocking-ignore: Test/legacy fallback path, not used in production
-        user = user_repo.get_by_email(current_user_email)  # async-blocking-ignore
+        if "@" in current_user_id:
+            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
+        else:
+            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            user = user_repo.get_by_id(current_user_id, use_retry=False)  # async-blocking-ignore
+            if not user:
+                user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     else:
-        # Production: Non-blocking lookup with caching
-        user_data = await lookup_user_nonblocking(current_user_email)
+        # Production: Non-blocking lookup with caching (ID-first).
+        user_data = await lookup_user_by_id_nonblocking(current_user_id)
+        if user_data is None:
+            # Defensive compatibility fallback for tokens with email subjects.
+            user_data = await lookup_user_nonblocking(current_user_id)
         if user_data is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         # Create a TRANSIENT User object (not session-bound) from the dict
@@ -360,7 +375,7 @@ async def get_current_student(
 
 async def get_current_active_user_optional(
     request: Request = None,
-    current_user_email: Optional[str] = Depends(auth_get_current_user_optional),
+    current_user_id: Optional[str] = Depends(auth_get_current_user_optional),
     db: Session = Depends(get_db),
 ) -> Optional[User]:
     """
@@ -371,7 +386,7 @@ async def get_current_active_user_optional(
 
     Args:
         request: The incoming request
-        current_user_email: Email from JWT token (if present)
+        current_user_id: User ID from JWT token (if present)
         db: Database session (kept for backward compatibility)
 
     Returns:
@@ -382,7 +397,7 @@ async def get_current_active_user_optional(
         if isinstance(state_user, User) and getattr(state_user, "is_active", False):
             return state_user
 
-    if not current_user_email:
+    if not current_user_id:
         return None
 
     # =========================================================================
@@ -395,14 +410,23 @@ async def get_current_active_user_optional(
         from ...repositories.user_repository import UserRepository
 
         user_repo = UserRepository(db)
-        # async-blocking-ignore: Test/legacy fallback path, not used in production
-        user = user_repo.get_by_email(current_user_email)  # async-blocking-ignore
+        if "@" in current_user_id:
+            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
+        else:
+            # async-blocking-ignore: Test/legacy fallback path, not used in production
+            user = user_repo.get_by_id(current_user_id, use_retry=False)  # async-blocking-ignore
+            if not user:
+                user = user_repo.get_by_email(current_user_id)  # async-blocking-ignore
         if user and user.is_active:
             return user
         return None
     else:
-        # Production: Non-blocking lookup with caching
-        user_data = await lookup_user_nonblocking(current_user_email)
+        # Production: Non-blocking lookup with caching (ID-first).
+        user_data = await lookup_user_by_id_nonblocking(current_user_id)
+        if user_data is None:
+            # Defensive compatibility fallback for tokens with email subjects.
+            user_data = await lookup_user_nonblocking(current_user_id)
         if user_data and user_data.get("is_active", False):
             return create_transient_user(user_data)
         return None

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import re
 
 import jwt
 from jwt import InvalidIssuerError
@@ -21,6 +22,8 @@ from app.auth import (
 )
 from app.core.config import settings
 from app.utils.cookies import session_cookie_candidates
+
+TEST_USER_ULID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 
 
 class _Secret:
@@ -159,7 +162,7 @@ def test_decode_access_token_enforce_success(monkeypatch):
 
 def test_create_access_token_includes_env_claims(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
-    token = create_access_token({"sub": "user@example.com"})
+    token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     decoded = jwt.decode(
         token,
         _secret_value(settings.secret_key),
@@ -167,9 +170,13 @@ def test_create_access_token_includes_env_claims(monkeypatch):
         audience="preview",
     )
     assert decoded["iss"] == f"https://{settings.preview_api_domain}"
+    assert decoded["sub"] == TEST_USER_ULID
+    assert decoded["email"] == "user@example.com"
+    assert isinstance(decoded.get("iat"), int)
+    assert re.fullmatch(r"[0-9a-f-]{36}", decoded.get("jti", ""))
 
     monkeypatch.setenv("SITE_MODE", "prod")
-    token = create_access_token({"sub": "user@example.com"})
+    token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     decoded = jwt.decode(
         token,
         _secret_value(settings.secret_key),
@@ -182,7 +189,7 @@ def test_create_access_token_includes_env_claims(monkeypatch):
 def test_create_access_token_with_expiry_and_beta_claims(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "prod")
     token = create_access_token(
-        {"sub": "user@example.com"},
+        {"sub": TEST_USER_ULID, "email": "user@example.com"},
         expires_delta=timedelta(minutes=5),
         beta_claims={"beta_access": True},
     )
@@ -201,7 +208,7 @@ def test_create_access_token_handles_env_error(monkeypatch):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(auth_module.os, "getenv", _boom)
-    token = create_access_token({"sub": "user@example.com"})
+    token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     decoded = jwt.decode(
         token,
         _secret_value(settings.secret_key),
@@ -210,6 +217,24 @@ def test_create_access_token_handles_env_error(monkeypatch):
     )
     assert decoded.get("iss") is None
     assert decoded.get("aud") is None
+
+
+def test_create_access_token_jti_is_unique():
+    token_1 = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
+    token_2 = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
+    decoded_1 = jwt.decode(
+        token_1,
+        _secret_value(settings.secret_key),
+        algorithms=[settings.algorithm],
+        options={"verify_aud": False},
+    )
+    decoded_2 = jwt.decode(
+        token_2,
+        _secret_value(settings.secret_key),
+        algorithms=[settings.algorithm],
+        options={"verify_aud": False},
+    )
+    assert decoded_1["jti"] != decoded_2["jti"]
 
 
 def test_create_temp_token_uses_temp_secret(monkeypatch):
@@ -232,11 +257,11 @@ def test_create_temp_token_uses_temp_secret(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_current_user_cookie_fallback(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
-    token = create_access_token({"sub": "user@example.com"})
+    token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     cookie_name = session_cookie_candidates("preview")[0]
     request = _make_request_with_cookie(cookie_name, token)
     result = await get_current_user(request, token=None)
-    assert result == "user@example.com"
+    assert result == TEST_USER_ULID
 
 
 @pytest.mark.asyncio
@@ -266,13 +291,32 @@ async def test_get_current_user_unexpected_error(monkeypatch):
 async def test_get_current_user_missing_sub_raises(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "local")
     token = jwt.encode(
-        {"sub": 123, "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
+        {
+            "sub": 123,
+            "jti": "legacy-test-jti",
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
         _secret_value(settings.secret_key),
         algorithm=settings.algorithm,
     )
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
     with pytest.raises(auth_module.HTTPException):
         await get_current_user(request, token=token)
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_rejects_token_without_jti(monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "local")
+    token = jwt.encode(
+        {"sub": TEST_USER_ULID, "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
+        _secret_value(settings.secret_key),
+        algorithm=settings.algorithm,
+    )
+    request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
+    with pytest.raises(auth_module.HTTPException) as exc:
+        await get_current_user(request, token=token)
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Token format outdated, please re-login"
 
 
 @pytest.mark.asyncio
@@ -285,11 +329,11 @@ async def test_get_current_user_optional_invalid_token():
 @pytest.mark.asyncio
 async def test_get_current_user_optional_cookie_fallback(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
-    token = create_access_token({"sub": "user@example.com"})
+    token = create_access_token({"sub": TEST_USER_ULID, "email": "user@example.com"})
     cookie_name = session_cookie_candidates("preview")[0]
     request = _make_request_with_cookie(cookie_name, token)
     result = await get_current_user_optional(request, token=None)
-    assert result == "user@example.com"
+    assert result == TEST_USER_ULID
 
 
 @pytest.mark.asyncio
@@ -297,3 +341,18 @@ async def test_get_current_user_optional_env_error_returns_none(monkeypatch):
     monkeypatch.setattr(auth_module.os, "getenv", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
     request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
     assert await get_current_user_optional(request, token=None) is None
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_optional_rejects_token_without_jti(monkeypatch):
+    monkeypatch.setenv("SITE_MODE", "local")
+    token = jwt.encode(
+        {"sub": TEST_USER_ULID, "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
+        _secret_value(settings.secret_key),
+        algorithm=settings.algorithm,
+    )
+    request = auth_module.Request({"type": "http", "headers": [], "client": ("1.1.1.1", 1234), "path": "/"})
+    with pytest.raises(auth_module.HTTPException) as exc:
+        await get_current_user_optional(request, token=token)
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Token format outdated, please re-login"

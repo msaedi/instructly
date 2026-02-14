@@ -15,10 +15,13 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-def _lookup_active_user(email: str, db: Session) -> Optional["User"]:
-    if not email:
+def _lookup_active_user(user_identifier: str, db: Session) -> Optional["User"]:
+    if not user_identifier:
         return None
-    user = UserRepository(db).get_by_email(email)
+    user_repo = UserRepository(db)
+    user = user_repo.get_by_id(user_identifier, use_retry=False)
+    if not user:
+        user = user_repo.get_by_email(user_identifier)
     if user and getattr(user, "is_active", False):
         return user
     return None
@@ -34,6 +37,8 @@ def _decode_email(token: str) -> Optional[str]:
     except PyJWTError:
         return None
     except Exception:
+        return None
+    if not payload.get("jti"):
         return None
     subject = payload.get("sub")
     return subject if isinstance(subject, str) else None

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import os
 from typing import Any, Dict, Optional, cast
+import uuid
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
@@ -217,14 +218,19 @@ def create_access_token(
         str: The encoded JWT token
     """
     to_encode = data.copy()
+    now_utc = datetime.now(timezone.utc)
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = now_utc + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
-            minutes=settings.access_token_expire_minutes
-        )
+        expire = now_utc + timedelta(minutes=settings.access_token_expire_minutes)
 
-    to_encode.update({"exp": expire})
+    to_encode.update(
+        {
+            "exp": expire,
+            "iat": int(now_utc.timestamp()),
+            "jti": str(uuid.uuid4()),
+        }
+    )
 
     # Include pre-fetched beta claims if provided (no DB lookup needed)
     if beta_claims:
@@ -281,13 +287,13 @@ async def get_current_user(
     request: Request, token: Optional[str] = Depends(oauth2_scheme_optional)
 ) -> str:
     """
-    Dependency to get the current authenticated user email from JWT token.
+    Dependency to get the current authenticated user identifier from JWT token.
 
     Args:
         token: JWT token from the Authorization header
 
     Returns:
-        str: The user's email address
+        str: The user's identifier (ULID)
 
     Raises:
         HTTPException: If token is invalid or expired
@@ -323,12 +329,19 @@ async def get_current_user(
         if not token:
             raise not_authenticated
         payload = decode_access_token(token)
-        email_obj = payload.get("sub")
-        if not isinstance(email_obj, str):
-            email: str | None = None
+        if not payload.get("jti"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token format outdated, please re-login",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        user_id_obj = payload.get("sub")
+        if not isinstance(user_id_obj, str):
+            user_id: str | None = None
         else:
-            email = email_obj
-        if email is None:
+            user_id = user_id_obj
+        if user_id is None:
             logger.warning("Token payload missing 'sub' field")
             credentials_exception = HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -337,8 +350,8 @@ async def get_current_user(
             )
             raise credentials_exception
 
-        logger.debug(f"Successfully validated token for user: {email}")
-        return email
+        logger.debug(f"Successfully validated token for user: {user_id}")
+        return user_id
 
     except HTTPException as http_exc:
         # Preserve explicit HTTPExceptions (e.g., Not authenticated)
@@ -355,7 +368,7 @@ async def get_current_user_optional(
     request: Request, token: Optional[str] = Depends(oauth2_scheme_optional)
 ) -> Optional[str]:
     """
-    Dependency to get the current authenticated user email from JWT token if present.
+    Dependency to get the current authenticated user identifier from JWT token if present.
 
     This function returns None if no token is provided or if the token is invalid,
     instead of raising an exception. Used for endpoints that support both
@@ -365,7 +378,7 @@ async def get_current_user_optional(
         token: Optional JWT token from the Authorization header
 
     Returns:
-        str: The user's email address if authenticated, None otherwise
+        str: The user's identifier (ULID) if authenticated, None otherwise
     """
     if not token:
         # Mirror cookie fallback behavior from get_current_user so optional
@@ -387,15 +400,24 @@ async def get_current_user_optional(
 
     try:
         payload = decode_access_token(token)
-        email_obj = payload.get("sub")
-        email: str | None = email_obj if isinstance(email_obj, str) else None
-        if email is None:
+        if not payload.get("jti"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token format outdated, please re-login",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        user_id_obj = payload.get("sub")
+        user_id: str | None = user_id_obj if isinstance(user_id_obj, str) else None
+        if user_id is None:
             logger.warning("Token payload missing 'sub' field")
             return None
 
-        logger.debug(f"Successfully validated optional token for user: {email}")
-        return email
+        logger.debug(f"Successfully validated optional token for user: {user_id}")
+        return user_id
 
+    except HTTPException:
+        raise
     except PyJWTError as e:
         logger.debug(f"JWT validation error in optional auth: {str(e)}")
         return None

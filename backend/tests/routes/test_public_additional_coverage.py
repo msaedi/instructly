@@ -173,7 +173,7 @@ def test_public_logout_handles_host_cookie(monkeypatch):
 def test_public_logout_logs_audit_when_session_token_present(monkeypatch):
     monkeypatch.setattr(public_routes, "session_cookie_candidates", lambda *_args, **_kwargs: ["session"])
     monkeypatch.setattr(
-        public_routes, "decode_access_token", lambda *_args, **_kwargs: {"sub": "user@example.com"}
+        public_routes, "decode_access_token", lambda *_args, **_kwargs: {"email": "user@example.com"}
     )
     audit_calls = []
 
@@ -200,7 +200,7 @@ def test_public_logout_logs_audit_when_session_token_present(monkeypatch):
 def test_public_logout_ignores_audit_errors(monkeypatch):
     monkeypatch.setattr(public_routes, "session_cookie_candidates", lambda *_args, **_kwargs: ["session"])
     monkeypatch.setattr(
-        public_routes, "decode_access_token", lambda *_args, **_kwargs: {"sub": "user@example.com"}
+        public_routes, "decode_access_token", lambda *_args, **_kwargs: {"email": "user@example.com"}
     )
 
     class FailingAuditService:

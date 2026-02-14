@@ -98,6 +98,7 @@ class User(Base):
     profile_picture_key = Column(String(255), nullable=True)
     profile_picture_uploaded_at = Column(DateTime(timezone=True), nullable=True)
     profile_picture_version = Column(Integer, nullable=False, default=0)
+    tokens_valid_after = Column(DateTime(timezone=True), nullable=True, default=None)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True),

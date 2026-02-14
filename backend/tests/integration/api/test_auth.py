@@ -4,6 +4,7 @@ Test authentication functionality using proper test client fixture.
 """
 
 from fastapi.testclient import TestClient
+import jwt
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token, get_password_hash, verify_password
@@ -31,7 +32,7 @@ class TestAuth:
 
     def test_create_access_token(self):
         """Test JWT token creation."""
-        data = {"sub": "test@example.com"}
+        data = {"sub": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "email": "test@example.com"}
         token = create_access_token(data)
 
         assert token is not None
@@ -130,6 +131,13 @@ class TestAuth:
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
+        decoded = jwt.decode(
+            data["access_token"],
+            settings.secret_key.get_secret_value(),
+            algorithms=[settings.algorithm],
+            options={"verify_aud": False},
+        )
+        assert decoded["sub"] == test_student.id
         # Ensure Set-Cookie is present with configured session cookie name
         set_cookie = response.headers.get("set-cookie", "")
         assert f"{settings.session_cookie_name}=" in set_cookie
@@ -197,7 +205,7 @@ class TestAuth:
         )
         assert r.status_code == 200
         # Manually set the secure cookie since TestClient does not store HTTPS-only cookies
-        cookie_token = create_access_token({"sub": test_student.email})
+        cookie_token = create_access_token({"sub": test_student.id, "email": test_student.email})
         client.cookies.set(settings.session_cookie_name, cookie_token)
         # Cookie-only should succeed for API routes in hosted environments
         r2 = client.get("/api/v1/addresses/me")

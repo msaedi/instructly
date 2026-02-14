@@ -22,6 +22,7 @@ Used by:
 import asyncio
 import json
 import logging
+import re
 from typing import Any, Dict, Optional, cast
 
 from ..core.cache_redis import get_async_cache_redis_client
@@ -33,7 +34,24 @@ logger = logging.getLogger(__name__)
 # Cache TTL for user lookups (30 minutes - roles/permissions rarely change)
 # Increased from 5 min to reduce DB pressure under load (users can re-login if role changes)
 USER_CACHE_TTL_SECONDS = 1800
-USER_CACHE_PREFIX = "auth_user:"
+USER_CACHE_PREFIX = "auth_user"
+USER_CACHE_ID_PREFIX = f"{USER_CACHE_PREFIX}:id:"
+USER_CACHE_EMAIL_PREFIX = f"{USER_CACHE_PREFIX}:email:"
+LEGACY_USER_CACHE_PREFIX = "auth_user:"
+
+_ULID_PATTERN = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
+
+
+def _looks_like_ulid(identifier: str) -> bool:
+    return bool(_ULID_PATTERN.fullmatch((identifier or "").strip().upper()))
+
+
+def _cache_key_for_id(user_id: str) -> str:
+    return f"{USER_CACHE_ID_PREFIX}{user_id}"
+
+
+def _cache_key_for_email(email: str) -> str:
+    return f"{USER_CACHE_EMAIL_PREFIX}{email}"
 
 
 async def _get_auth_redis_client() -> Any:
@@ -45,11 +63,11 @@ async def _get_auth_redis_client() -> Any:
         return None
 
 
-async def get_cached_user(email: str) -> Optional[Dict[str, Any]]:
+async def get_cached_user(user_identifier: str) -> Optional[Dict[str, Any]]:
     """Try to get user data from Redis cache.
 
     Args:
-        email: User's email address
+        user_identifier: User ULID (primary) or email (fallback)
 
     Returns:
         Dict with user data if cached, None otherwise
@@ -59,23 +77,32 @@ async def get_cached_user(email: str) -> Optional[Dict[str, Any]]:
         if redis is None:
             return None
 
-        cache_key = f"{USER_CACHE_PREFIX}{email}"
-        cached = await redis.get(cache_key)
-        if cached:
-            logger.debug("[AUTH-CACHE] Cache HIT for user %s", email)
-            return cast(Dict[str, Any], json.loads(cached))
-        logger.debug("[AUTH-CACHE] Cache MISS for user %s", email)
+        cache_keys = []
+        if _looks_like_ulid(user_identifier):
+            cache_keys.append(_cache_key_for_id(user_identifier))
+        else:
+            cache_keys.append(_cache_key_for_email(user_identifier))
+            # Read through legacy email cache key during migration.
+            cache_keys.append(f"{LEGACY_USER_CACHE_PREFIX}{user_identifier}")
+
+        for cache_key in cache_keys:
+            cached = await redis.get(cache_key)
+            if cached:
+                logger.debug("[AUTH-CACHE] Cache HIT for user %s", user_identifier)
+                return cast(Dict[str, Any], json.loads(cached))
+
+        logger.debug("[AUTH-CACHE] Cache MISS for user %s", user_identifier)
         return None
     except Exception as e:
         logger.warning("[AUTH-CACHE] Cache lookup failed: %s", e)
         return None
 
 
-async def set_cached_user(email: str, user_data: Dict[str, Any]) -> None:
+async def set_cached_user(user_identifier: str, user_data: Dict[str, Any]) -> None:
     """Cache user data in Redis.
 
     Args:
-        email: User's email address
+        user_identifier: User ULID (primary) or email (fallback)
         user_data: Dict containing user attributes to cache
     """
     try:
@@ -83,21 +110,35 @@ async def set_cached_user(email: str, user_data: Dict[str, Any]) -> None:
         if redis is None:
             return
 
-        cache_key = f"{USER_CACHE_PREFIX}{email}"
-        await redis.setex(cache_key, USER_CACHE_TTL_SECONDS, json.dumps(user_data))
-        logger.debug("[AUTH-CACHE] SET user %s (TTL=%ds)", email, USER_CACHE_TTL_SECONDS)
+        cache_keys: list[str] = []
+        user_id = str(user_data.get("id") or "").strip()
+        user_email = str(user_data.get("email") or "").strip()
+
+        if user_id:
+            cache_keys.append(_cache_key_for_id(user_id))
+        if user_email:
+            cache_keys.append(_cache_key_for_email(user_email))
+            cache_keys.append(f"{LEGACY_USER_CACHE_PREFIX}{user_email}")
+        if not cache_keys and user_identifier:
+            cache_keys.append(_cache_key_for_email(user_identifier))
+
+        payload = json.dumps(user_data)
+        for cache_key in set(cache_keys):
+            await redis.setex(cache_key, USER_CACHE_TTL_SECONDS, payload)
+
+        logger.debug("[AUTH-CACHE] SET user %s (TTL=%ds)", user_identifier, USER_CACHE_TTL_SECONDS)
     except Exception as e:
         logger.warning("[AUTH-CACHE] Cache write failed: %s", e)
 
 
-async def invalidate_cached_user(email: str) -> bool:
+async def invalidate_cached_user(user_identifier: str) -> bool:
     """Invalidate user data in Redis cache.
 
     Call this when user data changes (role change, beta access granted/revoked, etc.)
     to ensure the next request fetches fresh data from the database.
 
     Args:
-        email: User's email address
+        user_identifier: User ULID (primary) or email (fallback)
 
     Returns:
         True if cache entry was deleted, False if not found or error
@@ -107,11 +148,20 @@ async def invalidate_cached_user(email: str) -> bool:
         if redis is None:
             return False
 
-        cache_key = f"{USER_CACHE_PREFIX}{email}"
-        deleted = await redis.delete(cache_key)
-        if deleted:
-            logger.info("[AUTH-CACHE] INVALIDATED user %s", email)
-        return bool(deleted)
+        cache_keys = []
+        if _looks_like_ulid(user_identifier):
+            cache_keys.append(_cache_key_for_id(user_identifier))
+        else:
+            cache_keys.append(_cache_key_for_email(user_identifier))
+            cache_keys.append(f"{LEGACY_USER_CACHE_PREFIX}{user_identifier}")
+
+        deleted_total = 0
+        for cache_key in set(cache_keys):
+            deleted_total += int(await redis.delete(cache_key))
+
+        if deleted_total:
+            logger.info("[AUTH-CACHE] INVALIDATED user %s", user_identifier)
+        return bool(deleted_total)
     except Exception as e:
         logger.warning("[AUTH-CACHE] Cache invalidation failed: %s", e)
         return False
@@ -139,7 +189,7 @@ def invalidate_cached_user_by_id_sync(user_id: str, db_session: Any) -> bool:
             logger.warning("[AUTH-CACHE] Cannot invalidate: user %s not found", user_id)
             return False
 
-        email = user.email
+        email = str(getattr(user, "email", "") or "")
 
         # Check if event loop is already running (e.g., in pytest)
         # Must check BEFORE creating coroutine to avoid unawaited coroutine warning
@@ -147,12 +197,17 @@ def invalidate_cached_user_by_id_sync(user_id: str, db_session: Any) -> bool:
             loop = asyncio.get_running_loop()
             # Event loop is running - schedule as task (fire-and-forget)
             # Cache invalidation is best-effort, so this is acceptable
-            loop.create_task(invalidate_cached_user(email))
-            logger.debug("[AUTH-CACHE] Scheduled async invalidation for %s", email)
+            loop.create_task(invalidate_cached_user(user_id))
+            if email:
+                loop.create_task(invalidate_cached_user(email))
+            logger.debug("[AUTH-CACHE] Scheduled async invalidation for %s", user_id)
             return True
         except RuntimeError:
             # No running event loop - use asyncio.run()
-            return asyncio.run(invalidate_cached_user(email))
+            deleted = asyncio.run(invalidate_cached_user(user_id))
+            if email:
+                deleted = asyncio.run(invalidate_cached_user(email)) or deleted
+            return deleted
     except Exception as e:
         logger.warning("[AUTH-CACHE] Sync invalidation failed: %s", e)
         return False
@@ -249,7 +304,7 @@ def _sync_user_lookup_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     """Synchronous user lookup by ID - returns dict to avoid detached ORM issues.
 
     Uses UserRepository to follow the repository pattern.
-    Uses get_with_roles_and_permissions() to load permissions in one query.
+    Uses get_by_id_with_roles_and_permissions() to load permissions in one query.
 
     Also fetches beta_access to cache it and avoid per-request queries in /auth/me.
 
@@ -266,7 +321,7 @@ def _sync_user_lookup_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     try:
         user_repo = UserRepository(db)
         # Use method that eager-loads roles+permissions in one query
-        user = user_repo.get_with_roles_and_permissions(user_id)
+        user = user_repo.get_by_id_with_roles_and_permissions(user_id)
         if user:
             # Also fetch beta_access to cache it (avoids per-request query in /auth/me)
             beta_repo = BetaAccessRepository(db)
@@ -279,31 +334,40 @@ def _sync_user_lookup_by_id(user_id: str) -> Optional[Dict[str, Any]]:
         db.close()
 
 
-async def lookup_user_nonblocking(email: str) -> Optional[Dict[str, Any]]:
-    """Look up user by email without blocking the event loop.
+async def lookup_user_nonblocking(user_identifier: str) -> Optional[Dict[str, Any]]:
+    """Look up user by ULID (primary) or email (fallback) without blocking.
 
     This is the main entry point for non-blocking user lookups:
     1. Check Redis cache first
-    2. On cache miss, run sync DB query in thread pool
+    2. On cache miss, run sync DB query in thread pool (ID-first)
     3. Cache the result for subsequent requests
 
     Args:
-        email: User's email address
+        user_identifier: User ULID (primary) or email (fallback)
 
     Returns:
         Dict with user data if found, None otherwise
     """
+    if not user_identifier:
+        return None
+
     # First, try Redis cache
-    cached_data = await get_cached_user(email)
+    cached_data = await get_cached_user(user_identifier)
     if cached_data:
         return cached_data
 
     # Cache miss - run sync DB query in thread pool
-    user_data = await asyncio.to_thread(_sync_user_lookup, email)
+    if _looks_like_ulid(user_identifier):
+        user_data = await asyncio.to_thread(_sync_user_lookup_by_id, user_identifier)
+        if user_data is None:
+            # Defensive fallback for unusual callers that pass non-ULID subjects.
+            user_data = await asyncio.to_thread(_sync_user_lookup, user_identifier)
+    else:
+        user_data = await asyncio.to_thread(_sync_user_lookup, user_identifier)
 
     if user_data:
         # Cache for subsequent requests
-        await set_cached_user(email, user_data)
+        await set_cached_user(user_identifier, user_data)
 
     return user_data
 
@@ -311,15 +375,20 @@ async def lookup_user_nonblocking(email: str) -> Optional[Dict[str, Any]]:
 async def lookup_user_by_id_nonblocking(user_id: str) -> Optional[Dict[str, Any]]:
     """Look up user by ID without blocking the event loop.
 
-    Note: ID lookups are not cached (used for impersonation, less frequent).
-
     Args:
         user_id: User's ULID
 
     Returns:
         Dict with user data if found, None otherwise
     """
-    return await asyncio.to_thread(_sync_user_lookup_by_id, user_id)
+    cached_data = await get_cached_user(user_id)
+    if cached_data:
+        return cached_data
+
+    user_data = await asyncio.to_thread(_sync_user_lookup_by_id, user_id)
+    if user_data:
+        await set_cached_user(user_id, user_data)
+    return user_data
 
 
 def create_transient_user(user_data: Dict[str, Any]) -> User:

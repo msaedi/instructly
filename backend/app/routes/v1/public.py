@@ -267,7 +267,7 @@ def public_logout(
                     break
         if token:
             payload = decode_access_token(token, enforce_audience=False)
-            email = payload.get("sub")
+            email = payload.get("email")
             AuditService(db).log(
                 action="user.logout",
                 resource_type="user",

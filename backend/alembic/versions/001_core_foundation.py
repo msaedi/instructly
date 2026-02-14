@@ -263,6 +263,7 @@ def upgrade() -> None:
         sa.Column("profile_picture_key", sa.String(255), nullable=True),
         sa.Column("profile_picture_uploaded_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("profile_picture_version", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("tokens_valid_after", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

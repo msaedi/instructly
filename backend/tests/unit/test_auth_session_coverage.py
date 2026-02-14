@@ -7,7 +7,11 @@ import app.auth_session as auth_session
 
 
 def test_decode_email_returns_subject(monkeypatch):
-    monkeypatch.setattr(auth_session, "decode_access_token", lambda token: {"sub": "user@example.com"})
+    monkeypatch.setattr(
+        auth_session,
+        "decode_access_token",
+        lambda token: {"sub": "user@example.com", "jti": "test-jti"},
+    )
     assert auth_session._decode_email("token") == "user@example.com"
 
 
@@ -31,17 +35,39 @@ def test_decode_email_handles_generic_exception(monkeypatch):
     assert auth_session._decode_email("token") is None
 
 
-def test_lookup_active_user_inactive_or_missing():
+def test_lookup_active_user_inactive_or_missing(monkeypatch):
     db = Mock()
-    db.query.return_value.filter.return_value.first.return_value = None
+
+    class StubRepo:
+        def __init__(self, _db):
+            pass
+
+        def get_by_id(self, _identifier, use_retry=False):
+            return None
+
+        def get_by_email(self, _identifier):
+            return None
+
+    monkeypatch.setattr(auth_session, "UserRepository", StubRepo)
     assert auth_session._lookup_active_user("", db) is None
     assert auth_session._lookup_active_user("user@example.com", db) is None
 
 
-def test_lookup_active_user_active():
+def test_lookup_active_user_active(monkeypatch):
     user = SimpleNamespace(is_active=True, email="user@example.com")
     db = Mock()
-    db.query.return_value.filter.return_value.first.return_value = user
+
+    class StubRepo:
+        def __init__(self, _db):
+            pass
+
+        def get_by_id(self, _identifier, use_retry=False):
+            return None
+
+        def get_by_email(self, _identifier):
+            return user
+
+    monkeypatch.setattr(auth_session, "UserRepository", StubRepo)
     assert auth_session._lookup_active_user("user@example.com", db) is user
 
 

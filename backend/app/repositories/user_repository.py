@@ -162,6 +162,28 @@ class UserRepository(BaseRepository[User]):
             )
             return None
 
+    def get_by_id_with_roles_and_permissions(self, user_id: str) -> Optional[User]:
+        """
+        Get user by ID with eager loaded roles and permissions.
+
+        Used by: auth_cache ID-first token resolution.
+        """
+        try:
+            return cast(
+                Optional[User],
+                (
+                    self.db.query(User)
+                    .options(joinedload(User.roles).joinedload(Role.permissions))
+                    .filter(User.id == user_id)
+                    .first()
+                ),
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Error getting user by id with roles/permissions {user_id}: {str(e)}"
+            )
+            return None
+
     def get_with_roles(self, user_id: str) -> Optional[User]:
         """
         Get user with roles only (lighter query).

@@ -41,3 +41,21 @@ def test_live_requires_passed_bgc_constraint(db):
     profile.bgc_completed_at = datetime.now(timezone.utc)
 
     db.flush()
+
+
+def test_user_tokens_valid_after_column_defaults_to_none():
+    """User model exposes nullable tokens_valid_after with None default."""
+
+    assert "tokens_valid_after" in User.__table__.columns
+    column = User.__table__.columns["tokens_valid_after"]
+    assert column.nullable is True
+
+    user = User(
+        email="tokens-valid-after@example.com",
+        hashed_password="hashed",
+        first_name="Token",
+        last_name="Validity",
+        zip_code="10001",
+        is_active=True,
+    )
+    assert user.tokens_valid_after is None

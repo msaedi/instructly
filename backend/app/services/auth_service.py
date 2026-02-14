@@ -9,6 +9,7 @@ FIXED: Added @measure_operation decorators to all public methods
 """
 
 import logging
+import re
 from typing import Any, Dict, Optional, cast
 
 from sqlalchemy.exc import IntegrityError
@@ -24,6 +25,7 @@ from .base import BaseService, CacheInvalidationProtocol
 from .permission_service import PermissionService
 
 logger = logging.getLogger(__name__)
+_ULID_PATTERN = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
 
 
 class AuthService(BaseService):
@@ -343,17 +345,26 @@ class AuthService(BaseService):
     @BaseService.measure_operation("get_user_by_email")
     def get_user_by_email(self, email: str) -> Optional[User]:
         """
-        Get user by email address.
+        Get user by identifier, preferring email and falling back to ULID.
 
         Args:
-            email: User's email
+            email: User email or ULID identifier
 
         Returns:
             User object or None if not found
         """
         try:
-            result = self.user_repository.find_one_by(email=email)
-            return cast(Optional[User], result)
+            identifier = (email or "").strip()
+            if not identifier:
+                return None
+
+            result = self.user_repository.find_one_by(email=identifier)
+            if result is not None:
+                return cast(Optional[User], result)
+
+            if _ULID_PATTERN.fullmatch(identifier.upper()):
+                return self.get_user_by_id(identifier)
+            return None
         except Exception as e:
             self.logger.error(f"Error getting user by email {email}: {str(e)}")
             return None
@@ -378,10 +389,10 @@ class AuthService(BaseService):
     @BaseService.measure_operation("get_current_user")
     def get_current_user(self, email: str) -> User:
         """
-        Get current user by email, raising exception if not found.
+        Get current user by identifier, raising exception if not found.
 
         Args:
-            email: User's email from JWT token
+            email: User identifier from JWT token (ULID preferred, email fallback)
 
         Returns:
             User object

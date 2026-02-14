@@ -261,6 +261,9 @@ async def test_get_current_user_legacy_success(monkeypatch):
         def __init__(self, db):
             self.db = db
 
+        def get_by_id(self, _user_id, use_retry=False):
+            return user
+
         def get_by_email(self, email):
             return user
 
@@ -280,6 +283,9 @@ async def test_get_current_user_legacy_not_found(monkeypatch):
         def __init__(self, db):
             self.db = db
 
+        def get_by_id(self, _user_id, use_retry=False):
+            return None
+
         def get_by_email(self, email):
             return None
 
@@ -297,6 +303,7 @@ async def test_get_current_user_legacy_not_found(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_current_user_production_not_found(monkeypatch):
     monkeypatch.setattr(auth_module.settings, "is_testing", False, raising=False)
+    monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", AsyncMock(return_value=None))
     monkeypatch.setattr(auth_module, "lookup_user_nonblocking", AsyncMock(return_value=None))
 
     request = _make_request()
@@ -310,12 +317,38 @@ async def test_get_current_user_production_not_found(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_current_user_production_success(monkeypatch):
     monkeypatch.setattr(auth_module.settings, "is_testing", False, raising=False)
-    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", AsyncMock(return_value={"id": "u2"}))
+    lookup_by_id = AsyncMock(return_value={"id": "u2"})
+    fallback_lookup = AsyncMock(return_value=None)
+    monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", lookup_by_id)
+    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", fallback_lookup)
     monkeypatch.setattr(auth_module, "create_transient_user", lambda data: SimpleNamespace(id=data["id"]))
 
-    result = await auth_module.get_current_user(_make_request(), "user@example.com", db=Mock())
+    result = await auth_module.get_current_user(
+        _make_request(),
+        "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        db=Mock(),
+    )
 
     assert result.id == "u2"
+    fallback_lookup.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_production_falls_back_to_identifier_lookup(monkeypatch):
+    monkeypatch.setattr(auth_module.settings, "is_testing", False, raising=False)
+    monkeypatch.setattr(auth_module, "lookup_user_by_id_nonblocking", AsyncMock(return_value=None))
+    fallback_lookup = AsyncMock(return_value={"id": "u3"})
+    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", fallback_lookup)
+    monkeypatch.setattr(auth_module, "create_transient_user", lambda data: SimpleNamespace(id=data["id"]))
+
+    result = await auth_module.get_current_user(
+        _make_request(),
+        "legacy@example.com",
+        db=Mock(),
+    )
+
+    assert result.id == "u3"
+    fallback_lookup.assert_awaited_once_with("legacy@example.com")
 
 
 @pytest.mark.asyncio
@@ -325,6 +358,9 @@ async def test_get_current_user_testing_not_found(monkeypatch):
     class DummyUserRepo:
         def __init__(self, db):
             self.db = db
+
+        def get_by_id(self, _user_id, use_retry=False):
+            return None
 
         def get_by_email(self, email):
             return None
@@ -348,6 +384,9 @@ async def test_get_current_user_preview_impersonation(monkeypatch):
         def __init__(self, db):
             self.db = db
 
+        def get_by_id(self, _user_id, use_retry=False):
+            return user
+
         def get_by_email(self, email):
             return user
 
@@ -370,6 +409,9 @@ async def test_get_current_user_preview_impersonation_no_header(monkeypatch):
         def __init__(self, db):
             self.db = db
 
+        def get_by_id(self, _user_id, use_retry=False):
+            return user
+
         def get_by_email(self, email):
             return user
 
@@ -389,6 +431,9 @@ async def test_get_current_user_preview_impersonation_missing_data(monkeypatch):
     class DummyUserRepo:
         def __init__(self, db):
             self.db = db
+
+        def get_by_id(self, _user_id, use_retry=False):
+            return user
 
         def get_by_email(self, email):
             return user
@@ -411,6 +456,9 @@ async def test_get_current_user_preview_impersonation_handles_error(monkeypatch)
     class DummyUserRepo:
         def __init__(self, db):
             self.db = db
+
+        def get_by_id(self, _user_id, use_retry=False):
+            return user
 
         def get_by_email(self, email):
             return user
@@ -438,7 +486,12 @@ async def test_get_current_active_user_optional_prefers_state_user(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_current_active_user_optional_production_lookup(monkeypatch):
     monkeypatch.setattr(auth_module.settings, "is_testing", False, raising=False)
-    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", AsyncMock(return_value={"id": "u1", "is_active": True}))
+    monkeypatch.setattr(
+        auth_module,
+        "lookup_user_by_id_nonblocking",
+        AsyncMock(return_value={"id": "u1", "is_active": True}),
+    )
+    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", AsyncMock(return_value=None))
     monkeypatch.setattr(auth_module, "create_transient_user", lambda data: SimpleNamespace(id=data["id"]))
 
     request = _make_request()
@@ -474,6 +527,9 @@ async def test_get_current_active_user_optional_inactive_user(monkeypatch):
         def __init__(self, db):
             self.db = db
 
+        def get_by_id(self, _user_id, use_retry=False):
+            return inactive
+
         def get_by_email(self, email):
             return inactive
 
@@ -494,6 +550,9 @@ async def test_get_current_active_user_optional_testing_active_user(monkeypatch)
         def __init__(self, db):
             self.db = db
 
+        def get_by_id(self, _user_id, use_retry=False):
+            return active
+
         def get_by_email(self, email):
             return active
 
@@ -507,7 +566,12 @@ async def test_get_current_active_user_optional_testing_active_user(monkeypatch)
 @pytest.mark.asyncio
 async def test_get_current_active_user_optional_production_inactive(monkeypatch):
     monkeypatch.setattr(auth_module.settings, "is_testing", False, raising=False)
-    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", AsyncMock(return_value={"id": "u3", "is_active": False}))
+    monkeypatch.setattr(
+        auth_module,
+        "lookup_user_by_id_nonblocking",
+        AsyncMock(return_value={"id": "u3", "is_active": False}),
+    )
+    monkeypatch.setattr(auth_module, "lookup_user_nonblocking", AsyncMock(return_value=None))
 
     result = await auth_module.get_current_active_user_optional(_make_request(), "user@example.com", db=Mock())
 
